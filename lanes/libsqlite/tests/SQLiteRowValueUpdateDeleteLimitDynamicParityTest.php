@@ -2078,6 +2078,118 @@ for ($seed = 1; $seed <= 36; $seed++) {
         };
 }
 
+$settingTuplesForBetween = [
+    1 => [1, 'alpha', 8],
+    2 => [1, 'beta', 5],
+    3 => [1, 'gamma', 13],
+    4 => [2, 'alpha', 21],
+    5 => [2, 'beta', 3],
+    6 => [2, 'gamma', 34],
+    7 => [3, 'alpha', 2],
+    8 => [3, 'beta', 55],
+];
+$tupleCompareForBetween = static function (array $left, array $right): int {
+    foreach ([0, 1] as $index) {
+        if ($left[$index] === $right[$index]) {
+            continue;
+        }
+
+        return $left[$index] <=> $right[$index];
+    }
+
+    return 0;
+};
+$betweenWindows = [
+    [[1, 'beta'], [2, 'gamma']],
+    [[1, 'alpha'], [2, 'beta']],
+    [[2, 'alpha'], [3, 'beta']],
+    [[1, 'gamma'], [3, 'alpha']],
+    [[2, 'beta'], [2, 'gamma']],
+];
+
+for ($seed = 1; $seed <= 40; $seed++) {
+    $bounds = $betweenWindows[$seed % count($betweenWindows)];
+    $lower = $bounds[0];
+    $upper = $bounds[1];
+    $limit = 1 + ($seed % 4);
+    $offset = intdiv($seed, 4) % 3;
+    $qualified = [];
+    foreach ($settingTuplesForBetween as $settingId => $tuple) {
+        if ($tupleCompareForBetween($tuple, $lower) >= 0 && $tupleCompareForBetween($tuple, $upper) <= 0) {
+            $qualified[$settingId] = $tuple[2];
+        }
+    }
+    asort($qualified);
+    $selected = array_map('intval', array_keys(array_slice($qualified, $offset, $limit, true)));
+    $returning = array_values(array_intersect([1, 2, 3, 4, 5, 6, 7, 8], $selected));
+    $sql = sprintf(
+        "UPDATE app_settings SET state = 'between_window' WHERE (tenant_id, key_name) BETWEEN (%d, %s) AND (%d, %s) RETURNING setting_id, tenant_id, key_name, state, (tenant_id, key_name) BETWEEN (%d, %s) AND (%d, %s) AS tuple_between ORDER BY bytes ASC LIMIT %d OFFSET %d",
+        $lower[0],
+        var_export($lower[1], true),
+        $upper[0],
+        var_export($upper[1], true),
+        $lower[0],
+        var_export($lower[1], true),
+        $upper[0],
+        var_export($upper[1], true),
+        $limit,
+        $offset,
+    );
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update rowvalue between window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $selected, $returning, $limit, $offset): void {
+            $result = $execute($sql);
+            $t->same($selected, $result['plan']->selectedIds);
+            $t->same($returning, array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($returning), 'between_window'), array_column($result['returning'], 'state'));
+            $t->same(array_fill(0, count($returning), 1), array_column($result['returning'], 'tuple_between'));
+            $t->contains("LIMIT {$limit} OFFSET {$offset}", $sql);
+        };
+}
+
+for ($seed = 1; $seed <= 40; $seed++) {
+    $bounds = $betweenWindows[($seed + 2) % count($betweenWindows)];
+    $lower = $bounds[0];
+    $upper = $bounds[1];
+    $limit = 1 + ($seed % 3);
+    $offset = intdiv($seed, 3) % 4;
+    $qualified = [];
+    foreach ($settingTuplesForBetween as $settingId => $tuple) {
+        if (!($tupleCompareForBetween($tuple, $lower) >= 0 && $tupleCompareForBetween($tuple, $upper) <= 0)) {
+            $qualified[$settingId] = [$tuple[0], $settingId];
+        }
+    }
+    uasort(
+        $qualified,
+        static fn (array $left, array $right): int => ($right[0] <=> $left[0]) ?: ($left[1] <=> $right[1]),
+    );
+    $selected = array_map('intval', array_keys(array_slice($qualified, $offset, $limit, true)));
+    $returning = array_values(array_intersect([1, 2, 3, 4, 5, 6, 7, 8], $selected));
+    $sql = sprintf(
+        "DELETE FROM app_settings WHERE (tenant_id, key_name) NOT BETWEEN (%d, %s) AND (%d, %s) RETURNING setting_id, tenant_id, key_name, (tenant_id, key_name) NOT BETWEEN (%d, %s) AND (%d, %s) AS tuple_not_between ORDER BY tenant_id DESC, setting_id ASC LIMIT %d, %d",
+        $lower[0],
+        var_export($lower[1], true),
+        $upper[0],
+        var_export($upper[1], true),
+        $lower[0],
+        var_export($lower[1], true),
+        $upper[0],
+        var_export($upper[1], true),
+        $offset,
+        $limit,
+    );
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue not between comma window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $selected, $returning, $limit, $offset): void {
+            $result = $execute($sql);
+            $t->same($selected, $result['plan']->selectedIds);
+            $t->same($returning, array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($returning), 1), array_column($result['returning'], 'tuple_not_between'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $selected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains("LIMIT {$offset}, {$limit}", $sql);
+        };
+}
+
 $explicitTupleMalformed = [
     'explicit tuple list scalar RHS rejected' => "UPDATE app_settings SET state = 'bad' WHERE (tenant_id, key_name) IN (1, 2) RETURNING setting_id",
     'explicit tuple list arity mismatch rejected' => "DELETE FROM app_settings WHERE (tenant_id, key_name) IN ((1, 'alpha'), (2)) RETURNING setting_id",

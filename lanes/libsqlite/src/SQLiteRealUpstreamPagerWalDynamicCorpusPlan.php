@@ -757,6 +757,185 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     /**
      * @return list<array<string, mixed>>
      */
+    public static function walReadonlyShmRefreshRows(): array
+    {
+        $rows = [];
+        $pageSizes = [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536];
+        $phases = [
+            [
+                'section' => 'walro2-1.1.2',
+                'operation' => 'readonly-open-copied-wal-shm',
+                'rows_before' => [['a', 'b'], ['c', 'd']],
+                'rows_after' => [['a', 'b'], ['c', 'd']],
+                'zero_byte_wal' => false,
+                'zero_byte_shm' => false,
+                'readonly_requires_recovery' => false,
+                'writer_wraps_wal' => false,
+                'checkpoint_truncate' => false,
+                'readonly_flushes_cache' => false,
+            ],
+            [
+                'section' => 'walro2-1.2.2',
+                'operation' => 'readonly-open-zeroed-shm-copy',
+                'rows_before' => [['a', 'b'], ['c', 'd']],
+                'rows_after' => [['a', 'b'], ['c', 'd']],
+                'zero_byte_wal' => false,
+                'zero_byte_shm' => true,
+                'readonly_requires_recovery' => true,
+                'writer_wraps_wal' => false,
+                'checkpoint_truncate' => false,
+                'readonly_flushes_cache' => false,
+            ],
+            [
+                'section' => 'walro2-2.2',
+                'operation' => 'readonly-read-transaction-before-writer',
+                'rows_before' => [['a', 'b'], ['c', 'd'], ['e', 'f'], ['g', 'h']],
+                'rows_after' => [['a', 'b'], ['c', 'd'], ['e', 'f'], ['g', 'h']],
+                'zero_byte_wal' => false,
+                'zero_byte_shm' => false,
+                'readonly_requires_recovery' => false,
+                'writer_wraps_wal' => false,
+                'checkpoint_truncate' => false,
+                'readonly_flushes_cache' => false,
+            ],
+            [
+                'section' => 'walro2-2.3.3',
+                'operation' => 'readonly-transaction-sees-writer-after-commit',
+                'rows_before' => [['a', 'b'], ['c', 'd'], ['e', 'f'], ['g', 'h']],
+                'rows_after' => [['a', 'b'], ['c', 'd'], ['e', 'f'], ['g', 'h'], ['i', 'j']],
+                'zero_byte_wal' => false,
+                'zero_byte_shm' => false,
+                'readonly_requires_recovery' => false,
+                'writer_wraps_wal' => false,
+                'checkpoint_truncate' => false,
+                'readonly_flushes_cache' => true,
+            ],
+            [
+                'section' => 'walro2-3.1.1',
+                'operation' => 'readonly-zero-byte-wal-shm',
+                'rows_before' => [['a', 'b'], ['c', 'd'], ['e', 'f'], ['g', 'h']],
+                'rows_after' => [['a', 'b'], ['c', 'd'], ['e', 'f'], ['g', 'h']],
+                'zero_byte_wal' => true,
+                'zero_byte_shm' => true,
+                'readonly_requires_recovery' => false,
+                'writer_wraps_wal' => false,
+                'checkpoint_truncate' => false,
+                'readonly_flushes_cache' => true,
+            ],
+            [
+                'section' => 'walro2-3.2.1',
+                'operation' => 'readonly-refresh-after-truncate-checkpoint',
+                'rows_before' => [['a', 'b'], ['c', 'd'], ['e', 'f'], ['g', 'h']],
+                'rows_after' => [['a', 'b'], ['c', 'd'], ['e', 'f'], ['g', 'h'], [1, 2]],
+                'zero_byte_wal' => true,
+                'zero_byte_shm' => false,
+                'readonly_requires_recovery' => false,
+                'writer_wraps_wal' => false,
+                'checkpoint_truncate' => true,
+                'readonly_flushes_cache' => true,
+            ],
+            [
+                'section' => 'walro2-3.3.1',
+                'operation' => 'readonly-reruns-recovery-after-wal-growth',
+                'rows_before' => [['a', 'b'], ['c', 'd'], ['e', 'f'], ['g', 'h'], [1, 2]],
+                'rows_after' => [['a', 'b'], ['c', 'd'], ['e', 'f'], ['g', 'h'], [1, 2], [3, 4], [5, 6], [7, 8], [9, 10]],
+                'zero_byte_wal' => false,
+                'zero_byte_shm' => false,
+                'readonly_requires_recovery' => true,
+                'writer_wraps_wal' => true,
+                'checkpoint_truncate' => false,
+                'readonly_flushes_cache' => true,
+            ],
+            [
+                'section' => 'walro2-3.3.3',
+                'operation' => 'readonly-reruns-recovery-after-wal-wrap',
+                'rows_before' => [['a', 'b'], ['c', 'd'], ['e', 'f'], ['g', 'h'], [1, 2], [3, 4], [5, 6], [7, 8], [9, 10]],
+                'rows_after' => [['i', 'ii']],
+                'zero_byte_wal' => false,
+                'zero_byte_shm' => false,
+                'readonly_requires_recovery' => true,
+                'writer_wraps_wal' => true,
+                'checkpoint_truncate' => false,
+                'readonly_flushes_cache' => true,
+            ],
+            [
+                'section' => 'walro2-4.1.1',
+                'operation' => 'readonly-open-copied-database-after-close',
+                'rows_before' => [['hello'], ['world']],
+                'rows_after' => [['hello'], ['world']],
+                'zero_byte_wal' => false,
+                'zero_byte_shm' => false,
+                'readonly_requires_recovery' => true,
+                'writer_wraps_wal' => false,
+                'checkpoint_truncate' => false,
+                'readonly_flushes_cache' => false,
+            ],
+            [
+                'section' => 'walro2-4.1.3',
+                'operation' => 'readonly-refresh-after-peer-truncate',
+                'rows_before' => [['hello'], ['world']],
+                'rows_after' => [['hello'], ['world'], ['!']],
+                'zero_byte_wal' => true,
+                'zero_byte_shm' => false,
+                'readonly_requires_recovery' => false,
+                'writer_wraps_wal' => false,
+                'checkpoint_truncate' => true,
+                'readonly_flushes_cache' => true,
+            ],
+        ];
+
+        foreach ([0, 1] as $zeroedShmCopy) {
+            foreach ($pageSizes as $pageSize) {
+                foreach ($phases as $phaseIndex => $phase) {
+                    for ($variant = 1; $variant <= 12; $variant++) {
+                        $rows[] = [
+                            'upstream' => sprintf(
+                                'walro2.test %s readonly_shm=%d page_size=%d variant=%02d',
+                                $phase['section'],
+                                $zeroedShmCopy,
+                                $pageSize,
+                                $variant
+                            ),
+                            'script' => 'walro2.test',
+                            'section' => $phase['section'],
+                            'operation' => $phase['operation'],
+                            'case' => (($zeroedShmCopy * count($pageSizes) + array_search($pageSize, $pageSizes, true)) * count($phases) * 12) + ($phaseIndex * 12) + $variant,
+                            'page_size' => $pageSize,
+                            'zeroed_shm_copy' => (bool) $zeroedShmCopy,
+                            'minimum_shm_size' => max(32768, $pageSize),
+                            'readonly_shm' => true,
+                            'readonly_connection' => 'db',
+                            'writer_connection' => $variant % 3 === 0 ? 'db3' : 'db2',
+                            'rows_before' => $phase['rows_before'],
+                            'rows_after' => $phase['rows_after'],
+                            'row_count_before' => count($phase['rows_before']),
+                            'row_count_after' => count($phase['rows_after']),
+                            'zero_byte_wal' => $phase['zero_byte_wal'],
+                            'zero_byte_shm' => $phase['zero_byte_shm'] || (bool) $zeroedShmCopy,
+                            'readonly_requires_recovery' => $phase['readonly_requires_recovery'] || (bool) $zeroedShmCopy,
+                            'writer_wraps_wal' => $phase['writer_wraps_wal'],
+                            'checkpoint_truncate' => $phase['checkpoint_truncate'],
+                            'readonly_flushes_cache' => $phase['readonly_flushes_cache'],
+                            'wal_file_size' => $phase['zero_byte_wal'] ? 0 : self::walFileSize(4 + ($variant % 3), 1024),
+                            'shm_file_size' => ($phase['zero_byte_shm'] || (bool) $zeroedShmCopy) ? 0 : max(32768, $pageSize),
+                            'result_digest' => hash('sha256', serialize($phase['rows_after'])),
+                            'dependencies' => [
+                                'real-upstream-corpus-walro2',
+                                'sqlite-wal-readonly-shm-refresh',
+                                'sqlite-wal-wrap-recovery',
+                            ],
+                        ];
+                    }
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
     public static function wal2FilePermissionRows(): array
     {
         $cases = [

@@ -644,4 +644,114 @@ foreach (range(1, 250) as $variant) {
     };
 }
 
+foreach (range(1, 260) as $variant) {
+    $table = 'schema_prepared_settings_' . $variant;
+    $index = 'schema_prepared_settings_key_' . $variant;
+    $view = 'schema_prepared_view_' . $variant;
+    $trigger = 'schema_prepared_ai_' . $variant;
+    $audit = 'schema_prepared_audit_' . $variant;
+    $attachName = 'schemaaux' . $variant;
+    $attachFile = 'schema-prepared-' . $variant . '.db';
+    $baseRecords = [
+        new SQLiteSchemaRecord(
+            'table',
+            $table,
+            $table,
+            7000 + $variant,
+            "CREATE TABLE {$table}(setting_id INTEGER PRIMARY KEY, key_name TEXT, key_value TEXT)",
+            7000 + $variant,
+        ),
+        new SQLiteSchemaRecord(
+            'table',
+            $audit,
+            $audit,
+            7100 + $variant,
+            "CREATE TABLE {$audit}(setting_id INTEGER, action TEXT)",
+            7100 + $variant,
+        ),
+    ];
+
+    $tests["real upstream schema.test 1 create drop table invalidates prepared pragma snapshot variant {$variant}"] = static function (TestRunner $t) use ($baseRecords, $table, $variant): void {
+        $catalog = new SQLiteAttachedSchemaCatalog($baseRecords);
+        $snapshot = $catalog->schemaCacheResolutionSnapshot([$table, 'schema_created_settings_' . $variant], []);
+        $plan = $catalog->applySchemaDdlCurrentSource('main', [
+            "CREATE TABLE schema_created_settings_{$variant}(key_name TEXT PRIMARY KEY, created_value TEXT)",
+            "DROP TABLE schema_created_settings_{$variant}",
+        ], 8000 + $variant, $snapshot, [
+            ['id' => "schema-1-prepared-{$variant}", 'schema_cookie' => 8000 + $variant, 'sql' => 'SELECT * FROM sqlite_schema'],
+        ]);
+
+        $t->same('schema_cache_expired', $plan['status']);
+        $t->same(['create_table', 'drop_table'], array_column($plan['ddl_plan']['operations'], 'kind'));
+        $t->same(8002 + $variant, $plan['ddl_plan']['after_schema_cookie']);
+        $t->same(["schema-1-prepared-{$variant}"], $plan['ddl_plan']['invalidated_prepared']);
+        $t->same(false, $plan['invalidation']['current']);
+    };
+
+    $tests["real upstream schema.test 2 and 4 view index ddl invalidates prepared pragma snapshot variant {$variant}"] = static function (TestRunner $t) use ($baseRecords, $table, $index, $view, $variant): void {
+        $catalog = new SQLiteAttachedSchemaCatalog($baseRecords);
+        $snapshot = $catalog->schemaCacheResolutionSnapshot([$table, $view], [$index]);
+        $plan = $catalog->applySchemaDdlCurrentSource('main', [
+            "CREATE VIEW {$view} AS SELECT key_name, key_value FROM {$table}",
+            "CREATE INDEX {$index} ON {$table}(key_name)",
+            "DROP INDEX {$index}",
+            "DROP VIEW {$view}",
+        ], 9000 + $variant, $snapshot, [
+            ['id' => "schema-view-index-prepared-{$variant}", 'schema_cookie' => 9000 + $variant, 'sql' => 'SELECT * FROM sqlite_schema'],
+        ]);
+
+        $t->same('schema_cache_expired', $plan['status']);
+        $t->same(['create_view', 'create_index', 'drop_index', 'drop_view'], array_column($plan['ddl_plan']['operations'], 'kind'));
+        $t->same(9004 + $variant, $plan['ddl_plan']['after_schema_cookie']);
+        $t->same(false, $plan['invalidation']['current']);
+        $t->same(["schema-view-index-prepared-{$variant}"], $plan['ddl_plan']['invalidated_prepared']);
+    };
+
+    $tests["real upstream schema.test 3 create drop trigger invalidates prepared pragma snapshot variant {$variant}"] = static function (TestRunner $t) use ($baseRecords, $table, $audit, $trigger, $variant): void {
+        $catalog = new SQLiteAttachedSchemaCatalog($baseRecords);
+        $snapshot = $catalog->schemaCacheResolutionSnapshot([$table], []);
+        $plan = $catalog->applySchemaDdlCurrentSource('main', [
+            "CREATE TRIGGER {$trigger} AFTER INSERT ON {$table} BEGIN INSERT INTO {$audit}(setting_id, action) VALUES (new.setting_id, 'insert'); END",
+            "DROP TRIGGER {$trigger}",
+        ], 10000 + $variant, $snapshot, [
+            ['id' => "schema-trigger-prepared-{$variant}", 'schema_cookie' => 10000 + $variant, 'sql' => "SELECT * FROM {$table}"],
+        ]);
+
+        $t->same('schema_cache_expired', $plan['status']);
+        $t->same(['create_trigger', 'drop_trigger'], array_column($plan['ddl_plan']['operations'], 'kind'));
+        $t->same(10002 + $variant, $plan['ddl_plan']['after_schema_cookie']);
+        $t->same(false, $plan['invalidation']['current']);
+        $t->same(["schema-trigger-prepared-{$variant}"], $plan['ddl_plan']['invalidated_prepared']);
+    };
+
+    $tests["real upstream schema.test 5 attach keeps prepared snapshot detach invalidates variant {$variant}"] = static function (TestRunner $t) use ($baseRecords, $table, $attachName, $attachFile, $variant): void {
+        $catalog = new SQLiteAttachedSchemaCatalog($baseRecords);
+        $snapshot = $catalog->schemaCacheResolutionSnapshot([$table], []);
+        $attachRecords = [
+            new SQLiteSchemaRecord(
+                'table',
+                $table,
+                $table,
+                11000 + $variant,
+                "CREATE TABLE {$table}(setting_id INTEGER PRIMARY KEY, attached_value TEXT DEFAULT 'attached_{$variant}')",
+                11000 + $variant,
+            ),
+        ];
+
+        $attach = $catalog->executeAttachDetachSql("ATTACH '{$attachFile}' AS {$attachName}", static fn (): array => $attachRecords);
+        $afterAttach = $catalog->schemaCacheResolutionInvalidation($snapshot);
+        $attachedInfo = $catalog->executeTableValuedPragma("pragma_table_info('{$table}', '{$attachName}')")['rows'];
+        $detach = $catalog->executeAttachDetachSql("DETACH {$attachName}");
+        $afterDetach = $catalog->schemaCacheResolutionInvalidation($snapshot);
+
+        $t->same('attach', $attach['operation']);
+        $t->same([$attachName], $afterAttach['added_schemas']);
+        $t->same([], $afterAttach['removed_schemas']);
+        $t->same('attached_value', $attachedInfo[1]['name']);
+        $t->same('detach', $detach['operation']);
+        $t->same(false, $afterDetach['current']);
+        $t->same([], $afterDetach['added_schemas']);
+    };
+}
+
 return $tests;

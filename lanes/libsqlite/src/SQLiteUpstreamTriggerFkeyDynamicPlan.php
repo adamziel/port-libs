@@ -485,6 +485,115 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
         ];
     }
 
+    /** @return array<string,mixed> */
+    public static function triggerCRecursiveInsert(): array
+    {
+        $definitions = [
+            'triggerC-2.1.1' => [
+                'timing' => 'AFTER',
+                'when' => 'new.a>0',
+                'body' => 'INSERT INTO t2 VALUES(new.a - 1)',
+                'ok' => true,
+                'rows' => [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
+                'ignored_at' => null,
+                'recursion_error' => false,
+            ],
+            'triggerC-2.1.2' => [
+                'timing' => 'AFTER',
+                'when' => null,
+                'body' => 'RAISE(IGNORE) at new.a==2, then INSERT new.a - 1',
+                'ok' => true,
+                'rows' => [10, 9, 8, 7, 6, 5, 4, 3, 2],
+                'ignored_at' => 2,
+                'recursion_error' => false,
+            ],
+            'triggerC-2.1.3' => [
+                'timing' => 'BEFORE',
+                'when' => 'new.a>0',
+                'body' => 'INSERT INTO t2 VALUES(new.a - 1)',
+                'ok' => true,
+                'rows' => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+                'ignored_at' => null,
+                'recursion_error' => false,
+            ],
+            'triggerC-2.1.4' => [
+                'timing' => 'BEFORE',
+                'when' => null,
+                'body' => 'RAISE(IGNORE) at new.a==2, then INSERT new.a - 1',
+                'ok' => true,
+                'rows' => [3, 4, 5, 6, 7, 8, 9, 10],
+                'ignored_at' => 2,
+                'recursion_error' => false,
+            ],
+            'triggerC-2.1.5' => [
+                'timing' => 'BEFORE',
+                'when' => null,
+                'body' => 'INSERT INTO t2 VALUES(new.a - 1)',
+                'ok' => false,
+                'rows' => [],
+                'ignored_at' => null,
+                'recursion_error' => true,
+            ],
+            'triggerC-2.1.6' => [
+                'timing' => 'AFTER',
+                'when' => 'new.a>0',
+                'body' => 'INSERT OR IGNORE INTO t2 VALUES(new.a)',
+                'ok' => true,
+                'rows' => [10],
+                'ignored_at' => null,
+                'recursion_error' => false,
+            ],
+            'triggerC-2.1.7' => [
+                'timing' => 'BEFORE',
+                'when' => 'new.a>0',
+                'body' => 'INSERT OR IGNORE INTO t2 VALUES(new.a)',
+                'ok' => false,
+                'rows' => [],
+                'ignored_at' => null,
+                'recursion_error' => true,
+            ],
+        ];
+
+        $cases = [];
+        foreach ($definitions as $case => $definition) {
+            $rows = $definition['rows'];
+            $cases[] = [
+                'case' => $case,
+                'source' => 'triggerC.test',
+                'seed_insert' => 10,
+                'trigger_timing' => $definition['timing'],
+                'trigger_when' => $definition['when'],
+                'trigger_body' => $definition['body'],
+                'ok' => $definition['ok'],
+                'result_rows' => $rows,
+                'result_flat' => $definition['ok'] ? $rows : ['too many levels of trigger recursion'],
+                'error' => $definition['ok'] ? null : 'too many levels of trigger recursion',
+                'ignored_at' => $definition['ignored_at'],
+                'recursion_error' => $definition['recursion_error'],
+                'row_count' => count($rows),
+                'first_row' => $rows[0] ?? null,
+                'last_row' => $rows === [] ? null : $rows[count($rows) - 1],
+                'monotonic_order' => $rows === [] ? 'none' : ($rows === array_values(array_reverse(range(0, 10))) ? 'descending' : ($rows === range(0, 10) ? 'ascending' : 'statement-order')),
+                'raise_ignore_stops_statement_branch' => $definition['ignored_at'] !== null,
+                'insert_or_ignore_self_conflict' => str_contains($definition['body'], 'INSERT OR IGNORE'),
+            ];
+        }
+
+        return [
+            'source' => 'triggerC.test',
+            'recursive_triggers' => true,
+            'scenarios' => array_keys($definitions),
+            'cases' => $cases,
+            'dependencies' => [
+                'sqlite-upstream-triggerC-recursive-after-insert-order',
+                'sqlite-upstream-triggerC-recursive-before-insert-order',
+                'sqlite-upstream-triggerC-raise-ignore-stops-recursive-branch',
+                'sqlite-upstream-triggerC-recursion-depth-error',
+                'sqlite-upstream-triggerC-insert-or-ignore-self-conflict',
+            ],
+        ];
+    }
+
     /** @param list<mixed> $args */
     private static function trigger6Counter(int &$counter, array $args): int
     {

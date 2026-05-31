@@ -446,4 +446,91 @@ foreach (array_keys($trigger2Cases()) as $case) {
     }
 }
 
+$triggerCRecursivePlan = static fn (): array => SQLiteUpstreamTriggerFkeyDynamicPlan::triggerCRecursiveInsert();
+$triggerCRecursiveCases = static function () use ($triggerCRecursivePlan): array {
+    $cases = [];
+    foreach ($triggerCRecursivePlan()['cases'] as $case) {
+        $cases[$case['case']] = $case;
+    }
+
+    return $cases;
+};
+
+$tests['upstream triggerC recursive insert source filename'] = static function (TestRunner $t) use ($triggerCRecursivePlan): void {
+    $t->same('triggerC.test', $triggerCRecursivePlan()['source']);
+};
+$tests['upstream triggerC recursive insert enables recursive triggers'] = static function (TestRunner $t) use ($triggerCRecursivePlan): void {
+    $t->same(true, $triggerCRecursivePlan()['recursive_triggers']);
+};
+$tests['upstream triggerC recursive insert dependency marker'] = static function (TestRunner $t) use ($triggerCRecursivePlan): void {
+    $t->same(true, in_array('sqlite-upstream-triggerC-recursive-after-insert-order', $triggerCRecursivePlan()['dependencies'], true));
+};
+$tests['upstream triggerC recursive insert scenario count'] = static function (TestRunner $t) use ($triggerCRecursivePlan): void {
+    $t->same(7, count($triggerCRecursivePlan()['scenarios']));
+};
+
+$triggerCRecursiveExpectations = [
+    'triggerC-2.1.1' => ['timing' => 'AFTER', 'ok' => true, 'rows' => [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0], 'order' => 'descending', 'ignored_at' => null, 'self_conflict' => false],
+    'triggerC-2.1.2' => ['timing' => 'AFTER', 'ok' => true, 'rows' => [10, 9, 8, 7, 6, 5, 4, 3, 2], 'order' => 'statement-order', 'ignored_at' => 2, 'self_conflict' => false],
+    'triggerC-2.1.3' => ['timing' => 'BEFORE', 'ok' => true, 'rows' => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 'order' => 'ascending', 'ignored_at' => null, 'self_conflict' => false],
+    'triggerC-2.1.4' => ['timing' => 'BEFORE', 'ok' => true, 'rows' => [3, 4, 5, 6, 7, 8, 9, 10], 'order' => 'statement-order', 'ignored_at' => 2, 'self_conflict' => false],
+    'triggerC-2.1.5' => ['timing' => 'BEFORE', 'ok' => false, 'rows' => [], 'order' => 'none', 'ignored_at' => null, 'self_conflict' => false],
+    'triggerC-2.1.6' => ['timing' => 'AFTER', 'ok' => true, 'rows' => [10], 'order' => 'statement-order', 'ignored_at' => null, 'self_conflict' => true],
+    'triggerC-2.1.7' => ['timing' => 'BEFORE', 'ok' => false, 'rows' => [], 'order' => 'none', 'ignored_at' => null, 'self_conflict' => true],
+];
+
+foreach ($triggerCRecursiveExpectations as $case => $expected) {
+    $tests["upstream triggerC recursive insert {$case} source filename"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case): void {
+        $t->same('triggerC.test', $triggerCRecursiveCases()[$case]['source']);
+    };
+    $tests["upstream triggerC recursive insert {$case} seed value"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case): void {
+        $t->same(10, $triggerCRecursiveCases()[$case]['seed_insert']);
+    };
+    $tests["upstream triggerC recursive insert {$case} trigger timing"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case, $expected): void {
+        $t->same($expected['timing'], $triggerCRecursiveCases()[$case]['trigger_timing']);
+    };
+    $tests["upstream triggerC recursive insert {$case} ok flag"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case, $expected): void {
+        $t->same($expected['ok'], $triggerCRecursiveCases()[$case]['ok']);
+    };
+    $tests["upstream triggerC recursive insert {$case} result rows"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case, $expected): void {
+        $t->same($expected['rows'], $triggerCRecursiveCases()[$case]['result_rows']);
+    };
+    $tests["upstream triggerC recursive insert {$case} row count"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case, $expected): void {
+        $t->same(count($expected['rows']), $triggerCRecursiveCases()[$case]['row_count']);
+    };
+    $tests["upstream triggerC recursive insert {$case} first row"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case, $expected): void {
+        $t->same($expected['rows'][0] ?? null, $triggerCRecursiveCases()[$case]['first_row']);
+    };
+    $tests["upstream triggerC recursive insert {$case} last row"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case, $expected): void {
+        $rows = $expected['rows'];
+        $t->same($rows === [] ? null : $rows[count($rows) - 1], $triggerCRecursiveCases()[$case]['last_row']);
+    };
+    $tests["upstream triggerC recursive insert {$case} monotonic order"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case, $expected): void {
+        $t->same($expected['order'], $triggerCRecursiveCases()[$case]['monotonic_order']);
+    };
+    $tests["upstream triggerC recursive insert {$case} ignored at"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case, $expected): void {
+        $t->same($expected['ignored_at'], $triggerCRecursiveCases()[$case]['ignored_at']);
+    };
+    $tests["upstream triggerC recursive insert {$case} raise ignore flag"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case, $expected): void {
+        $t->same($expected['ignored_at'] !== null, $triggerCRecursiveCases()[$case]['raise_ignore_stops_statement_branch']);
+    };
+    $tests["upstream triggerC recursive insert {$case} self conflict flag"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case, $expected): void {
+        $t->same($expected['self_conflict'], $triggerCRecursiveCases()[$case]['insert_or_ignore_self_conflict']);
+    };
+    $tests["upstream triggerC recursive insert {$case} recursion error flag"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case, $expected): void {
+        $t->same(!$expected['ok'], $triggerCRecursiveCases()[$case]['recursion_error']);
+    };
+    $tests["upstream triggerC recursive insert {$case} error message"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case, $expected): void {
+        $t->same($expected['ok'] ? null : 'too many levels of trigger recursion', $triggerCRecursiveCases()[$case]['error']);
+    };
+    $tests["upstream triggerC recursive insert {$case} result flat"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case, $expected): void {
+        $t->same($expected['ok'] ? $expected['rows'] : ['too many levels of trigger recursion'], $triggerCRecursiveCases()[$case]['result_flat']);
+    };
+    foreach ($expected['rows'] as $rowIndex => $value) {
+        $tests["upstream triggerC recursive insert {$case} row {$rowIndex} value"] = static function (TestRunner $t) use ($triggerCRecursiveCases, $case, $rowIndex, $value): void {
+            $t->same($value, $triggerCRecursiveCases()[$case]['result_rows'][$rowIndex]);
+        };
+    }
+}
+
 return $tests;

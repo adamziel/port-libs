@@ -4156,6 +4156,178 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,table:string,primary_key:list<string>,secondary_index:string,where_clause:string,detail:string,expected_rows:list<array{a:int,b:string,c:string}>,count:int,range_column:string,range_operator:string,range_value:int,uses_appended_primary_key:bool,integrity:string}>
+     */
+    public static function withoutRowidSecondaryIndexPrimaryKeyTailCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite without_rowid1 secondary-index tail corpus requires at least one case');
+        }
+
+        $t45 = [
+            ['a' => 2, 'b' => 'one', 'c' => 'x'],
+            ['a' => 4, 'b' => 'one', 'c' => 'x'],
+            ['a' => 6, 'b' => 'one', 'c' => 'x'],
+            ['a' => 8, 'b' => 'one', 'c' => 'x'],
+            ['a' => 10, 'b' => 'one', 'c' => 'x'],
+            ['a' => 1, 'b' => 'two', 'c' => 'x'],
+            ['a' => 3, 'b' => 'two', 'c' => 'x'],
+            ['a' => 5, 'b' => 'two', 'c' => 'x'],
+            ['a' => 7, 'b' => 'two', 'c' => 'x'],
+            ['a' => 9, 'b' => 'two', 'c' => 'x'],
+        ];
+
+        $templates = [
+            [
+                'without_rowid1-5.1/5.2',
+                'secondary index i45(b) appends primary-key column a for b=? and a>? range probes',
+                't45',
+                ['a'],
+                'i45 ON t45(b)',
+                "b='two' AND a>4",
+                'a',
+                '>',
+                4,
+                self::withoutRowidTailRows($t45, 'two', '>', 4),
+                'SEARCH t45 USING INDEX i45 (b=? AND a>?)',
+            ],
+            [
+                'without_rowid1-5.1/5.3',
+                'secondary index i45(b) appends primary-key column a for b=? and a<? range probes',
+                't45',
+                ['a'],
+                'i45 ON t45(b)',
+                "b='one' AND a<8",
+                'a',
+                '<',
+                8,
+                self::withoutRowidTailRows($t45, 'one', '<', 8),
+                'SEARCH t45 USING INDEX i45 (b=? AND a<?)',
+            ],
+            [
+                'without_rowid1-5.4/5.7.1',
+                'single-column secondary index i46(c) appends composite primary-key columns a,b for equality and less-than probes',
+                't46',
+                ['a', 'b'],
+                'i46 ON t46(c)',
+                'c = 4 AND a < 3',
+                'a',
+                '<',
+                3,
+                [],
+                'SEARCH t46 USING INDEX i46 (c=? AND a<?)',
+            ],
+            [
+                'without_rowid1-5.4/5.7.2',
+                'single-column secondary index i46(c) appends composite primary-key columns a,b for equality and greater-or-equal probes',
+                't46',
+                ['a', 'b'],
+                'i46 ON t46(c)',
+                'c = 2 AND a >= 3',
+                'a',
+                '>=',
+                3,
+                [],
+                'SEARCH t46 USING INDEX i46 (c=? AND a>?)',
+            ],
+            [
+                'without_rowid1-5.4/5.7.3',
+                'single-column secondary index i46(c) uses both appended primary-key columns for a equality and b less-than probes',
+                't46',
+                ['a', 'b'],
+                'i46 ON t46(c)',
+                'c = 2 AND a = 1 AND b<10',
+                'b',
+                '<',
+                10,
+                [],
+                'SEARCH t46 USING INDEX i46 (c=? AND a=? AND b<?)',
+            ],
+            [
+                'without_rowid1-5.4/5.7.4',
+                'single-column secondary index i46(c) uses both appended primary-key columns for a equality and b greater-than probes',
+                't46',
+                ['a', 'b'],
+                'i46 ON t46(c)',
+                'c = 0 AND a = 0 AND b>5',
+                'b',
+                '>',
+                5,
+                [],
+                'SEARCH t46 USING INDEX i46 (c=? AND a=? AND b>?)',
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $table, $primaryKey, $index, $where, $rangeColumn, $rangeOperator, $rangeValue, $expectedRows, $detail] = $templates[($case - 1) % count($templates)];
+            $rows[] = [
+                'source' => 'without_rowid1.test section 5.0 through 5.7',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario . ' dynamic batch ' . (intdiv($case - 1, count($templates)) + 1),
+                'table' => $table,
+                'primary_key' => $primaryKey,
+                'secondary_index' => $index,
+                'where_clause' => $where,
+                'detail' => $detail,
+                'expected_rows' => $expectedRows,
+                'count' => $table === 't46' ? self::withoutRowidT46Count($where) : count($expectedRows),
+                'range_column' => $rangeColumn,
+                'range_operator' => $rangeOperator,
+                'range_value' => $rangeValue,
+                'uses_appended_primary_key' => true,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array{a:int,b:string,c:string}> $rows
+     * @return list<array{a:int,b:string,c:string}>
+     */
+    private static function withoutRowidTailRows(array $rows, string $b, string $operator, int $a): array
+    {
+        $out = [];
+        foreach ($rows as $row) {
+            if ($row['b'] !== $b) {
+                continue;
+            }
+            if (($operator === '>' && $row['a'] > $a) || ($operator === '<' && $row['a'] < $a)) {
+                $out[] = $row;
+            }
+        }
+
+        usort($out, static fn (array $left, array $right): int => $left['a'] <=> $right['a']);
+
+        return $out;
+    }
+
+    private static function withoutRowidT46Count(string $where): int
+    {
+        $count = 0;
+        for ($x = 1; $x <= 100; $x++) {
+            $a = intdiv($x, 20);
+            $b = $x % 20;
+            $c = $x % 10;
+            $matches = match ($where) {
+                'c = 4 AND a < 3' => $c === 4 && $a < 3,
+                'c = 2 AND a >= 3' => $c === 2 && $a >= 3,
+                'c = 2 AND a = 1 AND b<10' => $c === 2 && $a === 1 && $b < 10,
+                'c = 0 AND a = 0 AND b>5' => $c === 0 && $a === 0 && $b > 5,
+                default => false,
+            };
+            if ($matches) {
+                $count++;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,statement:string,table:string,indexed_by:string|null,not_indexed:bool,operation:string,scenario:string,detail:string,uses_index:bool,uses_rowid:bool,result_code:int,error:string|null,result_rows:list<array<int,mixed>>,integrity:string}>
      */
     public static function indexedByPlannerEnforcementCases(int $cases = 1000): array
