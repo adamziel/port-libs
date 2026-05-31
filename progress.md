@@ -55,6 +55,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS parsing and Gitoxide
+  integrity batch 21:25 UTC): source commit
+  `84ba60c031f886aa5a319d50496850d87dd142a0` (`ports: extend lightningcss
+  parsing and gitoxide integrity`) landed eight screened LightningCSS/Gitoxide
+  handoffs without taking stale worker status metadata. LightningCSS now
+  reports `4453 pass / 0 fail`, with conservative mapped coverage moving from
+  `2117 / 3532` to `2145 / 3532`: relative non-sRGB relative-color origins and
+  one redundant nested-negation media range/layer behavior; escaped media
+  identifiers, repeated custom at-rule preludes, and reader lexical import
+  identities deepen represented clusters. Gitoxide now reports `5783 pass / 0
+  fail`, with conservative mapped coverage moving from `1639 / 2886` to
+  `1641 / 2886`: loose-object empty-file integrity rejection and includeIf
+  backslash gitdir matching; attributes/pathspec empty long-magic rejection
+  deepens an existing cluster. Verification passed LightningCSS full lane `13
+  files / 4453 assertions / 0 failures`, Gitoxide full lane `39 files / 5783
+  assertions / 0 failures`, focused gates, touched example smokes, `git diff
+  --check`, and no WordPress/WP/wp_ source symbols under
+  `lanes/gitoxide/src` or `lanes/lightningcss/src`.
+
 - 2026-05-31 supervisor continuation (Gitoxide partial-clone/credential/tree
   merge and LightningCSS target/property/source-map batch 21:09 UTC): source
   commit `b6583f699e38b471c4eb277988ef304304c0b6cc` (`ports: extend

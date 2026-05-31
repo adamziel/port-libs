@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 88.9,
-    "suiteProgress": "Supervisor-integrated Gitoxide partial-clone/credential/tree-merge batch maps conflicting-rename resolve-tree behavior while deepening promisor pack inventory refresh and credential numeric overflow parsing. Verification passed focused gate, Gitoxide full lane 39 files / 5755 assertions / 0 failures, example smokes, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/gitoxide/src.",
-    "phpPass": 5755,
+    "estimatedProgress": 89.1,
+    "suiteProgress": "Supervisor-integrated Gitoxide integrity/config batch maps loose-object empty-file rejection and includeIf backslash gitdir matching while deepening attributes/pathspec empty long-magic rejection. Verification passed focused gate, Gitoxide full lane 39 files / 5783 assertions / 0 failures, example smokes, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/gitoxide/src.",
+    "phpPass": 5783,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full Cargo workspace not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source b6583f69: full Gitoxide lane passed 39 files / 5755 assertions / 0 failures. Conservative mapped coverage moves from 1638 / 2886 to 1639 / 2886: +1 conflicting-rename resolve-tree fixture behavior; partial-clone promisor inventory refresh and credential numeric overflow handling deepen represented clusters.",
-    "currentWork": "Partial-clone/credential/tree-merge batch integrated: promisor pack inventory/count refresh, credential helper numeric overflow parsing, and conflicting-rename resolve-tree behavior.",
+    "audit": "2026-05-31 supervisor batch at source 84ba60c031f8: full Gitoxide lane passed 39 files / 5783 assertions / 0 failures. Conservative mapped coverage moves from 1639 / 2886 to 1641 / 2886: +1 loose-object empty-file integrity rejection and +1 includeIf backslash gitdir matching; attributes/pathspec empty long-magic rejection deepens an existing cluster.",
+    "currentWork": "Loose-object empty-file rejection, config includeIf Unix backslash path bytes, and attributes/pathspec empty long-magic rejection integrated.",
     "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch due workspace breadth. Native PHP focused/full-lane evidence is green; keep Gitoxide at a bounded secondary pool while LightningCSS remains the main capacity target.",
-    "latestCommit": "b6583f699e38b471c4eb277988ef304304c0b6cc",
-    "nextTask": "Keep bounded Gitoxide workers on current-base protocol, transport, pack/index, partial clone, tree merge, reference, credential, URL/refspec, and pathspec slices; prioritize handoffs with fresh mapped coverage and full-lane PHP evidence.",
-    "commit": "b6583f699e38b471c4eb277988ef304304c0b6cc"
+    "latestCommit": "84ba60c031f886aa5a319d50496850d87dd142a0",
+    "nextTask": "Keep bounded Gitoxide workers on current-base protocol, transport, pack/index, partial clone, tree merge, reference, credential, URL/refspec, config, object, and pathspec slices; prioritize handoffs with fresh mapped coverage and full-lane PHP evidence.",
+    "commit": "84ba60c031f886aa5a319d50496850d87dd142a0"
 }
