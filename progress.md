@@ -55,6 +55,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (post-refill CSS/Git/SQLite parity batch
+  23:56 UTC): source commit `d125986b6844955083cb1c559b0d1e3e4ddf0506`
+  (`ports: extend git css sqlite parity after refill`) landed eight screened
+  handoffs. Verification passed `git diff --check`, PHP lint on `25`
+  changed/new PHP files, full Gitoxide `40 files / 6395 assertions / 0
+  failures`, full LightningCSS `13 files / 4983 assertions / 0 failures`,
+  focused libsqlite `5 files / 117035 assertions / 0 failures` including
+  `SQLiteNoDomainSpecificApiTest.php`, accepted Gitoxide examples, accepted
+  LightningCSS example self-tests, and a cached libsqlite source added-lines
+  guard showing no new `WordPress|wordpress|WP_|wp_` text and no numbered
+  `CurrentSourceNext`/`Plan` suffix additions. Dashboard evidence should now
+  report Gitoxide `1674 / 2886` mapped and `6395 pass / 0 fail`,
+  LightningCSS `2216 / 3532` mapped and `4983 pass / 0 fail`, and libsqlite
+  `1589 / 1589` mapped with `4479562 pass / 0 fail`. Full upstream Cargo,
+  Rust/Node/WASM, and libsqlite release/all runners were not executed for this
+  isolated batch, so those remain honest completion risks.
+
 - 2026-05-31 supervisor continuation (CSS/Git/SQLite parity followups 23:47
   UTC): source commit `f9260e2e38bf1afb65a49d0637afc26c69500328`
   (`ports: extend css git sqlite parity followups`) landed eleven screened

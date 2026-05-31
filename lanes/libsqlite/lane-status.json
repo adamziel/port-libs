@@ -2,16 +2,16 @@
   "schemaVersion": 1,
   "library": "libsqlite",
   "estimatedProgress": 99.6,
-  "suiteProgress": "Supervisor-integrated libsqlite source-neutral WAL pager, trigger/fkey, and window-function dynamic corpus followups. Focused gate passed 4 files / 33979 assertions / 0 failures including SQLiteNoDomainSpecificApiTest; conservative accepted pass-unit delta is +33976. Mapped coverage remains 1589 / 1589.",
-  "phpPass": 4440542,
+  "suiteProgress": "Supervisor-integrated libsqlite source-neutral JSON1/JSONB scalar-root and RETURNING result-column naming dynamic corpus followups. Focused gate passed 5 files / 117035 assertions / 0 failures including SQLiteNoDomainSpecificApiTest; conservative accepted pass-unit delta is +39020. Mapped coverage remains 1589 / 1589.",
+  "phpPass": 4479562,
   "phpFail": 0,
   "wordpressScenarios": "Source-neutral application/self-test coverage now includes WAL rollback JSON tails, FK parent-index diagnostics, row-value UPDATE/DELETE LIMIT execution, master-journal WAL pager behavior, PRAGMA lock_proxy_file and data_store_directory handling, SELECT/window planner behavior, trigger/fkey limits, expression-affinity and hex literal syntax, B-tree left-join/index/delete guards, JSON/JSONB update/subtype/char-built validity behavior, VFS fallocate/shared-lock/batch-atomic lifecycle behavior, pager crash recovery, and app-WAL post-checkpoint tail recovery. No WordPress-specific libsqlite API is accepted.",
   "phase": "focused source integration accepted; full-lane/release parity still requires a broader tracked run before completion",
-  "audit": "2026-05-31 supervisor batch at source f9260e2e: focused libsqlite gate passed 4 files / 33979 assertions / 0 failures, including WAL pager, trigger/fkey, window-function dynamic corpus behavior, and SQLiteNoDomainSpecificApiTest.php. Cached libsqlite source diff added no WordPress/wordpress/WP_/wp_ text and no CurrentSourceNext/numbered Plan suffixes. Full libsqlite lane/release runner was not executed for this batch.",
-  "currentWork": "Source-neutral SQLite WAL pager, trigger/fkey, and window-function dynamic corpus behavior integrated without WordPress-specific libsqlite source text.",
+  "audit": "2026-05-31 supervisor batch at source d125986b: focused libsqlite gate passed 5 files / 117035 assertions / 0 failures, including JSON1/JSONB scalar-root dynamic corpus behavior, RETURNING result-column naming, existing JSON102 guards, and SQLiteNoDomainSpecificApiTest.php. Cached libsqlite source diff added no WordPress/wordpress/WP_/wp_ text and no CurrentSourceNext/numbered Plan suffixes. Full libsqlite lane/release runner was not executed for this batch.",
+  "currentWork": "Source-neutral SQLite JSON1/JSONB scalar-root and RETURNING result-column naming dynamic corpus behavior integrated without WordPress-specific libsqlite source text.",
   "blocker": "Full libsqlite release/all-runner parity is still unproven after this batch and must be rerun on tracked tests before declaring libsqlite complete.",
   "nextTask": "Run a broader tracked libsqlite full-lane/release parity gate before calling libsqlite complete; keep two SQLite workers on any remaining real-runner failures and source-neutral guard cleanup.",
-  "wordpressScenarioLatest": "No WordPress-specific libsqlite API or source text was introduced in the latest accepted batch. The latest source commit adds generic SQLite WAL pager, trigger/fkey, and window-function dynamic corpus behavior.",
-  "latestCommit": "f9260e2e38bf1afb65a49d0637afc26c69500328",
-  "commit": "f9260e2e38bf1afb65a49d0637afc26c69500328"
+  "wordpressScenarioLatest": "No WordPress-specific libsqlite API or source text was introduced in the latest accepted batch. The latest source commit adds generic SQLite JSON1/JSONB scalar-root and RETURNING result-column naming dynamic corpus behavior.",
+  "latestCommit": "d125986b6844955083cb1c559b0d1e3e4ddf0506",
+  "commit": "d125986b6844955083cb1c559b0d1e3e4ddf0506"
 }
