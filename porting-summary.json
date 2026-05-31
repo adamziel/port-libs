@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-31 13:01:14 UTC",
-    "sourceCommit": "b0d8a112b0f2a321e0df4cc8a588eb55c8abe338",
-    "sourceCommitShort": "b0d8a112b0f2",
+    "generated": "2026-05-31 13:08:27 UTC",
+    "sourceCommit": "b7f6d299b798d8083f49bb0e4fe9af85de11624b",
+    "sourceCommitShort": "b7f6d299b798",
     "sourceBranch": "main",
-    "dashboardCommit": "8766a9b88d06feada81a3f306066dd7e1984c334",
-    "dashboardCommitShort": "8766a9b88d06",
-    "averageProgressPercent": "86.6",
+    "dashboardCommit": "de7d612e4063b3eae53107df625bd44a6a35927f",
+    "dashboardCommitShort": "de7d612e4063",
+    "averageProgressPercent": "86.7",
     "lanes": [
         {
             "library": "difftastic",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "76.0",
+            "progressPercent": "77.0",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "996",
-            "coverage": "996 / 3532",
-            "php": "1265 pass / 0 fail",
+            "mapped": "1042",
+            "coverage": "1042 / 3532",
+            "php": "1339 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "static upstream inventory plus upstream Rust/Node/WASM...",
-            "audit": "Accepted source commit 0a0e1350d0e1a9867a...",
-            "currentWork": "Native LightningCSS now updates compatible background shorthands from background-* longha...",
-            "nextTarget": "Keep the visible LightningCSS surge workers on current-base handoffs for media-query rang...",
-            "blocker": "No current LightningCSS implementation blocker for this slice.",
-            "commit": "0a0e135"
+            "audit": "Accepted source commit b7f6d299b798d8083f...",
+            "currentWork": "Native LightningCSS now covers CSSOM border longhand removal with shorthand splitting, Co...",
+            "nextTarget": "Keep the visible LightningCSS surge workers on current-base handoffs for source-map/bundl...",
+            "blocker": "No current LightningCSS implementation blocker for this batch.",
+            "commit": "b7f6d29"
         },
         {
             "library": "markerPDF",
