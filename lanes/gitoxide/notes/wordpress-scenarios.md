@@ -202,6 +202,10 @@ The sparse-checkout example now also covers bounded Gitoxide pathspec rules, so
 deployment tooling can include, exclude, and case-match WordPress content paths
 without invoking the Git binary.
 
+It now also records authoritative excludes and wildmatch bracket/range/escape
+behavior so package checkouts can skip cache and build subtrees without invoking
+Git.
+
 ## WordPress Index Cache-Tree Example
 
 `examples/wordpress-index-cache-tree.php` writes and reads a native checkout
@@ -216,6 +220,10 @@ remote-url dependent deployment configuration from native PHP config parsing.
 It models WordPress deployment code loading preview, conflict-style, HTTP
 header, and transfer safety settings through `include` and `includeIf` rules
 without shelling out to `git config`.
+
+The config include example now records escaped `gitdir` policy and literal
+wildcard matching for `hasconfig:remote.*.url` conditional includes, matching
+the upstream backslash escape boundary.
 
 ## WordPress Attributes Pathspec Example
 

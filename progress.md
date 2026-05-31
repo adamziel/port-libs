@@ -51,6 +51,18 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (Gitoxide batch sample 09:28 UTC):
+  Gitoxide source commit `bec764c0e27c53d87a483ad69672081477855aa3`
+  (`gitoxide: tighten config and sparse pathspec parity`) landed two handoffs
+  after excluding stale shared metadata: config include backslash escape parity
+  and sparse checkout wildmatch pathspec behavior. Verification passed PHP lint
+  for changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused config/sparse/pathspec tests `3 files / 190 assertions / 0 failures`,
+  full Gitoxide lane `38 files / 3776 assertions / 0 failures`, and two touched
+  examples. Public Gitoxide evidence should move from `3739` to `3776 pass / 0
+  fail`; mapped coverage moves from `1508 / 2886` to `1510 / 2886`. This is
+  still not full Cargo workspace pass parity.
+
 - 2026-05-31 supervisor continuation (Gitoxide batch sample 09:18 UTC):
   Gitoxide source commit `acedf069fc6ff0fa5939ee93f9ce6bed3624c9cd`
   (`gitoxide: add url merge fetch push slices`) landed four handoffs after
