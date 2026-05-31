@@ -225,10 +225,7 @@ final class MediaQueryParser
             }
 
             $identifier = strtolower(substr($query, $start, $i - $start));
-            if (($query[$i] ?? '') === '('
-                && $identifier !== 'not'
-                && !in_array($identifier, ['calc', 'clamp', 'env', 'max', 'min', 'var'], true)
-            ) {
+            if (($query[$i] ?? '') === '(' && $identifier !== 'not') {
                 throw new \InvalidArgumentException('Unknown media query condition function: ' . substr($query, $start));
             }
 

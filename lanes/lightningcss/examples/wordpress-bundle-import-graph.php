@@ -46,8 +46,8 @@ $files = [
     '/theme.css' => <<<'CSS'
 @charset "UTF-8";
 /*! WP theme bundle license */
-@import url("https://fonts.example/css2?family=Inter");
 @layer reset, theme.blocks;
+@import url("https://fonts.example/css2?family=Inter");
 @import "tokens.css";
 @import "blocks/card.css" layer(theme.blocks) screen and (--wp-wide);
 @import url(blocks/print.css) supports(print-color-adjust: exact) print;
@@ -121,6 +121,27 @@ try {
 }
 
 try {
+    (new CssBundler())->bundle('/layered-theme.css', [
+        '/layered-theme.css' => '@layer theme.reset; @import "reset.css"; @layer theme.blocks; @import "blocks.css";',
+        '/reset.css' => '.wp-site-blocks { margin: 0 }',
+        '/blocks.css' => '.wp-block-query { color: green }',
+    ]);
+
+    fwrite(STDERR, "Expected post-import @layer diagnostic for block-theme CSS\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== '@import rules must precede all rules aside from @charset and @layer statements'
+    ) {
+        fwrite(STDERR, 'Unexpected post-import @layer diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'post-import-layer: rejected' . PHP_EOL;
+}
+
+try {
     (new CssBundler())->bundle('/theme.css', [
         '/theme.css' => '@import "tokens.css"; .wp-site-blocks { color: red }',
         '/tokens.css' => ':root { --wp--style--block-gap: 1.5rem }',
@@ -183,6 +204,24 @@ if (
 }
 
 echo 'reader-provider: resolved' . PHP_EOL;
+
+$eofImportBundle = (new CssBundler())->bundleWithReader(
+    '/reader-eof.css',
+    static function (string $file): string {
+        return match ($file) {
+            '/reader-eof.css' => '@import "blocks/query.css"',
+            '/blocks/query.css' => '.wp-block-query { color: green; }',
+            default => throw new RuntimeException("Missing reader-backed theme file {$file}"),
+        };
+    }
+);
+
+if ($eofImportBundle !== '.wp-block-query{color:green}') {
+    fwrite(STDERR, "Unexpected EOF import bundle graph output\n");
+    exit(1);
+}
+
+echo 'reader-eof-import: resolved' . PHP_EOL;
 
 $withTempFiles([
     'theme.css' => <<<'CSS'

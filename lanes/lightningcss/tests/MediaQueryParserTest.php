@@ -99,6 +99,10 @@ return [
             '(grid: 10)',
             '(prefers-color-scheme = dark)',
             'unknown(foo)',
+            'calc(foo)',
+            'env(--theme-breakpoint)',
+            'var(--theme-breakpoint)',
+            'screen and var(--theme-breakpoint)',
             '()',
             'screen and ()',
         ];
@@ -188,6 +192,8 @@ return [
             '@layer blocks { @media (scan >= 1) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (grid: 10) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (prefers-color-scheme = dark) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media var(--theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media screen and calc(theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media screen and () { .wp-block-query { color: chartreuse; } } }',
         ] as $css) {
             $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify($css));

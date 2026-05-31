@@ -1770,6 +1770,10 @@ CSS;
             InvalidArgumentException::class,
             static fn () => $prefixer->prefixForTargets('@layer blocks { @media (100px < width > 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $prefixer->prefixForTargets('@layer blocks { @media var(--theme-breakpoint) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
     },
     'transition prefixer maps upstream media range include and exclude flags inside layers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();

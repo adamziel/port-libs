@@ -96,6 +96,24 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler maps upstream EOF import without semicolon' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '.b{color:green}',
+            $bundle([
+                '/a.css' => '@import "b.css"',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '.c{color:#00f}.b{color:green}',
+            $bundle([
+                '/a.css' => '@import "b.css"',
+                '/b.css' => '@import "c.css"; .b { color: green }',
+                '/c.css' => '.c { color: blue }',
+            ], '/a.css')
+        );
+    },
     'css bundler maps upstream filesystem source provider with custom resolver' => static function (TestRunner $t) use ($withTempFiles): void {
         $withTempFiles([
             'foo.css' => <<<'CSS'
@@ -168,6 +186,33 @@ CSS,
         }
 
         throw new RuntimeException('Expected late @import after @namespace exception');
+    },
+    'css bundler treats post-import layer statements as import prelude barriers' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@layer base;.base{color:green}@layer components;.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@layer base; @import "base.css"; @layer components; .entry { color: red }',
+                '/base.css' => '.base { color: green }',
+            ], '/entry.css')
+        );
+
+        try {
+            $bundle([
+                '/entry.css' => '@layer base; @import "base.css"; @layer components; @import "card.css"; .entry { color: red }',
+                '/base.css' => '.base { color: green }',
+                '/card.css' => '.card { color: blue }',
+            ], '/entry.css');
+        } catch (CssBundleException $exception) {
+            $t->same('parser-error', $exception->kind);
+            $t->same('@import rules must precede all rules aside from @charset and @layer statements', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(60, $exception->sourceColumn);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected late @import after post-import @layer statement exception');
     },
     'css bundler wraps imported files in supports media and layer conditions' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
@@ -579,7 +624,7 @@ CSS,
         try {
             (new CssBundler())->bundleWithReader('foo.css', static function (string $file): string {
                 if ($file === 'foo.css') {
-                    return '@import "bar.css";';
+                    return '@import "bar.css"';
                 }
 
                 throw new RuntimeException("Oh noes! Failed to read `{$file}`.");
@@ -595,6 +640,22 @@ CSS,
 
         if (!$importReadRejected) {
             throw new RuntimeException('Expected imported read callback exception');
+        }
+
+        $syntaxRejected = false;
+        try {
+            (new CssBundler())->bundleWithReader('foo.css', static fn (): string => '.foo');
+        } catch (CssBundleException $exception) {
+            $t->same('parser-error', $exception->kind);
+            $t->same('Unexpected end of input', $exception->getMessage());
+            $t->same('foo.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(5, $exception->sourceColumn);
+            $syntaxRejected = true;
+        }
+
+        if (!$syntaxRejected) {
+            throw new RuntimeException('Expected parser diagnostic for unterminated resolver source');
         }
 
         try {

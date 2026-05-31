@@ -900,6 +900,46 @@ CSS
             )
         );
     },
+    'css minifier composes upstream later grid template areas into shorthands' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.grid-shorthand-areas{grid:".content."/1fr 3fr}',
+            $minifier->minify(
+                '.grid-shorthand-areas { grid: auto / 1fr 3fr; grid-template-areas: ". content ."; }'
+            )
+        );
+        $t->same(
+            '.grid-shorthand-areas-rows{grid:".content."20px/1fr 3fr}',
+            $minifier->minify(
+                '.grid-shorthand-areas-rows { grid: auto / 1fr 3fr; grid-template-rows: 20px; grid-template-areas: ". content ."; }'
+            )
+        );
+        $t->same(
+            '.test-miss-areas-3{grid-template:"a a a"30px"b c c"60px". . ."100px/1fr 1fr 1fr}',
+            $minifier->minify(
+                '.test-miss-areas-3 { grid-template: 30px 60px 100px / 1fr 1fr 1fr; grid-template-areas: "a a a" "b c c"; }'
+            )
+        );
+        $t->same(
+            '.test-miss-areas-4{grid:"a a a"30px"b c c"60px". . ."100px/1fr 1fr 1fr}',
+            $minifier->minify(
+                '.test-miss-areas-4 { grid: 30px 60px 100px / 1fr 1fr 1fr; grid-template-areas: "a a a" "b c c"; }'
+            )
+        );
+        $t->same(
+            '.duplicate-grid-areas{grid:"new new"/1fr 1fr}',
+            $minifier->minify(
+                '.duplicate-grid-areas { grid: auto / 1fr 1fr; grid-template-areas: "old old"; grid-template-areas: "new new"; }'
+            )
+        );
+        $t->same(
+            '.grid-auto-flow-row-auto-rows{grid:auto-flow 40px/1fr 90px;grid-template-areas:"a"}',
+            $minifier->minify(
+                '.grid-auto-flow-row-auto-rows { grid: auto-flow 40px / 1fr 90px; grid-template-areas: "a"; }'
+            )
+        );
+    },
     'css minifier maps upstream property rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

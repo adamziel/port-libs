@@ -24,6 +24,12 @@ final class CustomAtRuleTransformer
     /** @var callable|null */
     private $styleRuleVisitor = null;
 
+    /** @var callable|null */
+    private $styleSheetVisitor = null;
+
+    /** @var callable|null */
+    private $styleSheetExitVisitor = null;
+
     /** @var array<string, mixed>|callable|null */
     private $declarationVisitorConfig = null;
 
@@ -189,6 +195,48 @@ final class CustomAtRuleTransformer
                     return count($rules) === 1 ? $rules[0] : $rules;
                 },
             ],
+            'StyleSheet' => static function (array $stylesheet, self $transformer) use ($visitors): mixed {
+                $current = $stylesheet;
+                $changed = false;
+                foreach ($visitors as $visitor) {
+                    $callback = self::styleSheetVisitorCallback($visitor, 'StyleSheet');
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($current, $transformer);
+                    if ($replacement !== null) {
+                        if (!is_array($replacement)) {
+                            throw new \InvalidArgumentException('StyleSheet visitor must return a stylesheet array or null');
+                        }
+                        $current = $replacement;
+                        $changed = true;
+                    }
+                }
+
+                return $changed ? $current : null;
+            },
+            'StyleSheetExit' => static function (array $stylesheet, self $transformer) use ($visitors): mixed {
+                $current = $stylesheet;
+                $changed = false;
+                foreach ($visitors as $visitor) {
+                    $callback = self::styleSheetVisitorCallback($visitor, 'StyleSheetExit');
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($current, $transformer);
+                    if ($replacement !== null) {
+                        if (!is_array($replacement)) {
+                            throw new \InvalidArgumentException('StyleSheetExit visitor must return a stylesheet array or null');
+                        }
+                        $current = $replacement;
+                        $changed = true;
+                    }
+                }
+
+                return $changed ? $current : null;
+            },
             'Token' => [
                 'at-keyword' => static function (array $token, self $transformer) use ($visitors): mixed {
                     foreach ($visitors as $visitor) {
@@ -380,9 +428,13 @@ final class CustomAtRuleTransformer
     {
         $this->dependencies = [];
         $this->configure($customAtRules, $visitor, $functionVisitors);
+        $css = $this->stripComments($css);
+        $this->callStyleSheetVisitor($this->stylesheetVisitorFromCss($css));
+        $code = $this->minifier->minify($this->processRuleList($css));
+        $code = $this->applyStyleSheetExitVisitor($code);
 
         return [
-            'code' => $this->minifier->minify($this->processRuleList($this->stripComments($css))),
+            'code' => $code,
             'dependencies' => $this->dependencies,
         ];
     }
@@ -528,6 +580,9 @@ final class CustomAtRuleTransformer
             $this->styleRuleVisitor = $styleVisitor;
         }
 
+        $this->styleSheetVisitor = is_callable($visitor['StyleSheet'] ?? null) ? $visitor['StyleSheet'] : null;
+        $this->styleSheetExitVisitor = is_callable($visitor['StyleSheetExit'] ?? null) ? $visitor['StyleSheetExit'] : null;
+
         $this->declarationVisitorConfig = $visitor['Declaration'] ?? null;
         $this->declarationExitVisitorConfig = $visitor['DeclarationExit'] ?? null;
 
@@ -623,6 +678,430 @@ final class CustomAtRuleTransformer
         }
 
         return $resolved;
+    }
+
+    /**
+     * @param array{rules:list<array<string, mixed>>} $stylesheet
+     */
+    private function callStyleSheetVisitor(array $stylesheet): void
+    {
+        if ($this->styleSheetVisitor === null) {
+            return;
+        }
+
+        $replacement = ($this->styleSheetVisitor)($stylesheet, $this);
+        if ($replacement !== null && !is_array($replacement)) {
+            throw new \InvalidArgumentException('StyleSheet visitor must return a stylesheet array or null');
+        }
+    }
+
+    private function applyStyleSheetExitVisitor(string $code): string
+    {
+        if ($this->styleSheetExitVisitor === null) {
+            return $code;
+        }
+
+        $stylesheet = $this->stylesheetVisitorFromCss($code);
+        $replacement = ($this->styleSheetExitVisitor)($stylesheet, $this);
+        if ($replacement === null) {
+            return $code;
+        }
+        if (!is_array($replacement)) {
+            throw new \InvalidArgumentException('StyleSheetExit visitor must return a stylesheet array or null');
+        }
+
+        return $this->minifier->minify($this->stylesheetVisitorToCss($replacement));
+    }
+
+    /**
+     * @return array{rules:list<array<string, mixed>>}
+     */
+    private function stylesheetVisitorFromCss(string $css): array
+    {
+        $rules = [];
+        $cursor = 0;
+        $length = strlen($css);
+
+        while (true) {
+            $cursor = $this->skipWhitespace($css, $cursor);
+            if ($cursor >= $length) {
+                break;
+            }
+
+            $nextBlock = $this->findNextTopLevel($css, '{', $cursor);
+            $nextStatement = $this->findNextTopLevel($css, ';', $cursor);
+
+            if ($nextStatement !== null && ($nextBlock === null || $nextStatement < $nextBlock)) {
+                $statement = trim(substr($css, $cursor, $nextStatement - $cursor));
+                if ($statement !== '') {
+                    $rules[] = $this->stylesheetRawRule($statement . ';');
+                }
+                $cursor = $nextStatement + 1;
+                continue;
+            }
+
+            if ($nextBlock === null) {
+                $tail = trim(substr($css, $cursor));
+                if ($tail !== '') {
+                    $rules[] = $this->stylesheetRawRule($tail);
+                }
+                break;
+            }
+
+            $prelude = trim(substr($css, $cursor, $nextBlock - $cursor));
+            $close = $this->findMatchingBrace($css, $nextBlock);
+            $body = substr($css, $nextBlock + 1, $close - $nextBlock - 1);
+            $rules[] = str_starts_with($prelude, '@')
+                ? $this->stylesheetRawRule($prelude . '{' . $body . '}')
+                : $this->stylesheetStyleRule($prelude, $body);
+            $cursor = $close + 1;
+        }
+
+        return ['rules' => $rules];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function stylesheetRawRule(string $css): array
+    {
+        return [
+            'type' => 'raw',
+            'raw' => $css,
+            'kind' => 'raw',
+            'css' => $css,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function stylesheetStyleRule(string $selectorList, string $body): array
+    {
+        $selectors = $this->splitTopLevel($selectorList, ',');
+        if ($selectors === []) {
+            $selectors = [trim($selectorList)];
+        }
+
+        try {
+            $entries = $this->declarationBlock->parseEntries($body);
+        } catch (\InvalidArgumentException) {
+            $entries = [];
+        }
+        $normal = [];
+        $important = [];
+        foreach ($entries as $entry) {
+            if ($entry['important']) {
+                $important[] = $entry;
+            } else {
+                $normal[] = $entry;
+            }
+        }
+
+        return [
+            'type' => 'style',
+            'kind' => 'style-rule',
+            'selector' => implode(',', $selectors),
+            'selectors' => $selectors,
+            'declarations' => $entries,
+            'value' => [
+                'selectors' => array_map(fn (string $selector): array => $this->selectorComponentsFromString($selector), $selectors),
+                'declarations' => [
+                    'declarations' => $normal,
+                    'importantDeclarations' => $important,
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function selectorComponentsFromString(string $selector): array
+    {
+        $components = [];
+        $selector = trim($selector);
+        $length = strlen($selector);
+
+        for ($cursor = 0; $cursor < $length;) {
+            $char = $selector[$cursor];
+            if (ctype_space($char)) {
+                while ($cursor < $length && ctype_space($selector[$cursor])) {
+                    $cursor++;
+                }
+                $components[] = ['type' => 'combinator', 'value' => 'descendant'];
+                continue;
+            }
+
+            if ($char === '.' && preg_match('/\.((?:\\\\.|[-_a-zA-Z0-9])+)/A', substr($selector, $cursor), $matches) === 1) {
+                $components[] = ['type' => 'class', 'name' => str_replace('\\\\', '\\', $matches[1])];
+                $cursor += strlen($matches[0]);
+                continue;
+            }
+
+            if ($char === ':' && preg_match('/\:([-_a-zA-Z0-9]+)/A', substr($selector, $cursor), $matches) === 1) {
+                $components[] = ['type' => 'pseudo-class', 'kind' => $matches[1]];
+                $cursor += strlen($matches[0]);
+                continue;
+            }
+
+            if (preg_match('/[_a-zA-Z][-_a-zA-Z0-9]*/A', substr($selector, $cursor), $matches) === 1) {
+                $components[] = ['type' => 'type', 'name' => $matches[0]];
+                $cursor += strlen($matches[0]);
+                continue;
+            }
+
+            $components[] = ['type' => 'raw', 'value' => $char];
+            $cursor++;
+        }
+
+        return $components;
+    }
+
+    /**
+     * @param array<string, mixed> $stylesheet
+     */
+    private function stylesheetVisitorToCss(array $stylesheet): string
+    {
+        $rules = $stylesheet['rules'] ?? [];
+        if (!is_array($rules)) {
+            throw new \InvalidArgumentException('Stylesheet replacement must contain a rules array');
+        }
+
+        $css = '';
+        foreach ($rules as $rule) {
+            $css .= $this->stylesheetVisitorRuleToCss($rule);
+        }
+
+        return $css;
+    }
+
+    private function stylesheetVisitorRuleToCss(mixed $rule): string
+    {
+        if (is_string($rule)) {
+            return $rule;
+        }
+        if (!is_array($rule)) {
+            return '';
+        }
+        if (($rule['kind'] ?? null) === 'raw' && isset($rule['css']) && is_string($rule['css'])) {
+            return $rule['css'];
+        }
+        if (($rule['type'] ?? null) === 'raw' && isset($rule['raw']) && is_string($rule['raw'])) {
+            return $rule['raw'];
+        }
+        if (($rule['type'] ?? null) !== 'style' && ($rule['kind'] ?? null) !== 'style-rule') {
+            return isset($rule['raw']) && is_string($rule['raw']) ? $rule['raw'] : '';
+        }
+
+        return $this->stylesheetStyleRuleToCss(
+            $this->stylesheetVisitorRuleSelectors($rule),
+            $this->stylesheetVisitorRuleDeclarations($rule)
+        );
+    }
+
+    /**
+     * @param list<string> $selectors
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function stylesheetStyleRuleToCss(array $selectors, array $entries): string
+    {
+        if ($selectors === [] || $entries === []) {
+            return '';
+        }
+
+        $body = '';
+        foreach ($entries as $entry) {
+            if ($entry['property'] === '') {
+                continue;
+            }
+            $body .= $entry['property'] . ':' . $entry['value'] . ($entry['important'] ? ' !important' : '') . ';';
+        }
+
+        return $body === '' ? '' : implode(',', array_map('trim', $selectors)) . '{' . $body . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     * @return list<string>
+     */
+    private function stylesheetVisitorRuleSelectors(array $rule): array
+    {
+        $selectors = $rule['selectors'] ?? null;
+        if (is_array($selectors) && $selectors !== [] && is_string($selectors[0] ?? null)) {
+            return array_values(array_map('trim', $selectors));
+        }
+
+        $value = $rule['value'] ?? null;
+        $valueSelectors = is_array($value) ? ($value['selectors'] ?? null) : null;
+        if (is_array($valueSelectors)) {
+            $serialized = [];
+            foreach ($valueSelectors as $selector) {
+                $serialized[] = is_array($selector)
+                    ? $this->serializeSelectorComponents($selector)
+                    : (string) $selector;
+            }
+
+            return array_values(array_filter($serialized, static fn (string $selector): bool => trim($selector) !== ''));
+        }
+
+        $selector = (string) ($rule['selector'] ?? '');
+
+        return $selector === '' ? [] : array_values(array_filter(
+            array_map('trim', explode(',', $selector)),
+            static fn (string $part): bool => $part !== ''
+        ));
+    }
+
+    /**
+     * @param list<mixed> $components
+     */
+    private function serializeSelectorComponents(array $components): string
+    {
+        $selector = '';
+        foreach ($components as $component) {
+            if (is_string($component)) {
+                $selector .= $component;
+                continue;
+            }
+            if (!is_array($component)) {
+                continue;
+            }
+
+            $type = $component['type'] ?? null;
+            if ($type === 'class') {
+                $selector .= '.' . $this->escapeClassSelector((string) ($component['name'] ?? ''));
+            } elseif ($type === 'type') {
+                $selector .= (string) ($component['name'] ?? '');
+            } elseif ($type === 'pseudo-class') {
+                $selector .= ':' . (string) ($component['kind'] ?? '');
+            } elseif ($type === 'combinator') {
+                $value = (string) ($component['value'] ?? '');
+                $selector = rtrim($selector) . ($value === 'descendant' ? ' ' : $value);
+            } else {
+                $selector .= (string) ($component['value'] ?? '');
+            }
+        }
+
+        return trim($selector);
+    }
+
+    private function escapeClassSelector(string $name): string
+    {
+        return preg_replace('/([^-_a-zA-Z0-9])/', '\\\\$1', $name) ?? $name;
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function stylesheetVisitorRuleDeclarations(array $rule): array
+    {
+        if (isset($rule['declarations'])) {
+            return $this->stylesheetDeclarationEntries($rule['declarations']);
+        }
+
+        $value = $rule['value'] ?? null;
+        if (is_array($value) && isset($value['declarations'])) {
+            return $this->stylesheetDeclarationEntries($value['declarations']);
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function stylesheetDeclarationEntries(mixed $declarations): array
+    {
+        if (is_string($declarations)) {
+            return $this->declarationBlock->parseEntries($declarations);
+        }
+        if (!is_array($declarations)) {
+            return [];
+        }
+
+        if (isset($declarations['declarations']) || isset($declarations['importantDeclarations'])) {
+            $entries = [];
+            foreach (($declarations['declarations'] ?? []) as $entry) {
+                if (is_array($entry)) {
+                    $entries[] = $this->stylesheetDeclarationEntry($entry, false);
+                }
+            }
+            foreach (($declarations['importantDeclarations'] ?? []) as $entry) {
+                if (is_array($entry)) {
+                    $entries[] = $this->stylesheetDeclarationEntry($entry, true);
+                }
+            }
+
+            return $entries;
+        }
+
+        $entries = [];
+        foreach ($declarations as $entry) {
+            if (is_array($entry)) {
+                $entries[] = $this->stylesheetDeclarationEntry($entry, (bool) ($entry['important'] ?? false));
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array{property:string, value:string, important:bool}
+     */
+    private function stylesheetDeclarationEntry(array $entry, bool $important): array
+    {
+        $property = (string) ($entry['property'] ?? '');
+        $value = $entry['value'] ?? '';
+        if ($property === 'unparsed' && is_array($value)) {
+            $propertyId = $value['propertyId'] ?? null;
+            if (is_array($propertyId) && is_string($propertyId['property'] ?? null)) {
+                $property = $propertyId['property'];
+            }
+            $value = $value['value'] ?? '';
+        } elseif ($property === 'custom') {
+            $property = (string) ($entry['name'] ?? '');
+        }
+
+        return [
+            'property' => strtolower($property),
+            'value' => $this->serializeStylesheetDeclarationValue($value),
+            'important' => (bool) ($entry['important'] ?? $important),
+        ];
+    }
+
+    private function serializeStylesheetDeclarationValue(mixed $value): string
+    {
+        if (is_array($value) && array_is_list($value)) {
+            return implode(' ', array_map(fn (mixed $token): string => $this->serializeStylesheetDeclarationValue($token), $value));
+        }
+
+        if (is_array($value) && ($value['type'] ?? null) === 'length-percentage') {
+            $inner = $value['value'] ?? null;
+            if (is_array($inner) && ($inner['type'] ?? null) === 'dimension' && is_array($inner['value'] ?? null)) {
+                $unit = $inner['value']['unit'] ?? null;
+                $number = $inner['value']['value'] ?? null;
+                if (is_string($unit) && (is_int($number) || is_float($number))) {
+                    return $this->formatNumber($number) . strtolower($unit);
+                }
+            }
+        }
+
+        if (is_array($value) && ($value['type'] ?? null) === 'color' && isset($value['value'])) {
+            return $this->serializeStylesheetDeclarationValue($value['value']);
+        }
+
+        if (is_array($value) && ($value['type'] ?? null) === 'rgb') {
+            return $this->serializeRgbValue($value);
+        }
+
+        if (is_array($value)) {
+            return $this->serializeVisitorValue($this->normalizeVisitorValue($value));
+        }
+
+        return (string) $value;
     }
 
     private function processRuleList(string $css): string
@@ -1109,6 +1588,16 @@ final class CustomAtRuleTransformer
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function styleSheetVisitorCallback(array $visitor, string $name): ?callable
+    {
+        $callback = $visitor[$name] ?? null;
+
+        return is_callable($callback) ? $callback : null;
     }
 
     /**

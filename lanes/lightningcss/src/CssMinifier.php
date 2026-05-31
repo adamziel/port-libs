@@ -7791,11 +7791,108 @@ final class CssMinifier
             return $body;
         }
 
+        $this->rewriteGridShorthandTemplateAreaOverrideGroup($entries);
         $this->rewriteGridShorthandRowOverrideGroup($entries);
         $this->rewriteGridTemplateGroup($entries);
         $this->rewriteGridPlacementGroups($entries);
 
         return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteGridShorthandTemplateAreaOverrideGroup(array &$entries): void
+    {
+        $shorthand = null;
+        $areas = null;
+        $areaIndexes = [];
+        $latestRows = null;
+        $rowIndexes = [];
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            if ($entry['property'] === 'grid' || $entry['property'] === 'grid-template') {
+                $shorthand = $index;
+                $areas = null;
+                $areaIndexes = [];
+                $latestRows = null;
+                $rowIndexes = [];
+                continue;
+            }
+            if ($shorthand === null) {
+                continue;
+            }
+            if ($entry['property'] === 'grid-template-areas') {
+                $areas = $index;
+                $areaIndexes[] = $index;
+                continue;
+            }
+            if ($entry['property'] === 'grid-template-rows') {
+                $latestRows = $index;
+                $rowIndexes[] = $index;
+            }
+        }
+
+        if ($shorthand === null || $areas === null) {
+            return;
+        }
+
+        $tracks = $this->parseGridShorthandTemplateTracks($entries[$shorthand]['value']);
+        if ($tracks === null) {
+            return;
+        }
+
+        $rows = $latestRows === null ? $tracks['rows'] : $entries[$latestRows]['value'];
+        $value = $this->serializeGridTemplateDeclarationShorthand(
+            $entries[$areas]['value'],
+            $rows,
+            $tracks['columns'],
+        );
+        if ($value === null) {
+            return;
+        }
+
+        $entries[$shorthand]['value'] = $value;
+        foreach ($areaIndexes as $index) {
+            $entries[$index]['drop'] = true;
+        }
+        foreach ($rowIndexes as $index) {
+            $entries[$index]['drop'] = true;
+        }
+    }
+
+    /**
+     * @return array{rows:string,columns:string}|null
+     */
+    private function parseGridShorthandTemplateTracks(string $value): ?array
+    {
+        $parts = $this->splitTopLevel($value, '/');
+        if (count($parts) !== 2) {
+            return null;
+        }
+
+        $rows = trim($parts[0]);
+        $columns = trim($parts[1]);
+        if ($rows === '' || $columns === '') {
+            return null;
+        }
+
+        $lowerRows = strtolower($rows);
+        $lowerColumns = strtolower($columns);
+        if (str_contains($lowerRows, 'auto-flow') || str_contains($lowerColumns, 'auto-flow')) {
+            return null;
+        }
+        if (str_contains($rows, '"') || str_contains($rows, "'")) {
+            return null;
+        }
+
+        return ['rows' => $rows, 'columns' => $columns];
     }
 
     /**

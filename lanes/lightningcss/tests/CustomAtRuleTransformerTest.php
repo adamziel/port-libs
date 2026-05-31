@@ -1116,4 +1116,93 @@ CSS;
 
         $t->same('.foo{width:32px;height:32px}', $result);
     },
+    'custom at-rules compose upstream StyleSheet and StyleSheetExit visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'StyleSheet' => static function (array $stylesheet) use (&$seen): void {
+                    $seen[] = 'enter-a:' . count($stylesheet['rules']);
+                },
+                'StyleSheetExit' => static function (array $stylesheet) use (&$seen): void {
+                    $seen[] = 'exit-a:' . count($stylesheet['rules']);
+                },
+            ],
+            [
+                'StyleSheet' => static function (array $stylesheet) use (&$seen): void {
+                    $seen[] = 'enter-b:' . count($stylesheet['rules']);
+                },
+                'StyleSheetExit' => static function (array $stylesheet) use (&$seen): array {
+                    $seen[] = 'exit-b:' . count($stylesheet['rules']);
+                    usort(
+                        $stylesheet['rules'],
+                        static fn (array $left, array $right): int => strcmp(
+                            (string) ($left['value']['selectors'][0][0]['name'] ?? ''),
+                            (string) ($right['value']['selectors'][0][0]['name'] ?? '')
+                        )
+                    );
+
+                    return $stylesheet;
+                },
+            ],
+        ]);
+
+        $css = <<<'CSS'
+.foo {
+  width: 32px;
+}
+
+.bar {
+  width: 80px;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.bar{width:80px}.foo{width:32px}', $result);
+        $t->same(['enter-a:2', 'enter-b:2', 'exit-a:2', 'exit-b:2'], $seen);
+    },
+    'custom at-rules serialize upstream StyleSheetExit style-rule replacements' => static function (TestRunner $t): void {
+        $result = (new CustomAtRuleTransformer())->transform('.foo { color: red; }', [], [
+            'StyleSheetExit' => static function (array $stylesheet): array {
+                $stylesheet['rules'][] = [
+                    'type' => 'style',
+                    'value' => [
+                        'selectors' => [
+                            [
+                                ['type' => 'class', 'name' => 'visitor-ready'],
+                            ],
+                        ],
+                        'declarations' => [
+                            'declarations' => [
+                                [
+                                    'property' => 'color',
+                                    'value' => [
+                                        'type' => 'rgb',
+                                        'r' => 0,
+                                        'g' => 255,
+                                        'b' => 0,
+                                        'alpha' => 1,
+                                    ],
+                                ],
+                                [
+                                    'property' => 'width',
+                                    'value' => [
+                                        'type' => 'length-percentage',
+                                        'value' => [
+                                            'type' => 'dimension',
+                                            'value' => ['unit' => 'px', 'value' => 32],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ];
+
+                return $stylesheet;
+            },
+        ]);
+
+        $t->same('.foo{color:red}.visitor-ready{color:#0f0;width:32px}', $result);
+    },
 ];

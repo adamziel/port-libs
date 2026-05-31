@@ -656,6 +656,7 @@ final class CssBundler
         $length = strlen($css);
         $cursor = 0;
         $importsAllowed = true;
+        $seenImport = false;
 
         while (true) {
             $cursor = $this->collectTopLevelTrivia($css, $cursor, $items);
@@ -685,7 +686,12 @@ final class CssBundler
                         'loc' => $this->sourceLocation($css, $cursor),
                         'import' => $this->parseImportStatement($raw, $this->sourceLocation($css, $cursor)),
                     ];
+                    $seenImport = true;
                 } elseif ($this->startsAtKeyword($css, $cursor, '@layer')) {
+                    if ($seenImport) {
+                        $importsAllowed = false;
+                    }
+
                     $items[] = [
                         'type' => 'layer-statement',
                         'raw' => $raw,
@@ -707,11 +713,35 @@ final class CssBundler
             if ($blockOpen === null) {
                 $trailing = trim(substr($css, $cursor));
                 if ($trailing !== '') {
-                    $importsAllowed = false;
-                    $items[] = [
-                        'type' => 'other',
-                        'raw' => $trailing,
-                    ];
+                    if ($this->startsAtKeyword($css, $cursor, '@import')) {
+                        if (!$importsAllowed) {
+                            $loc = $this->sourceLocation($css, $cursor + strlen('@import'));
+                            throw new CssBundleException(
+                                'parser-error',
+                                '@import rules must precede all rules aside from @charset and @layer statements',
+                                $file,
+                                $loc['line'],
+                                $loc['column'],
+                            );
+                        }
+
+                        $items[] = [
+                            'type' => 'import',
+                            'raw' => substr($css, $cursor),
+                            'loc' => $this->sourceLocation($css, $cursor),
+                            'import' => $this->parseImportStatement(substr($css, $cursor), $this->sourceLocation($css, $cursor)),
+                        ];
+                        break;
+                    }
+
+                    $loc = $this->sourceLocation($css, strlen($css));
+                    throw new CssBundleException(
+                        'parser-error',
+                        'Unexpected end of input',
+                        $file,
+                        $loc['line'],
+                        $loc['column'],
+                    );
                 }
                 break;
             }
