@@ -51,6 +51,17 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (Gitoxide batch sample 09:12 UTC):
+  Gitoxide source commit `a80a16449590e0719bef41033208bbe7721c7898`
+  (`gitoxide: add tree pathspec walking`) landed the tree/pathspec handoff after
+  excluding stale shared metadata. Verification passed PHP lint for changed/new
+  Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  pathspec/tree tests `3 files / 140 assertions / 0 failures`, full Gitoxide
+  lane `37 files / 3324 assertions / 0 failures`, and the tree pathspec walk
+  example. Public Gitoxide evidence should move from `3273` to `3324 pass / 0
+  fail`; mapped coverage moves from `1503 / 2886` to `1504 / 2886`. This is
+  still not full Cargo workspace pass parity.
+
 - 2026-05-31 supervisor continuation (Gitoxide batch sample 09:02 UTC):
   Gitoxide source commit `377ff7d844d678bb02008f1be07734052779cde3`
   (`gitoxide: add reflog index and gpgsig slices`) landed three handoffs after

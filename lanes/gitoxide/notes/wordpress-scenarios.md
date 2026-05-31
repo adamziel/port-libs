@@ -277,6 +277,14 @@ capability and `ls-refs` advertisements plus upstream-shaped request bytes, so
 deployment tooling can inspect active branches, unborn refs, peeled tags, and
 symbolic HEADs through native PHP protocol framing.
 
+## WordPress Tree Pathspec Walk Example
+
+`examples/wordpress-tree-pathspec-walk.php` applies native pathspec parsing and
+breadth-first tree traversal to select deployable plugin, theme, and upload
+paths while skipping excluded build/cache subtrees. This models WordPress
+package and deployment tooling walking repository trees without invoking the
+Git binary.
+
 ## Next Task
 
 Broaden protocol/transport runner evidence with a controlled focused crate probe, deepen mmap-specific packed-ref race parity beyond metadata/hash invalidation if needed, or map another focused `gix-merge` tree fixture.

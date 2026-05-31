@@ -1061,3 +1061,20 @@ Gpgsig/reflog/index batch accepted on 2026-05-31:
 - The mapped denominator moves from `1500 / 2886` to `1503 / 2886` for the
   three distinct upstream-backed behavior slices. Full Cargo workspace tests
   were not run for this slice.
+
+Tree pathspec walk batch accepted on 2026-05-31:
+
+- Source commit `a80a16449590e0719bef41033208bbe7721c7898` integrates the
+  Gitoxide tree/pathspec handoff without taking its stale shared metadata edits.
+  The accepted source slice covers native pathspec parsing/search for nil,
+  `top`, `exclude`, `icase`, `literal`, `glob`, directory-only, and
+  all-excluded cases plus breadth-first tree traversal with conservative
+  subtree pruning and excluded-subtree skipping.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  pathspec/tree tests `3 files / 140 assertions / 0 failures`, full Gitoxide
+  lane tests `37 files / 3324 assertions / 0 failures`, and the tree pathspec
+  walk example exiting 0.
+- The mapped denominator moves from `1503 / 2886` to `1504 / 2886` for the
+  distinct upstream-backed tree pathspec slice. Full Cargo workspace tests were
+  not run for this slice.
