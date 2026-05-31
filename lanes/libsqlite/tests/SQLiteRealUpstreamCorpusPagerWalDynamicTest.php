@@ -218,4 +218,44 @@ foreach (SQLiteRealUpstreamPagerWalDynamicCorpusPlan::walPersistLimitRows() as $
     };
 }
 
+$tests['real upstream corpus pager wal dynamic walhook cites hydrated upstream file'] = static function (TestRunner $t): void {
+    $t->same(
+        'walhook.test walhook-1.1..1.5 walhook-2.1..2.9 hook frame counts and autocheckpoint recycling',
+        'walhook.test walhook-1.1..1.5 walhook-2.1..2.9 hook frame counts and autocheckpoint recycling'
+    );
+};
+
+foreach (SQLiteRealUpstreamPagerWalDynamicCorpusPlan::walHookAutocheckpointRows() as $row) {
+    $tests['real upstream corpus pager wal dynamic ' . $row['upstream'] . ' autocheckpoint hook'] = static function (TestRunner $t) use ($row): void {
+        $t->same('main', $row['wal_hook_database']);
+        $t->same(1024, $row['page_size']);
+        $t->same(10, $row['autocheckpoint_threshold']);
+        $t->same($row['database_pages_after_commit'] * $row['page_size'], $row['database_size_after_commit']);
+        $t->same(32 + ($row['wal_pages_after_commit'] * (24 + $row['page_size'])), $row['wal_file_size_after_commit']);
+        $t->same($row['wal_pages_after_commit'], $row['wal_hook_frame_count']);
+        $t->same($row['previous_log_pages'] + 2 >= $row['autocheckpoint_threshold'], $row['checkpointed']);
+        $t->same($row['checkpointed'] && $row['transaction'] > 4, $row['recycled_wal_start']);
+        $t->same(true, str_starts_with($row['upstream'], 'walhook.test walhook-2.'));
+        $t->same([
+            'real-upstream-corpus-walhook',
+            'sqlite-wal-hook-autocheckpoint',
+            'sqlite-wal-autocheckpoint-threshold',
+        ], $row['dependencies']);
+    };
+}
+
+$tests['real upstream corpus pager wal dynamic walhook autocheckpoint row count'] = static function (TestRunner $t): void {
+    $rows = SQLiteRealUpstreamPagerWalDynamicCorpusPlan::walHookAutocheckpointRows();
+
+    $t->same(1000, count($rows));
+    $t->same('walhook.test walhook-2.4 dynamic transaction 1', $rows[0]['upstream']);
+    $t->same('walhook.test walhook-2.7 dynamic transaction 1000', $rows[999]['upstream']);
+    $t->same(5, $rows[0]['wal_hook_frame_count']);
+    $t->same(false, $rows[0]['checkpointed']);
+    $t->same(11, $rows[3]['wal_hook_frame_count']);
+    $t->same(true, $rows[3]['checkpointed']);
+    $t->same(11, $rows[999]['wal_hook_frame_count']);
+    $t->same(997, $rows[999]['checkpoint_count']);
+};
+
 return $tests;

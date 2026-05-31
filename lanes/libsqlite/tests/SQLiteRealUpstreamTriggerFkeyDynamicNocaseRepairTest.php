@@ -33,6 +33,12 @@ $tests = [
         $t->true(is_string($source) && str_contains($source, 'CREATE TABLE t2(y REFERENCES t1 ON DELETE RESTRICT)'));
         $t->true(is_string($source) && str_contains($source, 'catchsql { DELETE FROM t1 }'));
     },
+    'real upstream fkey2 replace cites composite parent block' => static function (TestRunner $t): void {
+        $source = file_get_contents('/home/claude/port-libs/.upstream-cache/libsqlite/test/fkey2.test');
+        $t->true(is_string($source) && str_contains($source, 'do_test fkey2-13.1.1'));
+        $t->true(is_string($source) && str_contains($source, 'REPLACE INTO pp VALUES(1, 4, 5)'));
+        $t->true(is_string($source) && str_contains($source, 'REPLACE INTO pp(rowid, a, b, c) VALUES(2, 2, 2, 3)'));
+    },
 ];
 
 $keys = [
@@ -118,6 +124,116 @@ for ($i = 1; $i <= 80; ++$i) {
     };
     $tests[$case . ' restrict preserves parent set before trigger program'] = static function (TestRunner $t) use ($restrict, $parents): void {
         $t->same(array_column($parents, 'key'), $restrict()['parent_keys']);
+    };
+}
+
+for ($i = 1; $i <= 120; ++$i) {
+    $baseA = 1000 + $i;
+    $baseB = 2000 + $i;
+    $baseC = 3000 + $i;
+    $parents = [
+        ['rowid' => 1, 'a' => $baseA, 'b' => $baseB, 'c' => $baseC],
+    ];
+    $children = [
+        ['d' => $baseB, 'e' => $baseC, 'f' => 1],
+    ];
+    if ($i % 4 === 0) {
+        $children[] = ['d' => $baseB, 'e' => $baseC, 'f' => 2];
+    }
+    $expectedFailedViolationCount = count($children);
+
+    $uniqueFail = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::replaceCompositeParentForeignKey(
+        $parents,
+        $children,
+        ['a' => $baseA, 'b' => $baseB + 2, 'c' => $baseC + 2, 'conflict' => 'unique-a']
+    );
+    $rowidFail = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::replaceCompositeParentForeignKey(
+        $parents,
+        $children,
+        ['rowid' => 1, 'a' => $baseA + 1, 'b' => $baseB + 2, 'c' => $baseC + 2, 'conflict' => 'rowid', 'transaction' => true]
+    );
+    $sameKeyRowid = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::replaceCompositeParentForeignKey(
+        $parents,
+        $children,
+        ['rowid' => 2, 'a' => $baseA + 1, 'b' => $baseB, 'c' => $baseC, 'conflict' => 'rowid']
+    );
+    $sameKeyUnique = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::replaceCompositeParentForeignKey(
+        $parents,
+        $children,
+        ['rowid' => 1, 'a' => $baseA, 'b' => $baseB, 'c' => $baseC, 'conflict' => 'unique-a']
+    );
+
+    $case = 'real upstream fkey2 replace composite parent dynamic ' . $i;
+    foreach ([
+        'source' => 'fkey2.test fkey2-13.1.1..13.1.4',
+        'operation' => 'replace-composite-parent-foreign-key',
+        'status' => 'constraint-failed',
+        'conflict_target' => 'unique-a',
+        'deleted_parent_keys.0' => [$baseB, $baseC],
+        'committed_parent_keys.0' => [$baseB, $baseC],
+        'committed_child_keys.0' => [$baseB, $baseC],
+        'violation_count' => $expectedFailedViolationCount,
+        'violations.0.reason' => 'missing-composite-parent-after-replace-delete',
+        'dependencies.0' => 'sqlite-fkey2-replace-runs-foreign-key-processing',
+        'dependencies.1' => 'sqlite-fkey2-replace-failure-preserves-original-rows',
+    ] as $path => $expected) {
+        $tests[$case . ' unique conflict preserves rows ' . $path] = static function (TestRunner $t) use ($uniqueFail, $path, $expected, $value): void {
+            $t->same($expected, $value($uniqueFail(), (string) $path));
+        };
+    }
+
+    foreach ([
+        'status' => 'constraint-failed',
+        'conflict_target' => 'rowid',
+        'transaction_open_after_failed_replace' => true,
+        'deleted_rowids.0' => 1,
+        'committed_parent_rows.0.rowid' => 1,
+        'committed_parent_rows.0.a' => $baseA,
+        'committed_parent_keys.0' => [$baseB, $baseC],
+        'violation_count' => $expectedFailedViolationCount,
+        'violations.0.child_key' => [$baseB, $baseC],
+    ] as $path => $expected) {
+        $tests[$case . ' rowid conflict failed statement leaves transaction open ' . $path] = static function (TestRunner $t) use ($rowidFail, $path, $expected, $value): void {
+            $t->same($expected, $value($rowidFail(), (string) $path));
+        };
+    }
+
+    foreach ([
+        'status' => 'commit-ok',
+        'conflict_target' => 'rowid',
+        'incoming_parent_key' => [$baseB, $baseC],
+        'incoming_rowid' => 2,
+        'deleted_rowids.0' => 1,
+        'committed_parent_rows.0.rowid' => 2,
+        'committed_parent_keys.0' => [$baseB, $baseC],
+        'committed_child_keys.0' => [$baseB, $baseC],
+        'violation_count' => 0,
+        'dependencies.2' => 'sqlite-fkey2-replace-same-composite-parent-key-commits',
+    ] as $path => $expected) {
+        $tests[$case . ' same composite key rowid replace commits ' . $path] = static function (TestRunner $t) use ($sameKeyRowid, $path, $expected, $value): void {
+            $t->same($expected, $value($sameKeyRowid(), (string) $path));
+        };
+    }
+
+    foreach ([
+        'status' => 'commit-ok',
+        'conflict_target' => 'unique-a',
+        'incoming_rowid' => 1,
+        'deleted_parent_keys.0' => [$baseB, $baseC],
+        'committed_parent_keys.0' => [$baseB, $baseC],
+        'committed_child_keys.0' => [$baseB, $baseC],
+        'violation_count' => 0,
+    ] as $path => $expected) {
+        $tests[$case . ' same composite key unique replace commits ' . $path] = static function (TestRunner $t) use ($sameKeyUnique, $path, $expected, $value): void {
+            $t->same($expected, $value($sameKeyUnique(), (string) $path));
+        };
+    }
+
+    $tests[$case . ' failed unique replace preserves full parent row set'] = static function (TestRunner $t) use ($uniqueFail, $parents): void {
+        $t->same($parents, $uniqueFail()['committed_parent_rows']);
+    };
+    $tests[$case . ' failed rowid replace preserves child row keys'] = static function (TestRunner $t) use ($rowidFail, $children): void {
+        $t->same(array_values(array_map(static fn (array $row): array => [$row['d'], $row['e']], $children)), $rowidFail()['committed_child_keys']);
     };
 }
 

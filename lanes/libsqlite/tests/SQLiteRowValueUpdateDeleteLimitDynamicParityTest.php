@@ -75,6 +75,15 @@ $deleteBooleanCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' 
 $updateRowValueBooleanSubqueryLimit = "UPDATE app_settings SET state = 'bool_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT TRUE+TRUE OFFSET FALSE) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
 $deleteRowValueBooleanSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT TRUE+TRUE OFFSET TRUE) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
 $updateFalseLimit = "UPDATE app_settings SET state = 'false_limit' WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT FALSE OFFSET TRUE";
+$updateModuloLimit = "UPDATE app_settings SET state = 'mod_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT 5%3 OFFSET 7%3";
+$deleteShiftCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT 1<<1, 1<<2";
+$updateBitwiseLimit = "UPDATE app_settings SET state = 'bitwise_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT (7&3) OFFSET (6|1)-6";
+$deleteAbsLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT abs(-3) OFFSET abs(-1)";
+$updateRowValueModuloSubqueryLimit = "UPDATE app_settings SET state = 'mod_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT 5%3 OFFSET 4%3) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+$deleteRowValueShiftSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT 1<<1 OFFSET 1) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+$updateRowValueBitwiseSubqueryLimit = "UPDATE app_settings SET state = 'bitwise_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT (7&3) OFFSET (6|1)-6) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+$deleteRowValueAbsSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT abs(-3) OFFSET abs(-2)) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+$updateBitwiseNegativeLimit = "UPDATE app_settings SET state = 'bitwise_all' WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT ~0 OFFSET -~0";
 
 $cases = [
     'parse update negative offset retained' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateNegativeOffset)['offset'], -4],
@@ -178,6 +187,31 @@ $cases = [
     'delete row-value boolean subquery keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueBooleanSubqueryLimit)['tables']['app_settings'], 'setting_id'), [1, 2, 4, 6, 7, 8]],
     'update false limit selects no rows' => [static fn (): mixed => $execute($updateFalseLimit)['plan']->selectedIds, []],
     'update false limit leaves result unchanged' => [static fn (): mixed => array_column($execute($updateFalseLimit)['tables']['app_settings'], 'state', 'setting_id'), [1 => 'live', 2 => 'live', 3 => 'stale', 4 => 'stale', 5 => 'queued', 6 => 'queued', 7 => null, 8 => 'stale']],
+    'parse update modulo limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateModuloLimit)['limit'], 2],
+    'parse update modulo offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateModuloLimit)['offset'], 1],
+    'update modulo limit selects after modulo offset' => [static fn (): mixed => $execute($updateModuloLimit)['plan']->selectedIds, [2, 3]],
+    'update modulo limit returns source order' => [static fn (): mixed => array_column($execute($updateModuloLimit)['returning'], 'setting_id'), [2, 3]],
+    'parse delete shift comma offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteShiftCommaLimit)['offset'], 2],
+    'parse delete shift comma count' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteShiftCommaLimit)['limit'], 4],
+    'delete shift comma limit selects shifted window' => [static fn (): mixed => $execute($deleteShiftCommaLimit)['plan']->selectedIds, [3, 6, 8]],
+    'parse update bitwise and limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateBitwiseLimit)['limit'], 3],
+    'parse update bitwise or offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateBitwiseLimit)['offset'], 1],
+    'update bitwise limit selects ordered window' => [static fn (): mixed => $execute($updateBitwiseLimit)['plan']->selectedIds, [2, 3, 6]],
+    'parse delete abs limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteAbsLimit)['limit'], 3],
+    'parse delete abs offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteAbsLimit)['offset'], 1],
+    'delete abs limit selects ordered window' => [static fn (): mixed => $execute($deleteAbsLimit)['plan']->selectedIds, [2, 3, 6]],
+    'update row-value modulo subquery applies before tuple match' => [static fn (): mixed => $execute($updateRowValueModuloSubqueryLimit)['plan']->selectedIds, [3, 5]],
+    'update row-value modulo subquery returns source order' => [static fn (): mixed => array_column($execute($updateRowValueModuloSubqueryLimit)['returning'], 'setting_id'), [3, 5]],
+    'delete row-value shift subquery applies before tuple match' => [static fn (): mixed => $execute($deleteRowValueShiftSubqueryLimit)['plan']->selectedIds, [3, 5]],
+    'delete row-value shift subquery keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueShiftSubqueryLimit)['tables']['app_settings'], 'setting_id'), [1, 2, 4, 6, 7, 8]],
+    'update row-value bitwise subquery applies before tuple match' => [static fn (): mixed => $execute($updateRowValueBitwiseSubqueryLimit)['plan']->selectedIds, [2, 3, 5]],
+    'update row-value bitwise subquery returns source order' => [static fn (): mixed => array_column($execute($updateRowValueBitwiseSubqueryLimit)['returning'], 'setting_id'), [2, 3, 5]],
+    'delete row-value abs subquery applies before tuple match' => [static fn (): mixed => $execute($deleteRowValueAbsSubqueryLimit)['plan']->selectedIds, [2, 5, 8]],
+    'delete row-value abs subquery keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueAbsSubqueryLimit)['tables']['app_settings'], 'setting_id'), [1, 3, 4, 6, 7]],
+    'parse update bitwise-not negative limit means no limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateBitwiseNegativeLimit)['limit'], -1],
+    'parse update negative bitwise-not offset clamps to zero' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateBitwiseNegativeLimit)['offset'], 1],
+    'update bitwise-not negative limit selects all after offset clamp expression' => [static fn (): mixed => $execute($updateBitwiseNegativeLimit)['plan']->selectedIds, [2, 3, 6, 8]],
+    'malformed modulo zero limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 5%0"), InvalidArgumentException::class],
     'malformed cast null limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT CAST(NULL AS INTEGER)"), InvalidArgumentException::class],
     'malformed cast blob offset rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET CAST(X'ABCD' AS INT)"), InvalidArgumentException::class],
     'malformed nonintegral real cast limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT CAST('2.5' AS REAL)"), InvalidArgumentException::class],

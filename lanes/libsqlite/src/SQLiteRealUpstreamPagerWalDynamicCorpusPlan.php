@@ -398,6 +398,57 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walHookAutocheckpointRows(): array
+    {
+        $rows = [];
+        $pageSize = 1024;
+        $threshold = 10;
+        $logPages = 3;
+        $databasePages = 6;
+        $checkpointCount = 0;
+
+        for ($transaction = 1; $transaction <= 1000; $transaction++) {
+            $previousLogPages = $logPages;
+            $previousDatabasePages = $databasePages;
+            $logPages += 2;
+            $checkpointed = $logPages >= $threshold;
+
+            if ($checkpointed) {
+                $checkpointCount++;
+                $databasePages = max($databasePages, 8 + (($checkpointCount - 1) * 2));
+                $logPages = 11;
+            }
+
+            $rows[] = [
+                'upstream' => 'walhook.test walhook-2.' . (4 + (($transaction - 1) % 6)) . ' dynamic transaction ' . $transaction,
+                'transaction' => $transaction,
+                'page_size' => $pageSize,
+                'autocheckpoint_threshold' => $threshold,
+                'previous_log_pages' => $previousLogPages,
+                'previous_database_pages' => $previousDatabasePages,
+                'wal_hook_database' => 'main',
+                'wal_hook_frame_count' => $logPages,
+                'database_pages_after_commit' => $databasePages,
+                'database_size_after_commit' => $databasePages * $pageSize,
+                'wal_pages_after_commit' => $logPages,
+                'wal_file_size_after_commit' => self::walFileSize($logPages, $pageSize),
+                'checkpointed' => $checkpointed,
+                'checkpoint_count' => $checkpointCount,
+                'recycled_wal_start' => $checkpointed && $transaction > 4,
+                'dependencies' => [
+                    'real-upstream-corpus-walhook',
+                    'sqlite-wal-hook-autocheckpoint',
+                    'sqlite-wal-autocheckpoint-threshold',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array
@@ -414,6 +465,11 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
             'digest' => hash('sha256', $bytes),
             'prefix' => strtoupper(bin2hex(substr($bytes, 0, 8))),
         ];
+    }
+
+    private static function walFileSize(int $frames, int $pageSize): int
+    {
+        return 32 + ($frames * (24 + $pageSize));
     }
 
     /**

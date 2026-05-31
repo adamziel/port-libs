@@ -684,6 +684,12 @@ final class SQLiteUpdateDeleteReturningSql
         if (str_starts_with($expression, '-')) {
             return -self::limitNumericValue(substr($expression, 1));
         }
+        if (str_starts_with($expression, '~')) {
+            return ~self::limitInteger(substr($expression, 1));
+        }
+        if (preg_match('/^abs\s*\((.+)\)$/is', $expression, $match) === 1) {
+            return abs(self::limitNumericValue($match[1]));
+        }
         if (preg_match('/^-?\d+$/', $expression) === 1) {
             return (int) $expression;
         }
@@ -723,6 +729,27 @@ final class SQLiteUpdateDeleteReturningSql
                         throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT division by zero');
                     }
                     $value = $operator === '*' ? $value * $right : $value / $right;
+                }
+
+                return $value;
+            }
+        }
+        foreach (['<<', '>>', '&', '|', '%'] as $operator) {
+            $parts = self::splitLimitOperator($expression, $operator);
+            if (count($parts) > 1) {
+                $value = self::limitInteger(array_shift($parts));
+                foreach ($parts as $part) {
+                    $right = self::limitInteger($part);
+                    if ($operator === '%' && $right === 0) {
+                        throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT modulo by zero');
+                    }
+                    $value = match ($operator) {
+                        '<<' => $value << $right,
+                        '>>' => $value >> $right,
+                        '&' => $value & $right,
+                        '|' => $value | $right,
+                        '%' => $value % $right,
+                    };
                 }
 
                 return $value;
@@ -790,6 +817,7 @@ final class SQLiteUpdateDeleteReturningSql
         $inString = false;
         $depth = 0;
         $length = strlen($sql);
+        $operatorLength = strlen($operator);
         for ($i = 0; $i < $length; $i++) {
             $char = $sql[$i];
             if ($char === "'") {
@@ -812,9 +840,9 @@ final class SQLiteUpdateDeleteReturningSql
                 $buffer .= $char;
                 continue;
             }
-            if (!$inString && $depth === 0 && $char === $operator) {
+            if (!$inString && $depth === 0 && substr($sql, $i, $operatorLength) === $operator) {
                 $previous = $buffer === '' ? '' : substr(rtrim($buffer), -1);
-                $next = $sql[$i + 1] ?? '';
+                $next = $sql[$i + $operatorLength] ?? '';
                 if (($operator === '+' || $operator === '-') && ($previous === 'e' || $previous === 'E') && preg_match('/\d/', $next) === 1) {
                     $beforeExponent = substr(rtrim($buffer), 0, -1);
                     $exponentBaseTail = $beforeExponent === '' ? '' : substr($beforeExponent, -1);
@@ -829,6 +857,7 @@ final class SQLiteUpdateDeleteReturningSql
                 }
                 $parts[] = trim($buffer);
                 $buffer = '';
+                $i += $operatorLength - 1;
                 continue;
             }
             $buffer .= $char;

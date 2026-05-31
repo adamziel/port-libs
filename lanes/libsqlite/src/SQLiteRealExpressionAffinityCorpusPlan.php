@@ -196,6 +196,71 @@ final class SQLiteRealExpressionAffinityCorpusPlan
     }
 
     /**
+     * @param list<array{rowid:int,value:int|float|string,stored?:int|float|string|null,ulp_drift?:int|float}> $entries
+     * @param list<int> $deletedRowids
+     * @return array{integrity:list<string>,missing_rowids:list<int>,imprecise_rowids:list<int>,remaining:list<array{rowid:int,value:float,stored:float,drift:float,ulp:float,classification:string}>,deleted_rowids:list<int>}
+     */
+    public static function realExpressionIndexDriftPlan(array $entries, array $deletedRowids = [], string $indexName = 'expridx'): array
+    {
+        $deleted = array_fill_keys(array_map('intval', $deletedRowids), true);
+        $integrity = [];
+        $missing = [];
+        $imprecise = [];
+        $remaining = [];
+
+        foreach ($entries as $entry) {
+            $rowid = (int) ($entry['rowid'] ?? 0);
+            if ($rowid <= 0) {
+                throw new \InvalidArgumentException('SQLite real expression index drift rowid must be positive');
+            }
+
+            $value = self::castReal($entry['value'] ?? null);
+            $stored = array_key_exists('stored', $entry) ? self::castReal($entry['stored']) : $value;
+            if ($value === null || $stored === null || !is_finite($value) || !is_finite($stored)) {
+                throw new \InvalidArgumentException('SQLite real expression index drift values must be finite REAL-compatible values');
+            }
+
+            if (isset($deleted[$rowid])) {
+                continue;
+            }
+
+            $ulp = self::realUlp($value);
+            $drift = abs($stored - $value);
+            $ulpDrift = array_key_exists('ulp_drift', $entry) ? abs((float) $entry['ulp_drift']) : ($ulp === 0.0 ? 0.0 : $drift / $ulp);
+            $classification = match (true) {
+                $ulpDrift === 0.0 => 'ok',
+                $ulpDrift <= 2.25 => 'imprecise',
+                default => 'missing',
+            };
+
+            if ($classification === 'imprecise') {
+                $imprecise[] = $rowid;
+                $integrity[] = "index {$indexName} stores an imprecise floating-point value for row {$rowid}";
+            } elseif ($classification === 'missing') {
+                $missing[] = $rowid;
+                $integrity[] = "row {$rowid} missing from index {$indexName}";
+            }
+
+            $remaining[] = [
+                'rowid' => $rowid,
+                'value' => $value,
+                'stored' => $stored,
+                'drift' => $drift,
+                'ulp' => $ulp,
+                'classification' => $classification,
+            ];
+        }
+
+        return [
+            'integrity' => $integrity === [] ? ['ok'] : $integrity,
+            'missing_rowids' => $missing,
+            'imprecise_rowids' => $imprecise,
+            'remaining' => $remaining,
+            'deleted_rowids' => array_keys($deleted),
+        ];
+    }
+
+    /**
      * @return array{left:mixed,right:mixed,leftStorageClass:string,rightStorageClass:string}
      */
     private static function coercedPair(mixed $left, mixed $right, string $leftAffinity, string $rightAffinity): array
@@ -395,5 +460,12 @@ final class SQLiteRealExpressionAffinityCorpusPlan
         $text = sprintf('%.15G', $value);
 
         return str_contains($text, 'E') ? str_replace('E', 'e', $text) : $text;
+    }
+
+    private static function realUlp(float $value): float
+    {
+        $scale = max(1.0, abs($value));
+
+        return $scale * 2.220446049250313e-16;
     }
 }

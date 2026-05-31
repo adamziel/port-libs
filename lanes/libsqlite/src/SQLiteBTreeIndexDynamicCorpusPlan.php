@@ -992,6 +992,49 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,result_rows:list<array<int,mixed>>,uses_partial_index:bool,integrity:string,detail:string,predicate:string,join_kind:string|null,collation:string|null}>
+     */
+    public static function index6LatePartialIndexRegressionCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index6 late partial-index corpus requires at least one case');
+        }
+
+        $templates = [
+            ['index6-15.2', 'BETWEEN FALSE AND TRUE around IS FALSE keeps the NULL row visible', [[1]], false, 'SELECT 1 FROM t0 WHERE (t0.c0 IS FALSE) BETWEEN FALSE AND TRUE', '(c0 IS FALSE) BETWEEN FALSE AND TRUE', null, null],
+            ['index6-15.3', 'TRUE BETWEEN an IS FALSE expression and TRUE keeps the NULL row visible', [[1]], false, 'SELECT 1 FROM t0 WHERE TRUE BETWEEN (t0.c0 IS FALSE) AND TRUE', 'TRUE BETWEEN (c0 IS FALSE) AND TRUE', null, null],
+            ['index6-15.4', 'FALSE BETWEEN FALSE and an IS FALSE expression keeps the NULL row visible', [[1]], false, 'SELECT 1 FROM t0 WHERE FALSE BETWEEN FALSE AND (t0.c0 IS FALSE)', 'FALSE BETWEEN FALSE AND (c0 IS FALSE)', null, null],
+            ['index6-16.2', 'NOCASE partial predicate c0 greater-or-equal c1 excludes the row', [], true, 'SELECT 2 FROM t0 WHERE c0 >= c1', 'c0 >= c1', null, 'NOCASE'],
+            ['index6-16.3', 'commuted NOCASE comparison c1 less-or-equal c0 returns the row outside the partial index', [[3]], false, 'SELECT 3 FROM t0 WHERE c1 <= c0', 'c1 <= c0', null, 'NOCASE'],
+            ['index6-17.1', 'GLOB partial index and later unique index preserve integrity after insert', [['ok']], true, 'CREATE INDEX i0 ON t0(0) WHERE c0 GLOB c0; CREATE UNIQUE INDEX i1 ON t0(0)', 'c0 GLOB c0', null, null],
+            ['index6-17.2', 'second unique index and REPLACE preserve GLOB partial-index integrity', [['ok']], true, 'CREATE UNIQUE INDEX i2 ON t0(0); REPLACE INTO t0 VALUES(0); PRAGMA integrity_check', 'c0 GLOB c0', null, null],
+            ['index6-17.3', 'GLOB partial-index predicate still finds one matching row after REPLACE', [[1]], true, 'SELECT COUNT(*) FROM t0 WHERE t0.c0 GLOB t0.c0', 'c0 GLOB c0', null, null],
+            ['index6-18.1', 'partial unique index with a greater-than-NULL predicate does not hide IS NOT NULL rows', [[10, 10]], false, 'CREATE UNIQUE INDEX t1b ON t1(b) WHERE a>NULL; SELECT * WHERE a IS NOT NULL', 'a > NULL', null, null],
+            ['index6-19.2', 'RIGHT JOIN no-match loop cannot scan a partial index on the left table', [], false, 'SELECT * FROM t2 RIGHT JOIN t3 ON d<>0 LEFT JOIN t1 ON c=3 WHERE t1.a<>0', 'c = 3', 'RIGHT JOIN', null],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $rows, $usesIndex, $detail, $predicate, $joinKind, $collation] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'index6.test sections index6-15.2 through index6-19.2',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario . ' dynamic batch ' . (intdiv($case - 1, count($templates)) + 1),
+                'result_rows' => $rows,
+                'uses_partial_index' => $usesIndex,
+                'integrity' => 'ok',
+                'detail' => $detail,
+                'predicate' => $predicate,
+                'join_kind' => $joinKind,
+                'collation' => $collation,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{upstream:string,source:string,value:int,initial_a:int|null,initial_b:int,partial_not_null_member:bool,post_update_a:int,post_update_b:int,or_partial_member:bool,lookup_before:list<int>,lookup_after:list<int>,detail_before:string,detail_after:string,integrity:string}>
      */
     public static function index7WithoutRowidPartialIndexCases(): array

@@ -14,10 +14,11 @@ final class SQLiteUpsertReturningDynamicPlan
      * @param list<string> $columns
      * @param list<string> $conflictTarget
      * @param array<string,mixed> $defaults
-     * @param array<string,string|int|float|null> $updateAssignments
+     * @param array<string,string|int|float|null|callable(array<string,mixed>,array<string,mixed>):mixed> $updateAssignments
      * @param list<string>|string $returning
      * @param null|callable(array<string,mixed>):bool $partialIndex
      * @param list<list<string>> $additionalConflictTargets
+     * @param null|callable(array<string,mixed>,array<string,mixed>):bool $updateWhere
      * @return array{before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,decisions:list<array<string,mixed>>,changes:int}
      */
     public static function execute(
@@ -32,6 +33,7 @@ final class SQLiteUpsertReturningDynamicPlan
         bool $doNothing = false,
         string $rowidColumn = 'id',
         array $additionalConflictTargets = [],
+        ?callable $updateWhere = null,
     ): array {
         self::assertList($rows, 'base rows');
         self::assertList($incomingRows, 'incoming rows');
@@ -110,6 +112,12 @@ final class SQLiteUpsertReturningDynamicPlan
 
             if ($updateAssignments === []) {
                 throw new InvalidArgumentException('SQLite UPSERT DO UPDATE assignments cannot be empty');
+            }
+
+            if ($updateWhere !== null && !$updateWhere($old, $candidate)) {
+                $skipped[] = $candidate;
+                $decisions[] = self::decision($sequence, 'skip', $candidate, $old, $matchedTarget ?? $conflictTarget);
+                continue;
             }
 
             $new = $old;
@@ -195,6 +203,10 @@ final class SQLiteUpsertReturningDynamicPlan
 
     private static function assignmentValue(mixed $source, array $old, array $candidate): mixed
     {
+        if (is_callable($source)) {
+            return $source($old, $candidate);
+        }
+
         if (is_string($source)) {
             if (str_starts_with($source, 'excluded.')) {
                 $column = substr($source, 9);

@@ -254,6 +254,71 @@ final class SQLitePragmaSchemaDataVersion
     }
 
     /**
+     * @param list<array{id:string,schema:string,schema_cookie:int,prepared_during_rolled_back_schema?:bool,sql?:string}> $preparedStatements
+     * @return array{
+     *     status:string,
+     *     operation:string,
+     *     schema:string,
+     *     current_schema_cookie:int,
+     *     expired:list<string>,
+     *     preserved:list<string>,
+     *     reasons:array<string,string>,
+     *     dependencies:list<string>
+     * }
+     */
+    public function expirePreparedAfterSchemaRollback(array $preparedStatements, string $schema = 'main', ?int $currentSchemaCookie = null): array
+    {
+        $schema = self::normalizeSchemaName($schema);
+        $this->ensureSchema($schema);
+        $currentSchemaCookie ??= $this->schemas[$schema]['schema_version'];
+
+        $expired = [];
+        $preserved = [];
+        $reasons = [];
+
+        foreach ($preparedStatements as $statement) {
+            $id = (string) $statement['id'];
+            $statementSchema = self::normalizeSchemaName((string) ($statement['schema'] ?? $schema));
+            $statementCookie = self::normalizeVersion((int) $statement['schema_cookie']);
+
+            if ($statementSchema !== $schema) {
+                $preserved[] = $id;
+                $reasons[$id] = 'different_schema';
+                continue;
+            }
+
+            if (($statement['prepared_during_rolled_back_schema'] ?? false) === true) {
+                $expired[] = $id;
+                $reasons[$id] = 'prepared_during_rolled_back_schema';
+                continue;
+            }
+
+            if ($statementCookie !== $currentSchemaCookie) {
+                $expired[] = $id;
+                $reasons[$id] = 'schema_cookie_mismatch';
+                continue;
+            }
+
+            $preserved[] = $id;
+            $reasons[$id] = 'schema_cookie_current';
+        }
+
+        return [
+            'status' => 'ok',
+            'operation' => 'expire-prepared-after-schema-rollback',
+            'schema' => $schema,
+            'current_schema_cookie' => $currentSchemaCookie,
+            'expired' => $expired,
+            'preserved' => $preserved,
+            'reasons' => $reasons,
+            'dependencies' => [
+                'sqlite-schema-rollback-expires-prepared-statements',
+                'sqlite-schema-cookie-equality-is-not-sufficient-after-rollback',
+            ],
+        ];
+    }
+
+    /**
      * @return array<string, array<string, int|bool>>
      */
     public function state(): array

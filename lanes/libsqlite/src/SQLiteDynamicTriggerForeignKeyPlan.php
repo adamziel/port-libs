@@ -529,6 +529,86 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{rowid:int,a:int|string,b:int|string,c:int|string}> $parents
+     * @param list<array{d:int|string,e:int|string,f?:int|string}> $children
+     * @param array{rowid?:int,a:int|string,b:int|string,c:int|string,conflict?:string,transaction?:bool} $incoming
+     * @return array<string,mixed>
+     */
+    public static function replaceCompositeParentForeignKey(array $parents, array $children, array $incoming): array
+    {
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $originalParents = $parents;
+        $conflict = strtolower(trim((string) ($incoming['conflict'] ?? 'unique-a')));
+        if (!in_array($conflict, ['unique-a', 'rowid'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2-13 REPLACE conflict target is unsupported');
+        }
+
+        $incomingRow = [
+            'rowid' => (int) ($incoming['rowid'] ?? self::nextCompositeReplaceRowid($parents)),
+            'a' => $incoming['a'] ?? throw new \InvalidArgumentException('SQLite fkey2-13 incoming a is required'),
+            'b' => $incoming['b'] ?? throw new \InvalidArgumentException('SQLite fkey2-13 incoming b is required'),
+            'c' => $incoming['c'] ?? throw new \InvalidArgumentException('SQLite fkey2-13 incoming c is required'),
+        ];
+
+        $deleted = [];
+        foreach ($parents as $index => $parent) {
+            self::requireCompositeReplaceParent($parent);
+            $matches = $conflict === 'rowid'
+                ? (int) $parent['rowid'] === $incomingRow['rowid']
+                : $parent['a'] === $incomingRow['a'];
+            if (!$matches) {
+                continue;
+            }
+
+            $deleted[] = $parent;
+            unset($parents[$index]);
+        }
+        $parents = array_values($parents);
+
+        foreach ($parents as $index => $parent) {
+            $matches = (int) $parent['rowid'] === $incomingRow['rowid']
+                || $parent['a'] === $incomingRow['a']
+                || ($parent['b'] === $incomingRow['b'] && $parent['c'] === $incomingRow['c']);
+            if (!$matches) {
+                continue;
+            }
+
+            $deleted[] = $parent;
+            unset($parents[$index]);
+        }
+        $parents = array_values($parents);
+
+        $attempted = $parents;
+        $attempted[] = $incomingRow;
+        $violations = self::compositeReplaceViolations($attempted, $children);
+        $status = $violations === [] ? 'commit-ok' : 'constraint-failed';
+        $committed = $status === 'commit-ok' ? $attempted : $originalParents;
+
+        return [
+            'source' => 'fkey2.test fkey2-13.1.1..13.1.4',
+            'operation' => 'replace-composite-parent-foreign-key',
+            'status' => $status,
+            'transaction_open_after_failed_replace' => (bool) ($incoming['transaction'] ?? false) && $status === 'constraint-failed',
+            'conflict_target' => $conflict,
+            'incoming_parent_key' => [$incomingRow['b'], $incomingRow['c']],
+            'incoming_rowid' => $incomingRow['rowid'],
+            'deleted_parent_keys' => array_values(array_map(static fn (array $row): array => [$row['b'], $row['c']], $deleted)),
+            'deleted_rowids' => array_values(array_map(static fn (array $row): int => (int) $row['rowid'], $deleted)),
+            'committed_parent_rows' => self::sortRows($committed),
+            'committed_parent_keys' => array_values(array_map(static fn (array $row): array => [$row['b'], $row['c']], self::sortRows($committed))),
+            'committed_child_keys' => array_values(array_map(static fn (array $row): array => [$row['d'], $row['e']], $children)),
+            'violation_count' => count($violations),
+            'violations' => $violations,
+            'dependencies' => [
+                'sqlite-fkey2-replace-runs-foreign-key-processing',
+                'sqlite-fkey2-replace-failure-preserves-original-rows',
+                'sqlite-fkey2-replace-same-composite-parent-key-commits',
+            ],
+        ];
+    }
+
+    /**
      * @param list<mixed> $parentValues
      * @param list<mixed> $incomingChildValues
      * @return array<string,mixed>
@@ -4110,6 +4190,60 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             if (!isset($keys[$child['c39'] . "\0" . $child['c38']])) {
                 ++$violations;
             }
+        }
+
+        return $violations;
+    }
+
+    /**
+     * @param array<string,mixed> $parent
+     */
+    private static function requireCompositeReplaceParent(array $parent): void
+    {
+        foreach (['rowid', 'a', 'b', 'c'] as $column) {
+            if (!array_key_exists($column, $parent)) {
+                throw new \InvalidArgumentException('SQLite fkey2-13 parent row is missing ' . $column);
+            }
+        }
+    }
+
+    /**
+     * @param list<array{rowid:int,a:int|string,b:int|string,c:int|string}> $parents
+     */
+    private static function nextCompositeReplaceRowid(array $parents): int
+    {
+        $max = 0;
+        foreach ($parents as $parent) {
+            $max = max($max, (int) ($parent['rowid'] ?? 0));
+        }
+
+        return $max + 1;
+    }
+
+    /**
+     * @param list<array{rowid:int,a:int|string,b:int|string,c:int|string}> $parents
+     * @param list<array{d:int|string,e:int|string,f?:int|string}> $children
+     * @return list<array{child_index:int,child_key:array{mixed,mixed},reason:string}>
+     */
+    private static function compositeReplaceViolations(array $parents, array $children): array
+    {
+        $keys = [];
+        foreach ($parents as $parent) {
+            $keys[(string) $parent['b'] . "\0" . (string) $parent['c']] = true;
+        }
+
+        $violations = [];
+        foreach ($children as $index => $child) {
+            $key = (string) ($child['d'] ?? '') . "\0" . (string) ($child['e'] ?? '');
+            if (isset($keys[$key])) {
+                continue;
+            }
+
+            $violations[] = [
+                'child_index' => $index,
+                'child_key' => [$child['d'] ?? null, $child['e'] ?? null],
+                'reason' => 'missing-composite-parent-after-replace-delete',
+            ];
         }
 
         return $violations;
