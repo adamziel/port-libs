@@ -51,6 +51,18 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (Gitoxide batch sample 09:34 UTC):
+  Gitoxide source commit `22c4c1189a72bc4f6d6235f61cc5854402c4c449`
+  (`gitoxide: add sha256 refs and delta size guards`) landed two handoffs after
+  excluding stale shared metadata: protocol v2 `ls-refs` SHA-256 remote refs
+  and pack delta oversized-header guards. Verification passed PHP lint for
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  protocol/pack tests `3 files / 285 assertions / 0 failures`, full Gitoxide
+  lane `38 files / 3789 assertions / 0 failures`, and two touched examples.
+  Public Gitoxide evidence should move from `3776` to `3789 pass / 0 fail`;
+  mapped coverage moves from `1510 / 2886` to `1512 / 2886`. This is still not
+  full Cargo workspace pass parity.
+
 - 2026-05-31 supervisor continuation (Gitoxide batch sample 09:28 UTC):
   Gitoxide source commit `bec764c0e27c53d87a483ad69672081477855aa3`
   (`gitoxide: tighten config and sparse pathspec parity`) landed two handoffs

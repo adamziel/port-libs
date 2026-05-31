@@ -1112,3 +1112,19 @@ Config/sparse pathspec batch accepted on 2026-05-31:
 - The mapped denominator moves from `1508 / 2886` to `1510 / 2886` for the two
   distinct upstream-backed behavior slices. Full Cargo workspace tests were not
   run for this slice.
+
+ls-refs/pack-delta batch accepted on 2026-05-31:
+
+- Source commit `22c4c1189a72bc4f6d6235f61cc5854402c4c449` integrates two
+  Gitoxide handoffs without taking their stale shared metadata edits. The
+  accepted source slices cover protocol v2 `ls-refs` SHA-256 remote-reference
+  advertisements and pack delta base/result size varints that exceed the PHP
+  integer range.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  protocol/pack tests `3 files / 285 assertions / 0 failures`, full Gitoxide
+  lane tests `38 files / 3789 assertions / 0 failures`, and two touched
+  examples exiting 0.
+- The mapped denominator moves from `1510 / 2886` to `1512 / 2886` for the two
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.

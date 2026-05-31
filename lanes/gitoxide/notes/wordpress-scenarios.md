@@ -285,6 +285,10 @@ capability and `ls-refs` advertisements plus upstream-shaped request bytes, so
 deployment tooling can inspect active branches, unborn refs, peeled tags, and
 symbolic HEADs through native PHP protocol framing.
 
+The ls-refs example now also records SHA-256 remote refs. The pack data example
+rejects oversized delta base/result headers before integer wraparound can
+affect object reconstruction.
+
 The fetch response example now also records upstream sideband fixture progress
 messages parsed into native remote-progress records. The push response example
 now rejects oversized receive-pack status packet-lines before interpreting them
