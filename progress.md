@@ -48,6 +48,30 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 02:58 UTC):
+  Batch52 is integrated locally as source
+  `19202bd78678f65ba5901962135be6f6fbad9696` (`libsqlite: add
+  fifty-second current corpus sweep`). The batch accepted 9 source/test-moving
+  behavior handoffs across PRAGMA star-schema behavior, B-tree bestindexA
+  behavior, windowE REAL RANGE behavior, expression CAST-derived affinity
+  behavior, pager WAL readonly-checkpoint behavior, JSON108 pretty invariant
+  behavior, date4 rows 9300-10299 behavior, UPSERT fault returning behavior,
+  and VFS journal1 stale-rollback behavior. Verification passed PHP lint for
+  `14` changed/new PHP files, `git diff --check -- lanes/libsqlite`, no
+  newly-added WordPress/wp source text in the batch diff, focused selected
+  tests `9 files / 308094 assertions / 0 failures / 12870 PASS lines`,
+  accepted-base overlap `0 files / 0 assertions / 0 failures / 0 PASS lines`,
+  B-tree related tests `44 files / 824992 assertions / 0 failures / 48665 PASS
+  lines`, trigger/upsert related tests `160 files / 903160 assertions /
+  0 failures / 540729 PASS lines`, pager/VFS related tests `111 files /
+  1764983 assertions / 0 failures / 136382 PASS lines`, and mixed/domain tests
+  `5 files / 232153 assertions / 0 failures / 4860 PASS lines`. Honest
+  selected movement is `+12870`, moving libsqlite from `1684598` to
+  `1697468 pass / 0 fail`; mapped coverage remains `1589 / 1589`. Existing
+  source-level WordPress/wp literals remain a source-neutral cleanup track, but
+  this batch added none. App-WAL parity remains parked; broad release/all-runner
+  parity remains open; gitoxide starts only after libsqlite closure is recorded.
+
 - 2026-05-31 supervisor continuation (integration sample 02:49 UTC):
   Batch51 is integrated locally as source
   `e9c75465103b108e3c3913fe20bf18d68df877b3` (`libsqlite: add
