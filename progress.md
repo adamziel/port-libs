@@ -48,6 +48,32 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 01:37 UTC):
+  Batch45 is integrated locally as source
+  `90306495b8a2dab4dae25d20d533a02add184854` (`libsqlite: add forty-fifth
+  current corpus sweep`). The batch accepted 12 clean non-app-WAL handoffs:
+  rowvalue UPDATE/DELETE LIMIT subquery ordinal parity, B-tree index/best-index
+  dynamic corpus behavior, expression bitwise and REAL-prefix behavior, JSON106
+  invariant behavior, pager WAL dynamic behavior, PRAGMA schema
+  seventh-thousand behavior, SELECT1 compound IN behavior, trigger/FK recursive
+  cascade pragma behavior, UPSERT/RETURNING composite-tail behavior, VFS
+  subjournal behavior, and windowE RANGE corpus behavior. Verification passed
+  PHP lint for 18 changed/new PHP files, `git diff --check -- lanes/libsqlite`,
+  no newly-added WordPress/wp source text in the batch diff, focused selected
+  tests `13 files / 311059 assertions / 0 failures / 29823 PASS lines`,
+  accepted-base overlap `4 files / 122445 assertions / 0 failures / 11660 PASS
+  lines`, B-tree related tests `32 files / 590410 assertions / 0 failures /
+  36434 PASS lines`, trigger/upsert related tests `143 files / 762882
+  assertions / 0 failures / 484115 PASS lines`, pager/VFS related tests `92
+  files / 1421609 assertions / 0 failures / 116434 PASS lines`, mixed/domain
+  tests `7 files / 139183 assertions / 0 failures / 11194 PASS lines`, and
+  rowvalue targeted `1 file / 2413 assertions / 0 failures / 822 PASS lines`.
+  Honest selected movement is `+18163`, moving libsqlite from `1524483` to
+  `1542646 pass / 0 fail`; mapped coverage remains `1589 / 1589`. Existing
+  source-level WordPress/wp literals remain a source-neutral cleanup track, but
+  this batch added none. Broad release/all-runner parity remains open; gitoxide
+  starts only after libsqlite closure is recorded.
+
 - 2026-05-31 supervisor continuation (integration sample 02:12 UTC):
   Latest libsqlite source is integrated as `42abe723`
   (`libsqlite: add forty-fourth current corpus sweep`). The batch accepted 11
