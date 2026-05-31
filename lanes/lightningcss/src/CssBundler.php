@@ -22,7 +22,7 @@ final class CssBundler
 
     private bool $cssModules = false;
 
-    /** @var array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,projectRoot?:string,project_root?:string} */
+    /** @var array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,container?:bool,projectRoot?:string,project_root?:string} */
     private array $cssModuleOptions = [];
 
     /**
@@ -79,7 +79,7 @@ final class CssBundler
      *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModules(string $entry, array $files, ?callable $resolver = null, array $options = []): array
     {
@@ -94,7 +94,7 @@ final class CssBundler
      *
      * @param callable(string): string $reader
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModulesWithReader(string $entry, callable $reader, ?callable $resolver = null, array $options = []): array
     {
@@ -109,7 +109,7 @@ final class CssBundler
      *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,projectRoot?:string,project_root?:string} $cssModuleOptions
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,container?:bool,projectRoot?:string,project_root?:string} $cssModuleOptions
      * @param (callable(string): string)|null $reader
      */
     private function bundleInternal(
@@ -828,39 +828,32 @@ final class CssBundler
         $supports = null;
         $media = '';
 
-        while (true) {
+        $offset = $this->skipWhitespaceAndComments($rest, $offset);
+        if ($this->startsFunction($rest, $offset, 'layer')) {
+            $open = $offset + strlen($this->readIdentifier($rest, $offset));
+            $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
+            $layer = trim(substr($rest, $open + 1, $close - $open - 1));
+            $offset = $close + 1;
             $offset = $this->skipWhitespaceAndComments($rest, $offset);
-            if ($offset >= strlen($rest)) {
-                break;
+        } elseif (strncasecmp(substr($rest, $offset, strlen('layer')), 'layer', strlen('layer')) === 0) {
+            $next = $rest[$offset + strlen('layer')] ?? '';
+            if ($next === '' || !$this->isIdentifierChar($next)) {
+                $layer = '';
+                $offset += strlen('layer');
+                $offset = $this->skipWhitespaceAndComments($rest, $offset);
             }
+        }
 
-            if ($this->startsFunction($rest, $offset, 'supports')) {
-                $open = $offset + strlen($this->readIdentifier($rest, $offset));
-                $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
-                $supports = trim(substr($rest, $open + 1, $close - $open - 1));
-                $offset = $close + 1;
-                continue;
-            }
+        if ($this->startsFunction($rest, $offset, 'supports')) {
+            $open = $offset + strlen($this->readIdentifier($rest, $offset));
+            $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
+            $supports = trim(substr($rest, $open + 1, $close - $open - 1));
+            $offset = $close + 1;
+            $offset = $this->skipWhitespaceAndComments($rest, $offset);
+        }
 
-            if ($this->startsFunction($rest, $offset, 'layer')) {
-                $open = $offset + strlen($this->readIdentifier($rest, $offset));
-                $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
-                $layer = trim(substr($rest, $open + 1, $close - $open - 1));
-                $offset = $close + 1;
-                continue;
-            }
-
-            if (strncasecmp(substr($rest, $offset, strlen('layer')), 'layer', strlen('layer')) === 0) {
-                $next = $rest[$offset + strlen('layer')] ?? '';
-                if ($next === '' || !$this->isIdentifierChar($next)) {
-                    $layer = '';
-                    $offset += strlen('layer');
-                    continue;
-                }
-            }
-
+        if ($offset < strlen($rest)) {
             $media = trim(substr($rest, $offset));
-            break;
         }
 
         return [
@@ -1123,7 +1116,7 @@ final class CssBundler
     }
 
     /**
-     * @return array{hash?:string,filename:string,projectRoot?:string,pattern:string,minify:bool,dashedIdents:bool}
+     * @return array{hash?:string,filename:string,projectRoot?:string,pattern:string,minify:bool,dashedIdents:bool,container:bool}
      */
     private function cssModuleTransformOptions(string $file): array
     {
@@ -1132,6 +1125,7 @@ final class CssBundler
             'pattern' => $this->cssModulePattern(),
             'minify' => $this->cssModuleOptions['minify'] ?? true,
             'dashedIdents' => ($this->cssModuleOptions['dashedIdents'] ?? $this->cssModuleOptions['dashed_idents'] ?? false) === true,
+            'container' => ($this->cssModuleOptions['container'] ?? true) !== false,
         ];
 
         $projectRoot = $this->cssModuleProjectRoot();

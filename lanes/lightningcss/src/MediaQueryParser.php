@@ -622,6 +622,10 @@ final class MediaQueryParser
         $mediaPrefix = $this->extractExplicitMediaTypePrefix($query);
         if ($mediaPrefix !== null) {
             $condition = $this->collapseSingleFeatureWrapper($mediaPrefix['condition']);
+            if ($mediaPrefix['qualifier'] === null && $mediaPrefix['type'] === 'all') {
+                return $this->collapseAllMediaConditionWrapper($condition);
+            }
+
             $prefix = $mediaPrefix['qualifier'] === null
                 ? $mediaPrefix['type']
                 : $mediaPrefix['qualifier'] . ' ' . $mediaPrefix['type'];
@@ -630,6 +634,17 @@ final class MediaQueryParser
         }
 
         return $this->collapseSingleFeatureWrapper($query);
+    }
+
+    private function collapseAllMediaConditionWrapper(string $condition): string
+    {
+        while (($inner = $this->unwrapSingleParenthesizedValue($condition)) !== null
+            && ($this->containsTopLevelKeyword($inner, 'and') || $this->containsTopLevelKeyword($inner, 'or'))
+        ) {
+            $condition = $inner;
+        }
+
+        return $condition;
     }
 
     private function collapseSingleFeatureWrapper(string $condition): string

@@ -30,6 +30,9 @@ final class CustomAtRuleTransformer
     /** @var callable|null */
     private $styleSheetExitVisitor = null;
 
+    /** @var callable|null */
+    private $selectorVisitor = null;
+
     /** @var array<string, mixed>|callable|null */
     private $declarationVisitorConfig = null;
 
@@ -254,6 +257,24 @@ final class CustomAtRuleTransformer
                     return null;
                 },
             ],
+            'Selector' => static function (array $selector, self $transformer) use ($visitors): mixed {
+                $current = $selector;
+                $changed = false;
+                foreach ($visitors as $visitor) {
+                    $callback = self::selectorVisitorCallback($visitor);
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($current, $transformer);
+                    if ($replacement !== null) {
+                        $current = $transformer->normalizeSelectorVisitorReplacement($replacement);
+                        $changed = true;
+                    }
+                }
+
+                return $changed ? $current : null;
+            },
             'Declaration' => static function (array $declaration, self $transformer) use ($visitors): mixed {
                 $declarations = [$declaration];
                 $changed = false;
@@ -583,6 +604,8 @@ final class CustomAtRuleTransformer
         $this->styleSheetVisitor = is_callable($visitor['StyleSheet'] ?? null) ? $visitor['StyleSheet'] : null;
         $this->styleSheetExitVisitor = is_callable($visitor['StyleSheetExit'] ?? null) ? $visitor['StyleSheetExit'] : null;
 
+        $this->selectorVisitor = is_callable($visitor['Selector'] ?? null) ? $visitor['Selector'] : null;
+
         $this->declarationVisitorConfig = $visitor['Declaration'] ?? null;
         $this->declarationExitVisitorConfig = $visitor['DeclarationExit'] ?? null;
 
@@ -839,9 +862,26 @@ final class CustomAtRuleTransformer
                 continue;
             }
 
+            if (in_array($char, ['>', '+', '~'], true)) {
+                $components[] = ['type' => 'combinator', 'value' => $char];
+                $cursor++;
+                continue;
+            }
+
             if ($char === ':' && preg_match('/\:([-_a-zA-Z0-9]+)/A', substr($selector, $cursor), $matches) === 1) {
-                $components[] = ['type' => 'pseudo-class', 'kind' => $matches[1]];
+                $kind = $matches[1];
                 $cursor += strlen($matches[0]);
+                if (($selector[$cursor] ?? '') === '(') {
+                    $close = $this->findMatchingParen($selector, $cursor);
+                    if ($close !== null) {
+                        $arguments = substr($selector, $cursor + 1, $close - $cursor - 1);
+                        $components[] = $this->selectorFunctionalPseudoComponent($kind, $arguments);
+                        $cursor = $close + 1;
+                        continue;
+                    }
+                }
+
+                $components[] = ['type' => 'pseudo-class', 'kind' => $kind];
                 continue;
             }
 
@@ -856,6 +896,107 @@ final class CustomAtRuleTransformer
         }
 
         return $components;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function selectorFunctionalPseudoComponent(string $kind, string $arguments): array
+    {
+        $component = [
+            'type' => 'pseudo-class',
+            'kind' => $kind,
+            'arguments' => trim($arguments),
+        ];
+        $lower = strtolower($kind);
+
+        if (in_array($lower, ['nth-child', 'nth-last-child', 'nth-of-type', 'nth-last-of-type'], true)) {
+            [$formula, $ofSelectorList] = $this->splitNthSelectorArgument($arguments);
+            $component['formula'] = $this->normalizeNthFormula($formula);
+            if ($ofSelectorList !== null) {
+                $component['of'] = array_map(
+                    fn (string $selector): array => $this->selectorComponentsFromString($selector),
+                    $this->splitTopLevel($ofSelectorList, ',')
+                );
+            }
+
+            return $component;
+        }
+
+        if (in_array($lower, ['is', 'not', 'where', 'has'], true)) {
+            $component['selectors'] = array_map(
+                fn (string $selector): array => $this->selectorComponentsFromString($selector),
+                $this->splitTopLevel($arguments, ',')
+            );
+        }
+
+        return $component;
+    }
+
+    /**
+     * @return array{0:string,1:string|null}
+     */
+    private function splitNthSelectorArgument(string $arguments): array
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($arguments);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $arguments[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if (
+                $parenDepth === 0
+                && $bracketDepth === 0
+                && strncasecmp(substr($arguments, $i, 4), ' of ', 4) === 0
+            ) {
+                return [trim(substr($arguments, 0, $i)), trim(substr($arguments, $i + 4))];
+            }
+        }
+
+        return [trim($arguments), null];
+    }
+
+    private function normalizeNthFormula(string $formula): string
+    {
+        $formula = strtolower(trim(preg_replace('/\s+/', '', $formula) ?? $formula));
+
+        return match ($formula) {
+            'even' => '2n',
+            'odd' => '2n+1',
+            default => $formula,
+        };
     }
 
     /**
@@ -974,7 +1115,7 @@ final class CustomAtRuleTransformer
             } elseif ($type === 'type') {
                 $selector .= (string) ($component['name'] ?? '');
             } elseif ($type === 'pseudo-class') {
-                $selector .= ':' . (string) ($component['kind'] ?? '');
+                $selector .= $this->serializePseudoClassComponent($component);
             } elseif ($type === 'combinator') {
                 $value = (string) ($component['value'] ?? '');
                 $selector = rtrim($selector) . ($value === 'descendant' ? ' ' : $value);
@@ -984,6 +1125,44 @@ final class CustomAtRuleTransformer
         }
 
         return trim($selector);
+    }
+
+    /**
+     * @param array<string, mixed> $component
+     */
+    private function serializePseudoClassComponent(array $component): string
+    {
+        $kind = (string) ($component['kind'] ?? '');
+        if ($kind === '') {
+            return '';
+        }
+
+        if (isset($component['formula'])) {
+            $argument = (string) $component['formula'];
+            $of = $component['of'] ?? null;
+            if (is_array($of) && $of !== []) {
+                $argument .= ' of ' . implode(',', array_map(
+                    fn (mixed $selector): string => is_array($selector) ? $this->serializeSelectorComponents($selector) : (string) $selector,
+                    $of
+                ));
+            }
+
+            return ':' . $kind . '(' . $argument . ')';
+        }
+
+        $selectors = $component['selectors'] ?? null;
+        if (is_array($selectors)) {
+            return ':' . $kind . '(' . implode(',', array_map(
+                fn (mixed $selector): string => is_array($selector) ? $this->serializeSelectorComponents($selector) : (string) $selector,
+                $selectors
+            )) . ')';
+        }
+
+        if (isset($component['arguments']) && is_string($component['arguments'])) {
+            return ':' . $kind . '(' . $component['arguments'] . ')';
+        }
+
+        return ':' . $kind;
     }
 
     private function escapeClassSelector(string $name): string
@@ -1925,6 +2104,16 @@ final class CustomAtRuleTransformer
 
     /**
      * @param array<string, mixed> $visitor
+     */
+    private static function selectorVisitorCallback(array $visitor): ?callable
+    {
+        $callback = $visitor['Selector'] ?? null;
+
+        return is_callable($callback) ? $callback : null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
      * @param array<string, mixed> $declaration
      */
     private static function declarationVisitorCallback(array $visitor, array $declaration): ?callable
@@ -2233,6 +2422,64 @@ final class CustomAtRuleTransformer
         }
 
         return $css;
+    }
+
+    /**
+     * @param list<mixed> $selectors
+     * @return list<string>
+     */
+    private function applySelectorVisitorToSelectorList(array $selectors): array
+    {
+        $normalized = array_values(array_filter(
+            array_map(static fn (mixed $selector): string => trim((string) $selector), $selectors),
+            static fn (string $selector): bool => $selector !== ''
+        ));
+        if ($this->selectorVisitor === null) {
+            return $normalized;
+        }
+
+        $rewritten = [];
+        foreach ($normalized as $selector) {
+            $components = $this->selectorComponentsFromString($selector);
+            $replacement = ($this->selectorVisitor)($components, $this);
+            $nextComponents = $replacement === null
+                ? $components
+                : $this->normalizeSelectorVisitorReplacement($replacement);
+            if ($nextComponents === []) {
+                continue;
+            }
+
+            $serialized = $this->serializeSelectorComponents($nextComponents);
+            if ($serialized !== '') {
+                $rewritten[] = $serialized;
+            }
+        }
+
+        return $rewritten;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function normalizeSelectorVisitorReplacement(mixed $replacement): array
+    {
+        if ($replacement === false || $replacement === []) {
+            return [];
+        }
+        if (is_string($replacement)) {
+            return $this->selectorComponentsFromString($replacement);
+        }
+        if (!is_array($replacement)) {
+            throw new \InvalidArgumentException('Selector visitor must return a selector component list, selector string, or null');
+        }
+        if (isset($replacement['type']) && is_string($replacement['type'])) {
+            return [$replacement];
+        }
+        if (!array_is_list($replacement)) {
+            throw new \InvalidArgumentException('Selector visitor must return a selector component list, selector string, or null');
+        }
+
+        return $replacement;
     }
 
     /**
@@ -2552,6 +2799,11 @@ final class CustomAtRuleTransformer
             return '';
         }
 
+        $selectors = $this->applySelectorVisitorToSelectorList($selectors);
+        if ($selectors === []) {
+            return '';
+        }
+
         $entries = $this->processDeclarationEntries($this->declarationBlock->parseEntries($declarations));
         if ($entries === []) {
             return '';
@@ -2562,6 +2814,13 @@ final class CustomAtRuleTransformer
             'selector' => implode(',', array_map('trim', $selectors)),
             'selectors' => array_values(array_map('trim', $selectors)),
             'declarations' => $entries,
+            'value' => [
+                'selectors' => array_map(fn (string $selector): array => $this->selectorComponentsFromString($selector), $selectors),
+                'declarations' => [
+                    'declarations' => array_values(array_filter($entries, static fn (array $entry): bool => empty($entry['important']))),
+                    'importantDeclarations' => array_values(array_filter($entries, static fn (array $entry): bool => !empty($entry['important']))),
+                ],
+            ],
         ];
         if ($visitStyleRule && $this->styleRuleVisitor !== null) {
             return $this->emitStyleRuleReplacement(($this->styleRuleVisitor)($rule, $this), $rule);

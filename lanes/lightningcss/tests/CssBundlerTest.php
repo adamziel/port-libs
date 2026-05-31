@@ -286,6 +286,23 @@ CSS,
             ], '/theme.css')
         );
     },
+    'css bundler treats layer after supports as media like upstream import grammar' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@supports (display:flex){@media layer{@layer theme.blocks{.b{color:green}}}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(theme.blocks) supports(display: flex) layer; .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@import "https://cdn.example/theme.css" supports(display:flex) layer;.b{color:green}',
+            $bundle([
+                '/a.css' => '@import "https://cdn.example/theme.css" supports(display: flex) layer; @import "b.css";',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+    },
     'css bundler decodes upstream escaped import specifiers before resolution' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '.theme-tokens{color:green}@media screen{.icon{color:#00f}}.entry{color:red}',
@@ -919,6 +936,49 @@ CSS,
         $t->same($expectedExports, $rootA['exports']);
         $t->same($expectedCode, $rootB['code']);
         $t->same($expectedExports, $rootB['exports']);
+    },
+    'css bundler passes upstream css module container option through import graph' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
+        $default = $bundleModules([
+            '/entry.css' => <<<'CSS'
+@container layout (width >= 0) {
+  .entry {
+    color: red;
+  }
+}
+CSS,
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+            ],
+        ]);
+
+        $t->same('@container entry_layout (width>=0){.entry_entry{color:red}}', $default['code']);
+        $t->same([
+            'layout' => $moduleExport('entry_layout'),
+            'entry' => $moduleExport('entry_entry'),
+        ], $default['exports']);
+
+        $disabled = $bundleModules([
+            '/entry.css' => '@import "./component.css"; .entry { color: red }',
+            '/component.css' => <<<'CSS'
+@container layout (width >= 0) {
+  .card {
+    color: green;
+  }
+}
+CSS,
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/component.css' => 'component',
+            ],
+            'container' => false,
+        ]);
+
+        $t->same('@container layout (width>=0){.component_card{color:green}}.entry_entry{color:red}', $disabled['code']);
+        $t->same([
+            'entry' => $moduleExport('entry_entry'),
+        ], $disabled['exports']);
     },
     'css bundler omits unresolved upstream css module dependency exports' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
         $result = $bundleModules([

@@ -185,6 +185,24 @@ try {
     echo 'resolver-shape: rejected' . PHP_EOL;
 }
 
+$externalLayerMediaBundle = (new CssBundler())->bundle('/external-layer-media.css', [
+    '/external-layer-media.css' => <<<'CSS'
+@import "https://cdn.example/theme.css" supports(display: flex) layer;
+@import "tokens.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/tokens.css' => ':root { --wp--preset--color--brand: blue; }',
+]);
+
+if ($externalLayerMediaBundle !== '@import "https://cdn.example/theme.css" supports(display:flex) layer;:root{--wp--preset--color--brand:blue}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Unexpected supports-layer media import output\n");
+    exit(1);
+}
+
+echo 'supports-layer-media: preserved' . PHP_EOL;
+
 $readerFiles = [
     '/reader-theme.css' => <<<'CSS'
 @import "pkg:tokens.css";

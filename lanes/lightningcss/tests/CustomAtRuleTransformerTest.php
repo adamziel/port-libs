@@ -1300,4 +1300,48 @@ CSS;
 
         $t->same('.foo{color:red}.visitor-ready{color:#0f0;width:32px}', $result);
     },
+    'custom at-rules compose upstream Selector prefix visitors' => static function (TestRunner $t): void {
+        $seenSelectorTypes = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Selector' => static function (array $selector) use (&$seenSelectorTypes): array {
+                    $seenSelectorTypes[] = array_column($selector, 'type');
+
+                    return array_merge([
+                        ['type' => 'class', 'name' => 'prefix'],
+                        ['type' => 'combinator', 'value' => 'descendant'],
+                    ], $selector);
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.a, .b { color: red; }', [], $visitor);
+
+        $t->same('.prefix .a,.prefix .b{color:red}', $result);
+        $t->same([['class'], ['class']], $seenSelectorTypes);
+    },
+    'custom at-rules expose upstream nth-of-S selectors to Selector visitors' => static function (TestRunner $t): void {
+        $seenNth = null;
+        $visitor = [
+            'Selector' => static function (array $selector) use (&$seenNth): array {
+                foreach ($selector as &$component) {
+                    if (($component['type'] ?? null) === 'pseudo-class' && ($component['kind'] ?? null) === 'nth-child' && isset($component['of'])) {
+                        $seenNth = $component;
+                        unset($component['of']);
+                        $component['kind'] = 'nth-of-type';
+                    }
+                }
+                unset($component);
+
+                return $selector;
+            },
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('a:nth-child(even of a) { color: red; }', [], $visitor);
+
+        $t->same('a:nth-of-type(2n){color:red}', $result);
+        $t->same('2n', $seenNth['formula'] ?? null);
+        $t->same('type', $seenNth['of'][0][0]['type'] ?? null);
+        $t->same('a', $seenNth['of'][0][0]['name'] ?? null);
+    },
 ];

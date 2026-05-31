@@ -17,6 +17,7 @@ final class CssModulesTransformer
     private string $pattern = '[hash]_[local]';
     private bool $dashedIdents = false;
     private bool $animation = true;
+    private bool $container = true;
     private bool $customIdents = true;
     private bool $pure = false;
 
@@ -37,7 +38,7 @@ final class CssModulesTransformer
      *   references:array<string, array{type:string, name:string, specifier:string}>
      * }
      *
-     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, customIdents?:bool, custom_idents?:bool, pure?:bool} $options
+     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, container?:bool, customIdents?:bool, custom_idents?:bool, pure?:bool} $options
      */
     public function transform(string $css, array $options = []): array
     {
@@ -53,6 +54,7 @@ final class CssModulesTransformer
                 : '');
         $this->dashedIdents = ($options['dashedIdents'] ?? $options['dashed_idents'] ?? false) === true;
         $this->animation = ($options['animation'] ?? true) !== false;
+        $this->container = ($options['container'] ?? true) !== false;
         $this->customIdents = ($options['customIdents'] ?? $options['custom_idents'] ?? true) !== false;
         $this->pure = ($options['pure'] ?? false) === true;
         $this->exports = [];
@@ -144,6 +146,10 @@ final class CssModulesTransformer
             return $this->rewriteCounterStylePrelude($prelude);
         }
 
+        if ($this->container && $this->customIdents && preg_match('/^@container\b/i', $trimmedPrelude) === 1) {
+            return $this->rewriteContainerPrelude($prelude);
+        }
+
         return $prelude;
     }
 
@@ -193,6 +199,55 @@ final class CssModulesTransformer
             . substr($nameSource, $token['end']);
     }
 
+    private function rewriteContainerPrelude(string $prelude): string
+    {
+        if (preg_match('/^(\s*@container\b)(\s*)(.*)$/is', $prelude, $matches) !== 1) {
+            return $prelude;
+        }
+
+        $conditionSource = $matches[3];
+        $leading = strspn($conditionSource, " \t\r\n\f");
+        $token = $this->readCssIdentifierToken($conditionSource, $leading);
+        if ($token === null) {
+            return $prelude;
+        }
+
+        $name = $token['decoded'];
+        if ($this->isReservedContainerName($name)) {
+            return $prelude;
+        }
+
+        $afterToken = substr($conditionSource, $token['end']);
+        $lowerName = strtolower($name);
+        if (($lowerName === 'style' || $lowerName === 'scroll-state') && str_starts_with($afterToken, '(')) {
+            return $prelude;
+        }
+
+        $this->ensureExport($name);
+
+        return $matches[1]
+            . $matches[2]
+            . substr($conditionSource, 0, $leading)
+            . $this->escapeCssIdentifier($this->scopedName($name))
+            . substr($conditionSource, $token['end']);
+    }
+
+    private function isReservedContainerName(string $name): bool
+    {
+        return in_array(strtolower($name), [
+            'none',
+            'and',
+            'not',
+            'or',
+            'initial',
+            'inherit',
+            'unset',
+            'default',
+            'revert',
+            'revert-layer',
+        ], true);
+    }
+
     /**
      * @return array{0:string,1:list<array{type:string, name:string, specifier?:string}>}
      */
@@ -226,7 +281,7 @@ final class CssModulesTransformer
             $nestedBody = substr($body, $nextBlock + 1, $close - $nextBlock - 1);
 
             if ($trimmedNested !== '' && $trimmedNested[0] === '@') {
-                $output .= $nestedPrelude . '{' . $this->transformAtRuleBody($trimmedNested, $nestedBody, $styleNestingDepth + 1) . '}';
+                $output .= $this->rewriteAtRulePrelude($nestedPrelude, $trimmedNested) . '{' . $this->transformAtRuleBody($trimmedNested, $nestedBody, $styleNestingDepth + 1) . '}';
             } else {
                 [$selector, $locals] = $this->rewriteSelectorList($nestedPrelude);
                 [$rewrittenNestedBody, $nestedComposes] = $this->rewriteStyleBody($nestedBody, $styleNestingDepth + 1);

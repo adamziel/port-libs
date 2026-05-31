@@ -739,6 +739,67 @@ CSS);
             'list' => $export('EgL3uq_list'),
         ], $builtInTypeWins['exports']);
     },
+    'css modules scopes upstream container query names while preserving composes exports' => static function (TestRunner $t) use ($export, $dependency): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.box2 {
+  @container main (width >= 0) {
+    background-color: #90ee90;
+  }
+
+  composes: card from "card.css";
+}
+CSS);
+
+        $t->same('@container EgL3uq_main (width>=0){.EgL3uq_box2{background-color:#90ee90}}', $result['code']);
+        $t->same([
+            'box2' => $export('EgL3uq_box2', [$dependency('card', 'card.css')]),
+            'main' => $export('EgL3uq_main'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $disabled = (new CssModulesTransformer())->transform(<<<'CSS'
+.box2 {
+  @container main (width >= 0) {
+    background-color: #90ee90;
+  }
+}
+CSS, [
+            'container' => false,
+        ]);
+
+        $t->same('@container main (width>=0){.EgL3uq_box2{background-color:#90ee90}}', $disabled['code']);
+        $t->same([
+            'box2' => $export('EgL3uq_box2'),
+        ], $disabled['exports']);
+
+        $topLevel = (new CssModulesTransformer())->transform(<<<'CSS'
+@container layout (inline-size > 45em) {
+  .wide {
+    color: red;
+  }
+}
+
+@container style(--responsive: true) {
+  .styleQuery {
+    color: yellow;
+  }
+}
+
+@container not (width > 500px) {
+  .negated {
+    color: blue;
+  }
+}
+CSS);
+
+        $t->same('@container EgL3uq_layout (inline-size>45em){.EgL3uq_wide{color:red}}@container style(--responsive:true){.EgL3uq_styleQuery{color:#ff0}}@container not (width>500px){.EgL3uq_negated{color:#00f}}', $topLevel['code']);
+        $t->same([
+            'layout' => $export('EgL3uq_layout'),
+            'wide' => $export('EgL3uq_wide'),
+            'styleQuery' => $export('EgL3uq_styleQuery'),
+            'negated' => $export('EgL3uq_negated'),
+        ], $topLevel['exports']);
+    },
     'css modules scopes upstream dashed idents and records dependency references' => static function (TestRunner $t) use ($export, $dashed): void {
         $css = <<<'CSS'
 .foo {

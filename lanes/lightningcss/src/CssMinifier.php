@@ -11826,6 +11826,10 @@ final class CssMinifier
             return $this->minifyRectangularColorMixParts($space, $parts[1], $parts[2]);
         }
 
+        if ($space === 'hsl') {
+            return $this->minifyHslColorMixParts($interpolation['hueMethod'] ?? 'shorter', $parts[1], $parts[2]);
+        }
+
         if ($space === 'lch' || $space === 'oklch') {
             return $this->minifyPolarColorMixParts($space, $interpolation['hueMethod'] ?? 'shorter', $parts[1], $parts[2]);
         }
@@ -11855,7 +11859,7 @@ final class CssMinifier
             return null;
         }
 
-        if (!in_array($colorSpace, ['srgb', 'lab', 'lch', 'oklab', 'oklch'], true)) {
+        if (!in_array($colorSpace, ['srgb', 'hsl', 'lab', 'lch', 'oklab', 'oklch'], true)) {
             return null;
         }
 
@@ -11981,6 +11985,62 @@ final class CssMinifier
         );
 
         return $this->serializePolarColorMixResult($space, $lightness, $chroma, $hue, $resultAlpha);
+    }
+
+    private function minifyHslColorMixParts(string $hueMethod, string $leftStop, string $rightStop): ?string
+    {
+        $left = $this->parseHslColorMixStop($leftStop);
+        $right = $this->parseHslColorMixStop($rightStop);
+        if ($left === null || $right === null) {
+            return null;
+        }
+
+        [$leftWeight, $rightWeight] = $this->normalizedColorMixWeights($left['weight'], $right['weight']);
+        if ($leftWeight === null || $rightWeight === null) {
+            return null;
+        }
+
+        [$leftAlpha, $rightAlpha, $resultAlpha] = $this->resolveRectangularColorMixAlphas(
+            $left['color']['alpha'],
+            $right['color']['alpha'],
+            $leftWeight,
+            $rightWeight,
+        );
+        $componentAlpha = ($leftAlpha * $leftWeight) + ($rightAlpha * $rightWeight);
+
+        $hue = $this->mixPolarHueComponent(
+            $left['color']['hue'],
+            $right['color']['hue'],
+            $leftWeight,
+            $rightWeight,
+            $hueMethod,
+        );
+        $saturation = $this->mixRectangularColorComponent(
+            $left['color']['saturation'],
+            $right['color']['saturation'],
+            $leftWeight,
+            $rightWeight,
+            $leftAlpha,
+            $rightAlpha,
+            $componentAlpha,
+        );
+        $lightness = $this->mixRectangularColorComponent(
+            $left['color']['lightness'],
+            $right['color']['lightness'],
+            $leftWeight,
+            $rightWeight,
+            $leftAlpha,
+            $rightAlpha,
+            $componentAlpha,
+        );
+
+        [$red, $green, $blue] = $this->hslToRgbBytes(
+            $hue ?? 0.0,
+            $saturation ?? 0.0,
+            $lightness ?? 0.0,
+        );
+
+        return $this->serializeColorBytes($red, $green, $blue, $resultAlpha ?? 0.0);
     }
 
     private function serializeUnresolvedSrgbColorMixFunction(string $left, string $right): string
@@ -12138,6 +12198,50 @@ final class CssMinifier
     }
 
     /**
+     * @return array{color:array{hue:?float,saturation:?float,lightness:?float,alpha:?float},weight:?float}|null
+     */
+    private function parseHslColorMixStop(string $stop): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($stop));
+        if ($tokens === []) {
+            return null;
+        }
+
+        $weight = null;
+        $firstWeight = $this->parseColorMixPercentage($tokens[0]);
+        if ($firstWeight !== null) {
+            $weight = $firstWeight;
+            array_shift($tokens);
+        }
+
+        if ($tokens !== []) {
+            $lastIndex = count($tokens) - 1;
+            $lastWeight = $this->parseColorMixPercentage($tokens[$lastIndex]);
+            if ($lastWeight !== null) {
+                if ($weight !== null) {
+                    return null;
+                }
+                $weight = $lastWeight;
+                array_pop($tokens);
+            }
+        }
+
+        if (count($tokens) !== 1) {
+            return null;
+        }
+
+        $color = $this->parseHslColorMixColor($tokens[0]);
+        if ($color === null) {
+            return null;
+        }
+
+        return [
+            'color' => $color,
+            'weight' => $weight,
+        ];
+    }
+
+    /**
      * @return array{components:list<?float>,alpha:?float}|null
      */
     private function parseRectangularColorMixColor(string $token, string $space): ?array
@@ -12198,6 +12302,37 @@ final class CssMinifier
             'lightness' => $lightness,
             'chroma' => $chroma,
             'hue' => $hue,
+            'alpha' => $alpha,
+        ];
+    }
+
+    /**
+     * @return array{hue:?float,saturation:?float,lightness:?float,alpha:?float}|null
+     */
+    private function parseHslColorMixColor(string $token): ?array
+    {
+        if (preg_match('/^hsla?\((.*)\)$/is', trim($token), $matches) !== 1) {
+            return null;
+        }
+
+        $parts = $this->parseColorFunctionParts($matches[1]);
+        if ($parts === null || count($parts['components']) !== 3) {
+            return null;
+        }
+
+        $hue = $this->parseHslColorMixHueComponent($parts['components'][0]);
+        $saturation = $this->parseHslColorMixPercentageComponent($parts['components'][1]);
+        $lightness = $this->parseHslColorMixPercentageComponent($parts['components'][2]);
+        $alpha = $this->parseRectangularColorMixAlpha($parts['alpha']);
+
+        if ($hue === false || $saturation === false || $lightness === false || $alpha === false) {
+            return null;
+        }
+
+        return [
+            'hue' => $hue,
+            'saturation' => $saturation,
+            'lightness' => $lightness,
             'alpha' => $alpha,
         ];
     }
@@ -12283,6 +12418,26 @@ final class CssMinifier
         }
 
         return $this->parseHueDegrees($token) ?? false;
+    }
+
+    private function parseHslColorMixHueComponent(string $token): float|false|null
+    {
+        $token = trim($token);
+        if (strcasecmp($token, 'none') === 0) {
+            return null;
+        }
+
+        return $this->parseHueDegrees($token) ?? false;
+    }
+
+    private function parseHslColorMixPercentageComponent(string $token): float|false|null
+    {
+        $token = trim($token);
+        if (strcasecmp($token, 'none') === 0) {
+            return null;
+        }
+
+        return $this->parsePercentageComponent($token) ?? false;
     }
 
     private function parseRectangularColorMixAlpha(?string $alpha): float|false|null

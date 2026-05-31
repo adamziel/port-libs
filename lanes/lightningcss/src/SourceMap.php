@@ -846,7 +846,7 @@ final class SourceMap
                     throw new InvalidArgumentException('Invalid source map segment: ' . $segment);
                 }
 
-                $generatedColumn += $values[0];
+                $generatedColumn = self::offsetUnsigned32($generatedColumn, $values[0], 'generated column');
                 $entry = [
                     'generatedLine' => $generatedLine,
                     'generatedColumn' => $generatedColumn,
@@ -857,16 +857,16 @@ final class SourceMap
                 ];
 
                 if (count($values) >= 4) {
-                    $previousSource += $values[1];
-                    $previousOriginalLine += $values[2];
-                    $previousOriginalColumn += $values[3];
+                    $previousSource = self::offsetUnsigned32($previousSource, $values[1], 'source index');
+                    $previousOriginalLine = self::offsetUnsigned32($previousOriginalLine, $values[2], 'original line');
+                    $previousOriginalColumn = self::offsetUnsigned32($previousOriginalColumn, $values[3], 'original column');
                     $entry['sourceIndex'] = $previousSource;
                     $entry['originalLine'] = $previousOriginalLine;
                     $entry['originalColumn'] = $previousOriginalColumn;
                 }
 
                 if (count($values) === 5) {
-                    $previousName += $values[4];
+                    $previousName = self::offsetUnsigned32($previousName, $values[4], 'name index');
                     $entry['nameIndex'] = $previousName;
                 }
 
@@ -989,6 +989,11 @@ final class SourceMap
     }
 
     private function offsetNonNegative(int $value, int $offset, string $label): int
+    {
+        return self::offsetUnsigned32($value, $offset, $label);
+    }
+
+    private static function offsetUnsigned32(int $value, int $offset, string $label): int
     {
         $offsetValue = $value + $offset;
         if ($offsetValue < 0) {

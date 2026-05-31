@@ -279,6 +279,15 @@ return [
             SourceMap::fromJson('{"version":3,"mappings":"A","sources":[7],"names":[]}');
         });
     },
+    'source map rejects upstream invalid relative vlq decode offsets' => static function (TestRunner $t): void {
+        $t->same(4294967295, SourceMap::decodeVlq('+/////H')[0]['generatedColumn']);
+
+        foreach (['D', 'ADAA', 'AADA', 'AAAD', 'AAAAD', 'ggggggI'] as $mappings) {
+            $t->throws(InvalidArgumentException::class, static function () use ($mappings): void {
+                SourceMap::decodeVlq($mappings);
+            });
+        }
+    },
     'source map imports upstream json defaults and data URLs' => static function (TestRunner $t): void {
         $jsonWithoutContents = SourceMap::fromJson('{"version":3,"sourceRoot":"/","mappings":";C","sources":["file.js"],"names":[]}');
         $jsonWithNullContents = SourceMap::fromJson('{"version":3,"sourceRoot":"/","mappings":";C","sources":["file.js"],"sourcesContent":[null],"names":[]}');

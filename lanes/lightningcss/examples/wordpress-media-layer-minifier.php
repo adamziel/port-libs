@@ -34,7 +34,7 @@ $css = <<<'CSS'
     }
   }
 
-  @media (min-width: 600px) and ((hover) and (color)) {
+  @media all and (min-width: 600px) and ((hover) and (color)) {
     .wp-block-query {
       color: yellow;
     }

@@ -166,6 +166,11 @@ final class DeclarationBlock
     ];
     private const TEXT_EMPHASIS_FILLS = ['filled', 'open'];
     private const TEXT_EMPHASIS_SHAPES = ['dot', 'circle', 'double-circle', 'triangle', 'sesame'];
+    private const CARET_LONGHANDS = [
+        'caret-color',
+        'caret-shape',
+    ];
+    private const CARET_SHAPES = ['auto', 'bar', 'block', 'underscore'];
     private const FONT_LONGHANDS = [
         'font-family',
         'font-size',
@@ -438,6 +443,13 @@ final class DeclarationBlock
             return $textEmphasisValue;
         }
         if ($this->isTextEmphasisProperty($property)) {
+            return null;
+        }
+        $caretValue = $this->getCaretProperty($entries, $property);
+        if ($caretValue !== null) {
+            return $caretValue;
+        }
+        if ($this->isCaretProperty($property)) {
             return null;
         }
         $fontValue = $this->getFontProperty($entries, $property);
@@ -6334,6 +6346,284 @@ final class DeclarationBlock
      * @param list<array{property:string, value:string, important:bool}> $entries
      * @return array{value:string, important:bool}|null
      */
+    private function getCaretProperty(array $entries, string $property): ?array
+    {
+        if (!$this->isCaretProperty($property)) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'caret') {
+                $parsed = $this->parseCaretComponents($entry['value']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach (self::CARET_LONGHANDS as $longhand) {
+                    $components[$longhand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($this->isCaretLonghand($entry['property'])) {
+                $components[$entry['property']] = [
+                    'value' => $this->normalizeCaretLonghandValue($entry['property'], $entry['value']),
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($property !== 'caret') {
+            return $components[$property] ?? null;
+        }
+
+        foreach (self::CARET_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->serializeCaretComponents([
+                'caret-color' => $components['caret-color']['value'],
+                'caret-shape' => $components['caret-shape']['value'],
+            ]),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setCaretLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!$this->isCaretLonghand($property)) {
+            return null;
+        }
+
+        $value = $this->normalizeCaretLonghandValue($property, $value);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'caret') {
+                continue;
+            }
+
+            $components = $this->parseCaretComponents($entries[$index]['value']);
+            if ($components === null) {
+                continue;
+            }
+
+            $components[$property] = $value;
+            $entries[$index] = [
+                'property' => 'caret',
+                'value' => $this->serializeCaretComponents($components),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeCaretLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'caret') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->parseCaretComponents($entry['value']);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach (self::CARET_LONGHANDS as $longhand) {
+                if ($longhand === $property) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
+                    'value' => $components[$longhand],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @return array{caret-color:string, caret-shape:string}|null
+     */
+    private function parseCaretComponents(string $value): ?array
+    {
+        $color = null;
+        $shape = null;
+        $auto = 0;
+
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower(trim($token));
+            if ($lower === 'auto') {
+                $auto++;
+                continue;
+            }
+
+            if ($this->isCaretShapeToken($token)) {
+                if ($shape !== null) {
+                    return null;
+                }
+                $shape = $lower;
+                continue;
+            }
+
+            if ($this->isCaretColorToken($token)) {
+                if ($color !== null) {
+                    return null;
+                }
+                $color = $this->normalizeCaretColorValue($token);
+                continue;
+            }
+
+            if ($shape !== null) {
+                return null;
+            }
+            $shape = trim($token);
+        }
+
+        while ($auto > 0) {
+            if ($color === null) {
+                $color = 'auto';
+            } elseif ($shape === null) {
+                $shape = 'auto';
+            } else {
+                return null;
+            }
+            $auto--;
+        }
+
+        return [
+            'caret-color' => $color ?? 'auto',
+            'caret-shape' => $shape ?? 'auto',
+        ];
+    }
+
+    /**
+     * @param array{caret-color:string, caret-shape:string} $components
+     */
+    private function serializeCaretComponents(array $components): string
+    {
+        $color = $this->normalizeCaretColorValue($components['caret-color']);
+        $shape = $this->normalizeCaretShapeValue($components['caret-shape']);
+        $parts = [];
+
+        if (strcasecmp($color, 'auto') !== 0) {
+            $parts[] = $color;
+        }
+        if (strcasecmp($shape, 'auto') !== 0) {
+            $parts[] = $shape;
+        }
+
+        return $parts === [] ? 'auto' : implode(' ', $parts);
+    }
+
+    private function normalizeCaretLonghandValue(string $property, string $value): string
+    {
+        return match ($property) {
+            'caret-color' => $this->normalizeCaretColorValue($value),
+            'caret-shape' => $this->normalizeCaretShapeValue($value),
+            default => trim($value),
+        };
+    }
+
+    private function normalizeCaretColorValue(string $value): string
+    {
+        $value = trim($value);
+
+        return strcasecmp($value, 'auto') === 0 ? 'auto' : $value;
+    }
+
+    private function normalizeCaretShapeValue(string $value): string
+    {
+        $value = trim($value);
+        $lower = strtolower($value);
+
+        return in_array($lower, self::CARET_SHAPES, true) ? $lower : $value;
+    }
+
+    private function isCaretProperty(string $property): bool
+    {
+        return $property === 'caret' || $this->isCaretLonghand($property);
+    }
+
+    private function isCaretLonghand(string $property): bool
+    {
+        return in_array($property, self::CARET_LONGHANDS, true);
+    }
+
+    private function isCaretShapeToken(string $token): bool
+    {
+        return in_array(strtolower(trim($token)), ['bar', 'block', 'underscore'], true);
+    }
+
+    private function isCaretColorToken(string $token): bool
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return false;
+        }
+        if ($token[0] === '#') {
+            return true;
+        }
+        if (preg_match('/^(?:rgb|rgba|hsl|hsla|lab|lch|oklab|oklch|color)\(/i', $token) === 1) {
+            return true;
+        }
+
+        return in_array(strtolower($token), [
+            'black',
+            'blue',
+            'currentcolor',
+            'green',
+            'red',
+            'transparent',
+            'white',
+            'yellow',
+        ], true);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
     private function getFontProperty(array $entries, string $property): ?array
     {
         if (!$this->isFontProperty($property)) {
@@ -7197,6 +7487,10 @@ final class DeclarationBlock
         $textEmphasisValue = $this->setTextEmphasisLonghand($entries, $property, $value, $important);
         if ($textEmphasisValue !== null) {
             return $this->parseEntries($textEmphasisValue);
+        }
+        $caretValue = $this->setCaretLonghand($entries, $property, $value, $important);
+        if ($caretValue !== null) {
+            return $this->parseEntries($caretValue);
         }
         $fontValue = $this->setFontLonghand($entries, $property, $value, $important);
         if ($fontValue !== null) {
@@ -8322,6 +8616,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isCaretLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeCaretLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeCaretLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isFontLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeFontLonghand($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeFontLonghand($importantEntries, $property));
@@ -8462,6 +8762,10 @@ final class DeclarationBlock
         $textEmphasisLonghands = $this->textEmphasisShorthandLonghands($property);
         if ($textEmphasisLonghands !== null) {
             return $textEmphasisLonghands;
+        }
+
+        if ($property === 'caret') {
+            return self::CARET_LONGHANDS;
         }
 
         if ($property === 'font') {

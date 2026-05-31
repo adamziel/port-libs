@@ -171,6 +171,18 @@ $negativeOffsetRawMap->addVlqMap(
     4
 );
 
+$maxUnsignedVlqDecode = SourceMap::decodeVlq('+/////H')[0]['generatedColumn'];
+$invalidRelativeVlqGuard = true;
+foreach (['D', 'ADAA', 'AADA', 'AAAD', 'AAAAD', 'ggggggI'] as $invalidVlqMapping) {
+    try {
+        SourceMap::decodeVlq($invalidVlqMapping);
+        $invalidRelativeVlqGuard = false;
+        break;
+    } catch (InvalidArgumentException) {
+        continue;
+    }
+}
+
 $lookup = [
     'sourceIndexes' => $projectRootMap->addSources([
         '/srv/www/example/wp-content/themes/example/style.css',
@@ -200,6 +212,8 @@ $actual = [
     'dataUrl' => $dataUrl,
     'dataUrlRoundTrip' => $dataUrlRoundTrip->toJson('/'),
     'negativeOffsetRawMap' => $negativeOffsetRawMap->toJson(null, false),
+    'maxUnsignedVlqDecode' => $maxUnsignedVlqDecode,
+    'invalidRelativeVlqGuard' => $invalidRelativeVlqGuard,
     'lookup' => $lookup,
 ];
 
@@ -217,6 +231,8 @@ if (($argv[1] ?? null) === '--self-test') {
         'dataUrl' => 'data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiLyIsIm1hcHBpbmdzIjoiO0NBQUFBIiwic291cmNlcyI6WyJ3cC1jb250ZW50L3RoZW1lcy9leGFtcGxlL2lubGluZS1jcml0aWNhbC5jc3MiXSwic291cmNlc0NvbnRlbnQiOlsiLmNyaXRpY2Fse2Rpc3BsYXk6YmxvY2t9XG4iXSwibmFtZXMiOlsiY3JpdGljYWwtcnVsZSJdfQ==',
         'dataUrlRoundTrip' => '{"version":3,"sourceRoot":"/","mappings":";CAAAA","sources":["wp-content/themes/example/inline-critical.css"],"sourcesContent":[".critical{display:block}\n"],"names":["critical-rule"]}',
         'negativeOffsetRawMap' => '{"version":3,"mappings":"ICKMC","sources":["wp-content/themes/example/source-map-prelude.css","wp-content/themes/example/blocks/cover.css"],"sourcesContent":[".prelude{}",".wp-block-cover{}"],"names":["prelude-rule","cover-rule"]}',
+        'maxUnsignedVlqDecode' => 4294967295,
+        'invalidRelativeVlqGuard' => true,
         'lookup' => [
             'sourceIndexes' => [0, 1, 2],
             'blockIndex' => 1,

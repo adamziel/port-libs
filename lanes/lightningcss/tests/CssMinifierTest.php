@@ -381,6 +381,45 @@ CSS
             }
         }
     },
+    'css minifier maps upstream hsl color-mix value normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'color-mix(in hsl, hsl(120deg 10% 20%), hsl(30deg 30% 40%))' => '#545c3d',
+            'color-mix(in hsl, hsl(120deg 10% 20%) 25%, hsl(30deg 30% 40%))' => '#706a43',
+            'color-mix(in hsl, 25% hsl(120deg 10% 20%), hsl(30deg 30% 40%))' => '#706a43',
+            'color-mix(in hsl, hsl(120deg 10% 20%), 25% hsl(30deg 30% 40%))' => '#3d4936',
+            'color-mix(in hsl, hsl(120deg 10% 20%), hsl(30deg 30% 40%) 25%)' => '#3d4936',
+            'color-mix(in hsl, hsl(120deg 10% 20%) 25%, hsl(30deg 30% 40%) 75%)' => '#706a43',
+            'color-mix(in hsl, hsl(120deg 10% 20%) 30%, hsl(30deg 30% 40%) 90%)' => '#706a43',
+            'color-mix(in hsl, hsl(120deg 10% 20%) 12.5%, hsl(30deg 30% 40%) 37.5%)' => '#706a4380',
+            'color-mix(in hsl, hsl(120deg 10% 20%) 0%, hsl(30deg 30% 40%))' => '#856647',
+            'color-mix(in hsl, hsl(120deg 10% 20% / .4), hsl(30deg 30% 40% / .8))' => '#5f694199',
+            'color-mix(in hsl, hsl(120deg 10% 20%) 25%, hsl(30deg 30% 40% / .8))' => '#6c6742d9',
+            'color-mix(in hsl, hsl(120deg 10% 20% / .4), 25% hsl(30deg 30% 40% / .8))' => '#44543b80',
+            'color-mix(in hsl, hsl(120deg 10% 20% / .4), hsl(30deg 30% 40% / .8) 25%)' => '#44543b80',
+            'color-mix(in hsl, hsl(120deg 10% 20% / .4) 0%, hsl(30deg 30% 40% / .8))' => '#856647cc',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same('.foo{color:' . $expected . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
+        }
+    },
+    'css minifier maps upstream hsl color-mix hue interpolation modes' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'color-mix(in hsl, hsl(40deg 50% 50%), hsl(60deg 50% 50%))' => '#bfaa40',
+            'color-mix(in hsl, hsl(50deg 50% 50%), hsl(330deg 50% 50%))' => '#bf5540',
+            'color-mix(in hsl shorter hue, hsl(20deg 50% 50%), hsl(320deg 50% 50%))' => '#bf4055',
+            'color-mix(in hsl longer hue, hsl(40deg 50% 50%), hsl(60deg 50% 50%))' => '#4055bf',
+            'color-mix(in hsl increasing hue, hsl(60deg 50% 50%), hsl(40deg 50% 50%))' => '#4055bf',
+            'color-mix(in hsl decreasing hue, hsl(40deg 50% 50%), hsl(60deg 50% 50%))' => '#4055bf',
+            'color-mix(in hsl specified hue, hsl(50deg 50% 50%), hsl(330deg 50% 50%))' => '#40aabf',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same('.foo{color:' . $expected . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
+        }
+    },
     'css minifier maps upstream color-scheme value ordering' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

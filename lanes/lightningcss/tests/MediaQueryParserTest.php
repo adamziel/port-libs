@@ -72,6 +72,11 @@ return [
         $t->same('(aspect-ratio:2)', $parser->minifyList('(aspect-ratio: 2/1)'));
         $t->same('not screen and (color)', $parser->minifyList('not screen and (color)'));
         $t->same('only screen and (color)', $parser->minifyList('only screen and (color)'));
+        $t->same('(color)', $parser->minifyList('all and (color)'));
+        $t->same('(width>=240px)', $parser->minifyList('all and (width >= 240px)'));
+        $t->same('(color) or (hover)', $parser->minifyList('all and ((color) or (hover))'));
+        $t->same('not all and (color)', $parser->minifyList('not all and (color)'));
+        $t->same('only all and (color)', $parser->minifyList('only all and (color)'));
         $t->same('(update:slow) or (hover:none)', $parser->minifyList('(update: slow) or (hover: none)'));
         $t->same('(not (color)) or (hover)', $parser->minifyList('(not (color)) or (hover)'));
         $t->same('not ((color) or (hover))', $parser->minifyList('not (((color) or (hover)))'));
@@ -181,6 +186,10 @@ return [
         $t->same('@layer blocks{@media (width>=240px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media not (width < 240px) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (width>=960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (not (width < 960px)) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media screen and (width>=960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media screen and (not (width < 960px)) { .foo { color: chartreuse } } }'));
+        $t->same('@media (width>=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media all and (width >= 240px) { .foo { color: chartreuse } }'));
+        $t->same('@layer blocks{@media (width>=600px) and (hover){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media all and (min-width: 600px) and (hover) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media (color) or (hover){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media all and ((color) or (hover)) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media not all and (color){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media not all and (color) { .foo { color: chartreuse } } }'));
     },
     'css minifier rejects invalid media ranges inside cascade layers' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

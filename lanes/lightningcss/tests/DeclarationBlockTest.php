@@ -706,6 +706,27 @@ return [
         $t->same(null, $block->getProperty('-webkit-text-emphasis: open circle blue', 'text-emphasis'));
         $t->same(['value' => 'over left', 'important' => false], $block->getProperty('text-emphasis-position: over left', 'text-emphasis-position'));
     },
+    'declaration block reads upstream caret cssom shorthand and longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $caret = 'caret: red block';
+        $t->same(['value' => 'red block', 'important' => false], $block->getProperty($caret, 'caret'));
+        $t->same(['value' => 'red', 'important' => false], $block->getProperty($caret, 'caret-color'));
+        $t->same(['value' => 'block', 'important' => false], $block->getProperty($caret, 'caret-shape'));
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty('caret: block', 'caret-color'));
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty('caret: red', 'caret-shape'));
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty('caret: auto auto', 'caret'));
+        $t->same(['value' => 'yellow block', 'important' => false], $block->getProperty('caret: block yellow', 'caret'));
+        $t->same(
+            ['value' => 'red underscore', 'important' => true],
+            $block->getProperty('caret-color: red !important; caret-shape: underscore !important', 'caret')
+        );
+        $t->same(
+            null,
+            $block->getProperty('caret-color: red; caret-shape: block !important', 'caret')
+        );
+        $t->same(['value' => 'bar', 'important' => true], $block->getProperty('caret: auto bar !important; caret-color: red', 'caret-shape'));
+    },
     'declaration block reads upstream font cssom shorthand and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1112,6 +1133,19 @@ return [
         $t->same(
             'text-emphasis-style: open circle; text-emphasis-color: red',
             $block->setProperty('text-emphasis-style: dot; text-emphasis-color: red', 'text-emphasis-style', 'open circle')
+        );
+    },
+    'declaration block sets upstream caret cssom longhands in existing shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same('caret: blue block', $block->setProperty('caret: red block', 'caret-color', 'blue'));
+        $t->same('caret: red underscore', $block->setProperty('caret: red block', 'caret-shape', 'underscore'));
+        $t->same('caret: block', $block->setProperty('caret: red block', 'caret-color', 'auto'));
+        $t->same('caret: red', $block->setProperty('caret: red block', 'caret-shape', 'auto'));
+        $t->same('caret-color: red; caret-shape: bar', $block->setProperty('caret-color: red; caret-shape: block', 'caret-shape', 'bar'));
+        $t->same(
+            'caret-shape: underscore; caret: red block !important',
+            $block->setProperty('caret: red block !important', 'caret-shape', 'underscore')
         );
     },
     'declaration block sets upstream scroll snap cssom rect longhands' => static function (TestRunner $t): void {
@@ -1908,6 +1942,21 @@ return [
         $t->same(
             'color: green; text-emphasis-style: dot !important',
             $block->removeProperty('text-emphasis: dot red !important; text-emphasis-color: blue; color: green', 'text-emphasis-color')
+        );
+    },
+    'declaration block removes upstream caret cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same('caret-shape: block', $block->removeProperty('caret: red block', 'caret-color'));
+        $t->same('caret-color: red', $block->removeProperty('caret: red block', 'caret-shape'));
+        $t->same('caret-color: auto', $block->removeProperty('caret: block', 'caret-shape'));
+        $t->same(
+            'color: green',
+            $block->removeProperty('caret: red block; caret-color: blue; color: green', 'caret')
+        );
+        $t->same(
+            'color: green; caret-shape: block !important',
+            $block->removeProperty('caret: red block !important; caret-color: blue; color: green', 'caret-color')
         );
     },
     'declaration block removes upstream font cssom longhands and shorthand' => static function (TestRunner $t): void {
