@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 16:41:07 UTC",
-    "sourceCommit": "9612ad0189c6728439502deba1848733af488059",
-    "sourceCommitShort": "9612ad0189c6",
+    "generated": "2026-05-31 16:47:44 UTC",
+    "sourceCommit": "9ededa2949428f40aa13af09e5e3d80e995f54bf",
+    "sourceCommitShort": "9ededa294942",
     "sourceBranch": "main",
-    "dashboardCommit": "6006bf24919b73eb8d619b54e067d5cda2aafdfe",
-    "dashboardCommitShort": "6006bf24919b",
+    "dashboardCommit": "0f0c066dfa7cea5985486f0c91458defe7e4e28b",
+    "dashboardCommitShort": "0f0c066dfa7c",
     "averageProgressPercent": "86.5",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "3657167 pass / 0 fail",
+            "php": "3847998 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, upstream corpus closure, source-neut...",
-            "audit": "Supervisor accepted source commit 9612ad0...",
-            "currentWork": "Native libsqlite now extends real corpus behavior across btree planner/delete flags, page...",
+            "audit": "Supervisor accepted source commit 9ededa2...",
+            "currentWork": "Native libsqlite now extends real corpus behavior across generated-trigger FK diagnostics...",
             "nextTarget": "Continue selected libsqlite closure on remaining ready real-corpus WAL/pager/VFS/select/e...",
             "blocker": "No current selected libsqlite blocker for this batch.",
-            "commit": "9612ad0"
+            "commit": "9ededa2"
         },
         {
             "library": "LightningCSS",
