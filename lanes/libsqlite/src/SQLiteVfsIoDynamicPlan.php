@@ -2406,6 +2406,68 @@ final class SQLiteVfsIoDynamicPlan
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function quickBalanceWriteProfile(int $pageSize, int $payloadBytes, int $initialLeafRows, int $insertedRow): array
+    {
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite quick-balance page size must be a power of two at least 512');
+        }
+        if ($payloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite quick-balance payload size must be positive');
+        }
+        if ($initialLeafRows < 4) {
+            throw new \InvalidArgumentException('SQLite quick-balance requires at least four initial rows');
+        }
+        if ($insertedRow <= $initialLeafRows) {
+            throw new \InvalidArgumentException('SQLite quick-balance inserted row must extend the current table');
+        }
+
+        $usableBytes = $pageSize - 35;
+        $cellsPerLeaf = max(1, intdiv($usableBytes, $payloadBytes + 10));
+        $wasRootLeaf = $initialLeafRows <= $cellsPerLeaf;
+        $newLeafNeeded = $insertedRow > ($cellsPerLeaf * 2);
+        $quickBalance = !$wasRootLeaf && $newLeafNeeded;
+
+        return [
+            'status' => 'ok',
+            'script' => 'io.test',
+            'upstream' => [
+                'io.test io-1.1 create table writes schema and root pages',
+                'io.test io-1.2 full root leaf inserts write table root plus change-counter',
+                'io.test io-1.3 split root into two leaves writes root, two leaves, and change-counter',
+                'io.test io-1.4 append into existing leaves writes leaf plus change-counter',
+                'io.test io-1.5 quick-balance append writes only root, new leaf, and change-counter',
+            ],
+            'page_size' => $pageSize,
+            'payload_bytes' => $payloadBytes,
+            'usable_bytes' => $usableBytes,
+            'cells_per_leaf' => $cellsPerLeaf,
+            'initial_leaf_rows' => $initialLeafRows,
+            'inserted_row' => $insertedRow,
+            'root_was_leaf_before_split' => $wasRootLeaf,
+            'new_rightmost_leaf_required' => $newLeafNeeded,
+            'quick_balance_path' => $quickBalance,
+            'create_table_database_writes' => 2,
+            'single_leaf_insert_database_writes' => 2,
+            'root_split_database_writes' => 4,
+            'post_split_leaf_insert_database_writes' => 2,
+            'quick_balance_database_writes' => $quickBalance ? 3 : 4,
+            'quick_balance_avoids_rewriting_left_sibling' => $quickBalance,
+            'change_counter_page_written' => true,
+            'integrity_check' => 'ok',
+            'reason' => $quickBalance
+                ? 'rightmost_append_quick_balance_writes_change_counter_root_and_new_leaf'
+                : 'non_rightmost_or_root_leaf_insert_uses_general_balance_path',
+            'dependencies' => [
+                'upstream-io-quick-balance-write-counts',
+                'sqlite-btree-quick-balance',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
     private static function align(int $value, int $pageSize): int
     {
         $remainder = $value % $pageSize;

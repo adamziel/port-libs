@@ -886,8 +886,48 @@ final class SQLiteUpsertDoUpdateWherePlan
     {
         $expression = trim($expression);
         $expression = preg_replace('/\s+/', '', $expression) ?? $expression;
+        while (strlen($expression) >= 2 && $expression[0] === '(' && substr($expression, -1) === ')' && self::outerParenthesesWrapExpression($expression)) {
+            $expression = substr($expression, 1, -1);
+        }
 
         return strtolower($expression);
+    }
+
+    private static function outerParenthesesWrapExpression(string $expression): bool
+    {
+        $depth = 0;
+        $length = strlen($expression);
+        $quote = null;
+        for ($offset = 0; $offset < $length; ++$offset) {
+            $char = $expression[$offset];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    if ($offset + 1 < $length && $expression[$offset + 1] === $quote) {
+                        ++$offset;
+                        continue;
+                    }
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === "'" || $char === '"') {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                ++$depth;
+                continue;
+            }
+            if ($char !== ')') {
+                continue;
+            }
+            --$depth;
+            if ($depth < 0 || ($depth === 0 && $offset !== $length - 1)) {
+                return false;
+            }
+        }
+
+        return $depth === 0;
     }
 
     private static function normalizeConflictTargetWhere(?string $where): ?string

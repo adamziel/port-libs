@@ -408,6 +408,85 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param array{name:string,columns:list<string>,primary_key?:list<string>,unique?:list<array{columns:list<string>,collation?:string}>,collation?:array<string,string>} $parent
+     * @param array{name:string,child_columns:list<string>,parent_columns:list<string>,columns?:list<string>,parent_name?:string,parent_exists?:bool} $child
+     * @return array<string,mixed>
+     */
+    public static function fkey2DefinitionDiagnostic(array $parent, array $child): array
+    {
+        $parentName = self::identifier((string) ($parent['name'] ?? ''), 'fkey2 parent table');
+        $childName = self::identifier((string) ($child['name'] ?? ''), 'fkey2 child table');
+        $referencedName = self::identifier((string) ($child['parent_name'] ?? $parentName), 'fkey2 referenced table');
+        $parentColumns = self::identifierList($parent['columns'] ?? [], 'fkey2 parent columns');
+        $childColumns = self::identifierList($child['columns'] ?? $child['child_columns'], 'fkey2 child columns');
+        $fkChildColumns = self::identifierList($child['child_columns'], 'fkey2 child key columns');
+        $fkParentColumns = self::identifierList($child['parent_columns'], 'fkey2 parent key columns');
+
+        $status = 'definition-ok';
+        $error = null;
+        $mismatch = false;
+        $unknownChildRowid = false;
+        $parentExists = (bool) ($child['parent_exists'] ?? true);
+
+        if (!$parentExists) {
+            $status = 'no-such-parent-table';
+            $error = 'no such table: main.' . $referencedName;
+        } elseif (in_array('rowid', $fkChildColumns, true) && !in_array('rowid', $childColumns, true)) {
+            $status = 'definition-error';
+            $error = 'unknown column "rowid" in foreign key definition';
+            $unknownChildRowid = true;
+        } else {
+            foreach ($fkParentColumns as $column) {
+                if ($column === 'rowid' && !in_array('rowid', $parentColumns, true)) {
+                    $mismatch = true;
+                    break;
+                }
+                if (!in_array($column, $parentColumns, true)) {
+                    $mismatch = true;
+                    break;
+                }
+            }
+
+            if (!$mismatch && count($fkChildColumns) !== count($fkParentColumns)) {
+                $mismatch = true;
+            }
+
+            if (!$mismatch && !self::fkey2ParentKeyCoveredByUniqueIndex($parent, $fkParentColumns)) {
+                $mismatch = true;
+            }
+
+            if ($mismatch) {
+                $status = 'foreign-key-mismatch';
+                $error = 'foreign key mismatch - "' . $childName . '" referencing "' . $referencedName . '"';
+            }
+        }
+
+        return [
+            'source' => 'fkey2.test fkey2-10.1..10.2',
+            'operation' => 'foreign-key-definition-diagnostic',
+            'status' => $status,
+            'error' => $error,
+            'parent_table' => $parentName,
+            'child_table' => $childName,
+            'referenced_table' => $referencedName,
+            'parent_columns' => $parentColumns,
+            'child_columns' => $childColumns,
+            'foreign_key_child_columns' => $fkChildColumns,
+            'foreign_key_parent_columns' => $fkParentColumns,
+            'parent_exists' => $parentExists,
+            'unknown_child_rowid' => $unknownChildRowid,
+            'parent_key_valid' => $status === 'definition-ok',
+            'schema_mismatch' => $mismatch,
+            'dependencies' => [
+                'sqlite-fkey2-reports-missing-parent-table-at-dml-time',
+                'sqlite-fkey2-rowid-child-key-requires-declared-column',
+                'sqlite-fkey2-rowid-parent-key-requires-declared-column',
+                'sqlite-fkey2-parent-key-must-match-unique-index-and-collation',
+            ],
+        ];
+    }
+
+    /**
      * @return array<string,mixed>
      */
     public static function countChangesForeignKeyPlan(string $statement, bool $deferred, bool $foreignKeyAction = false): array
@@ -675,6 +754,146 @@ final class SQLiteDynamicTriggerForeignKeyPlan
                 'sqlite-fkey6-defer-foreign-keys-delays-restrict',
                 'sqlite-fkey6-after-delete-trigger-can-repair-deferred-restrict',
                 'sqlite-fkey6-defer-foreign-keys-resets-at-transaction-boundary',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @param list<array<string,mixed>> $steps
+     * @return array<string,mixed>
+     */
+    public static function deferForeignKeysTransactionStatusPlan(
+        array $parents,
+        array $children,
+        string $parentKeyColumn,
+        string $childKeyColumn,
+        array $steps
+    ): array {
+        $parentKeyColumn = self::identifier($parentKeyColumn, 'parent key column');
+        $childKeyColumn = self::identifier($childKeyColumn, 'child key column');
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $originalParents = $parents;
+        $originalChildren = $children;
+        $inTransaction = false;
+        $deferForeignKeys = false;
+        $deferredCounts = [];
+        $events = [];
+        $commitFailed = false;
+
+        foreach ($steps as $index => $step) {
+            $action = strtolower(trim((string) ($step['action'] ?? '')));
+            if ($action === '') {
+                throw new \InvalidArgumentException('SQLite fkey6 transaction action is required');
+            }
+
+            if ($action === 'begin') {
+                $inTransaction = true;
+                $events[] = ['index' => $index, 'action' => $action, 'defer_foreign_keys' => $deferForeignKeys];
+                continue;
+            }
+
+            if ($action === 'set-defer') {
+                $deferForeignKeys = (bool) ($step['enabled'] ?? true);
+                $events[] = ['index' => $index, 'action' => $action, 'defer_foreign_keys' => $deferForeignKeys];
+                continue;
+            }
+
+            if (!$inTransaction && in_array($action, ['delete-parent', 'delete-child', 'insert-child', 'drop-child-table'], true)) {
+                throw new \InvalidArgumentException('SQLite fkey6 mutation requires an explicit transaction');
+            }
+
+            if ($action === 'delete-parent') {
+                $key = $step['key'] ?? null;
+                $referencing = self::matchingChildIndexes($children, $childKeyColumn, $key);
+                if (!$deferForeignKeys && $referencing !== []) {
+                    $events[] = [
+                        'index' => $index,
+                        'action' => $action,
+                        'status' => 'constraint-failed',
+                        'deferred_violation_count' => count(self::foreignKeyMissingParentKeys($parents, $children, $parentKeyColumn, $childKeyColumn)),
+                    ];
+                    continue;
+                }
+
+                $parents = array_values(array_filter(
+                    $parents,
+                    static fn (array $row): bool => ($row[$parentKeyColumn] ?? null) !== $key
+                ));
+            } elseif ($action === 'delete-child') {
+                $key = $step['key'] ?? null;
+                $children = array_values(array_filter(
+                    $children,
+                    static fn (array $row): bool => ($row[$childKeyColumn] ?? null) !== $key
+                ));
+            } elseif ($action === 'insert-child') {
+                $row = $step['row'] ?? null;
+                if (!is_array($row)) {
+                    throw new \InvalidArgumentException('SQLite fkey6 insert-child row is required');
+                }
+                $children[] = $row;
+            } elseif ($action === 'drop-child-table') {
+                $children = [];
+            } elseif ($action === 'rollback') {
+                $parents = $originalParents;
+                $children = $originalChildren;
+                $inTransaction = false;
+                $deferForeignKeys = false;
+            } elseif ($action === 'commit') {
+                $violations = count(self::foreignKeyMissingParentKeys($parents, $children, $parentKeyColumn, $childKeyColumn));
+                if ($violations > 0) {
+                    $commitFailed = true;
+                    $deferredCounts[] = $violations;
+                    $events[] = [
+                        'index' => $index,
+                        'action' => $action,
+                        'status' => 'constraint-failed',
+                        'deferred_violation_count' => $violations,
+                    ];
+                    continue;
+                }
+
+                $inTransaction = false;
+                $deferForeignKeys = false;
+            } else {
+                throw new \InvalidArgumentException('SQLite fkey6 transaction action is unsupported');
+            }
+
+            $count = count(self::foreignKeyMissingParentKeys($parents, $children, $parentKeyColumn, $childKeyColumn));
+            $deferredCounts[] = $count;
+            $events[] = [
+                'index' => $index,
+                'action' => $action,
+                'status' => 'commit-ok',
+                'defer_foreign_keys' => $deferForeignKeys,
+                'deferred_violation_count' => $count,
+            ];
+        }
+
+        $finalCount = count(self::foreignKeyMissingParentKeys($parents, $children, $parentKeyColumn, $childKeyColumn));
+
+        return [
+            'source' => 'fkey6.test fkey6-1.0..1.22, fkey6-2.1..2.6, fkey6-4.0..4.2',
+            'operation' => 'defer-foreign-keys-transaction-status',
+            'status' => $commitFailed ? 'deferred-commit-failed' : 'commit-ok',
+            'inside_transaction' => $inTransaction,
+            'defer_foreign_keys' => $deferForeignKeys,
+            'defer_resets_at_boundary' => !$inTransaction && !$deferForeignKeys,
+            'deferred_status_history' => $deferredCounts,
+            'deferred_violation_count' => $finalCount,
+            'dbstatus_deferred_fks' => $finalCount > 0 ? 1 : 0,
+            'parent_keys' => array_values(array_column(self::sortRows($parents), $parentKeyColumn)),
+            'child_keys' => array_values(array_column(self::sortRows($children), $childKeyColumn)),
+            'events' => $events,
+            'commit_failed' => $commitFailed,
+            'dependencies' => [
+                'sqlite-fkey6-defer-foreign-keys-defaults-off',
+                'sqlite-fkey6-dbstatus-deferred-fks-tracks-outstanding-violations',
+                'sqlite-fkey6-deferred-counter-clears-when-child-row-or-table-is-removed',
+                'sqlite-fkey6-defer-foreign-keys-resets-at-commit-or-rollback',
+                'sqlite-fkey6-commit-fails-with-outstanding-deferred-violations',
             ],
         ];
     }
@@ -6421,6 +6640,39 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             if ($row == $needle) {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{primary_key?:list<string>,unique?:list<array{columns:list<string>,collation?:string}>,collation?:array<string,string>} $parent
+     * @param list<string> $columns
+     */
+    private static function fkey2ParentKeyCoveredByUniqueIndex(array $parent, array $columns): bool
+    {
+        if ($columns === []) {
+            return false;
+        }
+
+        $declared = $parent['primary_key'] ?? [];
+        if (array_values($declared) === $columns) {
+            return true;
+        }
+
+        foreach ($parent['unique'] ?? [] as $index) {
+            if (($index['columns'] ?? []) !== $columns) {
+                continue;
+            }
+            $indexCollation = strtolower((string) ($index['collation'] ?? 'binary'));
+            foreach ($columns as $column) {
+                $parentCollation = strtolower((string) (($parent['collation'] ?? [])[$column] ?? 'binary'));
+                if ($parentCollation !== $indexCollation) {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         return false;

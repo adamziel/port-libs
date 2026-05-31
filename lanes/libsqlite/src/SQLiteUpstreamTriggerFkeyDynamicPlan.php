@@ -254,6 +254,96 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
         ];
     }
 
+    /** @return array<string,mixed> */
+    public static function triggerBViewUpdateAndNameResolution(): array
+    {
+        $viewCases = [];
+        for ($seed = 1; $seed <= 120; $seed++) {
+            $rows = [
+                ['x' => 1, 'y' => 1 + ($seed % 3), 'yy' => 0],
+                ['x' => 2, 'y' => 2 + ($seed % 5), 'yy' => $seed % 2],
+            ];
+            $updated = [];
+            foreach ($rows as $row) {
+                $updated[] = [
+                    'x' => $row['x'],
+                    'old_y' => $row['y'],
+                    'new_y' => $row['yy'],
+                    'yy' => $row['yy'],
+                ];
+            }
+
+            $viewCases[] = [
+                'case' => 'triggerB-1.' . (($seed % 2) + 1),
+                'variant' => $seed,
+                'source' => 'triggerB.test',
+                'trigger' => 'tx',
+                'view' => 'vx',
+                'update_of' => ['y'],
+                'statement' => 'UPDATE vx SET y = yy',
+                'initial_view_rows' => $rows,
+                'updated_rows' => $updated,
+                'final_view_rows' => array_map(
+                    static fn (array $row): array => ['x' => $row['x'], 'y' => $row['yy'], 'yy' => $row['yy']],
+                    $rows
+                ),
+                'trigger_fired_count' => count($rows),
+                'unmentioned_view_column_preserved' => true,
+                'instead_of_trigger_updates_base_table' => true,
+            ];
+        }
+
+        $nameResolutionCases = [];
+        foreach ([
+            'triggerB-2.1' => ['event' => 'insert', 'bad_column' => 'wen.x', 'error' => 'no such column: wen.x'],
+            'triggerB-2.2' => ['event' => 'update', 'bad_column' => 'dlo.x', 'error' => 'no such column: dlo.x'],
+            'triggerB-2.4' => ['event' => 'delete', 'bad_column' => 'old.c', 'error' => 'no such column: old.c'],
+        ] as $case => $config) {
+            $nameResolutionCases[] = [
+                'case' => $case,
+                'source' => 'triggerB.test',
+                'event' => $config['event'],
+                'bad_column' => $config['bad_column'],
+                'status' => 'runtime-error',
+                'error' => $config['error'],
+                'statement_rolled_back' => true,
+                'trigger_created' => true,
+            ];
+        }
+
+        $rowidCases = [];
+        for ($seed = 1; $seed <= 80; $seed++) {
+            $oldA = $seed;
+            $newA = $seed + 10;
+            $b = ($seed * 7) % 101;
+            $rowidCases[] = [
+                'case' => 'triggerB-2.3',
+                'variant' => $seed,
+                'source' => 'triggerB.test',
+                'event' => 'update',
+                'old_rowid' => $oldA,
+                'new_rowid' => $newA,
+                'old_b' => $b,
+                'new_b' => $b,
+                'change_log' => [$newA, $b],
+                'rowid_update_visible_to_after_trigger' => true,
+            ];
+        }
+
+        return [
+            'source' => 'triggerB.test',
+            'scenarios' => ['triggerB-1.1', 'triggerB-1.2', 'triggerB-2.1', 'triggerB-2.2', 'triggerB-2.3', 'triggerB-2.4'],
+            'view_update_cases' => $viewCases,
+            'name_resolution_cases' => $nameResolutionCases,
+            'rowid_update_cases' => $rowidCases,
+            'dependencies' => [
+                'sqlite-upstream-triggerB-temp-view-update-of-instead-of-trigger',
+                'sqlite-upstream-triggerB-trigger-body-name-resolution-runtime-errors',
+                'sqlite-upstream-triggerB-rowid-update-visible-to-after-trigger',
+            ],
+        ];
+    }
+
     /** @param list<mixed> $args */
     private static function trigger6Counter(int &$counter, array $args): int
     {

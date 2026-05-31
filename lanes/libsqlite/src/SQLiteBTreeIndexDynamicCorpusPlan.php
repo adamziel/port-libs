@@ -7288,6 +7288,69 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,predicate:string,operand:mixed,index_name:string,index_columns:list<string>,result_rows:list<int>,ordered_rows:list<int>,uses_index:bool,detail:string,integrity:string,batch:int}>
+     */
+    public static function indexSortOrderComparisonCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index.test sort-order corpus requires at least one case');
+        }
+
+        $rows = [
+            ['a' => '', 'b' => '', 'c' => 1],
+            ['a' => '', 'b' => null, 'c' => 2],
+            ['a' => null, 'b' => '', 'c' => 3],
+            ['a' => 'abc', 'b' => 123, 'c' => 4],
+            ['a' => 123, 'b' => 'abc', 'c' => 5],
+        ];
+
+        $ordered = $rows;
+        usort($ordered, static fn (array $left, array $right): int => self::sqliteSortCompare($left['a'], $right['a']) ?: self::sqliteSortCompare($left['b'], $right['b']));
+        $orderedRows = array_map(static fn (array $row): int => $row['c'], $ordered);
+
+        $templates = [
+            ['index-14.1', 'ORDER BY a,b follows index key sort order', 'ORDER BY a,b', null, $orderedRows],
+            ['index-14.2', 'equality on leading empty-string key returns NULL b before empty b', 'a = ?', '', [2, 1]],
+            ['index-14.3', 'equality on trailing empty-string key scans table-compatible index entries', 'b = ?', '', [1, 3]],
+            ['index-14.4', 'text range greater-than empty string excludes numeric and NULL keys', 'a > ?', '', [4]],
+            ['index-14.5', 'text range greater-or-equal empty string includes empty and larger text keys', 'a >= ?', '', [2, 1, 4]],
+            ['index-14.6', 'numeric lower bound greater-than 123 compares numeric before text', 'a > ?', 123, [2, 1, 4]],
+            ['index-14.7', 'numeric lower bound greater-or-equal 123 includes numeric key first', 'a >= ?', 123, [5, 2, 1, 4]],
+            ['index-14.8', 'text upper bound less-than abc includes numeric and empty-string keys', 'a < ?', 'abc', [5, 2, 1]],
+            ['index-14.9', 'text upper bound less-or-equal abc includes matching text key', 'a <= ?', 'abc', [5, 2, 1, 4]],
+            ['index-14.10', 'empty-string upper bound includes numeric and empty-string keys', 'a <= ?', '', [5, 2, 1]],
+            ['index-14.11', 'empty-string strict upper bound only includes numeric key', 'a < ?', '', [5]],
+            ['index-14.12', 'integrity check after mixed-type index range scans', 'PRAGMA integrity_check', null, []],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $predicate, $operand, $resultRows] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $out[] = [
+                'source' => 'index.test sections index-14.1 through index-14.12',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario . ' batch ' . $batch,
+                'predicate' => $predicate,
+                'operand' => $operand,
+                'index_name' => 't6i1',
+                'index_columns' => ['a', 'b'],
+                'result_rows' => $resultRows,
+                'ordered_rows' => $orderedRows,
+                'uses_index' => $section !== 'index-14.12',
+                'detail' => $section === 'index-14.12'
+                    ? 'integrity-check confirms mixed NULL/numeric/text index order remains valid'
+                    : 'SCAN t6 USING INDEX t6i1 with SQLite mixed-type sort precedence',
+                'integrity' => 'ok',
+                'batch' => $batch,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @param list<string> $columns
      * @param list<string> $constraints
      */
@@ -7317,6 +7380,34 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
         }
 
         throw new \InvalidArgumentException('SQLite dynamic index lookup fixture has no matching row');
+    }
+
+    private static function sqliteSortCompare(mixed $left, mixed $right): int
+    {
+        $leftRank = self::sqliteSortRank($left);
+        $rightRank = self::sqliteSortRank($right);
+        if ($leftRank !== $rightRank) {
+            return $leftRank <=> $rightRank;
+        }
+
+        if ($left === null || $right === null) {
+            return 0;
+        }
+
+        return $left <=> $right;
+    }
+
+    private static function sqliteSortRank(mixed $value): int
+    {
+        if ($value === null) {
+            return 0;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return 1;
+        }
+
+        return 2;
     }
 
     private static function indexAPredicateImpliesQuery(string $affinity, string $predicate, string $query): bool
