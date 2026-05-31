@@ -43,15 +43,37 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current supervisor sample reports 27 GiB total and about 9.6 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 336G available after bounded cache/log/worktree cleanup; `/tmp` has about 3.5G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 333G available after bounded cache/log/worktree cleanup; `/tmp` has about 2.8G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
-  source-moving integration and dashboard publication. The active pool includes
-  a LightningCSS surge in the mid-60s after bounded refills toward target 68,
-  plus a bounded Gitoxide pool and SQLite closure workers. The latest refills
-  started workers on `gpt-5.5` xhigh with the priority service tier; the
-  latest process sample found no real `sleep 900` or `Sleeping 900` workers.
+  source-moving integration and dashboard publication. The active pool is
+  capped at 11 visible development windows: 6 LightningCSS, 3 Gitoxide, and 2
+  SQLite closure workers. The latest refills started workers on `gpt-5.5`
+  xhigh with the priority service tier; the latest process sample found no
+  real `sleep 900` or `Sleeping 900` workers. One stale completed Codex UI
+  window (`main:13`) was pruned at 21:00 UTC and the missing Gitoxide slot was
+  refilled immediately.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (Gitoxide pack-index/smart-HTTP and
+  LightningCSS parser/source-map batch 21:08 UTC): source commit
+  `d9be99873a2b39aa98ecab3ce34cbf4cc0992868` (`ports: extend gitoxide
+  indexes and lightningcss parsing`) landed seven screened handoffs on top of
+  `7a6ad881`: two Gitoxide pack-index/smart-HTTP slices and five LightningCSS
+  custom-at-rule/source-map/CSS Modules/import/CSSOM slices. Gitoxide now
+  reports `5714 pass / 0 fail`, with conservative mapped coverage moving from
+  `1636 / 2886` to `1638 / 2886`: multi-pack-index referenced pack-offset
+  validation and smart HTTP noProxy CIDR/cookie preservation. LightningCSS now
+  reports `4356 pass / 0 fail`, with conservative mapped coverage moving from
+  `2100 / 3532` to `2103 / 3532`: two raw Function visitor replacement checks
+  and one all-skipped raw VLQ offset table-preservation behavior. Verification
+  passed Gitoxide full lane `39 files / 5714 assertions / 0 failures`,
+  LightningCSS full lane `13 files / 4356 assertions / 0 failures`, focused
+  accepted tests, touched example smokes, `git diff --check`, and no
+  WordPress/WP/wp_ source symbols under `lanes/gitoxide/src` or
+  `lanes/lightningcss/src`. A stale completed Codex UI window was pruned and the
+  visible worker pool was refilled to 11 active dev windows: 6 LightningCSS, 3
+  Gitoxide, and 2 SQLite.
 
 - 2026-05-31 supervisor continuation (Gitoxide and LightningCSS integration
   20:55 UTC): source commit

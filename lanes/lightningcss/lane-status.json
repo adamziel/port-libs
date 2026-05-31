@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 92.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS target-prefix/source-map/CSSOM/media/import/CSS Modules batch maps logical text-align target prefix helper cases and SourceMap negative generated-line offset strictness, while deepening media condition-function validation, WebKit mask-box-image CSSOM, import graph minifier behavior, and CSS Modules unused-symbol/global handling. Verification passed PHP lint on 39 changed/new PHP files across both accepted lanes, focused gate 12 files / 5799 assertions / 0 failures, full LightningCSS lane 13 files / 4308 assertions / 0 failures, six LightningCSS example smokes, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/lightningcss/src.",
-    "phpPass": 4308,
+    "estimatedProgress": 93,
+    "suiteProgress": "Supervisor-integrated LightningCSS custom-at-rule/source-map/modules/import/CSSOM batch maps raw Function visitor replacement and SourceMap all-skipped raw VLQ offset table preservation while deepening CSS Modules pseudo-element boundaries, quoted url() import source parsing, and DeclarationBlock enumeration. Verification passed LightningCSS full lane 13 files / 4356 assertions / 0 failures, focused accepted tests, example smokes, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/lightningcss/src.",
+    "phpPass": 4356,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source 780cadde: full LightningCSS lane passed 13 files / 4308 assertions / 0 failures. Conservative mapped coverage moves from 2093 / 3532 to 2100 / 3532: +6 logical text-align target-prefix helper cases and +1 SourceMap negative generated-line offset guard; media, CSSOM, import, and CSS Modules work deepen represented clusters.",
-    "currentWork": "Target-prefix/source-map/CSSOM/media/import/CSS Modules batch integrated: logical text-align target prefixing, SourceMap negative generated-line offset guard, WebKit mask-box-image CSSOM, media condition-function validation, import graph minifier edges, and CSS Modules unused-symbol/global handling.",
+    "audit": "2026-05-31 supervisor batch at source d9be9987: full LightningCSS lane passed 13 files / 4356 assertions / 0 failures. Conservative mapped coverage moves from 2100 / 3532 to 2103 / 3532: +2 custom at-rule raw Function visitor replacement checks and +1 SourceMap all-skipped raw VLQ offset table-preservation behavior; CSS Modules, import parser, and CSSOM work deepen represented clusters.",
+    "currentWork": "Custom-at-rule/source-map/modules/import/CSSOM batch integrated: raw Function visitor values are revisited, raw VLQ imports preserve tables when offsets skip mappings, CSS Modules pseudo-element boundaries are pinned, quoted url() import sources are stricter, and DeclarationBlock enumeration is covered.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch; continue current-base PHP parity slices with focused tests, examples, manifest-backed mapping, and periodic full-lane PHP gates.",
-    "latestCommit": "780caddebe859b165af57ca7a1927a0ed60a9b1f",
+    "latestCommit": "d9be99873a2b39aa98ecab3ce34cbf4cc0992868",
     "nextTask": "Keep LightningCSS dominant and prioritize current-base handoffs that add fresh mapped target-prefix, property-value, parser/CSSOM/source-map/bundler/CSS Modules coverage; reject duplicate status-only or already-covered clusters.",
-    "commit": "780caddebe859b165af57ca7a1927a0ed60a9b1f"
+    "commit": "d9be99873a2b39aa98ecab3ce34cbf4cc0992868"
 }

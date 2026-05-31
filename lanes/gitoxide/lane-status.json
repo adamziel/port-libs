@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 88.7,
-    "suiteProgress": "Supervisor-integrated Gitoxide transport/reference/protocol batch maps SSH receive-pack shell-use boundaries, protocol-v2 clone sideband exchange, send-pack sideband fatal/status behavior, and merge-base permutation baseline while deepening dereferenced reference transaction behavior. Verification passed PHP lint on 39 changed/new PHP files across both accepted lanes, focused gate 12 files / 5799 assertions / 0 failures, Gitoxide full lane 39 files / 5690 assertions / 0 failures, five Gitoxide example smokes, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/gitoxide/src.",
-    "phpPass": 5690,
+    "estimatedProgress": 88.8,
+    "suiteProgress": "Supervisor-integrated Gitoxide pack-index/smart-HTTP batch maps multi-pack-index referenced pack-offset validation and smart HTTP noProxy CIDR bypass plus origin Set-Cookie preservation. Verification passed Gitoxide full lane 39 files / 5714 assertions / 0 failures, focused accepted tests, example smokes, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/gitoxide/src.",
+    "phpPass": 5714,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full Cargo workspace not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source 780cadde: full Gitoxide lane passed 39 files / 5690 assertions / 0 failures. Conservative mapped coverage moves from 1632 / 2886 to 1636 / 2886: +1 SSH receive-pack shell-use boundary, +1 protocol-v2 clone sideband exchange, +1 send-pack sideband fatal/status behavior, and +1 merge-base permutation baseline; dereferenced reference transactions deepen an existing cluster.",
-    "currentWork": "Transport/reference/protocol batch integrated: SSH receive-pack shell-use contexts, protocol-v2 clone exchange sideband parsing, send-pack sideband fatal/status handling, dereferenced reference transaction coverage, and merge-base permutation baselines.",
+    "audit": "2026-05-31 supervisor batch at source d9be9987: full Gitoxide lane passed 39 files / 5714 assertions / 0 failures. Conservative mapped coverage moves from 1636 / 2886 to 1638 / 2886: +1 multi-pack-index referenced pack-offset validation and +1 smart HTTP noProxy CIDR/cookie-preservation behavior.",
+    "currentWork": "Pack-index/smart-HTTP batch integrated: ObjectDatabase validates multi-pack-index object offsets against referenced pack indexes and smart HTTP receive-pack handles CIDR noProxy bypass while preserving origin cookies.",
     "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch due workspace breadth. Native PHP focused/full-lane evidence is green; keep Gitoxide at a bounded secondary pool while LightningCSS remains the main capacity target.",
-    "latestCommit": "780caddebe859b165af57ca7a1927a0ed60a9b1f",
+    "latestCommit": "d9be99873a2b39aa98ecab3ce34cbf4cc0992868",
     "nextTask": "Keep bounded Gitoxide workers on current-base protocol, transport, pack/index, partial clone, tree merge, reference, credential, URL/refspec, and pathspec slices; prioritize handoffs with fresh mapped coverage and full-lane PHP evidence.",
-    "commit": "780caddebe859b165af57ca7a1927a0ed60a9b1f"
+    "commit": "d9be99873a2b39aa98ecab3ce34cbf4cc0992868"
 }
