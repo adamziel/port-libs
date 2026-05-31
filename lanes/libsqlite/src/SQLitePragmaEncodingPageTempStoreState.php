@@ -6,11 +6,11 @@ namespace PortLibs\LibSqlite;
 
 final class SQLitePragmaEncodingPageTempStoreState
 {
-    /** @var array<string, array{encoding:string,page_size:int,page_count:int,temp_store:int,auto_vacuum:int,pending_auto_vacuum:int|null,database_empty:bool,temporary:bool}> */
+    /** @var array<string, array{encoding:string,page_size:int,page_count:int,max_page_count:int,application_id:int,temp_store:int,auto_vacuum:int,pending_auto_vacuum:int|null,database_empty:bool,temporary:bool}> */
     private array $schemas = [];
 
     /**
-     * @param array<string, array{encoding?:string|int,page_size?:int|string,page_count?:int|string,temp_store?:int|string,auto_vacuum?:int|string,pending_auto_vacuum?:int|string|null,database_empty?:bool,temporary?:bool}> $schemas
+     * @param array<string, array{encoding?:string|int,page_size?:int|string,page_count?:int|string,max_page_count?:int|string,application_id?:int|string,temp_store?:int|string,auto_vacuum?:int|string,pending_auto_vacuum?:int|string|null,database_empty?:bool,temporary?:bool}> $schemas
      */
     public function __construct(array $schemas = [])
     {
@@ -34,7 +34,7 @@ final class SQLitePragmaEncodingPageTempStoreState
     /**
      * @return array{
      *     status:string,
-     *     pragma:'encoding'|'page_size'|'page_count'|'temp_store'|'auto_vacuum',
+     *     pragma:'encoding'|'page_size'|'page_count'|'max_page_count'|'application_id'|'temp_store'|'auto_vacuum',
      *     schema:string,
      *     requested:int|string|null,
      *     effective:int|string,
@@ -54,18 +54,20 @@ final class SQLitePragmaEncodingPageTempStoreState
             'encoding' => $this->executeEncoding($schema, $parsed['value']),
             'page_size' => $this->executePageSize($schema, $parsed['value']),
             'page_count' => $this->executePageCount($schema, $parsed['value']),
+            'max_page_count' => $this->executeMaxPageCount($schema, $parsed['value']),
+            'application_id' => $this->executeApplicationId($schema, $parsed['value']),
             'temp_store' => $this->executeTempStore($schema, $parsed['value']),
             'auto_vacuum' => $this->executeAutoVacuum($schema, $parsed['value']),
         };
     }
 
     /**
-     * @return array{schema:string,pragma:'encoding'|'page_size'|'page_count'|'temp_store'|'auto_vacuum',value:string|null}
+     * @return array{schema:string,pragma:'encoding'|'page_size'|'page_count'|'max_page_count'|'application_id'|'temp_store'|'auto_vacuum',value:string|null}
      */
     public static function parse(string $sql): array
     {
         $trimmed = rtrim(trim($sql), " \t\r\n;");
-        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>encoding|page_size|page_count|temp_store|auto_vacuum)(?:\s*(?:=\s*(?<equals>\'UTF-8\'|\'UTF-16\'|\'UTF-16le\'|\'UTF-16be\'|\'FULL\'|\'INCREMENTAL\'|\'NONE\'|\'OFF\'|"UTF-8"|"UTF-16"|"UTF-16le"|"UTF-16be"|"FULL"|"INCREMENTAL"|"NONE"|"OFF"|[A-Za-z_][A-Za-z0-9_]*|\d+)|\(\s*(?<paren>\'UTF-8\'|\'UTF-16\'|\'UTF-16le\'|\'UTF-16be\'|\'FULL\'|\'INCREMENTAL\'|\'NONE\'|\'OFF\'|"UTF-8"|"UTF-16"|"UTF-16le"|"UTF-16be"|"FULL"|"INCREMENTAL"|"NONE"|"OFF"|[A-Za-z_][A-Za-z0-9_]*|\d+)\s*\)))?$/i', $trimmed, $matches)) {
+        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>encoding|page_size|page_count|max_page_count|application_id|temp_store|auto_vacuum)(?:\s*(?:=\s*(?<equals>\'UTF-8\'|\'UTF-16\'|\'UTF-16le\'|\'UTF-16be\'|\'FULL\'|\'INCREMENTAL\'|\'NONE\'|\'OFF\'|"UTF-8"|"UTF-16"|"UTF-16le"|"UTF-16be"|"FULL"|"INCREMENTAL"|"NONE"|"OFF"|[A-Za-z_][A-Za-z0-9_]*|[+-]?\d+)|\(\s*(?<paren>\'UTF-8\'|\'UTF-16\'|\'UTF-16le\'|\'UTF-16be\'|\'FULL\'|\'INCREMENTAL\'|\'NONE\'|\'OFF\'|"UTF-8"|"UTF-16"|"UTF-16le"|"UTF-16be"|"FULL"|"INCREMENTAL"|"NONE"|"OFF"|[A-Za-z_][A-Za-z0-9_]*|[+-]?\d+)\s*\)))?$/i', $trimmed, $matches)) {
             throw new \InvalidArgumentException('Unsupported SQLite PRAGMA encoding/page/temp_store SQL');
         }
 
@@ -84,7 +86,7 @@ final class SQLitePragmaEncodingPageTempStoreState
     }
 
     /**
-     * @return array<string, array{encoding:string,page_size:int,page_count:int,temp_store:int,auto_vacuum:int,pending_auto_vacuum:int|null,database_empty:bool,temporary:bool}>
+     * @return array<string, array{encoding:string,page_size:int,page_count:int,max_page_count:int,application_id:int,temp_store:int,auto_vacuum:int,pending_auto_vacuum:int|null,database_empty:bool,temporary:bool}>
      */
     public function schemas(): array
     {
@@ -92,17 +94,21 @@ final class SQLitePragmaEncodingPageTempStoreState
     }
 
     /**
-     * @param array{encoding?:string|int,page_size?:int|string,page_count?:int|string,temp_store?:int|string,auto_vacuum?:int|string,pending_auto_vacuum?:int|string|null,database_empty?:bool,temporary?:bool} $state
-     * @return array{encoding:string,page_size:int,page_count:int,temp_store:int,auto_vacuum:int,pending_auto_vacuum:int|null,database_empty:bool,temporary:bool}
+     * @param array{encoding?:string|int,page_size?:int|string,page_count?:int|string,max_page_count?:int|string,application_id?:int|string,temp_store?:int|string,auto_vacuum?:int|string,pending_auto_vacuum?:int|string|null,database_empty?:bool,temporary?:bool} $state
+     * @return array{encoding:string,page_size:int,page_count:int,max_page_count:int,application_id:int,temp_store:int,auto_vacuum:int,pending_auto_vacuum:int|null,database_empty:bool,temporary:bool}
      */
     private function normalizeSchemaState(array $state): array
     {
         $pendingAutoVacuum = $state['pending_auto_vacuum'] ?? null;
+        $pageCount = self::normalizeNonNegativeInt($state['page_count'] ?? 0, 'SQLite page_count must be non-negative');
+        $maxPageCount = self::normalizeNonNegativeInt($state['max_page_count'] ?? max($pageCount, 1073741823), 'SQLite max_page_count must be non-negative');
 
         return [
             'encoding' => self::normalizeEncoding($state['encoding'] ?? 'UTF-8'),
             'page_size' => self::normalizePageSize($state['page_size'] ?? 4096),
-            'page_count' => self::normalizeNonNegativeInt($state['page_count'] ?? 0, 'SQLite page_count must be non-negative'),
+            'page_count' => $pageCount,
+            'max_page_count' => max($pageCount, $maxPageCount),
+            'application_id' => self::normalizeSignedInt($state['application_id'] ?? 0, 'SQLite application_id must be an integer'),
             'temp_store' => self::normalizeTempStore($state['temp_store'] ?? 0),
             'auto_vacuum' => self::normalizeAutoVacuum($state['auto_vacuum'] ?? 0),
             'pending_auto_vacuum' => $pendingAutoVacuum === null ? null : self::normalizeAutoVacuum($pendingAutoVacuum),
@@ -215,6 +221,64 @@ final class SQLitePragmaEncodingPageTempStoreState
             'rows' => [['page_count' => $effective]],
             'reason' => null,
             'dependencies' => ['sqlite-pragma-page-count-state'],
+        ];
+    }
+
+    /**
+     * @return array{status:string,pragma:'max_page_count',schema:string,requested:int|null,effective:int,changed:bool,rows:list<array{max_page_count:int}>,reason:string|null,page_count:int,dependencies:list<string>}
+     */
+    private function executeMaxPageCount(string $schema, ?string $requested): array
+    {
+        $before = $this->schemas[$schema]['max_page_count'];
+        $requestedValue = $requested === null ? null : self::normalizeNonNegativeInt($requested, 'SQLite max_page_count must be non-negative');
+        $effective = $before;
+        $reason = null;
+
+        if ($requestedValue !== null) {
+            $pageCount = $this->schemas[$schema]['page_count'];
+            $effective = max($pageCount, $requestedValue);
+            $this->schemas[$schema]['max_page_count'] = $effective;
+            $reason = $effective === $requestedValue ? 'assigned' : 'clamped_to_page_count';
+        }
+
+        return [
+            'status' => 'ok',
+            'pragma' => 'max_page_count',
+            'schema' => $schema,
+            'requested' => $requestedValue,
+            'effective' => $effective,
+            'changed' => $before !== $effective,
+            'rows' => [['max_page_count' => $effective]],
+            'reason' => $reason,
+            'page_count' => $this->schemas[$schema]['page_count'],
+            'dependencies' => ['sqlite-pragma-max-page-count-state'],
+        ];
+    }
+
+    /**
+     * @return array{status:string,pragma:'application_id',schema:string,requested:int|null,effective:int,changed:bool,rows:list<array{application_id:int}>,reason:string|null,dependencies:list<string>}
+     */
+    private function executeApplicationId(string $schema, ?string $requested): array
+    {
+        $before = $this->schemas[$schema]['application_id'];
+        $effective = $before;
+        $requestedValue = $requested === null ? null : self::normalizeSignedInt($requested, 'SQLite application_id must be an integer');
+
+        if ($requestedValue !== null) {
+            $effective = $requestedValue;
+            $this->schemas[$schema]['application_id'] = $effective;
+        }
+
+        return [
+            'status' => 'ok',
+            'pragma' => 'application_id',
+            'schema' => $schema,
+            'requested' => $requestedValue,
+            'effective' => $effective,
+            'changed' => $before !== $effective,
+            'rows' => [['application_id' => $effective]],
+            'reason' => null,
+            'dependencies' => ['sqlite-pragma-application-id-state'],
         ];
     }
 
@@ -356,7 +420,7 @@ final class SQLitePragmaEncodingPageTempStoreState
 
     private static function normalizeNonNegativeInt(int|string $value, string $message): int
     {
-        if (!is_int($value) && !ctype_digit((string) $value)) {
+        if (!is_int($value) && !preg_match('/^[+]?\d+$/', (string) $value)) {
             throw new \InvalidArgumentException($message);
         }
         $int = (int) $value;
@@ -365,6 +429,15 @@ final class SQLitePragmaEncodingPageTempStoreState
         }
 
         return $int;
+    }
+
+    private static function normalizeSignedInt(int|string $value, string $message): int
+    {
+        if (!is_int($value) && !preg_match('/^[+-]?\d+$/', (string) $value)) {
+            throw new \InvalidArgumentException($message);
+        }
+
+        return (int) $value;
     }
 
     private static function stripQuotes(string $value): string

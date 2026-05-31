@@ -932,4 +932,89 @@ foreach ($predicateMalformed as $name => $sql) {
     };
 }
 
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitText = str_repeat('é', ($seed % 4) + 1);
+    $offsetText = str_repeat('β', $seed % 3);
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $sql = "UPDATE app_settings SET state = 'unicode_length_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT length('{$limitText}') OFFSET length('{$offsetText}')";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update unicode length limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitText = str_repeat('δ', ($seed % 3) + 1);
+    $offsetText = str_repeat('λ', ($seed + 1) % 4);
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT length('{$limitText}') OFFSET length('{$offsetText}')) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue unicode length subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = $seed % 3;
+    $direction = $seed % 2 === 0 ? 'ASC' : 'DESC';
+    $sql = "UPDATE app_settings SET state = 'unicode_length_order' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY length(key_name || 'é') {$direction}, priority ASC LIMIT {$limitValue} OFFSET {$offsetValue}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+    $ordered = [
+        ['tuple' => [2, 'beta'], 'length' => 5, 'priority' => 30],
+        ['tuple' => [3, 'beta'], 'length' => 5, 'priority' => 50],
+        ['tuple' => [2, 'gamma'], 'length' => 6, 'priority' => 10],
+        ['tuple' => [1, 'gamma'], 'length' => 6, 'priority' => 20],
+        ['tuple' => [1, 'beta'], 'length' => 5, 'priority' => 40],
+    ];
+    usort($ordered, static function (array $left, array $right) use ($direction): int {
+        if ($left['length'] !== $right['length']) {
+            return $direction === 'DESC'
+                ? $right['length'] <=> $left['length']
+                : $left['length'] <=> $right['length'];
+        }
+
+        return $left['priority'] <=> $right['priority'];
+    });
+    $expectedTuples = array_column(array_slice($ordered, $offsetValue, $limitValue), 'tuple');
+    $expected = [];
+    foreach ([1 => [1, 'alpha'], 2 => [1, 'beta'], 3 => [1, 'gamma'], 4 => [2, 'alpha'], 5 => [2, 'beta'], 6 => [2, 'gamma'], 7 => [3, 'alpha'], 8 => [3, 'beta']] as $settingId => $tuple) {
+        if (in_array($tuple, $expectedTuples, true)) {
+            $expected[] = $settingId;
+        }
+    }
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update rowvalue unicode length order subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+$unicodeLengthMalformed = [
+    'malformed unicode length null limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT length(NULL)",
+    'malformed unicode length blob offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET length(X'C3A9')",
+];
+
+foreach ($unicodeLengthMalformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
+    };
+}
+
 return $tests;

@@ -6026,6 +6026,181 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,sql:string,distinct_mode:int,orderby:list<array{column:int,desc:bool}>,idx_insert:bool,idx_str:string,uses_sorter:bool,result_rows:list<array<int,mixed>>,detail:string}>
+     */
+    public static function bestindexFDistinctOrderByCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindexF dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'section' => 'bestindexF-1.1.1/1.1.2',
+                'sql' => 'SELECT DISTINCT a, b FROM t1',
+                'distinct' => 2,
+                'orderby' => [[0, false], [1, false]],
+                'idxInsert' => false,
+                'idxStr' => '',
+                'rows' => [[1, 'a'], [1, 'b'], [2, 'a'], [2, 'b']],
+            ],
+            [
+                'section' => 'bestindexF-1.4.1/1.4.2',
+                'sql' => 'SELECT DISTINCT t0.c0 FROM t1, t0 ORDER BY t1.a',
+                'distinct' => 3,
+                'orderby' => [[0, false]],
+                'idxInsert' => true,
+                'idxStr' => '',
+                'rows' => [[0], [1]],
+            ],
+            [
+                'section' => 'bestindexF-2.2',
+                'sql' => 'SELECT a, b FROM t1',
+                'distinct' => 0,
+                'orderby' => [],
+                'idxInsert' => false,
+                'idxStr' => '{} {}',
+                'rows' => self::bestindexFBaseRows(),
+            ],
+            [
+                'section' => 'bestindexF-2.3',
+                'sql' => 'SELECT DISTINCT a FROM t1',
+                'distinct' => 2,
+                'orderby' => [[0, false]],
+                'idxInsert' => false,
+                'idxStr' => 'DISTINCT {ORDER BY ((a+2)%5)}',
+                'rows' => [[3], [4], [1], [2]],
+            ],
+            [
+                'section' => 'bestindexF-2.4',
+                'sql' => 'SELECT DISTINCT a FROM t1 ORDER BY a',
+                'distinct' => 2,
+                'orderby' => [[0, false]],
+                'idxInsert' => false,
+                'idxStr' => 'DISTINCT {ORDER BY a}',
+                'rows' => [[1], [2], [3], [4]],
+            ],
+            [
+                'section' => 'bestindexF-2.5',
+                'sql' => 'SELECT DISTINCT a FROM t1 ORDER BY a DESC',
+                'distinct' => 2,
+                'orderby' => [[0, true]],
+                'idxInsert' => false,
+                'idxStr' => 'DISTINCT {ORDER BY a DESC}',
+                'rows' => [[4], [3], [2], [1]],
+            ],
+            [
+                'section' => 'bestindexF-2.6',
+                'sql' => 'SELECT a FROM t1 ORDER BY a',
+                'distinct' => 0,
+                'orderby' => [[0, false]],
+                'idxInsert' => false,
+                'idxStr' => '{} {ORDER BY a}',
+                'rows' => [[1], [1], [1], [2], [2], [2], [3], [3], [3], [4], [4], [4]],
+            ],
+            [
+                'section' => 'bestindexF-2.7',
+                'sql' => 'SELECT a FROM t1 ORDER BY a DESC',
+                'distinct' => 0,
+                'orderby' => [[0, true]],
+                'idxInsert' => false,
+                'idxStr' => '{} {ORDER BY a DESC}',
+                'rows' => [[4], [4], [4], [3], [3], [3], [2], [2], [2], [1], [1], [1]],
+            ],
+            [
+                'section' => 'bestindexF-2.8',
+                'sql' => 'SELECT a, count(*) FROM t1 GROUP BY a ORDER BY a',
+                'distinct' => 0,
+                'orderby' => [[0, false]],
+                'idxInsert' => false,
+                'idxStr' => '{} {ORDER BY a}',
+                'rows' => [[1, 3], [2, 3], [3, 3], [4, 3]],
+            ],
+            [
+                'section' => 'bestindexF-2.9',
+                'sql' => 'SELECT a, count(*) FROM t1 GROUP BY a ORDER BY a DESC',
+                'distinct' => 0,
+                'orderby' => [[0, true]],
+                'idxInsert' => false,
+                'idxStr' => '{} {ORDER BY a DESC}',
+                'rows' => [[4, 3], [3, 3], [2, 3], [1, 3]],
+            ],
+            [
+                'section' => 'bestindexF-2.10',
+                'sql' => 'SELECT a, count(*) FROM t1 GROUP BY a',
+                'distinct' => 0,
+                'orderby' => [[0, false]],
+                'idxInsert' => false,
+                'idxStr' => '{} {ORDER BY ((a+2)%5)}',
+                'rows' => [[3, 3], [4, 3], [1, 3], [2, 3]],
+            ],
+            [
+                'section' => 'bestindexF-2.11',
+                'sql' => 'SELECT DISTINCT a, count(*) FROM t1 GROUP BY a',
+                'distinct' => 2,
+                'orderby' => [[0, false]],
+                'idxInsert' => true,
+                'idxStr' => '{} {ORDER BY ((a+2)%5)}',
+                'rows' => [[3, 3], [4, 3], [1, 3], [2, 3]],
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $out[] = [
+                'source' => 'bestindexF.test sections 1.1.1 through 2.11',
+                'case' => $case,
+                'upstream_section' => $template['section'],
+                'sql' => $template['sql'] . ' -- dynamic batch ' . $batch,
+                'distinct_mode' => $template['distinct'],
+                'orderby' => array_map(
+                    static fn (array $row): array => ['column' => $row[0], 'desc' => $row[1]],
+                    $template['orderby'],
+                ),
+                'idx_insert' => $template['idxInsert'],
+                'idx_str' => $template['idxStr'],
+                'uses_sorter' => false,
+                'result_rows' => $template['rows'],
+                'detail' => self::bestindexFDetail($template['distinct'], $template['orderby'], $template['idxInsert'], $template['idxStr']),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array{0:int,1:string}>
+     */
+    private static function bestindexFBaseRows(): array
+    {
+        return [
+            [1, 'a'], [2, 'a'], [1, 'a'],
+            [2, 'b'], [1, 'b'], [2, 'b'],
+            [3, 'a'], [4, 'b'], [3, 'a'],
+            [4, 'b'], [3, 'a'], [4, 'b'],
+        ];
+    }
+
+    /**
+     * @param list<array{0:int,1:bool}> $orderby
+     */
+    private static function bestindexFDetail(int $distinct, array $orderby, bool $idxInsert, string $idxStr): string
+    {
+        $orderParts = [];
+        foreach ($orderby as [$column, $desc]) {
+            $orderParts[] = 'column ' . $column . ' desc ' . ($desc ? '1' : '0');
+        }
+
+        return 'xBestIndex distinct=' . $distinct
+            . ' orderby=[' . implode(', ', $orderParts) . ']'
+            . ' idxInsert=' . ($idxInsert ? 'yes' : 'no')
+            . ' idxStr=' . $idxStr
+            . ' sorter=no';
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

@@ -3644,6 +3644,12 @@ final class SQLiteSelectSql
                 'left' => self::valueExpression(trim($match[1]), $tables),
             ];
         }
+        if (preg_match('/^(.+?)\s+not\s+null$/i', $sql, $match) === 1) {
+            return [
+                'operator' => 'IS NOT NULL',
+                'left' => self::valueExpression(trim($match[1]), $tables),
+            ];
+        }
 
         return [
             'operator' => 'TRUTH',
@@ -3922,6 +3928,16 @@ final class SQLiteSelectSql
                 'predicate' => [
                     'operator' => 'AND',
                     'terms' => array_map(static fn (string $term): array => self::predicate($term, $tables), $andTerms),
+                ],
+            ];
+        }
+
+        if (preg_match('/^(.+?)\s+not\s+null$/i', $sql, $match) === 1) {
+            return [
+                'type' => 'predicate',
+                'predicate' => [
+                    'operator' => 'IS NOT NULL',
+                    'left' => self::valueExpression(trim($match[1]), $tables),
                 ],
             ];
         }

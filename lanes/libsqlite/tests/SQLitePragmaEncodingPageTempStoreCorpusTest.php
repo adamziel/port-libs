@@ -170,7 +170,7 @@ $expected = [
     'parse temp store query' => ['schema' => 'main', 'pragma' => 'temp_store', 'value' => null],
     'parse rejects quoted schema for bounded corpus' => 'rejected',
     'parse rejects unsupported pragma' => 'rejected',
-    'state exposes normalized schema' => ['encoding' => 'UTF-16be', 'page_size' => 8192, 'page_count' => 5, 'temp_store' => 2, 'auto_vacuum' => 0, 'pending_auto_vacuum' => null, 'database_empty' => false, 'temporary' => false],
+    'state exposes normalized schema' => ['encoding' => 'UTF-16be', 'page_size' => 8192, 'page_count' => 5, 'max_page_count' => 1073741823, 'application_id' => 0, 'temp_store' => 2, 'auto_vacuum' => 0, 'pending_auto_vacuum' => null, 'database_empty' => false, 'temporary' => false],
     'dependencies report encoding state' => ['sqlite-pragma-encoding-state'],
     'dependencies report page size state' => ['sqlite-pragma-page-size-state'],
     'dependencies report page count state' => ['sqlite-pragma-page-count-state'],

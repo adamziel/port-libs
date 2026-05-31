@@ -707,7 +707,7 @@ final class SQLiteUpdateDeleteReturningSql
         if (preg_match('/^length\s*\((.+)\)$/is', $expression, $match) === 1) {
             $value = self::limitExpressionValue(trim($match[1]));
 
-            return $value === null ? null : strlen((string) $value);
+            return $value === null ? null : self::textLength((string) $value);
         }
         if (preg_match('/^(coalesce|ifnull|nullif|min|max)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
@@ -1485,7 +1485,7 @@ final class SQLiteUpdateDeleteReturningSql
         if (preg_match('/^length\s*\((.+)\)$/is', $expression, $match) === 1) {
             $value = self::evaluateExpression(trim($match[1]), $row);
 
-            return $value === null ? null : strlen((string) $value);
+            return $value === null ? null : self::textLength((string) $value);
         }
         if (preg_match('/^nullif\s*\((.*)\)$/is', $expression, $match) === 1) {
             $parts = self::splitComma($match[1]);
@@ -2313,6 +2313,18 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return $value >= $lower && $value <= $upper;
+    }
+
+    private static function textLength(string $value): int
+    {
+        if ($value === '') {
+            return 0;
+        }
+        if (preg_match_all('/./us', $value, $matches) === false) {
+            return strlen($value);
+        }
+
+        return count($matches[0]);
     }
 
     private static function nullableAnd(?bool $left, ?bool $right): ?bool

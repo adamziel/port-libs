@@ -4123,6 +4123,54 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<string> $viewColumns
+     * @param list<array<string,mixed>> $inserts
+     * @return array<string,mixed>
+     */
+    public static function insteadOfViewInsertColumnSubset(array $viewColumns, array $inserts): array
+    {
+        $columns = self::identifierList($viewColumns, 'trigger2 view columns');
+        $baseRows = [];
+        $triggerRows = [];
+
+        foreach ($inserts as $ordinal => $insert) {
+            $new = [];
+            foreach ($columns as $column) {
+                $new[$column] = array_key_exists($column, $insert) ? $insert[$column] : null;
+            }
+
+            $baseRows[] = $new;
+            $triggerRows[] = [
+                'ordinal' => $ordinal,
+                'provided_columns' => array_values(array_intersect($columns, array_keys($insert))),
+                'omitted_columns' => array_values(array_diff($columns, array_keys($insert))),
+                'new_row' => $new,
+            ];
+        }
+
+        return [
+            'source' => 'trigger2.test trigger2-10.1',
+            'operation' => 'instead-of-view-insert-column-subset',
+            'status' => 'commit-ok',
+            'view_columns' => $columns,
+            'insert_count' => count($inserts),
+            'base_rows' => $baseRows,
+            'trigger_rows' => $triggerRows,
+            'first_base_row' => $baseRows[0] ?? null,
+            'last_base_row' => $baseRows === [] ? null : $baseRows[array_key_last($baseRows)],
+            'omitted_column_rows' => array_values(array_filter(
+                $triggerRows,
+                static fn (array $row): bool => $row['omitted_columns'] !== []
+            )),
+            'dependencies' => [
+                'sqlite-trigger2-instead-of-insert-view-column-subset',
+                'sqlite-trigger2-omitted-view-columns-are-null-in-new-row',
+                'sqlite-trigger2-trigger-body-uses-new-column-values-for-base-insert',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{id:int,a:int}> $leftRows
      * @param list<array{id:int,b:int}> $rightRows
      * @param list<array{op:string,row?:array{id:int,a:int,b:int},where?:callable(array{id:int,a:int,b:int}):bool,set?:array<string,mixed>,missing_table?:string}>
