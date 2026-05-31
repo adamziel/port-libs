@@ -52,6 +52,33 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 11:29 UTC
+  plus LightningCSS refill): source commit
+  `ea77e4e947688e0cfe3d8ae3fef4aeba03822a65` (`ports: add sqlite dynamic
+  corpus and gitoxide slices`) landed twelve handoffs after excluding stale
+  shared metadata, plus a local adjacent SELECT regression fix. Libsqlite gained
+  dynamic upstream behavior depth for row-value UPDATE/DELETE LIMIT bind
+  parameters, JSON alias/star, expression affinity, e_select limit/datatype,
+  select8 LIMIT/OFFSET, B-tree whereF join order, fkey2 composite-parent
+  regression, aggregate FILTER/ORDER/DISTINCT, and adjacent SELECT ordinal/CASE
+  filter handling; selected libsqlite evidence moves from `2893069` to
+  `2900340 pass / 0 fail`, mapped coverage stays `1589 / 1589`. Gitoxide gained
+  protocol v2 ls-refs empty-line advertisement rejection, packed-refs
+  peeled/out-of-bounds parity, pack delta malformed-header/result-buffer guards,
+  checkout index cache-tree component validation, and commit gpgsig
+  object-database boundary behavior; full Gitoxide evidence moves from `4355`
+  to `4414 pass / 0 fail`, mapped coverage moves from `1553 / 2886` to `1558 /
+  2886`. Verification passed PHP lint, bash syntax checks for touched launcher
+  scripts, `git diff --check -- lanes/libsqlite lanes/gitoxide scripts
+  .tmux-team/prompts/isolated-worker-template.md`, libsqlite focused batch `9
+  files / 180604 assertions / 0 failures`, libsqlite adjacent gate `12 files /
+  83866 assertions / 0 failures`, focused Gitoxide tests `7 files / 702
+  assertions / 0 failures`, full Gitoxide lane `39 files / 4414 assertions / 0
+  failures`, and five touched Gitoxide examples. The same source commit adds a
+  durable `refill-lightningcss-workers.sh` path, and the live tmux session now
+  has three visible LightningCSS workers on `gpt-5.5`, xhigh reasoning, and the
+  priority service tier.
+
 - 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 11:09 UTC):
   source commit `871fc0859fc6c840abb1b540f6dd281bac922b96` (`ports: add
   sqlite pragma virtual selects and gitoxide reflog parity`) landed two
