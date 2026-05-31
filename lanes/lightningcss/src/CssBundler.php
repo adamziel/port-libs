@@ -791,7 +791,7 @@ final class CssBundler
                         'type' => 'import',
                         'raw' => $raw,
                         'loc' => $this->sourceLocation($css, $cursor),
-                        'import' => $this->parseImportStatement($raw, $this->sourceLocation($css, $cursor)),
+                        'import' => $this->parseImportStatement($raw, $this->sourceLocation($css, $cursor), $file),
                     ];
                     $seenImport = true;
                 } elseif ($this->startsAtKeyword($css, $cursor, '@layer')) {
@@ -836,7 +836,7 @@ final class CssBundler
                             'type' => 'import',
                             'raw' => substr($css, $cursor),
                             'loc' => $this->sourceLocation($css, $cursor),
-                            'import' => $this->parseImportStatement(substr($css, $cursor), $this->sourceLocation($css, $cursor)),
+                            'import' => $this->parseImportStatement(substr($css, $cursor), $this->sourceLocation($css, $cursor), $file),
                         ];
                         break;
                     }
@@ -905,7 +905,7 @@ final class CssBundler
      * @param array{line:int,column:int} $loc
      * @return array{specifier:string,layer:?string,supports:?string,media:string,loc:array{line:int,column:int}}
      */
-    private function parseImportStatement(string $statement, array $loc): array
+    private function parseImportStatement(string $statement, array $loc, string $file): array
     {
         $rest = trim(substr(rtrim(trim($statement), ';'), strlen('@import')));
         $offset = $this->skipWhitespaceAndComments($rest, 0);
@@ -928,7 +928,7 @@ final class CssBundler
         }
 
         if ($specifier === null || $specifier === '') {
-            throw new CssBundleException('parser-error', 'Invalid @import source', null, $loc['line'], $loc['column']);
+            throw new CssBundleException('parser-error', 'Invalid @import source', $file, $loc['line'], $loc['column']);
         }
 
         $layer = null;
@@ -940,6 +940,15 @@ final class CssBundler
             $open = $offset + strlen($this->readIdentifier($rest, $offset));
             $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
             $layer = trim(substr($rest, $open + 1, $close - $open - 1));
+            if ($layer === '' || $this->containsTopLevelDelimiter($layer, ',')) {
+                throw new CssBundleException(
+                    'parser-error',
+                    "Invalid @import layer name: {$layer}",
+                    $file,
+                    $loc['line'],
+                    $loc['column'],
+                );
+            }
             $offset = $close + 1;
             $offset = $this->skipWhitespaceAndComments($rest, $offset);
         } elseif (strncasecmp(substr($rest, $offset, strlen('layer')), 'layer', strlen('layer')) === 0) {
@@ -2001,6 +2010,58 @@ final class CssBundler
         }
 
         return array_values(array_filter(array_map('trim', $parts), static fn (string $part): bool => $part !== ''));
+    }
+
+    private function containsTopLevelDelimiter(string $value, string $delimiter): bool
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '/' && ($value[$i + 1] ?? '') === '*') {
+                $end = strpos($value, '*/', $i + 2);
+                if ($end === false) {
+                    throw new CssBundleException('parser-error', 'CSS contains an unbalanced comment');
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $i = $this->cssEscapeEndOffset($value, $i);
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === $delimiter && $parenDepth === 0 && $bracketDepth === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function findNextTopLevel(string $css, string $needle, int $start): ?int

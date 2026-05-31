@@ -996,6 +996,80 @@ CSS;
         $t->same(['px', 'rem', 'rem'], $seenLengthUnits);
         $t->same(['f2' => 'rem', 'f3' => 'rem'], $genericArgumentUnits);
     },
+    'custom at-rules compose upstream Color and Length value visitors' => static function (TestRunner $t): void {
+        $seenColors = [];
+        $seenLengths = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Length' => static function (array $length) use (&$seenLengths): ?array {
+                    $seenLengths[] = $length;
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+            ],
+            [
+                'Color' => static function (array $color) use (&$seenColors): ?array {
+                    $seenColors[] = $color;
+                    if (($color['type'] ?? null) !== 'rgb') {
+                        return null;
+                    }
+
+                    return [
+                        'type' => 'rgb',
+                        'r' => $color['g'],
+                        'g' => $color['r'],
+                        'b' => $color['b'],
+                        'alpha' => $color['alpha'],
+                    ];
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { width: 16px; color: red; }', [], $visitor);
+
+        $t->same('.foo{width:1rem;color:#0f0}', $result);
+        $t->same([['unit' => 'px', 'value' => 16.0]], $seenLengths);
+        $t->same([['type' => 'rgb', 'r' => 255, 'g' => 0, 'b' => 0, 'alpha' => 1]], $seenColors);
+    },
+    'custom at-rules compose upstream sequential Color visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Color' => static function (array $color) use (&$seen): array {
+                    $seen[] = $color;
+
+                    return [
+                        'type' => 'rgb',
+                        'r' => $color['g'],
+                        'g' => $color['r'],
+                        'b' => $color['b'],
+                        'alpha' => $color['alpha'],
+                    ];
+                },
+            ],
+            [
+                'Color' => static function (array $color) use (&$seen): ?array {
+                    $seen[] = $color;
+                    if (($color['type'] ?? null) !== 'rgb' || $color['g'] <= 0) {
+                        return null;
+                    }
+
+                    $color['alpha'] /= 2;
+
+                    return $color;
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { color: red; }', [], $visitor);
+
+        $t->same('.foo{color:#00ff0080}', $result);
+        $t->same(2, count($seen));
+        $t->same([255, 0, 0, 1], [$seen[0]['r'], $seen[0]['g'], $seen[0]['b'], $seen[0]['alpha']]);
+        $t->same([0, 255, 0, 1], [$seen[1]['r'], $seen[1]['g'], $seen[1]['b'], $seen[1]['alpha']]);
+    },
     'custom at-rules compose upstream EnvironmentVariable visitors in media and declarations' => static function (TestRunner $t): void {
         $tokens = [
             '--branding-small' => [

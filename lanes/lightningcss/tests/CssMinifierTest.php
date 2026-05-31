@@ -110,6 +110,38 @@ CSS
         $css = '.foo { color: yellow; background: linear-gradient(blue, white); border-color: black; }';
         $t->same('.foo{color:#ff0;background:linear-gradient(#00f,#fff);border-color:#000}', (new CssMinifier())->minify($css));
     },
+    'css minifier maps upstream background position value normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $cases = [
+            '.foo { background-position: center center; }' => '.foo{background-position:50%}',
+            '.foo { background-position: bottom left }' => '.foo{background-position:0 100%}',
+            '.foo { background-position: left 10px center }' => '.foo{background-position:10px}',
+            '.foo { background-position: right 10px center }' => '.foo{background-position:right 10px center}',
+            '.foo { background-position: center top 10px }' => '.foo{background-position:50% 10px}',
+            '.foo { background-position: center bottom 10px }' => '.foo{background-position:center bottom 10px}',
+            '.foo { background-position: center 10px }' => '.foo{background-position:50% 10px}',
+            '.foo { background-position: right 10px top 20px }' => '.foo{background-position:right 10px top 20px}',
+            '.foo { background-position: left 10px top 20px }' => '.foo{background-position:10px 20px}',
+            '.foo { background-position: left 10px bottom 20px }' => '.foo{background-position:left 10px bottom 20px}',
+            '.foo { background-position: left 10px top }' => '.foo{background-position:10px 0}',
+            '.foo { background-position: bottom right }' => '.foo{background-position:100% 100%}',
+            '.foo { background-position: center top }' => '.foo{background-position:top}',
+            '.foo { background-position: center bottom }' => '.foo{background-position:bottom}',
+            '.foo { background-position: left center }' => '.foo{background-position:0}',
+            '.foo { background-position: right center }' => '.foo{background-position:100%}',
+            '.foo { background-position: 20px center }' => '.foo{background-position:20px}',
+            '.foo { background: url("img-sprite.png") no-repeat bottom right }' => '.foo{background:url(img-sprite.png) 100% 100% no-repeat}',
+            '.foo { background: transparent }' => '.foo{background:0 0}',
+            '.foo { background: none center }' => '.foo{background:50%}',
+            '.foo { background: none }' => '.foo{background:0 0}',
+            '.foo { background: url("data:image/svg+xml,%3Csvg width=\'168\' height=\'24\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3C/svg%3E") }' => '.foo{background:url("data:image/svg+xml,%3Csvg width=\'168\' height=\'24\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3C/svg%3E")}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
     'css minifier maps upstream basic color value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

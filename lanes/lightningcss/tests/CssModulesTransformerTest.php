@@ -120,6 +120,52 @@ CSS));
         $t->same([], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules leaves upstream raw custom pseudo function tokens unscoped while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  composes: base;
+  color: red;
+}
+
+.card:--theme-state(.legacy, :hover, #anchor) {
+  color: yellow;
+}
+
+.card:is(.featured, :global(.wp-block-card)) {
+  color: purple;
+}
+
+.item:nth-child(2n of .card, :global(.wp-block)) {
+  color: blue;
+}
+
+.base {
+  color: green;
+}
+CSS, [
+            'pseudoClasses' => [
+                'hover' => 'is-hovered',
+            ],
+        ]);
+
+        $t->same('.EgL3uq_card{color:red}.EgL3uq_card:--theme-state(.legacy,:hover,#anchor){color:#ff0}.EgL3uq_card:is(.EgL3uq_featured,.wp-block-card){color:purple}.EgL3uq_item:nth-child(2n of .EgL3uq_card,.wp-block){color:#00f}.EgL3uq_base{color:green}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'featured' => $export('EgL3uq_featured'),
+            'item' => $export('EgL3uq_item'),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $transformer = new CssModulesTransformer();
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform(':--theme-state(.legacy) { color: red }', ['pure' => true]));
+
+        $pureSelectorFunction = $transformer->transform(':is(:--theme-state(.legacy), .card) { color: red }', ['pure' => true]);
+        $t->same(':is(:--theme-state(.legacy),.EgL3uq_card){color:red}', $pureSelectorFunction['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+        ], $pureSelectorFunction['exports']);
+    },
     'css modules scopes upstream pseudo replacement classes while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card:hover {
@@ -605,6 +651,44 @@ CSS;
             ]),
         ], $contentHash['exports']);
         $t->same([], $contentHash['references']);
+    },
+    'css modules rejects upstream invalid patterns before local global and composes output' => static function (TestRunner $t): void {
+        $cases = [
+            [
+                '.test { composes: foo; color: red } .foo { color: blue }',
+                '[oops]-[local]',
+                'Error parsing CSS modules pattern: unknown placeholder "[oops]" at index 0',
+            ],
+            [
+                ':local(.test) { color: red }',
+                'theme-[oops]-[local]',
+                'Error parsing CSS modules pattern: unknown placeholder "[oops]" at index 6',
+            ],
+            [
+                ':global(.legacy) .test { color: red }',
+                '[hash',
+                'Error parsing CSS modules pattern: unclosed brackets at index 0',
+            ],
+            [
+                '.test { composes: foo from global; color: red }',
+                'theme-[name]-[bad]',
+                'Error parsing CSS modules pattern: unknown placeholder "[bad]" at index 13',
+            ],
+        ];
+
+        foreach ($cases as [$css, $pattern, $message]) {
+            try {
+                (new CssModulesTransformer())->transform($css, [
+                    'filename' => '/theme/card.module.css',
+                    'pattern' => $pattern,
+                ]);
+            } catch (InvalidArgumentException $exception) {
+                $t->same($message, $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected invalid CSS Modules pattern exception');
+        }
     },
     'css modules deduplicates repeated composes references from simple class selectors' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
         $css = <<<'CSS'

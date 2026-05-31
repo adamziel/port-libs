@@ -269,6 +269,38 @@ return [
         $t->same(['.prelude{}', '.wp-block-cover{}'], $data['sourcesContent']);
         $t->same(['prelude-rule', 'block-rule'], $data['names']);
     },
+    'source map imports raw vlq maps with upstream negative column offsets' => static function (TestRunner $t): void {
+        $generatedOnly = new SourceMap();
+        $generatedOnly->addVlqMap('K,I;O', ['generated.css'], ['.generated{}'], [], 0, -3);
+        $generatedOnlyDecoded = SourceMap::decodeVlq($generatedOnly->writeVlq());
+
+        $t->same('E,I;I', $generatedOnly->writeVlq());
+        $t->same([0, 0, 1], array_column($generatedOnlyDecoded, 'generatedLine'));
+        $t->same([2, 6, 4], array_column($generatedOnlyDecoded, 'generatedColumn'));
+        $t->same([null, null, null], array_column($generatedOnlyDecoded, 'sourceIndex'));
+
+        $sourceBacked = new SourceMap();
+        $sourceBacked->addVlqMap('KAAA,IACA;OACA', ['source.css'], ['.source{}'], [], 0, -3);
+        $sourceBackedDecoded = SourceMap::decodeVlq($sourceBacked->writeVlq());
+
+        $t->same('EAAA,IACA;IACA', $sourceBacked->writeVlq());
+        $t->same([2, 6, 4], array_column($sourceBackedDecoded, 'generatedColumn'));
+        $t->same([0, 0, 0], array_column($sourceBackedDecoded, 'sourceIndex'));
+        $t->same([0, 1, 2], array_column($sourceBackedDecoded, 'originalLine'));
+
+        $skippedLine = new SourceMap();
+        $skippedLine->addVlqMap('KAAA;OACA', ['source.css'], ['.source{}'], [], -1, -3);
+        $skippedLineDecoded = SourceMap::decodeVlq($skippedLine->writeVlq());
+
+        $t->same('IACA', $skippedLine->writeVlq());
+        $t->same([0], array_column($skippedLineDecoded, 'generatedLine'));
+        $t->same([4], array_column($skippedLineDecoded, 'generatedColumn'));
+        $t->same([1], array_column($skippedLineDecoded, 'originalLine'));
+        $t->throws(InvalidArgumentException::class, static function (): void {
+            $map = new SourceMap();
+            $map->addVlqMap('A', [], [], [], 0, -1);
+        });
+    },
     'source map imports upstream raw vlq byte-stream mappings without comma separators' => static function (TestRunner $t): void {
         $map = SourceMap::fromJson(
             '{"version":3,"mappings":"AAAAAA","sources":["compiled.css"],"sourcesContent":[".compiled{}"],"names":["rule"]}'

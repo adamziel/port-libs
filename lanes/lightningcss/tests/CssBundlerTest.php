@@ -763,6 +763,32 @@ CSS,
 
         throw new RuntimeException('Expected unsupported anonymous layer combination exception');
     },
+    'css bundler rejects invalid import layer names before graph resolution' => static function (TestRunner $t): void {
+        $assertInvalidLayerImport = static function (string $css, string $message) use ($t): void {
+            $reads = [];
+            try {
+                (new CssBundler())->bundleWithReader('/entry.css', static function (string $file) use (&$reads, $css): string {
+                    $reads[] = $file;
+
+                    return $file === '/entry.css' ? $css : ':root { --gap: 1rem }';
+                });
+            } catch (CssBundleException $exception) {
+                $t->same('parser-error', $exception->kind);
+                $t->same($message, $exception->getMessage());
+                $t->same('/entry.css', $exception->sourceFile);
+                $t->same(1, $exception->sourceLine);
+                $t->same(1, $exception->sourceColumn);
+                $t->same(['/entry.css'], $reads);
+
+                return;
+            }
+
+            throw new RuntimeException('Expected invalid @import layer name exception');
+        };
+
+        $assertInvalidLayerImport('@import "tokens.css" layer(foo, bar); .entry { color: red }', 'Invalid @import layer name: foo, bar');
+        $assertInvalidLayerImport('@import "tokens.css" layer(); .entry { color: red }', 'Invalid @import layer name: ');
+    },
     'css bundler maps external import ordering diagnostics' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@import "https://fonts.example/css";.b{color:green}',

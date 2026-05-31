@@ -237,6 +237,7 @@ final class TransitionPrefixer
         $supportRules = [];
         $displayFlexChanged = $this->rewriteDisplayFlexPrefixEntries($entries, $targetOptions);
         $flexChanged = $this->rewriteFlexPrefixEntries($entries, $targetOptions);
+        $animationChanged = $this->rewriteAnimationPrefixEntries($entries, $targetOptions);
         $colorSchemeChanged = $this->rewriteColorSchemeFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $printColorAdjustChanged = $this->rewritePrintColorAdjustPrefixEntries($entries, $targetOptions);
         $uiPrefixChanged = $this->rewriteUiPrefixEntries($entries, $targetOptions);
@@ -272,7 +273,7 @@ final class TransitionPrefixer
         $clampChanged = $this->rewriteClampFallbackEntries($entries, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
             ? false
-            : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
+            : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $lightDarkChanged = $this->rewriteLightDarkFallbackEntries($entries, $targetOptions);
         $lightDarkSerializationChanged = $this->rewriteLightDarkAdvancedColorSerializationEntries($entries, $targetOptions);
         $alphaHexChanged = $this->rewriteAlphaHexFallbackEntries($entries, $targetOptions);
@@ -283,7 +284,7 @@ final class TransitionPrefixer
         if ($logicalInsetFallback !== null) {
             return $logicalInsetFallback . implode('', $supportRules);
         }
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -800,7 +801,7 @@ final class TransitionPrefixer
         $supportsAdvancedColor = $this->targetAtLeast($normalized, 'chrome', [111])
             || $this->targetAtLeast($normalized, 'edge', [111])
             || $this->targetAtLeast($normalized, 'safari', [16]);
-        $usesP3Fallback = $this->targetInRange($normalized, 'safari', [10], [15, 255, 255]);
+        $usesP3Fallback = $this->targetInRange($normalized, 'safari', [10], [14, 255, 255]);
         $needsSrgbFallback = ($chrome !== null && !$this->targetAtLeast($normalized, 'chrome', [111]))
             || ($safari !== null && !$this->targetAtLeast($normalized, 'safari', [10]))
             || ($chrome === null && $safari === null);
@@ -846,6 +847,13 @@ final class TransitionPrefixer
             || $this->targetAtLeast($normalized, 'safari', [6])
             || $this->targetAtLeast($normalized, 'samsung', [4]);
         $sizingStretchNeedsMoz = $this->targetAtLeast($normalized, 'firefox', [3]);
+        $animationNeedsWebkit = $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
+            || $this->targetInRange($normalized, 'chrome', [4], [42])
+            || $this->targetInRange($normalized, 'ios_saf', [3, 2], [8, 1])
+            || $this->targetInRange($normalized, 'opera', [15], [29])
+            || $this->targetInRange($normalized, 'safari', [4], [8]);
+        $animationNeedsMoz = $this->targetInRange($normalized, 'firefox', [5], [15]);
+        $animationNeedsO = $this->targetInRange($normalized, 'opera', [12], [12]);
 
         return [
             'boxShadowNeedsWebkit' => $needsWebkitBoxShadow,
@@ -895,6 +903,9 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'safari', [3, 1], [8]),
             'flexNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [21]),
             'flexNeedsMs' => $this->targetInRange($normalized, 'ie', [10], [10]),
+            'animationNeedsWebkit' => $animationNeedsWebkit,
+            'animationNeedsMoz' => $animationNeedsMoz,
+            'animationNeedsO' => $animationNeedsO,
             'userSelectNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [53])
                 || $this->targetAtLeast($normalized, 'ios_saf', [3])
@@ -3142,6 +3153,36 @@ final class TransitionPrefixer
             '-moz-' => $targetOptions['appearanceNeedsMoz'] ?? false,
             '-ms-' => $targetOptions['appearanceNeedsMs'] ?? false,
         ]) || $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteAnimationPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $changed = false;
+        $properties = [
+            'animation',
+            'animation-name',
+            'animation-duration',
+            'animation-delay',
+            'animation-direction',
+            'animation-fill-mode',
+            'animation-iteration-count',
+            'animation-play-state',
+            'animation-timing-function',
+        ];
+
+        foreach ($properties as $property) {
+            $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, $property, [
+                '-webkit-' => $targetOptions['animationNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['animationNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['animationNeedsO'] ?? false,
+            ]) || $changed;
+        }
+
+        return $changed;
     }
 
     /**
@@ -5734,12 +5775,17 @@ final class TransitionPrefixer
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
      * @param list<string> $supportRules
      */
-    private function rewriteAdvancedColorFallbackEntries(array &$entries, string $selectors, array &$supportRules): bool
+    private function rewriteAdvancedColorFallbackEntries(array &$entries, string $selectors, array &$supportRules, array $targetOptions): bool
     {
+        if (!($targetOptions['advancedColorNeedsSrgbFallback'] ?? false)) {
+            return false;
+        }
+
         $changed = false;
         $rewritten = [];
         $p3SupportEntries = [];
         $labSupportEntries = [];
+        $useP3Fallback = $targetOptions['advancedColorUsesP3Fallback'] ?? false;
 
         foreach ($entries as $entry) {
             $isCustomProperty = str_starts_with($entry['property'], '--');
@@ -5757,7 +5803,7 @@ final class TransitionPrefixer
                 continue;
             }
 
-            $p3Fallback = $this->advancedColorP3FallbackValue($normalized, $isCustomProperty);
+            $p3Fallback = $useP3Fallback ? $this->advancedColorP3FallbackValue($normalized, $isCustomProperty) : null;
             $labFallback = $this->advancedColorLabFallbackValue($normalized, $isCustomProperty);
             $rewritten[] = $this->entryWithValue($entry, $srgbFallback);
             $changed = true;
@@ -6436,8 +6482,15 @@ final class TransitionPrefixer
             'lab(56.208% 94.4644 98.8928)' => '#ff0f0e',
             'lch(51% 135.366 301.364)',
             'lab(51% 70.4544 -115.586)' => '#7773ff',
+            'color(srgb .41587 .50367 .36664)' => '#6a805d',
+            'color(display-p3 .43313 .50108 .3795)' => '#6a805d',
             'color(display-p3 0 .5 1)' => '#4263eb',
             'color(display-p3 0 1 0)' => '#00f942',
+            'color(a98-rgb .44091 .49971 .37408)' => '#6a805d',
+            'color(prophoto-rgb .36589 .41717 .31333)' => '#6a805d',
+            'color(rec2020 .4221 .4758 .35605)' => '#728765',
+            'color(xyz-d50 .2005 .14089 .4472)' => '#7654cd',
+            'color(xyz .21661 .14602 .59452)' => '#7654cd',
             'lch(50.998% 135.363 338)' => '#ee00be',
             default => null,
         };

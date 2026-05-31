@@ -333,7 +333,7 @@ final class DeclarationBlock
             if ($colon === null) {
                 throw new \InvalidArgumentException("Invalid CSS declaration: {$part}");
             }
-            $property = strtolower(trim(substr($part, 0, $colon)));
+            $property = $this->normalizeDeclarationPropertyName(substr($part, 0, $colon));
             $value = trim(substr($part, $colon + 1));
             if ($property === '' || $value === '') {
                 throw new \InvalidArgumentException("Invalid CSS declaration: {$part}");
@@ -6340,13 +6340,25 @@ final class DeclarationBlock
      */
     private function getTextDecorationProperty(array $entries, string $property): ?array
     {
-        if (!$this->isTextDecorationProperty($property)) {
+        $prefix = $this->textDecorationPrefixForProperty($property);
+        $base = $this->baseTextDecorationProperty($property);
+        if ($prefix === null || $base === null) {
             return null;
         }
 
         $components = [];
         foreach ($entries as $entry) {
-            if ($entry['property'] === 'text-decoration') {
+            $entryPrefix = $this->textDecorationPrefixForProperty($entry['property']);
+            $entryBase = $this->baseTextDecorationProperty($entry['property']);
+            if ($entryPrefix === null || $entryBase === null) {
+                continue;
+            }
+
+            if ($entryBase === 'text-decoration') {
+                if ($entryPrefix !== $prefix) {
+                    continue;
+                }
+
                 $parsed = $this->parseTextDecorationComponents($entry['value']);
                 if ($parsed === null) {
                     continue;
@@ -6361,16 +6373,18 @@ final class DeclarationBlock
                 continue;
             }
 
-            if ($this->isTextDecorationLonghand($entry['property'])) {
-                $components[$entry['property']] = [
-                    'value' => $this->normalizeTextDecorationLonghandValue($entry['property'], $entry['value']),
-                    'important' => $entry['important'],
-                ];
+            if ($entryBase !== 'text-decoration-thickness' && $entryPrefix !== $prefix) {
+                continue;
             }
+
+            $components[$entryBase] = [
+                'value' => $this->normalizeTextDecorationLonghandValue($entryBase, $entry['value']),
+                'important' => $entry['important'],
+            ];
         }
 
-        if ($property !== 'text-decoration') {
-            return $components[$property] ?? null;
+        if ($base !== 'text-decoration') {
+            return $components[$base] ?? null;
         }
 
         foreach (self::TEXT_DECORATION_LONGHANDS as $longhand) {
@@ -6400,11 +6414,13 @@ final class DeclarationBlock
      */
     private function setTextDecorationLonghand(array $entries, string $property, string $value, bool $important): ?string
     {
-        if (!$this->isTextDecorationLonghand($property)) {
+        $prefix = $this->textDecorationPrefixForProperty($property);
+        $base = $this->baseTextDecorationProperty($property);
+        if ($prefix === null || $base === null || !in_array($base, self::TEXT_DECORATION_LONGHANDS, true)) {
             return null;
         }
 
-        $value = $this->normalizeTextDecorationLonghandValue($property, $value);
+        $value = $this->normalizeTextDecorationLonghandValue($base, $value);
         for ($index = count($entries) - 1; $index >= 0; $index--) {
             if ($entries[$index]['property'] === $property) {
                 $entries[$index] = [
@@ -6416,7 +6432,17 @@ final class DeclarationBlock
                 return $this->serializeEntries($entries);
             }
 
-            if ($entries[$index]['property'] !== 'text-decoration') {
+            $entryPrefix = $this->textDecorationPrefixForProperty($entries[$index]['property']);
+            $entryBase = $this->baseTextDecorationProperty($entries[$index]['property']);
+            if ($entryBase !== 'text-decoration') {
+                continue;
+            }
+
+            if ($base === 'text-decoration-thickness') {
+                if ($entryPrefix !== '') {
+                    continue;
+                }
+            } elseif ($entryPrefix !== $prefix) {
                 continue;
             }
 
@@ -6425,9 +6451,9 @@ final class DeclarationBlock
                 continue;
             }
 
-            $components[$property] = $value;
+            $components[$base] = $value;
             $entries[$index] = [
-                'property' => 'text-decoration',
+                'property' => $this->textDecorationProperty($entryPrefix ?? '', 'text-decoration'),
                 'value' => $this->serializeTextDecorationComponents($components),
                 'important' => $important,
             ];
@@ -6443,13 +6469,26 @@ final class DeclarationBlock
      */
     private function removeTextDecorationLonghand(array $entries, string $property): string
     {
+        $prefix = $this->textDecorationPrefixForProperty($property);
+        $base = $this->baseTextDecorationProperty($property);
+        if ($prefix === null || $base === null || !in_array($base, self::TEXT_DECORATION_LONGHANDS, true)) {
+            return $this->serializeEntries($entries);
+        }
+
         $result = [];
         foreach ($entries as $entry) {
             if ($entry['property'] === $property) {
                 continue;
             }
 
-            if ($entry['property'] !== 'text-decoration') {
+            $entryPrefix = $this->textDecorationPrefixForProperty($entry['property']);
+            $entryBase = $this->baseTextDecorationProperty($entry['property']);
+            if ($entryBase !== 'text-decoration') {
+                $result[] = $entry;
+                continue;
+            }
+
+            if ($base !== 'text-decoration-thickness' && $entryPrefix !== $prefix) {
                 $result[] = $entry;
                 continue;
             }
@@ -6461,12 +6500,15 @@ final class DeclarationBlock
             }
 
             foreach (self::TEXT_DECORATION_LONGHANDS as $longhand) {
-                if ($longhand === $property) {
+                if ($longhand === $base) {
+                    continue;
+                }
+                if ($entryPrefix !== '' && $longhand === 'text-decoration-thickness') {
                     continue;
                 }
 
                 $result[] = [
-                    'property' => $longhand,
+                    'property' => $this->textDecorationProperty($entryPrefix ?? '', $longhand),
                     'value' => $components[$longhand],
                     'important' => $entry['important'],
                 ];
@@ -6625,12 +6667,76 @@ final class DeclarationBlock
 
     private function isTextDecorationProperty(string $property): bool
     {
-        return $property === 'text-decoration' || $this->isTextDecorationLonghand($property);
+        return $this->baseTextDecorationProperty($property) !== null;
     }
 
     private function isTextDecorationLonghand(string $property): bool
     {
-        return in_array($property, self::TEXT_DECORATION_LONGHANDS, true);
+        $base = $this->baseTextDecorationProperty($property);
+
+        return $base !== null && in_array($base, self::TEXT_DECORATION_LONGHANDS, true);
+    }
+
+    private function textDecorationPrefixForProperty(string $property): ?string
+    {
+        foreach (['-webkit-', '-moz-'] as $prefix) {
+            if ($property === "{$prefix}text-decoration" || str_starts_with($property, "{$prefix}text-decoration-")) {
+                return $this->baseTextDecorationProperty($property) === null ? null : $prefix;
+            }
+        }
+
+        if ($property === 'text-decoration' || str_starts_with($property, 'text-decoration-')) {
+            return $this->baseTextDecorationProperty($property) === null ? null : '';
+        }
+
+        return null;
+    }
+
+    private function baseTextDecorationProperty(string $property): ?string
+    {
+        $prefixed = false;
+        foreach (['-webkit-', '-moz-'] as $prefix) {
+            if ($property === "{$prefix}text-decoration" || str_starts_with($property, "{$prefix}text-decoration-")) {
+                $property = substr($property, strlen($prefix));
+                $prefixed = true;
+                break;
+            }
+        }
+
+        if ($prefixed && $property === 'text-decoration-thickness') {
+            return null;
+        }
+
+        return match ($property) {
+            'text-decoration',
+            'text-decoration-line',
+            'text-decoration-thickness',
+            'text-decoration-style',
+            'text-decoration-color' => $property,
+            default => null,
+        };
+    }
+
+    private function textDecorationProperty(string $prefix, string $base): string
+    {
+        return $base === 'text-decoration-thickness' ? $base : "{$prefix}{$base}";
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function textDecorationShorthandLonghands(string $property): ?array
+    {
+        $prefix = $this->textDecorationPrefixForProperty($property);
+        $base = $this->baseTextDecorationProperty($property);
+        if ($prefix === null || $base !== 'text-decoration') {
+            return null;
+        }
+
+        return array_map(
+            fn (string $longhand): string => $this->textDecorationProperty($prefix, $longhand),
+            self::TEXT_DECORATION_LONGHANDS
+        );
     }
 
     private function isTextDecorationThicknessToken(string $token): bool
@@ -10030,8 +10136,9 @@ final class DeclarationBlock
             return self::LIST_STYLE_LONGHANDS;
         }
 
-        if ($property === 'text-decoration') {
-            return self::TEXT_DECORATION_LONGHANDS;
+        $textDecorationLonghands = $this->textDecorationShorthandLonghands($property);
+        if ($textDecorationLonghands !== null) {
+            return $textDecorationLonghands;
         }
 
         $textEmphasisLonghands = $this->textEmphasisShorthandLonghands($property);
@@ -11159,12 +11266,21 @@ final class DeclarationBlock
 
     private function normalizeProperty(string $property): string
     {
-        $property = strtolower(trim($property));
+        return $this->normalizeDeclarationPropertyName($property);
+    }
+
+    private function normalizeDeclarationPropertyName(string $property): string
+    {
+        $property = trim($property);
         if ($property === '') {
             throw new \InvalidArgumentException('CSS declaration property cannot be empty');
         }
 
-        return $property;
+        if (str_starts_with($property, '--')) {
+            return $property;
+        }
+
+        return strtolower($property);
     }
 
     /**

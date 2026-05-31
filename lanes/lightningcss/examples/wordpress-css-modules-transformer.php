@@ -160,6 +160,26 @@ CSS, [
     ],
 ]);
 
+$rawPseudoFunctionResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  composes: cardBase;
+  color: red;
+}
+
+.card:--block-state(.legacy, :hover) {
+  color: yellow;
+}
+
+.cardBase {
+  color: blue;
+}
+CSS, [
+    'hash' => 'BlockA',
+    'pseudoClasses' => [
+        'hover' => 'is-hovered',
+    ],
+]);
+
 try {
     (new CssModulesTransformer())->transform(<<<'CSS'
 .card {
@@ -208,6 +228,25 @@ CSS);
     $invalidLocalComposes = 'accepted';
 } catch (InvalidArgumentException) {
     $invalidLocalComposes = 'rejected';
+}
+
+try {
+    (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  composes: reset;
+  color: red;
+}
+
+.reset {
+  color: blue;
+}
+CSS, [
+        'hash' => 'BlockA',
+        'pattern' => '[block]-[local]',
+    ]);
+    $invalidPattern = 'accepted';
+} catch (InvalidArgumentException $exception) {
+    $invalidPattern = $exception->getMessage();
 }
 
 $pureNoCheck = (new CssModulesTransformer())->transform(<<<'CSS'
@@ -259,6 +298,7 @@ $actual = [
     'invalidComposes' => $invalidComposes,
     'invalidGlobalList' => $invalidGlobalList,
     'invalidLocalComposes' => $invalidLocalComposes,
+    'invalidPattern' => $invalidPattern,
     'pureNoCheck' => $pureNoCheck['code'],
     'licensePureNoCheck' => $licensePureNoCheck['code'],
     'licensePureNoCheckExports' => $licensePureNoCheck['exports'],
@@ -269,6 +309,8 @@ $actual = [
     'dashedIdentExports' => $dashedIdentResult['exports'],
     'pseudoClasses' => $pseudoClassResult['code'],
     'pseudoClassExports' => $pseudoClassResult['exports'],
+    'rawPseudoFunction' => $rawPseudoFunctionResult['code'],
+    'rawPseudoFunctionExports' => $rawPseudoFunctionResult['exports'],
 ];
 
 $expected = [
@@ -429,6 +471,7 @@ $expected = [
     'invalidComposes' => 'rejected',
     'invalidGlobalList' => 'rejected',
     'invalidLocalComposes' => 'rejected',
+    'invalidPattern' => 'Error parsing CSS modules pattern: unknown placeholder "[block]" at index 0',
     'pureNoCheck' => '.wp-block-button{color:red}',
     'licensePureNoCheck' => "/*! Block CSS delivery license */\n.wp-block-button{color:red}.BlockA_licenseCard{color:#ff0}.BlockA_card{color:#00f}",
     'licensePureNoCheckExports' => [
@@ -531,6 +574,24 @@ $expected = [
             'isReferenced' => false,
         ],
     ],
+    'rawPseudoFunction' => '.BlockA_card{color:red}.BlockA_card:--block-state(.legacy,:hover){color:#ff0}.BlockA_cardBase{color:#00f}',
+    'rawPseudoFunctionExports' => [
+        'card' => [
+            'name' => 'BlockA_card',
+            'composes' => [
+                [
+                    'type' => 'local',
+                    'name' => 'BlockA_cardBase',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+        'cardBase' => [
+            'name' => 'BlockA_cardBase',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+    ],
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -549,9 +610,11 @@ echo 'bare-global: ' . $actual['bareGlobal'] . PHP_EOL;
 echo 'invalid-composes: ' . $actual['invalidComposes'] . PHP_EOL;
 echo 'invalid-global-list: ' . $actual['invalidGlobalList'] . PHP_EOL;
 echo 'invalid-local-composes: ' . $actual['invalidLocalComposes'] . PHP_EOL;
+echo 'invalid-pattern: ' . $actual['invalidPattern'] . PHP_EOL;
 echo 'pure-no-check: ' . $actual['pureNoCheck'] . PHP_EOL;
 echo 'license-pure-no-check: ' . $actual['licensePureNoCheck'] . PHP_EOL;
 echo 'pure-global: ' . $actual['pureGlobal'] . PHP_EOL;
 echo 'content-hash: ' . $actual['contentHash'] . PHP_EOL;
 echo 'dashed-idents: ' . $actual['dashedIdents'] . PHP_EOL;
 echo 'pseudo-classes: ' . $actual['pseudoClasses'] . PHP_EOL;
+echo 'raw-pseudo-function: ' . $actual['rawPseudoFunction'] . PHP_EOL;

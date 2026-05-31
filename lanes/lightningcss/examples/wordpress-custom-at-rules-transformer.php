@@ -398,6 +398,24 @@ $transform = $transformer->transformWithDependencies($css, [
                 'value' => $length['value'] / 16,
             ];
         },
+        'Color' => static function (array $color): ?array {
+            if (
+                ($color['type'] ?? null) !== 'rgb'
+                || ($color['r'] ?? null) !== 255
+                || ($color['g'] ?? null) !== 0
+                || ($color['b'] ?? null) !== 0
+            ) {
+                return null;
+            }
+
+            return [
+                'type' => 'rgb',
+                'r' => 0,
+                'g' => 255,
+                'b' => 0,
+                'alpha' => $color['alpha'] ?? 1,
+            ];
+        },
     ],
     [
         'Rule' => [
@@ -500,7 +518,7 @@ $transform = $transformer->transformWithDependencies($css, [
 $result = $transform['code'];
 $dependencies = $transform['dependencies'];
 
-$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-hoverable .wp-block-card__cta{color:#ff0}.wp-block-card__viewport{color:red;height:100vh}@supports (-webkit-touch-callout:none){.wp-block-card__viewport{height:-webkit-fill-available}}.wp-block-card__media{width:3rem;height:3rem}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{--wp-fluid-step:.25rem;font-size:calc(3*var(--wp-fluid-step));gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 .0625rem #056ef0;margin-left:1.25rem;margin-right:1.25rem}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}.wp-block-card.is-visitor-ready{outline-color:#056ef0}';
+$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-hoverable .wp-block-card__cta{color:#ff0}.wp-block-card__viewport{color:#0f0;height:100vh}@supports (-webkit-touch-callout:none){.wp-block-card__viewport{height:-webkit-fill-available}}.wp-block-card__media{width:3rem;height:3rem}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{--wp-fluid-step:.25rem;font-size:calc(3*var(--wp-fluid-step));gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 .0625rem #056ef0;margin-left:1.25rem;margin-right:1.25rem}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}.wp-block-card.is-visitor-ready{outline-color:#056ef0}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {

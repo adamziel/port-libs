@@ -85,6 +85,9 @@ final class CustomAtRuleTransformer
     private $urlVisitor = null;
 
     /** @var callable|null */
+    private $colorVisitor = null;
+
+    /** @var callable|null */
     private $dashedIdentVisitor = null;
 
     /** @var callable|null */
@@ -603,6 +606,24 @@ final class CustomAtRuleTransformer
 
                 return $changed ? $value : null;
             },
+            'Color' => static function (array $color, self $transformer) use ($visitors): mixed {
+                $value = $color;
+                $changed = false;
+                foreach ($visitors as $visitor) {
+                    $callback = self::colorVisitorCallback($visitor);
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($value, $transformer);
+                    if ($replacement !== null) {
+                        $value = $transformer->normalizeColorVisitorValue($replacement);
+                        $changed = true;
+                    }
+                }
+
+                return $changed ? $value : null;
+            },
             'Url' => static function (array $url, self $transformer) use ($visitors): mixed {
                 $value = $url;
                 $changed = false;
@@ -935,6 +956,7 @@ final class CustomAtRuleTransformer
         }
 
         $this->lengthVisitor = is_callable($visitor['Length'] ?? null) ? $visitor['Length'] : null;
+        $this->colorVisitor = is_callable($visitor['Color'] ?? null) ? $visitor['Color'] : null;
         $this->urlVisitor = is_callable($visitor['Url'] ?? null) ? $visitor['Url'] : null;
         $this->dashedIdentVisitor = is_callable($visitor['DashedIdent'] ?? null) ? $visitor['DashedIdent'] : null;
         $this->customIdentVisitor = is_callable($visitor['CustomIdent'] ?? null) ? $visitor['CustomIdent'] : null;
@@ -3103,6 +3125,16 @@ final class CustomAtRuleTransformer
     /**
      * @param array<string, mixed> $visitor
      */
+    private static function colorVisitorCallback(array $visitor): ?callable
+    {
+        $colorConfig = $visitor['Color'] ?? null;
+
+        return is_callable($colorConfig) ? $colorConfig : null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
     private static function urlVisitorCallback(array $visitor): ?callable
     {
         $urlConfig = $visitor['Url'] ?? null;
@@ -3543,6 +3575,13 @@ final class CustomAtRuleTransformer
             ];
         }
 
+        if (($color = $this->parseCssColorValue($token)) !== null) {
+            return [
+                'type' => 'color',
+                'value' => $color,
+            ];
+        }
+
         if (
             strlen($token) >= 2
             && (($token[0] === '"' && $token[strlen($token) - 1] === '"') || ($token[0] === "'" && $token[strlen($token) - 1] === "'"))
@@ -3618,6 +3657,50 @@ final class CustomAtRuleTransformer
         }
 
         return null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function parseCssColorValue(string $token): ?array
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return null;
+        }
+
+        if (($hex = $this->parseHexColorValue($token)) !== null) {
+            return $hex;
+        }
+
+        $keyword = strtolower($token);
+        if ($keyword === 'currentcolor') {
+            return ['type' => 'currentcolor'];
+        }
+
+        $named = [
+            'black' => [0, 0, 0],
+            'blue' => [0, 0, 255],
+            'green' => [0, 128, 0],
+            'lime' => [0, 255, 0],
+            'red' => [255, 0, 0],
+            'transparent' => [0, 0, 0, 0],
+            'white' => [255, 255, 255],
+            'yellow' => [255, 255, 0],
+        ];
+        if (!isset($named[$keyword])) {
+            return null;
+        }
+
+        [$red, $green, $blue] = $named[$keyword];
+
+        return [
+            'type' => 'rgb',
+            'r' => $red,
+            'g' => $green,
+            'b' => $blue,
+            'alpha' => $named[$keyword][3] ?? 1,
+        ];
     }
 
     /**
@@ -3786,8 +3869,52 @@ final class CustomAtRuleTransformer
     private function rewriteDeclarationValue(string $value, ?string $property = null): string
     {
         $rewritten = $this->rewriteValueTokens($this->rewriteValueFunctions($this->rewriteStandaloneLengths($value)));
+        if ($property !== null) {
+            $rewritten = $this->rewriteColorDeclarationValue($rewritten, $property);
+        }
 
         return $property === null ? $rewritten : $this->rewriteAnimationCustomIdents($property, $rewritten);
+    }
+
+    private function rewriteColorDeclarationValue(string $value, string $property): string
+    {
+        if ($this->colorVisitor === null || !$this->isColorDeclarationProperty($property)) {
+            return $value;
+        }
+
+        $trimmed = trim($value);
+        $color = $this->parseCssColorValue($trimmed);
+        if ($color === null) {
+            return $value;
+        }
+
+        $replacement = ($this->colorVisitor)($color, $this);
+        if ($replacement === null) {
+            return $value;
+        }
+
+        return $this->serializeVisitorValue($this->normalizeColorVisitorValue($replacement));
+    }
+
+    private function isColorDeclarationProperty(string $property): bool
+    {
+        return in_array(strtolower($property), [
+            'background-color',
+            'border-block-end-color',
+            'border-block-start-color',
+            'border-bottom-color',
+            'border-color',
+            'border-inline-end-color',
+            'border-inline-start-color',
+            'border-left-color',
+            'border-right-color',
+            'border-top-color',
+            'caret-color',
+            'color',
+            'outline-color',
+            'text-decoration-color',
+            'text-emphasis-color',
+        ], true);
     }
 
     private function rewriteAtRulePreludeValue(string $value): string
@@ -4120,6 +4247,14 @@ final class CustomAtRuleTransformer
             }
         }
 
+        $color = $this->colorComponents($value);
+        if ($color !== null && $this->colorVisitor !== null) {
+            $replacement = ($this->colorVisitor)($color, $this);
+            if ($replacement !== null) {
+                return $this->normalizeColorVisitorValue($replacement);
+            }
+        }
+
         return $value;
     }
 
@@ -4188,6 +4323,46 @@ final class CustomAtRuleTransformer
         return $value;
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function colorComponents(mixed $value): ?array
+    {
+        if (!is_array($value)) {
+            return null;
+        }
+
+        if (($value['type'] ?? null) === 'color' && isset($value['value']) && is_array($value['value'])) {
+            return $this->normalizeColorVisitorValue($value['value']);
+        }
+
+        if (in_array(($value['type'] ?? null), ['rgb', 'currentcolor'], true)) {
+            return $this->normalizeColorVisitorValue($value);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function normalizeColorVisitorValue(mixed $value): array
+    {
+        if (!is_array($value)) {
+            throw new \InvalidArgumentException('Color visitor must return a color array or null');
+        }
+
+        if (($value['type'] ?? null) === 'color' && isset($value['value']) && is_array($value['value'])) {
+            return $this->normalizeColorVisitorValue($value['value']);
+        }
+
+        if (!is_string($value['type'] ?? null)) {
+            throw new \InvalidArgumentException('Color visitor must return a typed color array or null');
+        }
+
+        return $value;
+    }
+
     private function serializeVisitorValue(mixed $value): string
     {
         if (is_string($value) || is_int($value) || is_float($value)) {
@@ -4239,6 +4414,12 @@ final class CustomAtRuleTransformer
             }
 
             return 'rgba(' . $r . ',' . $g . ',' . $b . ',' . $this->formatNumber((float) $alpha) . ')';
+        }
+        if ($type === 'currentcolor') {
+            return 'currentColor';
+        }
+        if ($type === 'color' && isset($value['value'])) {
+            return $this->serializeVisitorValue($value['value']);
         }
         if ($type === 'token' && isset($value['value']) && is_array($value['value'])) {
             $token = $value['value'];

@@ -1429,6 +1429,49 @@ CSS;
             '.foo{background-color:#7e250f;background-color:lab(29.2661% 38.2437 35.3889)}',
             $prefixer->prefixLegacySafari('.foo { background-color: oklch(40% 0.1268735435 34.568626) }')
         );
+        $t->same(
+            '.foo{background-color:#c65d07;background-color:lab(52.2319% 40.1449 59.9171)}',
+            $prefixer->prefixForTargets(
+                '.foo { background-color: oklab(59.686% 0.1009 0.1192); }',
+                ['chrome' => 90, 'safari' => 15]
+            )
+        );
+    },
+    'transition prefixer maps upstream color function gamut fallbacks by target' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $chromeCases = [
+            '.foo { background-color: color(sRGB 0.41587 0.503670 0.36664); }' => '.foo{background-color:#6a805d;background-color:color(srgb .41587 .50367 .36664)}',
+            '.foo { background-color: color(display-p3 0.43313 0.50108 0.37950); }' => '.foo{background-color:#6a805d;background-color:color(display-p3 .43313 .50108 .3795)}',
+            '.foo { background-color: color(a98-rgb 0.44091 0.49971 0.37408); }' => '.foo{background-color:#6a805d;background-color:color(a98-rgb .44091 .49971 .37408)}',
+            '.foo { background-color: color(prophoto-rgb 0.36589 0.41717 0.31333); }' => '.foo{background-color:#6a805d;background-color:color(prophoto-rgb .36589 .41717 .31333)}',
+            '.foo { background-color: color(rec2020 0.42210 0.47580 0.35605); }' => '.foo{background-color:#728765;background-color:color(rec2020 .4221 .4758 .35605)}',
+            '.foo { background-color: color(xyz-d50 0.2005 0.14089 0.4472); }' => '.foo{background-color:#7654cd;background-color:color(xyz-d50 .2005 .14089 .4472)}',
+            '.foo { background-color: color(xyz-d65 0.21661 0.14602 0.59452); }' => '.foo{background-color:#7654cd;background-color:color(xyz .21661 .14602 .59452)}',
+        ];
+
+        foreach ($chromeCases as $input => $expected) {
+            $t->same($expected, $prefixer->prefixForTargets($input, ['chrome' => 90]));
+        }
+
+        $t->same(
+            '.foo{background-color:#6a805d;background-color:color(display-p3 .43313 .50108 .3795)}',
+            $prefixer->prefixForTargets(
+                '.foo { background-color: color(display-p3 0.43313 0.50108 0.37950); }',
+                ['chrome' => 90, 'safari' => 14]
+            )
+        );
+        $t->same(
+            '.foo{background-color:color(a98-rgb .44091 .49971 .37408)}',
+            $prefixer->prefixForTargets(
+                '.foo { background-color: color(a98-rgb 0.44091 0.49971 0.37408); }',
+                ['safari' => 15]
+            )
+        );
+        $t->same(
+            '.foo{background-color:lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { background-color: lab(40% 56.6 39) }', ['safari' => 15])
+        );
     },
     'transition prefixer maps upstream custom property advanced color supports' => static function (TestRunner $t): void {
         $css = <<<'CSS'
@@ -1901,6 +1944,75 @@ CSS;
             $prefixer->prefixForTargets('@-webkit-keyframes test { from { opacity: 0 } to { opacity: 1 } } @keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['safari' => 8])
         );
     },
+    'transition prefixer maps upstream animation declaration target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $encoded = static fn (int $major, int $minor = 0, int $patch = 0): int => ($major << 16) | ($minor << 8) | $patch;
+
+        $t->same(
+            '.foo{-webkit-animation:.2s ease-in-out bar;-moz-animation:.2s ease-in-out bar;animation:.2s ease-in-out bar}',
+            $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['firefox' => 6, 'safari' => 6])
+        );
+        $t->same(
+            '.foo{animation:.2s ease-in-out bar}',
+            $prefixer->prefixForTargets('.foo { -webkit-animation: .2s ease-in-out bar; -moz-animation: .2s ease-in-out bar; animation: .2s ease-in-out bar; }', ['firefox' => 20, 'safari' => 14])
+        );
+        $t->same(
+            '.foo{-webkit-animation:.2s var(--ease) bar;-moz-animation:.2s var(--ease) bar;animation:.2s var(--ease) bar}',
+            $prefixer->prefixForTargets('.foo { animation: 200ms var(--ease) bar; }', ['firefox' => 6, 'safari' => 6])
+        );
+        $t->same(
+            '.foo{-webkit-animation-name:bar;-moz-animation-name:bar;animation-name:bar;-webkit-animation-duration:.2s;-moz-animation-duration:.2s;animation-duration:.2s}',
+            $prefixer->prefixForTargets('.foo { animation-name: bar; animation-duration: 200ms; }', ['firefox' => 6, 'safari' => 6])
+        );
+        $t->same(
+            '.foo{-o-animation:.2s ease-in-out bar;animation:.2s ease-in-out bar}',
+            $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['opera' => 12])
+        );
+        $t->same(
+            '.foo{animation:.2s ease-in-out bar}',
+            $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['opera' => 13])
+        );
+        $t->same(
+            '.foo{-webkit-animation:.2s ease-in-out bar;animation:.2s ease-in-out bar}',
+            $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['opera' => 29])
+        );
+        $t->same(
+            '.foo{animation:.2s ease-in-out bar}',
+            $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['opera' => 30])
+        );
+        $t->same(
+            '.foo{-webkit-animation:.2s ease-in-out bar;animation:.2s ease-in-out bar}',
+            $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['chrome' => 42])
+        );
+        $t->same(
+            '.foo{animation:.2s ease-in-out bar}',
+            $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['chrome' => 43])
+        );
+        $t->same(
+            '.foo{-moz-animation:.2s ease-in-out bar;animation:.2s ease-in-out bar}',
+            $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['firefox' => 15])
+        );
+        $t->same(
+            '.foo{animation:.2s ease-in-out bar}',
+            $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['firefox' => 16])
+        );
+        $t->same(
+            '.foo{-webkit-animation:.2s ease-in-out bar;animation:.2s ease-in-out bar}',
+            $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['safari' => $encoded(8)])
+        );
+        $t->same(
+            '.foo{animation:.2s ease-in-out bar}',
+            $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['safari' => $encoded(8, 1)])
+        );
+        $t->same(
+            '.foo{-webkit-animation:.2s ease-in-out bar;animation:.2s ease-in-out bar}',
+            $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['ios_saf' => $encoded(8, 1)])
+        );
+        $t->same(
+            '.foo{animation:.2s ease-in-out bar}',
+            $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['ios_saf' => $encoded(8, 2)])
+        );
+    },
     'transition prefixer maps upstream encoded browser target prefix boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $encoded = static fn (int $major, int $minor = 0, int $patch = 0): int => ($major << 16) | ($minor << 8) | $patch;
@@ -2076,6 +2188,18 @@ CSS;
         $t->same(
             '@layer blocks{@media (min--moz-device-pixel-ratio:2) and (max--moz-device-pixel-ratio:3){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (2 <= -moz-device-pixel-ratio <= 3) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:.5px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= 0.5px) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:.5px) and (max-width:1.5px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (0.5px <= width <= 1.50px) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media (width>=.5px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= 0.5px) { .wp-block-query { color: yellow; } } }', ['firefox' => 64])
         );
     },
     'transition prefixer maps upstream typed media range fallbacks inside layers' => static function (TestRunner $t): void {

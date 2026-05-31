@@ -47,6 +47,7 @@ final class CssModulesTransformer
     public function transform(string $css, array $options = []): array
     {
         $this->pattern = $options['pattern'] ?? '[hash]_[local]';
+        $this->assertValidCssModulesPattern($this->pattern);
         $this->filename = $options['filename'] ?? 'test.css';
         $this->hash = $options['hash'] ?? self::hashCssModuleString(
             self::relativeFilenameForHash($this->filename, $options['projectRoot'] ?? null),
@@ -1585,6 +1586,12 @@ final class CssModulesTransformer
                 continue;
             }
 
+            $rawPseudoFunction = $bracketDepth === 0 ? $this->rawSelectorPseudoFunctionAt($selector, $i) : null;
+            if ($rawPseudoFunction !== null) {
+                $i = $rawPseudoFunction['close'];
+                continue;
+            }
+
             if ($bracketDepth === 0 && $mode === 'local' && ($char === '.' || $char === '#')) {
                 $token = $this->readCssIdentifierToken($selector, $i + 1);
                 if ($token !== null) {
@@ -1677,6 +1684,13 @@ final class CssModulesTransformer
                 $this->assertCssModulesFunctionalSelector($inner);
                 $output .= $this->rewriteSelectorFragment($inner, $mode === 'global' ? 'global' : 'local', $locals);
                 $i = $close;
+                continue;
+            }
+
+            $rawPseudoFunction = $bracketDepth === 0 ? $this->rawSelectorPseudoFunctionAt($selector, $i) : null;
+            if ($rawPseudoFunction !== null) {
+                $output .= substr($selector, $i, $rawPseudoFunction['close'] - $i + 1);
+                $i = $rawPseudoFunction['close'];
                 continue;
             }
 
@@ -1810,6 +1824,54 @@ final class CssModulesTransformer
         return null;
     }
 
+    /**
+     * @return array{close:int}|null
+     */
+    private function rawSelectorPseudoFunctionAt(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset] ?? '') !== ':') {
+            return null;
+        }
+
+        $prefixLength = ($selector[$offset + 1] ?? '') === ':' ? 2 : 1;
+        $token = $this->readCssIdentifierToken($selector, $offset + $prefixLength);
+        if ($token === null || ($selector[$token['end']] ?? '') !== '(') {
+            return null;
+        }
+
+        if ($this->selectorFunctionAllowsCssModuleRewrites($token['decoded'])) {
+            return null;
+        }
+
+        return [
+            'close' => $this->findMatchingParen($selector, $token['end']),
+        ];
+    }
+
+    private function selectorFunctionAllowsCssModuleRewrites(string $name): bool
+    {
+        return in_array(strtolower($name), [
+            '-moz-any',
+            '-webkit-any',
+            'active-view-transition-type',
+            'global',
+            'has',
+            'host',
+            'host-context',
+            'is',
+            'local',
+            'not',
+            'nth-child',
+            'nth-last-child',
+            'slotted',
+            'view-transition-group',
+            'view-transition-image-pair',
+            'view-transition-new',
+            'view-transition-old',
+            'where',
+        ], true);
+    }
+
     private function assertCssModulesFunctionalSelector(string $selector): void
     {
         if (trim($selector) === '') {
@@ -1901,6 +1963,41 @@ final class CssModulesTransformer
             '[content-hash]' => $this->contentHash,
             '[local]' => $local,
         ]);
+    }
+
+    private function assertValidCssModulesPattern(string $pattern): void
+    {
+        $offset = 0;
+        $length = strlen($pattern);
+        $validPlaceholders = [
+            '[name]' => true,
+            '[hash]' => true,
+            '[content-hash]' => true,
+            '[local]' => true,
+        ];
+
+        while ($offset < $length) {
+            $open = strpos($pattern, '[', $offset);
+            if ($open === false) {
+                return;
+            }
+
+            $close = strpos($pattern, ']', $open + 1);
+            if ($close === false) {
+                throw new \InvalidArgumentException(
+                    'Error parsing CSS modules pattern: unclosed brackets at index ' . $open
+                );
+            }
+
+            $placeholder = substr($pattern, $open, $close - $open + 1);
+            if (!isset($validPlaceholders[$placeholder])) {
+                throw new \InvalidArgumentException(
+                    'Error parsing CSS modules pattern: unknown placeholder "' . $placeholder . '" at index ' . $open
+                );
+            }
+
+            $offset = $close + 1;
+        }
     }
 
     public static function filenameHashForPattern(string $filename, ?string $projectRoot = null, string $pattern = '[hash]_[local]'): string

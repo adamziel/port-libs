@@ -176,6 +176,44 @@ $negativeOffsetRawMap->addVlqMap(
     4
 );
 
+$negativeColumnGeneratedOnlyMap = new SourceMap();
+$negativeColumnGeneratedOnlyMap->addVlqMap(
+    'K,I;O',
+    ['wp-content/themes/example/source-map-negative-column.css'],
+    ['.wp-block-negative-column{}'],
+    [],
+    0,
+    -3
+);
+
+$negativeColumnSourceBackedMap = new SourceMap();
+$negativeColumnSourceBackedMap->addVlqMap(
+    'KAAA,IACA;OACA',
+    ['wp-content/themes/example/source-map-negative-column.css'],
+    ['.wp-block-negative-column{}'],
+    [],
+    0,
+    -3
+);
+
+$negativeColumnSkippedLineMap = new SourceMap();
+$negativeColumnSkippedLineMap->addVlqMap(
+    'KAAA;OACA',
+    ['wp-content/themes/example/source-map-negative-column.css'],
+    ['.wp-block-negative-column{}'],
+    [],
+    -1,
+    -3
+);
+
+$negativeColumnOffsetGuard = false;
+try {
+    $negativeColumnGuardMap = new SourceMap();
+    $negativeColumnGuardMap->addVlqMap('A', [], [], [], 0, -1);
+} catch (InvalidArgumentException) {
+    $negativeColumnOffsetGuard = true;
+}
+
 $streamingRawVlqMap = new SourceMap();
 $streamingRawVlqMap->addVlqMap(
     'AAAAAA;C',
@@ -292,6 +330,10 @@ $actual = [
     'dataUrl' => $dataUrl,
     'dataUrlRoundTrip' => $dataUrlRoundTrip->toJson('/'),
     'negativeOffsetRawMap' => $negativeOffsetRawMap->toJson(null, false),
+    'negativeColumnGeneratedOnlyMap' => $negativeColumnGeneratedOnlyMap->toJson(null, false),
+    'negativeColumnSourceBackedMap' => $negativeColumnSourceBackedMap->toJson(null, false),
+    'negativeColumnSkippedLineMap' => $negativeColumnSkippedLineMap->toJson(null, false),
+    'negativeColumnOffsetGuard' => $negativeColumnOffsetGuard,
     'streamingRawVlqMap' => $streamingRawVlqMap->toJson(null, false),
     'duplicateColumnPositiveMap' => $duplicateColumnPositiveMap->toJson(null, false),
     'duplicateColumnNegativeMap' => $duplicateColumnNegativeMap->toJson(null, false),
@@ -321,6 +363,10 @@ if (($argv[1] ?? null) === '--self-test') {
         'dataUrl' => 'data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiLyIsIm1hcHBpbmdzIjoiO0NBQUFBIiwic291cmNlcyI6WyJ3cC1jb250ZW50L3RoZW1lcy9leGFtcGxlL2lubGluZS1jcml0aWNhbC5jc3MiXSwic291cmNlc0NvbnRlbnQiOlsiLmNyaXRpY2Fse2Rpc3BsYXk6YmxvY2t9XG4iXSwibmFtZXMiOlsiY3JpdGljYWwtcnVsZSJdfQ==',
         'dataUrlRoundTrip' => '{"version":3,"sourceRoot":"/","mappings":";CAAAA","sources":["wp-content/themes/example/inline-critical.css"],"sourcesContent":[".critical{display:block}\n"],"names":["critical-rule"]}',
         'negativeOffsetRawMap' => '{"version":3,"mappings":"ICKMC","sources":["wp-content/themes/example/source-map-prelude.css","wp-content/themes/example/blocks/cover.css"],"sourcesContent":[".prelude{}",".wp-block-cover{}"],"names":["prelude-rule","cover-rule"]}',
+        'negativeColumnGeneratedOnlyMap' => '{"version":3,"mappings":"E,I;I","sources":["wp-content/themes/example/source-map-negative-column.css"],"sourcesContent":[".wp-block-negative-column{}"],"names":[]}',
+        'negativeColumnSourceBackedMap' => '{"version":3,"mappings":"EAAA,IACA;IACA","sources":["wp-content/themes/example/source-map-negative-column.css"],"sourcesContent":[".wp-block-negative-column{}"],"names":[]}',
+        'negativeColumnSkippedLineMap' => '{"version":3,"mappings":"IACA","sources":["wp-content/themes/example/source-map-negative-column.css"],"sourcesContent":[".wp-block-negative-column{}"],"names":[]}',
+        'negativeColumnOffsetGuard' => true,
         'streamingRawVlqMap' => '{"version":3,"mappings":";;IAAAA,A;K","sources":["wp-content/themes/example/source-map-stream.css"],"sourcesContent":[".wp-block-source-map-stream{}"],"names":["stream-rule"]}',
         'duplicateColumnPositiveMap' => '{"version":3,"mappings":"AAAAA,K,C","sources":["wp-content/themes/example/source-map-duplicate-column.css"],"sourcesContent":[".wp-block-duplicate-column{}"],"names":["duplicate-column-rule"]}',
         'duplicateColumnNegativeMap' => '{"version":3,"mappings":"AAAAA,A","sources":["wp-content/themes/example/source-map-duplicate-column.css"],"sourcesContent":[".wp-block-duplicate-column{}"],"names":["duplicate-column-rule"]}',

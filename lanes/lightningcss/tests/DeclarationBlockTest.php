@@ -25,6 +25,47 @@ return [
             $block->getProperty('padding: 1rem 2rem 3rem 4rem !important', 'padding')
         );
     },
+    'declaration block preserves upstream custom property case in cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = '--Block-Accent: red; --block-accent: blue; color: var(--Block-Accent)';
+
+        $t->same(
+            [
+                '--Block-Accent' => 'red',
+                '--block-accent' => 'blue',
+                'color' => 'var(--Block-Accent)',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'red', 'important' => false], $block->getProperty($declarations, '--Block-Accent'));
+        $t->same(['value' => 'blue', 'important' => false], $block->getProperty($declarations, '--block-accent'));
+        $t->same(null, $block->getProperty($declarations, '--BLOCK-ACCENT'));
+        $t->same(
+            ['value' => 'red', 'important' => true],
+            $block->getProperty('--Block-Accent: red !important; --block-accent: blue', '--Block-Accent')
+        );
+        $t->same(
+            '--Block-Accent: green; --block-accent: blue; color: var(--Block-Accent)',
+            $block->setProperty($declarations, '--Block-Accent', 'green')
+        );
+        $t->same(
+            '--block-accent: blue; --Block-Accent: green',
+            $block->setProperty('--Block-Accent: red !important; --block-accent: blue', '--Block-Accent', 'green')
+        );
+        $t->same(
+            '--Block-Accent: red; --block-accent: green; color: var(--Block-Accent)',
+            $block->setProperty($declarations, '--block-accent', 'green')
+        );
+        $t->same(
+            '--block-accent: blue; --Block-Accent: green !important',
+            $block->setProperty('--Block-Accent: red; --block-accent: blue', '--Block-Accent', 'green', true)
+        );
+        $t->same(
+            '--block-accent: blue; color: var(--Block-Accent)',
+            $block->removeProperty($declarations, '--Block-Accent')
+        );
+        $t->same($declarations, $block->removeProperty($declarations, '--BLOCK-ACCENT'));
+    },
     'declaration block maps cssom declaration source ranges' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $backgroundValue = 'url("/theme/a;b.css") !important';
@@ -797,6 +838,29 @@ return [
             )
         );
     },
+    'declaration block reads upstream prefixed text decoration cssom shorthand and longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $decoration = '-webkit-text-decoration: underline wavy red 2px';
+        $t->same(['value' => 'underline 2px wavy red', 'important' => false], $block->getProperty($decoration, '-webkit-text-decoration'));
+        $t->same(['value' => 'underline', 'important' => false], $block->getProperty($decoration, '-webkit-text-decoration-line'));
+        $t->same(['value' => 'wavy', 'important' => false], $block->getProperty($decoration, '-webkit-text-decoration-style'));
+        $t->same(['value' => 'red', 'important' => false], $block->getProperty($decoration, '-webkit-text-decoration-color'));
+        $t->same(null, $block->getProperty($decoration, 'text-decoration-thickness'));
+        $t->same(
+            ['value' => 'underline overline from-font dashed var(--wp--preset--color--accent)', 'important' => true],
+            $block->getProperty(
+                '-webkit-text-decoration-line: overline underline !important; text-decoration-thickness: from-font !important; -webkit-text-decoration-style: dashed !important; -webkit-text-decoration-color: var(--wp--preset--color--accent) !important',
+                '-webkit-text-decoration'
+            )
+        );
+        $t->same(
+            ['value' => 'blue', 'important' => false],
+            $block->getProperty('-moz-text-decoration: line-through dotted blue', '-moz-text-decoration-color')
+        );
+        $t->same(null, $block->getProperty('-webkit-text-decoration: underline red', 'text-decoration-color'));
+        $t->same(null, $block->getProperty('text-decoration: underline red', '-webkit-text-decoration-color'));
+    },
     'declaration block reads upstream text emphasis cssom shorthand and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1551,6 +1615,30 @@ return [
             $block->setProperty('text-decoration: underline wavy red !important', 'text-decoration-color', 'blue')
         );
     },
+    'declaration block sets upstream prefixed text decoration cssom longhands in existing shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            '-webkit-text-decoration: underline 2px wavy blue',
+            $block->setProperty('-webkit-text-decoration: underline wavy red 2px', '-webkit-text-decoration-color', 'blue')
+        );
+        $t->same(
+            '-webkit-text-decoration: underline overline wavy red',
+            $block->setProperty('-webkit-text-decoration: underline wavy red', '-webkit-text-decoration-line', 'overline underline')
+        );
+        $t->same(
+            '-moz-text-decoration: line-through red',
+            $block->setProperty('-moz-text-decoration: line-through dotted red', '-moz-text-decoration-style', 'solid')
+        );
+        $t->same(
+            'text-decoration: underline red; -webkit-text-decoration-color: blue',
+            $block->setProperty('text-decoration: underline red', '-webkit-text-decoration-color', 'blue')
+        );
+        $t->same(
+            '-webkit-text-decoration: underline wavy red; text-decoration-thickness: from-font',
+            $block->setProperty('-webkit-text-decoration: underline wavy red', 'text-decoration-thickness', 'from-font')
+        );
+    },
     'declaration block sets upstream font cssom longhands in existing shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -2235,6 +2323,34 @@ return [
         $t->same(
             'color: red; text-decoration-thickness: 2px !important; text-decoration-style: wavy !important; text-decoration-color: red !important',
             $block->removeProperty('text-decoration: underline wavy red 2px !important; color: red; text-decoration-line: overline', 'text-decoration-line')
+        );
+    },
+    'declaration block removes upstream prefixed text decoration cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            '-webkit-text-decoration-line: underline; -webkit-text-decoration-style: wavy',
+            $block->removeProperty('-webkit-text-decoration: underline wavy red 2px', '-webkit-text-decoration-color')
+        );
+        $t->same(
+            '-moz-text-decoration-line: line-through; -moz-text-decoration-color: blue',
+            $block->removeProperty('-moz-text-decoration: line-through dotted blue', '-moz-text-decoration-style')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('-webkit-text-decoration: underline wavy red; -webkit-text-decoration-color: blue; color: red', '-webkit-text-decoration')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('-webkit-text-decoration: underline wavy red; text-decoration-thickness: 3px; color: red', '-webkit-text-decoration')
+        );
+        $t->same(
+            'color: red; -webkit-text-decoration-line: underline !important; -webkit-text-decoration-style: wavy !important',
+            $block->removeProperty('-webkit-text-decoration: underline wavy red !important; color: red; -webkit-text-decoration-color: blue', '-webkit-text-decoration-color')
+        );
+        $t->same(
+            '-webkit-text-decoration-line: underline; -webkit-text-decoration-style: wavy; -webkit-text-decoration-color: red',
+            $block->removeProperty('-webkit-text-decoration: underline wavy red 2px', 'text-decoration-thickness')
         );
     },
     'declaration block removes upstream text emphasis cssom longhands and shorthand' => static function (TestRunner $t): void {

@@ -2500,6 +2500,7 @@ final class CssMinifier
         $value = $this->minifyContainerDeclarationValue($property, $value);
         $value = $this->minifyBorderRadiusValue($property, $value);
         $value = $this->minifyAspectRatioValue($property, $value);
+        $value = $this->minifyBackgroundValue($property, $value);
         $value = $this->minifyGridValue($property, $value);
         $value = $this->minifyFontValue($property, $value);
         $value = $this->minifyColorSchemeValue($property, $value);
@@ -2606,6 +2607,193 @@ final class CssMinifier
         $ratio = $this->minifyPlainNumberToken($leftTokens[0]) . '/' . $this->minifyPlainNumberToken($rightTokens[0]);
 
         return $hasAuto ? 'auto ' . $ratio : $ratio;
+    }
+
+    private function minifyBackgroundValue(string $property, string $value): string
+    {
+        $property = strtolower($property);
+        if ($property === 'background-position') {
+            return $this->minifyBackgroundPositionList($value);
+        }
+
+        if ($property !== 'background') {
+            return $value;
+        }
+
+        $layers = [];
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            $layers[] = $this->minifyBackgroundLayerValue($layer);
+        }
+
+        return implode(',', $layers);
+    }
+
+    private function minifyBackgroundPositionList(string $value): string
+    {
+        $layers = [];
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            $layers[] = $this->minifyBackgroundPositionLayer($layer);
+        }
+
+        return implode(',', $layers);
+    }
+
+    private function minifyBackgroundLayerValue(string $layer): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($layer));
+        if ($tokens === []) {
+            return trim($layer);
+        }
+
+        $images = [];
+        $position = [];
+        $repeat = [];
+        $other = [];
+        foreach ($tokens as $token) {
+            $normalizedToken = $this->normalizeBackgroundImageToken($token);
+            $lower = strtolower($normalizedToken);
+
+            if ($lower === 'none') {
+                continue;
+            }
+
+            if ($lower === 'transparent') {
+                continue;
+            }
+
+            if ($this->isBackgroundImageToken($normalizedToken)) {
+                $images[] = $normalizedToken;
+                continue;
+            }
+
+            if ($this->isBackgroundRepeatToken($normalizedToken)) {
+                $repeat[] = strtolower($normalizedToken);
+                continue;
+            }
+
+            if ($this->isBackgroundPositionToken($normalizedToken)) {
+                $position[] = $normalizedToken;
+                continue;
+            }
+
+            $other[] = $normalizedToken;
+        }
+
+        if ($other !== []) {
+            return implode(' ', array_map(fn (string $token): string => $this->normalizeBackgroundImageToken($token), $tokens));
+        }
+
+        $parts = $images;
+        if ($position !== []) {
+            $parts[] = $this->minifyBackgroundPositionLayer(implode(' ', $position));
+        }
+        foreach ($repeat as $token) {
+            $parts[] = $token;
+        }
+
+        return $parts === [] ? '0 0' : implode(' ', $parts);
+    }
+
+    private function minifyBackgroundPositionLayer(string $layer): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($layer));
+        if ($tokens === []) {
+            return trim($layer);
+        }
+
+        $lower = array_map(static fn (string $token): string => strtolower($token), $tokens);
+
+        if (count($tokens) === 1) {
+            return match ($lower[0]) {
+                'left', 'top' => '0',
+                'right', 'bottom' => '100%',
+                'center' => '50%',
+                default => $tokens[0],
+            };
+        }
+
+        if (count($tokens) === 2) {
+            return match (true) {
+                $lower[0] === 'center' && $lower[1] === 'center' => '50%',
+                $this->sameKeywordPair($lower, 'left', 'center') => '0',
+                $this->sameKeywordPair($lower, 'right', 'center') => '100%',
+                $this->sameKeywordPair($lower, 'top', 'center') => 'top',
+                $this->sameKeywordPair($lower, 'bottom', 'center') => 'bottom',
+                $this->sameKeywordPair($lower, 'left', 'top') => '0 0',
+                $this->sameKeywordPair($lower, 'right', 'top') => '100% 0',
+                $this->sameKeywordPair($lower, 'left', 'bottom') => '0 100%',
+                $this->sameKeywordPair($lower, 'right', 'bottom') => '100% 100%',
+                $lower[1] === 'center' && !$this->isBackgroundPositionKeyword($lower[0]) => $tokens[0],
+                $lower[0] === 'center' && !$this->isBackgroundPositionKeyword($lower[1]) => '50% ' . $tokens[1],
+                default => implode(' ', $tokens),
+            };
+        }
+
+        if (count($tokens) === 3) {
+            if ($lower[0] === 'left' && $lower[2] === 'center') {
+                return $tokens[1];
+            }
+
+            if ($lower[0] === 'center' && $lower[1] === 'top') {
+                return '50% ' . $tokens[2];
+            }
+
+            if ($lower[0] === 'left' && $lower[2] === 'top') {
+                return $tokens[1] . ' 0';
+            }
+
+            return implode(' ', $tokens);
+        }
+
+        if (count($tokens) === 4 && $lower[0] === 'left' && $lower[2] === 'top') {
+            return $tokens[1] . ' ' . $tokens[3];
+        }
+
+        return implode(' ', $tokens);
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function sameKeywordPair(array $tokens, string $first, string $second): bool
+    {
+        return count($tokens) === 2
+            && (($tokens[0] === $first && $tokens[1] === $second)
+                || ($tokens[0] === $second && $tokens[1] === $first));
+    }
+
+    private function isBackgroundPositionKeyword(string $token): bool
+    {
+        return in_array(strtolower($token), ['left', 'right', 'top', 'bottom', 'center'], true);
+    }
+
+    private function isBackgroundPositionToken(string $token): bool
+    {
+        $lower = strtolower(trim($token));
+
+        return $this->isBackgroundPositionKeyword($lower)
+            || preg_match('/^(?:[+-]?(?:\d+|\d*\.\d+)(?:%|[a-z]+)?|0)$/i', $lower) === 1
+            || preg_match('/^(?:calc|var|min|max|clamp)\(/i', $lower) === 1;
+    }
+
+    private function isBackgroundRepeatToken(string $token): bool
+    {
+        return in_array(strtolower(trim($token)), ['repeat', 'no-repeat', 'repeat-x', 'repeat-y', 'round', 'space'], true);
+    }
+
+    private function isBackgroundImageToken(string $token): bool
+    {
+        return preg_match('/^(?:url|(?:-(?:webkit|o)-)?(?:linear|radial|conic)-gradient|image-set|cross-fade|paint)\(/i', trim($token)) === 1;
+    }
+
+    private function normalizeBackgroundImageToken(string $token): string
+    {
+        $url = $this->cssUrlTokenValue($token);
+        if ($url !== null && str_starts_with($url, '/')) {
+            return 'url("' . str_replace('"', '\\"', $url) . '")';
+        }
+
+        return $this->normalizeCssUrlToken($token, false);
     }
 
     private function minifyGridValue(string $property, string $value): string

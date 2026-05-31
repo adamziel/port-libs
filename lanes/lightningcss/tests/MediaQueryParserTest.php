@@ -20,6 +20,12 @@ return [
         $t->same('(width<240px)', $parser->minifyList('(240px > width)'));
         $t->same('(width<=240px)', $parser->minifyList('(240px >= width)'));
         $t->same('(width<600px) and (height<600px)', $parser->minifyList('(width < 600px) and (height < 600px)'));
+        $t->same('(width>=.5px)', $parser->minifyList('(width >= 0.5px)'));
+        $t->same('(.5px<=width<=1.5px)', $parser->minifyList('(0.5px <= width <= 1.50px)'));
+        $t->same('(width>=-.5px)', $parser->minifyList('(width >= -0.5px)'));
+        $t->same('(width>=0)', $parser->minifyList('(width >= 0px)'));
+        $t->same('(aspect-ratio>=.5)', $parser->minifyList('(aspect-ratio >= 0.5/1.0)'));
+        $t->same('(theme-breakpoint>=.5rem)', $parser->minifyList('(theme-breakpoint >= +0.5rem)'));
     },
     'media query parser maps upstream negated simple range normalization' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
@@ -181,6 +187,12 @@ return [
         $t->same('not (min--moz-device-pixel-ratio:1.5)', $parser->lowerRangeSyntaxList('(-moz-device-pixel-ratio < 1.5)'));
         $t->same('(-webkit-min-device-pixel-ratio:2) and (-webkit-max-device-pixel-ratio:3)', $parser->lowerRangeSyntaxList('(2 <= -webkit-device-pixel-ratio <= 3)'));
         $t->same('(not (-webkit-max-device-pixel-ratio:2)) and (not (-webkit-min-device-pixel-ratio:3))', $parser->lowerRangeSyntaxList('(2 < -webkit-device-pixel-ratio < 3)'));
+        $t->same('(min-width:.5px)', $parser->lowerRangeSyntaxList('(width >= 0.5px)'));
+        $t->same('(min-width:.5px) and (max-width:1.5px)', $parser->lowerRangeSyntaxList('(0.5px <= width <= 1.50px)'));
+        $t->same('(min-width:-.5px)', $parser->lowerRangeSyntaxList('(width >= -0.5px)'));
+        $t->same('(min-width:0)', $parser->lowerRangeSyntaxList('(width >= 0px)'));
+        $t->same('(min-aspect-ratio:.5)', $parser->lowerRangeSyntaxList('(aspect-ratio >= 0.5/1.0)'));
+        $t->same('(min-theme-breakpoint:.5rem)', $parser->lowerRangeSyntaxList('(theme-breakpoint >= +0.5rem)'));
         $t->same('not screen and not (min-width:240px)', $parser->lowerRangeSyntaxList('not screen and (width < 240px)'));
         $t->same('only screen and (min-width:240px)', $parser->lowerRangeSyntaxList('only screen and (width >= 240px)'));
         $t->same('(min-width:240px)', $parser->lowerRangeSyntaxList('all and (width >= 240px)'));

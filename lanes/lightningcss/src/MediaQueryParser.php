@@ -552,6 +552,33 @@ final class MediaQueryParser
             return $this->trimNumber($matches[1]);
         }
 
+        return $this->minifyNumericValue($value);
+    }
+
+    private function minifyNumericValue(string $value): string
+    {
+        $number = '[+-]?(?:\d+|\d*\.\d+)';
+        if (preg_match('/^(' . $number . ')([a-zA-Z%]+)$/', $value, $matches) === 1) {
+            $numeric = $this->trimNumber($matches[1]);
+            $unit = strtolower($matches[2]);
+            if ($numeric === '0' && !in_array($unit, ['dpcm', 'dpi', 'dppx', 'x'], true)) {
+                return '0';
+            }
+
+            return $numeric . $unit;
+        }
+
+        if (preg_match('/^(' . $number . ')\/(' . $number . ')$/', $value, $matches) === 1) {
+            $left = $this->trimNumber($matches[1]);
+            $right = $this->trimNumber($matches[2]);
+
+            return $right === '1' ? $left : $left . '/' . $right;
+        }
+
+        if (preg_match('/^(' . $number . ')$/', $value, $matches) === 1) {
+            return $this->trimNumber($matches[1]);
+        }
+
         return $value;
     }
 
@@ -1026,11 +1053,36 @@ final class MediaQueryParser
 
     private function trimNumber(string $number): string
     {
-        if (!str_contains($number, '.')) {
+        $number = trim($number);
+        if ($number === '') {
             return $number;
         }
 
-        return rtrim(rtrim($number, '0'), '.');
+        $sign = '';
+        if ($number[0] === '+' || $number[0] === '-') {
+            $sign = $number[0];
+            $number = substr($number, 1);
+        }
+
+        if (!str_contains($number, '.')) {
+            $number = ltrim($number, '0');
+
+            return $number === '' ? '0' : ($sign === '-' ? '-' : '') . $number;
+        }
+
+        [$integer, $fraction] = explode('.', $number, 2);
+        $integer = ltrim($integer, '0');
+        $fraction = rtrim($fraction, '0');
+
+        if ($fraction === '') {
+            $number = $integer === '' ? '0' : $integer;
+
+            return $number === '0' ? '0' : ($sign === '-' ? '-' : '') . $number;
+        }
+
+        $number = ($integer === '' ? '' : $integer) . '.' . $fraction;
+
+        return ($sign === '-' ? '-' : '') . $number;
     }
 
     private function lowerRangeSyntaxQuery(string $query, bool $lowerSimpleRanges, bool $lowerIntervalRanges): string
