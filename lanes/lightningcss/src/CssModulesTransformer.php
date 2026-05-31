@@ -6,9 +6,12 @@ namespace PortLibs\LightningCSS;
 
 final class CssModulesTransformer
 {
+    private const PURE_NO_CHECK_MARKER = '/*__lightningcss-cssmodules-pure-no-check__*/';
+
     private string $hash = 'EgL3uq';
     private string $pattern = '[hash]_[local]';
     private bool $dashedIdents = false;
+    private bool $pure = false;
 
     /**
      * @var array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
@@ -27,13 +30,14 @@ final class CssModulesTransformer
      *   references:array<string, array{type:string, name:string, specifier:string}>
      * }
      *
-     * @param array{hash?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool} $options
+     * @param array{hash?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, pure?:bool} $options
      */
     public function transform(string $css, array $options = []): array
     {
         $this->hash = $options['hash'] ?? 'EgL3uq';
         $this->pattern = $options['pattern'] ?? '[hash]_[local]';
         $this->dashedIdents = ($options['dashedIdents'] ?? $options['dashed_idents'] ?? false) === true;
+        $this->pure = ($options['pure'] ?? false) === true;
         $this->exports = [];
         $this->references = [];
 
@@ -59,17 +63,18 @@ final class CssModulesTransformer
             $nextStatement = $this->findNextTopLevel($css, ';', $cursor);
 
             if ($nextStatement !== null && ($nextBlock === null || $nextStatement < $nextBlock)) {
-                $output .= substr($css, $cursor, $nextStatement - $cursor + 1);
+                $output .= str_replace(self::PURE_NO_CHECK_MARKER, '', substr($css, $cursor, $nextStatement - $cursor + 1));
                 $cursor = $nextStatement + 1;
                 continue;
             }
 
             if ($nextBlock === null) {
-                $output .= substr($css, $cursor);
+                $output .= str_replace(self::PURE_NO_CHECK_MARKER, '', substr($css, $cursor));
                 break;
             }
 
             $prelude = substr($css, $cursor, $nextBlock - $cursor);
+            [$prelude, $skipPureCheck] = $this->consumePureNoCheckMarker($prelude);
             $close = $this->findMatchingBrace($css, $nextBlock);
             $body = substr($css, $nextBlock + 1, $close - $nextBlock - 1);
             $trimmedPrelude = trim($prelude);
@@ -81,6 +86,9 @@ final class CssModulesTransformer
             }
 
             [$selector, $locals] = $this->rewriteSelectorList($prelude);
+            if ($this->pure && !$skipPureCheck && $styleNestingDepth === 0) {
+                $this->assertPureSelectorList($prelude);
+            }
             [$rewrittenBody, $composes] = $this->rewriteStyleBody($body, $styleNestingDepth);
             $this->assertValidComposesSelector($prelude, $composes);
             $this->addComposesToLocals($locals, $composes);
@@ -554,6 +562,95 @@ final class CssModulesTransformer
         }
 
         return preg_match('/^\.[A-Za-z_-][A-Za-z0-9_-]*$/', $selector) === 1;
+    }
+
+    /**
+     * @return array{0:string,1:bool}
+     */
+    private function consumePureNoCheckMarker(string $prelude): array
+    {
+        if (!str_contains($prelude, self::PURE_NO_CHECK_MARKER)) {
+            return [$prelude, false];
+        }
+
+        return [str_replace(self::PURE_NO_CHECK_MARKER, '', $prelude), true];
+    }
+
+    private function assertPureSelectorList(string $selectorList): void
+    {
+        foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
+            if (!$this->selectorHasLocalReference($selector, 'local')) {
+                throw new \InvalidArgumentException('Impure CSS module selector');
+            }
+        }
+    }
+
+    private function selectorHasLocalReference(string $selector, string $mode): bool
+    {
+        $quote = null;
+        $bracketDepth = 0;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($bracketDepth === 0 && $this->startsWithPseudoFunction($selector, $i, ':global')) {
+                $open = $i + strlen(':global');
+                $close = $this->findMatchingParen($selector, $open);
+                $inner = substr($selector, $open + 1, $close - $open - 1);
+                if ($this->selectorHasLocalReference($inner, 'global')) {
+                    return true;
+                }
+                $i = $close;
+                continue;
+            }
+
+            if ($bracketDepth === 0 && $this->startsWithPseudoFunction($selector, $i, ':local')) {
+                $open = $i + strlen(':local');
+                $close = $this->findMatchingParen($selector, $open);
+                $inner = substr($selector, $open + 1, $close - $open - 1);
+                if ($this->selectorHasLocalReference($inner, $mode === 'global' ? 'global' : 'local')) {
+                    return true;
+                }
+                $i = $close;
+                continue;
+            }
+
+            if ($bracketDepth === 0 && $mode === 'local' && ($char === '.' || $char === '#')) {
+                $nameStart = $i + 1;
+                if ($nameStart < $length && $this->isIdentStart($selector[$nameStart])) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1277,6 +1374,9 @@ final class CssModulesTransformer
                 $end = strpos($css, '*/', $i + 2);
                 if ($end === false) {
                     return $output;
+                }
+                if (str_contains(substr($css, $i + 2, $end - $i - 2), 'cssmodules-pure-no-check')) {
+                    $output .= self::PURE_NO_CHECK_MARKER;
                 }
                 $i = $end + 1;
                 continue;

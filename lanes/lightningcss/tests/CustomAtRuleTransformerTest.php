@@ -576,4 +576,56 @@ CSS;
         $t->same('.test.focus-visible{margin-left:20px;margin-right:20px}.test:focus-visible{margin-left:20px;margin-right:20px}', $result);
         $t->same('.focus-visible', substr($result, 5, 14));
     },
+    'custom at-rules compose upstream FunctionExit and Length value visitors' => static function (TestRunner $t): void {
+        $seenFunctions = [];
+        $seenLengthUnits = [];
+        $genericArgumentUnits = [];
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'FunctionExit' => [
+                    'f1' => static function (array $function) use (&$seenFunctions): array {
+                        $seenFunctions[] = $function['name'];
+
+                        return [
+                            'type' => 'length',
+                            'unit' => 'px',
+                            'value' => 32,
+                        ];
+                    },
+                ],
+            ],
+            [
+                'FunctionExit' => static function (array $function) use (&$seenFunctions, &$genericArgumentUnits): ?array {
+                    $seenFunctions[] = $function['name'];
+                    $argument = $function['arguments'][0] ?? null;
+                    if (is_array($argument) && ($argument['type'] ?? null) === 'length') {
+                        $genericArgumentUnits[$function['name']] = $argument['unit'] ?? ($argument['value']['unit'] ?? null);
+                    }
+
+                    return is_array($argument) ? $argument : null;
+                },
+            ],
+            [
+                'Length' => static function (array $length) use (&$seenLengthUnits): ?array {
+                    $seenLengthUnits[] = $length['unit'];
+                    if ($length['unit'] !== 'px') {
+                        return null;
+                    }
+
+                    return [
+                        'unit' => 'rem',
+                        'value' => $length['value'] / 16,
+                    ];
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { width: f3(f2(f1(test))); }', [], $visitor);
+
+        $t->same('.foo{width:2rem}', $result);
+        $t->same(['f1', 'f2', 'f3'], $seenFunctions);
+        $t->same(['px', 'rem', 'rem'], $seenLengthUnits);
+        $t->same(['f2' => 'rem', 'f3' => 'rem'], $genericArgumentUnits);
+    },
 ];

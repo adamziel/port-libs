@@ -757,11 +757,19 @@ final class CssBundler
             }
 
             if (is_array($result)) {
-                if (isset($result['external'])) {
-                    return ['external' => (string) $result['external']];
+                if (array_key_exists('external', $result)) {
+                    if (!is_string($result['external'])) {
+                        $this->throwUnsupportedResolveResult($originatingFile, $loc);
+                    }
+
+                    return ['external' => $result['external']];
                 }
-                if (isset($result['file'])) {
-                    return ['file' => $this->normalizePath((string) $result['file'])];
+                if (array_key_exists('file', $result)) {
+                    if (!is_string($result['file'])) {
+                        $this->throwUnsupportedResolveResult($originatingFile, $loc);
+                    }
+
+                    return ['file' => $this->normalizePath($result['file'])];
                 }
             }
 
@@ -769,13 +777,7 @@ final class CssBundler
                 return ['file' => $this->normalizePath($result)];
             }
 
-            throw new CssBundleException(
-                'resolver-error',
-                'Resolver returned an unsupported value',
-                $originatingFile,
-                $loc['line'],
-                $loc['column'],
-            );
+            $this->throwUnsupportedResolveResult($originatingFile, $loc);
         }
 
         if (preg_match('/^https?:/i', $specifier) === 1) {
@@ -790,6 +792,20 @@ final class CssBundler
         $path = ($directory === '.' || $directory === '') ? $specifier : rtrim($directory, '/') . '/' . $specifier;
 
         return ['file' => $this->normalizePath($path)];
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function throwUnsupportedResolveResult(string $originatingFile, array $loc): void
+    {
+        throw new CssBundleException(
+            'resolver-error',
+            'data did not match any variant of untagged enum ResolveResult',
+            $originatingFile,
+            $loc['line'],
+            $loc['column'],
+        );
     }
 
     private function combineLayer(?string $parent, ?string $child, string $file, array $loc): ?string

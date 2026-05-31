@@ -74,6 +74,29 @@ try {
     echo 'late-import: rejected' . PHP_EOL;
 }
 
+try {
+    (new CssBundler())->bundle('/theme.css', [
+        '/theme.css' => '@import "tokens.css"; .wp-site-blocks { color: red }',
+        '/tokens.css' => ':root { --wp--style--block-gap: 1.5rem }',
+    ], static fn (): array => ['file' => 1234]);
+
+    fwrite(STDERR, "Expected malformed resolver diagnostic for block-theme CSS\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'resolver-error'
+        || $exception->getMessage() !== 'data did not match any variant of untagged enum ResolveResult'
+        || $exception->sourceFile !== '/theme.css'
+        || $exception->sourceLine !== 1
+        || $exception->sourceColumn !== 1
+    ) {
+        fwrite(STDERR, 'Unexpected resolver diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'resolver-shape: rejected' . PHP_EOL;
+}
+
 $moduleBundle = (new CssBundler())->bundleCssModules('/modules/card.css', [
     '/modules/card.css' => <<<'CSS'
 @import "../theme.css";

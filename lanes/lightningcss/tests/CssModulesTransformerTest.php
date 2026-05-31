@@ -115,6 +115,45 @@ CSS));
         $t->same([], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules pure mode enforces upstream local selector boundaries' => static function (TestRunner $t) use ($export): void {
+        $transformer = new CssModulesTransformer();
+
+        $passing = [
+            ':local(.foo) { width: 20px }' => '.EgL3uq_foo{width:20px}',
+            'div.my-class { color: red }' => 'div.EgL3uq_my-class{color:red}',
+            '#id { color: red }' => '#EgL3uq_id{color:red}',
+            'a .my-class { color: red }' => 'a .EgL3uq_my-class{color:red}',
+            '.my-class a { color: red }' => '.EgL3uq_my-class a{color:red}',
+            '.my-class:is(a) { color: red }' => '.EgL3uq_my-class:is(a){color:red}',
+            'div:has(.my-class) { color: red }' => 'div:has(.EgL3uq_my-class){color:red}',
+        ];
+
+        foreach ($passing as $css => $expected) {
+            $result = $transformer->transform($css, ['pure' => true]);
+            $t->same($expected, $result['code']);
+        }
+
+        $noCheck = $transformer->transform('/* cssmodules-pure-no-check */ :global(.wp-block-button) { color: red }', ['pure' => true]);
+        $t->same('.wp-block-button{color:red}', $noCheck['code']);
+        $t->same([], $noCheck['exports']);
+
+        $local = $transformer->transform('div:has(.my-class) { color: red }', ['pure' => true]);
+        $t->same([
+            'my-class' => $export('EgL3uq_my-class'),
+        ], $local['exports']);
+    },
+    'css modules pure mode rejects upstream impure global selectors' => static function (TestRunner $t): void {
+        $transformer = new CssModulesTransformer();
+
+        foreach ([
+            'div { width: 20px }',
+            ':global(.foo) { width: 20px }',
+            '[foo=bar] { width: 20px }',
+            'div, .foo { width: 20px }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform($css, ['pure' => true]));
+        }
+    },
     'css modules removes local composes declarations and exports composed local class' => static function (TestRunner $t) use ($export, $local): void {
         $css = <<<'CSS'
 .test {

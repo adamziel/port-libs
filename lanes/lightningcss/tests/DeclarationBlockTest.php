@@ -229,6 +229,26 @@ return [
             )
         );
     },
+    'declaration block reads upstream outline cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(['value' => '2px', 'important' => false], $block->getProperty('outline: solid 2px red', 'outline-width'));
+        $t->same(['value' => 'solid', 'important' => false], $block->getProperty('outline: solid 2px red', 'outline-style'));
+        $t->same(['value' => 'red', 'important' => false], $block->getProperty('outline: solid 2px red', 'outline-color'));
+        $t->same(['value' => '2px solid red', 'important' => false], $block->getProperty('outline: solid 2px red', 'outline'));
+        $t->same(
+            ['value' => 'auto var(--wp--preset--color--accent)', 'important' => true],
+            $block->getProperty('outline: auto var(--wp--preset--color--accent) !important', 'outline')
+        );
+        $t->same(
+            ['value' => '3px dashed', 'important' => false],
+            $block->getProperty('outline-width: 3px; outline-style: dashed; outline-color: currentColor', 'outline')
+        );
+        $t->same(
+            null,
+            $block->getProperty('outline-width: 3px; outline-style: dashed !important; outline-color: red', 'outline')
+        );
+    },
     'declaration block reads upstream grid area cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -901,6 +921,30 @@ return [
             $block->setProperty('border-image: url(old-frame.svg) 25 !important', 'border-image-source', 'url(new-frame.svg)')
         );
     },
+    'declaration block sets upstream outline cssom longhands in existing shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'outline: 2px solid blue',
+            $block->setProperty('outline: 2px solid red', 'outline-color', 'blue')
+        );
+        $t->same(
+            'outline: 2px auto var(--wp--preset--color--accent)',
+            $block->setProperty('outline: 2px solid var(--wp--preset--color--accent)', 'outline-style', 'auto')
+        );
+        $t->same(
+            'outline: 4px',
+            $block->setProperty('outline: none', 'outline-width', '4px')
+        );
+        $t->same(
+            'outline-color: green',
+            $block->setProperty('outline-color: red', 'outline-color', 'green')
+        );
+        $t->same(
+            'outline-color: blue; outline: 2px solid red !important',
+            $block->setProperty('outline: 2px solid red !important', 'outline-color', 'blue')
+        );
+    },
     'declaration block remove drops direct properties and preserves neighbors' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1263,6 +1307,26 @@ return [
         $t->same(
             'color: red; border-image-slice: 25 !important; border-image-width: 1 !important; border-image-outset: 0 !important; border-image-repeat: stretch !important',
             $block->removeProperty('border-image: url(frame.svg) 25 !important; color: red; border-image-source: url(new-frame.svg)', 'border-image-source')
+        );
+    },
+    'declaration block removes upstream outline cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'outline-width: 2px; outline-style: solid',
+            $block->removeProperty('outline: 2px solid red', 'outline-color')
+        );
+        $t->same(
+            'outline-width: medium; outline-color: var(--wp--preset--color--accent)',
+            $block->removeProperty('outline: auto var(--wp--preset--color--accent)', 'outline-style')
+        );
+        $t->same(
+            'outline-offset: 2px',
+            $block->removeProperty('outline: 2px solid red; outline-width: 4px; outline-color: blue; outline-offset: 2px', 'outline')
+        );
+        $t->same(
+            'color: red; outline-width: 2px !important; outline-style: solid !important',
+            $block->removeProperty('outline: 2px solid red !important; color: red; outline-color: blue', 'outline-color')
         );
     },
 ];

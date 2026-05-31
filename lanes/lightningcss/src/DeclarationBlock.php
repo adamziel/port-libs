@@ -53,6 +53,12 @@ final class DeclarationBlock
     private const BORDER_COMPONENTS = ['width', 'style', 'color'];
     private const BORDER_STYLES = ['none', 'hidden', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset'];
     private const BORDER_WIDTH_KEYWORDS = ['thin', 'medium', 'thick'];
+    private const OUTLINE_LONGHANDS = [
+        'outline-width',
+        'outline-style',
+        'outline-color',
+    ];
+    private const OUTLINE_STYLES = ['auto', 'none', 'hidden', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset'];
 
     private const FLEX_DIRECTIONS = ['row', 'row-reverse', 'column', 'column-reverse'];
     private const FLEX_WRAPS = ['nowrap', 'wrap', 'wrap-reverse'];
@@ -201,6 +207,13 @@ final class DeclarationBlock
             return $borderValue;
         }
         if ($this->isBorderProperty($property)) {
+            return null;
+        }
+        $outlineValue = $this->getOutlineProperty($entries, $property);
+        if ($outlineValue !== null) {
+            return $outlineValue;
+        }
+        if ($this->isOutlineProperty($property)) {
             return null;
         }
         $borderImageValue = $this->getBorderImageProperty($entries, $property);
@@ -2471,6 +2484,167 @@ final class DeclarationBlock
     }
 
     /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getOutlineProperty(array $entries, string $property): ?array
+    {
+        if (!$this->isOutlineProperty($property)) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'outline') {
+                $parsed = $this->completeOutlineComponents($this->parseOutlineValue($entry['value']));
+                foreach (self::OUTLINE_LONGHANDS as $longhand) {
+                    $components[$longhand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($this->isOutlineLonghand($entry['property'])) {
+                $components[$entry['property']] = [
+                    'value' => $this->normalizeOutlineLonghandValue($entry['property'], $entry['value']),
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($property !== 'outline') {
+            return $components[$property] ?? null;
+        }
+
+        foreach (self::OUTLINE_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->composeOutlineShorthandValue([
+                'outline-width' => $components['outline-width']['value'],
+                'outline-style' => $components['outline-style']['value'],
+                'outline-color' => $components['outline-color']['value'],
+            ]),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @return array{outline-width:?string, outline-style:?string, outline-color:?string}
+     */
+    private function parseOutlineValue(string $value): array
+    {
+        $components = [
+            'outline-width' => null,
+            'outline-style' => null,
+            'outline-color' => null,
+        ];
+
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower($token);
+            if ($components['outline-style'] === null && in_array($lower, self::OUTLINE_STYLES, true)) {
+                $components['outline-style'] = $lower;
+                continue;
+            }
+
+            if (
+                $components['outline-color'] === null
+                && $components['outline-style'] !== null
+                && preg_match('/^var\(/i', $token) === 1
+            ) {
+                $components['outline-color'] = $token;
+                continue;
+            }
+
+            if ($components['outline-width'] === null && $this->isBorderWidthToken($token)) {
+                $components['outline-width'] = $token;
+                continue;
+            }
+
+            if ($components['outline-color'] === null) {
+                $components['outline-color'] = $this->normalizeOutlineColorValue($token);
+                continue;
+            }
+
+            $components['outline-color'] .= ' ' . $token;
+        }
+
+        return $components;
+    }
+
+    /**
+     * @param array{outline-width:?string, outline-style:?string, outline-color:?string} $components
+     * @return array{outline-width:string, outline-style:string, outline-color:string}
+     */
+    private function completeOutlineComponents(array $components): array
+    {
+        return [
+            'outline-width' => $components['outline-width'] ?? 'medium',
+            'outline-style' => $components['outline-style'] ?? 'none',
+            'outline-color' => $components['outline-color'] ?? 'currentcolor',
+        ];
+    }
+
+    /**
+     * @param array{outline-width:string, outline-style:string, outline-color:string} $components
+     */
+    private function composeOutlineShorthandValue(array $components): string
+    {
+        $width = trim($components['outline-width']);
+        $style = strtolower(trim($components['outline-style']));
+        $color = $this->normalizeOutlineColorValue($components['outline-color']);
+        $parts = [];
+
+        if (strcasecmp($width, 'medium') !== 0) {
+            $parts[] = $width;
+        }
+        if (strcasecmp($style, 'none') !== 0) {
+            $parts[] = $style;
+        }
+        if (strcasecmp($color, 'currentcolor') !== 0) {
+            $parts[] = $color;
+        }
+
+        return $parts === [] ? 'none' : implode(' ', $parts);
+    }
+
+    private function normalizeOutlineLonghandValue(string $property, string $value): string
+    {
+        return match ($property) {
+            'outline-style' => strtolower(trim($value)),
+            'outline-color' => $this->normalizeOutlineColorValue($value),
+            default => trim($value),
+        };
+    }
+
+    private function normalizeOutlineColorValue(string $value): string
+    {
+        $value = trim($value);
+
+        return strcasecmp($value, 'currentcolor') === 0 ? 'currentcolor' : $value;
+    }
+
+    private function isOutlineProperty(string $property): bool
+    {
+        return $property === 'outline' || $this->isOutlineLonghand($property);
+    }
+
+    private function isOutlineLonghand(string $property): bool
+    {
+        return in_array($property, self::OUTLINE_LONGHANDS, true);
+    }
+
+    /**
      * @return array<string, string>|null
      */
     private function borderLonghandValuesFromShorthand(string $property, string $value): ?array
@@ -3817,6 +3991,10 @@ final class DeclarationBlock
         if ($backgroundValue !== null) {
             return $this->parseEntries($backgroundValue);
         }
+        $outlineValue = $this->setOutlineLonghand($entries, $property, $value, $important);
+        if ($outlineValue !== null) {
+            return $this->parseEntries($outlineValue);
+        }
         $flexValue = $this->setFlexLonghand($entries, $property, $value, $important);
         if ($flexValue !== null) {
             return $this->parseEntries($flexValue);
@@ -3936,6 +4114,48 @@ final class DeclarationBlock
         }
 
         return count($this->splitTopLevel($value, ',')) === count($this->parseBackgroundLayers($background));
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setOutlineLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!$this->isOutlineLonghand($property)) {
+            return null;
+        }
+
+        $value = $this->normalizeOutlineLonghandValue($property, $value);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'outline') {
+                continue;
+            }
+            if ($entries[$index]['important'] !== $important) {
+                return null;
+            }
+
+            $components = $this->completeOutlineComponents($this->parseOutlineValue($entries[$index]['value']));
+            $components[$property] = $value;
+            $entries[$index] = [
+                'property' => 'outline',
+                'value' => $this->composeOutlineShorthandValue($components),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
     }
 
     /**
@@ -4696,6 +4916,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isOutlineLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeOutlineLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeOutlineLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isRemovableFlexLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeFlexLonghand($normalEntries, $property) ?? $this->serializeEntries($normalEntries));
             $importantEntries = $this->parseEntries($this->removeFlexLonghand($importantEntries, $property) ?? $this->serializeEntries($importantEntries));
@@ -4838,6 +5064,10 @@ final class DeclarationBlock
             return self::MASK_BORDER_LONGHANDS;
         }
 
+        if ($property === 'outline') {
+            return self::OUTLINE_LONGHANDS;
+        }
+
         if ($property === 'gap') {
             return self::GAP_LONGHANDS;
         }
@@ -4922,6 +5152,39 @@ final class DeclarationBlock
                 $result[] = [
                     'property' => $this->flexProperty($prefix, $longhand),
                     'value' => $components[$name],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeOutlineLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'outline') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->completeOutlineComponents($this->parseOutlineValue($entry['value']));
+            foreach (self::OUTLINE_LONGHANDS as $longhand) {
+                if ($longhand === $property) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
+                    'value' => $components[$longhand],
                     'important' => $entry['important'],
                 ];
             }

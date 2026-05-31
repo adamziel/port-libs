@@ -269,13 +269,14 @@ final class TransitionPrefixer
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
         $lightDarkChanged = $this->rewriteLightDarkFallbackEntries($entries, $targetOptions);
         $lightDarkSerializationChanged = $this->rewriteLightDarkAdvancedColorSerializationEntries($entries, $targetOptions);
+        $alphaHexChanged = $this->rewriteAlphaHexFallbackEntries($entries, $targetOptions);
         $logicalInsetFallback = ($targetOptions['logicalInsetNeedsFallback'] ?? false)
             ? $this->rewriteLogicalInsetFallbackRule($selectors, $entries)
             : null;
         if ($logicalInsetFallback !== null) {
             return $logicalInsetFallback . implode('', $supportRules);
         }
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -785,6 +786,11 @@ final class TransitionPrefixer
         $needsSrgbFallback = ($chrome !== null && !$this->targetAtLeast($normalized, 'chrome', [111]))
             || ($safari !== null && !$this->targetAtLeast($normalized, 'safari', [10]))
             || ($chrome === null && $safari === null);
+        $alphaHexNeedsRgbaFallback = isset($normalized['ie'])
+            || $this->targetInRange($normalized, 'chrome', [0], [61])
+            || $this->targetInRange($normalized, 'firefox', [0], [48])
+            || $this->targetInRange($normalized, 'safari', [0], [9, 255, 255])
+            || $this->targetInRange($normalized, 'ios_saf', [0], [9, 255, 255]);
 
         return [
             'boxShadowNeedsWebkit' => $needsWebkitBoxShadow,
@@ -796,6 +802,7 @@ final class TransitionPrefixer
             'boxShadowDropOverriddenFallbacks' => $supportsAdvancedColor,
             'advancedColorNeedsSrgbFallback' => $needsSrgbFallback,
             'advancedColorUsesP3Fallback' => $usesP3Fallback,
+            'alphaHexNeedsRgbaFallback' => $alphaHexNeedsRgbaFallback,
             'filterNeedsWebkit' => $this->targetInRange($normalized, 'chrome', [0], [20])
                 || $this->targetInRange($normalized, 'safari', [0], [14]),
             'backdropFilterNeedsWebkit' => $this->targetInRange($normalized, 'edge', [17], [18])
@@ -5549,39 +5556,127 @@ final class TransitionPrefixer
 
     private function expandLegacyAlphaHexColors(string $value): string
     {
-        return preg_replace_callback(
-            '/#([0-9a-f]{4}|[0-9a-f]{8})(?![0-9a-f])/i',
-            function (array $matches): string {
-                $hex = strtolower($matches[1]);
-                if (strlen($hex) === 4) {
-                    [$red, $green, $blue, $alpha] = str_split($hex);
-                    $red .= $red;
-                    $green .= $green;
-                    $blue .= $blue;
-                    $alpha .= $alpha;
-                } else {
-                    $red = substr($hex, 0, 2);
-                    $green = substr($hex, 2, 2);
-                    $blue = substr($hex, 4, 2);
-                    $alpha = substr($hex, 6, 2);
-                }
+        return $this->expandAlphaHexColors($value, false, false);
+    }
 
-                return 'rgba('
-                    . hexdec($red)
-                    . ', '
-                    . hexdec($green)
-                    . ', '
-                    . hexdec($blue)
-                    . ', '
-                    . $this->formatAlphaHex((int) hexdec($alpha))
-                    . ')';
-            },
-            $value
-        ) ?? $value;
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteAlphaHexFallbackEntries(array &$entries, array $targetOptions): bool
+    {
+        if (!($targetOptions['alphaHexNeedsRgbaFallback'] ?? false)) {
+            return false;
+        }
+
+        $changed = false;
+        foreach ($entries as &$entry) {
+            $value = $this->expandAlphaHexColors($entry['value'], true, true);
+            if ($value === $entry['value']) {
+                continue;
+            }
+
+            $entry['value'] = $value;
+            $changed = true;
+        }
+
+        return $changed;
+    }
+
+    private function expandAlphaHexColors(string $value, bool $compact, bool $transparentBlack): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if (strtolower(substr($value, $i, 4)) === 'url(' && ($i === 0 || !$this->isIdentifierChar($value[$i - 1]))) {
+                [$function, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $function;
+                $i = $offset;
+                continue;
+            }
+
+            if ($char === '#'
+                && preg_match('/^#([0-9a-f]{4}|[0-9a-f]{8})(?![0-9a-f])/i', substr($value, $i), $matches) === 1
+            ) {
+                $output .= $this->alphaHexReplacement($matches[1], $compact, $transparentBlack);
+                $i += strlen($matches[0]) - 1;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function alphaHexReplacement(string $hex, bool $compact, bool $transparentBlack): string
+    {
+        $hex = strtolower($hex);
+        if (strlen($hex) === 4) {
+            [$red, $green, $blue, $alpha] = str_split($hex);
+            $red .= $red;
+            $green .= $green;
+            $blue .= $blue;
+            $alpha .= $alpha;
+        } else {
+            $red = substr($hex, 0, 2);
+            $green = substr($hex, 2, 2);
+            $blue = substr($hex, 4, 2);
+            $alpha = substr($hex, 6, 2);
+        }
+
+        if ($transparentBlack && $red === '00' && $green === '00' && $blue === '00' && $alpha === '00') {
+            return 'transparent';
+        }
+
+        $separator = $compact ? ',' : ', ';
+
+        return 'rgba('
+            . hexdec($red)
+            . $separator
+            . hexdec($green)
+            . $separator
+            . hexdec($blue)
+            . $separator
+            . $this->formatAlphaHex((int) hexdec($alpha))
+            . ')';
     }
 
     private function formatAlphaHex(int $alpha): string
     {
+        for ($precision = 0; $precision <= 3; $precision++) {
+            $candidate = rtrim(rtrim(sprintf('%.' . $precision . 'F', $alpha / 255), '0'), '.');
+            if ($candidate === '') {
+                $candidate = '0';
+            }
+            if ((int) round((float) $candidate * 255) === $alpha) {
+                $formatted = $candidate;
+
+                return str_starts_with($formatted, '0.') ? substr($formatted, 1) : $formatted;
+            }
+        }
+
         $formatted = rtrim(rtrim(sprintf('%.3F', $alpha / 255), '0'), '.');
 
         return str_starts_with($formatted, '0.') ? substr($formatted, 1) : $formatted;

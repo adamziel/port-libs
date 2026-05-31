@@ -129,6 +129,58 @@ return [
             )
         );
     },
+    'transition prefixer maps upstream alpha color target fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{color:transparent}',
+            $prefixer->prefixForTargets('.foo { color: rgba(0, 0, 0, 0); }', ['chrome' => 61])
+        );
+        $t->same(
+            '.foo{color:transparent}',
+            $prefixer->prefixForTargets('.foo { color: #0000; }', ['chrome' => 61])
+        );
+        $t->same(
+            '.foo{color:transparent}',
+            $prefixer->prefixForTargets('.foo { color: transparent; }', ['chrome' => 61])
+        );
+        $t->same(
+            '.foo{color:rgba(255,0,0,0)}',
+            $prefixer->prefixForTargets('.foo { color: rgba(255, 0, 0, 0); }', ['chrome' => 61])
+        );
+        $t->same(
+            '.foo{color:#f000}',
+            $prefixer->prefixForTargets('.foo { color: rgba(255, 0, 0, 0); }', ['chrome' => 62])
+        );
+        $t->same(
+            '.foo{color:#7bffff80}',
+            $prefixer->prefixForTargets('.foo { color: rgba(123, 456, 789, 0.5); }', ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{color:rgba(123,255,255,.5)}',
+            $prefixer->prefixForTargets('.foo { color: rgba(123, 255, 255, 0.5); }', ['ie' => 11])
+        );
+        $t->same(
+            '.foo{color:rgba(123,255,255,.5)}',
+            $prefixer->prefixForTargets('.foo { color: #7bffff80; }', ['ie' => 11])
+        );
+        $t->same(
+            '.foo{color:rgba(123,255,255,.5)}',
+            $prefixer->prefixForTargets('.foo { color: rgba(123, 456, 789, 0.5); }', [
+                'firefox' => 48,
+                'safari' => 10,
+                'ios_saf' => 9,
+            ])
+        );
+        $t->same(
+            '.foo{color:#7bffff80}',
+            $prefixer->prefixForTargets('.foo { color: rgba(123, 456, 789, 0.5); }', [
+                'firefox' => 49,
+                'safari' => 10,
+                'ios_saf' => 10,
+            ])
+        );
+    },
     'transition prefixer honors upstream light-dark feature exclusion target' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $css = '.foo { color-scheme: light; } .bar { color: light-dark(red, green); }';

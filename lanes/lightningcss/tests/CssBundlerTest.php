@@ -371,6 +371,30 @@ CSS,
 
         throw new RuntimeException('Expected layer combination exception');
     },
+    'css bundler rejects malformed resolver results with upstream location diagnostics' => static function (TestRunner $t) use ($bundle): void {
+        $assertResolverShapeError = static function (callable $resolver, int $line, int $column) use ($bundle, $t): void {
+            try {
+                $bundle([
+                    '/a.css' => "\n  @import \"b.css\";\n  .a { color: red; }",
+                    '/b.css' => '.b { color: green }',
+                ], '/a.css', $resolver);
+            } catch (CssBundleException $exception) {
+                $t->same('resolver-error', $exception->kind);
+                $t->same('data did not match any variant of untagged enum ResolveResult', $exception->getMessage());
+                $t->same('/a.css', $exception->sourceFile);
+                $t->same($line, $exception->sourceLine);
+                $t->same($column, $exception->sourceColumn);
+
+                return;
+            }
+
+            throw new RuntimeException('Expected malformed resolver result exception');
+        };
+
+        $assertResolverShapeError(static fn (): int => 1234, 2, 3);
+        $assertResolverShapeError(static fn (): array => ['file' => 1234], 2, 3);
+        $assertResolverShapeError(static fn (): array => ['external' => 1234], 2, 3);
+    },
     'css bundler shares custom media definitions across imported graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print{.a{color:green}}.entry{color:red}',

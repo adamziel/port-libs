@@ -31,6 +31,15 @@ final class CustomAtRuleTransformer
     private $genericFunctionVisitor = null;
 
     /** @var array<string, callable> */
+    private array $functionExitVisitors = [];
+
+    /** @var callable|null */
+    private $genericFunctionExitVisitor = null;
+
+    /** @var callable|null */
+    private $lengthVisitor = null;
+
+    /** @var array<string, callable> */
     private array $tokenVisitors = [];
 
     /** @var callable|null */
@@ -162,6 +171,39 @@ final class CustomAtRuleTransformer
                 }
 
                 return null;
+            },
+            'FunctionExit' => static function (array $function, self $transformer) use ($visitors): mixed {
+                foreach ($visitors as $visitor) {
+                    $callback = self::functionExitVisitorCallback($visitor, (string) ($function['name'] ?? ''));
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($function, $transformer);
+                    if ($replacement !== null) {
+                        return $replacement;
+                    }
+                }
+
+                return null;
+            },
+            'Length' => static function (array $length, self $transformer) use ($visitors): mixed {
+                $value = $length;
+                $changed = false;
+                foreach ($visitors as $visitor) {
+                    $callback = self::lengthVisitorCallback($visitor);
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($value, $transformer);
+                    if ($replacement !== null) {
+                        $value = $replacement;
+                        $changed = true;
+                    }
+                }
+
+                return $changed ? $value : null;
             },
         ];
     }
@@ -312,6 +354,21 @@ final class CustomAtRuleTransformer
         foreach ($functionVisitors as $name => $callback) {
             $this->functionVisitors[strtolower($name)] = $callback;
         }
+
+        $this->functionExitVisitors = [];
+        $this->genericFunctionExitVisitor = null;
+        $functionExitConfig = $visitor['FunctionExit'] ?? [];
+        if (is_callable($functionExitConfig)) {
+            $this->genericFunctionExitVisitor = $functionExitConfig;
+        } elseif (is_array($functionExitConfig)) {
+            foreach ($functionExitConfig as $name => $callback) {
+                if (is_callable($callback)) {
+                    $this->functionExitVisitors[strtolower((string) $name)] = $callback;
+                }
+            }
+        }
+
+        $this->lengthVisitor = is_callable($visitor['Length'] ?? null) ? $visitor['Length'] : null;
 
         $this->tokenVisitors = [];
         $this->genericTokenVisitor = null;
@@ -830,6 +887,33 @@ final class CustomAtRuleTransformer
         return null;
     }
 
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function functionExitVisitorCallback(array $visitor, string $functionName): ?callable
+    {
+        $functionConfig = $visitor['FunctionExit'] ?? null;
+        if (is_callable($functionConfig)) {
+            return $functionConfig;
+        }
+
+        if (is_array($functionConfig)) {
+            return self::caseInsensitiveCallback($functionConfig, $functionName);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function lengthVisitorCallback(array $visitor): ?callable
+    {
+        $lengthConfig = $visitor['Length'] ?? null;
+
+        return is_callable($lengthConfig) ? $lengthConfig : null;
+    }
+
     private static function isUnknownRuleReplacement(mixed $replacement): bool
     {
         return is_array($replacement)
@@ -1061,7 +1145,7 @@ final class CustomAtRuleTransformer
             $argumentsCss = substr($value, $open + 1, $close - $open - 1);
             $replacement = $this->callFunctionVisitor($name, $this->parseFunctionArguments($argumentsCss), $name . '(' . $argumentsCss . ')');
             if ($replacement === null) {
-                $output .= $name . '(' . $argumentsCss . ')';
+                $output .= $this->serializeVisitorValue($this->visitFunctionExit($name, $argumentsCss, $name . '(' . $argumentsCss . ')'));
             } else {
                 $output .= $replacement;
             }
@@ -1069,6 +1153,151 @@ final class CustomAtRuleTransformer
         }
 
         return $output;
+    }
+
+    private function visitFunctionExit(string $name, string $argumentsCss, string $raw): mixed
+    {
+        $arguments = $this->parseFunctionArgumentValues($argumentsCss);
+        $function = [
+            'type' => 'function',
+            'name' => strtolower($name),
+            'arguments' => $arguments,
+            'raw' => $raw,
+        ];
+
+        $replacement = $this->callFunctionExitVisitor($name, $function);
+        if ($replacement !== null) {
+            return $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
+        }
+
+        return [
+            'type' => 'raw',
+            'value' => $name . '(' . implode(',', array_map(fn (mixed $argument): string => $this->serializeVisitorValue($argument), $arguments)) . ')',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $function
+     */
+    private function callFunctionExitVisitor(string $name, array $function): mixed
+    {
+        $visitor = $this->functionExitVisitors[strtolower($name)] ?? $this->genericFunctionExitVisitor;
+        if ($visitor === null) {
+            return null;
+        }
+
+        return $visitor($function, $this);
+    }
+
+    private function applyValueVisitors(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if (($value['type'] ?? null) === 'length') {
+            $length = $this->lengthComponents($value);
+            if ($length !== null && $this->lengthVisitor !== null) {
+                $replacement = ($this->lengthVisitor)($length, $this);
+                if ($replacement !== null) {
+                    return $this->normalizeLengthValue($replacement);
+                }
+            }
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return array{unit:string,value:int|float}|null
+     */
+    private function lengthComponents(array $value): ?array
+    {
+        if (($value['type'] ?? null) !== 'length') {
+            return null;
+        }
+
+        if (isset($value['value']) && is_array($value['value'])) {
+            $unit = $value['value']['unit'] ?? null;
+            $number = $value['value']['value'] ?? null;
+        } else {
+            $unit = $value['unit'] ?? null;
+            $number = $value['value'] ?? null;
+        }
+
+        if (!is_string($unit) || (!is_int($number) && !is_float($number))) {
+            return null;
+        }
+
+        return ['unit' => strtolower($unit), 'value' => $number];
+    }
+
+    private function normalizeLengthValue(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if (($value['type'] ?? null) === 'length') {
+            return $value;
+        }
+
+        if (isset($value['unit'], $value['value']) && is_string($value['unit']) && (is_int($value['value']) || is_float($value['value']))) {
+            return [
+                'type' => 'length',
+                'unit' => strtolower($value['unit']),
+                'value' => $value['value'],
+            ];
+        }
+
+        return $value;
+    }
+
+    private function normalizeVisitorValue(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if (isset($value['unit'], $value['value']) && is_string($value['unit']) && (is_int($value['value']) || is_float($value['value']))) {
+            return $this->normalizeLengthValue($value);
+        }
+
+        return $value;
+    }
+
+    private function serializeVisitorValue(mixed $value): string
+    {
+        if (is_string($value) || is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+        if (!is_array($value)) {
+            return '';
+        }
+
+        $type = $value['type'] ?? null;
+        if ($type === 'length') {
+            $length = $this->lengthComponents($value);
+            if ($length !== null) {
+                return $this->formatNumber($length['value']) . $length['unit'];
+            }
+        }
+        if ($type === 'token' && isset($value['value']) && is_array($value['value'])) {
+            $token = $value['value'];
+            if (($token['type'] ?? null) === 'string') {
+                return isset($value['raw']) && is_string($value['raw'])
+                    ? $value['raw']
+                    : '"' . addcslashes((string) ($token['value'] ?? ''), "\\\"") . '"';
+            }
+            if (($token['type'] ?? null) === 'ident') {
+                return (string) ($token['value'] ?? '');
+            }
+        }
+        if ($type === 'raw') {
+            return (string) ($value['value'] ?? '');
+        }
+
+        return (string) ($value['value'] ?? '');
     }
 
     /**
@@ -1173,6 +1402,82 @@ final class CustomAtRuleTransformer
             },
             $this->splitTopLevel($arguments, ',')
         );
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function parseFunctionArgumentValues(string $arguments): array
+    {
+        return array_map(
+            fn (string $argument): mixed => $this->parseSingleFunctionArgumentValue($argument),
+            $this->splitTopLevel($arguments, ',')
+        );
+    }
+
+    private function parseSingleFunctionArgumentValue(string $argument): mixed
+    {
+        $argument = trim($argument);
+        if ($argument === '') {
+            return ['type' => 'raw', 'value' => ''];
+        }
+
+        if (preg_match('/^([a-zA-Z_-][-_a-zA-Z0-9]*)\(/', $argument, $matches) === 1) {
+            $name = $matches[1];
+            $open = strlen($name);
+            $close = $this->findMatchingParen($argument, $open);
+            if ($close === strlen($argument) - 1) {
+                $argumentsCss = substr($argument, $open + 1, $close - $open - 1);
+                $replacement = $this->callFunctionVisitor($name, $this->parseFunctionArguments($argumentsCss), $argument);
+
+                return $replacement === null
+                    ? $this->visitFunctionExit($name, $argumentsCss, $argument)
+                    : ['type' => 'raw', 'value' => $replacement];
+            }
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z%]+)$/', $argument, $matches) === 1) {
+            return $this->applyValueVisitors([
+                'type' => 'length',
+                'unit' => strtolower($matches[2]),
+                'value' => (float) $matches[1],
+            ]);
+        }
+
+        if (
+            strlen($argument) >= 2
+            && (($argument[0] === '"' && $argument[strlen($argument) - 1] === '"') || ($argument[0] === "'" && $argument[strlen($argument) - 1] === "'"))
+        ) {
+            return [
+                'type' => 'token',
+                'raw' => $argument,
+                'value' => [
+                    'type' => 'string',
+                    'value' => stripcslashes(substr($argument, 1, -1)),
+                ],
+            ];
+        }
+
+        if (preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $argument) === 1) {
+            return [
+                'type' => 'token',
+                'value' => [
+                    'type' => 'ident',
+                    'value' => $argument,
+                ],
+            ];
+        }
+
+        return ['type' => 'raw', 'value' => $argument];
+    }
+
+    private function formatNumber(int|float $value): string
+    {
+        if ((float) $value === floor((float) $value)) {
+            return (string) (int) $value;
+        }
+
+        return rtrim(rtrim(sprintf('%.10F', $value), '0'), '.');
     }
 
     /**

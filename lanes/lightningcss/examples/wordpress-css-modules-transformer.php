@@ -99,6 +99,29 @@ CSS);
     $invalidLocalComposes = 'rejected';
 }
 
+$pureNoCheck = (new CssModulesTransformer())->transform(<<<'CSS'
+/* cssmodules-pure-no-check */ :global(.wp-block-button) {
+  color: red;
+}
+CSS, [
+    'hash' => 'BlockA',
+    'pure' => true,
+]);
+
+try {
+    (new CssModulesTransformer())->transform(<<<'CSS'
+:global(.wp-block-button) {
+  color: red;
+}
+CSS, [
+        'hash' => 'BlockA',
+        'pure' => true,
+    ]);
+    $pureGlobal = 'accepted';
+} catch (InvalidArgumentException) {
+    $pureGlobal = 'rejected';
+}
+
 $actual = [
     'code' => $result['code'],
     'exports' => $result['exports'],
@@ -106,6 +129,8 @@ $actual = [
     'invalidComposes' => $invalidComposes,
     'invalidGlobalList' => $invalidGlobalList,
     'invalidLocalComposes' => $invalidLocalComposes,
+    'pureNoCheck' => $pureNoCheck['code'],
+    'pureGlobal' => $pureGlobal,
 ];
 
 $expected = [
@@ -167,6 +192,8 @@ $expected = [
     'invalidComposes' => 'rejected',
     'invalidGlobalList' => 'rejected',
     'invalidLocalComposes' => 'rejected',
+    'pureNoCheck' => '.wp-block-button{color:red}',
+    'pureGlobal' => 'rejected',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -185,3 +212,5 @@ echo 'bare-global: ' . $actual['bareGlobal'] . PHP_EOL;
 echo 'invalid-composes: ' . $actual['invalidComposes'] . PHP_EOL;
 echo 'invalid-global-list: ' . $actual['invalidGlobalList'] . PHP_EOL;
 echo 'invalid-local-composes: ' . $actual['invalidLocalComposes'] . PHP_EOL;
+echo 'pure-no-check: ' . $actual['pureNoCheck'] . PHP_EOL;
+echo 'pure-global: ' . $actual['pureGlobal'] . PHP_EOL;

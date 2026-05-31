@@ -12162,23 +12162,15 @@ final class CssMinifier
 
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
             $value = (float) $matches[1];
-            if ($value < 0 || $value > 100) {
-                return null;
-            }
 
-            return (int) round($value * 255 / 100);
+            return $this->clampColorByte((int) round($value * 255 / 100));
         }
 
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))$/', $token, $matches) !== 1) {
             return null;
         }
 
-        $value = (float) $matches[1];
-        if ($value < 0 || $value > 255) {
-            return null;
-        }
-
-        return (int) round($value);
+        return $this->clampColorByte((int) round((float) $matches[1]));
     }
 
     private function parseAlphaComponent(string $token): ?float

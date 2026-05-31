@@ -34,6 +34,7 @@ $css = <<<'CSS'
 
 .wp-block-card {
   @apply card;
+  gap: wp-rem(wp-size(card));
   outline-color: @wp-accent;
   box-shadow: 0 0 0 1px @--wp-ring;
   margin-left: 20px;
@@ -157,6 +158,41 @@ $result = $transformer->transform($css, [
                 return $tokens[$arguments[0] ?? ''] ?? null;
             },
         ],
+        'FunctionExit' => [
+            'wp-size' => static function (array $function): ?array {
+                $argument = $function['arguments'][0] ?? null;
+                if (!is_array($argument) || ($argument['value']['value'] ?? null) !== 'card') {
+                    return null;
+                }
+
+                return [
+                    'type' => 'length',
+                    'unit' => 'px',
+                    'value' => 32,
+                ];
+            },
+        ],
+    ],
+    [
+        'FunctionExit' => static function (array $function): ?array {
+            if ($function['name'] !== 'wp-rem') {
+                return null;
+            }
+
+            $argument = $function['arguments'][0] ?? null;
+
+            return is_array($argument) ? $argument : null;
+        },
+        'Length' => static function (array $length): ?array {
+            if ($length['unit'] !== 'px') {
+                return null;
+            }
+
+            return [
+                'unit' => 'rem',
+                'value' => $length['value'] / 16,
+            ];
+        },
     ],
     [
         'Rule' => [
@@ -194,7 +230,7 @@ $result = $transformer->transform($css, [
     ],
 ]));
 
-$expected = '.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{outline-color:#056ef0;box-shadow:0 0 0 1px #056ef0;margin-left:20px;margin-right:20px}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
+$expected = '.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 1px #056ef0;margin-left:20px;margin-right:20px}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {
