@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 93.6,
-    "suiteProgress": "Supervisor-integrated LightningCSS parsing/value batch maps relative non-sRGB relative-color origin checks and redundant nested-negation media range behavior while deepening escaped media identifiers, repeated custom at-rule preludes, and reader lexical import identities. Verification passed focused gate, full LightningCSS lane 13 files / 4453 assertions / 0 failures, example smokes, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/lightningcss/src.",
-    "phpPass": 4453,
+    "estimatedProgress": 93.8,
+    "suiteProgress": "Supervisor-integrated LightningCSS CSS Modules/target/CSSOM/source-map/bundler batch maps break-property target-prefix browser boundaries and SourceMap empty-line offset semantics while deepening CSS Modules selector/composes, escaped CSSOM declaration names, and malformed import-source rejection. Verification passed focused gate 5 files / 2373 assertions / 0 failures, full LightningCSS lane 13 files / 4514 assertions / 0 failures, example smokes, PHP lint, and git diff --check.",
+    "phpPass": 4514,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
-    "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source 84ba60c031f8: full LightningCSS lane passed 13 files / 4453 assertions / 0 failures. Conservative mapped coverage moves from 2117 / 3532 to 2145 / 3532: +27 relative non-sRGB origin relative-color checks and +1 redundant nested-negation media range/layer behavior; escaped media identifiers, repeated custom at-rule preludes, and reader lexical import identities deepen represented clusters.",
-    "currentWork": "Media-query escaped and redundant-negation range/layer behavior, relative non-sRGB relative-color origins, custom at-rule repeated/alternative preludes, and reader lexical import identities integrated.",
+    "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full runner not executed for isolated batch",
+    "audit": "2026-05-31 supervisor batch at source f86e9c1090b8: full LightningCSS lane passed 13 files / 4514 assertions / 0 failures. Conservative mapped coverage moves from 2145 / 3532 to 2152 / 3532: +6 break-property target-prefix/browser-boundary cases and +1 SourceMap empty generated-line offset behavior. CSS Modules attribute-selector composes, escaped CSSOM declaration names, and malformed import-source rejection deepen represented clusters. Full upstream Rust/Node/WASM runners were not executed.",
+    "currentWork": "CSS Modules attribute selector composes, break-property target prefixing, escaped CSSOM declaration names, SourceMap empty-line offsets, and malformed @import source rejection integrated.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch; continue current-base PHP parity slices with focused tests, examples, manifest-backed mapping, and periodic full-lane PHP gates.",
-    "latestCommit": "84ba60c031f886aa5a319d50496850d87dd142a0",
-    "nextTask": "Keep LightningCSS dominant and prioritize current-base target-prefix, property-value, parser/CSSOM/source-map/bundler/CSS Modules coverage that adds fresh mapped upstream behavior; reject duplicate status-only or already-covered clusters.",
-    "commit": "84ba60c031f886aa5a319d50496850d87dd142a0"
+    "latestCommit": "f86e9c1090b8d9eb5ee796e574d8d776401ba6d4",
+    "nextTask": "Keep LightningCSS workers on current-base media-query, CSS Modules, bundler/import graph, target-prefix, property-value, CSSOM, custom at-rule, and SourceMap slices with focused tests plus periodic full-lane PHP gates.",
+    "commit": "f86e9c1090b8d9eb5ee796e574d8d776401ba6d4"
 }

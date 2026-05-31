@@ -55,6 +55,32 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (CSS/Git/SQLite corpus batch 21:45 UTC):
+  source commit `f86e9c1090b8d9eb5ee796e574d8d776401ba6d4` (`ports: extend
+  css git and sqlite corpus parity`) landed twelve screened handoffs while
+  excluding stale worker-owned status/manifest metadata and rejecting one
+  overlapping custom-at-rules handoff. Gitoxide now reports `5836 pass / 0
+  fail`, with conservative mapped coverage moving from `1641 / 2886` to
+  `1644 / 2886`: merge-base commitgraph metadata generation, URL/refspec
+  home-path expansion, and sparse-checkout backslash-byte pathspec parity;
+  tree-pathspec longest-common-directory behavior deepens an existing
+  cluster. LightningCSS now reports `4514 pass / 0 fail`, with conservative
+  mapped coverage moving from `2145 / 3532` to `2152 / 3532`: six break-
+  property target-prefix/browser-boundary cases plus one SourceMap empty-line
+  offset behavior; CSS Modules, CSSOM, and malformed import-source behavior
+  deepen represented clusters. Libsqlite focused evidence moves
+  conservatively from `3847998` to `3849202 pass / 0 fail` on selected gates
+  while mapped coverage remains `1589 / 1589`. Verification passed PHP lint
+  on changed PHP files, `git diff --check`, Gitoxide full lane `39 files /
+  5836 assertions / 0 failures`, LightningCSS full lane `13 files / 4514
+  assertions / 0 failures`, touched example smokes, and libsqlite focused gate
+  `4 files / 45435 assertions / 0 failures`. A broad libsqlite full-lane run
+  under `4096M` found a pre-existing blocker, also reproduced on clean
+  `origin/main`: `SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext761776Test.php`
+  fails `1 file / 129 assertions / 32 failures` on rowid-cost/reuse-policy
+  expectations, so full libsqlite release/all-runner parity is still not
+  green.
+
 - 2026-05-31 supervisor continuation (LightningCSS parsing and Gitoxide
   integrity batch 21:25 UTC): source commit
   `84ba60c031f886aa5a319d50496850d87dd142a0` (`ports: extend lightningcss
