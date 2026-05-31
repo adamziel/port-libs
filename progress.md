@@ -53,6 +53,31 @@
 ## Current Coordination Snapshot
 
 - 2026-05-31 supervisor continuation (mixed SQLite/Gitoxide/LightningCSS batch
+  12:17 UTC): source commit
+  `ede517b306de5b15989b02e48a9b8b7e85b7a7cb` (`ports: add gitoxide config
+  attrs sqlite record and lightningcss modules`) landed five verified handoffs
+  after excluding stale shared metadata. Libsqlite selected evidence moves from
+  `2906760` to `2908763 pass / 0 fail` with mapped coverage still
+  `1589 / 1589`: +1002 atof1 decimal REAL affinity PASS cases and +1001
+  types.test record-storage PASS cases. Gitoxide full lane evidence moves from
+  `4484` to `4504 pass / 0 fail`, with mapped coverage moving from
+  `1564 / 2886` to `1566 / 2886` for config includeIf double-star component
+  boundaries and attributes/pathspec POSIX character-class matching.
+  LightningCSS moves from `1155` to `1158 pass / 0 fail`, with mapped coverage
+  from `949 / 3532` to `950 / 3532` for CSS Modules nested local
+  selector/composes parity. Verification passed PHP lint for changed files,
+  `git diff --check -- lanes/gitoxide lanes/libsqlite lanes/lightningcss`,
+  Gitoxide focused gate `2 files / 168 assertions / 0 failures`, full Gitoxide
+  lane `39 files / 4504 assertions / 0 failures`, two Gitoxide examples,
+  LightningCSS focused gate `1 file / 30 assertions / 0 failures`, full
+  LightningCSS lane `12 files / 1158 assertions / 0 failures`, the CSS Modules
+  example, libsqlite selected gate `3 files / 16906 assertions / 0 failures`,
+  and libsqlite adjacent/domain guard `5 files / 17062 assertions / 0
+  failures`. Root aggregate and full Gitoxide Cargo/LightningCSS Rust/Node
+  suites were not run for this micro-batch; full libsqlite remains too large
+  for every small publication and needs separate runner closure evidence.
+
+- 2026-05-31 supervisor continuation (mixed SQLite/Gitoxide/LightningCSS batch
   12:01 UTC): source commit
   `aa35900b9638834dd343bfebdd3503f0eab5c08f` (`ports: add sqlite dynamic
   depth gitoxide transport and lightningcss cssom`) landed nine verified

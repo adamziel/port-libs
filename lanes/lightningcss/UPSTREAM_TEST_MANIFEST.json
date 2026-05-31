@@ -12,8 +12,8 @@
     "benchmarkDenominator": {
         "status": "static-upstream-inventory-plus-runner-evidence",
         "total": 3532,
-        "mapped": 949,
-        "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted 3,332 src/lib.rs helper invocations from pristine git show output, inspected 74 CSSOM helper invocations in tests/test_cssom.rs, counted 45 Rust #[test] attributes outside src/lib.rs and tests/test_cssom.rs, and counted 81 top-level Node uvu test(...) calls with ripgrep. This run rechecked the upstream cache at the same commit with targeted git show reads because the working cache contains local WASM compatibility edits; targeted pristine reads counted all 7 helper invocations in src/lib.rs::test_font_palette_values, including 3 prefix_test helpers, plus 7 helper invocations in src/lib.rs::test_font_feature_values and 26 non-comment helper invocations in src/lib.rs::test_property. This run also targeted the already-counted error_recovery_test helper cases for @media unknown(foo) and @container unknown(foo), confirming upstream Node errorRecovery output omits the invalid rule and reports UnexpectedToken warnings at columns 7 and 11 respectively; the current slice broadens that same recovery cluster to top-level unsupported condition functions after valid @container/@media condition prefixes. This run targeted src/lib.rs::test_page_rule and counted 14 helper invocations: 10 minify_test cases, 2 pretty-printer test cases left unmapped, and 2 error_test cases. This run targeted src/lib.rs::test_namespace and counted all 9 helper invocations: 4 minify_test cases, 4 pretty-printer test cases, and 1 error_test case. This run targeted src/lib.rs::test_border_radius and counted 21 helper invocations; PHP maps all 21 focused minifier/prefixer cases for border-radius shorthand side-list compaction, physical longhand composition on modern/-webkit-/-moz declarations, fully superseded shorthand removal before physical override compaction, concrete partial physical override folding into shorthand, variable-backed override preservation, legacy -webkit-/-moz target prefix emission, modern stale-prefix removal, logical corner reset/interleaving boundaries, and Safari 12 logical-corner physical fallback selector splitting. This run retargeted src/lib.rs::test_color_scheme with a pristine git show read and counted all 33 helper invocations in the function; PHP now maps 31 of them in this focused inventory, including this run's added LightDark feature-exclusion boundary for Safari 13 targets after the existing nested light-dark() relative rgb()/color() fallbacks, color-mix() fallback lowering, and Firefox 120 advanced-color serialization. This run targeted src/lib.rs::test_print_color_adjust and counted 2 prefix_test helper invocations; PHP maps both Chrome 135 and Chrome 137 target-boundary cases. This run targeted src/lib.rs::test_all and counted all 11 minify_test helper invocations; PHP maps the full reset-pruning cluster for duplicate all declarations, reset of earlier normal properties, preservation of custom properties, and direction/unicode-bidi restoration. This run targeted src/lib.rs::test_starting_style and counted 3 helper invocations: 2 minify_test cases and 1 nesting_test case; PHP maps non-empty @starting-style minification, empty @starting-style removal, and nested @starting-style lowering. This run targeted src/lib.rs::test_view_transition and counted all 4 minify_test helper invocations; PHP maps @view-transition navigation/types minification at top level and inside @layer. This run targeted src/lib.rs::test_keyframes and counted 19 helper invocations: 11 minify_test cases, 4 error_test cases, and 4 prefix_test cases; PHP now maps all 19, including target-dependent @-webkit-keyframes/@-moz-keyframes emission and modern prefixed-rule removal. This run targeted src/lib.rs::test_counter_style and counted 1 pretty-printer helper invocation; PHP now maps that @counter-style fixed marker formatting case. This run maps 3 focused @scope prelude minifier cases covering root-only scopes, root-plus-limit scopes, case-insensitive TO limit keywords, and selector-list roots/limits. This run maps 2 additional focused @scope nesting-lowering cases for @nest rules inside top-level scoped blocks, including the same pattern nested under @media. This run maps 2 focused custom-media import-tail substitution cases for @import media queries after source, comments, layer/layer(...) modifiers, and supports() modifiers. This rework run maps 5 focused custom-media scanner edges where stale custom-media-looking aliases, import modifier-looking functions, unmatched-looking parentheses, and commas inside CSS comments in @custom-media definitions, @media preludes, and @import media tails are ignored rather than treated as references, delimiters, modifiers, or media-list separators. Recent border-radius runs map 3 focused prefixer cases covering legacy WebKit shorthand emission, legacy Mozilla shorthand/corner emission, and modern duplicate prefixed radius removal, 3 focused logical reset/interleaving cases covering a later logical corner after shorthand, an earlier logical corner reset by shorthand, and a logical corner blocking physical longhand composition, 4 focused Safari 12 logical-corner fallback cases covering start-start, start-start/start-end, end-end/end-start, and variable-backed start corners, plus 4 focused shorthand-plus-physical override compaction cases. Accepted source commit aa35900b maps one additional CSSOM declaration read/write case for grid-template row-boundary line-name preservation.",
+        "mapped": 950,
+        "source": "Shallow sparse upstream checkout in .upstream-cache/lightningcss at commit 22bdda3d190f1cd321d98026225cfc964af64ad9; counted 3,332 src/lib.rs helper invocations from pristine git show output, inspected 74 CSSOM helper invocations in tests/test_cssom.rs, counted 45 Rust #[test] attributes outside src/lib.rs and tests/test_cssom.rs, and counted 81 top-level Node uvu test(...) calls with ripgrep. This run rechecked the upstream cache at the same commit with targeted git show reads because the working cache contains local WASM compatibility edits; targeted pristine reads counted all 7 helper invocations in src/lib.rs::test_font_palette_values, including 3 prefix_test helpers, plus 7 helper invocations in src/lib.rs::test_font_feature_values and 26 non-comment helper invocations in src/lib.rs::test_property. This run also targeted the already-counted error_recovery_test helper cases for @media unknown(foo) and @container unknown(foo), confirming upstream Node errorRecovery output omits the invalid rule and reports UnexpectedToken warnings at columns 7 and 11 respectively; the current slice broadens that same recovery cluster to top-level unsupported condition functions after valid @container/@media condition prefixes. This run targeted src/lib.rs::test_page_rule and counted 14 helper invocations: 10 minify_test cases, 2 pretty-printer test cases left unmapped, and 2 error_test cases. This run targeted src/lib.rs::test_namespace and counted all 9 helper invocations: 4 minify_test cases, 4 pretty-printer test cases, and 1 error_test case. This run targeted src/lib.rs::test_border_radius and counted 21 helper invocations; PHP maps all 21 focused minifier/prefixer cases for border-radius shorthand side-list compaction, physical longhand composition on modern/-webkit-/-moz declarations, fully superseded shorthand removal before physical override compaction, concrete partial physical override folding into shorthand, variable-backed override preservation, legacy -webkit-/-moz target prefix emission, modern stale-prefix removal, logical corner reset/interleaving boundaries, and Safari 12 logical-corner physical fallback selector splitting. This run retargeted src/lib.rs::test_color_scheme with a pristine git show read and counted all 33 helper invocations in the function; PHP now maps 31 of them in this focused inventory, including this run's added LightDark feature-exclusion boundary for Safari 13 targets after the existing nested light-dark() relative rgb()/color() fallbacks, color-mix() fallback lowering, and Firefox 120 advanced-color serialization. This run targeted src/lib.rs::test_print_color_adjust and counted 2 prefix_test helper invocations; PHP maps both Chrome 135 and Chrome 137 target-boundary cases. This run targeted src/lib.rs::test_all and counted all 11 minify_test helper invocations; PHP maps the full reset-pruning cluster for duplicate all declarations, reset of earlier normal properties, preservation of custom properties, and direction/unicode-bidi restoration. This run targeted src/lib.rs::test_starting_style and counted 3 helper invocations: 2 minify_test cases and 1 nesting_test case; PHP maps non-empty @starting-style minification, empty @starting-style removal, and nested @starting-style lowering. This run targeted src/lib.rs::test_view_transition and counted all 4 minify_test helper invocations; PHP maps @view-transition navigation/types minification at top level and inside @layer. This run targeted src/lib.rs::test_keyframes and counted 19 helper invocations: 11 minify_test cases, 4 error_test cases, and 4 prefix_test cases; PHP now maps all 19, including target-dependent @-webkit-keyframes/@-moz-keyframes emission and modern prefixed-rule removal. This run targeted src/lib.rs::test_counter_style and counted 1 pretty-printer helper invocation; PHP now maps that @counter-style fixed marker formatting case. This run maps 3 focused @scope prelude minifier cases covering root-only scopes, root-plus-limit scopes, case-insensitive TO limit keywords, and selector-list roots/limits. This run maps 2 additional focused @scope nesting-lowering cases for @nest rules inside top-level scoped blocks, including the same pattern nested under @media. This run maps 2 focused custom-media import-tail substitution cases for @import media queries after source, comments, layer/layer(...) modifiers, and supports() modifiers. This rework run maps 5 focused custom-media scanner edges where stale custom-media-looking aliases, import modifier-looking functions, unmatched-looking parentheses, and commas inside CSS comments in @custom-media definitions, @media preludes, and @import media tails are ignored rather than treated as references, delimiters, modifiers, or media-list separators. Recent border-radius runs map 3 focused prefixer cases covering legacy WebKit shorthand emission, legacy Mozilla shorthand/corner emission, and modern duplicate prefixed radius removal, 3 focused logical reset/interleaving cases covering a later logical corner after shorthand, an earlier logical corner reset by shorthand, and a logical corner blocking physical longhand composition, 4 focused Safari 12 logical-corner fallback cases covering start-start, start-start/start-end, end-end/end-start, and variable-backed start corners, plus 4 focused shorthand-plus-physical override compaction cases. Accepted source commit aa35900b maps one additional CSSOM declaration read/write case for grid-template row-boundary line-name preservation. Accepted source commit ede517b3 maps one additional CSS Modules nested local selector/composes parity case from the upstream CSS Modules cluster.",
         "inventory": {
             "behaviorChecks": 3532,
             "rustTestFunctions": 160,
@@ -1244,72 +1244,20 @@
                 "newlyMappedThisRun": [
                     "grid-template row line-name brackets are preserved across CSSOM declaration read/write serialization"
                 ]
+            },
+            "focusedCssModulesNestedComposes20260531": {
+                "sourceCommit": "ede517b306de5b15989b02e48a9b8b7e85b7a7cb",
+                "mappedSliceIncrease": 1,
+                "mappedBefore": 949,
+                "mappedAfter": 950,
+                "acceptedSlices": [
+                    "CSS Modules nested local selector lowering while preserving parent dependency/global composes exports"
+                ],
+                "nativeVerification": "php -l on changed LightningCSS PHP files; git diff --check -- lanes/gitoxide lanes/libsqlite lanes/lightningcss; focused CssModulesTransformerTest.php 1 file / 30 assertions / 0 failures; full LightningCSS lane 12 files / 1158 assertions / 0 failures; wordpress-css-modules-transformer.php exits 0",
+                "upstreamEvidence": "static upstream src/lib.rs::test_css_modules inventory and worker evidence; full Rust/Node runner not executed"
             }
         },
-        "runnerStatus": {
-            "executed": true,
-            "summary": "The old missing uvu/node_modules and offline napi-derive blockers are resolved. Core upstream Rust and Node CI runners pass locally; the WASM runner also passes with a documented local upstream-cache compatibility override for the current getrandom/Rust/napi-wasm toolchain.",
-            "environment": {
-                "node": "22.20.0 for native Node runner; Node 18.20.8 via npx node@18 for WASM runner parity with upstream CI",
-                "yarn": "1.22.22 via corepack/npx",
-                "rust": "rustc/cargo 1.92.0 from upstream rust-toolchain; host cargo also reports 1.95 outside the override",
-                "binaryen": "wasm-opt version 111 via npm binaryen@111.0.0"
-            },
-            "commands": [
-                {
-                    "command": "PUPPETEER_SKIP_DOWNLOAD=1 corepack yarn install --frozen-lockfile --ignore-scripts",
-                    "result": "passed; installed node_modules including uvu without browser download"
-                },
-                {
-                    "command": "CARGO_BUILD_JOBS=2 corepack yarn build",
-                    "result": "passed; produced lightningcss.linux-x64-gnu.node through @napi-rs/cli"
-                },
-                {
-                    "command": "corepack yarn test",
-                    "result": "passed: 81 Node uvu tests, 0 failures"
-                },
-                {
-                    "command": "CARGO_BUILD_JOBS=2 RUSTFLAGS='-D warnings' cargo test --all-features",
-                    "result": "passed: 120 library tests, 27 CLI tests, 3 CSSOM tests, 2 custom parser tests, 1 serde test, and 8 doctests; 0 failures"
-                },
-                {
-                    "command": "corepack yarn tsc",
-                    "result": "passed TypeScript check"
-                },
-                {
-                    "command": "rustup target add wasm32-unknown-unknown",
-                    "result": "passed"
-                },
-                {
-                    "command": "npm install --no-save --no-package-lock binaryen@111.0.0",
-                    "result": "passed; installed wasm-opt version 111"
-                },
-                {
-                    "command": "PATH=\"$PWD/node_modules/.bin:$PATH\" CARGO_BUILD_JOBS=2 RUSTFLAGS=\"--cfg getrandom_backend=\\\"custom\\\" -C link-arg=--export-table\" corepack yarn wasm:build-release",
-                    "result": "passed after local upstream-cache compatibility patch defining deterministic __getrandom_v03_custom and exporting __indirect_function_table"
-                },
-                {
-                    "command": "TEST_WASM=node npx --yes -p node@18 -p yarn@1.22.22 yarn test",
-                    "result": "passed: 81 WASM Node-mode uvu tests, 0 failures"
-                },
-                {
-                    "command": "TEST_WASM=browser npx --yes -p node@18 -p yarn@1.22.22 yarn test",
-                    "result": "passed: 81 WASM browser-mode uvu tests, 0 failures"
-                }
-            ],
-            "nonCiProbes": [
-                {
-                    "command": "cargo test --workspace --all-features --no-run",
-                    "result": "failed because workspace all-features enables parcel_selectors bench, which uses stable-incompatible #![feature(test)]; upstream CI does not run this overbroad workspace command"
-                },
-                {
-                    "command": "cargo test --workspace --no-run",
-                    "result": "failed while linking lightningcss_node as a Rust test harness because Node-API symbols are unresolved for the cdylib crate; upstream CI tests that package through yarn build/test instead"
-                }
-            ],
-            "wasmCompatibilityOverride": "Pristine upstream WASM build on this toolchain failed first on getrandom 0.3 wasm32 backend selection and then on missing __indirect_function_table for napi-wasm. The passing local WASM run used getrandom_backend=custom, a deterministic custom RNG shim in the upstream cache, and -C link-arg=--export-table. This is runner compatibility evidence, not a committed upstream source change.",
-            "latestNativePhpVerification": "Source commit aa35900b passed php -l on changed LightningCSS PHP files, git diff --check -- lanes/libsqlite lanes/gitoxide lanes/lightningcss, DeclarationBlockTest.php focused verification with 83 assertions / 0 failures, full LightningCSS lane 12 files / 1155 assertions / 0 failures, and wordpress-grid-template-cssom.php exiting 0."
-        },
+        "runnerStatus": "not full Rust/Node pass parity. Latest native PHP verification for source commit ede517b3 passed php -l on changed LightningCSS PHP files, git diff --check -- lanes/gitoxide lanes/libsqlite lanes/lightningcss, focused CssModulesTransformerTest.php 1 file / 30 assertions / 0 failures, full LightningCSS lane 12 files / 1158 assertions / 0 failures, and wordpress-css-modules-transformer.php exiting 0.",
         "mappedSemantics": [
             "CSS comments and insignificant whitespace are removed without rewriting quoted strings.",
             "Declaration values preserve required binary operator spacing inside calc/min/max/clamp math functions.",
@@ -1381,7 +1329,15 @@
             "Supports rule handling maps 12 focused upstream src/lib.rs::test_supports_rule minifier cases for declaration, negation, AND/OR grouping, selector(), unknown function, parenthesized unknown, display-grid/not-inline-grid conditions, and declaration-body calc()/hsl() value minification while preserving condition values, 4 backdrop-filter prefix/removal cases from the same upstream test, plus 1 upstream src/lib.rs::test_merge_supports adjacent block merge case.",
             "Custom media transformation maps focused upstream src/lib.rs::test_custom_media and CLI preserve cases for declaration collection, recursive/later references, list substitution, media type factoring, negation simplification, @import media-tail substitution, undefined/circular errors, unsupported media-type boolean-logic errors, upstream-style diagnostic line/column reporting, and optional declaration preservation."
         ],
-        "warning": "Native PHP progress maps 949 focused upstream-aligned lane checks and 1155 local LightningCSS PHP assertions against a 3,532-behavior-check upstream denominator. The denominator counts full src/lib.rs helper invocations, CSSOM helper invocations in tests/test_cssom.rs, non-lib Rust test attributes, and top-level Node uvu tests instead of treating large helper-driven files only as Rust test functions. Upstream LightningCSS core Rust/Node CI runners pass locally, WASM Node/browser runners pass with a documented local compatibility override. This integration batch's focused CssBundler/CssModulesTransformer/SourceMap tests pass with 3 test files, 66 assertions, and 0 failures; full lane-focused php tools/run-tests.php lanes/lightningcss/tests passes with 12 test files, 1154 assertions, and 0 failures; the three new LightningCSS examples pass. Root harness not run for this isolated batch. Accepted source commit aa35900b adds one mapped CSSOM declaration read/write slice for grid-template row-boundary line-name serialization."
+        "warning": "Native PHP progress maps 949 focused upstream-aligned lane checks and 1155 local LightningCSS PHP assertions against a 3,532-behavior-check upstream denominator. The denominator counts full src/lib.rs helper invocations, CSSOM helper invocations in tests/test_cssom.rs, non-lib Rust test attributes, and top-level Node uvu tests instead of treating large helper-driven files only as Rust test functions. Upstream LightningCSS core Rust/Node CI runners pass locally, WASM Node/browser runners pass with a documented local compatibility override. This integration batch's focused CssBundler/CssModulesTransformer/SourceMap tests pass with 3 test files, 66 assertions, and 0 failures; full lane-focused php tools/run-tests.php lanes/lightningcss/tests passes with 12 test files, 1154 assertions, and 0 failures; the three new LightningCSS examples pass. Root harness not run for this isolated batch. Accepted source commit aa35900b adds one mapped CSSOM declaration read/write slice for grid-template row-boundary line-name serialization.",
+        "latestNativePhpVerification": {
+            "sourceCommit": "ede517b306de5b15989b02e48a9b8b7e85b7a7cb",
+            "phpPass": 1158,
+            "phpFail": 0,
+            "focused": "CssModulesTransformerTest.php: 1 file / 30 assertions / 0 failures",
+            "fullLane": "12 files / 1158 assertions / 0 failures",
+            "example": "wordpress-css-modules-transformer.php exits 0"
+        }
     },
     "nativeImplementation": {
         "language": "PHP",
