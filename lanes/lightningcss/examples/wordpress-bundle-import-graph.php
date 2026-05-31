@@ -535,6 +535,50 @@ if (
 
 echo 'reader-resolver-raw-path: preserved' . PHP_EOL;
 
+$mountedReaderEntry = './themes/current/../current/theme.css';
+$mountedReaderTokens = './vendor/../vendor/tokens.css';
+$mountedReaderFiles = [
+    $mountedReaderEntry => <<<'CSS'
+@import "pkg:tokens.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    $mountedReaderTokens => ':root { --wp--preset--color--brand: blue; }',
+];
+$mountedReaderReads = [];
+$mountedReaderResolved = [];
+$mountedReaderBundle = (new CssBundler())->bundleWithReader(
+    $mountedReaderEntry,
+    static function (string $file) use (&$mountedReaderReads, $mountedReaderFiles): string {
+        $mountedReaderReads[] = $file;
+        if (!array_key_exists($file, $mountedReaderFiles)) {
+            throw new RuntimeException("Missing mounted reader-backed theme file {$file}");
+        }
+
+        return $mountedReaderFiles[$file];
+    },
+    static function (string $specifier, string $originatingFile) use (&$mountedReaderResolved, $mountedReaderEntry, $mountedReaderTokens): string {
+        $mountedReaderResolved[] = [$specifier, $originatingFile];
+        if ($specifier === 'pkg:tokens.css') {
+            return $mountedReaderTokens;
+        }
+
+        throw new RuntimeException("Unexpected mounted reader-backed specifier {$specifier}");
+    }
+);
+
+if (
+    $mountedReaderBundle !== ':root{--wp--preset--color--brand:blue}.wp-site-blocks{color:red}'
+    || $mountedReaderReads !== [$mountedReaderEntry, $mountedReaderTokens]
+    || $mountedReaderResolved !== [['pkg:tokens.css', $mountedReaderEntry]]
+) {
+    fwrite(STDERR, "Expected mounted reader entry path to remain the source-provider identity\n");
+    exit(1);
+}
+
+echo 'reader-entry-raw-path: preserved' . PHP_EOL;
+
 $eofImportBundle = (new CssBundler())->bundleWithReader(
     '/reader-eof.css',
     static function (string $file): string {

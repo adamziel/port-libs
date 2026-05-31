@@ -1213,6 +1213,64 @@ CSS,
             ], $resolved);
         });
     },
+    'css bundler preserves upstream source provider entry path identity' => static function (TestRunner $t) use ($withTempFiles): void {
+        $readerEntry = './themes/current/../current/theme.css';
+        $readerTokens = './vendor/../vendor/tokens.css';
+        $readerFiles = [
+            $readerEntry => '@import "pkg:tokens.css"; .entry { color: red }',
+            $readerTokens => ':root { --brand: blue }',
+        ];
+        $reads = [];
+        $resolved = [];
+
+        $code = (new CssBundler())->bundleWithReader(
+            $readerEntry,
+            static function (string $file) use (&$reads, $readerFiles): string {
+                $reads[] = $file;
+                if (!array_key_exists($file, $readerFiles)) {
+                    throw new RuntimeException("Missing reader source {$file}");
+                }
+
+                return $readerFiles[$file];
+            },
+            static function (string $specifier, string $originatingFile) use (&$resolved, $readerEntry, $readerTokens): string {
+                $resolved[] = [$specifier, $originatingFile];
+                if ($originatingFile !== $readerEntry) {
+                    throw new RuntimeException("Unexpected reader origin {$originatingFile}");
+                }
+
+                return $readerTokens;
+            }
+        );
+
+        $t->same(':root{--brand:blue}.entry{color:red}', $code);
+        $t->same([$readerEntry, $readerTokens], $reads);
+        $t->same([['pkg:tokens.css', $readerEntry]], $resolved);
+
+        $withTempFiles([
+            'theme/entry.css' => '@import "pkg:tokens.css"; .entry { color: red }',
+            'vendor/tokens.css' => ':root { --brand: blue }',
+        ], static function (string $root) use ($t): void {
+            $entry = $root . '/theme/../theme/entry.css';
+            $tokens = $root . '/vendor/../vendor/tokens.css';
+            $resolved = [];
+
+            $code = (new CssBundler())->bundleFile(
+                $entry,
+                static function (string $specifier, string $originatingFile) use (&$resolved, $entry, $tokens): string {
+                    $resolved[] = [$specifier, $originatingFile];
+                    if ($originatingFile !== $entry) {
+                        throw new RuntimeException("Unexpected filesystem origin {$originatingFile}");
+                    }
+
+                    return $tokens;
+                }
+            );
+
+            $t->same(':root{--brand:blue}.entry{color:red}', $code);
+            $t->same([['pkg:tokens.css', $entry]], $resolved);
+        });
+    },
     'css bundler maps upstream source provider read diagnostics' => static function (TestRunner $t): void {
         $initialReadRejected = false;
         try {

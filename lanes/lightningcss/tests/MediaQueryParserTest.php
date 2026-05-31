@@ -17,6 +17,9 @@ return [
         $t->same('(100px<width<200px)', $parser->minifyList('(100px < width < 200px)'));
         $t->same('(100px<=width<=200px)', $parser->minifyList('(100px <= width <= 200px)'));
         $t->same('(width>=30em) and (width<=50em)', $parser->minifyList('(min-width: 30em) and (max-width: 50em)'));
+        $t->same('(width>=240px) and (hover)', $parser->minifyList('(width >= 240px) AND (hover)'));
+        $t->same('(width>=240px) or (hover)', $parser->minifyList('(width >= 240px) Or (hover)'));
+        $t->same('((width>480px) and (hover)) or (pointer:coarse)', $parser->minifyList('((width > 480px) AnD (hover)) Or (pointer: coarse)'));
         $t->same('(width<240px)', $parser->minifyList('(240px > width)'));
         $t->same('(width<=240px)', $parser->minifyList('(240px >= width)'));
         $t->same('(width<600px) and (height<600px)', $parser->minifyList('(width < 600px) and (height < 600px)'));
@@ -318,6 +321,8 @@ return [
         $t->same('@media (width>=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media all and (width >= 240px) { .foo { color: chartreuse } }'));
         $t->same('@layer blocks{@media (width>=600px) and (hover){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media all and (min-width: 600px) and (hover) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (color) or (hover){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media all and ((color) or (hover)) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media (width>=600px) and (hover) and (color){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media all AND (min-width: 600px) AnD ((hover) AND (color)) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media ((width>480px) and (hover)) or (pointer:coarse){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media ((width > 480px) AnD (hover)) Or (pointer: coarse) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media not all and (color){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media not all and (color) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media screen and ((color) or (hover)){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media screen and ((color) or (hover)) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (grid:1){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (grid: +1) { .foo { color: chartreuse } } }'));

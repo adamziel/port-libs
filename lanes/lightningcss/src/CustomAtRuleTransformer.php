@@ -196,6 +196,7 @@ final class CustomAtRuleTransformer
                 },
                 'style' => static function (array $rule, self $transformer) use ($visitors): mixed {
                     $rules = [$rule];
+                    $changed = false;
                     foreach ($visitors as $visitor) {
                         $callback = self::styleRuleVisitorCallback($visitor);
                         if ($callback === null) {
@@ -210,6 +211,7 @@ final class CustomAtRuleTransformer
                                 continue;
                             }
 
+                            $changed = true;
                             foreach (self::normalizeStyleRuleVisitorReplacement($currentRule, $replacement) as $nextRule) {
                                 $nextRules[] = $nextRule;
                             }
@@ -221,6 +223,9 @@ final class CustomAtRuleTransformer
                         }
                     }
 
+                    if (!$changed) {
+                        return null;
+                    }
                     if ($rules === []) {
                         return [];
                     }
@@ -1454,6 +1459,10 @@ final class CustomAtRuleTransformer
             return ':' . $kind . '(' . $argument . ')';
         }
 
+        if ($kind === 'dir' && isset($component['direction'])) {
+            return ':dir(' . (string) $component['direction'] . ')';
+        }
+
         $selectors = $component['selectors'] ?? null;
         if (is_array($selectors)) {
             return ':' . $kind . '(' . implode(',', array_map(
@@ -1878,16 +1887,6 @@ final class CustomAtRuleTransformer
         }
 
         $entries = $this->declarationBlock->parseEntries($declarations);
-        $normal = [];
-        $important = [];
-        foreach ($entries as $entry) {
-            if ($entry['important']) {
-                $important[] = $entry;
-            } else {
-                $normal[] = $entry;
-            }
-        }
-
         $selectors = array_values(array_filter(
             array_map(static fn (string $selector): string => trim($selector), $selectors),
             static fn (string $selector): bool => $selector !== ''
@@ -1901,10 +1900,7 @@ final class CustomAtRuleTransformer
             'declarations' => $entries,
             'value' => [
                 'selectors' => array_map(fn (string $selector): array => $this->selectorComponentsFromString($selector), $selectors),
-                'declarations' => [
-                    'declarations' => $normal,
-                    'importantDeclarations' => $important,
-                ],
+                'declarations' => $this->visitorDeclarationBlockFromEntries($entries),
                 'rules' => $rules,
             ],
         ];
@@ -2548,6 +2544,42 @@ final class CustomAtRuleTransformer
         $declaration['important'] = $entry['important'];
 
         return $declaration;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{declarations:list<array<string, mixed>>, importantDeclarations:list<array<string, mixed>>}
+     */
+    private function visitorDeclarationBlockFromEntries(array $entries): array
+    {
+        $normal = [];
+        $important = [];
+        foreach ($entries as $entry) {
+            $declaration = $this->entryToRuleValueDeclaration($entry);
+            if (!empty($entry['important'])) {
+                $important[] = $declaration;
+            } else {
+                $normal[] = $declaration;
+            }
+        }
+
+        return [
+            'declarations' => $normal,
+            'importantDeclarations' => $important,
+        ];
+    }
+
+    /**
+     * @param array{property:string, value:string, important:bool} $entry
+     * @return array<string, mixed>
+     */
+    private function entryToRuleValueDeclaration(array $entry): array
+    {
+        if (strtolower($entry['property']) === 'transform') {
+            return $this->entryToVisitorDeclaration($entry);
+        }
+
+        return $entry;
     }
 
     /**
@@ -3802,6 +3834,14 @@ final class CustomAtRuleTransformer
     private function entryToVisitorDeclaration(array $entry): array
     {
         $property = strtolower($entry['property']);
+        if ($property === 'transform') {
+            return [
+                'property' => 'transform',
+                'value' => $this->parseTransformFunctionListForVisitor($entry['value']),
+                'important' => $entry['important'],
+            ];
+        }
+
         $tokens = $this->parseComponentValueList($entry['value']);
 
         if (self::isKnownDeclarationProperty($property)) {
@@ -3932,6 +3972,89 @@ final class CustomAtRuleTransformer
             fn (string $token): mixed => $this->parseComponentValue($token),
             $this->splitWhitespaceTokens($value)
         );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function parseTransformFunctionListForVisitor(string $value): array
+    {
+        $transforms = [];
+        $cursor = 0;
+        $length = strlen($value);
+
+        while ($cursor < $length) {
+            $cursor = $this->skipWhitespace($value, $cursor);
+            if ($cursor >= $length) {
+                break;
+            }
+
+            if (preg_match('/[-_a-zA-Z][-_a-zA-Z0-9]*(?=\()/A', substr($value, $cursor), $matches) !== 1) {
+                $transforms[] = ['type' => 'raw', 'value' => trim(substr($value, $cursor))];
+                break;
+            }
+
+            $name = $matches[0];
+            $open = $cursor + strlen($name);
+            $close = $this->findMatchingParen($value, $open);
+            if ($close === null) {
+                $transforms[] = ['type' => 'raw', 'value' => trim(substr($value, $cursor))];
+                break;
+            }
+
+            $arguments = trim(substr($value, $open + 1, $close - $open - 1));
+            if (strtolower($name) === 'translatex') {
+                $transforms[] = [
+                    'type' => 'translateX',
+                    'value' => $this->parseTransformArgumentForVisitor($arguments),
+                ];
+            } else {
+                $transforms[] = [
+                    'type' => 'raw',
+                    'value' => $name . '(' . $arguments . ')',
+                ];
+            }
+
+            $cursor = $close + 1;
+        }
+
+        return $transforms;
+    }
+
+    private function parseTransformArgumentForVisitor(string $argument): mixed
+    {
+        $argument = trim($argument);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z]+)$/', $argument, $matches) === 1) {
+            return [
+                'type' => 'dimension',
+                'value' => [
+                    'unit' => strtolower($matches[2]),
+                    'value' => (float) $matches[1],
+                ],
+            ];
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $argument, $matches) === 1) {
+            return [
+                'type' => 'percentage',
+                'value' => (float) $matches[1] / 100,
+            ];
+        }
+
+        if (preg_match('/^calc\\(/i', $argument) === 1) {
+            $open = stripos($argument, '(');
+            if ($open !== false && $this->findMatchingParen($argument, $open) === strlen($argument) - 1) {
+                return [
+                    'type' => 'calc',
+                    'value' => [
+                        'type' => 'raw',
+                        'value' => trim(substr($argument, $open + 1, -1)),
+                    ],
+                ];
+            }
+        }
+
+        return ['type' => 'raw', 'value' => $argument];
     }
 
     private function parseComponentValue(string $token): mixed
@@ -4127,16 +4250,14 @@ final class CustomAtRuleTransformer
         }
 
         $rule = [
+            'type' => 'style',
             'kind' => 'style-rule',
             'selector' => implode(',', array_map('trim', $selectors)),
             'selectors' => array_values(array_map('trim', $selectors)),
             'declarations' => $entries,
             'value' => [
                 'selectors' => array_map(fn (string $selector): array => $this->selectorComponentsFromString($selector), $selectors),
-                'declarations' => [
-                    'declarations' => array_values(array_filter($entries, static fn (array $entry): bool => empty($entry['important']))),
-                    'importantDeclarations' => array_values(array_filter($entries, static fn (array $entry): bool => !empty($entry['important']))),
-                ],
+                'declarations' => $this->visitorDeclarationBlockFromEntries($entries),
             ],
         ];
         if ($visitStyleRule && $this->ruleVisitor !== null) {
@@ -4181,9 +4302,12 @@ final class CustomAtRuleTransformer
         if (($replacement['kind'] ?? null) === 'remove') {
             return '';
         }
+        if (($replacement['type'] ?? null) === 'style' && isset($replacement['value']) && is_array($replacement['value'])) {
+            return $this->emitReturnedStyleRule($this->returnedStyleValueFromReplacement($replacement, $fallbackRule));
+        }
         if (
             isset($replacement['type'])
-            && in_array($replacement['type'], ['ignored', 'media', 'style', 'supports', 'unknown'], true)
+            && in_array($replacement['type'], ['ignored', 'media', 'supports', 'unknown'], true)
         ) {
             return $this->emitReplacement($replacement, null);
         }
@@ -4197,6 +4321,53 @@ final class CustomAtRuleTransformer
         }
 
         return $this->emitStyleRule($rule);
+    }
+
+    /**
+     * @param array<string, mixed> $replacement
+     * @param array<string, mixed> $fallbackRule
+     * @return array<string, mixed>
+     */
+    private function returnedStyleValueFromReplacement(array $replacement, array $fallbackRule): array
+    {
+        $value = is_array($replacement['value'] ?? null) ? $replacement['value'] : [];
+
+        $fallbackSelectors = $fallbackRule['selectors'] ?? [];
+        $replacementSelectors = $replacement['selectors'] ?? null;
+        if (is_array($replacementSelectors)) {
+            $normalizedReplacementSelectors = array_values(array_map('strval', $replacementSelectors));
+            $normalizedFallbackSelectors = is_array($fallbackSelectors)
+                ? array_values(array_map('strval', $fallbackSelectors))
+                : [];
+
+            if (!isset($value['selectors']) || $normalizedReplacementSelectors !== $normalizedFallbackSelectors) {
+                $value['selectors'] = array_map(
+                    fn (string $selector): array => $this->selectorComponentsFromString($selector),
+                    $normalizedReplacementSelectors
+                );
+            }
+        } elseif (!isset($value['selectors']) && is_array($fallbackSelectors)) {
+            $value['selectors'] = array_map(
+                fn (string $selector): array => $this->selectorComponentsFromString($selector),
+                array_values(array_map('strval', $fallbackSelectors))
+            );
+        }
+
+        $fallbackDeclarations = $fallbackRule['declarations'] ?? [];
+        $replacementDeclarations = $replacement['declarations'] ?? null;
+        if (is_array($replacementDeclarations)) {
+            if (!isset($value['declarations']) || $replacementDeclarations != $fallbackDeclarations) {
+                $value['declarations'] = $this->visitorDeclarationBlockFromEntries(
+                    $this->stylesheetDeclarationEntries($replacementDeclarations)
+                );
+            }
+        } elseif (!isset($value['declarations']) && is_array($fallbackDeclarations)) {
+            $value['declarations'] = $this->visitorDeclarationBlockFromEntries(
+                $this->stylesheetDeclarationEntries($fallbackDeclarations)
+            );
+        }
+
+        return $value;
     }
 
     /**
@@ -4774,6 +4945,18 @@ final class CustomAtRuleTransformer
         }
 
         $type = $value['type'] ?? null;
+        if ($type === 'translateX') {
+            return 'translateX(' . $this->serializeTransformArgument($value['value'] ?? '') . ')';
+        }
+        if ($type === 'calc') {
+            return $this->serializeCalcValue($value['value'] ?? '');
+        }
+        if ($type === 'product') {
+            return $this->serializeCalcProduct($value['value'] ?? []);
+        }
+        if ($type === 'percentage' && (is_int($value['value'] ?? null) || is_float($value['value'] ?? null))) {
+            return $this->formatNumber($value['value'] * 100) . '%';
+        }
         if ($type === 'length') {
             $length = $this->lengthComponents($value);
             if ($length !== null) {
@@ -4870,6 +5053,58 @@ final class CustomAtRuleTransformer
         }
 
         return (string) ($value['value'] ?? '');
+    }
+
+    private function serializeTransformArgument(mixed $value): string
+    {
+        if (is_array($value) && ($value['type'] ?? null) === 'calc') {
+            $payload = $value['value'] ?? '';
+            if (is_array($payload) && ($payload['type'] ?? null) === 'product') {
+                return $this->serializeCalcProduct($payload['value'] ?? []);
+            }
+
+            return $this->serializeCalcValue($payload);
+        }
+
+        return $this->serializeVisitorValue($value);
+    }
+
+    private function serializeCalcValue(mixed $value): string
+    {
+        if (is_array($value) && ($value['type'] ?? null) === 'product') {
+            return 'calc(' . $this->serializeCalcProduct($value['value'] ?? []) . ')';
+        }
+        if (is_array($value) && ($value['type'] ?? null) === 'raw') {
+            return 'calc(' . trim((string) ($value['value'] ?? '')) . ')';
+        }
+        if (is_array($value)) {
+            return 'calc(' . $this->serializeVisitorValue($value) . ')';
+        }
+
+        return 'calc(' . trim((string) $value) . ')';
+    }
+
+    private function serializeCalcProduct(mixed $factors): string
+    {
+        if (!is_array($factors)) {
+            return $this->serializeVisitorValue($factors);
+        }
+
+        $parts = [];
+        foreach ($factors as $factor) {
+            $parts[] = $this->serializeCalcFactor($factor);
+        }
+
+        return implode('*', array_filter($parts, static fn (string $part): bool => $part !== ''));
+    }
+
+    private function serializeCalcFactor(mixed $factor): string
+    {
+        if (is_array($factor) && ($factor['type'] ?? null) === 'calc') {
+            return $this->serializeCalcValue($factor['value'] ?? '');
+        }
+
+        return $this->serializeVisitorValue($factor);
     }
 
     /**
@@ -5393,9 +5628,10 @@ final class CustomAtRuleTransformer
     private function serializeVariableValue(array $variable): string
     {
         $name = self::variableCallbackName($variable);
-        if (str_starts_with($name, '--')) {
-            $name = $this->applyDashedIdentVisitor($name);
+        if (!str_starts_with($name, '--')) {
+            throw new \InvalidArgumentException('Dashed idents must start with --');
         }
+        $name = $this->applyDashedIdentVisitor($name);
         $fallback = $variable['fallback'] ?? null;
         if (!is_array($fallback) || $fallback === []) {
             return 'var(' . $name . ')';

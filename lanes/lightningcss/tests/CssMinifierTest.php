@@ -577,6 +577,29 @@ CSS
             }
         }
     },
+    'css minifier maps upstream lab and lch relative color srgb origins' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'lab(from indianred calc(l * .8) a b)' => 'lab(43.1402% 45.7516 23.1557)',
+            'lch(from indianred calc(l + 10) c h)' => 'lch(63.9252% 51.2776 26.8448)',
+            'lch(from indianred l calc(c - 50) h)' => 'lch(53.9252% 1.27763 26.8448)',
+            'lch(from indianred l c calc(h + 180deg))' => 'lch(53.9252% 51.2776 206.845)',
+            'lch(from orchid l 30 h)' => 'lch(62.7526% 30 326.969)',
+            'lch(from peru calc(l * 0.8) c h)' => 'lch(49.8022% 54.0117 63.6804)',
+            'lch(from indianred l sin(c) h)' => 'lch(53.9252% .84797 26.8448)',
+            'lch(from indianred l sqrt(c) h)' => 'lch(53.9252% 7.16084 26.8448)',
+            'lch(from indianred l c sin(h))' => 'lch(53.9252% 51.2776 .451575)',
+            'lch(from indianred calc(10% + 20%) c h)' => 'lch(30% 51.2776 26.8448)',
+            'lch(from indianred calc(10 + 20) c h)' => 'lch(30% 51.2776 26.8448)',
+            'lch(from indianred l c calc(10 + 20))' => 'lch(53.9252% 51.2776 30)',
+            'lch(from indianred l c calc(10deg + 20deg))' => 'lch(53.9252% 51.2776 30)',
+            'lch(from indianred l c calc(10deg + 0.35rad))' => 'lch(53.9252% 51.2776 30.0535)',
+        ];
+
+        foreach ($cases as $input => $expectedColor) {
+            $t->same('.foo{color:' . $expectedColor . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
+        }
+    },
     'css minifier maps upstream color calc components in custom property values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

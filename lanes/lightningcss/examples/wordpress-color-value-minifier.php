@@ -37,6 +37,12 @@ $css = <<<'CSS'
   outline-color: lab(from lab(25% 20 50) l a none / alpha);
 }
 
+.wp-block-cover.has-relative-srgb-lab-overlay {
+  color: lab(from indianred calc(l * .8) a b);
+  background-color: lch(from orchid l 30 h);
+  outline-color: lch(from peru calc(l * .8) c h);
+}
+
 .wp-block-cover.has-relative-polar-overlay {
   color: lch(from lch(70% 45 30) l c h / alpha);
   background-color: oklch(from oklch(70% 45 30 / 40%) alpha c h / alpha);
@@ -91,7 +97,7 @@ $css = <<<'CSS'
 }
 CSS;
 
-$expected = '.wp-block-cover.has-hwb-overlay{color:#00c4ff80;background:linear-gradient(#80e1ff,#006280);border-color:buttonborder}.wp-block-button .wp-element-button{color:#fff;outline-color:#000}.wp-block-cover.has-relative-overlay{color:#639;background-color:#360c;border-color:#66660a}.wp-block-cover.has-relative-hsl-hwb-overlay{color:#66527a;background-color:#3380cccc;outline-color:#99666680;border-color:#33ff3380}.wp-block-cover.has-relative-lab-overlay{color:lab(25% 50 20);background-color:oklab(35% 20 50/.4);outline-color:lab(25% 20 none)}.wp-block-cover.has-relative-polar-overlay{color:lch(70% 45 30);background-color:oklch(40% 45 30/.4);outline-color:lch(50% 120 -400/0)}.wp-block-cover.has-calculated-overlay{--wp-cover-overlay:#80808080;--wp-cover-halo:#40bfbf;--wp-cover-gamut:color(display-p3 .43313 .50108 .3);color:var(--wp-cover-overlay)}.wp-block-cover.has-wide-gamut-overlay{background:linear-gradient(lch(29.2345% 66.3 27),color(display-p3 1 .5 0/.2));outline-color:oklab(40.101% .1147 .0453)}.wp-block-cover.has-mixed-overlay{color:#8080ff;background-color:#89760053}.wp-block-cover.has-perceptual-mixed-overlay{color:lab(40% 50 60);background-color:oklab(36.6667% 46.6667 56.6667/.6);outline-color:lab(30% 40 70)}.wp-block-cover.has-hsl-mixed-overlay{color:#545c3d;background-color:#5f694199;border-color:#4055bf}.wp-block-cover.has-hwb-mixed-overlay{color:#93b334;background-color:#a6994080;border-color:#60bf27}.wp-block-cover.has-xyz-mixed-overlay{color:color(xyz .3 .4 .5);background-color:color(xyz .346154 .446154 .546154/.65);outline-color:color(srgb-linear .4 .5 .6/.5)}.wp-block-cover.has-polar-mixed-overlay{color:lch(30% 40 50);background-color:oklch(100% 0 230);outline-color:lch(50% 20 50)}';
+$expected = '.wp-block-cover.has-hwb-overlay{color:#00c4ff80;background:linear-gradient(#80e1ff,#006280);border-color:buttonborder}.wp-block-button .wp-element-button{color:#fff;outline-color:#000}.wp-block-cover.has-relative-overlay{color:#639;background-color:#360c;border-color:#66660a}.wp-block-cover.has-relative-hsl-hwb-overlay{color:#66527a;background-color:#3380cccc;outline-color:#99666680;border-color:#33ff3380}.wp-block-cover.has-relative-lab-overlay{color:lab(25% 50 20);background-color:oklab(35% 20 50/.4);outline-color:lab(25% 20 none)}.wp-block-cover.has-relative-srgb-lab-overlay{color:lab(43.1402% 45.7516 23.1557);background-color:lch(62.7526% 30 326.969);outline-color:lch(49.8022% 54.0117 63.6804)}.wp-block-cover.has-relative-polar-overlay{color:lch(70% 45 30);background-color:oklch(40% 45 30/.4);outline-color:lch(50% 120 -400/0)}.wp-block-cover.has-calculated-overlay{--wp-cover-overlay:#80808080;--wp-cover-halo:#40bfbf;--wp-cover-gamut:color(display-p3 .43313 .50108 .3);color:var(--wp-cover-overlay)}.wp-block-cover.has-wide-gamut-overlay{background:linear-gradient(lch(29.2345% 66.3 27),color(display-p3 1 .5 0/.2));outline-color:oklab(40.101% .1147 .0453)}.wp-block-cover.has-mixed-overlay{color:#8080ff;background-color:#89760053}.wp-block-cover.has-perceptual-mixed-overlay{color:lab(40% 50 60);background-color:oklab(36.6667% 46.6667 56.6667/.6);outline-color:lab(30% 40 70)}.wp-block-cover.has-hsl-mixed-overlay{color:#545c3d;background-color:#5f694199;border-color:#4055bf}.wp-block-cover.has-hwb-mixed-overlay{color:#93b334;background-color:#a6994080;border-color:#60bf27}.wp-block-cover.has-xyz-mixed-overlay{color:color(xyz .3 .4 .5);background-color:color(xyz .346154 .446154 .546154/.65);outline-color:color(srgb-linear .4 .5 .6/.5)}.wp-block-cover.has-polar-mixed-overlay{color:lch(30% 40 50);background-color:oklch(100% 0 230);outline-color:lch(50% 20 50)}';
 $actual = (new CssMinifier())->minify($css);
 
 if ($actual !== $expected) {

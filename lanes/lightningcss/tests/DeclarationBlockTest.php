@@ -337,6 +337,8 @@ return [
 
         $t->same(['value' => 'url(mask.svg)', 'important' => false], $block->getProperty($mask, 'mask-image'));
         $t->same(['value' => '25% 75%', 'important' => false], $block->getProperty($mask, 'mask-position'));
+        $t->same(['value' => '25%', 'important' => false], $block->getProperty($mask, 'mask-position-x'));
+        $t->same(['value' => '75%', 'important' => false], $block->getProperty($mask, 'mask-position-y'));
         $t->same(['value' => 'cover', 'important' => false], $block->getProperty($mask, 'mask-size'));
         $t->same(['value' => 'no-repeat', 'important' => false], $block->getProperty($mask, 'mask-repeat'));
         $t->same(['value' => 'content-box', 'important' => false], $block->getProperty($mask, 'mask-origin'));
@@ -352,6 +354,8 @@ return [
             $block->getProperty('mask: url("/wp-content/themes/acme/assets/fade.svg") 50% 50% / cover no-repeat content-box padding-box luminance', 'mask-image')
         );
         $t->same(['value' => '0 0', 'important' => true], $block->getProperty('mask: url(mask.svg) !important', 'mask-position'));
+        $t->same(['value' => '0', 'important' => true], $block->getProperty('mask: url(mask.svg) !important', 'mask-position-x'));
+        $t->same(['value' => '0', 'important' => true], $block->getProperty('mask: url(mask.svg) !important', 'mask-position-y'));
         $t->same(['value' => 'auto', 'important' => true], $block->getProperty('mask: url(mask.svg) !important', 'mask-size'));
         $t->same(['value' => 'repeat', 'important' => true], $block->getProperty('mask: url(mask.svg) !important', 'mask-repeat'));
         $t->same(['value' => 'border-box', 'important' => true], $block->getProperty('mask: url(mask.svg) !important', 'mask-origin'));
@@ -364,6 +368,14 @@ return [
                 'mask-image: url("mask.svg"); mask-position: 50% 50%; mask-size: cover; mask-repeat: no-repeat; mask-origin: content-box; mask-clip: padding-box; mask-composite: subtract; mask-mode: luminance',
                 'mask'
             )
+        );
+        $t->same(
+            ['value' => 'left 10px bottom 20px', 'important' => false],
+            $block->getProperty('mask-position-x: left 10px; mask-position-y: bottom 20px', 'mask-position')
+        );
+        $t->same(
+            null,
+            $block->getProperty('mask-position-x: left; mask-position-y: bottom !important', 'mask-position')
         );
         $webkitMask = '-webkit-mask: url("mask.svg") 10px 20px / contain no-repeat content-box padding-box';
         $t->same(['value' => 'url(mask.svg)', 'important' => false], $block->getProperty($webkitMask, '-webkit-mask-image'));
@@ -1959,6 +1971,26 @@ return [
             $block->setProperty('mask: url(mask.svg)', 'mask-clip', 'padding-box')
         );
         $t->same(
+            'mask: url(mask.svg) 10px 75% / cover no-repeat content-box padding-box subtract luminance',
+            $block->setProperty($mask, 'mask-position-x', '10px')
+        );
+        $t->same(
+            'mask: url(mask.svg) 25% bottom / cover no-repeat content-box padding-box subtract luminance',
+            $block->setProperty($mask, 'mask-position-y', 'bottom')
+        );
+        $t->same(
+            'mask-position: left 10px',
+            $block->setProperty('mask-position: 20px 10px', 'mask-position-x', 'left')
+        );
+        $t->same(
+            'mask: url(a.svg) 15px 20px / cover, url(b.svg) right 50% / contain',
+            $block->setProperty(
+                'mask: url(a.svg) 10px 20px / cover, url(b.svg) 50% 50% / contain',
+                'mask-position-x',
+                '15px, right'
+            )
+        );
+        $t->same(
             'mask: url(a.svg), url(b.svg); mask-repeat: no-repeat',
             $block->setProperty('mask: url(a.svg), url(b.svg)', 'mask-repeat', 'no-repeat')
         );
@@ -2777,6 +2809,14 @@ return [
         $t->same(
             'mask-image: url(mask.svg); mask-position: 25% 75%; mask-repeat: no-repeat; mask-origin: content-box; mask-clip: padding-box; mask-composite: subtract; mask-mode: luminance',
             $block->removeProperty($mask, 'mask-size')
+        );
+        $t->same(
+            'mask-image: url(mask.svg); mask-position-y: 75%; mask-size: cover; mask-repeat: no-repeat; mask-origin: content-box; mask-clip: padding-box; mask-composite: subtract; mask-mode: luminance',
+            $block->removeProperty($mask, 'mask-position-x')
+        );
+        $t->same(
+            'mask-position-x: 20px',
+            $block->removeProperty('mask-position: 20px 10px', 'mask-position-y')
         );
         $t->same(
             'color: red',

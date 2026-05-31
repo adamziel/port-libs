@@ -1030,6 +1030,108 @@ CSS;
         $t->same('.test.focus-visible{margin-left:20px;margin-right:20px}.test:focus-visible{margin-left:20px;margin-right:20px}', $result);
         $t->same('.focus-visible', substr($result, 5, 14));
     },
+    'custom at-rules expose upstream transform AST to style visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+.foo {
+  transform: translateX(50px);
+}
+
+.bar {
+  transform: translateX(20%);
+}
+
+.baz {
+  transform: translateX(calc(100vw - 20px));
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'style' => static function (array $style) use (&$seen): array {
+                    $clone = null;
+                    foreach ($style['value']['declarations']['declarations'] as $property) {
+                        if (($property['property'] ?? null) !== 'transform') {
+                            continue;
+                        }
+
+                        $clonedTransforms = [];
+                        foreach ($property['value'] as $transform) {
+                            $seen[] = [
+                                'function' => $transform['type'] ?? null,
+                                'argument' => $transform['value']['type'] ?? null,
+                            ];
+                            if (($transform['type'] ?? null) !== 'translateX') {
+                                $clonedTransforms[] = $transform;
+                                continue;
+                            }
+
+                            if ($clone === null) {
+                                $clone = $style;
+                                $clone['value']['declarations']['declarations'] = [];
+                            }
+
+                            $argument = $transform['value'];
+                            if (($argument['type'] ?? null) === 'dimension') {
+                                $argument = [
+                                    'type' => 'dimension',
+                                    'value' => [
+                                        'unit' => $argument['value']['unit'],
+                                        'value' => -$argument['value']['value'],
+                                    ],
+                                ];
+                            } elseif (($argument['type'] ?? null) === 'percentage') {
+                                $argument = [
+                                    'type' => 'percentage',
+                                    'value' => -$argument['value'],
+                                ];
+                            } elseif (($argument['type'] ?? null) === 'calc') {
+                                $argument = [
+                                    'type' => 'calc',
+                                    'value' => [
+                                        'type' => 'product',
+                                        'value' => [-1, $argument],
+                                    ],
+                                ];
+                            }
+
+                            $clonedTransforms[] = [
+                                'type' => 'translateX',
+                                'value' => $argument,
+                            ];
+                        }
+
+                        if ($clone !== null) {
+                            $clone['value']['declarations']['declarations'][] = [
+                                'property' => 'transform',
+                                'value' => $clonedTransforms,
+                            ];
+                        }
+                    }
+
+                    if ($clone === null) {
+                        return $style;
+                    }
+
+                    $lastSelector = array_key_last($clone['value']['selectors']);
+                    $clone['value']['selectors'][$lastSelector][] = [
+                        'type' => 'pseudo-class',
+                        'kind' => 'dir',
+                        'direction' => 'rtl',
+                    ];
+
+                    return [$style, $clone];
+                },
+            ],
+        ]);
+
+        $t->same('.foo{transform:translate(50px)}.foo:dir(rtl){transform:translate(-50px)}.bar{transform:translate(20%)}.bar:dir(rtl){transform:translate(-20%)}.baz{transform:translate(calc(100vw - 20px))}.baz:dir(rtl){transform:translate(-1*calc(100vw - 20px))}', $result);
+        $t->same([
+            ['function' => 'translateX', 'argument' => 'dimension'],
+            ['function' => 'translateX', 'argument' => 'percentage'],
+            ['function' => 'translateX', 'argument' => 'calc'],
+        ], $seen);
+    },
     'custom at-rules expose upstream nested unknown style rules to apply visitors' => static function (TestRunner $t): void {
         $defined = [];
         $seen = [];
@@ -2108,6 +2210,30 @@ CSS;
                 'value' => 'currentColor',
             ],
         ], $seen);
+    },
+    'custom at-rules reject upstream visitor returned invalid dashed var names' => static function (TestRunner $t): void {
+        $t->throws(InvalidArgumentException::class, static fn () => (new CustomAtRuleTransformer())->transform('.foo { background: opacity(abcdef); }', [], [
+            'Function' => static function (array $arguments, string $raw, string $name): ?array {
+                if (($arguments[0] ?? null) !== 'abcdef') {
+                    return null;
+                }
+
+                return [
+                    'type' => 'function',
+                    'value' => [
+                        'name' => $name,
+                        'arguments' => [[
+                            'type' => 'var',
+                            'value' => [
+                                'name' => [
+                                    'ident' => $arguments[0],
+                                ],
+                            ],
+                        ]],
+                    ],
+                ];
+            },
+        ]));
     },
     'custom at-rules apply upstream identifier visitors after parser replacements' => static function (TestRunner $t): void {
         $visitor = CustomAtRuleTransformer::composeVisitors([

@@ -88,7 +88,11 @@ final class MediaQueryParser
 
         $query = $this->normalizeWhitespace($query);
         $query = $this->normalizeParentheses($query, $allowCompactedNegation);
-        $query = preg_replace('/\b(and|or)\b/i', ' $1 ', $query) ?? $query;
+        $query = preg_replace_callback(
+            '/\b(and|or)\b/i',
+            static fn (array $matches): string => ' ' . strtolower($matches[1]) . ' ',
+            $query
+        ) ?? $query;
         $query = $this->normalizeWhitespace($query);
         $this->validateTopLevelLogicalOperators($query);
         $this->validateTopLevelConditionFunctions($query);

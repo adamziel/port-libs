@@ -286,6 +286,10 @@ final class DeclarationBlock
         'mask-composite',
         'mask-mode',
     ];
+    private const MASK_POSITION_LONGHANDS = [
+        'mask-position-x',
+        'mask-position-y',
+    ];
     private const WEBKIT_MASK_LONGHANDS = [
         '-webkit-mask-image',
         '-webkit-mask-position',
@@ -916,6 +920,10 @@ final class DeclarationBlock
             return null;
         }
 
+        if ($this->isMaskPositionAxisLonghand($property)) {
+            return $this->setMaskPositionAxisLonghand($entries, $property, $value, $important);
+        }
+
         $value = $this->normalizeMaskLonghandValue($baseProperty, $value);
         $valueParts = array_map(
             static fn (string $part): string => trim($part),
@@ -950,6 +958,96 @@ final class DeclarationBlock
 
             $entries[$index] = [
                 'property' => $shorthand,
+                'value' => $this->composeMaskLayers($layers),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setMaskPositionAxisLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        $value = $this->normalizeMaskLonghandValue($property, $value);
+        $valueParts = array_map(
+            static fn (string $part): string => trim($part),
+            $this->splitTopLevel($value, ',')
+        );
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] === 'mask-position') {
+                if ($entries[$index]['important'] !== $important) {
+                    return null;
+                }
+
+                [$x, $y] = $this->splitBackgroundPositionList($entries[$index]['value']);
+                if ($x === null || $y === null) {
+                    return null;
+                }
+
+                if ($property === 'mask-position-x') {
+                    $x = $value;
+                } else {
+                    $y = $value;
+                }
+                $position = $this->composeBackgroundPositionList($x, $y);
+                if ($position === null) {
+                    return null;
+                }
+
+                $entries[$index] = [
+                    'property' => 'mask-position',
+                    'value' => $position,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'mask') {
+                continue;
+            }
+            if ($entries[$index]['important'] !== $important) {
+                return null;
+            }
+
+            $layers = $this->parseMaskLayers($entries[$index]['value']);
+            if (count($valueParts) !== count($layers)) {
+                return null;
+            }
+
+            foreach ($layers as $layerIndex => $layer) {
+                [$x, $y] = $this->splitBackgroundPosition($layer['mask-position']);
+                if ($x === null) {
+                    return null;
+                }
+
+                if ($property === 'mask-position-x') {
+                    $x = $valueParts[$layerIndex];
+                } else {
+                    $y = $valueParts[$layerIndex];
+                }
+
+                $layers[$layerIndex]['mask-position'] = trim($x . ' ' . ($y ?? '0'));
+            }
+
+            $entries[$index] = [
+                'property' => 'mask',
                 'value' => $this->composeMaskLayers($layers),
                 'important' => $important,
             ];
@@ -1294,6 +1392,9 @@ final class DeclarationBlock
             return null;
         }
         $longhands = $this->maskLonghandsForShorthand($shorthand);
+        $readLonghands = $shorthand === 'mask'
+            ? array_merge($longhands, self::MASK_POSITION_LONGHANDS)
+            : $longhands;
 
         $components = [];
         foreach ($entries as $entry) {
@@ -1307,20 +1408,22 @@ final class DeclarationBlock
                 continue;
             }
 
-            if (in_array($entry['property'], $longhands, true)) {
-                $baseLonghand = $this->maskBaseLonghand($entry['property']);
-                if ($baseLonghand === null) {
-                    continue;
-                }
-                $components[$entry['property']] = [
-                    'value' => $this->normalizeMaskLonghandValue($baseLonghand, $entry['value']),
-                    'important' => $entry['important'],
-                ];
+            if (in_array($entry['property'], $readLonghands, true)) {
+                $this->applyMaskLonghand($components, $entry['property'], $entry['value'], $entry['important']);
             }
         }
 
         if ($property !== $shorthand) {
+            if ($property === 'mask-position') {
+                return $this->getMaskPosition($components);
+            }
+
             return $components[$property] ?? null;
+        }
+
+        $position = $this->getMaskPosition($components);
+        if ($position !== null) {
+            $components['mask-position'] = $position;
         }
 
         foreach ($longhands as $longhand) {
@@ -1357,6 +1460,72 @@ final class DeclarationBlock
     }
 
     /**
+     * @param array<string, array{value:string, important:bool}> $components
+     */
+    private function applyMaskLonghand(array &$components, string $property, string $value, bool $important): void
+    {
+        $baseLonghand = $this->maskBaseLonghand($property);
+        if ($baseLonghand === null) {
+            return;
+        }
+
+        $components[$property] = [
+            'value' => $this->normalizeMaskLonghandValue($baseLonghand, $value),
+            'important' => $important,
+        ];
+
+        if ($property !== 'mask-position') {
+            return;
+        }
+
+        [$x, $y] = $this->splitBackgroundPositionList($value);
+        if ($x !== null) {
+            $components['mask-position-x'] = ['value' => $x, 'important' => $important];
+        }
+        if ($y !== null) {
+            $components['mask-position-y'] = ['value' => $y, 'important' => $important];
+        }
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}> $components
+     * @return array{value:string, important:bool}|null
+     */
+    private function getMaskPosition(array $components): ?array
+    {
+        $x = $components['mask-position-x'] ?? null;
+        $y = $components['mask-position-y'] ?? null;
+        if ($x === null && $y === null) {
+            return $components['mask-position'] ?? null;
+        }
+
+        $important = ($x ?? $y)['important'];
+        if ($x !== null && $x['important'] !== $important) {
+            return null;
+        }
+        if ($y !== null && $y['important'] !== $important) {
+            return null;
+        }
+
+        $xValue = $x['value'] ?? $this->defaultPositionAxisList($y['value']);
+        $yValue = $y['value'] ?? $this->defaultPositionAxisList($x['value']);
+        $position = $this->composeBackgroundPositionList($xValue, $yValue);
+        if ($position === null) {
+            return null;
+        }
+
+        return [
+            'value' => $position,
+            'important' => $important,
+        ];
+    }
+
+    private function defaultPositionAxisList(string $matchingAxisValue): string
+    {
+        return implode(', ', array_fill(0, count($this->splitTopLevel($matchingAxisValue, ',')), '0'));
+    }
+
+    /**
      * @return array<string, array{value:string, important:bool}>
      */
     private function maskComponentsFromShorthand(string $value, bool $important): array
@@ -1374,6 +1543,13 @@ final class DeclarationBlock
                 )),
                 'important' => $important,
             ];
+        }
+        [$x, $y] = $this->splitBackgroundPositionList($components['mask-position']['value']);
+        if ($x !== null) {
+            $components['mask-position-x'] = ['value' => $x, 'important' => $important];
+        }
+        if ($y !== null) {
+            $components['mask-position-y'] = ['value' => $y, 'important' => $important];
         }
 
         return $components;
@@ -1744,9 +1920,18 @@ final class DeclarationBlock
         return $this->maskBaseLonghand($property) !== null;
     }
 
+    private function isMaskPositionAxisLonghand(string $property): bool
+    {
+        return in_array($property, self::MASK_POSITION_LONGHANDS, true);
+    }
+
     private function maskShorthandForProperty(string $property): ?string
     {
-        if ($property === 'mask' || in_array($property, self::MASK_LONGHANDS, true)) {
+        if (
+            $property === 'mask'
+            || in_array($property, self::MASK_LONGHANDS, true)
+            || in_array($property, self::MASK_POSITION_LONGHANDS, true)
+        ) {
             return 'mask';
         }
 
@@ -1767,7 +1952,11 @@ final class DeclarationBlock
 
     private function maskLonghandForBase(string $shorthand, string $baseLonghand): ?string
     {
-        if ($shorthand === 'mask' && in_array($baseLonghand, self::MASK_LONGHANDS, true)) {
+        if (
+            $shorthand === 'mask'
+            && (in_array($baseLonghand, self::MASK_LONGHANDS, true)
+                || in_array($baseLonghand, self::MASK_POSITION_LONGHANDS, true))
+        ) {
             return $baseLonghand;
         }
 
@@ -1782,7 +1971,7 @@ final class DeclarationBlock
 
     private function maskBaseLonghand(string $property): ?string
     {
-        if (in_array($property, self::MASK_LONGHANDS, true)) {
+        if (in_array($property, self::MASK_LONGHANDS, true) || in_array($property, self::MASK_POSITION_LONGHANDS, true)) {
             return $property;
         }
 
@@ -10507,7 +10696,7 @@ final class DeclarationBlock
         }
 
         if ($property === 'mask') {
-            return self::MASK_LONGHANDS;
+            return array_merge(self::MASK_LONGHANDS, self::MASK_POSITION_LONGHANDS);
         }
 
         if ($property === '-webkit-mask') {
@@ -10689,6 +10878,66 @@ final class DeclarationBlock
     /**
      * @param list<array{property:string, value:string, important:bool}> $entries
      */
+    private function removeMaskPositionAxisLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        $remainingAxis = $property === 'mask-position-x' ? 'mask-position-y' : 'mask-position-x';
+
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] === 'mask-position') {
+                [$x, $y] = $this->splitBackgroundPositionList($entry['value']);
+                if ($x === null || $y === null) {
+                    $result[] = $entry;
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $remainingAxis,
+                    'value' => $remainingAxis === 'mask-position-x' ? $x : $y,
+                    'important' => $entry['important'],
+                ];
+                continue;
+            }
+
+            if ($entry['property'] !== 'mask') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->maskComponentsFromShorthand($entry['value'], $entry['important']);
+            foreach ($this->maskLonghandsForShorthand('mask') as $longhand) {
+                if ($longhand === 'mask-position') {
+                    $result[] = [
+                        'property' => $remainingAxis,
+                        'value' => $components[$remainingAxis]['value'],
+                        'important' => $entry['important'],
+                    ];
+                    continue;
+                }
+
+                $component = $this->maskBaseLonghand($longhand);
+                if ($component === null) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
+                    'value' => $components[$component]['value'],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
     private function removeGridTemplateLonghand(array $entries, string $property): string
     {
         $result = [];
@@ -10733,6 +10982,10 @@ final class DeclarationBlock
         $shorthand = $this->maskShorthandForProperty($property);
         if ($baseProperty === null || $shorthand === null) {
             return $this->serializeEntries($entries);
+        }
+
+        if ($this->isMaskPositionAxisLonghand($property)) {
+            return $this->removeMaskPositionAxisLonghand($entries, $property);
         }
 
         $result = [];

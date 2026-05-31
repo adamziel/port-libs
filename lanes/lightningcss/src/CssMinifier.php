@@ -5064,6 +5064,10 @@ final class CssMinifier
     private function normalizeTransformLengthArgument(string $arg): string
     {
         $arg = trim($this->minifyMathFunctions($arg));
+        if (preg_match('/^-?(?:\d+|\d*\.\d+)\*calc\(/i', $arg) === 1) {
+            return $arg;
+        }
+
         $linear = $this->parseLinearMathArgument($arg);
         if ($linear !== null && $this->linearMathUnitsAllInGroup($linear, 'length:absolute') && count($this->nonZeroLinearCalcUnits($linear)) > 1) {
             return $this->serializeTransformCanonicalLength($this->canonicalLinearMathValue($arg, 'length:absolute') ?? 0.0);
@@ -14295,7 +14299,10 @@ final class CssMinifier
             'blue' => [0, 0, 255, 1.0],
             'gray' => [128, 128, 128, 1.0],
             'green' => [0, 128, 0, 1.0],
+            'indianred' => [205, 92, 92, 1.0],
             'lime' => [0, 255, 0, 1.0],
+            'orchid' => [218, 112, 214, 1.0],
+            'peru' => [205, 133, 63, 1.0],
             'rebeccapurple' => [102, 51, 153, 1.0],
             'red' => [255, 0, 0, 1.0],
             'transparent' => [0, 0, 0, 0.0],
@@ -14598,7 +14605,7 @@ final class CssMinifier
         }
 
         if (preg_match('/^calc\((.*)\)$/is', $token, $matches) === 1) {
-            return $this->evaluateRelativeColorCalcExpression($matches[1], $origin);
+            return $this->evaluateRelativeColorCalcExpression($matches[1], $origin, $alphaContext ? 0.01 : 2.55);
         }
 
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
@@ -14638,10 +14645,10 @@ final class CssMinifier
     /**
      * @param array<string,float|int> $origin
      */
-    private function evaluateRelativeColorCalcExpression(string $expression, array $origin): ?float
+    private function evaluateRelativeColorCalcExpression(string $expression, array $origin, float $percentageScale = 1.0): ?float
     {
         $offset = 0;
-        $value = $this->parseRelativeColorCalcSum($expression, $offset, $origin);
+        $value = $this->parseRelativeColorCalcSum($expression, $offset, $origin, $percentageScale);
         if ($value === null) {
             return null;
         }
@@ -14654,9 +14661,9 @@ final class CssMinifier
     /**
      * @param array<string,float|int> $origin
      */
-    private function parseRelativeColorCalcSum(string $expression, int &$offset, array $origin): ?float
+    private function parseRelativeColorCalcSum(string $expression, int &$offset, array $origin, float $percentageScale): ?float
     {
-        $value = $this->parseRelativeColorCalcProduct($expression, $offset, $origin);
+        $value = $this->parseRelativeColorCalcProduct($expression, $offset, $origin, $percentageScale);
         if ($value === null) {
             return null;
         }
@@ -14669,7 +14676,7 @@ final class CssMinifier
             }
 
             $offset++;
-            $right = $this->parseRelativeColorCalcProduct($expression, $offset, $origin);
+            $right = $this->parseRelativeColorCalcProduct($expression, $offset, $origin, $percentageScale);
             if ($right === null) {
                 return null;
             }
@@ -14681,9 +14688,9 @@ final class CssMinifier
     /**
      * @param array<string,float|int> $origin
      */
-    private function parseRelativeColorCalcProduct(string $expression, int &$offset, array $origin): ?float
+    private function parseRelativeColorCalcProduct(string $expression, int &$offset, array $origin, float $percentageScale): ?float
     {
-        $value = $this->parseRelativeColorCalcFactor($expression, $offset, $origin);
+        $value = $this->parseRelativeColorCalcFactor($expression, $offset, $origin, $percentageScale);
         if ($value === null) {
             return null;
         }
@@ -14696,7 +14703,7 @@ final class CssMinifier
             }
 
             $offset++;
-            $right = $this->parseRelativeColorCalcFactor($expression, $offset, $origin);
+            $right = $this->parseRelativeColorCalcFactor($expression, $offset, $origin, $percentageScale);
             if ($right === null || ($operator === '/' && abs($right) < 0.000000000001)) {
                 return null;
             }
@@ -14708,20 +14715,20 @@ final class CssMinifier
     /**
      * @param array<string,float|int> $origin
      */
-    private function parseRelativeColorCalcFactor(string $expression, int &$offset, array $origin): ?float
+    private function parseRelativeColorCalcFactor(string $expression, int &$offset, array $origin, float $percentageScale): ?float
     {
         $this->skipRelativeColorCalcWhitespace($expression, $offset);
         $char = $expression[$offset] ?? '';
         if ($char === '+' || $char === '-') {
             $offset++;
-            $value = $this->parseRelativeColorCalcFactor($expression, $offset, $origin);
+            $value = $this->parseRelativeColorCalcFactor($expression, $offset, $origin, $percentageScale);
 
             return $value === null ? null : ($char === '-' ? -$value : $value);
         }
 
         if ($char === '(') {
             $offset++;
-            $value = $this->parseRelativeColorCalcSum($expression, $offset, $origin);
+            $value = $this->parseRelativeColorCalcSum($expression, $offset, $origin, $percentageScale);
             $this->skipRelativeColorCalcWhitespace($expression, $offset);
             if (($expression[$offset] ?? '') !== ')') {
                 return null;
@@ -14731,10 +14738,29 @@ final class CssMinifier
             return $value;
         }
 
-        if (preg_match('/\G[+-]?(?:\d+|\d*\.\d+)/', $expression, $matches, 0, $offset) === 1) {
+        if (preg_match('/\G[+-]?(?:\d*\.\d+|\d+)/', $expression, $matches, 0, $offset) === 1) {
             $offset += strlen($matches[0]);
+            $unit = '';
+            if (preg_match('/\G(?:%|deg|grad|rad|turn)/i', $expression, $unitMatches, 0, $offset) === 1) {
+                $unit = strtolower($unitMatches[0]);
+                $offset += strlen($unitMatches[0]);
+            }
 
-            return (float) $matches[0];
+            $value = (float) $matches[0];
+            if ($unit === '%') {
+                return $value * $percentageScale;
+            }
+            if ($unit === 'grad') {
+                return $value * 0.9;
+            }
+            if ($unit === 'rad') {
+                return $value * 180 / M_PI;
+            }
+            if ($unit === 'turn') {
+                return $value * 360;
+            }
+
+            return $value;
         }
 
         if (preg_match('/\G[_a-zA-Z][_a-zA-Z0-9-]*/', $expression, $matches, 0, $offset) === 1) {
@@ -14835,6 +14861,120 @@ final class CssMinifier
             'b' => round((1.0 - max($red, $green, $blue)) * 100, 10),
             'alpha' => $origin['alpha'],
         ];
+    }
+
+    /**
+     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     * @return array{l:float,a:float,b:float,alpha:float}
+     */
+    private function relativeLabChannelsFromSrgbOrigin(array $origin): array
+    {
+        $channels = $this->srgbBytesToCssLabChannels($origin['red'], $origin['green'], $origin['blue']);
+        $channels['alpha'] = $origin['alpha'];
+
+        return $channels;
+    }
+
+    /**
+     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     * @return array{l:float,c:float,h:float,alpha:float}
+     */
+    private function relativeLchChannelsFromSrgbOrigin(array $origin): array
+    {
+        $lab = $this->relativeLabChannelsFromSrgbOrigin($origin);
+        $chroma = $this->asF32(sqrt(
+            $this->asF32($lab['a'] * $lab['a']) + $this->asF32($lab['b'] * $lab['b'])
+        ));
+        $hue = $this->asF32(atan2($lab['b'], $lab['a']) * $this->asF32(180 / M_PI));
+        if ($hue < 0.0) {
+            $hue = $this->asF32($hue + 360.0);
+        }
+
+        return [
+            'l' => $lab['l'],
+            'c' => $chroma,
+            'h' => $hue,
+            'alpha' => $lab['alpha'],
+        ];
+    }
+
+    /**
+     * @return array{l:float,a:float,b:float}
+     */
+    private function srgbBytesToCssLabChannels(int $red, int $green, int $blue): array
+    {
+        $r = $this->linearizeSrgbByte($red);
+        $g = $this->linearizeSrgbByte($green);
+        $b = $this->linearizeSrgbByte($blue);
+
+        $x = $this->asF32(
+            $this->asF32($r * 0.41239079926595934)
+            + $this->asF32($g * 0.357584339383878)
+            + $this->asF32($b * 0.1804807884018343)
+        );
+        $y = $this->asF32(
+            $this->asF32($r * 0.21263900587151027)
+            + $this->asF32($g * 0.715168678767756)
+            + $this->asF32($b * 0.07219231536073371)
+        );
+        $z = $this->asF32(
+            $this->asF32($r * 0.01933081871559182)
+            + $this->asF32($g * 0.11919477979462598)
+            + $this->asF32($b * 0.9505321522496607)
+        );
+
+        $d50X = $this->asF32(
+            $this->asF32($x * 1.0479298208405488)
+            + $this->asF32($y * 0.022946793341019088)
+            - $this->asF32($z * 0.05019222954313557)
+        );
+        $d50Y = $this->asF32(
+            $this->asF32($x * 0.029627815688159344)
+            + $this->asF32($y * 0.990434484573249)
+            - $this->asF32($z * 0.01707382502938514)
+        );
+        $d50Z = $this->asF32(
+            -$this->asF32($x * 0.009243058152591178)
+            + $this->asF32($y * 0.015055144896577895)
+            + $this->asF32($z * 0.7518742899580008)
+        );
+
+        $d50WhiteX = $this->asF32(0.3457 / 0.3585);
+        $d50WhiteZ = $this->asF32((1.0 - 0.3457 - 0.3585) / 0.3585);
+        $fx = $this->labTransfer($this->asF32($d50X / $d50WhiteX));
+        $fy = $this->labTransfer($this->asF32($d50Y));
+        $fz = $this->labTransfer($this->asF32($d50Z / $d50WhiteZ));
+
+        return [
+            'l' => $this->asF32($this->asF32(116 * $fy) - 16),
+            'a' => $this->asF32(500 * $this->asF32($fx - $fy)),
+            'b' => $this->asF32(200 * $this->asF32($fy - $fz)),
+        ];
+    }
+
+    private function linearizeSrgbByte(int $byte): float
+    {
+        $channel = $this->asF32($byte / 255);
+
+        return $channel <= 0.04045
+            ? $this->asF32($channel / 12.92)
+            : $this->asF32((($channel + 0.055) / 1.055) ** 2.4);
+    }
+
+    private function labTransfer(float $value): float
+    {
+        $value = $this->asF32($value);
+        $epsilon = $this->asF32(216 / 24389);
+        if ($value > $epsilon) {
+            return $this->asF32($value ** (1 / 3));
+        }
+
+        return $this->asF32(($this->asF32($value * $this->asF32(24389 / 27)) + 16) / 116);
+    }
+
+    private function asF32(float $value): float
+    {
+        return unpack('G', pack('G', $value))[1];
     }
 
     /**
@@ -15118,6 +15258,12 @@ final class CssMinifier
         $serialized = $this->minifyAdvancedColorFunction($origin) ?? $origin;
         $quotedSpace = preg_quote($space, '/');
         if (preg_match('/^' . $quotedSpace . '\((.*)\)$/is', trim($serialized), $matches) !== 1) {
+            if ($space === 'lab') {
+                $srgb = $this->parseRelativeSrgbOrigin($origin);
+
+                return $srgb === null ? null : $this->relativeLabChannelsFromSrgbOrigin($srgb);
+            }
+
             return null;
         }
 
@@ -15157,6 +15303,12 @@ final class CssMinifier
         $serialized = $this->minifyAdvancedColorFunction($origin) ?? $origin;
         $quotedSpace = preg_quote($space, '/');
         if (preg_match('/^' . $quotedSpace . '\((.*)\)$/is', trim($serialized), $matches) !== 1) {
+            if ($space === 'lch') {
+                $srgb = $this->parseRelativeSrgbOrigin($origin);
+
+                return $srgb === null ? null : $this->relativeLchChannelsFromSrgbOrigin($srgb);
+            }
+
             return null;
         }
 
@@ -15418,6 +15570,14 @@ final class CssMinifier
             ];
         }
 
+        $math = $this->evaluateRelativeColorMathFunctionToken($token, $origin, true);
+        if ($math !== null) {
+            return [
+                'type' => 'number',
+                'value' => $math,
+            ];
+        }
+
         $degrees = $this->parseHueDegreesUnbounded($token);
         if ($degrees === null) {
             return null;
@@ -15486,6 +15646,14 @@ final class CssMinifier
             ];
         }
 
+        $math = $this->evaluateRelativeColorMathFunctionToken($token, $origin, false);
+        if ($math !== null) {
+            return [
+                'type' => 'number',
+                'value' => $math,
+            ];
+        }
+
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
             return [
                 'type' => 'number',
@@ -15504,6 +15672,45 @@ final class CssMinifier
     }
 
     /**
+     * @param array<string,float|int> $origin
+     */
+    private function evaluateRelativeColorMathFunctionToken(string $token, array $origin, bool $angleContext): ?float
+    {
+        if (preg_match('/^(sin|sqrt)\((.*)\)$/is', trim($token), $matches) !== 1) {
+            return null;
+        }
+
+        $value = $this->evaluateRelativeColorCalcExpression($matches[2], $origin);
+        if ($value === null) {
+            return null;
+        }
+
+        $function = strtolower($matches[1]);
+        if ($function === 'sqrt') {
+            return $value < 0.0 ? null : sqrt($value);
+        }
+
+        if ($angleContext && $this->relativeColorMathArgumentIsAngle($matches[2], $origin)) {
+            $value *= M_PI / 180;
+        }
+
+        return sin($value);
+    }
+
+    /**
+     * @param array<string,float|int> $origin
+     */
+    private function relativeColorMathArgumentIsAngle(string $argument, array $origin): bool
+    {
+        $argument = trim($argument);
+        if (strcasecmp($argument, 'h') === 0 && array_key_exists('h', $origin)) {
+            return true;
+        }
+
+        return preg_match('/(?:deg|grad|rad|turn)\b/i', $argument) === 1;
+    }
+
+    /**
      * @param array{type:'none'}|array{type:'number',value:float} $component
      */
     private function serializeRelativeAdvancedLightness(array $component): string
@@ -15512,7 +15719,7 @@ final class CssMinifier
             return 'none';
         }
 
-        return $this->minifyColorNumber(max(0.0, $component['value'])) . '%';
+        return $this->minifySignificantColorNumber(max(0.0, $component['value'])) . '%';
     }
 
     /**
@@ -15524,7 +15731,7 @@ final class CssMinifier
             return 'none';
         }
 
-        return $this->minifyColorNumber($component['value']);
+        return $this->minifySignificantColorNumber($component['value']);
     }
 
     /**
@@ -15558,7 +15765,7 @@ final class CssMinifier
             $value *= 100;
         }
 
-        return $this->minifyColorNumber($value) . '%';
+        return $this->minifySignificantColorNumber($value) . '%';
     }
 
     /**
@@ -15570,7 +15777,7 @@ final class CssMinifier
             return 'none';
         }
 
-        return $this->minifyColorNumber(max(0.0, $component['value']));
+        return $this->minifySignificantColorNumber(max(0.0, $component['value']));
     }
 
     /**
@@ -15582,7 +15789,7 @@ final class CssMinifier
             return 'none';
         }
 
-        return $this->minifyColorNumber($component['value']);
+        return $this->minifySignificantColorNumber($component['value']);
     }
 
     /**
@@ -15743,6 +15950,18 @@ final class CssMinifier
         }
 
         return $formatted;
+    }
+
+    private function minifySignificantColorNumber(float $number, int $significantDigits = 6): string
+    {
+        if (abs($number) < 0.000000000001) {
+            return '0';
+        }
+
+        $digitsBeforeDecimal = (int) floor(log10(abs($number))) + 1;
+        $decimals = max(0, $significantDigits - $digitsBeforeDecimal);
+
+        return $this->minifyColorNumber(round($number, $decimals), $decimals);
     }
 
     /**

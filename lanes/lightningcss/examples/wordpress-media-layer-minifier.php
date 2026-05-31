@@ -46,19 +46,19 @@ $css = <<<'CSS'
     }
   }
 
-  @media all and (min-width: 600px) and ((hover) and (color)) {
+  @media all AND (min-width: 600px) AnD ((hover) AND (color)) {
     .wp-block-query {
       color: yellow;
     }
   }
 
-  @media screen and ((color) or (hover)) {
+  @media screen AND ((color) Or (hover)) {
     .wp-block-query__screen-feature {
       color: yellow;
     }
   }
 
-  @media ((width > 480px) and (hover)) or (pointer: coarse) {
+  @media ((width > 480px) AnD (hover)) Or (pointer: coarse) {
     .wp-block-query.is-adaptive {
       color: yellow;
     }

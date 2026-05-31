@@ -196,14 +196,18 @@ final class CssBundler
         $this->cssModules = $cssModules;
         $this->cssModuleOptions = $cssModuleOptions;
 
-        $entry = $this->normalizePath($entry);
-        $this->loadFile($entry, [
-            'layer' => null,
-            'supports' => null,
-            'media' => '',
-            'loc' => ['line' => 0, 'column' => 0],
-            'file' => $entry,
-        ]);
+        $entry = $this->preserveResolverPaths ? $entry : $this->normalizePath($entry);
+        $this->loadFile(
+            $entry,
+            [
+                'layer' => null,
+                'supports' => null,
+                'media' => '',
+                'loc' => ['line' => 0, 'column' => 0],
+                'file' => $entry,
+            ],
+            !$this->preserveResolverPaths
+        );
         $this->order();
 
         $raw = $this->licenseCommentPrefix() . $this->inline(0, []);
