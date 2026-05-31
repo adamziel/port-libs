@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 TMUX_SESSION="${TMUX_SESSION:-main}"
-TARGET="${LIGHTNINGCSS_TARGET_WORKERS:-40}"
+TARGET="${LIGHTNINGCSS_TARGET_WORKERS:-43}"
 MAX_STARTS="${LIGHTNINGCSS_MAX_REFILL_STARTS:-4}"
 source "$ROOT/scripts/agent-fast-profile.sh"
 LOCK_FILE="$ROOT/.tmux-team/tmp/refill-lightningcss-workers.lock"
@@ -49,7 +49,7 @@ start_worker() {
   printf '%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$session" "$slice" >> "$LAUNCHED_FILE"
   printf '%s starting %s / %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$session" "$slice"
   tmux new-window -t "$TMUX_SESSION" -n "$session" \
-    "cd '$ROOT' && ISOLATED_BASE_SHA='$BASE_SHA' AGENT_FAST_MODEL='$AGENT_FAST_MODEL' AGENT_FAST_REASONING='$AGENT_FAST_REASONING' AGENT_FAST_SERVICE_TIER='$AGENT_FAST_SERVICE_TIER' bash scripts/run-isolated-lane-worker.sh lightningcss '$slice' '$session'; AGENT_FAST_MODEL='$AGENT_FAST_MODEL' AGENT_FAST_REASONING='$AGENT_FAST_REASONING' AGENT_FAST_SERVICE_TIER='$AGENT_FAST_SERVICE_TIER' bash scripts/refill-lightningcss-workers.sh --once"
+    "cd '$ROOT' && ISOLATED_BASE_SHA='$BASE_SHA' AGENT_FAST_MODEL='$AGENT_FAST_MODEL' AGENT_FAST_REASONING='$AGENT_FAST_REASONING' AGENT_FAST_SERVICE_TIER='$AGENT_FAST_SERVICE_TIER' bash scripts/run-isolated-lane-worker.sh lightningcss '$slice' '$session'; LIGHTNINGCSS_TARGET_WORKERS='$TARGET' LIGHTNINGCSS_MAX_REFILL_STARTS='$MAX_STARTS' AGENT_FAST_MODEL='$AGENT_FAST_MODEL' AGENT_FAST_REASONING='$AGENT_FAST_REASONING' AGENT_FAST_SERVICE_TIER='$AGENT_FAST_SERVICE_TIER' bash scripts/refill-lightningcss-workers.sh --once"
 }
 
 slices=(
