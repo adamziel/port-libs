@@ -378,6 +378,16 @@ HTTP `# service=git-upload-pack` announcement prelude before capabilities, and
 merge-base selection now orders independent common baselines by priority graph
 metadata before deterministic tie-breakers.
 
+## WordPress Object, Pack, Attributes, And Config Examples
+
+The latest accepted batch extends native repository safety around deployment
+selection and content-pack ingestion. Object storage now honors SHA-256 loose
+object paths, headers, writes, and integrity verification; attributes/pathspec
+matching now distinguishes absent selected attributes from explicitly
+unspecified ones; pack parsing rejects non-canonical size metadata and
+OFS_DELTA base-distance overflow before trusting deltas; and config includes
+refuse bracket classes that would otherwise consume slash separators.
+
 ## Next Task
 
 Broaden protocol/transport runner evidence with a controlled focused crate probe, deepen mmap-specific packed-ref race parity beyond metadata/hash invalidation if needed, or map another focused `gix-merge` tree fixture.

@@ -1245,3 +1245,21 @@ Protocol, merge-base, and ls-refs service announcement batch accepted on 2026-05
 - The mapped denominator moves from `1532 / 2886` to `1535 / 2886` for the
   three distinct upstream-backed behavior slices. Full Cargo workspace tests
   were not run for this slice.
+
+Object, pack, attributes, and config batch accepted on 2026-05-31:
+
+- Source commit `c2ea3c3042dcbd9a2ad7f67af733cd60e70ffad4` integrates four
+  Gitoxide handoffs without taking stale shared metadata edits. The accepted
+  source slices cover loose-object SHA-256 object-hash integrity across paths,
+  headers, writes, and verification; attributes/pathspec selected-assignment
+  semantics for absent versus explicitly unspecified attributes; pack delta
+  entry metadata canonical size-header and OFS_DELTA base-distance guards; and
+  config include bracket-class slash-boundary matching.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused Gitoxide tests `6 files / 505 assertions / 0 failures`, full
+  Gitoxide lane tests `38 files / 4183 assertions / 0 failures`, and four
+  touched examples exiting 0.
+- The mapped denominator moves from `1535 / 2886` to `1539 / 2886` for the
+  four distinct upstream-backed behavior slices. Full Cargo workspace tests
+  were not run for this slice.

@@ -52,6 +52,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 10:26 UTC):
+  source commit `c2ea3c3042dcbd9a2ad7f67af733cd60e70ffad4` (`ports: add
+  sqlite btree select pragma and gitoxide object pack slices`) landed nine
+  handoffs after excluding stale shared metadata. Libsqlite gained B-tree/index
+  `whereA` reverse scan behavior, expression `COLLATE` propagation from
+  `collate8`, PRAGMA `auto_vacuum` parser normalization, SELECT empty-input
+  implicit aggregate result-row behavior, and a window/filter upstream Tcl-id
+  inventory gate; selected libsqlite evidence moves from `2869693` to
+  `2874050 pass / 0 fail`, mapped coverage stays `1589 / 1589`. Gitoxide
+  gained loose-object SHA-256 integrity parity, attributes/pathspec selected
+  assignment semantics, pack delta entry metadata guards, and config include
+  bracket-class slash boundaries; full Gitoxide evidence moves from `4132` to
+  `4183 pass / 0 fail`, mapped coverage moves from `1535 / 2886` to
+  `1539 / 2886`. Verification passed PHP lint, `git diff --check`, libsqlite
+  selected tests `8 files / 159284 assertions / 0 failures`, Gitoxide focused
+  tests `6 files / 505 assertions / 0 failures`, full Gitoxide lane `38 files
+  / 4183 assertions / 0 failures`, four touched examples, and changed-source
+  guards for no new libsqlite WordPress/wp or numbered CurrentSourceNext source
+  text.
+
 - 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 10:18 UTC):
   source commit `0d5385bf389d0db83bc44bd9e6369eded628c4ef` (`ports: add
   sqlite wal date select pragma window and gitoxide protocol graph slices`)
