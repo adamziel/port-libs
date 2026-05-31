@@ -9155,6 +9155,65 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,statement:string,base_result:list<int>,ascending_result:list<int>,descending_result:list<int>,where_terms:list<string>,index_name:string,rowid_range:string|null,uses_composite_index:bool,uses_rowid_range:bool,detail:string,integrity:string}>
+     */
+    public static function whereCRowidCompositeRangeCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite whereC rowid/composite range corpus requires at least one case');
+        }
+
+        $templates = [
+            ['whereC-1.1', 'SELECT i FROM t1 WHERE a=1 AND b=2 AND i>3', [4, 5], ['a=1', 'b=2', 'i>3'], 'i>3'],
+            ['whereC-1.2', "SELECT i FROM t1 WHERE rowid='12'", [12], ["rowid='12'"], "rowid='12'"],
+            ['whereC-1.3', "SELECT i FROM t1 WHERE a=1 AND b='2'", [3, 4, 5], ['a=1', "b='2'"], null],
+            ['whereC-1.4', "SELECT i FROM t1 WHERE a=1 AND b='2' AND i>'3'", [4, 5], ['a=1', "b='2'", "i>'3'"], "i>'3'"],
+            ['whereC-1.5', "SELECT i FROM t1 WHERE a=1 AND b='2' AND i<5", [3, 4], ['a=1', "b='2'", 'i<5'], 'i<5'],
+            ['whereC-1.6', 'SELECT i FROM t1 WHERE a=2 AND b=2 AND i<12', [10, 11], ['a=2', 'b=2', 'i<12'], 'i<12'],
+            ['whereC-1.7', 'SELECT i FROM t1 WHERE a IN(1, 2) AND b=2 AND i<11', [3, 4, 5, 10], ['a IN(1,2)', 'b=2', 'i<11'], 'i<11'],
+            ['whereC-1.8', 'SELECT i FROM t1 WHERE a=2 AND b=2 AND i BETWEEN 10 AND 12', [10, 11, 12], ['a=2', 'b=2', 'i BETWEEN 10 AND 12'], 'i BETWEEN 10 AND 12'],
+            ['whereC-1.9', 'SELECT i FROM t1 WHERE a=2 AND b=2 AND i BETWEEN 11 AND 12', [11, 12], ['a=2', 'b=2', 'i BETWEEN 11 AND 12'], 'i BETWEEN 11 AND 12'],
+            ['whereC-1.10', 'SELECT i FROM t1 WHERE a=2 AND b=2 AND i BETWEEN 10 AND 11', [10, 11], ['a=2', 'b=2', 'i BETWEEN 10 AND 11'], 'i BETWEEN 10 AND 11'],
+            ['whereC-1.11', 'SELECT i FROM t1 WHERE a=2 AND b=2 AND i BETWEEN 12 AND 10', [], ['a=2', 'b=2', 'i BETWEEN 12 AND 10'], 'i BETWEEN 12 AND 10'],
+            ['whereC-1.12', 'SELECT i FROM t1 WHERE a=2 AND b=2 AND i<NULL', [], ['a=2', 'b=2', 'i<NULL'], 'i<NULL'],
+            ['whereC-1.13', 'SELECT i FROM t1 WHERE a=2 AND b=2 AND i>=NULL', [], ['a=2', 'b=2', 'i>=NULL'], 'i>=NULL'],
+            ['whereC-1.14', "SELECT i FROM t1 WHERE a=1 AND b='2' AND i<4.5", [3, 4], ['a=1', "b='2'", 'i<4.5'], 'i<4.5'],
+            ['whereC-1.15', "SELECT i FROM t1 WHERE rowid IS '12'", [12], ["rowid IS '12'"], "rowid IS '12'"],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $statement, $result, $whereTerms, $rowidRange] = $templates[($case - 1) % count($templates)];
+            $usesComposite = count(array_filter(
+                $whereTerms,
+                static fn (string $term): bool => str_starts_with($term, 'a') || str_starts_with($term, 'b'),
+            )) > 0;
+
+            $out[] = [
+                'source' => 'whereC.test sections whereC-1.1 through whereC-1.15',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+                'statement' => $statement,
+                'base_result' => $result,
+                'ascending_result' => $result,
+                'descending_result' => array_reverse($result),
+                'where_terms' => $whereTerms,
+                'index_name' => $usesComposite ? 'i1(a,b)' : 'INTEGER PRIMARY KEY rowid',
+                'rowid_range' => $rowidRange,
+                'uses_composite_index' => $usesComposite,
+                'uses_rowid_range' => $rowidRange !== null,
+                'detail' => $usesComposite
+                    ? 'composite index i1 supplies a,b equality terms while rowid range narrows the candidate rows'
+                    : 'rowid primary-key lookup preserves string literal coercion for equality/IS predicates',
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array<string,mixed>>
      */
     public static function whereLMNConstantPropagationPlannerCases(int $cases = 1000): array

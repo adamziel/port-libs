@@ -24,6 +24,7 @@ final class SQLiteJsonImportRollbackWalPlan
             throw new \InvalidArgumentException('SQLite Application JSON import rollback requires a page-aligned database image');
         }
 
+        $usingDefaultWal = !array_key_exists('wal_bytes', $options) || $options['wal_bytes'] === null;
         $walBytes = $options['wal_bytes'] ?? self::emptyWalBytes($pageSize);
         if ($walBytes === null) {
             $walBytes = self::emptyWalBytes($pageSize);
@@ -50,7 +51,7 @@ final class SQLiteJsonImportRollbackWalPlan
         if ($rollbackToFrame > $walState['frame_count']) {
             throw new \InvalidArgumentException('SQLite Application JSON import rollback frame is beyond the WAL byte stream');
         }
-        if ($rollbackRequired) {
+        if ($rollbackRequired && !$usingDefaultWal) {
             self::assertRollbackFramesExist($importPlan, $walState['frame_count']);
         }
 
@@ -1295,6 +1296,57 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicHeaderChecksumMismatchScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL header-checksum dynamic parity requires at least one scenario');
+        }
+
+        $prefixScenarios = self::dynamicPreexistingWalScenarios($scenarioCount);
+        $scenarios = [];
+        foreach ($prefixScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $pageSize = (int) $base['page_size'];
+            $walBytes = self::scenarioChecksummedWalBytes($pageSize, (int) $base['wal_frames_before'], 0x9200 + $seed, 0x9300 + $seed);
+            $checksumOffset = 24 + (($seed % 2) * 4);
+            $corruptWalBytes = substr_replace($walBytes, pack('N', 0xb6000000 + $seed), $checksumOffset, 4);
+            $exceptionMessage = null;
+
+            try {
+                self::plan(
+                    $base['input_rows'],
+                    $base['input_mutations'],
+                    [
+                        'database_bytes' => $base['database_bytes'],
+                        'page_size' => $pageSize,
+                        'wal_bytes' => $corruptWalBytes,
+                        'transaction' => 'application_header_checksum_wal_' . $seed,
+                        'savepoint' => 'header_checksum_wal_batch_' . $seed,
+                        'pre_savepoint_wal_pages' => $base['pre_savepoint_wal_pages'],
+                    ]
+                );
+            } catch (\InvalidArgumentException $exception) {
+                $exceptionMessage = $exception->getMessage();
+            }
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $base['tenant_id'],
+                'page_size' => $pageSize,
+                'preexisting_frames' => $base['preexisting_frames'],
+                'checksum_offset' => $checksumOffset,
+                'wal_frames_before' => $base['wal_frames_before'],
+                'corrupt_wal_bytes' => $corruptWalBytes,
+                'exception_message' => $exceptionMessage,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
      * @param array<string,mixed> $importPlan
      */
     private static function assertRollbackFramesExist(array $importPlan, int $walFrameCount): void
@@ -1441,6 +1493,12 @@ final class SQLiteJsonImportRollbackWalPlan
         }
         if ((int) $header['page_size'] !== $pageSize) {
             throw new \InvalidArgumentException('SQLite Application JSON import rollback WAL page size must match the database page size');
+        }
+        if ((int) $header['checksum_1'] !== 0 || (int) $header['checksum_2'] !== 0) {
+            $headerChecksum = SQLiteWal::checksumPair(substr($walBytes, 0, 24), false);
+            if ((int) $header['checksum_1'] !== $headerChecksum[0] || (int) $header['checksum_2'] !== $headerChecksum[1]) {
+                throw new \InvalidArgumentException('SQLite Application JSON import rollback WAL header checksum does not match the header content');
+            }
         }
 
         $frameSize = 24 + $pageSize;

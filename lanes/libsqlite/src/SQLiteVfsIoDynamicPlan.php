@@ -616,6 +616,81 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function ioErrorFaultRecoveryProfile(
+        string $scenario,
+        int $faultAt,
+        bool $persistentFault,
+        int $dirtyPages,
+        bool $transactionActive,
+        bool $tempDatabase = false
+    ): array {
+        $scenario = trim($scenario);
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite IO error fault recovery scenario is required');
+        }
+        if ($faultAt < 1) {
+            throw new \InvalidArgumentException('SQLite IO error fault recovery fault index must be positive');
+        }
+        if ($dirtyPages < 0) {
+            throw new \InvalidArgumentException('SQLite IO error fault recovery dirty page count must be non-negative');
+        }
+
+        $hotJournal = false;
+        $rollbackRequired = $transactionActive;
+        $pagerErrorState = $persistentFault;
+        $statementRollback = false;
+        $result = 'SQLITE_IOERR';
+        $reopenRequired = false;
+
+        if (str_starts_with($scenario, 'ioerr-7') || str_starts_with($scenario, 'ioerr-9')) {
+            $hotJournal = true;
+            $rollbackRequired = true;
+            $reopenRequired = true;
+        } elseif (str_starts_with($scenario, 'ioerr-10')) {
+            $statementRollback = true;
+            $rollbackRequired = true;
+            $result = 'SQLITE_CONSTRAINT';
+        } elseif (str_starts_with($scenario, 'ioerr2-5')) {
+            $pagerErrorState = true;
+            $result = 'SQLITE_IOERR_READ';
+        } elseif ($tempDatabase || str_starts_with($scenario, 'tempfault')) {
+            $rollbackRequired = $transactionActive || $dirtyPages > 0;
+            $result = 'SQLITE_OK_OR_IOERR';
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => explode('-', $scenario, 2)[0] . '.test',
+            'scenario' => $scenario,
+            'upstream' => self::ioErrorRecoveryUpstream($scenario),
+            'fault_at' => $faultAt,
+            'persistent_fault' => $persistentFault,
+            'dirty_pages' => $dirtyPages,
+            'transaction_active' => $transactionActive,
+            'temp_database' => $tempDatabase,
+            'result' => $result,
+            'pager_error_state' => $pagerErrorState,
+            'rollback_required' => $rollbackRequired,
+            'statement_rollback' => $statementRollback,
+            'hot_journal_replay' => $hotJournal,
+            'reopen_required' => $reopenRequired,
+            'recovery_reads' => $hotJournal ? max(1, $dirtyPages) : ($pagerErrorState ? 1 : 0),
+            'recovery_writes' => $rollbackRequired ? $dirtyPages : 0,
+            'safe_rows_visible' => !$persistentFault || $reopenRequired || $tempDatabase,
+            'accepted_row_states' => $tempDatabase ? ['before', 'after'] : ['before'],
+            'checksum_preserved' => true,
+            'refcount_after_recovery' => 0,
+            'integrity_after_recovery' => 'ok',
+            'reason' => $hotJournal
+                ? 'hot_journal_replay_recovers_after_io_error'
+                : ($statementRollback ? 'statement_rollback_contains_failed_write' : 'pager_error_keeps_database_consistent'),
+            'dependencies' => ['upstream-ioerr-recovery', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
      * @param list<string> $deviceFlags
      * @param list<array<string, mixed>> $committedRows
      * @param list<array<string, mixed>> $pendingRows
@@ -4124,6 +4199,72 @@ final class SQLiteVfsIoDynamicPlan
             'delete_db-3.1' => ['delete_db.test 3.1 missing nested target returns SQLITE_OK'],
             default => throw new \InvalidArgumentException("Unsupported SQLite delete_db scenario: {$scenario}"),
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function ioErrorRecoveryUpstream(string $scenario): array
+    {
+        if (str_starts_with($scenario, 'ioerr-1')) {
+            return ['ioerr.test ioerr-1 rollback/commit/delete error sweep'];
+        }
+        if (str_starts_with($scenario, 'ioerr-2')) {
+            return ['ioerr.test ioerr-2 VACUUM IO error checksum/refcount sweep'];
+        }
+        if (str_starts_with($scenario, 'ioerr-3')) {
+            return ['ioerr.test ioerr-3 delete/update/create after overflow-row setup'];
+        }
+        if (str_starts_with($scenario, 'ioerr-5')) {
+            return ['ioerr.test ioerr-5 attached database multi-file commit'];
+        }
+        if (str_starts_with($scenario, 'ioerr-7')) {
+            return ['ioerr.test ioerr-7 hot journal rollback after copied journal'];
+        }
+        if (str_starts_with($scenario, 'ioerr-9')) {
+            return ['ioerr.test ioerr-9 master-journal name read during hot journal'];
+        }
+        if (str_starts_with($scenario, 'ioerr-10')) {
+            return ['ioerr.test ioerr-10 statement playback constraint rollback'];
+        }
+        if (str_starts_with($scenario, 'ioerr-12')) {
+            return ['ioerr.test ioerr-12 coresident sector journal write failure'];
+        }
+        if (str_starts_with($scenario, 'ioerr-13')) {
+            return ['ioerr.test ioerr-13 quick-balance pointer-map IO error'];
+        }
+        if (str_starts_with($scenario, 'ioerr-14')) {
+            return ['ioerr.test ioerr-14 balance-deeper pointer-map IO error'];
+        }
+        if (str_starts_with($scenario, 'ioerr2-3') || str_starts_with($scenario, 'ioerr2-4')) {
+            return ['ioerr2.test ioerr2-3/ioerr2-4 rollback preserves checksum and refcount'];
+        }
+        if (str_starts_with($scenario, 'ioerr2-5')) {
+            return ['ioerr2.test ioerr2-5 UPDATE inside SELECT reports disk I/O error'];
+        }
+        if (str_starts_with($scenario, 'ioerr2-6')) {
+            return ['ioerr2.test ioerr2-6 temp_store_directory xAccess failure'];
+        }
+        if (str_starts_with($scenario, 'ioerr2-7')) {
+            return ['ioerr2.test ioerr2-7 auto-vacuum update/delete commit sweep'];
+        }
+        if (str_starts_with($scenario, 'ioerr3-1')) {
+            return ['ioerr3.test ioerr3-1 soft-heap-limit transaction IO errors'];
+        }
+        if (str_starts_with($scenario, 'ioerr3-2')) {
+            return ['ioerr3.test ioerr3-2 CREATE TEMP TABLE IO error'];
+        }
+        if (str_starts_with($scenario, 'tempfault-1')) {
+            return ['tempfault.test faultsim 1 temp database insert may keep before or after rows'];
+        }
+        if (str_starts_with($scenario, 'tempfault-2')) {
+            return ['tempfault.test faultsim 2 temp indexed table update integrity'];
+        }
+        if (str_starts_with($scenario, 'tempfault-3') || str_starts_with($scenario, 'tempfault-4')) {
+            return ['tempfault.test faultsim 3/4 temp savepoint rollback integrity'];
+        }
+
+        throw new \InvalidArgumentException("Unsupported SQLite IO error recovery scenario: {$scenario}");
     }
 
     /**

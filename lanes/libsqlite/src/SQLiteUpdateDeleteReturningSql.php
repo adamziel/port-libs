@@ -1704,8 +1704,8 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?BETWEEN\s*\((.*?)\)\s+AND\s*\((.*)\)$/is', $term, $match) === 1) {
             $value = self::rowValue($row, self::rowValueColumns($match[1]));
-            $lower = self::rowValueExpressions($match[3], $row);
-            $upper = self::rowValueExpressions($match[4], $row);
+            $lower = self::rowValueExpressions($match[3], $row, $tables);
+            $upper = self::rowValueExpressions($match[4], $row, $tables);
             $result = self::nullableAnd(
                 self::rowValueCompareBoolean($value, '>=', $lower),
                 self::rowValueCompareBoolean($value, '<=', $upper),
@@ -1857,8 +1857,8 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?BETWEEN\s*\((.*?)\)\s+AND\s*\((.*)\)$/is', $expression, $match) === 1) {
             $value = self::rowValue($row, self::rowValueColumns($match[1]));
-            $lower = self::rowValueExpressions($match[3], $row);
-            $upper = self::rowValueExpressions($match[4], $row);
+            $lower = self::rowValueExpressions($match[3], $row, $tables);
+            $upper = self::rowValueExpressions($match[4], $row, $tables);
             $result = self::nullableAnd(
                 self::rowValueCompareBoolean($value, '>=', $lower),
                 self::rowValueCompareBoolean($value, '<=', $upper),
@@ -2096,7 +2096,7 @@ final class SQLiteUpdateDeleteReturningSql
      * @param array<string,mixed> $row
      * @return array{matched:bool,value:?bool}
      */
-    private static function evaluateRowValueExpressionPredicate(string $expression, array $row): array
+    private static function evaluateRowValueExpressionPredicate(string $expression, array $row, array $tables = []): array
     {
         $not = self::unwrapUnaryNot($expression);
         if ($not !== null) {
@@ -2104,8 +2104,8 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?BETWEEN\s*\((.*?)\)\s+AND\s*\((.*)\)$/is', $expression, $match) === 1) {
             $value = self::rowValue($row, self::rowValueColumns($match[1]));
-            $lower = self::rowValueExpressions($match[3], $row);
-            $upper = self::rowValueExpressions($match[4], $row);
+            $lower = self::rowValueExpressions($match[3], $row, $tables);
+            $upper = self::rowValueExpressions($match[4], $row, $tables);
             $result = self::nullableAnd(
                 self::rowValueCompareBoolean($value, '>=', $lower),
                 self::rowValueCompareBoolean($value, '<=', $upper),
@@ -2118,7 +2118,7 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^\(([^()]+)\)\s+(NOT\s+)?IN\s*\((.*)\)$/is', $expression, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
-            $tuples = self::rowValueTupleList($match[3], $row);
+            $tuples = self::rowValueTupleList($match[3], $row, $tables);
             $result = self::rowValueIn($left, $tuples);
 
             return [
@@ -2128,7 +2128,7 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^\(([^()]+)\)\s+IS\s+(NOT\s+)?\((.*)\)$/is', $expression, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
-            $right = self::rowValueExpressions($match[3], $row);
+            $right = self::rowValueExpressions($match[3], $row, $tables);
             $result = self::rowValueIs($left, $right);
 
             return [
@@ -2138,7 +2138,7 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^\(([^()]+)\)\s+IS\s+(NOT\s+)?DISTINCT\s+FROM\s*\((.*)\)$/is', $expression, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
-            $right = self::rowValueExpressions($match[3], $row);
+            $right = self::rowValueExpressions($match[3], $row, $tables);
             $result = self::rowValueIsDistinctFrom($left, $right);
 
             return [
@@ -2148,7 +2148,7 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^\(([^()]+)\)\s*(=|<>|!=|>=|<=|>|<)\s*\((.*)\)$/s', $expression, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
-            $right = self::rowValueExpressions($match[3], $row);
+            $right = self::rowValueExpressions($match[3], $row, $tables);
             if ($match[2] === '=' || $match[2] === '<>' || $match[2] === '!=') {
                 $equals = self::rowValueEqualsNullable($left, $right);
                 $result = match ($match[2]) {

@@ -17,6 +17,7 @@ $missingWalTailScenarios = SQLiteJsonImportRollbackWalPlan::dynamicMissingWalTai
 $partialWalTailScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPartialWalTailScenarios(18);
 $frameHeaderMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFrameHeaderMismatchScenarios(18);
 $frameChecksumMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFrameChecksumMismatchScenarios(18);
+$headerChecksumMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicHeaderChecksumMismatchScenarios(18);
 
 $tests = [
     'sqlite application wal rollback json dynamic parity exposes requested scenario count' => static function (TestRunner $t) use ($scenarios): void {
@@ -165,6 +166,17 @@ $tests = [
         $pageSizes = array_values(array_unique(array_column($frameChecksumMismatchScenarios, 'page_size')));
         sort($pageSizes);
         $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json dynamic parity header-checksum mismatch exposes requested scenario count' => static function (TestRunner $t) use ($headerChecksumMismatchScenarios): void {
+        $t->same(18, count($headerChecksumMismatchScenarios));
+    },
+    'sqlite application wal rollback json dynamic parity header-checksum mismatch covers prefix frame counts' => static function (TestRunner $t) use ($headerChecksumMismatchScenarios): void {
+        $prefixCounts = array_values(array_unique(array_column($headerChecksumMismatchScenarios, 'preexisting_frames')));
+        sort($prefixCounts);
+        $t->same([2, 3, 4, 5], $prefixCounts);
+    },
+    'sqlite application wal rollback json dynamic parity header-checksum mismatch covers both checksum fields' => static function (TestRunner $t) use ($headerChecksumMismatchScenarios): void {
+        $t->same([28, 24], array_values(array_unique(array_column($headerChecksumMismatchScenarios, 'checksum_offset'))));
     },
 ];
 
@@ -824,6 +836,29 @@ foreach ($frameChecksumMismatchScenarios as $scenario) {
     };
 }
 
+foreach ($headerChecksumMismatchScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $prefix = 'sqlite application wal rollback json dynamic parity header-checksum mismatch seed ' . $seed . ' ';
+
+    $tests[$prefix . 'rejects corrupt wal header checksum'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same(
+            'SQLite Application JSON import rollback WAL header checksum does not match the header content',
+            $scenario['exception_message']
+        );
+    };
+    $tests[$prefix . 'keeps corrupt wal frame aligned'] = static function (TestRunner $t) use ($scenario): void {
+        $frameSize = 24 + $scenario['page_size'];
+        $t->same(0, (strlen($scenario['corrupt_wal_bytes']) - 32) % $frameSize);
+    };
+    $tests[$prefix . 'corrupts only the header checksum area'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same(true, $scenario['checksum_offset'] === 24 || $scenario['checksum_offset'] === 28);
+    };
+    $tests[$prefix . 'preserves full wal frame count before rejection'] = static function (TestRunner $t) use ($scenario): void {
+        $frameSize = 24 + $scenario['page_size'];
+        $t->same($scenario['wal_frames_before'], intdiv(strlen($scenario['corrupt_wal_bytes']) - 32, $frameSize));
+    };
+}
+
 $tests['sqlite application wal rollback json dynamic parity rejects zero scenarios'] = static function (TestRunner $t): void {
     try {
         SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(0);
@@ -956,6 +991,17 @@ $tests['sqlite application wal rollback json dynamic parity rejects zero frame-c
     $t->same('rejected', 'accepted');
 };
 
+$tests['sqlite application wal rollback json dynamic parity rejects zero header-checksum mismatch scenarios'] = static function (TestRunner $t): void {
+    try {
+        SQLiteJsonImportRollbackWalPlan::dynamicHeaderChecksumMismatchScenarios(0);
+    } catch (InvalidArgumentException) {
+        $t->same('rejected', 'rejected');
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
 $tests['sqlite application wal rollback json dynamic parity explicit small batch remains deterministic'] = static function (TestRunner $t): void {
     $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(3);
     $t->same([101, 102, 103], array_column($smallBatch, 'tenant_id'));
@@ -1039,6 +1085,13 @@ $tests['sqlite application wal rollback json dynamic parity frame-checksum misma
     $t->same([1201, 1202, 1203, 1204], array_column($smallBatch, 'tenant_id'));
     $t->same([4, 5, 6, 3], array_column($smallBatch, 'target_frame'));
     $t->same([512, 1024, 512, 1024], array_column($smallBatch, 'page_size'));
+};
+
+$tests['sqlite application wal rollback json dynamic parity header-checksum mismatch small batch remains deterministic'] = static function (TestRunner $t): void {
+    $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicHeaderChecksumMismatchScenarios(4);
+    $t->same([1201, 1202, 1203, 1204], array_column($smallBatch, 'tenant_id'));
+    $t->same([28, 24, 28, 24], array_column($smallBatch, 'checksum_offset'));
+    $t->same([6, 7, 8, 5], array_column($smallBatch, 'wal_frames_before'));
 };
 
 $tests['sqlite application wal rollback json dynamic parity rejects wal header page size mismatch'] = static function (TestRunner $t) use ($scenarios): void {

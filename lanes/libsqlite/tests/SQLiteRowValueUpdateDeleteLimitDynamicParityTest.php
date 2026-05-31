@@ -2436,6 +2436,49 @@ foreach ($rowValueScalarSubqueryCases as $name => [$sql, $expectedIds, $column, 
         };
 }
 
+$rowValueBetweenSubqueryCases = [
+    'update between ordered subquery bounds with outer limit' => [
+        "UPDATE app_settings SET state = 'between_subquery' WHERE (tenant_id, key_name) BETWEEN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT 1 OFFSET 1) AND (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT 1 OFFSET 0) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT 3 OFFSET 1",
+        [4, 5, 6],
+        'state',
+        ['between_subquery', 'between_subquery', 'between_subquery'],
+    ],
+    'delete between ordered subquery bounds with comma limit' => [
+        "DELETE FROM app_settings WHERE (tenant_id, key_name) BETWEEN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT 1 OFFSET 1) AND (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT 1 OFFSET 0) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT 2, 3",
+        [5, 6, 7],
+        null,
+        null,
+    ],
+    'update not between ordered subquery bounds keeps outside window' => [
+        "UPDATE app_settings SET state = 'not_between_subquery' WHERE (tenant_id, key_name) NOT BETWEEN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT 1 OFFSET 1) AND (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT 1 OFFSET 0) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1",
+        [1, 2],
+        'state',
+        ['not_between_subquery', 'not_between_subquery'],
+    ],
+    'delete between reversed ordered subquery bounds selects no rows' => [
+        "DELETE FROM app_settings WHERE (tenant_id, key_name) BETWEEN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT 1 OFFSET 0) AND (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT 1 OFFSET 1) RETURNING setting_id ORDER BY setting_id LIMIT -1",
+        [],
+        null,
+        null,
+    ],
+];
+
+foreach ($rowValueBetweenSubqueryCases as $name => [$sql, $expectedIds, $column, $expectedColumnValues]) {
+    $tests['rowvalue update delete limit dynamic parity rowvalue between subquery ' . $name] =
+        static function (TestRunner $t) use ($execute, $sql, $expectedIds, $column, $expectedColumnValues): void {
+            $result = $execute($sql);
+            $t->same($expectedIds, $result['plan']->selectedIds);
+            $t->same($expectedIds, array_column($result['returning'], 'setting_id'));
+            if (is_string($column)) {
+                $t->same($expectedColumnValues, array_column($result['returning'], $column));
+            } else {
+                $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expectedIds)), array_column($result['tables']['app_settings'], 'setting_id'));
+            }
+            $t->contains('rowvalue.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue.test');
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+        };
+}
+
 $tests['rowvalue update delete limit dynamic parity rowvalue4 scalar subquery arity mismatch rejected'] =
     static function (TestRunner $t) use ($execute): void {
         $t->throws(InvalidArgumentException::class, static fn (): mixed => $execute(
