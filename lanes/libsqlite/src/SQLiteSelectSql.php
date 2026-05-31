@@ -3921,6 +3921,12 @@ final class SQLiteSelectSql
                 'right' => self::valueExpression($right, $tables),
             ];
         }
+        if (preg_match('/^[+-]?[0-9]+$/', $sql) === 1) {
+            return ['type' => 'literal', 'value' => self::integerLiteralValue($sql)];
+        }
+        if (preg_match('/^[+-]?(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)$/', $sql) === 1) {
+            return ['type' => 'literal', 'value' => (float) $sql, 'literalText' => self::realLiteralText($sql)];
+        }
         if (preg_match('/^[+\-~]\s*(.+)$/s', $sql, $match) === 1) {
             return [
                 'type' => 'unary',
@@ -4004,7 +4010,7 @@ final class SQLiteSelectSql
             throw new \InvalidArgumentException('SQLite SELECT SQL FILTER clause needs an aggregate function');
         }
         if (preg_match('/^[+-]?[0-9]+$/', $sql) === 1) {
-            return ['type' => 'literal', 'value' => (int) $sql];
+            return ['type' => 'literal', 'value' => self::integerLiteralValue($sql)];
         }
         if (preg_match('/^[+-]?(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)$/', $sql) === 1) {
             return ['type' => 'literal', 'value' => (float) $sql, 'literalText' => self::realLiteralText($sql)];
@@ -4066,6 +4072,28 @@ final class SQLiteSelectSql
         }
 
         return (string) $value;
+    }
+
+    private static function integerLiteralValue(string $sql): int|float
+    {
+        $negative = str_starts_with($sql, '-');
+        $digits = ltrim($sql, '+-');
+        $digits = ltrim($digits, '0');
+        if ($digits === '') {
+            return 0;
+        }
+
+        $limit = $negative ? '9223372036854775808' : '9223372036854775807';
+        if (strlen($digits) > strlen($limit) || (strlen($digits) === strlen($limit) && strcmp($digits, $limit) > 0)) {
+            return (float) $sql;
+        }
+        if ($negative && $digits === '9223372036854775808') {
+            return PHP_INT_MIN;
+        }
+
+        $value = (int) $digits;
+
+        return $negative ? -$value : $value;
     }
 
     private static function columnIdentifierExpression(string $sql): ?string
@@ -5986,11 +6014,26 @@ final class SQLiteSelectSql
     private static function unquoteIdentifier(string $value): ?string
     {
         $value = trim($value);
-        if (strlen($value) < 2 || $value[0] !== '"' || $value[strlen($value) - 1] !== '"') {
+        if (strlen($value) < 2) {
             return null;
         }
 
-        return str_replace('""', '"', substr($value, 1, -1));
+        $quote = $value[0];
+        $last = $value[strlen($value) - 1];
+        if ($quote === '"' && $last === '"') {
+            return str_replace('""', '"', substr($value, 1, -1));
+        }
+        if ($quote === "'" && $last === "'") {
+            return str_replace("''", "'", substr($value, 1, -1));
+        }
+        if ($quote === '`' && $last === '`') {
+            return str_replace('``', '`', substr($value, 1, -1));
+        }
+        if ($quote === '[' && $last === ']') {
+            return substr($value, 1, -1);
+        }
+
+        return null;
     }
 
     private static function assertBareIdentifier(string $value, string $context): void

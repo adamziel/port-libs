@@ -64,6 +64,12 @@ $updateRealCastLimit = "UPDATE app_settings SET state = 'real_cast_limit' WHERE 
 $deleteTextCastCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT CAST('1' AS TEXT), CAST('3.0' AS TEXT)";
 $updateNumericCastSubqueryLimit = "UPDATE app_settings SET state = 'numeric_cast_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets WHERE action = 'refresh' ORDER BY priority ASC LIMIT CAST('3.0' AS NUMERIC) OFFSET CAST('1.0' AS NUMERIC)) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
 $deleteNumericCastSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT CAST('3.0' AS NUMERIC) OFFSET CAST('2.0' AS REAL)) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+$updateExponentLimit = "UPDATE app_settings SET state = 'exponent_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT 2e+0 OFFSET 1e0";
+$deleteExponentCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT 0e0+1e0, 2e+0";
+$updateHexLimit = "UPDATE app_settings SET state = 'hex_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT 0x3 OFFSET 0x1";
+$deleteHexCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT 0x1, 0x2";
+$updateRowValueExponentSubqueryLimit = "UPDATE app_settings SET state = 'exponent_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT 2e+0 OFFSET 1e0) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+$deleteRowValueHexSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT 0x3 OFFSET 0x1) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
 
 $cases = [
     'parse update negative offset retained' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateNegativeOffset)['offset'], -4],
@@ -137,12 +143,30 @@ $cases = [
     'update row-value subquery numeric cast returns source order' => [static fn (): mixed => array_column($execute($updateNumericCastSubqueryLimit)['returning'], 'setting_id'), [2, 5]],
     'delete row-value subquery numeric and real cast window applies before tuple match' => [static fn (): mixed => $execute($deleteNumericCastSubqueryLimit)['plan']->selectedIds, [2, 5, 8]],
     'delete row-value subquery numeric and real cast keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteNumericCastSubqueryLimit)['tables']['app_settings'], 'setting_id'), [1, 3, 4, 6, 7]],
+    'parse update exponent limit with signed exponent' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateExponentLimit)['limit'], 2],
+    'parse update exponent offset without signed exponent' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateExponentLimit)['offset'], 1],
+    'update exponent limit selects ordered lazy window' => [static fn (): mixed => $execute($updateExponentLimit)['plan']->selectedIds, [2, 3]],
+    'update exponent limit returns source order' => [static fn (): mixed => array_column($execute($updateExponentLimit)['returning'], 'setting_id'), [2, 3]],
+    'parse delete exponent comma offset expression' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteExponentCommaLimit)['offset'], 1],
+    'parse delete exponent comma count expression' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteExponentCommaLimit)['limit'], 2],
+    'delete exponent comma limit selects ordered lazy window' => [static fn (): mixed => $execute($deleteExponentCommaLimit)['plan']->selectedIds, [2, 3]],
+    'parse update hexadecimal limit literal' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateHexLimit)['limit'], 3],
+    'parse update hexadecimal offset literal' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateHexLimit)['offset'], 1],
+    'update hexadecimal limit selects ordered lazy window' => [static fn (): mixed => $execute($updateHexLimit)['plan']->selectedIds, [2, 3, 6]],
+    'parse delete hexadecimal comma offset literal' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteHexCommaLimit)['offset'], 1],
+    'parse delete hexadecimal comma count literal' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteHexCommaLimit)['limit'], 2],
+    'delete hexadecimal comma limit selects ordered lazy window' => [static fn (): mixed => $execute($deleteHexCommaLimit)['plan']->selectedIds, [2, 3]],
+    'update row-value exponent subquery window applies before tuple match' => [static fn (): mixed => $execute($updateRowValueExponentSubqueryLimit)['plan']->selectedIds, [3, 5]],
+    'update row-value exponent subquery returns source order' => [static fn (): mixed => array_column($execute($updateRowValueExponentSubqueryLimit)['returning'], 'setting_id'), [3, 5]],
+    'delete row-value hexadecimal subquery window applies before tuple match' => [static fn (): mixed => $execute($deleteRowValueHexSubqueryLimit)['plan']->selectedIds, [2, 3, 5]],
+    'delete row-value hexadecimal subquery keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueHexSubqueryLimit)['tables']['app_settings'], 'setting_id'), [1, 4, 6, 7, 8]],
     'malformed cast null limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT CAST(NULL AS INTEGER)"), InvalidArgumentException::class],
     'malformed cast blob offset rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET CAST(X'ABCD' AS INT)"), InvalidArgumentException::class],
     'malformed nonintegral real cast limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT CAST('2.5' AS REAL)"), InvalidArgumentException::class],
     'malformed nonintegral numeric cast limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT CAST('2.5' AS NUMERIC)"), InvalidArgumentException::class],
     'malformed blob cast limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT CAST('2' AS BLOB)"), InvalidArgumentException::class],
     'malformed non-integral limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1.2"), InvalidArgumentException::class],
+    'malformed non-integral exponent limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 2.5e0"), InvalidArgumentException::class],
     'malformed null offset rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET NULL"), InvalidArgumentException::class],
     'malformed missing generic rowid rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute($updateNegativeOffset, ['app_settings' => [['tenant_id' => 1, 'key_name' => 'alpha']]], 'setting_id'), InvalidArgumentException::class],
 ];

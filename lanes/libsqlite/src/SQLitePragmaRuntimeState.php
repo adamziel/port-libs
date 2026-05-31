@@ -61,12 +61,12 @@ final class SQLitePragmaRuntimeState
 
         if ($name === 'cache_spill') {
             if ($value !== null) {
-                $spill = $this->cacheSpillValue($value, $this->schemas[$schema]['cache_size']);
                 if ($schema === 'main' && !$parsed['qualified']) {
                     foreach (array_keys($this->schemas) as $schemaName) {
-                        $this->schemas[$schemaName]['cache_spill'] = $spill;
+                        $this->schemas[$schemaName]['cache_spill'] = $this->cacheSpillValue($value, $this->schemas[$schemaName]['cache_size']);
                     }
                 } else {
+                    $spill = $this->cacheSpillValue($value, $this->schemas[$schema]['cache_size']);
                     $this->schemas[$schema]['cache_spill'] = $spill;
                 }
             }

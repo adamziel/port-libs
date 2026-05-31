@@ -3826,6 +3826,212 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,index_name:string|null,table_name:string,result_rows:list<array<int,mixed>>,expected_error:string|null,uses_index:bool,autoindex_count:int|null,sort_order:list<int>,numeric_affinity:bool,integrity:string,batch:int}>
+     */
+    public static function indexLateLifecycleAndAffinityCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index late lifecycle corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'index-10.0/10.9',
+                'duplicate non-unique index keys preserve all matching rowids and delete cleanly',
+                'CREATE INDEX i1 ON t1(a); DELETE matching b rows; SELECT b FROM t1 WHERE a=1 ORDER BY b',
+                'i1',
+                't1',
+                [[2], [12]],
+                null,
+                true,
+                null,
+                [2, 12, 4, 1, 3, 5, 7, 9, 0],
+                false,
+                'ok',
+            ],
+            [
+                'index-11.1/11.2',
+                'primary-key autoindex drives equality lookup and exposes bounded search count',
+                'CREATE TABLE t3(a,b PRIMARY KEY,c); SELECT c FROM t3 WHERE b==10',
+                'sqlite_autoindex_t3_1',
+                't3',
+                [[0.1]],
+                null,
+                true,
+                1,
+                [],
+                false,
+                'ok',
+            ],
+            [
+                'index-12.1/12.8',
+                'NUMERIC affinity stores numeric strings canonically and indexed range probes match table scans',
+                'CREATE INDEX t4i1 ON t4(a); SELECT a FROM t4 WHERE a<0.5 ORDER BY b',
+                't4i1',
+                't4',
+                [[0], [0], [-1], [0], [0]],
+                null,
+                true,
+                null,
+                [1, 2, 4, 6, 7],
+                true,
+                'ok',
+            ],
+            [
+                'index-13.1/13.5',
+                'constraint autoindexes cannot be dropped and UNIQUE/PRIMARY KEY rows remain intact',
+                'DROP INDEX sqlite_autoindex_t5_1',
+                'sqlite_autoindex_t5_1',
+                't5',
+                [[1, 2.0, 3], ['a', 'b', 'c']],
+                'index associated with UNIQUE or PRIMARY KEY constraint cannot be dropped',
+                true,
+                3,
+                [],
+                false,
+                'expected-error-preserves-table',
+            ],
+            [
+                'index-14.1/14.12',
+                'index sort order keeps NULL before numeric/text values and respects range constraints',
+                'CREATE INDEX t6i1 ON t6(a,b); SELECT c FROM t6 ORDER BY a,b',
+                't6i1',
+                't6',
+                [[3], [5], [2], [1], [4]],
+                null,
+                true,
+                null,
+                [3, 5, 2, 1, 4],
+                false,
+                'ok',
+            ],
+            [
+                'index-15.1/15.4',
+                'exponent-looking text values with NUMERIC affinity sort by numeric conversion when valid',
+                'INSERT exponent forms into t1; SELECT b FROM t1 ORDER BY a,b',
+                'i1',
+                't1',
+                [[13], [14], [15], [12], [8], [5], [2], [1], [3], [6], [10], [11], [9], [4], [7]],
+                null,
+                true,
+                null,
+                [13, 14, 15, 12, 8, 5, 2, 1, 3, 6, 10, 11, 9, 4, 7],
+                true,
+                'ok',
+            ],
+            [
+                'index-16.1/17.4',
+                'redundant UNIQUE and PRIMARY KEY constraints share autoindexes and keep generated names stable',
+                'CREATE TABLE t7(c,d UNIQUE,UNIQUE(c),PRIMARY KEY(c,d)); DROP INDEX IF EXISTS sqlite_autoindex_t7_1',
+                'sqlite_autoindex_t7_1',
+                't7',
+                [],
+                'index associated with UNIQUE or PRIMARY KEY constraint cannot be dropped',
+                true,
+                3,
+                [],
+                false,
+                'expected-error-preserves-schema',
+            ],
+            [
+                'index-18.1/18.5',
+                'schema object names beginning with sqlite_ are reserved for internal use',
+                'CREATE TABLE sqlite_t1(a,b,c); CREATE INDEX sqlite_i1 ON t7(c)',
+                null,
+                'sqlite_t1',
+                [],
+                'object name reserved for internal use',
+                false,
+                null,
+                [],
+                false,
+                'expected-error-preserves-schema',
+            ],
+            [
+                'index-19.1/19.8',
+                'merged constraint indexes preserve the correct ON CONFLICT policy',
+                'CREATE TABLE t7(a UNIQUE PRIMARY KEY); CREATE TABLE t8(a UNIQUE PRIMARY KEY ON CONFLICT ROLLBACK)',
+                'sqlite_autoindex_t8_1',
+                't8',
+                [],
+                'UNIQUE constraint failed',
+                true,
+                1,
+                [],
+                false,
+                'expected-conflict-policy',
+            ],
+            [
+                'index-20.1/21.2',
+                'quoted DROP INDEX and TEMP index namespace rules mutate only the intended schema',
+                'CREATE INDEX "t6i2" ON t6(c); DROP INDEX "t6i2"; CREATE TEMP INDEX temp.i21 ON t6(x)',
+                'i21',
+                't6',
+                [[9], [5], [1]],
+                null,
+                true,
+                null,
+                [9, 5, 1],
+                false,
+                'ok',
+            ],
+            [
+                'index-22.0',
+                'expression indexes with IF NOT EXISTS do not reject mixed text/integer expression rows',
+                'CREATE UNIQUE INDEX IF NOT EXISTS x1 ON t1(b==0); CREATE INDEX IF NOT EXISTS x2 ON t1(a||0) WHERE b',
+                'x1',
+                't1',
+                [['a', 1], ['a', 0]],
+                null,
+                true,
+                null,
+                [],
+                false,
+                'ok',
+            ],
+            [
+                'index-23.0/23.1',
+                'REINDEX preserves expression-index rows for GLOB and TYPEOF unique expressions',
+                'CREATE UNIQUE INDEX t1x1 ON t1(a GLOB b); CREATE UNIQUE INDEX index_0 ON t1(TYPEOF(a)); REINDEX',
+                't1x1',
+                't1',
+                [['0.0', 1.0], ['1.0', 1.0], [0.1]],
+                null,
+                true,
+                null,
+                [],
+                true,
+                'ok',
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $indexName, $table, $resultRows, $error, $usesIndex, $autoindexCount, $sortOrder, $numericAffinity, $integrity] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $rows[] = [
+                'source' => 'index.test sections index-10.0 through index-23.1',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'statement' => $statement,
+                'index_name' => $indexName,
+                'table_name' => $table,
+                'result_rows' => $resultRows,
+                'expected_error' => $error,
+                'uses_index' => $usesIndex,
+                'autoindex_count' => $autoindexCount,
+                'sort_order' => $sortOrder,
+                'numeric_affinity' => $numericAffinity,
+                'integrity' => $integrity,
+                'batch' => $batch,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,batch:int,sql:string,index_name:string,expression:string,where_clause:string|null,order_by:string|null,result_rows:list<array<int,mixed>>,function_opcode_count:int,covering_index:bool,uses_index:bool,detail:string,integrity:string}>
      */
     public static function indexExpressionJsonCoveringCases(int $cases = 1000): array

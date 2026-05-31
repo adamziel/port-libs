@@ -5345,6 +5345,159 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @return array<string,mixed>
+     */
+    public static function tempTriggerSharedCacheReloadPlan(int $seed, string $reloadKind, bool $attachedSchema = false): array
+    {
+        if (!in_array($reloadKind, ['schema-reload', 'connection-reopen'], true)) {
+            throw new \InvalidArgumentException('SQLite temptrigger reload kind is unsupported');
+        }
+
+        $first = [$seed, $seed + 1];
+        $external = [$seed + 2, $seed + 3];
+        $afterReload = [$seed + 4, $seed + 5];
+
+        return [
+            'source' => $attachedSchema ? 'temptrigger.test temptrigger-3.1..3.4' : 'temptrigger.test temptrigger-1.1..2.5',
+            'operation' => $attachedSchema ? 'attached-temp-trigger-schema-reload' : 'shared-cache-temp-trigger-schema-reload',
+            'status' => 'commit-ok',
+            'reload_kind' => $reloadKind,
+            'attached_schema' => $attachedSchema,
+            'base_rows' => [$first, $external, $afterReload],
+            'temp_rows' => [$first, $afterReload],
+            'temp_trigger_fired_for_owner_before_reload' => true,
+            'temp_trigger_hidden_from_peer_connection' => !$attachedSchema,
+            'temp_trigger_survived_schema_reload' => true,
+            'drop_trigger_after_reload_ok' => true,
+            'schema_cookie_source' => $attachedSchema ? 'attached-database-peer' : $reloadKind,
+            'dependencies' => [
+                'sqlite-temptrigger-connection-local-temp-trigger',
+                'sqlite-temptrigger-shared-cache-schema-reload-preserves-owner-trigger',
+                'sqlite-temptrigger-attached-schema-reload-preserves-temp-trigger',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    public static function tempTriggerQualifiedBodyPlan(string $event, bool $tempTrigger, int|string $left, int|string $right): array
+    {
+        $event = strtolower(trim($event));
+        if (!in_array($event, ['insert', 'update', 'delete'], true)) {
+            throw new \InvalidArgumentException('SQLite temptrigger qualified body event is unsupported');
+        }
+
+        $qualifiedAllowed = $tempTrigger;
+        $targetRows = [];
+        $mainRows = [];
+        if ($qualifiedAllowed) {
+            if ($event === 'insert') {
+                $targetRows[] = [$left, $right];
+            } elseif ($event === 'update') {
+                $mainRows[] = [$left, $right];
+            } else {
+                $mainRows[] = ['main-survivor', (string) $left . ':' . (string) $right];
+            }
+        }
+
+        return [
+            'source' => 'temptrigger.test temptrigger-8.1.1..8.3.3',
+            'operation' => 'temp-trigger-qualified-body-dml',
+            'status' => $qualifiedAllowed ? 'commit-ok' : 'create-trigger-error',
+            'event' => $event,
+            'temp_trigger' => $tempTrigger,
+            'qualified_dml_allowed' => $qualifiedAllowed,
+            'error' => $qualifiedAllowed ? null : 'qualified table names are not allowed on INSERT, UPDATE, and DELETE statements within triggers',
+            'target_rows' => $targetRows,
+            'main_rows' => $mainRows,
+            'aux_rows' => $event === 'delete' && $qualifiedAllowed ? [] : $targetRows,
+            'dependencies' => [
+                'sqlite-temptrigger-qualified-dml-only-for-temp-triggers',
+                'sqlite-temptrigger-qualified-insert-update-delete-routes-attached-targets',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    public static function tempTriggerNameResolutionPlan(int $seed, bool $mainShadowCreated): array
+    {
+        $auxRows = [[$seed, $seed + 1]];
+        $mainRows = [];
+        if ($mainShadowCreated) {
+            $mainRows[] = [$seed + 2, $seed + 3];
+        } else {
+            $auxRows[] = [$seed + 2, $seed + 3];
+        }
+
+        return [
+            'source' => 'temptrigger.test temptrigger-6.0..7.6',
+            'operation' => 'temp-trigger-name-resolution',
+            'status' => 'commit-ok',
+            'main_shadow_created' => $mainShadowCreated,
+            'main_rows' => $mainRows,
+            'aux_rows' => $auxRows,
+            'qualified_aux_reference_in_temp_trigger_ok' => true,
+            'qualified_aux_reference_in_persistent_trigger_error' => true,
+            'main_trigger_still_guards_main_table' => true,
+            'dependencies' => [
+                'sqlite-temptrigger-main-shadow-does-not-steal-existing-attached-target',
+                'sqlite-temptrigger-recreated-body-resolves-unqualified-name-after-shadow',
+                'sqlite-temptrigger-persistent-trigger-cannot-reference-attached-body',
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return array<string,mixed>
+     */
+    public static function tempTriggerAttachedChainPlan(int $databaseCount, array $row, string $event): array
+    {
+        if ($databaseCount < 2) {
+            throw new \InvalidArgumentException('SQLite temptrigger attached chain needs at least two databases');
+        }
+        $event = strtolower(trim($event));
+        if (!in_array($event, ['insert', 'update', 'delete'], true)) {
+            throw new \InvalidArgumentException('SQLite temptrigger attached chain event is unsupported');
+        }
+
+        $tuple = [
+            $row['a'] ?? throw new \InvalidArgumentException('SQLite temptrigger chain row requires a'),
+            $row['b'] ?? throw new \InvalidArgumentException('SQLite temptrigger chain row requires b'),
+            $row['c'] ?? throw new \InvalidArgumentException('SQLite temptrigger chain row requires c'),
+        ];
+        $rowsBySchema = [];
+        for ($i = 0; $i < $databaseCount; ++$i) {
+            $rotated = $tuple;
+            for ($step = 0; $step < $i % 3; ++$step) {
+                $rotated = [$rotated[1], $rotated[2], $rotated[0]];
+            }
+            $rowsBySchema['db' . $i] = $event === 'delete' ? [] : [$rotated];
+        }
+
+        return [
+            'source' => 'temptrigger.test temptrigger-9.0..9.5.3',
+            'operation' => 'temp-trigger-attached-schema-chain',
+            'status' => 'commit-ok',
+            'event' => $event,
+            'database_count' => $databaseCount,
+            'trigger_count' => $databaseCount - 1,
+            'rows_by_schema' => $rowsBySchema,
+            'cascade_depth' => $databaseCount - 1,
+            'rotates_values_across_attached_schemas' => $event !== 'delete',
+            'delete_clears_chained_attached_tables' => $event === 'delete',
+            'dependencies' => [
+                'sqlite-temptrigger-attached-insert-chain-routes-new-values',
+                'sqlite-temptrigger-attached-update-chain-routes-new-values',
+                'sqlite-temptrigger-attached-delete-chain-clears-downstream-tables',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{name:string,timing:string,event:string}> $triggers
      * @return array<string,int>
      */

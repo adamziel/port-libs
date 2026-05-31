@@ -646,12 +646,21 @@ final class SQLiteSelectExpression
             '+' => self::integerLike($leftNumeric, $rightNumeric) ? (int) $leftNumeric + (int) $rightNumeric : $leftNumeric + $rightNumeric,
             '-' => self::integerLike($leftNumeric, $rightNumeric) ? (int) $leftNumeric - (int) $rightNumeric : $leftNumeric - $rightNumeric,
             '*' => self::integerLike($leftNumeric, $rightNumeric) ? (int) $leftNumeric * (int) $rightNumeric : $leftNumeric * $rightNumeric,
-            '/' => self::integerLike($leftNumeric, $rightNumeric) ? intdiv((int) $leftNumeric, (int) $rightNumeric) : $leftNumeric / $rightNumeric,
+            '/' => self::integerLike($leftNumeric, $rightNumeric) ? self::integerDivisionValue((int) $leftNumeric, (int) $rightNumeric) : $leftNumeric / $rightNumeric,
             '%' => self::integerLike($leftNumeric, $rightNumeric)
                 ? (int) $leftNumeric % (int) $rightNumeric
                 : (float) ((int) $leftNumeric % (int) $rightNumeric),
             default => throw new \InvalidArgumentException("SQLite SELECT numeric operator {$operator} is not supported"),
         };
+    }
+
+    private static function integerDivisionValue(int $left, int $right): int|float
+    {
+        if ($left === PHP_INT_MIN && $right === -1) {
+            return (float) $left / -1.0;
+        }
+
+        return intdiv($left, $right);
     }
 
     private static function bitwiseValue(mixed $left, mixed $right, string $operator): int

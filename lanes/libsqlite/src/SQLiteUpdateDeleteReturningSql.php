@@ -681,7 +681,17 @@ final class SQLiteUpdateDeleteReturningSql
         if (preg_match('/^-?\d+$/', $expression) === 1) {
             return (int) $expression;
         }
-        if (preg_match('/^-?(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?$/', $expression) === 1) {
+        if (preg_match('/^-?0x[0-9A-F]+$/i', $expression) === 1) {
+            $negative = str_starts_with($expression, '-');
+            $hex = ltrim($expression, '-');
+            $value = hexdec(substr($hex, 2));
+            if (!is_int($value)) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT hexadecimal literal is out of range');
+            }
+
+            return $negative ? -$value : $value;
+        }
+        if (preg_match('/^-?(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+)$/', $expression) === 1) {
             return (float) $expression;
         }
 
@@ -798,6 +808,15 @@ final class SQLiteUpdateDeleteReturningSql
             }
             if (!$inString && $depth === 0 && $char === $operator) {
                 $previous = $buffer === '' ? '' : substr(rtrim($buffer), -1);
+                $next = $sql[$i + 1] ?? '';
+                if (($operator === '+' || $operator === '-') && ($previous === 'e' || $previous === 'E') && preg_match('/\d/', $next) === 1) {
+                    $beforeExponent = substr(rtrim($buffer), 0, -1);
+                    $exponentBaseTail = $beforeExponent === '' ? '' : substr($beforeExponent, -1);
+                    if ($exponentBaseTail !== '' && (ctype_digit($exponentBaseTail) || $exponentBaseTail === '.')) {
+                        $buffer .= $char;
+                        continue;
+                    }
+                }
                 if (($operator === '+' || $operator === '-') && ($previous === '' || in_array($previous, ['+', '-', '*', '/', '('], true))) {
                     $buffer .= $char;
                     continue;
