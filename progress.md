@@ -48,6 +48,33 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 01:06 UTC):
+  Latest libsqlite source is integrated as `ca2ee86f8`
+  (`libsqlite: add thirty-sixth current corpus sweep`). The batch accepted 11
+  non-app-WAL handoffs: row-value UPDATE/DELETE LIMIT parity, B-tree partial-
+  index lifecycle behavior, date4 real-date continuation behavior, expression
+  affinity real-index behavior, JSON103 aggregate behavior, pager WAL dynamics,
+  PRAGMA schema rollback-cookie behavior, trigger/FK nocase repair behavior,
+  UPSERT/RETURNING WHERE behavior, VFS mmap/fault/corrupt behavior, and
+  window7 GROUPS/RANGE behavior. Verification passed PHP lint for `18`
+  changed/new PHP files, `git diff --check -- lanes/libsqlite`, focused
+  selected tests `11 files / 104741 assertions / 0 failures / 19749 PASS
+  lines`, accepted-base overlap `4 files / 33874 assertions / 0 failures /
+  4911 PASS lines`, trigger/upsert related tests `51 files / 393856 assertions
+  / 0 failures / 321945 PASS lines`, rowvalue related tests `116 files / 8738
+  assertions / 0 failures / 7871 PASS lines`, B-tree related tests `23 files /
+  812992 assertions / 0 failures / 48630 PASS lines`, narrow pragma/pager tests
+  `2 files / 51625 assertions / 0 failures / 4452 PASS lines`, and no-domain-
+  specific API guard `1 file / 3 assertions / 0 failures`. Honest selected
+  movement is `+14838`, so the public row should move to `1396749 pass / 0
+  fail` with coverage still `1589 / 1589`. Non-counted broad diagnostics remain
+  honest: the B-tree/expression sweep showed 29 known/base-identical expression
+  failures, and broad pragma/pager sweeps showed known/base-identical pragma
+  failures. App-WAL and a conflicting SELECT handoff remain parked unless
+  independently proved or rebased; libsqlite remains active until full
+  functional/release/all-runner gates are done before moving the team to
+  gitoxide.
+
 - 2026-05-31 supervisor continuation (integration sample 00:47 UTC):
   Latest libsqlite source is integrated as `b2f64d4df`
   (`libsqlite: add thirty-fifth current corpus sweep`). The batch accepted 4
