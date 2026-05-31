@@ -6,7 +6,7 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteJsonExtract
 {
-    public static function extractSqlFunction(string $function, string|SQLiteBlobValue|null $value, string ...$paths): mixed
+    public static function extractSqlFunction(string $function, string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, string ...$paths): mixed
     {
         if ($function === 'json_extract') {
             return self::extract($value, ...$paths);
@@ -36,7 +36,7 @@ final class SQLiteJsonExtract
         )));
     }
 
-    public static function extract(string|SQLiteBlobValue|null $value, string ...$paths): mixed
+    public static function extract(string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, string ...$paths): mixed
     {
         if ($value === null) {
             return null;
@@ -60,7 +60,7 @@ final class SQLiteJsonExtract
         ));
     }
 
-    public static function extractJsonArgument(string|SQLiteBlobValue|null $value, string ...$paths): mixed
+    public static function extractJsonArgument(string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, string ...$paths): mixed
     {
         if ($value === null) {
             return null;
@@ -84,7 +84,7 @@ final class SQLiteJsonExtract
         )));
     }
 
-    public static function extractJsonArgumentSqlFunction(string $function, string|SQLiteBlobValue|null $value, string ...$paths): mixed
+    public static function extractJsonArgumentSqlFunction(string $function, string|SQLiteBlobValue|SQLiteJsonSubtypeValue|null $value, string ...$paths): mixed
     {
         if ($function === 'json_extract') {
             return self::extractJsonArgument($value, ...$paths);

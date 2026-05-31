@@ -1767,6 +1767,50 @@ return [
             $block->setProperty('border: 1px solid red', 'border-right-color', 'green')
         );
     },
+    'declaration block sets upstream physical border component cssom longhands in existing shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => '1px solid red', 'important' => false],
+            $block->getProperty('border-top: 1px solid red', 'border-top')
+        );
+        $t->same(
+            ['value' => 'green', 'important' => true],
+            $block->getProperty('border-color: red green !important', 'border-left-color')
+        );
+        $t->same(
+            'border-color: blue green red',
+            $block->setProperty('border-color: red green', 'border-top-color', 'blue')
+        );
+        $t->same(
+            'border-width: 1px 2px 1px 4px',
+            $block->setProperty('border-width: 1px 2px', 'border-left-width', '4px')
+        );
+        $t->same(
+            'border-style: solid dashed solid double',
+            $block->setProperty('border-style: solid dashed dotted double', 'border-bottom-style', 'solid')
+        );
+        $t->same(
+            'border-top: 2px solid red',
+            $block->setProperty('border-top: 1px solid red', 'border-top-width', '2px')
+        );
+        $t->same(
+            'border-right: 1px dotted blue',
+            $block->setProperty('border-right: 1px solid blue', 'border-right-style', 'dotted')
+        );
+        $t->same(
+            'border-top: 1px solid red; border-color: green blue green green',
+            $block->setProperty('border-top: 1px solid red; border-color: green', 'border-right-color', 'blue')
+        );
+        $t->same(
+            'border-color: red green; border-inline-start-color: orange; border-top-color: blue',
+            $block->setProperty('border-color: red green; border-inline-start-color: orange', 'border-top-color', 'blue')
+        );
+        $t->same(
+            'border-top-color: blue; border-color: red green !important',
+            $block->setProperty('border-color: red green !important', 'border-top-color', 'blue')
+        );
+    },
     'declaration block sets upstream logical border cssom longhands in existing shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

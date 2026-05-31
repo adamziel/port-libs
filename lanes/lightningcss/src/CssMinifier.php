@@ -13579,14 +13579,14 @@ final class CssMinifier
             return '#0000';
         }
 
-        $red = (($left['color']['red'] / 255 * $leftAlpha * $leftWeight) + ($right['color']['red'] / 255 * $rightAlpha * $rightWeight)) / $alpha;
-        $green = (($left['color']['green'] / 255 * $leftAlpha * $leftWeight) + ($right['color']['green'] / 255 * $rightAlpha * $rightWeight)) / $alpha;
-        $blue = (($left['color']['blue'] / 255 * $leftAlpha * $leftWeight) + ($right['color']['blue'] / 255 * $rightAlpha * $rightWeight)) / $alpha;
+        $red = $this->mixSrgbColorMixByteComponent($left['color']['red'], $right['color']['red'], $leftAlpha, $rightAlpha, $leftWeight, $rightWeight, $alpha);
+        $green = $this->mixSrgbColorMixByteComponent($left['color']['green'], $right['color']['green'], $leftAlpha, $rightAlpha, $leftWeight, $rightWeight, $alpha);
+        $blue = $this->mixSrgbColorMixByteComponent($left['color']['blue'], $right['color']['blue'], $leftAlpha, $rightAlpha, $leftWeight, $rightWeight, $alpha);
 
         return $this->serializeColorBytes(
-            $this->clampColorByte((int) round($red * 255)),
-            $this->clampColorByte((int) round($green * 255)),
-            $this->clampColorByte((int) round($blue * 255)),
+            $red,
+            $green,
+            $blue,
             min(1.0, max(0.0, $alpha)),
         );
     }
@@ -13644,6 +13644,32 @@ final class CssMinifier
             $this->clampColorByte((int) round($blue * 255)),
             min(1.0, max(0.0, $alpha)),
         );
+    }
+
+    private function mixSrgbColorMixByteComponent(
+        ?int $left,
+        ?int $right,
+        float $leftAlpha,
+        float $rightAlpha,
+        float $leftWeight,
+        float $rightWeight,
+        float $alpha
+    ): int {
+        if ($left === null && $right === null) {
+            return 0;
+        }
+
+        if ($left === null) {
+            return $right ?? 0;
+        }
+
+        if ($right === null) {
+            return $left;
+        }
+
+        $mixed = (($left / 255 * $leftAlpha * $leftWeight) + ($right / 255 * $rightAlpha * $rightWeight)) / $alpha;
+
+        return $this->clampColorByte((int) round($mixed * 255));
     }
 
     private function minifyRectangularColorMixParts(string $space, string $leftStop, string $rightStop): ?string
@@ -13905,7 +13931,7 @@ final class CssMinifier
     }
 
     /**
-     * @return array{color:array{red:int,green:int,blue:int,alpha:float},weight:?float}|null
+     * @return array{color:array{red:?int,green:?int,blue:?int,alpha:float},weight:?float}|null
      */
     private function parseSrgbColorMixStop(string $stop): ?array
     {
@@ -14841,12 +14867,16 @@ final class CssMinifier
     }
 
     /**
-     * @return array{red:int,green:int,blue:int,alpha:float}|null
+     * @return array{red:?int,green:?int,blue:?int,alpha:float}|null
      */
     private function parseSrgbColorMixColor(string $token): ?array
     {
         $token = trim($token);
-        if (preg_match('/^(?:rgb|rgba|hsl|hsla|hwb)\(/i', $token) === 1) {
+        if (preg_match('/^(?:rgb|rgba)\(/i', $token) === 1) {
+            return $this->parseSrgbColorMixRgbFunction($token);
+        }
+
+        if (preg_match('/^(?:hsl|hsla|hwb)\(/i', $token) === 1) {
             $serialized = $this->minifyColorFunction($token);
             if ($serialized === null) {
                 return null;
@@ -14856,6 +14886,49 @@ final class CssMinifier
         }
 
         return $this->parseSerializedSrgbColor($token);
+    }
+
+    /**
+     * @return array{red:?int,green:?int,blue:?int,alpha:float}|null
+     */
+    private function parseSrgbColorMixRgbFunction(string $token): ?array
+    {
+        if (preg_match('/^(?:rgb|rgba)\((.*)\)$/is', trim($token), $matches) !== 1) {
+            return null;
+        }
+
+        $parts = $this->parseColorFunctionParts($matches[1]);
+        if ($parts === null || count($parts['components']) !== 3) {
+            return null;
+        }
+
+        $red = $this->parseSrgbColorMixRgbComponent($parts['components'][0]);
+        $green = $this->parseSrgbColorMixRgbComponent($parts['components'][1]);
+        $blue = $this->parseSrgbColorMixRgbComponent($parts['components'][2]);
+        if ($red === false || $green === false || $blue === false) {
+            return null;
+        }
+
+        $alpha = $parts['alpha'] === null ? 1.0 : $this->parseAlphaComponent($parts['alpha']);
+        if ($alpha === null) {
+            return null;
+        }
+
+        return [
+            'red' => $red,
+            'green' => $green,
+            'blue' => $blue,
+            'alpha' => $alpha,
+        ];
+    }
+
+    private function parseSrgbColorMixRgbComponent(string $token): int|false|null
+    {
+        if (strcasecmp(trim($token), 'none') === 0) {
+            return null;
+        }
+
+        return $this->parseRgbComponent($token) ?? false;
     }
 
     /**

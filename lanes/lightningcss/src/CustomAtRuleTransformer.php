@@ -588,72 +588,16 @@ final class CustomAtRuleTransformer
                 return $changed ? $current : null;
             },
             'Declaration' => static function (array $declaration, self $transformer) use ($visitors): mixed {
-                $declarations = [$declaration];
-                $changed = false;
-                foreach ($visitors as $visitor) {
-                    $nextDeclarations = [];
-                    foreach ($declarations as $currentDeclaration) {
-                        $callback = self::declarationVisitorCallback($visitor, $currentDeclaration);
-                        if ($callback === null) {
-                            $nextDeclarations[] = $currentDeclaration;
-                            continue;
-                        }
-
-                        $replacement = $callback($currentDeclaration, $transformer);
-                        if ($replacement === null) {
-                            $nextDeclarations[] = $currentDeclaration;
-                            continue;
-                        }
-
-                        $changed = true;
-                        foreach (self::normalizeDeclarationVisitorList($replacement) as $nextDeclaration) {
-                            $nextDeclarations[] = $nextDeclaration;
-                        }
-                    }
-
-                    $declarations = $nextDeclarations;
-                    if ($declarations === []) {
-                        break;
-                    }
-                }
-
-                if (!$changed) {
+                $declarations = self::applyComposedDeclarationVisitors($visitors, $declaration, false, $transformer);
+                if ($declarations === null) {
                     return null;
                 }
 
                 return count($declarations) === 1 ? $declarations[0] : $declarations;
             },
             'DeclarationExit' => static function (array $declaration, self $transformer) use ($visitors): mixed {
-                $declarations = [$declaration];
-                $changed = false;
-                foreach ($visitors as $visitor) {
-                    $nextDeclarations = [];
-                    foreach ($declarations as $currentDeclaration) {
-                        $callback = self::declarationExitVisitorCallback($visitor, $currentDeclaration);
-                        if ($callback === null) {
-                            $nextDeclarations[] = $currentDeclaration;
-                            continue;
-                        }
-
-                        $replacement = $callback($currentDeclaration, $transformer);
-                        if ($replacement === null) {
-                            $nextDeclarations[] = $currentDeclaration;
-                            continue;
-                        }
-
-                        $changed = true;
-                        foreach (self::normalizeDeclarationVisitorList($replacement) as $nextDeclaration) {
-                            $nextDeclarations[] = $nextDeclaration;
-                        }
-                    }
-
-                    $declarations = $nextDeclarations;
-                    if ($declarations === []) {
-                        break;
-                    }
-                }
-
-                if (!$changed) {
+                $declarations = self::applyComposedDeclarationVisitors($visitors, $declaration, true, $transformer);
+                if ($declarations === null) {
                     return null;
                 }
 
@@ -4019,6 +3963,51 @@ final class CustomAtRuleTransformer
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $visitors
+     * @param array<string, mixed> $declaration
+     * @return list<array<string, mixed>>|null
+     */
+    private static function applyComposedDeclarationVisitors(array $visitors, array $declaration, bool $exit, self $transformer): ?array
+    {
+        $declarations = [$declaration];
+        $changed = false;
+        $seen = [];
+        $visitorCount = count($visitors);
+
+        for ($declarationIndex = 0; $declarationIndex < count($declarations); $declarationIndex++) {
+            for ($visitorIndex = 0; $visitorIndex < $visitorCount && $declarationIndex < count($declarations);) {
+                if (!empty($seen[$visitorIndex])) {
+                    $visitorIndex++;
+                    continue;
+                }
+
+                $currentDeclaration = $declarations[$declarationIndex];
+                $callback = $exit
+                    ? self::declarationExitVisitorCallback($visitors[$visitorIndex], $currentDeclaration)
+                    : self::declarationVisitorCallback($visitors[$visitorIndex], $currentDeclaration);
+                if ($callback === null) {
+                    $visitorIndex++;
+                    continue;
+                }
+
+                $replacement = $callback($currentDeclaration, $transformer);
+                if ($replacement === null) {
+                    $visitorIndex++;
+                    continue;
+                }
+
+                $nextDeclarations = self::normalizeDeclarationVisitorList($replacement);
+                array_splice($declarations, $declarationIndex, 1, $nextDeclarations);
+                $changed = true;
+                $seen[$visitorIndex] = true;
+                $visitorIndex = 0;
+            }
+        }
+
+        return $changed ? $declarations : null;
     }
 
     /**

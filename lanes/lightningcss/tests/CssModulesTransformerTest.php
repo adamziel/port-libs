@@ -1146,6 +1146,32 @@ CSS);
             'foo' => $export('xLEkNW_foo'),
         ], $projectRoot['exports']);
 
+        $snakeCaseProjectRoot = (new CssModulesTransformer())->transform(<<<'CSS'
+.button {
+  composes: base;
+  composes: utility from global;
+  color: red;
+}
+
+.base {
+  color: blue;
+}
+CSS, [
+            'filename' => '/sites/a/theme/blocks/card.module.css',
+            'project_root' => '/sites/a/theme',
+            'pattern' => '[name]__[hash]__[local]',
+        ]);
+
+        $t->same('.card-module__VKU3mq__button{color:red}.card-module__VKU3mq__base{color:#00f}', $snakeCaseProjectRoot['code']);
+        $t->same([
+            'button' => $export('card-module__VKU3mq__button', [
+                ['type' => 'local', 'name' => 'card-module__VKU3mq__base'],
+                ['type' => 'global', 'name' => 'utility'],
+            ]),
+            'base' => $export('card-module__VKU3mq__base'),
+        ], $snakeCaseProjectRoot['exports']);
+        $t->same('card-module__VKU3mq__button card-module__VKU3mq__base utility', CssModulesTransformer::exportClassList($snakeCaseProjectRoot['exports'], 'button'));
+
         $contentSource = "\n      .test {\n        composes: foo bar from \"foo.css\";\n        background: white;\n      }\n    ";
         $contentHash = (new CssModulesTransformer())->transform($contentSource, [
             'pattern' => '[content-hash]-[local]',

@@ -15,6 +15,7 @@ $suffixlessAckResponse = FetchResponse::fromV2PacketLines($fixture['suffixlessAc
 $refInWantResponse = FetchResponse::fromV2PacketLines($fixture['refInWantResponse']);
 $sha256Response = FetchResponse::fromV2PacketLines($fixture['sha256Response']);
 $cloneExchange = ProtocolV2FetchExchange::fromPacketLines($fixture['cloneExchangeResponse']);
+$smartHttpUploadPackResponse = FetchResponse::fromSmartHttpUploadPackResult($fixture['smartHttpUploadPackResponse']);
 $uploadPackError = null;
 try {
     FetchResponse::fromV2PacketLines($fixture['rawUploadPackErrorResponse'], true);
@@ -97,4 +98,8 @@ return [
         && $cloneExchange->fetchResponse()->packData() === $fixture['packData']
         && $cloneExchange->fetchResponse()->progressMessages() === ['Enumerating objects: 1, done.'],
     'cloneExchangePackTrailer' => bin2hex(substr($cloneExchange->fetchResponse()->packData(), -20)),
+    'smartHttpUploadPackParsed' => $smartHttpUploadPackResponse->packData() === $fixture['packData']
+        && count($smartHttpUploadPackResponse->acknowledgements()) === 3
+        && $smartHttpUploadPackResponse->progressMessages() === ['Counting objects: 100% (1/1)' . "\r" . 'Counting objects: 100% (1/1), done.'],
+    'smartHttpUploadPackTrailer' => bin2hex(substr($smartHttpUploadPackResponse->packData(), -20)),
 ];

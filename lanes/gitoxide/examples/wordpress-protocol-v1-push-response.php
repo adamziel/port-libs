@@ -38,6 +38,7 @@ try {
 }
 $emptyErrorSidebandResponse = PushResponse::fromSidebandPacketLines($fixture['emptyErrorSidebandResponse']);
 $responseEndTerminatedResponse = PushResponse::fromReportStatusPacketLines($fixture['responseEndTerminatedResponse']);
+$delimiterTerminatedResponse = PushResponse::fromReportStatusPacketLines($fixture['delimiterTerminatedResponse']);
 $carriageReturnStatusRejected = false;
 try {
     PushResponse::fromReportStatusPacketLines($fixture['carriageReturnStatusResponse']);
@@ -136,6 +137,8 @@ return [
         && $emptyErrorSidebandResponse->errorMessages() === [],
     'responseEndTerminatedAccepted' => $responseEndTerminatedResponse->isSuccessful()
         && $responseEndTerminatedResponse->refStatuses()[0]->refName === 'refs/heads/wp-release',
+    'delimiterTerminatedAccepted' => $delimiterTerminatedResponse->isSuccessful()
+        && $delimiterTerminatedResponse->refStatuses()[0]->refName === 'refs/heads/wp-preview',
     'fallThroughAccepted' => $fallThroughResponse->refStatuses()[0]->fallThrough,
     'compatibilityOptionExtensionsIgnored' => $compatibilityResponse->refStatuses()[0]->oldObject === $fixture['compatibilityRef']['oldObject'],
     'compatibilityTrailingObjectDiagnosticsIgnored' => $compatibilityResponse->refStatuses()[0]->oldObject === $fixture['compatibilityRef']['oldObject']

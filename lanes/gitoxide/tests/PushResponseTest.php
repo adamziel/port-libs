@@ -409,6 +409,39 @@ return [
         $t->same(true, $outerResponseEnd->isSuccessful());
         $t->same('refs/heads/main', $outerResponseEnd->refStatuses()[0]->refName);
     },
+    'accepts delimiter terminated receive-status streams like upstream packet-line readers' => static function (TestRunner $t) use ($packet, $flush): void {
+        $direct = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/heads/wp-preview deployed by hook\n")
+            . '0001'
+        );
+        $sideband = PushResponse::fromSidebandPacketLines(
+            $packet("\x02Checking connectivity: 100% (1/1)\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . '0001')
+            . $flush
+        );
+        $outerDelimiter = PushResponse::fromSidebandPacketLines(
+            $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . '0001'
+        );
+
+        $t->same(true, $direct->isSuccessful());
+        $t->same('refs/heads/wp-preview', $direct->refStatuses()[0]->refName);
+        $t->same('deployed by hook', $direct->refStatuses()[0]->message);
+        $t->same(true, $sideband->isSuccessful());
+        $t->same(['Checking connectivity: 100% (1/1)'], $sideband->progressMessages());
+        $t->same('refs/heads/main', $sideband->refStatuses()[0]->refName);
+        $t->same(true, $outerDelimiter->isSuccessful());
+        $t->same('refs/heads/main', $outerDelimiter->refStatuses()[0]->refName);
+        $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . '0001'
+        ));
+    },
     'guards malformed push response packet streams' => static function (TestRunner $t) use ($packet, $flush): void {
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromSidebandPacketLines($packet("\x09bad band") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $flush));
@@ -516,5 +549,6 @@ return [
         $t->same(true, $summary['fatalAfterStatusRejected']);
         $t->same(true, $summary['emptyErrorSidebandAccepted']);
         $t->same(true, $summary['responseEndTerminatedAccepted']);
+        $t->same(true, $summary['delimiterTerminatedAccepted']);
     },
 ];

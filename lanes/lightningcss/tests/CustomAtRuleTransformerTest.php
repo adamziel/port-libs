@@ -1908,6 +1908,102 @@ CSS;
 
         $t->same('.foo{width:2rem;height:2rem}', $result);
     },
+    'custom at-rules compose upstream Declaration replacements in any order' => static function (TestRunner $t): void {
+        $expandSize = [
+            'Declaration' => [
+                'custom' => [
+                    'size' => static fn (): array => [
+                        [
+                            'property' => 'width',
+                            'value' => [
+                                'type' => 'length-percentage',
+                                'value' => [
+                                    'type' => 'dimension',
+                                    'value' => ['unit' => 'px', 'value' => 16],
+                                ],
+                            ],
+                        ],
+                        [
+                            'property' => 'height',
+                            'value' => [
+                                'type' => 'length-percentage',
+                                'value' => [
+                                    'type' => 'dimension',
+                                    'value' => ['unit' => 'px', 'value' => 16],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        $removeWidth = [
+            'Declaration' => [
+                'width' => static fn (array $declaration): array|null => ($declaration['property'] ?? null) === 'width'
+                    ? []
+                    : null,
+            ],
+        ];
+
+        $results = [];
+        foreach ([[$expandSize, $removeWidth], [$removeWidth, $expandSize]] as $visitorOrder) {
+            $results[] = (new CustomAtRuleTransformer())->transform(
+                '.foo { size: 16px; }',
+                [],
+                CustomAtRuleTransformer::composeVisitors($visitorOrder)
+            );
+        }
+
+        $t->same(['.foo{height:16px}', '.foo{height:16px}'], $results);
+    },
+    'custom at-rules compose upstream DeclarationExit replacements in any order' => static function (TestRunner $t): void {
+        $expandSize = [
+            'DeclarationExit' => [
+                'custom' => [
+                    'size' => static fn (): array => [
+                        [
+                            'property' => 'width',
+                            'value' => [
+                                'type' => 'length-percentage',
+                                'value' => [
+                                    'type' => 'dimension',
+                                    'value' => ['unit' => 'px', 'value' => 16],
+                                ],
+                            ],
+                        ],
+                        [
+                            'property' => 'height',
+                            'value' => [
+                                'type' => 'length-percentage',
+                                'value' => [
+                                    'type' => 'dimension',
+                                    'value' => ['unit' => 'px', 'value' => 16],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        $removeWidth = [
+            'DeclarationExit' => [
+                'width' => static fn (array $declaration): array|null => ($declaration['property'] ?? null) === 'width'
+                    ? []
+                    : null,
+            ],
+        ];
+
+        $results = [];
+        foreach ([[$expandSize, $removeWidth], [$removeWidth, $expandSize]] as $visitorOrder) {
+            $results[] = (new CustomAtRuleTransformer())->transform(
+                '.foo { size: 16px; }',
+                [],
+                CustomAtRuleTransformer::composeVisitors($visitorOrder)
+            );
+        }
+
+        $t->same(['.foo{height:16px}', '.foo{height:16px}'], $results);
+    },
     'custom at-rules visit upstream unparsed known declarations before value visitors' => static function (TestRunner $t): void {
         $seenProperties = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([

@@ -49,15 +49,16 @@ final class CssModulesTransformer
      *   references:array<string, array{type:string, name:string, specifier:string}>
      * }
      *
-     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, grid?:bool, container?:bool, customIdents?:bool, custom_idents?:bool, pure?:bool, unusedSymbols?:list<string>, unused_symbols?:list<string>, pseudoClasses?:array<string, string>, pseudo_classes?:array<string, string>, preserveDependencyComposesDuplicates?:bool} $options
+     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, project_root?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, grid?:bool, container?:bool, customIdents?:bool, custom_idents?:bool, pure?:bool, unusedSymbols?:list<string>, unused_symbols?:list<string>, pseudoClasses?:array<string, string>, pseudo_classes?:array<string, string>, preserveDependencyComposesDuplicates?:bool} $options
      */
     public function transform(string $css, array $options = []): array
     {
         $this->pattern = $options['pattern'] ?? '[hash]_[local]';
         $this->assertValidCssModulesPattern($this->pattern);
         $this->filename = $options['filename'] ?? 'test.css';
+        $projectRoot = $options['projectRoot'] ?? $options['project_root'] ?? null;
         $this->hash = $options['hash'] ?? self::hashCssModuleString(
-            self::relativeFilenameForHash($this->filename, $options['projectRoot'] ?? null),
+            self::relativeFilenameForHash($this->filename, is_string($projectRoot) ? $projectRoot : null),
             $this->patternStartsWithSegment('[hash]')
         );
         $this->contentHash = $options['contentHash']

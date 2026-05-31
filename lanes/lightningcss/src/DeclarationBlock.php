@@ -9297,6 +9297,10 @@ final class DeclarationBlock
         if ($outlineValue !== null) {
             return $this->parseEntries($outlineValue);
         }
+        $borderValue = $this->setBorderLonghand($entries, $property, $value, $important);
+        if ($borderValue !== null) {
+            return $this->parseEntries($borderValue);
+        }
         $flexValue = $this->setFlexLonghand($entries, $property, $value, $important);
         if ($flexValue !== null) {
             return $this->parseEntries($flexValue);
@@ -9650,6 +9654,70 @@ final class DeclarationBlock
 
             if ($entries[$index]['property'] === "border-{$parts['axis']}") {
                 return null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setBorderLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (preg_match('/^border-(top|right|bottom|left)-(width|style|color)$/', $property, $matches) !== 1) {
+            return null;
+        }
+
+        $side = $matches[1];
+        $component = $matches[2];
+        $propertyGroups = $this->cssomLogicalGroupCategoriesForProperty($property);
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($this->cssomLogicalGroupsConflict($propertyGroups, $this->cssomLogicalGroupCategoriesForProperty($entries[$index]['property']))) {
+                break;
+            }
+
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['important'] !== $important) {
+                continue;
+            }
+
+            if ($entries[$index]['property'] === "border-{$component}") {
+                $expanded = $this->expandBoxShorthand($entries[$index]['value']);
+                if ($expanded === null) {
+                    continue;
+                }
+
+                $expanded[$side] = $value;
+                $entries[$index] = [
+                    'property' => $entries[$index]['property'],
+                    'value' => $this->compressBoxShorthand($expanded),
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] === "border-{$side}") {
+                $components = $this->completeBorderComponents($this->parseBorderValue($entries[$index]['value']));
+                $components[$component] = $value;
+                $entries[$index] = [
+                    'property' => $entries[$index]['property'],
+                    'value' => $this->composeBorderValueFromComponents($components),
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
             }
         }
 

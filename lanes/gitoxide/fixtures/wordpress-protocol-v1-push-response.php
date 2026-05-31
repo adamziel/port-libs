@@ -129,6 +129,9 @@ return [
     'responseEndTerminatedResponse' => $packet("unpack ok\n")
         . $packet("ok refs/heads/wp-release\n")
         . '0002',
+    'delimiterTerminatedResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/heads/wp-preview deployed by hook\n")
+        . '0001',
     'carriageReturnStatusResponse' => $packet("unpack ok\n")
         . $packet("ok refs/heads/main\r\n")
         . $flush,

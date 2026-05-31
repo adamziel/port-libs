@@ -1157,7 +1157,11 @@ final class SQLiteUpsertReturningSql
             }
             if (preg_match('/^(?:(excluded|[A-Za-z_][A-Za-z0-9_]*)\.)?([A-Za-z_][A-Za-z0-9_]*)(?:\s+AS\s+([A-Za-z_][A-Za-z0-9_]*))?$/i', $term, $match) !== 1) {
                 if (preg_match('/^(.+?)\s+AS\s+(.+)$/is', $term, $expressionMatch) !== 1) {
-                    throw new \InvalidArgumentException('SQLite UPSERT RETURNING only supports columns, aliases, expressions with aliases, literals, and *');
+                    if (preg_match('/^excluded\./i', $term) === 1 || preg_match('/[^A-Za-z0-9_]excluded\./i', $term) === 1) {
+                        throw new \InvalidArgumentException('SQLite UPSERT RETURNING cannot reference excluded columns');
+                    }
+                    $projection[$term] = static fn (array $row): mixed => self::evaluateExpression($term, $target, $targetAlias, $row, $row);
+                    continue;
                 }
                 $expression = trim($expressionMatch[1]);
                 $alias = self::dequoteIdentifier(trim($expressionMatch[2])) ?? trim($expressionMatch[2]);

@@ -14,6 +14,15 @@ $sha256PackData = 'PACK' . pack('N', 2) . pack('N', 1) . 'wordpress-sha256-pack'
 $packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
 $delimiter = '0001';
 $flush = '0000';
+$smartHttpUploadPackBody = $packet("acknowledgments\n")
+    . $packet("ACK {$installed}\n")
+    . $packet("ACK {$main}\n")
+    . $packet("ready\n")
+    . $delimiter
+    . $packet("packfile\n")
+    . $packet("\x02Counting objects: 100% (1/1)\rCounting objects: 100% (1/1), done.\n")
+    . $packet("\x01" . $packData)
+    . $flush;
 
 return [
     'sidebandAll' => true,
@@ -86,6 +95,12 @@ return [
         . $packet("\x02Counting objects: 4294967296% (5/10)\r")
         . $packet("\x01" . $packData)
         . $flush,
+    'smartHttpUploadPackResponse' => "HTTP/1.1 200 OK\r\n"
+        . "Content-Type: application/x-git-upload-pack-result\r\n"
+        . 'Content-Length: ' . strlen($smartHttpUploadPackBody) . "\r\n"
+        . "Cache-Control: no-cache\r\n"
+        . "\r\n"
+        . $smartHttpUploadPackBody,
     'objects' => [
         'main' => $main,
         'installed' => $installed,
@@ -108,4 +123,5 @@ return [
     'refInWantUse' => 'A WordPress deployment fetch using ref-in-want can parse the wanted-refs section and still hand the following sideband pack bytes to object import without requiring a separate ls-refs advertisement.',
     'cloneExchangeUse' => 'A WordPress deployment fetch can parse a persistent protocol v2 upload-pack exchange from capability advertisement through ls-refs and the following sidebanded fetch response before importing pack bytes.',
     'sha256ObjectFormatUse' => 'A WordPress deployment fetch from a SHA-256 object-format repository can parse 64-hex acknowledgements, shallow updates, and wanted refs before preserving sidebanded pack bytes.',
+    'smartHttpUploadPackUse' => 'A WordPress deployment fetch can unwrap a smart HTTP upload-pack result response, validate the upload-pack result content type and length, then parse the sidebanded protocol v2 fetch response without invoking git.',
 ];

@@ -87,6 +87,37 @@ final class FetchResponse
         }
     }
 
+    public static function fromSmartHttpUploadPackResult(string $bytes, bool $sidebandAll = false): self
+    {
+        [$headerBytes, $body] = self::splitSmartHttpResponse($bytes);
+        $headers = self::parseSmartHttpResponseHeaders($headerBytes);
+        $status = $headers[':status'];
+        if ($status !== 200) {
+            throw new \RuntimeException("fetch response: smart HTTP upload-pack result returned status {$status}");
+        }
+
+        $contentType = strtolower(trim(explode(';', $headers['content-type'][0] ?? '', 2)[0]));
+        if ($contentType !== 'application/x-git-upload-pack-result') {
+            throw new \RuntimeException('fetch response: smart HTTP upload-pack result had unexpected content type');
+        }
+
+        if (isset($headers['content-length'][0])) {
+            $contentLength = trim($headers['content-length'][0]);
+            if (preg_match('/^[0-9]+$/', $contentLength) !== 1) {
+                throw new \InvalidArgumentException('fetch response: smart HTTP upload-pack result had invalid content length');
+            }
+            $declaredLength = ltrim($contentLength, '0');
+            if ($declaredLength === '') {
+                $declaredLength = '0';
+            }
+            if ($declaredLength !== (string) strlen($body)) {
+                throw new \RuntimeException('fetch response: smart HTTP upload-pack result content length mismatch');
+            }
+        }
+
+        return self::fromV2PacketLines($body, $sidebandAll);
+    }
+
     /**
      * @param list<string> $features
      */
@@ -317,6 +348,53 @@ final class FetchResponse
         }
 
         return ['band' => $band, 'data' => substr($payload, 1)];
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private static function splitSmartHttpResponse(string $bytes): array
+    {
+        $headerEnd = strpos($bytes, "\r\n\r\n");
+        if ($headerEnd === false) {
+            throw new \InvalidArgumentException('fetch response: smart HTTP upload-pack result missing header terminator');
+        }
+
+        return [substr($bytes, 0, $headerEnd), substr($bytes, $headerEnd + 4)];
+    }
+
+    /**
+     * @return array<string, list<string>|int>
+     */
+    private static function parseSmartHttpResponseHeaders(string $bytes): array
+    {
+        $lines = explode("\r\n", $bytes);
+        $statusLine = array_shift($lines);
+        if ($statusLine === null || preg_match('/^HTTP\/[0-9]+(?:\.[0-9]+)?[ \t]+([0-9]{3})(?:[ \t].*)?$/', $statusLine, $match) !== 1) {
+            throw new \InvalidArgumentException('fetch response: smart HTTP upload-pack result had invalid status line');
+        }
+
+        $headers = [':status' => (int) $match[1]];
+        foreach ($lines as $line) {
+            if ($line === '') {
+                continue;
+            }
+            if (!str_contains($line, ':')) {
+                throw new \InvalidArgumentException('fetch response: smart HTTP upload-pack result had invalid header line');
+            }
+
+            [$name, $value] = explode(':', $line, 2);
+            $name = strtolower(trim($name));
+            if ($name === '' || preg_match('/^[!#$%&\'*+.^_`|~0-9a-z-]+$/', $name) !== 1) {
+                throw new \InvalidArgumentException('fetch response: smart HTTP upload-pack result had invalid header name');
+            }
+            /** @var list<string> $values */
+            $values = $headers[$name] ?? [];
+            $values[] = trim($value);
+            $headers[$name] = $values;
+        }
+
+        return $headers;
     }
 
     /**

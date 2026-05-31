@@ -413,6 +413,41 @@ return [
         $t->same(' objects', $response->remoteProgress()[3]->action);
         $t->same(46, $response->remoteProgress()[3]->percent);
     },
+    'parses upstream smart http v2 fetch result with sideband pack data' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/upstream-gix-transport-v2-http-fetch-response.php';
+        $response = FetchResponse::fromSmartHttpUploadPackResult($fixture['httpResponse']);
+
+        $t->same(true, $response->hasPack());
+        $t->same([], $response->acknowledgements());
+        $t->same([], $response->shallowUpdates());
+        $t->same([], $response->wantedRefs());
+        $t->same($fixture['packBytes'], strlen($response->packData()));
+        $t->same($fixture['packTrailer'], bin2hex(substr($response->packData(), -20)));
+        $t->same($fixture['progressCount'], count($response->progressMessages()));
+        $t->same($fixture['remoteProgressCount'], count($response->remoteProgress()));
+        $t->same([], $response->errorMessages());
+        $t->same($fixture['firstProgress'], $response->progressMessages()[0]);
+        $t->same($fixture['combinedCountingProgress'], $response->progressMessages()[1]);
+        $t->same($fixture['finalProgress'], $response->progressMessages()[4]);
+        $t->same('Enumerating objects', $response->remoteProgress()[0]->action);
+        $t->same(3, $response->remoteProgress()[0]->step);
+        $t->same('Counting objects', $response->remoteProgress()[1]->action);
+        $t->same(33, $response->remoteProgress()[1]->percent);
+        $t->same(1, $response->remoteProgress()[1]->step);
+        $t->same(3, $response->remoteProgress()[1]->max);
+        $t->same(100, $response->remoteProgress()[3]->percent);
+        $t->same(3, $response->remoteProgress()[3]->step);
+        $t->same(3, $response->remoteProgress()[3]->max);
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => FetchResponse::fromSmartHttpUploadPackResult(str_replace('application/x-git-upload-pack-result', 'text/plain', $fixture['httpResponse']))
+        );
+        $t->throws(
+            RuntimeException::class,
+            static fn () => FetchResponse::fromSmartHttpUploadPackResult(str_replace('Content-Length: 1135', 'Content-Length: 1134', $fixture['httpResponse']))
+        );
+    },
     'parses protocol v2 sha256 response object ids before sideband pack data' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v2-fetch-response.php';
         $response = FetchResponse::fromV2PacketLines($fixture['sha256Response']);
@@ -466,6 +501,7 @@ return [
         $refInWantResponse = FetchResponse::fromV2PacketLines($fixture['refInWantResponse']);
         $overflowProgressResponse = FetchResponse::fromV2PacketLines($fixture['overflowProgressResponse']);
         $cloneExchange = ProtocolV2FetchExchange::fromPacketLines($fixture['cloneExchangeResponse']);
+        $smartHttpUploadPackResponse = FetchResponse::fromSmartHttpUploadPackResult($fixture['smartHttpUploadPackResponse']);
 
         $t->same(true, $response->hasPack());
         $t->same(FetchAcknowledgement::COMMON, $response->acknowledgements()[0]->kind);
@@ -515,5 +551,9 @@ return [
         $t->same($fixture['sha256PackTrailer'], $summary['sha256PackTrailer']);
         $t->same(true, $summary['cloneExchangeParsed']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['cloneExchangePackTrailer']);
+        $t->same($fixture['packData'], $smartHttpUploadPackResponse->packData());
+        $t->same(['Counting objects: 100% (1/1)' . "\r" . 'Counting objects: 100% (1/1), done.'], $smartHttpUploadPackResponse->progressMessages());
+        $t->same(true, $summary['smartHttpUploadPackParsed']);
+        $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['smartHttpUploadPackTrailer']);
     },
 ];

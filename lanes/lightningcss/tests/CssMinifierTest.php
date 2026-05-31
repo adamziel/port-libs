@@ -744,6 +744,22 @@ CSS
             $minifier->minify('.foo { color: color-mix(in srgb, blue, accentcolor); }')
         );
     },
+    'css minifier maps upstream srgb color-mix missing rgb components' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{color:gray}',
+            $minifier->minify('.foo { color: color-mix(in srgb, rgb(128 128 none), rgb(none none 128)); }')
+        );
+        $t->same(
+            '.foo{color:gray}',
+            $minifier->minify('.foo { color: color-mix(in srgb, rgb(50% 50% none), rgb(none none 50%)); }')
+        );
+        $t->same(
+            '.foo{color:gray}',
+            $minifier->minify('.foo { color: color-mix(in srgb, rgb(none 50% none), rgb(50% none 50%)); }')
+        );
+    },
     'css minifier maps upstream lab and oklab color-mix value normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $cases = [
