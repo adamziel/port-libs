@@ -221,6 +221,65 @@ return [
         $t->same(false, PathspecMatcher::matchesOne(':(icase,attr:deploy=plugin)WP-CONTENT/PLUGINS/GUTENBERG/**', 'WP-CONTENT/plugins/gutenberg/block.json', false, $attributes));
         $t->same(true, PathspecMatcher::fromSpecs([':!wp-content/cache/**'])->matches('wp-content/plugins/gutenberg/block.json', false, $attributes));
     },
+    'recursive attribute macros follow gix lookup order for attr pathspec matches' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString("[attr]my-text text\n"
+            . "[attr]my-binary binary\n"
+            . "[attr]b-cycle a-cycle my-text\n"
+            . "[attr]a-cycle b-cycle my-binary\n"
+            . "[attr]recursive recursively-assigned-attr\n"
+            . "[attr]my-binary binary macro-overridden recursive\n"
+            . "wp-content/** other a-cycle\n"
+            . "wp-content/** -other b-cycle\n");
+
+        $t->same([
+            'a-cycle' => true,
+            'b-cycle' => true,
+            'binary' => true,
+            'diff' => false,
+            'macro-overridden' => true,
+            'merge' => false,
+            'my-binary' => true,
+            'my-text' => true,
+            'other' => false,
+            'recursive' => true,
+            'recursively-assigned-attr' => true,
+            'text' => true,
+        ], $attributes->attributesForPath('wp-content/plugins/editor/block.php', [
+            'binary',
+            'diff',
+            'merge',
+            'text',
+            'my-text',
+            'my-binary',
+            'b-cycle',
+            'a-cycle',
+            'recursive',
+            'recursively-assigned-attr',
+            'macro-overridden',
+            'other',
+        ]));
+        $t->same(true, PathspecMatcher::matchesOne(
+            ':(attr:text my-binary recursive macro-overridden -other)wp-content/**',
+            'wp-content/plugins/editor/block.php',
+            false,
+            $attributes,
+        ));
+        $t->same(true, PathspecSearch::fromSpecs([
+            ':(attr:text recursively-assigned-attr -other)wp-content/**',
+        ])->isIncluded('wp-content/plugins/editor/block.php', false, $attributes));
+        $t->same(false, PathspecMatcher::matchesOne(
+            ':(attr:-text)wp-content/**',
+            'wp-content/plugins/editor/block.php',
+            false,
+            $attributes,
+        ));
+        $t->same(false, PathspecMatcher::matchesOne(
+            ':(attr:other)wp-content/**',
+            'wp-content/plugins/editor/block.php',
+            false,
+            $attributes,
+        ));
+    },
     'wordpress attributes pathspec fixture selects deployable merge aware content' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-attributes-pathspec.php';
         $attributes = GitAttributes::fromString($fixture['attributes']);
@@ -246,6 +305,13 @@ return [
         $t->same(true, $example['slashClassDoesNotCrossDirectory']);
         $t->same(true, $example['tabSeparatedStatePathspecMatches']);
         $t->same(true, $example['valueTabRequirementRejected']);
+        $t->same(true, $example['recursiveMacroPathspecMatches']);
+        $t->same([
+            'macro-overridden' => true,
+            'other' => false,
+            'recursively-assigned-attr' => true,
+            'text' => true,
+        ], $example['recursiveMacroAttributes']);
         $t->same(true, $example['cacheExcluded']);
         $t->same(true, $example['buildExcludedByPathspec']);
     },

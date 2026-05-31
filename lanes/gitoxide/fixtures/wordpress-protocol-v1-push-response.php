@@ -66,6 +66,23 @@ return [
         . $packet("option forced-update true\n")
         . $packet("ng refs/heads/protected\n")
         . $flush,
+    'expectedRefNames' => [
+        'refs/heads/main',
+        'refs/for/wp-release',
+    ],
+    'expectedFilteredRefs' => [
+        'refs/heads/main',
+        'refs/heads/deploy/wp-release',
+    ],
+    'expectedFilterResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/heads/ghost ignored by send-pack\n")
+        . $packet("ng refs/heads/main stale lock\n")
+        . $packet("ok refs/for/wp-release accepted by proc-receive\n")
+        . $packet("option refname refs/heads/deploy/wp-release\n")
+        . $packet("option old-oid {$currentHookOld}\n")
+        . $packet("option new-oid {$newHookObject}\n")
+        . $packet("ok refs/heads/main post-update hook accepted\n")
+        . $flush,
     'oversizedReportStatus' => 'ffff' . str_repeat('x', 0xffff - 4),
     'fatalSidebandResponse' => $packet("\x03pre-receive hook declined deployment\n") . $flush,
     'carriageReturnStatusResponse' => $packet("unpack ok\n")

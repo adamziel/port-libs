@@ -135,6 +135,40 @@ final class PushResponse
     }
 
     /**
+     * @param list<string> $expectedRefNames
+     */
+    public function forExpectedRefNames(array $expectedRefNames): self
+    {
+        $expected = [];
+        $ordered = [];
+        foreach ($expectedRefNames as $refName) {
+            ReferenceName::assertValid($refName);
+            if (isset($expected[$refName])) {
+                continue;
+            }
+            $expected[$refName] = true;
+            $ordered[] = $refName;
+        }
+
+        $matched = [];
+        foreach ($this->refStatuses as $status) {
+            if (!isset($expected[$status->refName])) {
+                continue;
+            }
+            $matched[$status->refName] = $status;
+        }
+
+        $filtered = [];
+        foreach ($ordered as $refName) {
+            if (isset($matched[$refName])) {
+                $filtered[] = $matched[$refName];
+            }
+        }
+
+        return new self($this->unpackStatus, $filtered, $this->progressMessages, $this->errorMessages);
+    }
+
+    /**
      * @param list<string> $progressMessages
      * @param list<string> $errorMessages
      */

@@ -144,6 +144,48 @@ $sameTargetPlugins = Tree::fromObject($read($sameTargetContent->entryNamed('plug
 $sameTargetPlugin = Tree::fromObject($read($sameTargetPlugins->entryNamed('acme-pro', true)?->oid ?? ''));
 $sameTargetSrc = Tree::fromObject($read($sameTargetPlugin->entryNamed('src', true)?->oid ?? ''));
 $sameTargetRoute = $read($sameTargetSrc->entryNamed('rest.php')?->oid ?? '')->body;
+$subtreeReplacementPlugin = static fn (string $routeContent, string $bootstrapContent, bool $asSubtreeRoot = false): Tree => $asSubtreeRoot
+    ? new Tree([
+        $blob('index.php', "<?php\n// Silence is golden.\n"),
+        $blob('rest.php', $routeContent),
+    ])
+    : new Tree([
+        $blob('bootstrap.php', $bootstrapContent),
+        $tree('includes', new Tree([
+            $blob('index.php', "<?php\n// Silence is golden.\n"),
+            $blob('rest.php', $routeContent),
+        ])),
+        $blob('readme.txt', "Acme plugin\nStable tag: 1.0\n"),
+    ]);
+$subtreeReplacementBaseRoute = "original\nregister_rest_route\nsanitize_callback\n";
+$subtreeReplacementOursRoute = "register_rest_route\nsanitize_callback\n";
+$subtreeReplacementTheirsRoute = "original\nregister_rest_route\nsanitize_callback\npermission_callback\n";
+$subtreeReplacementBase = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('plugins', new Tree([
+            $tree('acme', $subtreeReplacementPlugin($subtreeReplacementBaseRoute, $subtreeReplacementBaseRoute)),
+        ])),
+    ])),
+]);
+$subtreeReplacementOurs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('plugins', new Tree([
+            $tree('acme-pro', $subtreeReplacementPlugin($subtreeReplacementOursRoute, $subtreeReplacementOursRoute)),
+        ])),
+    ])),
+]);
+$subtreeReplacementTheirs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('plugins', new Tree([
+            $tree('acme', $subtreeReplacementPlugin($subtreeReplacementTheirsRoute, '', true)),
+        ])),
+    ])),
+]);
+$subtreeReplacementResult = TreeMerge::mergeRecursive($subtreeReplacementBase, $subtreeReplacementOurs, $subtreeReplacementTheirs, $read, $write);
+$subtreeReplacementContent = Tree::fromObject($read($subtreeReplacementResult->tree->entryNamed('wp-content', true)?->oid ?? ''));
+$subtreeReplacementPlugins = Tree::fromObject($read($subtreeReplacementContent->entryNamed('plugins', true)?->oid ?? ''));
+$subtreeReplacementMergedPlugin = Tree::fromObject($read($subtreeReplacementPlugins->entryNamed('acme-pro', true)?->oid ?? ''));
+$subtreeReplacementIncludes = Tree::fromObject($read($subtreeReplacementMergedPlugin->entryNamed('includes', true)?->oid ?? ''));
 $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
 $metadata = $read($contentTree->entryNamed('post.meta')?->oid ?? '');
 $demoRoot = sys_get_temp_dir() . '/port-libs-recursive-merge-' . bin2hex(random_bytes(4));
@@ -243,6 +285,29 @@ echo json_encode([
         'worktreeConflictFiles' => array_map(
             static fn ($file): string => $file->path,
             $sameTargetNestedResult->worktreeConflictFiles($read),
+        ),
+    ],
+    'subtreeReplacementRename' => [
+        'clean' => $subtreeReplacementResult->isClean(),
+        'conflicts' => array_map(
+            static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
+            $subtreeReplacementResult->conflicts,
+        ),
+        'pluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $subtreeReplacementMergedPlugin->entries),
+        'includesEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $subtreeReplacementIncludes->entries),
+        'rootRestRoute' => $read($subtreeReplacementMergedPlugin->entryNamed('rest.php')?->oid ?? '')->body,
+        'bootstrapRoute' => $read($subtreeReplacementMergedPlugin->entryNamed('bootstrap.php')?->oid ?? '')->body,
+        'expandedIndexStages' => array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'path' => $entry->path,
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+            ],
+            MergeIndexFile::entriesForResult($subtreeReplacementResult, $read),
+        ),
+        'worktreeConflictFiles' => array_map(
+            static fn ($file): string => $file->path,
+            $subtreeReplacementResult->worktreeConflictFiles($read),
         ),
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

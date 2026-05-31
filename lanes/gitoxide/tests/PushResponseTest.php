@@ -162,6 +162,34 @@ return [
         $t->same('refs/heads/protected', $rejected->refName);
         $t->same('failed', $rejected->message);
     },
+    'filters send-pack receive-status reports to requested refs like upstream Git' => static function (TestRunner $t) use ($packet, $flush): void {
+        $old = str_repeat('4', 40);
+        $new = str_repeat('5', 40);
+        $response = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/heads/ghost ignored by send-pack\n")
+            . $packet("ng refs/heads/main stale lock\n")
+            . $packet("ok refs/for/wp-release accepted by proc-receive\n")
+            . $packet("option refname refs/heads/deploy/wp-release\n")
+            . $packet("option old-oid {$old}\n")
+            . $packet("option new-oid {$new}\n")
+            . $packet("ok refs/heads/main post-update hook accepted\n")
+            . $flush
+        );
+        $filtered = $response->forExpectedRefNames(['refs/heads/main', 'refs/for/wp-release']);
+
+        $t->same(4, count($response->refStatuses()));
+        $t->same(2, count($filtered->refStatuses()));
+        $t->same(true, $filtered->isSuccessful());
+        $t->same('refs/heads/main', $filtered->refStatuses()[0]->refName);
+        $t->same(PushRefStatus::OK, $filtered->refStatuses()[0]->status);
+        $t->same('post-update hook accepted', $filtered->refStatuses()[0]->message);
+        $t->same('refs/for/wp-release', $filtered->refStatuses()[1]->refName);
+        $t->same('refs/heads/deploy/wp-release', $filtered->refStatuses()[1]->effectiveRefName());
+        $t->same($old, $filtered->refStatuses()[1]->oldObject);
+        $t->same($new, $filtered->refStatuses()[1]->newObject);
+        $t->same([], $filtered->rejectedRefs());
+    },
     'enforces upstream packet-line length bounds for receive-pack status' => static function (TestRunner $t) use ($packet, $flush, $invalidArgumentMessage): void {
         $maxPacketLineLength = 65520;
         $statusPrefix = 'ng refs/heads/main ';
@@ -296,11 +324,17 @@ return [
         $t->same('failed', $compatibilityRejected->message);
 
         $summary = require dirname(__DIR__) . '/examples/wordpress-protocol-v1-push-response.php';
+        $t->same($fixture['expectedFilteredRefs'], array_map(
+            static fn (array $status): string => $status['effectiveRef'],
+            $summary['expectedFilteredRefs']
+        ));
         $t->same(true, $summary['oversizedReportStatusRejected']);
         $t->same(true, $summary['fatalSidebandRejected']);
         $t->same(true, $summary['fallThroughAccepted']);
         $t->same(true, $summary['compatibilityOptionExtensionsIgnored']);
         $t->same(true, $summary['compatibilityBareRejectionDefaulted']);
+        $t->same(true, $summary['expectedUnknownStatusIgnored']);
+        $t->same(true, $summary['expectedLastStatusWon']);
         $t->same(true, $summary['carriageReturnStatusRejected']);
         $t->same(true, $summary['emptyPacketLineRejected']);
     },

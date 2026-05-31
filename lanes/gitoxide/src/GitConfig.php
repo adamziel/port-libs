@@ -18,6 +18,7 @@ final class GitConfig
      *     gitDir?: ?string,
      *     branchName?: ?string,
      *     homeDir?: ?string,
+     *     installPrefix?: ?string,
      *     maxDepth?: int,
      *     errOnMaxDepthExceeded?: bool,
      *     errOnMissingConfigPath?: bool,
@@ -38,6 +39,7 @@ final class GitConfig
      *     gitDir?: ?string,
      *     branchName?: ?string,
      *     homeDir?: ?string,
+     *     installPrefix?: ?string,
      *     maxDepth?: int,
      *     errOnMaxDepthExceeded?: bool,
      *     errOnMissingConfigPath?: bool,
@@ -98,6 +100,7 @@ final class GitConfig
      *     gitDir: ?string,
      *     branchName: ?string,
      *     homeDir: ?string,
+     *     installPrefix: ?string,
      *     maxDepth: int,
      *     errOnMaxDepthExceeded: bool,
      *     errOnMissingConfigPath: bool,
@@ -115,6 +118,7 @@ final class GitConfig
             'gitDir' => isset($options['gitDir']) ? (string) $options['gitDir'] : null,
             'branchName' => isset($options['branchName']) ? (string) $options['branchName'] : null,
             'homeDir' => isset($options['homeDir']) ? (string) $options['homeDir'] : null,
+            'installPrefix' => isset($options['installPrefix']) ? (string) $options['installPrefix'] : null,
             'maxDepth' => $maxDepth,
             'errOnMaxDepthExceeded' => (bool) ($options['errOnMaxDepthExceeded'] ?? true),
             'errOnMissingConfigPath' => (bool) ($options['errOnMissingConfigPath'] ?? true),
@@ -313,6 +317,7 @@ final class GitConfig
      *     gitDir: ?string,
      *     branchName: ?string,
      *     homeDir: ?string,
+     *     installPrefix: ?string,
      *     maxDepth: int,
      *     errOnMaxDepthExceeded: bool,
      *     errOnMissingConfigPath: bool,
@@ -543,7 +548,26 @@ final class GitConfig
      */
     private static function interpolatePath(string $path, array $options): ?string
     {
-        if ($path === '~' || str_starts_with($path, '~/')) {
+        if ($path === '') {
+            if ($options['errOnInterpolationFailure']) {
+                throw new \RuntimeException('Git config path interpolation requires a non-empty path');
+            }
+            return null;
+        }
+
+        if (str_starts_with($path, '%(prefix)/')) {
+            $installPrefix = $options['installPrefix'];
+            if (!is_string($installPrefix) || $installPrefix === '') {
+                if ($options['errOnInterpolationFailure']) {
+                    throw new \RuntimeException('Git install prefix is required for Git config path interpolation');
+                }
+                return null;
+            }
+
+            return rtrim($installPrefix, "\\/") . '/' . substr($path, strlen('%(prefix)/'));
+        }
+
+        if (str_starts_with($path, '~/')) {
             $home = $options['homeDir'];
             if (!is_string($home) || $home === '') {
                 if ($options['errOnInterpolationFailure']) {
@@ -555,9 +579,9 @@ final class GitConfig
             return rtrim($home, "\\/") . substr($path, 1);
         }
 
-        if (str_contains($path, '%(prefix)')) {
+        if ($path !== '~' && str_starts_with($path, '~') && str_contains($path, '/')) {
             if ($options['errOnInterpolationFailure']) {
-                throw new \RuntimeException('Git install prefix interpolation is unsupported by this bounded config reader');
+                throw new \RuntimeException('Named-user home interpolation is unsupported by this bounded config reader');
             }
             return null;
         }

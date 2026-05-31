@@ -7,6 +7,7 @@ use PortLibs\Gitoxide\GitConfig;
 $root = sys_get_temp_dir() . '/port-libs-wordpress-config-' . bin2hex(random_bytes(6));
 $repo = $root . '/sites/wp-content.git';
 $gitDir = $repo . '/.git';
+$installPrefix = $root . '/git-install';
 $legacyByte = "\xFF";
 mkdir($gitDir, 0777, true);
 
@@ -60,6 +61,21 @@ CFG);
 $write($repo . '/legacy-byte.config', <<<CFG
 [wordpress]
 legacyByte = matched
+CFG);
+
+$write($gitDir . '/~', <<<CFG
+[wordpress]
+literalTildePath = matched
+CFG);
+
+$write($installPrefix . '/prefix-policy.config', <<<CFG
+[wordpress]
+installPrefixPath = matched
+CFG);
+
+$write($gitDir . '/%(prefix)/literal-policy.config', <<<CFG
+[wordpress]
+literalPrefixPath = matched
 CFG);
 
 $write($repo . '/backslash-slash-url.config', <<<CFG
@@ -122,6 +138,12 @@ path = ../bracket-url.config
 path = ../posix-url.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/legacy-?.git"]
 path = ../legacy-byte.config
+[includeIf "gitdir:wp-content.git/"]
+path = ~
+[includeIf "gitdir:wp-content.git/"]
+path = %(prefix)/prefix-policy.config
+[includeIf "gitdir:wp-content.git/"]
+path = ./%(prefix)/literal-policy.config
 [includeIf "hasconfig:remote.*.url:https://windows.example.test/wp-content.git"]
 path = ../backslash-slash-url.config
 [includeIf "hasconfig:remote.*.url:https://windows.example.test\\\\\\\\wp-content.git"]
@@ -137,6 +159,7 @@ CFG);
 $config = GitConfig::fromFile($gitDir . '/config', [
     'gitDir' => $gitDir,
     'homeDir' => $root,
+    'installPrefix' => $installPrefix,
     'branchName' => 'refs/heads/deploy/site-a',
 ]);
 
@@ -153,6 +176,9 @@ return [
     'bracketUrlPolicy' => $config->value('wordpress', null, 'bracketUrl'),
     'posixUrlPolicy' => $config->value('wordpress', null, 'posixUrl'),
     'legacyBytePolicy' => $config->value('wordpress', null, 'legacyByte'),
+    'literalTildePathPolicy' => $config->value('wordpress', null, 'literalTildePath'),
+    'installPrefixPathPolicy' => $config->value('wordpress', null, 'installPrefixPath'),
+    'literalPrefixPathPolicy' => $config->value('wordpress', null, 'literalPrefixPath'),
     'backslashUrlSlashPolicy' => $config->value('wordpress', null, 'backslashUrlSlash'),
     'backslashUrlLiteralPolicy' => $config->value('wordpress', null, 'backslashUrlLiteral'),
     'unboundedDoubleStarRejectedPolicy' => $config->value('wordpress', null, 'unboundedDoubleStar'),

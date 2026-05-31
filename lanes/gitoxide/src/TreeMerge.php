@@ -2113,6 +2113,19 @@ final class TreeMerge
             return null;
         }
 
+        $subtreeReplacement = self::tryMergeDirectoryRenameSubtreeReplacement(
+            $pathPrefix,
+            $targetPath,
+            $baseEntry,
+            $ourEntry,
+            $theirEntry,
+            $readObject,
+            $writeObject,
+        );
+        if ($subtreeReplacement !== null) {
+            return $subtreeReplacement;
+        }
+
         $merge = self::tryMergeChangedEntry(
             $targetPath,
             self::joinPath($pathPrefix, $targetPath),
@@ -2156,6 +2169,207 @@ final class TreeMerge
             'entry' => $nested['entry'],
             'conflicts' => [...$merge['conflicts'], ...$sameTargetNested['conflicts'], ...$nested['conflicts']],
         ];
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     * @return null|array{entry:TreeEntry,conflicts:list<TreeMergeConflict>}
+     */
+    private static function tryMergeDirectoryRenameSubtreeReplacement(
+        string $pathPrefix,
+        string $targetPath,
+        TreeEntry $baseEntry,
+        TreeEntry $ourEntry,
+        TreeEntry $theirEntry,
+        callable $readObject,
+        callable $writeObject,
+    ): ?array {
+        $targetName = basename($targetPath);
+        $renamedByOurs = $ourEntry->filename === $targetName && $theirEntry->filename !== $targetName;
+        $renamedByTheirs = $theirEntry->filename === $targetName && $ourEntry->filename !== $targetName;
+        if (!$renamedByOurs && !$renamedByTheirs) {
+            return null;
+        }
+
+        $renamedEntry = $renamedByOurs ? $ourEntry : $theirEntry;
+        $replacementEntry = $renamedByOurs ? $theirEntry : $ourEntry;
+        if (!$renamedEntry->isTree() || !$replacementEntry->isTree()) {
+            return null;
+        }
+
+        $baseTree = Tree::fromObject(self::readTypedObject($readObject, $baseEntry->oid, 'tree'));
+        $renamedTree = Tree::fromObject(self::readTypedObject($readObject, $renamedEntry->oid, 'tree'));
+        $replacementTree = Tree::fromObject(self::readTypedObject($readObject, $replacementEntry->oid, 'tree'));
+        $match = self::subtreeReplacementMatch($baseTree, $replacementTree, $readObject);
+        if ($match === null) {
+            return null;
+        }
+
+        $baseEntries = self::entriesByName($baseTree);
+        $renamedEntries = self::entriesByName($renamedTree);
+        $replacementEntries = self::entriesByName($replacementTree);
+        $mergedEntries = $renamedEntries;
+        foreach ($replacementEntries as $name => $entry) {
+            if (isset($mergedEntries[$name])) {
+                return null;
+            }
+            $mergedEntries[$name] = $entry;
+        }
+
+        $stageEntries = $renamedEntries;
+        foreach (self::strictBestSubtreeReplacementRootCopies($baseEntries, $renamedEntries, $match['replacementLeaves'], $match['sourcePath'], $readObject) as $rootPath => $replacementLeaf) {
+            $replacementAtRoot = new TreeEntry($replacementLeaf->mode, $rootPath, $replacementLeaf->oid);
+            $mergedEntries[$rootPath] = $replacementAtRoot;
+            $stageEntries[$rootPath] = $replacementAtRoot;
+        }
+
+        $stageValues = array_values($stageEntries);
+        self::sortEntries($stageValues);
+        $stageTreeEntry = new TreeEntry($renamedEntry->mode, $targetName, $writeObject((new Tree($stageValues))->toObject()));
+
+        $conflicts = [
+            new TreeMergeConflict(
+                self::joinPath($pathPrefix, $targetPath),
+                'directory-rename-subtree-replacement',
+                null,
+                $renamedByOurs ? $stageTreeEntry : null,
+                $renamedByOurs ? null : $stageTreeEntry,
+            ),
+        ];
+
+        foreach ($baseEntries as $rootPath => $rootBaseEntry) {
+            if (
+                $rootPath === $match['sourcePath']
+                || !$rootBaseEntry->isBlob()
+                || !isset($stageEntries[$rootPath])
+                || self::sameEntry($rootBaseEntry, $renamedEntries[$rootPath] ?? null)
+            ) {
+                continue;
+            }
+            $conflicts[] = new TreeMergeConflict(
+                self::joinPath($pathPrefix, self::joinPath($baseEntry->filename, $rootPath)),
+                'rename-delete',
+                new TreeEntry($rootBaseEntry->mode, $rootPath, $rootBaseEntry->oid),
+                null,
+                null,
+            );
+        }
+
+        foreach ($match['replacementLeaves'] as $replacementPath => $replacementLeaf) {
+            $baseLeaf = $match['baseLeaves'][$replacementPath] ?? null;
+            if ($baseLeaf === null || self::sameEntry($baseLeaf, $replacementLeaf)) {
+                continue;
+            }
+            $conflicts[] = new TreeMergeConflict(
+                self::joinPath($pathPrefix, self::joinPath($baseEntry->filename, $replacementPath)),
+                'directory-rename-suggested',
+                null,
+                $renamedByOurs ? null : $replacementLeaf,
+                $renamedByOurs ? $replacementLeaf : null,
+            );
+        }
+
+        $mergedValues = array_values($mergedEntries);
+        self::sortEntries($mergedValues);
+
+        return [
+            'entry' => new TreeEntry($renamedEntry->mode, $targetName, $writeObject((new Tree($mergedValues))->toObject())),
+            'conflicts' => $conflicts,
+        ];
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @return null|array{sourcePath:string,baseLeaves:array<string,TreeEntry>,replacementLeaves:array<string,TreeEntry>}
+     */
+    private static function subtreeReplacementMatch(Tree $baseTree, Tree $replacementTree, callable $readObject): ?array
+    {
+        $replacementCount = 0;
+        $replacementLeaves = self::flattenTreeLeaves($replacementTree, $readObject, '', 0, $replacementCount);
+        if ($replacementLeaves === null || $replacementLeaves === []) {
+            return null;
+        }
+
+        foreach ($baseTree->entries as $baseEntry) {
+            if (!$baseEntry->isTree()) {
+                continue;
+            }
+
+            $baseCount = 0;
+            $baseLeaves = self::flattenTreeLeaves(Tree::fromObject(self::readTypedObject($readObject, $baseEntry->oid, 'tree')), $readObject, '', 0, $baseCount);
+            if ($baseLeaves === null || array_keys($baseLeaves) !== array_keys($replacementLeaves)) {
+                continue;
+            }
+
+            foreach ($baseLeaves as $path => $baseLeaf) {
+                $replacementLeaf = $replacementLeaves[$path];
+                if ($baseLeaf->mode !== $replacementLeaf->mode || !self::sameContentKind($baseLeaf, $replacementLeaf)) {
+                    continue 2;
+                }
+                if (!$baseLeaf->isBlob()) {
+                    continue;
+                }
+                if (!self::sameEntry($baseLeaf, $replacementLeaf) && self::blobSimilarity($baseLeaf, $replacementLeaf, $readObject) < 60) {
+                    continue 2;
+                }
+            }
+
+            return [
+                'sourcePath' => $baseEntry->filename,
+                'baseLeaves' => $baseLeaves,
+                'replacementLeaves' => $replacementLeaves,
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param array<string, TreeEntry> $renamedEntries
+     * @param array<string, TreeEntry> $replacementLeaves
+     * @param callable(string): GitObject $readObject
+     * @return array<string, TreeEntry>
+     */
+    private static function strictBestSubtreeReplacementRootCopies(
+        array $baseEntries,
+        array $renamedEntries,
+        array $replacementLeaves,
+        string $subtreeSourcePath,
+        callable $readObject,
+    ): array {
+        $candidates = [];
+        foreach ($baseEntries as $rootPath => $baseEntry) {
+            $renamedEntry = $renamedEntries[$rootPath] ?? null;
+            if (
+                $rootPath === $subtreeSourcePath
+                || $renamedEntry === null
+                || !$baseEntry->isBlob()
+                || !$renamedEntry->isBlob()
+                || self::sameEntry($baseEntry, $renamedEntry)
+            ) {
+                continue;
+            }
+
+            foreach ($replacementLeaves as $replacementPath => $replacementLeaf) {
+                if (str_contains($replacementPath, '/') || !$replacementLeaf->isBlob() || $baseEntry->mode !== $replacementLeaf->mode) {
+                    continue;
+                }
+                $score = self::blobSimilarity($baseEntry, $replacementLeaf, $readObject);
+                if ($score < 60) {
+                    continue;
+                }
+                $candidates[$rootPath][$replacementPath] = ['score' => $score, 'entry' => $replacementLeaf];
+            }
+        }
+
+        $copies = [];
+        foreach (self::strictBestRelocationCandidates($candidates) as $rootPath => $candidate) {
+            $copies[$rootPath] = $candidate['entry'];
+        }
+
+        return $copies;
     }
 
     /**

@@ -276,6 +276,26 @@ return [
 
         $t->throws(RuntimeException::class, static fn () => $store->readHeader($blockedOid));
     },
+    'loose object integrity visits nested iterator candidates before declaring a store clean' => static function (TestRunner $t): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-integrity-nested-candidate-' . bin2hex(random_bytes(4)) . '/objects';
+        $staleOid = str_repeat('1', 40);
+        $nestedPath = $objectsDirectory . '/stale/' . substr($staleOid, 0, 2) . '/' . substr($staleOid, 2);
+        if (!mkdir(dirname($nestedPath), 0777, true) && !is_dir(dirname($nestedPath))) {
+            throw new RuntimeException('Unable to create nested loose object candidate fixture');
+        }
+        file_put_contents($nestedPath, 'stale loose object candidate');
+
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+        $t->same([], $store->objectIds());
+
+        try {
+            $store->verifyIntegrity();
+            throw new RuntimeException('Expected nested loose object candidate to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$staleOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Loose object not found', $exception->getMessage());
+        }
+    },
     'loose object integrity accepts positive signed size headers only under canonical ids' => static function (TestRunner $t) use ($writeLooseStorage): void {
         $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-integrity-plus-size-' . bin2hex(random_bytes(4)) . '/objects';
         $canonicalObject = new GitObject('blob', 'data');

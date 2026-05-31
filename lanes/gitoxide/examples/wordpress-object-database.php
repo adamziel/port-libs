@@ -85,6 +85,21 @@ try {
         && str_contains($exception->getMessage(), 'Loose object path is not a regular file');
 }
 
+$nestedCandidateGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-nested-candidate-' . bin2hex(random_bytes(4)) . '/.git';
+$nestedCandidateOid = str_repeat('b', 40);
+$nestedCandidatePath = $nestedCandidateGitDir . '/objects/transient/' . substr($nestedCandidateOid, 0, 2) . '/' . substr($nestedCandidateOid, 2);
+if (!mkdir(dirname($nestedCandidatePath), 0777, true) && !is_dir(dirname($nestedCandidatePath))) {
+    throw new RuntimeException("Unable to create nested loose object candidate directory: " . dirname($nestedCandidatePath));
+}
+file_put_contents($nestedCandidatePath, 'stale loose object candidate');
+$looseIntegrityNestedCandidateRejected = false;
+try {
+    (new ObjectDatabase($nestedCandidateGitDir))->verifyLooseIntegrity();
+} catch (RuntimeException $exception) {
+    $looseIntegrityNestedCandidateRejected = str_contains($exception->getMessage(), "Loose object {$nestedCandidateOid} could not be read exactly")
+        && str_contains($exception->getMessage(), 'Loose object not found');
+}
+
 $sizeMismatchGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-size-mismatch-' . bin2hex(random_bytes(4)) . '/.git';
 $sizeMismatchOid = hash('sha1', "blob 3\0abc");
 $sizeMismatchPath = $sizeMismatchGitDir . '/objects/' . substr($sizeMismatchOid, 0, 2) . '/' . substr($sizeMismatchOid, 2);
@@ -138,5 +153,6 @@ return [
     'sha256LooseIntegrityObjects' => $sha256Integrity[0]['statistics']['numObjects'],
     'sha256LooseIntegrityVerified' => in_array($sha256Oid, $sha256Integrity[0]['statistics']['verifiedObjectIds'], true),
     'looseIntegrityDirectoryBlockerRejected' => $looseIntegrityDirectoryBlockerRejected,
+    'looseIntegrityNestedCandidateRejected' => $looseIntegrityNestedCandidateRejected,
     'looseIntegritySizeMismatchRejected' => $looseIntegritySizeMismatchRejected,
 ];

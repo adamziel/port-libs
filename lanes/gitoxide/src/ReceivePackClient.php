@@ -36,11 +36,11 @@ final class ReceivePackClient
         $this->transport->writeRequest($request->requestBytes());
         $responseBytes = $this->transport->readResponse();
 
-        if (self::hasFeature($features, 'side-band') || self::hasFeature($features, 'side-band-64k')) {
-            return PushResponse::fromSidebandPacketLines($responseBytes);
-        }
+        $response = self::hasFeature($features, 'side-band') || self::hasFeature($features, 'side-band-64k')
+            ? PushResponse::fromSidebandPacketLines($responseBytes)
+            : PushResponse::fromReportStatusPacketLines($responseBytes);
 
-        return PushResponse::fromReportStatusPacketLines($responseBytes);
+        return $response->forExpectedRefNames(self::expectedRefNames($request->command()));
     }
 
     public function run(callable $plan): PushResponse
@@ -66,5 +66,16 @@ final class ReceivePackClient
         }
 
         return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function expectedRefNames(PushCommand $command): array
+    {
+        return array_map(
+            static fn (PushUpdate $update): string => $update->refName,
+            $command->updates()
+        );
     }
 }

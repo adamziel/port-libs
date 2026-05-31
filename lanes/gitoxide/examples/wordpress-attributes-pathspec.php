@@ -23,6 +23,16 @@ $tabAttributes = GitAttributes::fromString(
     "wp-content/plugins/gutenberg/** deploy review=yes\n",
     withBuiltInMacros: false,
 );
+$recursiveMacroAttributes = GitAttributes::fromString(
+    "[attr]my-text text\n"
+    . "[attr]my-binary binary\n"
+    . "[attr]b-cycle a-cycle my-text\n"
+    . "[attr]a-cycle b-cycle my-binary\n"
+    . "[attr]recursive recursively-assigned-attr\n"
+    . "[attr]my-binary binary macro-overridden recursive\n"
+    . "wp-content/** other a-cycle\n"
+    . "wp-content/** -other b-cycle\n"
+);
 $datedUploadSearch = PathspecSearch::fromSpecs([':(attr:dated-upload)wp-content/uploads/**']);
 $whitespaceUploadSearch = PathspecSearch::fromSpecs([':(attr:whitespace-upload)wp-content/uploads/**']);
 $valueTabRequirementRejected = false;
@@ -101,6 +111,13 @@ return [
         $tabAttributes,
     ),
     'valueTabRequirementRejected' => $valueTabRequirementRejected,
+    'recursiveMacroAttributes' => $recursiveMacroAttributes->attributesForPath(
+        'wp-content/plugins/gutenberg/block.php',
+        ['text', 'other', 'macro-overridden', 'recursively-assigned-attr'],
+    ),
+    'recursiveMacroPathspecMatches' => PathspecSearch::fromSpecs([
+        ':(attr:text recursively-assigned-attr macro-overridden -other)wp-content/**',
+    ])->isIncluded('wp-content/plugins/gutenberg/block.php', false, $recursiveMacroAttributes),
     'cacheExcluded' => !$matcher->matches('wp-content/cache/page.html', false, $attributes),
     'buildExcludedByPathspec' => !$matcher->matches('wp-content/plugins/gutenberg/build/index.js', false, $attributes),
 ];

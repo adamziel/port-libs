@@ -284,6 +284,63 @@ return [
         $t->same(true, $wordpress->includesPath('wp-content/plugins/gutenberg/block.json', false));
         $t->same(['index.php', 'cache-busting', 'plugins'], $entryNames($wordpress->includedTreeEntries($wpContent, 'wp-content')));
     },
+    'pathspec sparse checkout keeps negative wildcard directories traversable' => static function (TestRunner $t) use ($entryNames): void {
+        $pathAware = SparseCheckoutSpec::fromPathspecs([
+            'wp-content/**',
+            ':(exclude,glob)wp-content/*-cache',
+        ]);
+        $excludeOnly = SparseCheckoutSpec::fromPathspecs([
+            ':(exclude,glob)wp-content/*-cache',
+        ]);
+        $directoryOnly = SparseCheckoutSpec::fromPathspecs([
+            'wp-content/**',
+            ':(exclude,glob)wp-content/*-cache/',
+        ]);
+        $exactDirectoryOnly = SparseCheckoutSpec::fromPathspecs([
+            'wp-content/**',
+            ':(exclude)wp-content/generated-cache/',
+        ]);
+        $shellGlob = SparseCheckoutSpec::fromPathspecs([
+            ':(exclude)wp-content*',
+        ]);
+
+        $t->same(true, $pathAware->includesPath('wp-content/generated-cache', true));
+        $t->same(false, $pathAware->includesPath('wp-content/generated-cache', false));
+        $t->same(true, $pathAware->includesPath('wp-content/generated-cache/index.php', false));
+        $t->same(true, $pathAware->includesPath('wp-content/plugins/gutenberg/block.json', false));
+
+        $t->same(true, $excludeOnly->includesPath('wp-content/generated-cache', true));
+        $t->same(false, $excludeOnly->includesPath('wp-content/generated-cache', false));
+        $t->same(true, $excludeOnly->includesPath('wp-content/generated-cache/index.php', false));
+        $t->same(true, $excludeOnly->includesPath('wp-content/plugins/gutenberg/block.json', false));
+
+        $t->same(true, $directoryOnly->includesPath('wp-content/generated-cache', true));
+        $t->same(true, $directoryOnly->includesPath('wp-content/generated-cache/index.php', false));
+        $t->same(true, $directoryOnly->includesPath('wp-content/generated-cache-busting/index.php', false));
+
+        $t->same(false, $exactDirectoryOnly->includesPath('wp-content/generated-cache', true));
+        $t->same(false, $exactDirectoryOnly->includesPath('wp-content/generated-cache/index.php', false));
+        $t->same(true, $exactDirectoryOnly->includesPath('wp-content/generated-cache-busting/index.php', false));
+
+        $t->same(true, $shellGlob->includesPath('wp-content', true));
+        $t->same(false, $shellGlob->includesPath('wp-content', false));
+        $t->same(false, $shellGlob->includesPath('wp-content/index.php', false));
+        $t->same(true, $shellGlob->includesPath('wp-admin/admin.php', false));
+
+        $blob = str_repeat('1', 40);
+        $tree = str_repeat('2', 40);
+        $wpContent = new Tree([
+            new TreeEntry('040000', 'generated-cache', $tree),
+            new TreeEntry('040000', 'generated-cache-busting', $tree),
+            new TreeEntry('040000', 'plugins', $tree),
+            new TreeEntry('100644', 'theme-cache', $blob),
+        ]);
+
+        $t->same(
+            ['generated-cache', 'generated-cache-busting', 'plugins'],
+            $entryNames($pathAware->includedTreeEntries($wpContent, 'wp-content')),
+        );
+    },
     'pathspec sparse checkout uses gix wildmatch brackets escapes and recursive directory globs' => static function (TestRunner $t) use ($entryNames): void {
         $spec = SparseCheckoutSpec::fromPathspecs([
             ':(glob)wp-content/plugins/[ag]*/block.[jt]son',

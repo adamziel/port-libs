@@ -123,22 +123,14 @@ final class GitAttributes
         }
         $matchedSelected = false;
 
-        foreach ($this->rules as $rule) {
+        $filled = [];
+        foreach (array_reverse($this->rules) as $rule) {
             if (!self::patternMatches($rule['pattern'], $path, $isDirectory, $ignoreCase, $rule['base'])) {
                 continue;
             }
-            foreach ($this->expandAssignments($rule['assignments']) as $assignment) {
-                if ($selectedSet !== [] && !isset($selectedSet[$assignment['name']])) {
-                    continue;
-                }
-                $states[$assignment['name']] = match ($assignment['state']) {
-                    self::STATE_SET => true,
-                    self::STATE_UNSET => false,
-                    self::STATE_VALUE => (string) $assignment['value'],
-                    self::STATE_UNSPECIFIED => null,
-                    default => throw new \LogicException('Unknown attribute state'),
-                };
-                $matchedSelected = true;
+            $this->fillAssignments($rule['assignments'], $states, $filled, $selectedSet, $matchedSelected);
+            if ($selectedSet !== [] && count(array_intersect_key($filled, $selectedSet)) === count($selectedSet)) {
+                break;
             }
         }
 
@@ -395,23 +387,48 @@ final class GitAttributes
 
     /**
      * @param list<array{name:string,state:string,value:?string}> $assignments
-     * @return list<array{name:string,state:string,value:?string}>
+     * @param array<string, bool|string|null> $states
+     * @param array<string, true> $filled
+     * @param array<string, true> $selectedSet
      */
-    private function expandAssignments(array $assignments, int $depth = 0): array
-    {
-        if ($depth > 8) {
-            return $assignments;
-        }
-
-        $expanded = [];
-        foreach ($assignments as $assignment) {
-            if ($assignment['state'] === self::STATE_SET && isset($this->macros[$assignment['name']])) {
-                array_push($expanded, ...$this->expandAssignments($this->macros[$assignment['name']], $depth + 1));
+    private function fillAssignments(
+        array $assignments,
+        array &$states,
+        array &$filled,
+        array $selectedSet,
+        bool &$matchedSelected,
+    ): void {
+        $stack = $assignments;
+        while ($stack !== []) {
+            $assignment = array_pop($stack);
+            $name = $assignment['name'];
+            if (isset($filled[$name])) {
+                continue;
             }
-            $expanded[] = $assignment;
-        }
 
-        return $expanded;
+            $filled[$name] = true;
+            if ($selectedSet === [] || isset($selectedSet[$name])) {
+                $states[$name] = match ($assignment['state']) {
+                    self::STATE_SET => true,
+                    self::STATE_UNSET => false,
+                    self::STATE_VALUE => (string) $assignment['value'],
+                    self::STATE_UNSPECIFIED => null,
+                    default => throw new \LogicException('Unknown attribute state'),
+                };
+                if (isset($selectedSet[$name])) {
+                    $matchedSelected = true;
+                }
+            }
+
+            if (!isset($this->macros[$name]) || $this->macros[$name] === []) {
+                continue;
+            }
+            foreach ($this->macros[$name] as $macroAssignment) {
+                if (!isset($filled[$macroAssignment['name']])) {
+                    $stack[] = $macroAssignment;
+                }
+            }
+        }
     }
 
     /**

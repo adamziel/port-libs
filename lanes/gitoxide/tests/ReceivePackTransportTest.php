@@ -289,6 +289,34 @@ return [
         $t->contains('refs/heads/main', $streamBytes($write));
         $t->contains('PACK', $streamBytes($write));
     },
+    'receive-pack client filters response statuses to requested refs like send-pack' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress expected ref status payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x02remote: validating deployment refs\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/ghost ignored by send-pack\n"))
+            . $packet("\x01" . $packet("ng refs/heads/main stale lock\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main post-update hook accepted\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $client = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($advertisement . $responseBytes), $streamWith('')),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+
+        $response = $client->send($session->buildRequest([$blob]));
+
+        $t->same(true, $response->isSuccessful());
+        $t->same(1, count($response->refStatuses()));
+        $t->same('refs/heads/main', $response->refStatuses()[0]->refName);
+        $t->same('ok', $response->refStatuses()[0]->status);
+        $t->same('post-update hook accepted', $response->refStatuses()[0]->message);
+        $t->same([], $response->rejectedRefs());
+        $t->same(['remote: validating deployment refs'], $response->progressMessages());
+    },
     'stream receive-pack transport reports watchdog timeout while reading packet length' => static function (TestRunner $t): void {
         if (!function_exists('stream_socket_pair')) {
             throw new RuntimeException('stream_socket_pair is required for stream timeout watchdog tests');

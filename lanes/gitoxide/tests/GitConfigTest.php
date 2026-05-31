@@ -460,6 +460,94 @@ return [
         $t->same('matched', $config->value('user', null, 'legacyByte'));
     },
 
+    'conditional include path interpolation follows gix prefix and tilde sentinels' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $root = $tmpDir();
+        $worktree = $root . '/literal-tilde';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($gitDir . '/~', "[section]\nvalue = tilde-literal\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:literal-tilde/"]
+        path = ~
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('tilde-literal', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $worktree = $root . '/home-slash';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($root . '/home-policy.config', "[section]\nvalue = home-expanded\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:home-slash/"]
+        path = ~/home-policy.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('home-expanded', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $worktree = $root . '/prefix-worktree';
+        $gitDir = $worktree . '/.git';
+        $installPrefix = $root . '/install';
+        mkdir($gitDir, 0777, true);
+        $write($installPrefix . '/policy.config', "[section]\nvalue = install-prefix\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:prefix-worktree/"]
+        path = %(prefix)/policy.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+            'installPrefix' => $installPrefix,
+        ]);
+        $t->same('install-prefix', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $worktree = $root . '/literal-prefix';
+        $gitDir = $worktree . '/.git';
+        $installPrefix = $root . '/install';
+        mkdir($gitDir . '/%(prefix)', 0777, true);
+        $write($gitDir . '/%(prefix)/policy.config', "[section]\nvalue = literal-prefix\n");
+        $write($installPrefix . '/policy.config', "[section]\nvalue = should-not-load\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:literal-prefix/"]
+        path = ./%(prefix)/policy.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+            'installPrefix' => $installPrefix,
+        ]);
+        $t->same('literal-prefix', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $worktree = $root . '/~alice/worktree';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/include.config', "[section]\nvalue = named-user\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:~alice/worktree/"]
+        path = ../include.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('base', $config->value('section', null, 'value'));
+        $t->throws(\RuntimeException::class, static fn () => GitConfig::fromFile($gitDir . '/config', [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+            'errOnInterpolationFailure' => true,
+        ]));
+    },
+
     'hasconfig includeIf searches parent config with gix ordering and cycle boundaries' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $root = $tmpDir();
         $write($root . '/include-this', "[user]\nthis = included\n");
@@ -574,6 +662,9 @@ return [
         $t->same('matched', $fixture['bracketUrlPolicy']);
         $t->same('matched', $fixture['posixUrlPolicy']);
         $t->same('matched', $fixture['legacyBytePolicy']);
+        $t->same('matched', $fixture['literalTildePathPolicy']);
+        $t->same('matched', $fixture['installPrefixPathPolicy']);
+        $t->same('matched', $fixture['literalPrefixPathPolicy']);
         $t->same(null, $fixture['backslashUrlSlashPolicy']);
         $t->same('matched', $fixture['backslashUrlLiteralPolicy']);
         $t->same(null, $fixture['unboundedDoubleStarRejectedPolicy']);
@@ -587,6 +678,9 @@ return [
         $t->same($fixture['bracketUrlPolicy'], $summary['bracketUrlPolicy']);
         $t->same($fixture['posixUrlPolicy'], $summary['posixUrlPolicy']);
         $t->same($fixture['legacyBytePolicy'], $summary['legacyBytePolicy']);
+        $t->same($fixture['literalTildePathPolicy'], $summary['literalTildePathPolicy']);
+        $t->same($fixture['installPrefixPathPolicy'], $summary['installPrefixPathPolicy']);
+        $t->same($fixture['literalPrefixPathPolicy'], $summary['literalPrefixPathPolicy']);
         $t->same($fixture['backslashUrlSlashPolicy'], $summary['backslashUrlSlashPolicy']);
         $t->same($fixture['backslashUrlLiteralPolicy'], $summary['backslashUrlLiteralPolicy']);
         $t->same($fixture['unboundedDoubleStarRejectedPolicy'], $summary['unboundedDoubleStarRejectedPolicy']);

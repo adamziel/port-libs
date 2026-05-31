@@ -2521,6 +2521,109 @@ return [
             $expanded,
         ));
     },
+    'maps upstream gix-merge tree-baseline conflicting-rename-complex fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $baseContent = "original\n1\n2\n3\n4\n5\n";
+        $ourContent = "1\n2\n3\n4\n5\n";
+        $theirContent = "original\n1\n2\n3\n4\n5\n6\n";
+        $base = new Tree([
+            $treeEntry('a', new Tree([
+                $treeEntry('sub', new Tree([
+                    $blobEntry('y.f', $baseContent),
+                    $blobEntry('z', ''),
+                ])),
+                $blobEntry('w', ''),
+                $blobEntry('x.f', $baseContent),
+            ])),
+        ]);
+        $ours = new Tree([
+            $treeEntry('a-renamed', new Tree([
+                $treeEntry('sub', new Tree([
+                    $blobEntry('y.f', $ourContent),
+                    $blobEntry('z', ''),
+                ])),
+                $blobEntry('w', ''),
+                $blobEntry('x.f', $ourContent),
+            ])),
+        ]);
+        $theirs = new Tree([
+            $treeEntry('a', new Tree([
+                $blobEntry('y.f', $theirContent),
+                $blobEntry('z', ''),
+            ])),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $renamed = Tree::fromObject($read($result->tree->entryNamed('a-renamed', true)?->oid ?? ''));
+        $sub = Tree::fromObject($read($renamed->entryNamed('sub', true)?->oid ?? ''));
+        $expanded = MergeIndexFile::entriesForResult($result, $read);
+
+        $t->same(false, $result->isClean());
+        $t->same(['a-renamed'], $names($result->tree));
+        $t->same(['sub', 'w', 'x.f', 'y.f', 'z'], $names($renamed));
+        $t->same(['y.f', 'z'], $names($sub));
+        $t->same($ourContent, $read($sub->entryNamed('y.f')?->oid ?? '')->body);
+        $t->same('', $read($sub->entryNamed('z')?->oid ?? '')->body);
+        $t->same('', $read($renamed->entryNamed('w')?->oid ?? '')->body);
+        $t->same($theirContent, $read($renamed->entryNamed('x.f')?->oid ?? '')->body);
+        $t->same($theirContent, $read($renamed->entryNamed('y.f')?->oid ?? '')->body);
+        $t->same('', $read($renamed->entryNamed('z')?->oid ?? '')->body);
+        $t->same([
+            ['path' => 'a-renamed', 'reason' => 'directory-rename-subtree-replacement', 'base' => null, 'ours' => 'a-renamed', 'theirs' => null],
+            ['path' => 'a/x.f', 'reason' => 'rename-delete', 'base' => 'x.f', 'ours' => null, 'theirs' => null],
+            ['path' => 'a/y.f', 'reason' => 'directory-rename-suggested', 'base' => null, 'ours' => null, 'theirs' => 'y.f'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['path' => 'a-renamed/sub/y.f', 'stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'body' => $ourContent],
+            ['path' => 'a-renamed/sub/z', 'stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'body' => ''],
+            ['path' => 'a-renamed/w', 'stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'body' => ''],
+            ['path' => 'a-renamed/x.f', 'stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'body' => $theirContent],
+            ['path' => 'a/x.f', 'stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'body' => $baseContent],
+            ['path' => 'a/y.f', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'body' => $theirContent],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'path' => $entry->path,
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'body' => $read($entry->oid)->body,
+            ],
+            $expanded,
+        ));
+        $t->same([], $result->worktreeConflictFiles($read));
+
+        $reverse = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write);
+        $reverseRenamed = Tree::fromObject($read($reverse->tree->entryNamed('a-renamed', true)?->oid ?? ''));
+        $reverseExpanded = MergeIndexFile::entriesForResult($reverse, $read);
+
+        $t->same(false, $reverse->isClean());
+        $t->same(['sub', 'w', 'x.f', 'y.f', 'z'], $names($reverseRenamed));
+        $t->same($theirContent, $read($reverseRenamed->entryNamed('x.f')?->oid ?? '')->body);
+        $t->same([
+            ['path' => 'a-renamed/sub/y.f', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'body' => $ourContent],
+            ['path' => 'a-renamed/sub/z', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'body' => ''],
+            ['path' => 'a-renamed/w', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'body' => ''],
+            ['path' => 'a-renamed/x.f', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'body' => $theirContent],
+            ['path' => 'a/x.f', 'stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'body' => $baseContent],
+            ['path' => 'a/y.f', 'stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'body' => $theirContent],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'path' => $entry->path,
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'body' => $read($entry->oid)->body,
+            ],
+            $reverseExpanded,
+        ));
+    },
     'maps upstream gix-merge tree-baseline rename-rename-plus-content fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();
         $base = new Tree([$blobEntry('foo', "1\n2\n3\n4\n5\n")]);

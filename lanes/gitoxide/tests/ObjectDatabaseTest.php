@@ -324,6 +324,31 @@ return [
             $t->contains('Loose object path is not a regular file', $exception->getMessage());
         }
     },
+    'object database loose integrity rejects nested alternate iterator candidates' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-nested-candidate-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateObjectsDir = $root . '/shared-cache/.git/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+
+        $staleOid = str_repeat('3', 40);
+        $nestedPath = $alternateObjectsDir . '/transient/' . substr($staleOid, 0, 2) . '/' . substr($staleOid, 2);
+        if (!mkdir(dirname($nestedPath), 0777, true) && !is_dir(dirname($nestedPath))) {
+            throw new RuntimeException('Unable to create nested alternate loose object candidate fixture');
+        }
+        file_put_contents($nestedPath, 'stale loose object candidate');
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        try {
+            (new ObjectDatabase($gitDir))->verifyLooseIntegrity();
+            throw new RuntimeException('Expected nested alternate loose object candidate to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$staleOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Loose object not found', $exception->getMessage());
+        }
+    },
     'object database loose integrity applies allocation limits to primary and alternate stores' => static function (TestRunner $t) use ($looseObjectPath): void {
         $root = sys_get_temp_dir() . '/port-libs-git-odb-alloc-limit-' . bin2hex(random_bytes(4));
         $gitDir = $root . '/site/.git';
@@ -540,6 +565,7 @@ return [
         $t->same(1, $summary['sha256LooseIntegrityObjects']);
         $t->same(true, $summary['sha256LooseIntegrityVerified']);
         $t->same(true, $summary['looseIntegrityDirectoryBlockerRejected']);
+        $t->same(true, $summary['looseIntegrityNestedCandidateRejected']);
         $t->same(true, $summary['looseIntegritySizeMismatchRejected']);
     },
 ];

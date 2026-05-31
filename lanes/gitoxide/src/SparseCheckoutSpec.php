@@ -318,7 +318,7 @@ final class SparseCheckoutSpec
     {
         $included = false;
         $matched = false;
-        $excludedByPathspec = false;
+        $matchedNegativePathspecRules = [];
         foreach ($this->patterns as $rule) {
             if (!$this->nonConeRuleMatches($rule, $path, $isDirectory)) {
                 continue;
@@ -326,11 +326,18 @@ final class SparseCheckoutSpec
             $matched = true;
             $included = !$rule['negative'];
             if (($rule['pathspec'] ?? false) && $rule['negative']) {
-                $excludedByPathspec = true;
+                $matchedNegativePathspecRules[] = $rule;
             }
         }
 
-        if ($excludedByPathspec) {
+        if ($matchedNegativePathspecRules !== []) {
+            if (
+                $isDirectory === true
+                && $this->excludedDirectoryCanContainIncludedPaths($path, $matchedNegativePathspecRules)
+            ) {
+                return true;
+            }
+
             return false;
         }
 
@@ -350,6 +357,40 @@ final class SparseCheckoutSpec
         }
 
         return $included;
+    }
+
+    /**
+     * @param list<array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool,caseSensitivePrefix?:string}> $matchedNegativePathspecRules
+     */
+    private function excludedDirectoryCanContainIncludedPaths(string $path, array $matchedNegativePathspecRules): bool
+    {
+        $hasWildcardExclude = false;
+        foreach ($matchedNegativePathspecRules as $rule) {
+            if (!self::pathspecRuleHasActiveWildcard($rule)) {
+                continue;
+            }
+            $hasWildcardExclude = true;
+            break;
+        }
+
+        if (!$hasWildcardExclude) {
+            return false;
+        }
+
+        if ($this->allPatternsExcludedFallback) {
+            return true;
+        }
+
+        foreach ($this->patterns as $rule) {
+            if ($rule['negative'] || !($rule['pathspec'] ?? false)) {
+                continue;
+            }
+            if ($this->pathspecRuleCanMatchDescendant($rule, $path)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -861,6 +902,30 @@ final class SparseCheckoutSpec
     private static function patternHasWildcard(string $pattern): bool
     {
         return strpbrk($pattern, '*?[') !== false || str_contains($pattern, '\\');
+    }
+
+    /**
+     * @param array{pattern:string,literal?:bool} $rule
+     */
+    private static function pathspecRuleHasActiveWildcard(array $rule): bool
+    {
+        if ($rule['literal'] ?? false) {
+            return false;
+        }
+
+        $pattern = $rule['pattern'];
+        $length = strlen($pattern);
+        for ($i = 0; $i < $length; $i++) {
+            if ($pattern[$i] === '\\') {
+                $i++;
+                continue;
+            }
+            if (str_contains('*?[', $pattern[$i])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

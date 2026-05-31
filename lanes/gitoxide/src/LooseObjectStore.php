@@ -228,36 +228,46 @@ final class LooseObjectStore
 
         $ids = [];
         $suffixLength = self::hashHexLength($this->algorithm) - 2;
-        $prefixes = scandir($objectsDirectory);
-        if ($prefixes === false) {
-            throw new \RuntimeException("Unable to scan loose object directory: {$objectsDirectory}");
-        }
-
-        foreach ($prefixes as $prefix) {
-            if (preg_match('/^[0-9a-fA-F]{2}$/', $prefix) !== 1) {
-                continue;
-            }
-
-            $directory = $objectsDirectory . '/' . $prefix;
-            if (!is_dir($directory) || is_link($directory)) {
-                continue;
-            }
-
-            $entries = scandir($directory);
-            if ($entries === false) {
-                throw new \RuntimeException("Unable to scan loose object directory: {$directory}");
-            }
-            foreach ($entries as $suffix) {
-                if (preg_match('/^[0-9a-fA-F]{' . $suffixLength . '}$/', $suffix) === 1) {
-                    $ids[strtolower($prefix . $suffix)] = true;
-                }
-            }
-        }
+        $this->collectIntegrityObjectIds($objectsDirectory, 0, $suffixLength, $ids);
 
         $ids = array_keys($ids);
         sort($ids, SORT_STRING);
 
         return $ids;
+    }
+
+    /**
+     * @param array<string,true> $ids
+     */
+    private function collectIntegrityObjectIds(string $directory, int $depth, int $suffixLength, array &$ids): void
+    {
+        $entries = scandir($directory);
+        if ($entries === false) {
+            throw new \RuntimeException("Unable to scan loose object directory: {$directory}");
+        }
+
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+
+            $path = $directory . '/' . $entry;
+            $entryDepth = $depth + 1;
+            if ($entryDepth >= 2 && $entryDepth <= 3) {
+                $prefix = basename(dirname($path));
+                $suffix = basename($path);
+                if (
+                    preg_match('/^[0-9a-fA-F]{2}$/', $prefix) === 1
+                    && preg_match('/^[0-9a-fA-F]{' . $suffixLength . '}$/', $suffix) === 1
+                ) {
+                    $ids[strtolower($prefix . $suffix)] = true;
+                }
+            }
+
+            if ($entryDepth < 3 && is_dir($path) && !is_link($path)) {
+                $this->collectIntegrityObjectIds($path, $entryDepth, $suffixLength, $ids);
+            }
+        }
     }
 
     private function assertObjectId(string $oid): void

@@ -39,6 +39,17 @@ $directoryExcludePathspec = SparseCheckoutSpec::fromPathspecs([
     ':/wp-content',
     ':!/wp-content/cache/',
 ], prefix: 'wp-content');
+$negativeWildcardPathspec = SparseCheckoutSpec::fromPathspecs([
+    'wp-content/**',
+    ':(exclude,glob)wp-content/*-cache',
+]);
+$negativeWildcardExcludeOnlyPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(exclude,glob)wp-content/*-cache',
+]);
+$directoryOnlyWildcardExcludePathspec = SparseCheckoutSpec::fromPathspecs([
+    'wp-content/**',
+    ':(exclude,glob)wp-content/*-cache/',
+]);
 $deploymentRoot = '/srv/www/example.com/current';
 $absolutePathspec = SparseCheckoutSpec::fromPathspecs([
     $deploymentRoot . '/wp-content/plugins/gutenberg/block.json',
@@ -82,6 +93,8 @@ $wpContent = new Tree([
     new TreeEntry('100644', 'index.php', $blob),
     new TreeEntry('040000', 'cache', $tree),
     new TreeEntry('040000', 'cache-busting', $tree),
+    new TreeEntry('040000', 'generated-cache', $tree),
+    new TreeEntry('040000', 'generated-cache-busting', $tree),
     new TreeEntry('040000', 'plugins', $tree),
     new TreeEntry('040000', 'uploads', $tree),
 ]);
@@ -126,6 +139,12 @@ return [
     'directoryOnlyCacheDescendantSkipped' => $directoryExcludePathspec->skipWorktree('wp-content/cache/page.html', false),
     'directoryOnlyCacheBustingIncluded' => $directoryExcludePathspec->includesPath('wp-content/cache-busting/loader.php', false),
     'directoryOnlyEntriesToMaterialize' => $entryNames($directoryExcludePathspec->includedTreeEntries($wpContent, 'wp-content')),
+    'negativeWildcardCacheDirectoryTraversable' => $negativeWildcardPathspec->includesPath('wp-content/generated-cache', true),
+    'negativeWildcardCacheFileNameSkipped' => $negativeWildcardPathspec->skipWorktree('wp-content/generated-cache', false),
+    'negativeWildcardCacheDescendantIncluded' => $negativeWildcardPathspec->includesPath('wp-content/generated-cache/index.php', false),
+    'negativeWildcardExcludeOnlyDescendantIncluded' => $negativeWildcardExcludeOnlyPathspec->includesPath('wp-content/generated-cache/index.php', false),
+    'directoryOnlyWildcardExcludeDirectoryTraversable' => $directoryOnlyWildcardExcludePathspec->includesPath('wp-content/generated-cache', true),
+    'negativeWildcardEntriesToMaterialize' => $entryNames($negativeWildcardPathspec->includedTreeEntries($wpContent, 'wp-content')),
     'absoluteRootPathspecBlockIncluded' => $absolutePathspec->includesPath('wp-content/plugins/gutenberg/block.json', false),
     'absoluteRootPathspecIcaseReadmeIncluded' => $absolutePathspec->includesPath('wp-content/plugins/gutenberg/README.md', false),
     'absoluteRootPathspecUpperPrefixSkipped' => $absolutePathspec->skipWorktree('WP-CONTENT/plugins/gutenberg/README.md', false),
