@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use PortLibs\Gitoxide\Commit;
 use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\LooseObjectStore;
+use PortLibs\Gitoxide\LooseReferenceStore;
+use PortLibs\Gitoxide\ObjectDatabase;
 
 $signedSingleLine = "tree 00fc39317701176e326974ce44f5bd545a32ec0b\n"
     . "parent 09d8d3a12e161a7f6afb522dbe8900a9c09bce06\n"
@@ -143,5 +146,38 @@ return [
         $t->same($stripFirstGpgsigHeader($sha256Signed), $signature['signedData'] ?? null);
         $t->same($signature, Commit::signatureForVerificationFromStorageBytes($object->storageBytes(), 'sha256'));
         $t->throws(InvalidArgumentException::class, static fn () => Commit::signatureForVerificationFromObject($object));
+    },
+    'object database commit signature helper follows replacements and object format' => static function (TestRunner $t) use ($messageWithFooter, $sha256Signed, $stripFirstGpgsigHeader): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-commit-signature-odb-' . bin2hex(random_bytes(4)) . '/.git';
+        $loose = new LooseObjectStore($gitDir);
+
+        $unsignedBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author WordPress Importer <importer@example.test> 1710000000 +0000\n"
+            . "committer WordPress Deploy Bot <deploy@example.test> 1710003600 +0000\n"
+            . "\n"
+            . "Unsigned database commit\n";
+        $unsignedOid = $loose->write(new GitObject('commit', $unsignedBody));
+        $signedOid = $loose->write(new GitObject('commit', $messageWithFooter));
+        $blobOid = $loose->write(new GitObject('blob', 'not a commit'));
+        (new LooseReferenceStore($gitDir))->writeDirect('refs/replace/' . $unsignedOid, $signedOid);
+
+        $database = new ObjectDatabase($gitDir);
+        $replacementSignature = $database->commitSignatureForVerification($unsignedOid);
+        $directSignature = $database->commitSignatureForVerification(strtoupper($signedOid));
+
+        $t->same($directSignature, $replacementSignature);
+        $t->same("-----BEGIN PGP SIGNATURE-----\n\niHUEABYIAB0WIQSuZwcGWSQItmusNgR5URpSUCnwXQUCYT7xpAAKCRB5URpSUCnw\nXWB3AP9q323HlxnI8MyqszNOeYDwa7Y3yEZaUM2y/IRjz+z4YQEAq0yr1Syt3mrK\nOSFCqL2vDm3uStP+vF31f6FnzayhNg0=\n=Mhpp\n-----END PGP SIGNATURE-----\n", $replacementSignature['signature'] ?? null);
+        $t->same($stripFirstGpgsigHeader($messageWithFooter), $replacementSignature['signedData'] ?? null);
+        $t->same(null, $database->withReplacementsIgnored()->commitSignatureForVerification($unsignedOid));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->commitSignatureForVerification($blobOid));
+
+        $sha256GitDir = sys_get_temp_dir() . '/port-libs-git-commit-signature-odb-sha256-' . bin2hex(random_bytes(4)) . '/.git';
+        $sha256Oid = (new LooseObjectStore($sha256GitDir, false, 'sha256'))->write(new GitObject('commit', $sha256Signed));
+        $sha256Signature = (new ObjectDatabase($sha256GitDir, objectHash: 'sha256'))->commitSignatureForVerification($sha256Oid);
+
+        $t->same(64, strlen($sha256Oid));
+        $t->same("-----BEGIN SSH SIGNATURE-----\nU1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgZXhhbXBsZS1zaGEyNTY=\n-----END SSH SIGNATURE-----\n", $sha256Signature['signature'] ?? null);
+        $t->same($stripFirstGpgsigHeader($sha256Signed), $sha256Signature['signedData'] ?? null);
+        $t->throws(InvalidArgumentException::class, static fn () => (new ObjectDatabase($sha256GitDir))->commitSignatureForVerification($sha256Oid));
     },
 ];

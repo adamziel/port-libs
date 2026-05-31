@@ -296,6 +296,58 @@ return [
 
         $cacheTree?->verifyEntryCounts(count($entries));
     },
+    'rejects literal separator path components while building checkout indexes' => static function (TestRunner $t) use ($objectStore, $throwsMessage): void {
+        [$read, $blob, $treeEntry] = $objectStore();
+        $slashLeaf = new Tree([
+            $blob('../outside', 'escape'),
+        ]);
+        $backslashLeaf = new Tree([
+            $blob('.git\\hooks\\pre-commit', "#!/bin/sh\n", '100755'),
+        ]);
+        $slashTree = new Tree([
+            $treeEntry('wp-content/plugins', new Tree([
+                $blob('plugin.php', "<?php\n"),
+            ])),
+        ]);
+
+        $throwsMessage(
+            $t,
+            InvalidArgumentException::class,
+            'Path separators like / or \\ are not allowed',
+            static fn () => IndexFile::entriesForCheckout($slashLeaf, $read),
+        );
+        $throwsMessage(
+            $t,
+            InvalidArgumentException::class,
+            'Path separators like / or \\ are not allowed',
+            static fn () => IndexFile::entriesForCheckout($backslashLeaf, $read),
+        );
+        $throwsMessage(
+            $t,
+            InvalidArgumentException::class,
+            'Path separators like / or \\ are not allowed',
+            static fn () => IndexCacheTree::fromTree($slashTree, $read),
+        );
+    },
+    'from tree preserves current file directory conflict entries until upstream fixes them' => static function (TestRunner $t) use ($objectStore, $paths): void {
+        [$read, $blob, $treeEntry] = $objectStore();
+        $conflicted = new Tree([
+            $blob('a', 'file'),
+            $treeEntry('a', new Tree([
+                $blob('post-checkout', 'hook'),
+            ])),
+            $blob('payload', 'payload'),
+        ]);
+
+        $entries = IndexFile::entriesForCheckout($conflicted, $read);
+        $cacheTree = IndexCacheTree::fromTree($conflicted, $read);
+        $bytes = IndexFile::bytesFor($entries, $cacheTree);
+
+        $t->same(['a', 'a/post-checkout', 'payload'], $paths($entries));
+        $t->same(3, $cacheTree->numEntries);
+        $t->same(1, $cacheTree->childNamed('a')?->numEntries);
+        $t->same($cacheTree->bodyBytes(), IndexFile::verifyCheckoutCacheTree($bytes, $conflicted, $read)->bodyBytes());
+    },
     'cache tree decoder sorts children and rejects duplicate or trailing data' => static function (TestRunner $t) use ($oid, $cacheNode, $childNames): void {
         $body = $cacheNode('', 0, $oid('1'), $cacheNode('z', 0, $oid('2')) . $cacheNode('a', 0, $oid('3')));
         $tree = IndexCacheTree::fromBody($body);

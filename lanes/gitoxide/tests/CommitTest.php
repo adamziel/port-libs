@@ -809,5 +809,9 @@ return [
         $t->same(true, $summary['generatedGpgsigRoundTripMatches']);
         $t->same(true, $summary['generatedGpgsigAlreadySignedStable']);
         $t->same(true, $summary['generatedGpgsigObjectChanged']);
+        $t->same($fixture['expectedDatabaseGpgsigReplacementMatchesDirect'], $summary['databaseGpgsigReplacementMatchesDirect']);
+        $t->same($fixture['expectedDatabaseGpgsigSignedDataMatchesUnsigned'], $summary['databaseGpgsigSignedDataMatchesUnsigned']);
+        $t->same($fixture['expectedDatabaseGpgsigIgnoredReplacementUnsigned'], $summary['databaseGpgsigIgnoredReplacementUnsigned']);
+        $t->same($fixture['expectedDatabaseGpgsigSignedOidLength'], $summary['databaseGpgsigSignedOidLength']);
     },
 ];

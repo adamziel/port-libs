@@ -8,6 +8,24 @@ Worktree: `{{WORKTREE}}`
 Main repo for handoff artifacts only: `{{MAIN_REPO}}`
 Supervisor log: `{{LOG_FILE}}`
 
+Current supervisor override, 2026-05-31 11:25 UTC:
+
+- If `Lane` is `lightningcss`, fully focus on porting LightningCSS under
+  `lanes/lightningcss/**`. Ignore SQLite/Gitoxide-specific backlog text except
+  for the general handoff discipline: preserve unrelated dirty work, produce a
+  real patch, run focused LightningCSS tests/examples for your slice, and leave
+  source-truth evidence in the handoff log or a lane note. Use upstream
+  `parcel-bundler/lightningcss` behavior at the pinned manifest commit as the
+  source of truth. Prioritize unmapped or weakly mapped bundle/import graph,
+  source-map, CSS modules, CSSOM read/write, visitor/custom at-rule,
+  target-prefixing, media-query, selector, parser recovery, and property/value
+  parity. Do not edit dashboard/progress files from a worker. If a slice is too
+  broad, reduce it to a bounded upstream-backed behavior with passing PHP tests
+  instead of returning status-only notes.
+- New subagents must use `gpt-5.5` with
+  `model_reasoning_effort="xhigh"` on the priority service tier unless the
+  user explicitly changes this later.
+
 Current supervisor override, 2026-05-31 08:10 UTC:
 
 - Split-priority override: the active worker pool is intentionally split

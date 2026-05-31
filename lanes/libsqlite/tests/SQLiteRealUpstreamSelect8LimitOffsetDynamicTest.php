@@ -71,18 +71,13 @@ $expectedLimitOffset = static function (array $baseRows, int $limit, int $offset
 
 $tests = [];
 
-$baseGroupedRows = [
-    ['artist' => 'one', 'total' => 10],
-    ['artist' => 'two', 'total' => 14],
-    ['artist' => 'three', 'total' => 5],
-];
-
 $baseSql = 'SELECT DISTINCT artist,sum(timesplayed) AS total FROM songs GROUP BY LOWER(artist)';
+$baseGroupedRows = SQLiteSelectSql::execute($baseSql, $select8Tables());
 
 $canonicalCases = [
-    'select8.test select8-1.1 limit one offset one' => ['LIMIT 1 OFFSET 1', ['two', 14]],
-    'select8.test select8-1.2 limit two offset one' => ['LIMIT 2 OFFSET 1', ['two', 14, 'three', 5]],
-    'select8.test select8-1.3 negative limit offset two' => ['LIMIT -1 OFFSET 2', ['three', 5]],
+    'select8.test select8-1.1 limit one offset one' => ['LIMIT 1 OFFSET 1', $expectedLimitOffset($baseGroupedRows, 1, 1)],
+    'select8.test select8-1.2 limit two offset one' => ['LIMIT 2 OFFSET 1', $expectedLimitOffset($baseGroupedRows, 2, 1)],
+    'select8.test select8-1.3 negative limit offset two' => ['LIMIT -1 OFFSET 2', $expectedLimitOffset($baseGroupedRows, -1, 2)],
 ];
 
 foreach ($canonicalCases as $name => [$limitClause, $expected]) {
@@ -92,10 +87,11 @@ foreach ($canonicalCases as $name => [$limitClause, $expected]) {
     };
 }
 
-$tests['real upstream corpus select8.test cites source and canonical grouped rows'] = static function (TestRunner $t) use ($baseSql, $assertSelectFlat): void {
-    $t->contains('/test/select8.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/select8.test');
-    $assertSelectFlat($t, $baseSql, ['one', 10, 'two', 14, 'three', 5]);
-};
+$tests['real upstream corpus select8.test cites source and canonical grouped rows'] =
+    static function (TestRunner $t) use ($baseSql, $baseGroupedRows, $expectedLimitOffset, $assertSelectFlat): void {
+        $t->contains('/test/select8.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/select8.test');
+        $assertSelectFlat($t, $baseSql, $expectedLimitOffset($baseGroupedRows, -1, 0));
+    };
 
 $limits = [-1, 0, 1, 2, 3, 4, 5, 8, 13, 21];
 $offsets = range(0, 99);

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use PortLibs\Gitoxide\LsRefsCommand;
+
 $main = '9b0fc92260312ce44e74ef369f5f4b4d6fd6672f54064da57e9450051e7f5a3c';
 $releaseTag = '3b7a0f55a20c3fe6c451bb9f551e2f7f0d4091b6bb0d0ad0a39fc4fcd4b6d1a9';
 $releaseObject = '6d0f02a4db7bc9a514f45a0bb3ee4a25e0f6be41832fe3482077a9f6cf2c04d8';
@@ -23,6 +25,7 @@ $responseLines = [
     "{$releaseTag} refs/tags/wp-release peeled:{$releaseObject}",
     'unborn refs/heads/next-release symref-target:refs/heads/main',
 ];
+$emptyLineResponseAdvertisement = $packet("\n") . $flush;
 
 return [
     'capabilities' => implode("\n", [...$capabilityLines, '']),
@@ -73,10 +76,20 @@ return [
         . $flush,
     'response' => implode("\n", [...$responseLines, '']),
     'responseAdvertisement' => implode('', array_map(static fn (string $line): string => $packet($line . "\n"), $responseLines)) . $flush,
+    'emptyLineResponseAdvertisement' => $emptyLineResponseAdvertisement,
+    'emptyLineAdvertisementRejected' => (static function () use ($emptyLineResponseAdvertisement): bool {
+        try {
+            LsRefsCommand::parseV2PacketLines($emptyLineResponseAdvertisement);
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+
+        return false;
+    })(),
     'objects' => [
         'main' => $main,
         'releaseTag' => $releaseTag,
         'releaseObject' => $releaseObject,
     ],
-    'wordpressUse' => 'A PHP deployment tool can parse service-announced protocol v2 ls-refs capabilities, expand shorthand fetch refspecs into Gitoxide-style DWIM ref-prefix request lines, and parse SHA-256 response lines to discover the active WordPress branch, release tag target, and unborn staging branch before deciding what to fetch.',
+    'wordpressUse' => 'A PHP deployment tool can parse service-announced protocol v2 ls-refs capabilities, expand shorthand fetch refspecs into Gitoxide-style DWIM ref-prefix request lines, parse SHA-256 response lines to discover the active WordPress branch, release tag target, and unborn staging branch, and reject malformed blank advertisement rows before deciding what to fetch.',
 ];

@@ -12,8 +12,21 @@ return [
         $packed = PackedReferences::fromBytes("# pack-refs with: peeled fully-peeled sorted  \n");
         $t->same(true, $packed->hasHeader());
         $t->same(true, $packed->headerSorted());
+        $t->same(PackedReferences::PEELED_FULLY, $packed->headerPeeledState());
         $t->same(['peeled', 'fully-peeled', 'sorted'], $packed->headerTraits());
         $t->same([], $packed->all());
+    },
+    'parses upstream peeled header states while ignoring unknown traits' => static function (TestRunner $t): void {
+        $partial = PackedReferences::fromBytes("# pack-refs with: unknown peeled\n");
+        $fully = PackedReferences::fromBytes("# pack-refs with: peeled unknown fully-peeled sorted\n");
+        $unspecified = PackedReferences::fromBytes("# pack-refs with: \n");
+
+        $t->same(PackedReferences::PEELED_PARTIAL, $partial->headerPeeledState());
+        $t->same(false, $partial->headerSorted());
+        $t->same(['unknown', 'peeled'], $partial->headerTraits());
+        $t->same(PackedReferences::PEELED_FULLY, $fully->headerPeeledState());
+        $t->same(true, $fully->headerSorted());
+        $t->same(PackedReferences::PEELED_UNSPECIFIED, $unspecified->headerPeeledState());
     },
     'parses uppercase packed ref and peeled object ids' => static function (TestRunner $t) use ($sha1, $peeled): void {
         $packed = PackedReferences::fromBytes(strtoupper($sha1) . " refs/heads/uppercase\n^" . strtoupper($peeled) . "\n");
@@ -56,6 +69,17 @@ return [
         $t->same('refs/heads/main', $packed->find('main')->name);
         $t->same('refs/tags/tag-object', $packed->find('tag-object')->name);
     },
+    'maps upstream out-of-bounds packed lookup fixture with peeled tail record' => static function (TestRunner $t): void {
+        $packed = PackedReferences::open(dirname(__DIR__) . '/fixtures/packed-refs-triggers-out-of-bounds');
+        $tag = $packed->find('v0.0.0');
+
+        $t->same(true, $packed->headerSorted());
+        $t->same(PackedReferences::PEELED_FULLY, $packed->headerPeeledState());
+        $t->same(['refs/remotes/origin/master', 'refs/tags/v0.0.0'], $packed->names());
+        $t->same('4b8fdb02539191b7fbdf0741116cdce49aeed275', $tag->targetObjectId());
+        $t->same('342b15383d97d174f5a0cc9a9c064841b3cc7667', $tag->objectId());
+        $t->same(null, $packed->tryFind('v0.0.1'));
+    },
     'applies packed partial lookup disambiguation rules' => static function (TestRunner $t): void {
         $content = "# pack-refs with: peeled fully-peeled sorted\n"
             . str_repeat('a', 40) . " refs/heads/head-or-tag\n"
@@ -90,5 +114,7 @@ return [
         $t->same($fixture['tagObject'], $summary['releaseTag']['tagObject']);
         $t->same($fixture['tagCommit'], $summary['releaseTag']['peeledCommit']);
         $t->same($fixture['expectedPeeledHeads'], $summary['peeledHeads']);
+        $t->same($fixture['expectedHeaderPeeledState'], $summary['headerPeeledState']);
+        $t->same($fixture['expectedMissingReleaseLookup'], $summary['missingReleaseLookup']);
     },
 ];

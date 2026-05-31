@@ -326,6 +326,10 @@ return [
         $t->same('commit', $packedHeader['type']);
         $t->same(strlen($fixture['objects'][0]['body']), $packedHeader['size']);
         $t->same('pack', $packedHeader['source']);
+        $packedDeltaHeader = $database->readHeader(strtoupper($fixture['objects'][2]['oid']));
+        $t->same('blob', $packedDeltaHeader['type']);
+        $t->same(strlen($fixture['objects'][2]['body']), $packedDeltaHeader['size']);
+        $t->same('pack', $packedDeltaHeader['source']);
 
         $replacementHeader = $database->readHeader($originalOid);
         $t->same('blob', $replacementHeader['type']);

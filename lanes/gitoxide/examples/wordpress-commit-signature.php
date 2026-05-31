@@ -6,6 +6,9 @@ require __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\Gitoxide\Commit;
 use PortLibs\Gitoxide\CommitMessage;
+use PortLibs\Gitoxide\LooseObjectStore;
+use PortLibs\Gitoxide\LooseReferenceStore;
+use PortLibs\Gitoxide\ObjectDatabase;
 
 $fixture = require __DIR__ . '/../fixtures/wordpress-commit-signature.php';
 $commit = Commit::parse($fixture['commitBody']);
@@ -32,6 +35,15 @@ $multiGpgsigSignature = $multiGpgsigCommit->signatureForVerification();
 $rawGpgsigSignature = Commit::signatureForVerificationFromBytes($fixture['rawGpgsigCommitBody']);
 $unsignedSignableCommit = Commit::parse($fixture['unsignedSignableCommitBody']);
 $signedSignableCommit = $unsignedSignableCommit->withGpgSignature($fixture['detachedGpgSignature']);
+$signatureDatabaseDir = sys_get_temp_dir() . '/port-libs-wp-commit-signature-odb-' . bin2hex(random_bytes(4)) . '/.git';
+$signatureStore = new LooseObjectStore($signatureDatabaseDir);
+$unsignedDatabaseOid = $signatureStore->write($unsignedSignableCommit->object());
+$signedDatabaseOid = $signatureStore->write($signedSignableCommit->object());
+(new LooseReferenceStore($signatureDatabaseDir))->writeDirect('refs/replace/' . $unsignedDatabaseOid, $signedDatabaseOid);
+$signatureDatabase = new ObjectDatabase($signatureDatabaseDir);
+$databaseReplacementSignature = $signatureDatabase->commitSignatureForVerification($unsignedDatabaseOid);
+$databaseDirectSignature = $signatureDatabase->commitSignatureForVerification(strtoupper($signedDatabaseOid));
+$databaseIgnoredSignature = $signatureDatabase->withReplacementsIgnored()->commitSignatureForVerification($unsignedDatabaseOid);
 $standaloneTrailerMessage = CommitMessage::fromBytes("Review imported plugin metadata\n\n" . $fixture['standaloneTrailerBody']);
 $standaloneTrailerBody = $standaloneTrailerMessage->body ?? '';
 $misorderedHeaderRejected = false;
@@ -177,6 +189,10 @@ return [
         ->withGpgSignature("-----BEGIN PGP SIGNATURE-----\nignored\n-----END PGP SIGNATURE-----\n")
         ->storageBytes() === $signedSignableCommit->storageBytes(),
     'generatedGpgsigObjectChanged' => $signedSignableCommit->object()->oid() !== $unsignedSignableCommit->object()->oid(),
+    'databaseGpgsigReplacementMatchesDirect' => $databaseReplacementSignature === $databaseDirectSignature,
+    'databaseGpgsigSignedDataMatchesUnsigned' => ($databaseReplacementSignature['signedData'] ?? null) === $unsignedSignableCommit->storageBytes(),
+    'databaseGpgsigIgnoredReplacementUnsigned' => $databaseIgnoredSignature === null,
+    'databaseGpgsigSignedOidLength' => strlen($signedDatabaseOid),
     'tokenTypes' => array_map(static fn (array $result): string => $result['token']['type'] ?? 'error', $tokenResults),
     'tokenExtraHeaderNames' => array_values(array_map(
         static fn (array $result): string => $result['token']['name'],

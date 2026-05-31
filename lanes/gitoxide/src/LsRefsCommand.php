@@ -179,11 +179,10 @@ final class LsRefsCommand
     public static function parseV2Refs(string $lines): array
     {
         $refs = [];
-        foreach (preg_split('/\r?\n/', trim($lines)) ?: [] as $line) {
-            if ($line === '') {
-                continue;
-            }
-            $refs[] = self::parseV2RefLine($line);
+        $buffer = $lines;
+        self::parseBufferedV2RefLines($buffer, $refs);
+        if ($buffer !== '') {
+            $refs[] = self::parseV2RefLine($buffer);
         }
 
         return $refs;
@@ -195,7 +194,8 @@ final class LsRefsCommand
     public static function parseV2PacketLines(string $bytes): array
     {
         $offset = 0;
-        $lines = '';
+        $refs = [];
+        $lineBuffer = '';
 
         while (true) {
             $packet = self::readPacket($bytes, $offset);
@@ -203,19 +203,29 @@ final class LsRefsCommand
                 throw new \RuntimeException('ls-refs advertisement: missing flush packet');
             }
             if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
-                return self::parseV2Refs($lines);
+                if ($lineBuffer !== '') {
+                    $refs[] = self::parseV2RefLine($lineBuffer);
+                }
+
+                return $refs;
             }
             if ($packet['kind'] === 'delimiter') {
                 throw new \InvalidArgumentException('ls-refs advertisement: unexpected delimiter packet');
+            }
+            if ($packet['payload'] === '') {
+                self::parseV2RefLine('');
             }
             if (str_starts_with($packet['payload'], 'ERR ')) {
                 throw new \RuntimeException('ls-refs advertisement: upload-pack error ' . self::trimLineEnding(substr($packet['payload'], 4)));
             }
 
-            $lines .= $packet['payload'];
-            if (!str_ends_with($lines, "\n")) {
-                $lines .= "\n";
+            $payload = $packet['payload'];
+            if (!str_ends_with($payload, "\n")) {
+                $payload .= "\n";
             }
+
+            $lineBuffer .= $payload;
+            self::parseBufferedV2RefLines($lineBuffer, $refs);
         }
     }
 
@@ -329,6 +339,22 @@ final class LsRefsCommand
         $withoutFinalNewline = str_ends_with($line, "\n") ? substr($line, 0, -1) : $line;
         if (str_contains($withoutFinalNewline, "\n")) {
             throw new \InvalidArgumentException("{$label} contains bytes that cannot be written as a protocol v2 text line");
+        }
+    }
+
+    /**
+     * @param list<RemoteRef> $refs
+     */
+    private static function parseBufferedV2RefLines(string &$buffer, array &$refs): void
+    {
+        while (($position = strpos($buffer, "\n")) !== false) {
+            $line = substr($buffer, 0, $position);
+            if (str_ends_with($line, "\r")) {
+                $line = substr($line, 0, -1);
+            }
+
+            $refs[] = self::parseV2RefLine($line);
+            $buffer = substr($buffer, $position + 1);
         }
     }
 

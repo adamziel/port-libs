@@ -49,7 +49,7 @@ final class IndexCacheTree
      */
     public static function fromTree(Tree $tree, callable $readObject): self
     {
-        return self::fromTreeNode('', $tree->toObject()->oid(), $tree, $readObject)[0];
+        return self::fromTreeNode('', $tree->toObject()->oid(), $tree, $readObject, '')[0];
     }
 
     public static function fromExtensionBytes(string $bytes): self
@@ -154,12 +154,14 @@ final class IndexCacheTree
      * @param callable(string): GitObject $readObject
      * @return array{0:IndexCacheTree,1:int}
      */
-    private static function fromTreeNode(string $name, string $oid, Tree $tree, callable $readObject): array
+    private static function fromTreeNode(string $name, string $oid, Tree $tree, callable $readObject, string $prefix): array
     {
         $children = [];
         $numEntries = 0;
 
         foreach ($tree->entries as $entry) {
+            $path = $prefix === '' ? $entry->filename : $prefix . '/' . $entry->filename;
+            TreeEntry::assertValidPathComponent($entry->filename, $path);
             if (!$entry->isTree()) {
                 $numEntries++;
                 continue;
@@ -173,7 +175,7 @@ final class IndexCacheTree
                 throw new \RuntimeException("Expected tree object for {$entry->oid}, got {$object->type}");
             }
 
-            [$child, $childEntries] = self::fromTreeNode($entry->filename, $entry->oid, Tree::fromObject($object), $readObject);
+            [$child, $childEntries] = self::fromTreeNode($entry->filename, $entry->oid, Tree::fromObject($object), $readObject, $path);
             $children[] = $child;
             $numEntries += $childEntries;
         }

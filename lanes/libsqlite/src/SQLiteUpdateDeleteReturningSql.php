@@ -9,11 +9,12 @@ final class SQLiteUpdateDeleteReturningSql
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<list<string>> $uniqueConstraints
+     * @param array<int|string,mixed> $parameters
      * @return array{action:string,table:string,conflict_action:string,plan:SQLiteUpdateDeleteLimitPlan,tables:array<string,list<array<string,mixed>>>,returning:list<array<string,mixed>>,ignored_rows:list<array<string,mixed>>,deleted_conflict_rows:list<array<string,mixed>>,conflicts:list<array{row_id:int|string,columns:list<string>,key:string,conflicting_row_ids:list<int|string>}>,failed_conflict?:array{row_id:int|string,columns:list<string>,key:string,conflicting_row_ids:list<int|string>}}
      */
-    public static function execute(string $sql, array $tables, string $rowIdColumn = 'option_id', array $uniqueConstraints = [], bool $preserveFailChanges = false): array
+    public static function execute(string $sql, array $tables, string $rowIdColumn = 'option_id', array $uniqueConstraints = [], bool $preserveFailChanges = false, array $parameters = []): array
     {
-        $parsed = self::parse($sql);
+        $parsed = self::parse($sql, $parameters);
         $table = $parsed['table'];
         if (!isset($tables[$table]) || !is_array($tables[$table]) || !array_is_list($tables[$table])) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE RETURNING table {$table} is missing");
@@ -72,10 +73,12 @@ final class SQLiteUpdateDeleteReturningSql
     }
 
     /**
+     * @param array<int|string,mixed> $parameters
      * @return array{action:string,table:string,conflict_action:string,assignments:array<string,string>,where:?string,returning:string,order_by:list<array{column?:string,expression?:string,direction?:string}>,limit:?int,offset:int}
      */
-    public static function parse(string $sql): array
+    public static function parse(string $sql, array $parameters = []): array
     {
+        $sql = self::bindParameters($sql, $parameters);
         $sql = trim(rtrim($sql, " \t\n\r\0\x0B;"));
         if ($sql === '') {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE RETURNING SQL must not be empty');
@@ -503,6 +506,126 @@ final class SQLiteUpdateDeleteReturningSql
         $present = array_values(array_filter($positions, static fn (?int $position): bool => $position !== null));
 
         return $present === [] ? null : min($present);
+    }
+
+    /**
+     * @param array<int|string,mixed> $parameters
+     */
+    private static function bindParameters(string $sql, array $parameters): string
+    {
+        $result = '';
+        $length = strlen($sql);
+        $quote = false;
+        $positionalIndex = 1;
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                $result .= $char;
+                if ($quote && ($sql[$i + 1] ?? null) === "'") {
+                    $result .= "'";
+                    $i++;
+                    continue;
+                }
+                $quote = !$quote;
+                continue;
+            }
+            if ($quote) {
+                $result .= $char;
+                continue;
+            }
+
+            if ($char === '?') {
+                $start = $i + 1;
+                while ($start < $length && ctype_digit($sql[$start])) {
+                    $start++;
+                }
+                $token = substr($sql, $i, $start - $i);
+                if ($token === '?') {
+                    $index = $positionalIndex++;
+                    $explicit = false;
+                } else {
+                    $index = (int) substr($token, 1);
+                    $positionalIndex = max($positionalIndex, $index + 1);
+                    $explicit = true;
+                }
+                if ($index < 1) {
+                    throw new \InvalidArgumentException('SQLite UPDATE/DELETE positional bind parameter index must be positive');
+                }
+                $result .= self::parameterLiteral(self::parameterValue($parameters, $index, $token, $explicit));
+                $i = $start - 1;
+                continue;
+            }
+
+            if (($char === ':' || $char === '@' || $char === '$') && preg_match('/[A-Za-z_]/', $sql[$i + 1] ?? '') === 1) {
+                $start = $i + 2;
+                while ($start < $length && preg_match('/[A-Za-z0-9_]/', $sql[$start]) === 1) {
+                    $start++;
+                }
+                $token = substr($sql, $i, $start - $i);
+                $result .= self::parameterLiteral(self::parameterValue($parameters, substr($token, 1), $token));
+                $i = $start - 1;
+                continue;
+            }
+
+            $result .= $char;
+        }
+        if ($quote) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE SQL has unterminated string literal');
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<int|string,mixed> $parameters
+     */
+    private static function parameterValue(array $parameters, int|string $key, string $token, bool $explicit = false): mixed
+    {
+        if (is_int($key)) {
+            $zeroBased = $key - 1;
+            if (!$explicit && $key === 1 && array_key_exists($zeroBased, $parameters)) {
+                return $parameters[$zeroBased];
+            }
+            if (array_key_exists($key, $parameters)) {
+                return $parameters[$key];
+            }
+            if (array_key_exists($zeroBased, $parameters)) {
+                return $parameters[$zeroBased];
+            }
+        } else {
+            foreach ([$key, ':' . $key, '@' . $key, '$' . $key] as $candidate) {
+                if (array_key_exists($candidate, $parameters)) {
+                    return $parameters[$candidate];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static function parameterLiteral(mixed $value): string
+    {
+        if ($value === null) {
+            return 'NULL';
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return "X'" . bin2hex($value->bytes) . "'";
+        }
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+        if (is_int($value) || is_float($value)) {
+            if (!is_finite((float) $value)) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE bind parameter must be finite');
+            }
+
+            return (string) $value;
+        }
+        if (is_string($value)) {
+            return "'" . str_replace("'", "''", $value) . "'";
+        }
+
+        throw new \InvalidArgumentException('SQLite UPDATE/DELETE bind parameters must be scalar, BLOB, or NULL');
     }
 
     /**

@@ -15,6 +15,9 @@ refill_lane_on_exit() {
   if [[ "${LANE:-}" == "gitoxide" && "${GITOXIDE_AUTO_REFILL:-1}" != "0" && -x "$ROOT/scripts/refill-gitoxide-workers.sh" ]]; then
     GITOXIDE_AUTO_REFILL=0 bash "$ROOT/scripts/refill-gitoxide-workers.sh" --once || true
   fi
+  if [[ "${LANE:-}" == "lightningcss" && "${LIGHTNINGCSS_AUTO_REFILL:-1}" != "0" && -x "$ROOT/scripts/refill-lightningcss-workers.sh" ]]; then
+    LIGHTNINGCSS_AUTO_REFILL=0 bash "$ROOT/scripts/refill-lightningcss-workers.sh" --once || true
+  fi
   exit "$status"
 }
 trap refill_lane_on_exit EXIT

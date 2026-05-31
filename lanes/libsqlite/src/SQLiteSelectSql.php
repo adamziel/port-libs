@@ -153,7 +153,16 @@ final class SQLiteSelectSql
                 self::requiredSourceColumns(self::clauseText($tail, $clauseOffsets, 'WHERE')),
             )));
         }
-        $source = self::sourcePlan($fromSql, $tables, $jsonConstraints, self::jsonTableErrorBoundaryColumns($where), $outerRow, $where, $requiredSourceColumns);
+        $source = self::sourcePlan(
+            $fromSql,
+            $tables,
+            $jsonConstraints,
+            self::jsonTableErrorBoundaryColumns($where),
+            $outerRow,
+            $where,
+            $requiredSourceColumns,
+            self::requiredWildcardPrefixes($selectSql),
+        );
         $select = self::selectList($selectSql, $tables);
         $select = self::annotateWildcardColumns($select, $source['from']);
         $plan = [
@@ -1651,6 +1660,28 @@ final class SQLiteSelectSql
     }
 
     /**
+     * @return list<string>
+     */
+    private static function requiredWildcardPrefixes(string $selectSql): array
+    {
+        preg_match_all('/(?:^|,)\s*([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*\*/', $selectSql, $matches);
+        $prefixes = [];
+        foreach ($matches[1] as $prefix) {
+            $prefixes[strtolower($prefix)] = $prefix;
+        }
+
+        return array_values($prefixes);
+    }
+
+    /**
+     * @param list<string> $requiredWildcardPrefixes
+     */
+    private static function wildcardRequiresAlias(array $requiredWildcardPrefixes, string $alias): bool
+    {
+        return in_array(strtolower($alias), array_map('strtolower', $requiredWildcardPrefixes), true);
+    }
+
+    /**
      * @return list<array<string,mixed>>
      */
     private static function executeValuesClause(string $sql): array
@@ -1707,7 +1738,7 @@ final class SQLiteSelectSql
      * @param list<string> $jsonErrorBoundaryColumns
      * @return array{from:list<array<string,mixed>>,joins:list<array<string,mixed>>}
      */
-    private static function sourcePlan(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = [], ?array $outerRow = null, ?array $wherePredicate = null, array $requiredColumns = []): array
+    private static function sourcePlan(string $sql, array $tables, array $jsonConstraints = [], array $jsonErrorBoundaryColumns = [], ?array $outerRow = null, ?array $wherePredicate = null, array $requiredColumns = [], array $requiredWildcardPrefixes = []): array
     {
         $commaSources = self::splitTopLevel($sql, ',');
         if (count($commaSources) > 1) {
@@ -1747,7 +1778,7 @@ final class SQLiteSelectSql
 
         $source = [
             'from' => $joins === []
-                ? (((($base['qualifyRows'] ?? false) === true) || self::predicateReferencesAlias($wherePredicate, $base['alias']))
+                ? (((($base['qualifyRows'] ?? false) === true) || self::predicateReferencesAlias($wherePredicate, $base['alias']) || self::wildcardRequiresAlias($requiredWildcardPrefixes, $base['alias']))
                     ? self::qualifiedSourceRows($base)
                     : self::unqualifiedSourceRows($base))
                 : self::qualifiedSourceRows($base),
@@ -4595,7 +4626,7 @@ final class SQLiteSelectSql
             throw new \InvalidArgumentException('SQLite SELECT SQL CASE expression must end with END');
         }
         if (trim(substr($sql, $tokens[array_key_last($tokens)]['offset'] + 3)) !== '') {
-            throw new \InvalidArgumentException('SQLite SELECT SQL CASE expression has trailing content after END');
+            return null;
         }
 
         $firstWhen = null;
@@ -5362,6 +5393,7 @@ final class SQLiteSelectSql
             'columns' => $columns,
             'valueColumn' => self::aggregateValueColumn($select, $aggregateExpressions),
             'jsonAggregates' => self::jsonAggregateSpecs($select, $aggregateExpressions),
+            'filteredAggregates' => self::filteredAggregateSpecs($select, $aggregateExpressions),
         ];
         array_push($expressions, ...self::aggregateArgumentExpressions($select, $aggregateExpressions));
         if ($expressions !== []) {
@@ -5414,6 +5446,7 @@ final class SQLiteSelectSql
             'implicitAggregate' => true,
             'valueColumn' => self::aggregateValueColumn($select, $aggregateExpressions),
             'jsonAggregates' => self::jsonAggregateSpecs($select, $aggregateExpressions),
+            'filteredAggregates' => self::filteredAggregateSpecs($select, $aggregateExpressions),
         ];
         $expressions = self::aggregateArgumentExpressions($select, $aggregateExpressions);
         if ($expressions !== []) {
@@ -5449,7 +5482,7 @@ final class SQLiteSelectSql
         $aggregate = self::aggregateSummaryColumn($expression, null);
         if ($aggregate !== null) {
             $hasAggregate = true;
-            if ($aggregate['valueColumn'] !== null) {
+            if (($aggregate['filtered'] ?? false) !== true && $aggregate['valueColumn'] !== null) {
                 if ($valueColumn !== null && $valueColumn !== $aggregate['valueColumn']) {
                     throw new \InvalidArgumentException('SQLite SELECT SQL GROUP BY supports one aggregate value column');
                 }
@@ -5559,6 +5592,15 @@ final class SQLiteSelectSql
         $arguments = $term['arguments'] ?? [];
         if (!is_array($arguments) || !array_is_list($arguments)) {
             throw new \InvalidArgumentException('SQLite SELECT SQL aggregate arguments must be a list');
+        }
+        if (isset($term['filter']) && is_array($term['filter']) && self::isFilteredAggregateFunction($name)) {
+            self::assertFilteredAggregateArguments($name, $arguments, $term);
+
+            return [
+                'summaryColumn' => self::filteredAggregateSummaryColumn($term),
+                'valueColumn' => null,
+                'filtered' => true,
+            ];
         }
 
         if ($name === 'count' && count($arguments) === 1 && (($arguments[0]['type'] ?? null) === 'wildcard')) {
@@ -5722,6 +5764,127 @@ final class SQLiteSelectSql
     private static function aggregateExpressionColumn(array $expression): string
     {
         return '__aggregateExpression' . substr(sha1(json_encode($expression, JSON_THROW_ON_ERROR)), 0, 16);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     * @return list<array<string,mixed>>
+     */
+    private static function filteredAggregateSpecs(array $select, array $aggregateExpressions = []): array
+    {
+        $specs = [];
+        foreach (array_merge($select, $aggregateExpressions) as $term) {
+            if (is_array($term)) {
+                self::collectFilteredAggregateSpecs($term, $specs);
+            }
+        }
+
+        return array_values($specs);
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     * @param array<string,array<string,mixed>> $specs
+     */
+    private static function collectFilteredAggregateSpecs(array $expression, array &$specs): void
+    {
+        $spec = self::filteredAggregateSpec($expression);
+        if ($spec !== null) {
+            $specs[$spec['summaryColumn']] = $spec;
+
+            return;
+        }
+
+        foreach (['left', 'right', 'operand', 'predicate'] as $side) {
+            if (isset($expression[$side]) && is_array($expression[$side])) {
+                self::collectFilteredAggregateSpecs($expression[$side], $specs);
+            }
+        }
+        if (isset($expression['term']) && is_array($expression['term'])) {
+            self::collectFilteredAggregateSpecs($expression['term'], $specs);
+        }
+        if (isset($expression['terms']) && is_array($expression['terms']) && array_is_list($expression['terms'])) {
+            foreach ($expression['terms'] as $term) {
+                if (is_array($term)) {
+                    self::collectFilteredAggregateSpecs($term, $specs);
+                }
+            }
+        }
+        foreach (['arguments', 'values'] as $side) {
+            if (!isset($expression[$side]) || !is_array($expression[$side]) || !array_is_list($expression[$side])) {
+                continue;
+            }
+            foreach ($expression[$side] as $child) {
+                if (is_array($child)) {
+                    self::collectFilteredAggregateSpecs($child, $specs);
+                }
+            }
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $term
+     * @return array<string,mixed>|null
+     */
+    private static function filteredAggregateSpec(array $term): ?array
+    {
+        if (($term['type'] ?? null) !== 'function' || !isset($term['name']) || !is_string($term['name']) || !isset($term['filter']) || !is_array($term['filter'])) {
+            return null;
+        }
+        $name = strtolower($term['name']);
+        if (!self::isFilteredAggregateFunction($name)) {
+            return null;
+        }
+        $arguments = $term['arguments'] ?? [];
+        if (!is_array($arguments) || !array_is_list($arguments)) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL filtered aggregate arguments must be a list');
+        }
+        self::assertFilteredAggregateArguments($name, $arguments, $term);
+
+        return [
+            'summaryColumn' => self::filteredAggregateSummaryColumn($term),
+            'function' => $name,
+            'argument' => $arguments[0],
+            'filter' => $term['filter'],
+            ...($term['distinct'] ?? false) === true ? ['distinct' => true] : [],
+        ];
+    }
+
+    private static function isFilteredAggregateFunction(string $name): bool
+    {
+        return in_array($name, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat'], true);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $arguments
+     * @param array<string,mixed> $term
+     */
+    private static function assertFilteredAggregateArguments(string $name, array $arguments, array $term): void
+    {
+        if (($term['distinct'] ?? false) === true && $name !== 'count') {
+            throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name}(DISTINCT ...) is not supported");
+        }
+        if ($arguments === [] || count($arguments) !== 1 || !is_array($arguments[0])) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} FILTER needs one argument");
+        }
+        if ($name !== 'count' && (($arguments[0]['type'] ?? null) === 'wildcard')) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} FILTER needs one column or scalar expression argument");
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $term
+     */
+    private static function filteredAggregateSummaryColumn(array $term): string
+    {
+        $name = strtolower((string) $term['name']);
+
+        return $name . 'Filter_' . substr(sha1(json_encode([
+            'name' => $name,
+            'arguments' => $term['arguments'] ?? [],
+            'distinct' => ($term['distinct'] ?? false) === true,
+            'filter' => $term['filter'] ?? null,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)), 0, 16);
     }
 
     /**
@@ -6111,12 +6274,7 @@ final class SQLiteSelectSql
                     throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal needs source columns');
                 }
                 if ($remaining <= count($columns)) {
-                    $column = $columns[$remaining - 1];
-                    if (!is_string($column) || $column === '') {
-                        throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal column is malformed');
-                    }
-
-                    return $column;
+                    throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal target is not supported');
                 }
                 $remaining -= count($columns);
                 continue;
@@ -6157,7 +6315,7 @@ final class SQLiteSelectSql
                     throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal needs source columns');
                 }
                 if ($remaining <= count($columns)) {
-                    return null;
+                    throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal target is not supported');
                 }
                 $remaining -= count($columns);
                 continue;
@@ -6372,11 +6530,33 @@ final class SQLiteSelectSql
     {
         $expression = self::valueExpression($sql, $tables);
         $value = SQLiteSelectExpression::evaluate([], $expression);
-        if (!is_int($value) && !is_float($value) && !is_bool($value)) {
-            throw new \InvalidArgumentException('SQLite SELECT SQL LIMIT expression must evaluate to numeric');
+
+        if (is_bool($value) || is_int($value)) {
+            return (int) $value;
         }
 
-        return (int) $value;
+        if (is_float($value)) {
+            if (is_finite($value) && floor($value) === $value) {
+                return (int) $value;
+            }
+
+            throw new \InvalidArgumentException('SQLite SELECT SQL LIMIT datatype mismatch');
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if (
+                $trimmed !== ''
+                && preg_match('/^[+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))(?:[eE][+-]?[0-9]+)?$/', $trimmed) === 1
+            ) {
+                $numeric = (float) $trimmed;
+                if (is_finite($numeric) && floor($numeric) === $numeric) {
+                    return (int) $numeric;
+                }
+            }
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT SQL LIMIT datatype mismatch');
     }
 
     /**

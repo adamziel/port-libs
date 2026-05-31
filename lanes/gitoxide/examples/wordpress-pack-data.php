@@ -14,6 +14,7 @@ $index = PackIndex::fromBytes($fixture['indexBytes']);
 $commit = $pack->readObject($index, $fixture['objects'][0]['oid']);
 $blob = $pack->readObject($index, $fixture['objects'][1]['oid']);
 $deltaBlob = $pack->readObject($index, $fixture['objects'][2]['oid']);
+$deltaHeader = $pack->readObjectHeader($index, $fixture['objects'][2]['oid']);
 
 $strictDeclaredSizeGuard = false;
 try {
@@ -133,6 +134,7 @@ return [
     'deltaBlobOid' => $deltaBlob->oid(),
     'blobPreview' => strtok($blob->body, "\n"),
     'deltaBlobHasPackedEdit' => str_contains($deltaBlob->body, 'reconstructed packed edit'),
+    'deltaHeaderProbe' => $deltaHeader,
     'strictDeclaredSizeGuard' => $strictDeclaredSizeGuard,
     'oversizedDeltaHeaderGuard' => $oversizedDeltaHeaderGuard,
     'deltaResultBufferGuard' => $deltaResultBufferGuard,

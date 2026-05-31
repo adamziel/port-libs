@@ -79,58 +79,19 @@ final class PackData
 
     public function entryAtOffset(int $packOffset, ?int $nextOffset = null): PackDataEntry
     {
-        if ($packOffset < self::HEADER_BYTES || $packOffset >= strlen($this->bytes) - self::CHECKSUM_BYTES) {
-            throw new \InvalidArgumentException('Pack entry offset is outside the data section');
-        }
-        $nextOffset ??= strlen($this->bytes) - self::CHECKSUM_BYTES;
-        if ($nextOffset <= $packOffset || $nextOffset > strlen($this->bytes) - self::CHECKSUM_BYTES) {
-            throw new \InvalidArgumentException('Pack entry next offset is outside the data section');
-        }
+        $entry = $this->entryMetadataAtOffset($packOffset, $nextOffset);
+        $data = self::inflateEntryData($this->compressedDataForEntryMetadata($entry), $entry['decompressedSize']);
 
-        $cursor = $packOffset;
-        $first = ord($this->bytes[$cursor++]);
-        $typeId = ($first >> 4) & 0x07;
-        if (!isset(self::TYPE_IDS[$typeId])) {
-            throw new \InvalidArgumentException("Unsupported pack entry type id: {$typeId}");
-        }
-
-        $size = $first & 0x0f;
-        $shift = 4;
-        $current = $first;
-        while (($current & 0x80) !== 0) {
-            if ($cursor >= $nextOffset) {
-                throw new \InvalidArgumentException('Pack entry size header ended unexpectedly');
-            }
-            $current = ord($this->bytes[$cursor++]);
-            $componentValue = $current & 0x7f;
-            $component = self::shiftedPackEntrySizeComponent($componentValue, $shift);
-            if ($component > PHP_INT_MAX - $size) {
-                throw new \InvalidArgumentException('Pack entry size header overflowed while decoding');
-            }
-            $size += $component;
-            $shift += 7;
-        }
-        if ($cursor - $packOffset !== self::canonicalPackEntryHeaderSize($size)) {
-            throw new \InvalidArgumentException('Pack entry size header uses a non-canonical encoding');
-        }
-
-        $kind = self::TYPE_IDS[$typeId];
-        $baseDistance = null;
-        $baseObjectId = null;
-        if ($kind === 'ofs-delta') {
-            $baseDistance = self::readOffsetDeltaDistance($this->bytes, $cursor, $nextOffset);
-        } elseif ($kind === 'ref-delta') {
-            if ($cursor + 20 > $nextOffset) {
-                throw new \InvalidArgumentException('Ref-delta pack entry is missing its base object id');
-            }
-            $baseObjectId = bin2hex(substr($this->bytes, $cursor, 20));
-            $cursor += 20;
-        }
-
-        $compressed = substr($this->bytes, $cursor, $nextOffset - $cursor);
-        $data = self::inflateEntryData($compressed, $size);
-
-        return new PackDataEntry($kind, $size, $packOffset, $cursor, $cursor - $packOffset, $data, $baseDistance, $baseObjectId);
+        return new PackDataEntry(
+            $entry['kind'],
+            $entry['decompressedSize'],
+            $entry['packOffset'],
+            $entry['dataOffset'],
+            $entry['headerSize'],
+            $data,
+            $entry['baseDistance'],
+            $entry['baseObjectId'],
+        );
     }
 
     public function entryAtIndexOffset(PackIndex $index, int $packOffset): PackDataEntry
@@ -168,6 +129,35 @@ final class PackData
     }
 
     /**
+     * @return array{type:string,size:int,numDeltas:int}
+     */
+    public function readObjectHeader(PackIndex $index, string $oid): array
+    {
+        $entry = $index->lookup($oid);
+        if ($entry === null) {
+            throw new \RuntimeException("Object id not found in pack index: {$oid}");
+        }
+
+        return $this->readObjectHeaderAtVerifiedOffset($index, $entry->packOffset);
+    }
+
+    /**
+     * @return array{type:string,size:int,numDeltas:int}
+     */
+    public function readObjectHeaderAtOffset(PackIndex $index, string $oid, int $packOffset): array
+    {
+        $entry = $index->lookup($oid);
+        if ($entry === null) {
+            throw new \RuntimeException("Object id not found in pack index: {$oid}");
+        }
+        if ($entry->packOffset !== $packOffset) {
+            throw new \RuntimeException('Multi-pack-index offset does not match pack index lookup');
+        }
+
+        return $this->readObjectHeaderAtVerifiedOffset($index, $packOffset);
+    }
+
+    /**
      * @param array<string,GitObject> $externalBases
      */
     public function readObjectWithExternalBases(PackIndex $index, string $oid, array $externalBases): GitObject
@@ -186,6 +176,29 @@ final class PackData
         }
 
         return $this->readObjectAtVerifiedOffset($index, $oid, $entry->packOffset, $externalBaseResolver);
+    }
+
+    /**
+     * @param array<string,GitObject> $externalBases
+     * @return array{type:string,size:int,numDeltas:int}
+     */
+    public function readObjectHeaderWithExternalBases(PackIndex $index, string $oid, array $externalBases): array
+    {
+        return $this->readObjectHeaderWithExternalBaseResolver($index, $oid, self::externalBaseHeaderResolver($externalBases));
+    }
+
+    /**
+     * @param callable(string):(null|GitObject|array{type:string,size:int,numDeltas?:int}) $externalBaseHeaderResolver
+     * @return array{type:string,size:int,numDeltas:int}
+     */
+    public function readObjectHeaderWithExternalBaseResolver(PackIndex $index, string $oid, callable $externalBaseHeaderResolver): array
+    {
+        $entry = $index->lookup($oid);
+        if ($entry === null) {
+            throw new \RuntimeException("Object id not found in pack index: {$oid}");
+        }
+
+        return $this->readObjectHeaderAtVerifiedOffset($index, $entry->packOffset, $externalBaseHeaderResolver);
     }
 
     /**
@@ -254,6 +267,24 @@ final class PackData
         return $object;
     }
 
+    /**
+     * @param null|callable(string):(null|GitObject|array{type:string,size:int,numDeltas?:int}) $externalBaseHeaderResolver
+     * @return array{type:string,size:int,numDeltas:int}
+     */
+    private function readObjectHeaderAtVerifiedOffset(PackIndex $index, int $packOffset, ?callable $externalBaseHeaderResolver = null): array
+    {
+        if ($index->packChecksum() !== $this->checksum) {
+            throw new \RuntimeException('Pack index checksum does not match pack data checksum');
+        }
+
+        return $this->resolveEntryHeader(
+            $index,
+            $this->entryMetadataAtOffset($packOffset, $this->nextOffset($index, $packOffset)),
+            0,
+            $externalBaseHeaderResolver,
+        );
+    }
+
     private function resolveEntry(PackIndex $index, PackDataEntry $entry, int $depth = 0, ?callable $externalBaseResolver = null): GitObject
     {
         if ($depth > 50) {
@@ -300,6 +331,68 @@ final class PackData
         }
 
         return new GitObject($base->type, self::applyDelta($base->body, $entry->data));
+    }
+
+    /**
+     * @param array{kind:string,decompressedSize:int,packOffset:int,dataOffset:int,headerSize:int,baseDistance:?int,baseObjectId:?string,nextOffset:int} $entry
+     * @param null|callable(string):(null|GitObject|array{type:string,size:int,numDeltas?:int}) $externalBaseHeaderResolver
+     * @return array{type:string,size:int,numDeltas:int}
+     */
+    private function resolveEntryHeader(PackIndex $index, array $entry, int $depth = 0, ?callable $externalBaseHeaderResolver = null): array
+    {
+        if ($depth > 50) {
+            throw new \RuntimeException('Pack delta chain is too deep');
+        }
+        if ($entry['kind'] !== 'ofs-delta' && $entry['kind'] !== 'ref-delta') {
+            return [
+                'type' => $entry['kind'],
+                'size' => $entry['decompressedSize'],
+                'numDeltas' => 0,
+            ];
+        }
+
+        $resultSize = $this->decodeDeltaResultSizeForEntry($entry);
+        if ($entry['kind'] === 'ofs-delta') {
+            if ($entry['baseDistance'] === null || $entry['baseDistance'] <= 0) {
+                throw new \RuntimeException('OFS_DELTA entry has an invalid base distance');
+            }
+            $baseOffset = $entry['packOffset'] - $entry['baseDistance'];
+            if ($baseOffset < self::HEADER_BYTES) {
+                throw new \RuntimeException('OFS_DELTA base offset points before pack data');
+            }
+            $baseHeader = $this->resolveEntryHeader(
+                $index,
+                $this->entryMetadataAtOffset($baseOffset, $this->nextOffset($index, $baseOffset)),
+                $depth + 1,
+                $externalBaseHeaderResolver,
+            );
+        } elseif ($entry['kind'] === 'ref-delta') {
+            if ($entry['baseObjectId'] === null) {
+                throw new \RuntimeException('REF_DELTA entry is missing its base object id');
+            }
+            $baseIndexEntry = $index->lookup($entry['baseObjectId']);
+            if ($baseIndexEntry === null) {
+                if ($externalBaseHeaderResolver === null) {
+                    throw new \RuntimeException("REF_DELTA base object not found in pack index: {$entry['baseObjectId']}");
+                }
+                $baseHeader = self::resolveExternalBaseHeader($entry['baseObjectId'], $externalBaseHeaderResolver);
+            } else {
+                $baseHeader = $this->resolveEntryHeader(
+                    $index,
+                    $this->entryMetadataAtOffset($baseIndexEntry->packOffset, $this->nextOffset($index, $baseIndexEntry->packOffset)),
+                    $depth + 1,
+                    $externalBaseHeaderResolver,
+                );
+            }
+        } else {
+            throw new \RuntimeException("Unsupported delta entry kind: {$entry['kind']}");
+        }
+
+        return [
+            'type' => $baseHeader['type'],
+            'size' => $resultSize,
+            'numDeltas' => $baseHeader['numDeltas'] + 1,
+        ];
     }
 
     private static function applyDelta(string $base, string $delta): string
@@ -395,6 +488,40 @@ final class PackData
         return $data;
     }
 
+    private static function inflateDeltaHeaderPrefix(string $compressed, int $expectedSize): string
+    {
+        if ($expectedSize < 0) {
+            throw new \RuntimeException('Pack entry decompressed size cannot be negative');
+        }
+        if ($expectedSize <= 20) {
+            return self::inflateEntryData($compressed, $expectedSize);
+        }
+        if (!function_exists('inflate_init') || !function_exists('inflate_add')) {
+            return substr(self::inflateEntryData($compressed, $expectedSize), 0, 20);
+        }
+
+        $context = @inflate_init(ZLIB_ENCODING_DEFLATE);
+        if ($context === false) {
+            throw new \RuntimeException('Unable to initialize pack delta header inflater');
+        }
+
+        $prefix = '';
+        $length = strlen($compressed);
+        for ($index = 0; $index < $length && strlen($prefix) < 20; $index++) {
+            $chunk = @inflate_add($context, $compressed[$index], ZLIB_SYNC_FLUSH);
+            if ($chunk === false) {
+                throw new \RuntimeException('Unable to inflate pack delta header prefix');
+            }
+            $prefix .= $chunk;
+        }
+
+        if (strlen($prefix) < 20) {
+            throw new \RuntimeException('Pack entry decompressed to fewer bytes than declared in the entry header');
+        }
+
+        return substr($prefix, 0, 20);
+    }
+
     /**
      * @return array{0:int,1:int}
      */
@@ -450,6 +577,94 @@ final class PackData
         }
 
         return (int) unpack('N', $chunk)[1];
+    }
+
+    /**
+     * @return array{kind:string,decompressedSize:int,packOffset:int,dataOffset:int,headerSize:int,baseDistance:?int,baseObjectId:?string,nextOffset:int}
+     */
+    private function entryMetadataAtOffset(int $packOffset, ?int $nextOffset = null): array
+    {
+        if ($packOffset < self::HEADER_BYTES || $packOffset >= strlen($this->bytes) - self::CHECKSUM_BYTES) {
+            throw new \InvalidArgumentException('Pack entry offset is outside the data section');
+        }
+        $nextOffset ??= strlen($this->bytes) - self::CHECKSUM_BYTES;
+        if ($nextOffset <= $packOffset || $nextOffset > strlen($this->bytes) - self::CHECKSUM_BYTES) {
+            throw new \InvalidArgumentException('Pack entry next offset is outside the data section');
+        }
+
+        $cursor = $packOffset;
+        $first = ord($this->bytes[$cursor++]);
+        $typeId = ($first >> 4) & 0x07;
+        if (!isset(self::TYPE_IDS[$typeId])) {
+            throw new \InvalidArgumentException("Unsupported pack entry type id: {$typeId}");
+        }
+
+        $size = $first & 0x0f;
+        $shift = 4;
+        $current = $first;
+        while (($current & 0x80) !== 0) {
+            if ($cursor >= $nextOffset) {
+                throw new \InvalidArgumentException('Pack entry size header ended unexpectedly');
+            }
+            $current = ord($this->bytes[$cursor++]);
+            $componentValue = $current & 0x7f;
+            $component = self::shiftedPackEntrySizeComponent($componentValue, $shift);
+            if ($component > PHP_INT_MAX - $size) {
+                throw new \InvalidArgumentException('Pack entry size header overflowed while decoding');
+            }
+            $size += $component;
+            $shift += 7;
+        }
+        if ($cursor - $packOffset !== self::canonicalPackEntryHeaderSize($size)) {
+            throw new \InvalidArgumentException('Pack entry size header uses a non-canonical encoding');
+        }
+
+        $kind = self::TYPE_IDS[$typeId];
+        $baseDistance = null;
+        $baseObjectId = null;
+        if ($kind === 'ofs-delta') {
+            $baseDistance = self::readOffsetDeltaDistance($this->bytes, $cursor, $nextOffset);
+        } elseif ($kind === 'ref-delta') {
+            if ($cursor + 20 > $nextOffset) {
+                throw new \InvalidArgumentException('Ref-delta pack entry is missing its base object id');
+            }
+            $baseObjectId = bin2hex(substr($this->bytes, $cursor, 20));
+            $cursor += 20;
+        }
+
+        return [
+            'kind' => $kind,
+            'decompressedSize' => $size,
+            'packOffset' => $packOffset,
+            'dataOffset' => $cursor,
+            'headerSize' => $cursor - $packOffset,
+            'baseDistance' => $baseDistance,
+            'baseObjectId' => $baseObjectId,
+            'nextOffset' => $nextOffset,
+        ];
+    }
+
+    /**
+     * @param array{dataOffset:int,nextOffset:int} $entry
+     */
+    private function compressedDataForEntryMetadata(array $entry): string
+    {
+        return substr($this->bytes, $entry['dataOffset'], $entry['nextOffset'] - $entry['dataOffset']);
+    }
+
+    /**
+     * @param array{decompressedSize:int,dataOffset:int,nextOffset:int} $entry
+     */
+    private function decodeDeltaResultSizeForEntry(array $entry): int
+    {
+        $prefix = self::inflateDeltaHeaderPrefix(
+            $this->compressedDataForEntryMetadata($entry),
+            $entry['decompressedSize'],
+        );
+        [, $cursor] = self::readDeltaSize($prefix, 0);
+        [$resultSize] = self::readDeltaSize($prefix, $cursor);
+
+        return $resultSize;
     }
 
     private static function readOffsetDeltaDistance(string $bytes, int &$cursor, int $nextOffset): int
@@ -523,6 +738,34 @@ final class PackData
     }
 
     /**
+     * @param array<string,GitObject> $externalBases
+     * @return callable(string):(null|array{type:string,size:int,numDeltas:int})
+     */
+    private static function externalBaseHeaderResolver(array $externalBases): callable
+    {
+        $normalized = [];
+        foreach ($externalBases as $oid => $object) {
+            if (!$object instanceof GitObject) {
+                throw new \InvalidArgumentException('External pack base headers must be GitObject instances keyed by object id');
+            }
+            $oid = strtolower((string) $oid);
+            if (preg_match('/^[0-9a-f]{40}$/', $oid) !== 1) {
+                throw new \InvalidArgumentException('External pack base header keys must be SHA-1 object ids');
+            }
+            if ($object->oid() !== $oid) {
+                throw new \InvalidArgumentException('External pack base header object id does not match its key');
+            }
+            $normalized[$oid] = [
+                'type' => $object->type,
+                'size' => strlen($object->body),
+                'numDeltas' => 0,
+            ];
+        }
+
+        return static fn (string $baseOid): ?array => $normalized[strtolower($baseOid)] ?? null;
+    }
+
+    /**
      * @param callable(string):(?GitObject) $externalBaseResolver
      */
     private static function resolveExternalBase(string $baseOid, callable $externalBaseResolver): GitObject
@@ -539,5 +782,50 @@ final class PackData
         }
 
         return $base;
+    }
+
+    /**
+     * @param callable(string):(null|GitObject|array{type:string,size:int,numDeltas?:int}) $externalBaseHeaderResolver
+     * @return array{type:string,size:int,numDeltas:int}
+     */
+    private static function resolveExternalBaseHeader(string $baseOid, callable $externalBaseHeaderResolver): array
+    {
+        $header = $externalBaseHeaderResolver($baseOid);
+        if ($header === null) {
+            throw new \RuntimeException("REF_DELTA base object not found in pack index or external base headers: {$baseOid}");
+        }
+        if ($header instanceof GitObject) {
+            if ($header->oid() !== strtolower($baseOid)) {
+                throw new \RuntimeException('External REF_DELTA base object id does not match requested base');
+            }
+
+            return [
+                'type' => $header->type,
+                'size' => strlen($header->body),
+                'numDeltas' => 0,
+            ];
+        }
+        if (!is_array($header)) {
+            throw new \RuntimeException('External REF_DELTA base header resolver must return GitObject, header array, or null');
+        }
+
+        $type = $header['type'] ?? null;
+        $size = $header['size'] ?? null;
+        $numDeltas = $header['numDeltas'] ?? 0;
+        if (!is_string($type) || !in_array($type, ['commit', 'tree', 'blob', 'tag'], true)) {
+            throw new \RuntimeException('External REF_DELTA base header type is invalid');
+        }
+        if (!is_int($size) || $size < 0) {
+            throw new \RuntimeException('External REF_DELTA base header size is invalid');
+        }
+        if (!is_int($numDeltas) || $numDeltas < 0) {
+            throw new \RuntimeException('External REF_DELTA base header delta count is invalid');
+        }
+
+        return [
+            'type' => $type,
+            'size' => $size,
+            'numDeltas' => $numDeltas,
+        ];
     }
 }

@@ -147,15 +147,12 @@ final class ObjectDatabase
                 throw new \RuntimeException("Pack referenced by multi-pack-index was not found for object: {$oid}");
             }
 
-            return self::headerFromObject(
-                $bundle['data']->readObjectAtOffset($bundle['index'], $oid, $entry->packOffset),
-                'pack'
-            );
+            return self::headerFromPack($bundle['data']->readObjectHeaderAtOffset($bundle['index'], $oid, $entry->packOffset));
         }
 
         foreach ($this->standalonePackBundles() as $bundle) {
             if ($bundle['index']->lookup($oid) !== null) {
-                return self::headerFromObject($bundle['data']->readObject($bundle['index'], $oid), 'pack');
+                return self::headerFromPack($bundle['data']->readObjectHeader($bundle['index'], $oid));
             }
         }
 
@@ -180,6 +177,20 @@ final class ObjectDatabase
         }
 
         throw new \RuntimeException("Object not found in database: {$oid}");
+    }
+
+    /**
+     * Return a commit object's first gpgsig value and exact signed bytes.
+     *
+     * This is the repository/object-database boundary for
+     * gix::object::Commit::signature(): object lookup follows this database's
+     * replacement policy, and object-id validation follows its hash format.
+     *
+     * @return array{signature:string,signedData:string}|null
+     */
+    public function commitSignatureForVerification(string $oid): ?array
+    {
+        return Commit::signatureForVerificationFromObject($this->read($oid), $this->objectHash);
     }
 
     public function packedObjectCount(): int
@@ -805,6 +816,19 @@ final class ObjectDatabase
             'type' => $object->type,
             'size' => strlen($object->body),
             'source' => $source,
+        ];
+    }
+
+    /**
+     * @param array{type:string,size:int,numDeltas:int} $header
+     * @return array{type:string,size:int,source:'pack'}
+     */
+    private static function headerFromPack(array $header): array
+    {
+        return [
+            'type' => $header['type'],
+            'size' => $header['size'],
+            'source' => 'pack',
         ];
     }
 

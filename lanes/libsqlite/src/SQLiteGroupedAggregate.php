@@ -10,7 +10,7 @@ final class SQLiteGroupedAggregate
      * @param iterable<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    public static function summarize(iterable $rows, string|array $groupColumn, ?string $valueColumn, array $jsonAggregates = []): array
+    public static function summarize(iterable $rows, string|array $groupColumn, ?string $valueColumn, array $jsonAggregates = [], array $filteredAggregates = []): array
     {
         $groupColumns = self::groupColumns($groupColumn);
         $groups = [];
@@ -67,6 +67,9 @@ final class SQLiteGroupedAggregate
             foreach ($jsonAggregates as $aggregate) {
                 self::applyJsonAggregate($summary, $group['rows'], $aggregate);
             }
+            foreach ($filteredAggregates as $aggregate) {
+                self::applyFilteredAggregate($summary, $group['rows'], $aggregate);
+            }
             $summaries[] = $summary;
         }
 
@@ -77,7 +80,7 @@ final class SQLiteGroupedAggregate
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    public static function summarizeAll(array $rows, ?string $valueColumn, array $jsonAggregates = []): array
+    public static function summarizeAll(array $rows, ?string $valueColumn, array $jsonAggregates = [], array $filteredAggregates = []): array
     {
         if ($valueColumn !== null) {
             foreach ($rows as $row) {
@@ -112,8 +115,57 @@ final class SQLiteGroupedAggregate
         foreach ($jsonAggregates as $aggregate) {
             self::applyJsonAggregate($summary, $rows, $aggregate);
         }
+        foreach ($filteredAggregates as $aggregate) {
+            self::applyFilteredAggregate($summary, $rows, $aggregate);
+        }
 
         return [$summary];
+    }
+
+    /**
+     * @param array<string,mixed> $summary
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $aggregate
+     */
+    private static function applyFilteredAggregate(array &$summary, array $rows, array $aggregate): void
+    {
+        $summaryColumn = $aggregate['summaryColumn'] ?? null;
+        $function = $aggregate['function'] ?? null;
+        $argument = $aggregate['argument'] ?? null;
+        if (!is_string($summaryColumn) || $summaryColumn === '' || !is_string($function) || !is_array($argument)) {
+            throw new \InvalidArgumentException('SQLite filtered aggregate plan is malformed');
+        }
+
+        $filteredValues = [];
+        foreach ($rows as $row) {
+            if (isset($aggregate['filter']) && is_array($aggregate['filter']) && SQLiteSelectPredicate::filter([$row], $aggregate['filter']) === []) {
+                continue;
+            }
+
+            if ($function === 'count' && (($argument['type'] ?? null) === 'wildcard')) {
+                $filteredValues[] = 1;
+                continue;
+            }
+            if ($function === 'count' && (($argument['type'] ?? null) === 'literal')) {
+                $filteredValues[] = ($argument['value'] ?? null) === null ? null : 1;
+                continue;
+            }
+
+            $filteredValues[] = SQLiteSelectExpression::evaluate($row, $argument);
+        }
+
+        $summary[$summaryColumn] = match ($function) {
+            'count' => ($aggregate['distinct'] ?? false) === true
+                ? SQLiteNumericAggregate::countDistinct($filteredValues)
+                : SQLiteNumericAggregate::countValue($filteredValues),
+            'sum' => SQLiteNumericAggregate::sum($filteredValues),
+            'total' => SQLiteNumericAggregate::total($filteredValues),
+            'avg' => SQLiteNumericAggregate::avg($filteredValues),
+            'min' => SQLiteNumericAggregate::min($filteredValues),
+            'max' => SQLiteNumericAggregate::max($filteredValues),
+            'group_concat' => SQLiteTextAggregate::groupConcat($filteredValues, '|'),
+            default => throw new \InvalidArgumentException("SQLite filtered aggregate {$function} is not supported"),
+        };
     }
 
     /**

@@ -6,6 +6,10 @@ namespace PortLibs\Gitoxide;
 
 final class PackedReferences
 {
+    public const PEELED_UNSPECIFIED = 'unspecified';
+    public const PEELED_PARTIAL = 'partial';
+    public const PEELED_FULLY = 'fully';
+
     /**
      * @param list<PackedReference> $references
      * @param list<string> $headerTraits
@@ -14,6 +18,7 @@ final class PackedReferences
         private readonly array $references,
         private readonly bool $hasHeader,
         private readonly bool $headerSorted,
+        private readonly string $headerPeeledState,
         private readonly array $headerTraits,
     ) {
     }
@@ -23,6 +28,7 @@ final class PackedReferences
         $offset = 0;
         $hasHeader = false;
         $headerSorted = false;
+        $headerPeeledState = self::PEELED_UNSPECIFIED;
         $headerTraits = [];
 
         if ($contents !== '' && $contents[0] === '#') {
@@ -39,6 +45,11 @@ final class PackedReferences
                     continue;
                 }
                 $headerTraits[] = $trait;
+                if ($trait === 'fully-peeled') {
+                    $headerPeeledState = self::PEELED_FULLY;
+                } elseif ($trait === 'peeled') {
+                    $headerPeeledState = self::PEELED_PARTIAL;
+                }
                 if ($trait === 'sorted') {
                     $headerSorted = true;
                 }
@@ -57,7 +68,7 @@ final class PackedReferences
             );
         }
 
-        return new self($references, $hasHeader, $headerSorted, $headerTraits);
+        return new self($references, $hasHeader, $headerSorted, $headerPeeledState, $headerTraits);
     }
 
     public static function open(string $path, string $algorithm = 'sha1'): self
@@ -77,6 +88,11 @@ final class PackedReferences
     public function headerSorted(): bool
     {
         return $this->headerSorted;
+    }
+
+    public function headerPeeledState(): string
+    {
+        return $this->headerPeeledState;
     }
 
     /**

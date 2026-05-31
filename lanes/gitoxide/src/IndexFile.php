@@ -231,6 +231,7 @@ final class IndexFile
     ): void {
         foreach ($tree->entries as $entry) {
             $path = $prefix === '' ? $entry->filename : $prefix . '/' . $entry->filename;
+            TreeEntry::assertValidPathComponent($entry->filename, $path);
             if ($entry->isTree()) {
                 $object = $readObject($entry->oid);
                 if (!$object instanceof GitObject) {

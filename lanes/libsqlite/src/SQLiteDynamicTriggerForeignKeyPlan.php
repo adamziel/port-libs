@@ -10838,6 +10838,160 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     /**
      * @return array<string,mixed>
      */
+    public static function fkey2CompositeParentRegressionPlan(int $seed): array
+    {
+        if ($seed < 1) {
+            throw new \InvalidArgumentException('SQLite fkey2 composite parent regression seed must be positive');
+        }
+
+        $base = $seed * 1000;
+
+        return [
+            'source' => 'fkey2.test fkey2-dd08e5.1.1..1.6, fkey2-ce7c13.1.1..1.6, fkey2-20150416-100',
+            'operation' => 'foreign-key-composite-parent-regression',
+            'variant' => $seed,
+            'external_unique_index' => self::fkey2CompositeParentRegressionGroup($base, 'external-unique-index'),
+            'inline_unique_constraint' => self::fkey2CompositeParentRegressionGroup($base + 10000, 'inline-unique-constraint'),
+            'parser_mismatch' => [
+                'source' => 'fkey2.test fkey2-20150416-100',
+                'status' => 'schema-error',
+                'error' => 'foreign key mismatch - "t" referencing "t0"',
+                'error_phase' => 'parser-foreign-key-action-resolution',
+                'parser_error_propagated' => true,
+                'trailing_statements_executed' => false,
+            ],
+            'dependencies' => [
+                'sqlite-fkey2-dd08e5-composite-parent-delete-and-update-preserve-child-reference',
+                'sqlite-fkey2-ce7c13-noop-composite-parent-update-does-not-violate',
+                'sqlite-fkey2-ce7c13-changed-composite-parent-key-rechecks-child-reference',
+                'sqlite-fkey2-20150416-parser-propagates-foreign-key-mismatch',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function fkey2CompositeParentRegressionGroup(int $base, string $uniqueForm): array
+    {
+        if (!in_array($uniqueForm, ['external-unique-index', 'inline-unique-constraint'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2 composite parent unique form is unsupported');
+        }
+
+        $parent = ['a' => $base + 100, 'b' => $base + 200];
+        $child = ['w' => $base + 300, 'x' => $parent['a'], 'y' => $parent['b']];
+
+        return [
+            'source' => $uniqueForm === 'external-unique-index'
+                ? 'fkey2.test fkey2-dd08e5.1.1..1.6 and fkey2-ce7c13.1.1..1.3'
+                : 'fkey2.test fkey2-ce7c13.1.4..1.6',
+            'unique_parent_key_form' => $uniqueForm,
+            'parent_key_columns' => ['a', 'b'],
+            'child_key_columns' => ['x', 'y'],
+            'initial_parent_rows' => [$parent],
+            'initial_child_rows' => [$child],
+            'parent_child_reference_valid' => true,
+            'delete_parent' => self::fkey2CompositeParentRegressionFailure(
+                'delete-parent',
+                [],
+                [$child],
+                [$parent],
+                [$child],
+                $child,
+                [$child['x'], $child['y']]
+            ),
+            'insert_missing_child' => self::fkey2CompositeParentRegressionFailure(
+                'insert-missing-child',
+                [$parent],
+                [$child, ['w' => $base + 400, 'x' => $parent['a'] + 1, 'y' => $parent['b']]],
+                [$parent],
+                [$child],
+                ['w' => $base + 400, 'x' => $parent['a'] + 1, 'y' => $parent['b']],
+                [$parent['a'] + 1, $parent['b']]
+            ),
+            'update_child_key' => self::fkey2CompositeParentRegressionFailure(
+                'update-child-key',
+                [$parent],
+                [['w' => $child['w'], 'x' => $parent['a'] + 1, 'y' => $parent['b']]],
+                [$parent],
+                [$child],
+                ['w' => $child['w'], 'x' => $parent['a'] + 1, 'y' => $parent['b']],
+                [$parent['a'] + 1, $parent['b']]
+            ),
+            'update_parent_a' => self::fkey2CompositeParentRegressionFailure(
+                'update-parent-a',
+                [['a' => $parent['a'] + 1, 'b' => $parent['b']]],
+                [$child],
+                [$parent],
+                [$child],
+                $child,
+                [$child['x'], $child['y']]
+            ),
+            'update_parent_b_changed' => self::fkey2CompositeParentRegressionFailure(
+                'update-parent-b-changed',
+                [['a' => $parent['a'], 'b' => $parent['b'] + 1]],
+                [$child],
+                [$parent],
+                [$child],
+                $child,
+                [$child['x'], $child['y']]
+            ),
+            'update_parent_b_same' => [
+                'statement' => 'update-parent-b-same',
+                'status' => 'commit-ok',
+                'error' => null,
+                'attempted_parent_rows' => [$parent],
+                'attempted_child_rows' => [$child],
+                'committed_parent_rows' => [$parent],
+                'committed_child_rows' => [$child],
+                'attempted_parent_key' => [$parent['a'], $parent['b']],
+                'referenced_parent_key_unchanged' => true,
+                'statement_rolled_back' => false,
+                'violation_count' => 0,
+                'violations' => [],
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:int}> $attemptedParents
+     * @param list<array{w:int,x:int,y:int}> $attemptedChildren
+     * @param list<array{a:int,b:int}> $committedParents
+     * @param list<array{w:int,x:int,y:int}> $committedChildren
+     * @param array{w:int,x:int,y:int} $violatingChild
+     * @param array{0:int,1:int} $childKey
+     * @return array<string,mixed>
+     */
+    private static function fkey2CompositeParentRegressionFailure(
+        string $statement,
+        array $attemptedParents,
+        array $attemptedChildren,
+        array $committedParents,
+        array $committedChildren,
+        array $violatingChild,
+        array $childKey
+    ): array {
+        return [
+            'statement' => $statement,
+            'status' => 'constraint-failed',
+            'error' => 'FOREIGN KEY constraint failed',
+            'attempted_parent_rows' => $attemptedParents,
+            'attempted_child_rows' => $attemptedChildren,
+            'committed_parent_rows' => $committedParents,
+            'committed_child_rows' => $committedChildren,
+            'statement_rolled_back' => true,
+            'violation_count' => 1,
+            'violations' => [[
+                'child_w' => $violatingChild['w'],
+                'child_key' => $childKey,
+                'reason' => 'missing-composite-parent',
+            ]],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
     private static function fkey2GenfkeyNoActionGroup(int $base): array
     {
         $parents = [

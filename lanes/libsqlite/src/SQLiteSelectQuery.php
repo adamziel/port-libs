@@ -1362,9 +1362,13 @@ final class SQLiteSelectQuery
         if (!is_array($jsonAggregates) || !array_is_list($jsonAggregates)) {
             throw new \InvalidArgumentException('SQLite SELECT query JSON aggregate plans must be a list');
         }
+        $filteredAggregates = $groupBy['filteredAggregates'] ?? [];
+        if (!is_array($filteredAggregates) || !array_is_list($filteredAggregates)) {
+            throw new \InvalidArgumentException('SQLite SELECT query filtered aggregate plans must be a list');
+        }
 
         if ($groupColumn === []) {
-            $summaries = SQLiteGroupedAggregate::summarizeAll($rows, $valueColumn, $jsonAggregates);
+            $summaries = SQLiteGroupedAggregate::summarizeAll($rows, $valueColumn, $jsonAggregates, $filteredAggregates);
             if ($rows === [] && ($groupBy['implicitAggregate'] ?? false) === true) {
                 self::materializeEmptyImplicitAggregateColumns($summaries[0], $plan['select'] ?? []);
             }
@@ -1376,7 +1380,7 @@ final class SQLiteSelectQuery
                 }
             }
         } else {
-            $summaries = SQLiteGroupedAggregate::summarize($rows, $groupColumn, $valueColumn, $jsonAggregates);
+            $summaries = SQLiteGroupedAggregate::summarize($rows, $groupColumn, $valueColumn, $jsonAggregates, $filteredAggregates);
         }
 
         if (array_key_exists('having', $groupBy)) {

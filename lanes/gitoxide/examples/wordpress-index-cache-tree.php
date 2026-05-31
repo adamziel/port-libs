@@ -66,6 +66,14 @@ $entries = IndexFile::entriesFromBytes($indexBytes);
 $cacheTree = IndexFile::cacheTreeFromBytes($indexBytes);
 $cacheTree?->verifyEntryCounts(count($entries));
 $verifiedCacheTree = IndexFile::verifyCheckoutCacheTree($indexBytes, $root, $read, $sparse);
+$unsafeRejected = false;
+try {
+    IndexFile::entriesForCheckout(new Tree([
+        $blob('../wp-config.php', "<?php\n"),
+    ]), $read);
+} catch (InvalidArgumentException $exception) {
+    $unsafeRejected = str_contains($exception->getMessage(), 'Path separators like / or \\ are not allowed');
+}
 
 return [
     'indexVersion' => IndexFile::versionFromBytes($indexBytes),
@@ -82,5 +90,6 @@ return [
         'pluginEntries' => $cacheTree?->childNamed('wp-content')?->childNamed('plugins')?->numEntries,
         'checkoutParityVerified' => $verifiedCacheTree->oid === $root->toObject()->oid(),
     ],
+    'unsafePathComponentRejected' => $unsafeRejected,
     'checksum' => IndexFile::checksum($indexBytes),
 ];

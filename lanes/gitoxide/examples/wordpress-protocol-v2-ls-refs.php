@@ -31,4 +31,5 @@ return [
     'releaseTagObject' => $byName['refs/tags/wp-release']->object,
     'releaseTagTarget' => $byName['refs/tags/wp-release']->tag,
     'nextReleaseKind' => $byName['refs/heads/next-release']->kind,
+    'emptyLineAdvertisementRejected' => $fixture['emptyLineAdvertisementRejected'],
 ];

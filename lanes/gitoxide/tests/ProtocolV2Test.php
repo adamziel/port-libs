@@ -261,8 +261,31 @@ return [
         $t->same('refs/heads/main', $refs[0]->target);
         $t->same('unborn', $refs[1]->kind);
         $t->same('refs/heads/main', $refs[1]->target);
+        $noNewlineRefs = LsRefsCommand::parseV2PacketLines(
+            $packet('808e50d724f604f69ab93c6da2919c014667bedb refs/heads/main')
+                . $packet('7fe1b98b39423b71e14217aa299a03b7c937d656 refs/tags/wp-release peeled:808e50d724f604f69ab93c6da2919c014667bedb')
+                . $flush
+        );
+        $t->same(2, count($noNewlineRefs));
+        $t->same('direct', $noNewlineRefs[0]->kind);
+        $t->same('peeled', $noNewlineRefs[1]->kind);
         $t->throws(RuntimeException::class, static fn () => LsRefsCommand::parseV2PacketLines($packet("ERR repository unavailable\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::parseV2PacketLines('000x'));
+    },
+    'rejects empty protocol v2 ls-refs advertisement lines like gix-protocol' => static function (TestRunner $t) use ($packet, $flush): void {
+        $t->same([], LsRefsCommand::parseV2Refs(''));
+        $t->same([], LsRefsCommand::parseV2PacketLines($flush));
+        $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::parseV2Refs("\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::parseV2Refs(
+            "808e50d724f604f69ab93c6da2919c014667bedb refs/heads/main\n\n"
+        ));
+        $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::parseV2PacketLines($packet("\n") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::parseV2PacketLines($packet('') . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::parseV2PacketLines(
+            $packet("808e50d724f604f69ab93c6da2919c014667bedb refs/heads/main\n")
+                . $packet("\n")
+                . $flush
+        ));
     },
     'parses protocol v2 ls-refs sha256 advertisements like gix hash object ids' => static function (TestRunner $t) use ($packet, $flush): void {
         $head = '9b0fc92260312ce44e74ef369f5f4b4d6fd6672f54064da57e9450051e7f5a3c';
@@ -319,5 +342,6 @@ return [
         $t->same('peeled', $byName['refs/tags/wp-release']->kind);
         $t->same($fixture['objects']['releaseObject'], $byName['refs/tags/wp-release']->object);
         $t->same('unborn', $byName['refs/heads/next-release']->kind);
+        $t->same(true, $fixture['emptyLineAdvertisementRejected']);
     },
 ];

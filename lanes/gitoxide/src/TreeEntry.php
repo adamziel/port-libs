@@ -27,6 +27,16 @@ final class TreeEntry
         }
     }
 
+    public static function assertValidPathComponent(string $filename, string $path): void
+    {
+        if ($filename === '') {
+            throw new \InvalidArgumentException("The path \"{$path}\" is invalid: tree path components cannot be empty");
+        }
+        if (str_contains($filename, '/') || str_contains($filename, '\\')) {
+            throw new \InvalidArgumentException("The path \"{$path}\" is invalid: Path separators like / or \\ are not allowed");
+        }
+    }
+
     public function kind(): string
     {
         $value = octdec($this->mode);

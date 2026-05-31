@@ -337,6 +337,80 @@ return [
         $t->same(3, $repairedPack->count());
         $t->same($final, $repairedPack->readObject($repairedIndex, $entries[1]['oid'])->body);
     },
+    'resolves packed delta headers through in-pack chains' => static function (TestRunner $t) use ($buildPackFixture, $copyThenInsertDelta): void {
+        $base = "wp_posts export\n" . str_repeat('stable-row' . "\n", 6) . "status=draft\n";
+        $middle = $base . "review=ready\n";
+        $final = $middle . "status=publish\n";
+        [$packBytes, $indexBytes, $entries] = $buildPackFixture([
+            ['type' => 'blob', 'typeId' => 3, 'body' => $base],
+            ['type' => 'ofs-delta', 'typeId' => 6, 'body' => $copyThenInsertDelta($base, "review=ready\n"), 'baseEntry' => 0, 'finalType' => 'blob', 'finalBody' => $middle],
+            ['type' => 'ofs-delta', 'typeId' => 6, 'body' => $copyThenInsertDelta($middle, "status=publish\n"), 'baseEntry' => 1, 'finalType' => 'blob', 'finalBody' => $final],
+        ]);
+        $pack = PackData::fromBytes($packBytes);
+        $index = PackIndex::fromBytes($indexBytes);
+
+        $t->same(['type' => 'blob', 'size' => strlen($base), 'numDeltas' => 0], $pack->readObjectHeader($index, $entries[0]['oid']));
+        $t->same(['type' => 'blob', 'size' => strlen($middle), 'numDeltas' => 1], $pack->readObjectHeader($index, $entries[1]['oid']));
+        $t->same(['type' => 'blob', 'size' => strlen($final), 'numDeltas' => 2], $pack->readObjectHeader($index, $entries[2]['oid']));
+        $t->same($final, $pack->readObject($index, $entries[2]['oid'])->body);
+    },
+    'resolves thin delta headers from external base metadata' => static function (TestRunner $t) use ($buildPackFixture, $copyThenInsertDelta, $encodeDeltaSize, $runtimeExceptionMessage): void {
+        $externalBase = new GitObject('blob', 'wp_posts external baseline');
+        $final = 'wp_posts external baseline staged';
+        [$packBytes, $indexBytes, $entries] = $buildPackFixture([
+            [
+                'type' => 'ref-delta',
+                'typeId' => 7,
+                'body' => $copyThenInsertDelta($externalBase->body, ' staged'),
+                'baseOid' => $externalBase->oid(),
+                'finalType' => 'blob',
+                'finalBody' => $final,
+            ],
+        ]);
+        $pack = PackData::fromBytes($packBytes);
+        $index = PackIndex::fromBytes($indexBytes);
+
+        $t->throws(RuntimeException::class, static fn () => $pack->readObjectHeader($index, $entries[0]['oid']));
+        $t->same(
+            ['type' => 'blob', 'size' => strlen($final), 'numDeltas' => 1],
+            $pack->readObjectHeaderWithExternalBases($index, $entries[0]['oid'], [$externalBase->oid() => $externalBase])
+        );
+        $t->same(
+            ['type' => 'blob', 'size' => strlen($final), 'numDeltas' => 4],
+            $pack->readObjectHeaderWithExternalBaseResolver(
+                $index,
+                $entries[0]['oid'],
+                static fn (string $oid): ?array => $oid === $externalBase->oid()
+                    ? ['type' => 'blob', 'size' => strlen($externalBase->body), 'numDeltas' => 3]
+                    : null,
+            )
+        );
+
+        $largePaddedDelta = $encodeDeltaSize(strlen($externalBase->body)) . $encodeDeltaSize(1) . chr(0x90) . chr(1);
+        $largePaddedDelta = str_pad($largePaddedDelta, 33, chr(0));
+        [$paddedPackBytes, $paddedIndexBytes, $paddedEntries] = $buildPackFixture([
+            [
+                'type' => 'ref-delta',
+                'typeId' => 7,
+                'body' => $largePaddedDelta,
+                'declaredSize' => 34,
+                'baseOid' => $externalBase->oid(),
+                'finalType' => 'blob',
+                'finalBody' => substr($externalBase->body, 0, 1),
+            ],
+        ]);
+        $paddedPack = PackData::fromBytes($paddedPackBytes);
+        $paddedIndex = PackIndex::fromBytes($paddedIndexBytes);
+
+        $t->same(
+            ['type' => 'blob', 'size' => 1, 'numDeltas' => 1],
+            $paddedPack->readObjectHeaderWithExternalBases($paddedIndex, $paddedEntries[0]['oid'], [$externalBase->oid() => $externalBase])
+        );
+        $t->same(
+            'Pack entry decompressed size mismatch: expected 34, got 33',
+            $runtimeExceptionMessage(static fn () => $paddedPack->readObjectWithExternalBases($paddedIndex, $paddedEntries[0]['oid'], [$externalBase->oid() => $externalBase]))
+        );
+    },
     'rejects corrupt delta instructions during object resolution' => static function (TestRunner $t) use ($buildPackFixture, $encodeDeltaSize): void {
         [$packBytes, $indexBytes, $entries] = $buildPackFixture([
             ['type' => 'blob', 'typeId' => 3, 'body' => 'base'],
@@ -510,6 +584,7 @@ return [
         $t->same(true, $summary['oversizedDeltaHeaderGuard']);
         $t->same(true, $summary['deltaResultBufferGuard']);
         $t->same(true, $summary['packEntryMetadataGuard']);
+        $t->same(['type' => 'blob', 'size' => strlen($deltaBlob->body), 'numDeltas' => 1], $summary['deltaHeaderProbe']);
     },
     'wordpress fixture resolves and repairs thin content packs' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-thin-pack-repair.php';

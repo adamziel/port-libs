@@ -28,5 +28,7 @@ return [
             'source' => 'packed',
         ],
     ],
+    'expectedHeaderPeeledState' => 'fully',
+    'expectedMissingReleaseLookup' => true,
     'wordpressUse' => 'Packed refs let a PHP deployment tool inspect compacted branch and release-tag state for a WordPress repository without invoking git.',
 ];
