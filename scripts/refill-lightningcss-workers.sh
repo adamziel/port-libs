@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 TMUX_SESSION="${TMUX_SESSION:-main}"
-TARGET="${LIGHTNINGCSS_TARGET_WORKERS:-18}"
+TARGET="${LIGHTNINGCSS_TARGET_WORKERS:-22}"
 MAX_STARTS="${LIGHTNINGCSS_MAX_REFILL_STARTS:-4}"
 source "$ROOT/scripts/agent-fast-profile.sh"
 LOCK_FILE="$ROOT/.tmux-team/tmp/refill-lightningcss-workers.lock"
