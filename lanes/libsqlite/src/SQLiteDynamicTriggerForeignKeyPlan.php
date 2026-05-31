@@ -8521,6 +8521,83 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     /**
      * @return array<string,mixed>
      */
+    public static function tempTriggerTargetLifecyclePlan(int $seed, string $scenario): array
+    {
+        $scenario = strtolower(trim($scenario));
+        if (!in_array($scenario, ['temp-shadow-table-created', 'external-target-drop'], true)) {
+            throw new \InvalidArgumentException('SQLite temptrigger lifecycle scenario is unsupported');
+        }
+
+        $tableName = 't' . $seed;
+        $triggerName = 'tr' . $seed;
+
+        if ($scenario === 'temp-shadow-table-created') {
+            return [
+                'source' => 'temptrigger.test temptrigger-4.0..4.1',
+                'operation' => 'temp-trigger-target-lifecycle',
+                'status' => 'commit-ok',
+                'scenario' => $scenario,
+                'main_table' => $tableName,
+                'temp_table' => $tableName,
+                'trigger_name' => $triggerName,
+                'trigger_schema' => 'temp',
+                'target_schema' => 'main',
+                'shadow_table_created_after_trigger' => true,
+                'shadow_table_rebinds_trigger_target' => false,
+                'temp_table_rows_after_create' => [],
+                'main_trigger_schema_rows' => [],
+                'temp_trigger_schema_rows' => [
+                    [
+                        'type' => 'trigger',
+                        'name' => $triggerName,
+                        'tbl_name' => $tableName,
+                        'rootpage' => 0,
+                    ],
+                ],
+                'drop_trigger_after_shadow_ok' => true,
+                'dependencies' => [
+                    'sqlite-temptrigger-temp-table-created-after-trigger-does-not-steal-target',
+                    'sqlite-temptrigger-temp-schema-may-contain-trigger-and-table-with-same-target-name',
+                    'sqlite-temptrigger-drop-after-shadow-table-remains-safe',
+                ],
+            ];
+        }
+
+        return [
+            'source' => 'temptrigger.test temptrigger-5.0..5.2',
+            'operation' => 'temp-trigger-target-lifecycle',
+            'status' => 'orphaned-temp-trigger-record-preserved',
+            'scenario' => $scenario,
+            'main_table' => $tableName,
+            'temp_table' => null,
+            'trigger_name' => $triggerName,
+            'trigger_schema' => 'temp',
+            'target_schema' => 'main',
+            'target_dropped_by_peer_connection' => true,
+            'main_schema_rows' => [],
+            'temp_trigger_schema_rows' => [
+                [
+                    'type' => 'trigger',
+                    'name' => $triggerName,
+                    'tbl_name' => $tableName,
+                    'rootpage' => 0,
+                    'sql' => 'CREATE TRIGGER ' . $triggerName . ' BEFORE INSERT ON ' . $tableName . ' BEGIN SELECT 1,2,3; END',
+                ],
+            ],
+            'trigger_fires_after_external_drop' => false,
+            'orphan_record_is_connection_local' => true,
+            'schema_query_after_external_drop_ok' => true,
+            'dependencies' => [
+                'sqlite-temptrigger-external-target-drop-preserves-temp-schema-trigger-row',
+                'sqlite-temptrigger-orphaned-temp-trigger-does-not-corrupt-main-schema',
+                'sqlite-temptrigger-owner-connection-can-still-query-schema-after-peer-drop',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
     public static function tempTriggerQualifiedBodyPlan(string $event, bool $tempTrigger, int|string $left, int|string $right): array
     {
         $event = strtolower(trim($event));

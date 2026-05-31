@@ -3628,6 +3628,163 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,sql:string,index_name:string|null,expression:string,result_rows:list<array<int,mixed>>,uses_expression_index:bool,covering:bool,expected_error:string|null,integrity:string,detail:string}>
+     */
+    public static function indexExpr2CastTruthAggregateCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite indexexpr2 cast/truth/aggregate corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'indexexpr2-6.1.1/6.1.3',
+                'CAST expression index on INTEGER preserves numeric-prefix lookup rows',
+                'SELECT a,b FROM x1 WHERE CAST(b AS INTEGER)=123',
+                'x1i',
+                'CAST(b AS INTEGER)',
+                [[1, 123], [2, '123'], [3, '123abc'], [4, 123.0]],
+                true,
+                false,
+                null,
+                'SEARCH x1 USING INDEX x1i (<expr>=?)',
+            ],
+            [
+                'indexexpr2-6.2.1/6.2.3',
+                'CAST expression index on TEXT matches only text-equivalent numeric values',
+                'SELECT a,b FROM x1 WHERE CAST(b AS TEXT)=123',
+                'x1i2',
+                'CAST(b AS TEXT)',
+                [[1, 123], [2, '123']],
+                true,
+                false,
+                null,
+                'SEARCH x1 USING INDEX x1i2 (<expr>=?)',
+            ],
+            [
+                'indexexpr2-7.1/7.3',
+                'ABS expression-index integer overflow aborts index creation without schema residue',
+                'CREATE INDEX i0 ON t0(ABS(c0)); SELECT sql FROM sqlite_master WHERE tbl_name=\'t0\'; CREATE INDEX i0 ON t0(c0); REINDEX',
+                'i0',
+                'ABS(c0)',
+                [['CREATE TABLE t0(c0)']],
+                false,
+                false,
+                'integer overflow',
+                'failed expression index leaves only the table schema before a plain index can be created',
+            ],
+            [
+                'indexexpr2-8.1.1/8.1.2',
+                'partial expression index with NULL row keeps bitwise BETWEEN truth result visible',
+                "SELECT * FROM t0 WHERE ~('' BETWEEN t0.c0 AND TRUE)",
+                'i0',
+                'c0 WHERE c0 NOT NULL',
+                [[null]],
+                false,
+                false,
+                null,
+                'SCAN t0; partial index cannot prove the nullable BETWEEN expression',
+            ],
+            [
+                'indexexpr2-8.3',
+                'operator over nullable BETWEEN expression remains true for the NULL row',
+                'SELECT (1 != (34 BETWEEN c0 AND 33)) IS TRUE FROM t0',
+                'i0',
+                'c0 WHERE c0 NOT NULL',
+                [[1]],
+                false,
+                false,
+                null,
+                'nullable BETWEEN expression cannot be dropped by partial-index implication',
+            ],
+            [
+                'indexexpr2-8.5',
+                'LEFT JOIN rows survive compound truth expressions over empty right-side columns',
+                'SELECT * FROM t1 LEFT JOIN t2 WHERE 1 >= (10 BETWEEN y AND b)',
+                null,
+                'left-join BETWEEN truth expression',
+                [[1, 2, null, null], [3, 4, null, null]],
+                false,
+                false,
+                null,
+                'LEFT JOIN keeps null-extended rows visible under BETWEEN truth expression',
+            ],
+            [
+                'indexexpr2-9.0',
+                'indexed abs(b) expression in outer query is not substituted into aggregate scalar subquery',
+                'SELECT *, (SELECT max(c+abs(b)) FROM t2 GROUP BY d ORDER BY d LIMIT 1) AS subq FROM t1 WHERE a=5',
+                't1x',
+                'a, abs(b)',
+                [[5, -5, 205], [5, 20, 220]],
+                true,
+                false,
+                null,
+                'outer expression-index payload does not corrupt correlated aggregate result',
+            ],
+            [
+                'indexexpr2-10.0',
+                'collated unary-plus expression-index term does not leak collation into aggregate column rewrite',
+                'SELECT * FROM t1 AS a0 WHERE (SELECT count(a0.b=+a0.b COLLATE NOCASE IN (b)) FROM t1 GROUP BY 2.5) ORDER BY a0.b',
+                't1x',
+                'b, +b COLLATE NOCASE',
+                [[1, 'abcde']],
+                true,
+                false,
+                null,
+                'aggregate expression rewrite omits stale EP_Collate from indexed expression',
+            ],
+            [
+                'indexexpr2-10.1',
+                'GROUP BY constant over collated expression-index scan counts all rows',
+                'SELECT count(+a COLLATE NOCASE IN (SELECT 1)) FROM t2 GROUP BY SUBSTR(0,0)',
+                't2x',
+                '+a COLLATE NOCASE',
+                [[4]],
+                true,
+                false,
+                null,
+                'collated expression-index aggregate keeps all grouped input rows',
+            ],
+            [
+                'indexexpr2-11.0',
+                'generated column referenced in outer and inner loops resolves aggregate terms correctly',
+                'SELECT * FROM t3 AS a0 WHERE (SELECT sum(-a0.a=b) FROM t3 GROUP BY b) GROUP BY b',
+                't3x',
+                'b, a',
+                [[44, -44]],
+                true,
+                true,
+                null,
+                'generated-column expression index resolves aggregate references to the correct loop',
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $sql, $indexName, $expression, $rows, $usesIndex, $covering, $error, $detail] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $out[] = [
+                'source' => 'indexexpr2.test sections 6.1.1 through 11.0',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario . ' dynamic batch ' . $batch,
+                'sql' => $sql,
+                'index_name' => $indexName,
+                'expression' => $expression,
+                'result_rows' => $rows,
+                'uses_expression_index' => $usesIndex,
+                'covering' => $covering,
+                'expected_error' => $error,
+                'integrity' => 'ok',
+                'detail' => $detail,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,index_name:string,integer_value:int,float_value:float,comparison:string,ordered_rowids:list<int>,selected_labels:list<string>,integrity:string,precision_boundary:string}>
      */
     public static function numindexLargeNumericKeyCases(int $cases = 1000): array
@@ -4071,6 +4228,79 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
         }
 
         return $rows;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,master_count:int,stat_rows:int,stat_tables:list<string>,query:string,join_order:list<string>,uses_declared_indexes:list<string>,uses_automatic_index:bool,uses_temp_order_btree:bool,limit:int,order_by:string,detail:string}>
+     */
+    public static function autoindex2StatCostingCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite autoindex2 dynamic corpus requires at least one case');
+        }
+
+        $statRows = [
+            ['t1', 't1x3', '10747267 260'],
+            ['t1', 't1x2', '10747267 121 113 2 2 2 1'],
+            ['t1', 't1x1', '10747267 50 40'],
+            ['t1', 't1x0', '10747267 1'],
+            ['t2', 't2x15', '39667 253'],
+            ['t2', 't2x14', '39667 19834'],
+            ['t2', 't2x13', '39667 13223'],
+            ['t2', 't2x12', '39667 7'],
+            ['t2', 't2x11', '39667 17'],
+            ['t2', 't2x10', '39667 19834'],
+            ['t2', 't2x9', '39667 7934'],
+            ['t2', 't2x8', '39667 11'],
+            ['t2', 't2x7', '39667 5'],
+            ['t2', 't2x6', '39667 242'],
+            ['t2', 't2x5', '39667 1984'],
+            ['t2', 't2x4', '39667 4408'],
+            ['t2', 't2x3', '39667 81'],
+            ['t2', 't2x2', '39667 551'],
+            ['t2', 't2x1', '39667 2'],
+            ['t2', 't2x0', '39667 1'],
+            ['t3', 't3x6', '569 285'],
+            ['t3', 't3x5', '569 2'],
+            ['t3', 't3x4', '569 2'],
+            ['t3', 't3x3', '569 5'],
+            ['t3', 't3x2', '569 3'],
+            ['t3', 't3x1', '569 6'],
+            ['t3', 't3x0', '569 1'],
+        ];
+
+        $templates = [
+            ['autoindex2-100', 'wide production-like schema creates 30 table/index catalog entries before costing', 30, 0, [], '', [], [], false, false, 0, '', 'schema has 3 tables and 27 declared indexes; no transient index decision is made yet'],
+            ['autoindex2-110', 'ANALYZE loads sqlite_stat1 rows used to avoid the bad transient t3 covering index', 30, count($statRows), ['t1', 't2', 't3'], '', [], array_column($statRows, 1), false, false, 0, '', 'stat1 cardinalities make declared indexes cheaper than an automatic covering index'],
+            ['autoindex2-120', 'three-way join keeps declared-index plan and avoids AUTO plus temp ORDER BY b-tree', 30, count($statRows), ['t1', 't2', 't3'], 'SELECT ... FROM t1,t2,t3 WHERE t1.ptime>1393520400 AND param3<>9001 AND t3.flg7=1 AND t1.did=t2.did AND t2.uid=t3.uid ORDER BY t1.ptime desc LIMIT 500', ['t1', 't2', 't3'], ['t1x1', 't2x0', 't3x0'], false, false, 500, 't1.ptime desc', 'EXPLAIN QUERY PLAN must not contain AUTOMATIC and must avoid a temp B-Tree for ORDER BY'],
+        ];
+
+        $out = [];
+        $templateCount = count($templates);
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $masterCount, $statCount, $statTables, $query, $joinOrder, $declaredIndexes, $auto, $tempOrder, $limit, $orderBy, $detail] = $templates[($case - 1) % $templateCount];
+            $batch = intdiv($case - 1, $templateCount) + 1;
+            $out[] = [
+                'source' => 'autoindex2.test sections autoindex2-100 through autoindex2-120',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario . ' dynamic batch ' . $batch,
+                'master_count' => $masterCount,
+                'stat_rows' => $statCount,
+                'stat_tables' => $statTables,
+                'query' => $query,
+                'join_order' => $joinOrder,
+                'uses_declared_indexes' => $declaredIndexes,
+                'uses_automatic_index' => $auto,
+                'uses_temp_order_btree' => $tempOrder,
+                'limit' => $limit,
+                'order_by' => $orderBy,
+                'detail' => $detail,
+            ];
+        }
+
+        return $out;
     }
 
     /**

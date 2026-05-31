@@ -20,6 +20,7 @@ $frameHeaderMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFrameHea
 $frameChecksumMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFrameChecksumMismatchScenarios(18);
 $headerChecksumMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicHeaderChecksumMismatchScenarios(18);
 $successfulMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicSuccessfulMaterializedWalScenarios(24);
+$fullRunMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFullRunMaterializedWalScenarios(18);
 
 $tests = [
     'sqlite application wal rollback json dynamic parity exposes requested scenario count' => static function (TestRunner $t) use ($scenarios): void {
@@ -208,6 +209,24 @@ $tests = [
     },
     'sqlite application wal rollback json dynamic parity successful materialized WAL covers json text and jsonb rows' => static function (TestRunner $t) use ($successfulMaterializedWalScenarios): void {
         $jsonModes = array_values(array_unique(array_column($successfulMaterializedWalScenarios, 'jsonb_mode')));
+        sort($jsonModes);
+        $t->same([false, true], $jsonModes);
+    },
+    'sqlite application wal rollback json dynamic parity full-run materialized WAL exposes requested scenario count' => static function (TestRunner $t) use ($fullRunMaterializedWalScenarios): void {
+        $t->same(18, count($fullRunMaterializedWalScenarios));
+    },
+    'sqlite application wal rollback json dynamic parity full-run materialized WAL covers prefix frame counts' => static function (TestRunner $t) use ($fullRunMaterializedWalScenarios): void {
+        $prefixCounts = array_values(array_unique(array_column($fullRunMaterializedWalScenarios, 'preexisting_frames')));
+        sort($prefixCounts);
+        $t->same([1, 2, 3, 4], $prefixCounts);
+    },
+    'sqlite application wal rollback json dynamic parity full-run materialized WAL covers both page sizes' => static function (TestRunner $t) use ($fullRunMaterializedWalScenarios): void {
+        $pageSizes = array_values(array_unique(array_column($fullRunMaterializedWalScenarios, 'page_size')));
+        sort($pageSizes);
+        $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json dynamic parity full-run materialized WAL covers json text and jsonb rows' => static function (TestRunner $t) use ($fullRunMaterializedWalScenarios): void {
+        $jsonModes = array_values(array_unique(array_column($fullRunMaterializedWalScenarios, 'jsonb_mode')));
         sort($jsonModes);
         $t->same([false, true], $jsonModes);
     },
@@ -884,6 +903,104 @@ foreach ($retryScenarios as $scenario) {
     };
 }
 
+foreach ($fullRunMaterializedWalScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $failedPlan = $scenario['failed_plan'];
+    $retryPlan = $scenario['retry_plan'];
+    $followupPlan = $scenario['followup_plan'];
+    $prefix = 'sqlite application wal rollback json dynamic parity full-run materialized wal seed ' . $seed . ' ';
+
+    $tests[$prefix . 'first batch rolls back current json frames'] = static function (TestRunner $t) use ($failedPlan): void {
+        $t->same('rolled_back_current_json_batch', $failedPlan['status']);
+        $t->same(true, $failedPlan['rollback_required']);
+    };
+    $tests[$prefix . 'first batch preserves only preexisting wal prefix'] = static function (TestRunner $t) use ($failedPlan, $scenario): void {
+        $t->same($scenario['preexisting_frames'], $failedPlan['wal_frame_count_after']);
+        $t->same(substr($scenario['wal_bytes'], 0, strlen($failedPlan['wal_bytes_after'])), $failedPlan['wal_bytes_after']);
+    };
+    $tests[$prefix . 'retry succeeds and materializes three frames'] = static function (TestRunner $t) use ($retryPlan, $scenario): void {
+        $t->same('ready', $retryPlan['status']);
+        $t->same(3, $retryPlan['materialized_wal_frame_count']);
+        $t->same($scenario['preexisting_frames'] + 3, $retryPlan['wal_frame_count_after']);
+    };
+    $tests[$prefix . 'retry starts from restored database and preserved wal'] = static function (TestRunner $t) use ($failedPlan, $retryPlan): void {
+        $t->same($failedPlan['restored_database_bytes'], $retryPlan['database_bytes_before']);
+        $t->same($failedPlan['wal_bytes_after'], $retryPlan['wal_bytes_before']);
+    };
+    $tests[$prefix . 'retry records expected page order'] = static function (TestRunner $t) use ($retryPlan, $scenario): void {
+        $t->same($scenario['expected_retry_pages'], array_column($retryPlan['import_plan']['applied'], 'page_number'));
+    };
+    $tests[$prefix . 'followup starts from materialized retry wal'] = static function (TestRunner $t) use ($retryPlan, $followupPlan): void {
+        $t->same($retryPlan['database_bytes_after_import'], $followupPlan['database_bytes_before']);
+        $t->same($retryPlan['wal_bytes_after'], $followupPlan['wal_bytes_before']);
+    };
+    $tests[$prefix . 'followup succeeds and appends two frames'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same('ready', $followupPlan['status']);
+        $t->same(2, $followupPlan['materialized_wal_frame_count']);
+        $t->same($scenario['preexisting_frames'] + 5, $followupPlan['wal_frame_count_after']);
+    };
+    $tests[$prefix . 'followup preserves retry wal byte prefix'] = static function (TestRunner $t) use ($retryPlan, $followupPlan): void {
+        $t->same($retryPlan['wal_bytes_after'], substr($followupPlan['wal_bytes_after'], 0, strlen($retryPlan['wal_bytes_after'])));
+    };
+    $tests[$prefix . 'followup applies catalog and final pages'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same($scenario['expected_followup_pages'], array_column($followupPlan['import_plan']['applied'], 'page_number'));
+        $t->same($scenario['expected_final_key'], $followupPlan['import_plan']['applied'][1]['key_name']);
+    };
+    $tests[$prefix . 'followup uses contiguous wal frame indexes after retry'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $start = $scenario['preexisting_frames'] + 4;
+        $t->same([$start, $start + 1], array_column($followupPlan['import_plan']['applied'], 'wal_frame_index'));
+    };
+    $tests[$prefix . 'followup rollback preview begins after retry frames'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same($scenario['preexisting_frames'] + 3, $followupPlan['wal_rollback_to_savepoint']['rollback_to_frame']);
+        $t->same($scenario['expected_followup_pages'], $followupPlan['wal_rollback_to_savepoint']['discarded_page_numbers']);
+    };
+    $tests[$prefix . 'followup tenant isolation remains intact'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same([$scenario['tenant_id'], $scenario['tenant_id']], array_column($followupPlan['import_plan']['applied'], 'tenant_id'));
+    };
+    $tests[$prefix . 'followup keeps jsonb mode on catalog row'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $value = $followupPlan['import_plan']['applied'][0]['key_value'];
+        $t->same($scenario['jsonb_mode'], $value instanceof SQLiteBlobValue);
+    };
+    $tests[$prefix . 'followup frame bytes append after retry frames'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        foreach ($scenario['expected_followup_pages'] as $index => $pageNumber) {
+            $frameOffset = 32 + (($scenario['preexisting_frames'] + 3 + $index) * $frameSize);
+            $frameHeader = unpack('Npage_number', substr($followupPlan['wal_bytes_after'], $frameOffset, 4));
+            $t->same($pageNumber, (int) $frameHeader['page_number']);
+        }
+    };
+    $tests[$prefix . 'followup checksums continue after retry frames'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($followupPlan['wal_bytes_after'], 0, 24), false);
+        for ($frameIndex = 0; $frameIndex < $scenario['preexisting_frames'] + 3; $frameIndex++) {
+            $frameOffset = 32 + ($frameIndex * $frameSize);
+            $frame = substr($followupPlan['wal_bytes_after'], $frameOffset, $frameSize);
+            $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($frame, 0, 8) . substr($frame, 24), false, $checksumSeed[0], $checksumSeed[1]);
+        }
+        foreach ($scenario['expected_followup_pages'] as $index => $pageNumber) {
+            $frameOffset = 32 + (($scenario['preexisting_frames'] + 3 + $index) * $frameSize);
+            $frame = substr($followupPlan['wal_bytes_after'], $frameOffset, $frameSize);
+            $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($frame, 0, 8) . substr($frame, 24), false, $checksumSeed[0], $checksumSeed[1]);
+            $frameHeader = unpack('Npage_number/Ncommit/Nsalt_1/Nsalt_2/Nchecksum_1/Nchecksum_2', substr($frame, 0, 24));
+            $t->same($pageNumber, (int) $frameHeader['page_number']);
+            $t->same($checksumSeed, [(int) $frameHeader['checksum_1'], (int) $frameHeader['checksum_2']]);
+        }
+    };
+    $tests[$prefix . 'followup marks only final appended frame as commit'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $commits = [];
+        foreach ($scenario['expected_followup_pages'] as $index => $_pageNumber) {
+            $frameOffset = 32 + (($scenario['preexisting_frames'] + 3 + $index) * $frameSize);
+            $frameHeader = unpack('Npage_number/Ncommit', substr($followupPlan['wal_bytes_after'], $frameOffset, 8));
+            $commits[] = (int) $frameHeader['commit'];
+        }
+        $t->same([0, intdiv(strlen($followupPlan['database_bytes_after_import']), $pageSize)], $commits);
+    };
+}
+
 foreach ($preexistingRetryScenarios as $scenario) {
     $seed = (int) $scenario['seed'];
     $failedPlan = $scenario['failed_plan'];
@@ -1272,6 +1389,17 @@ $tests['sqlite application wal rollback json dynamic parity rejects zero header-
     $t->same('rejected', 'accepted');
 };
 
+$tests['sqlite application wal rollback json dynamic parity rejects zero full-run materialized wal scenarios'] = static function (TestRunner $t): void {
+    try {
+        SQLiteJsonImportRollbackWalPlan::dynamicFullRunMaterializedWalScenarios(0);
+    } catch (InvalidArgumentException) {
+        $t->same('rejected', 'rejected');
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
 $tests['sqlite application wal rollback json dynamic parity explicit small batch remains deterministic'] = static function (TestRunner $t): void {
     $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(3);
     $t->same([101, 102, 103], array_column($smallBatch, 'tenant_id'));
@@ -1369,6 +1497,14 @@ $tests['sqlite application wal rollback json dynamic parity header-checksum mism
     $t->same([1201, 1202, 1203, 1204], array_column($smallBatch, 'tenant_id'));
     $t->same([28, 24, 28, 24], array_column($smallBatch, 'checksum_offset'));
     $t->same([6, 7, 8, 5], array_column($smallBatch, 'wal_frames_before'));
+};
+
+$tests['sqlite application wal rollback json dynamic parity full-run materialized wal small batch remains deterministic'] = static function (TestRunner $t): void {
+    $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicFullRunMaterializedWalScenarios(4);
+    $t->same([7101, 7102, 7103, 7104], array_column($smallBatch, 'tenant_id'));
+    $t->same([2, 3, 4, 1], array_column($smallBatch, 'preexisting_frames'));
+    $t->same([[51, 721, 821], [52, 722, 822], [53, 723, 823], [54, 724, 824]], array_column($smallBatch, 'expected_retry_pages'));
+    $t->same([[721, 1021], [722, 1022], [723, 1023], [724, 1024]], array_column($smallBatch, 'expected_followup_pages'));
 };
 
 $tests['sqlite application wal rollback json dynamic parity rejects wal header page size mismatch'] = static function (TestRunner $t) use ($scenarios): void {

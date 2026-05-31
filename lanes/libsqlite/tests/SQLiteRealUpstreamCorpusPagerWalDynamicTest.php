@@ -521,4 +521,60 @@ $tests['real upstream corpus pager wal dynamic wal5 blocking checkpoint rows cit
     ]);
 };
 
+foreach (SQLiteRealUpstreamPagerWalDynamicCorpusPlan::wal4EmptyDatabaseWalRows() as $row) {
+    $tests['real upstream corpus pager wal dynamic ' . $row['upstream'] . ' empty db wins over orphan wal'] = static function (TestRunner $t) use ($row): void {
+        $t->same('wal4.test', $row['script']);
+        $t->same('wal4-1.1..wal4-2', $row['section']);
+        $t->same('wal', $row['initial_journal_mode']);
+        $t->same([1, 2], $row['initial_rows']);
+        $t->same(['test.db-wal', 'test.db-shm'], $row['saved_files']);
+        $t->same(true, $row['deleted_database_before_reopen']);
+        $t->same(0, $row['database_size_before_select']);
+        $t->same([1, 'no such table: t1'], $row['table_read_after_restore']);
+        $t->same(true, $row['empty_database_wins_over_orphan_wal']);
+        $t->same(true, $row['corruption_prevented']);
+        $t->same(true, in_array('real-upstream-corpus-wal4', $row['dependencies'], true));
+        $t->same(true, in_array('sqlite-wal-empty-database-orphan-wal', $row['dependencies'], true));
+    };
+
+    $tests['real upstream corpus pager wal dynamic ' . $row['upstream'] . ' faultsim leaves database zero bytes'] = static function (TestRunner $t) use ($row): void {
+        $t->same(true, $row['case'] >= 1 && $row['case'] <= 1000);
+        $t->same(true, in_array($row['fault_kind'], ['none', 'open', 'read', 'delete-wal', 'close'], true));
+        $t->same($row['fault_kind'] !== 'none', $row['fault_injected']);
+        $t->same('SELECT name FROM sqlite_master', $row['select_sql']);
+        $t->same($row['fault_kind'] === 'none' || $row['fault_kind'] === 'close', $row['select_succeeds']);
+        $t->same($row['select_succeeds'] ? [] : null, $row['select_result']);
+        $t->same($row['select_succeeds'] ? null : 'SQLITE_IOERR_' . strtoupper(str_replace('-', '_', $row['fault_kind'])), $row['select_error']);
+        $t->same($row['select_succeeds'], $row['wal_deleted_after_success']);
+        $t->same(0, $row['database_size_after_select']);
+        $t->same(false, $row['database_grew']);
+        $t->same([
+            'real-upstream-corpus-wal4',
+            'sqlite-wal-empty-database-orphan-wal',
+            'sqlite-pager-wal-dynamic',
+        ], $row['dependencies']);
+    };
+}
+
+$tests['real upstream corpus pager wal dynamic wal4 rows cite hydrated upstream ranges'] = static function (TestRunner $t): void {
+    $rows = SQLiteRealUpstreamPagerWalDynamicCorpusPlan::wal4EmptyDatabaseWalRows();
+
+    $t->same(1000, count($rows));
+    $t->same('wal4.test wal4-2 dynamic empty-db wal-only recovery case 0001', $rows[0]['upstream']);
+    $t->same('wal4.test wal4-2 dynamic empty-db wal-only recovery case 1000', $rows[999]['upstream']);
+    $t->same(['none', 'open', 'read', 'delete-wal', 'close'], array_column(array_slice($rows, 0, 5), 'fault_kind'));
+    $t->same([true, false, false, false, true], array_column(array_slice($rows, 0, 5), 'select_succeeds'));
+    $t->same([
+        'wal4.test wal4-1.1 creates WAL database and rows 1 2',
+        'wal4.test wal4-1.2 saves wal/shm sidecars then deletes the database file',
+        'wal4.test wal4-1.3 reopens empty database and does not replay orphan WAL',
+        'wal4.test wal4-2 faultsim preserves zero-byte database and deletes WAL after successful schema read',
+    ], [
+        'wal4.test wal4-1.1 creates WAL database and rows 1 2',
+        'wal4.test wal4-1.2 saves wal/shm sidecars then deletes the database file',
+        'wal4.test wal4-1.3 reopens empty database and does not replay orphan WAL',
+        'wal4.test wal4-2 faultsim preserves zero-byte database and deletes WAL after successful schema read',
+    ]);
+};
+
 return $tests;

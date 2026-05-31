@@ -2247,7 +2247,7 @@ final class SQLiteSelectSql
         }
 
         [$body, $offset] = self::consumeParenthesized($sql, 0);
-        if (preg_match('/^values\s+/i', trim($body)) !== 1) {
+        if (preg_match('/^values(?:\s+|\()/i', trim($body)) !== 1) {
             return null;
         }
 

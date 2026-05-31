@@ -1439,6 +1439,51 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function wal4EmptyDatabaseWalRows(): array
+    {
+        $rows = [];
+        $faultKinds = ['none', 'open', 'read', 'delete-wal', 'close'];
+
+        foreach (range(1, 1000) as $case) {
+            $faultKind = $faultKinds[($case - 1) % count($faultKinds)];
+            $selectSucceeds = $faultKind === 'none' || $faultKind === 'close';
+
+            $rows[] = [
+                'upstream' => sprintf('wal4.test wal4-2 dynamic empty-db wal-only recovery case %04d', $case),
+                'script' => 'wal4.test',
+                'case' => $case,
+                'section' => 'wal4-1.1..wal4-2',
+                'initial_journal_mode' => 'wal',
+                'initial_rows' => [1, 2],
+                'saved_files' => ['test.db-wal', 'test.db-shm'],
+                'deleted_database_before_reopen' => true,
+                'database_size_before_select' => 0,
+                'fault_kind' => $faultKind,
+                'fault_injected' => $faultKind !== 'none',
+                'select_sql' => 'SELECT name FROM sqlite_master',
+                'select_succeeds' => $selectSucceeds,
+                'select_result' => $selectSucceeds ? [] : null,
+                'select_error' => $selectSucceeds ? null : 'SQLITE_IOERR_' . strtoupper(str_replace('-', '_', $faultKind)),
+                'table_read_after_restore' => [1, 'no such table: t1'],
+                'wal_deleted_after_success' => $selectSucceeds,
+                'database_size_after_select' => 0,
+                'database_grew' => false,
+                'corruption_prevented' => true,
+                'empty_database_wins_over_orphan_wal' => true,
+                'dependencies' => [
+                    'real-upstream-corpus-wal4',
+                    'sqlite-wal-empty-database-orphan-wal',
+                    'sqlite-pager-wal-dynamic',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array

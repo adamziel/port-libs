@@ -1542,6 +1542,229 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicFullRunMaterializedWalScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL full-run materialized dynamic parity requires at least one scenario');
+        }
+
+        $scenarios = [];
+        for ($seed = 1; $seed <= $scenarioCount; $seed++) {
+            $pageSize = $seed % 2 === 0 ? 1024 : 512;
+            $tenantId = 7100 + $seed;
+            $preexistingFrames = 1 + ($seed % 4);
+            $featurePage = 50 + ($seed % 8);
+            $catalogPage = 720 + $seed;
+            $brokenPage = 820 + $seed;
+            $auditPage = 920 + $seed;
+            $finalPage = 1020 + $seed;
+            $jsonbMode = $seed % 2 === 0;
+            $preSavepointWalPages = [];
+            for ($frame = 1; $frame <= $preexistingFrames; $frame++) {
+                $preSavepointWalPages[] = 1100 + $seed + $frame;
+            }
+
+            $rows = [
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 8000 + 1,
+                    'key_name' => 'full_run_feature_flags_' . $seed,
+                    'key_value' => json_encode(['enabled' => false, 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'yes',
+                    'page_number' => $featurePage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 8000 + 2,
+                    'key_name' => 'full_run_catalog_payload_' . $seed,
+                    'key_value' => $jsonbMode
+                        ? new SQLiteBlobValue(SQLiteJsonB::encode(['items' => ['before'], 'seed' => $seed]))
+                        : json_encode(['items' => ['before'], 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'no',
+                    'page_number' => $catalogPage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 8000 + 3,
+                    'key_name' => 'full_run_broken_payload_' . $seed,
+                    'key_value' => '{"broken":',
+                    'load_policy' => 'no',
+                    'page_number' => $brokenPage,
+                ],
+            ];
+
+            $failedMutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'full_run_enable_failed_' . $seed,
+                    'key_name' => 'full_run_feature_flags_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => $preexistingFrames + 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'full_run_catalog_failed_' . $seed,
+                    'key_name' => 'full_run_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.items',
+                    'value' => new SQLiteJsonSubtypeValue(json_encode(['before', 'discarded-' . $seed], JSON_THROW_ON_ERROR)),
+                    'wal_frame_index' => $preexistingFrames + 2,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'full_run_broken_failed_' . $seed,
+                    'key_name' => 'full_run_broken_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => $preexistingFrames + 3,
+                ],
+            ];
+
+            $databaseBytes = self::scenarioDatabaseBytes($pageSize, max($finalPage, $auditPage, $brokenPage, $catalogPage, $featurePage));
+            $walBytes = self::scenarioChecksummedWalBytes($pageSize, $preexistingFrames + 3, 0x9600 + $seed, 0x9700 + $seed);
+            $failedPlan = self::plan($rows, $failedMutations, [
+                'database_bytes' => $databaseBytes,
+                'page_size' => $pageSize,
+                'wal_bytes' => $walBytes,
+                'transaction' => 'application_full_run_json_import_failed_' . $seed,
+                'savepoint' => 'full_run_json_batch_failed_' . $seed,
+                'pre_savepoint_wal_pages' => $preSavepointWalPages,
+            ]);
+
+            $retryRows = $rows;
+            $retryRows[2]['key_value'] = json_encode(['fixed' => false, 'seed' => $seed], JSON_THROW_ON_ERROR);
+            $retryMutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'full_run_enable_retry_' . $seed,
+                    'key_name' => 'full_run_feature_flags_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => $preexistingFrames + 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'full_run_catalog_retry_' . $seed,
+                    'key_name' => 'full_run_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.items',
+                    'value' => new SQLiteJsonSubtypeValue(json_encode(['before', 'kept-' . $seed], JSON_THROW_ON_ERROR)),
+                    'wal_frame_index' => $preexistingFrames + 2,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'full_run_fixed_retry_' . $seed,
+                    'key_name' => 'full_run_broken_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.fixed',
+                    'value' => true,
+                    'wal_frame_index' => $preexistingFrames + 3,
+                ],
+            ];
+            $retryPlan = self::plan($retryRows, $retryMutations, [
+                'database_bytes' => $failedPlan['restored_database_bytes'],
+                'page_size' => $pageSize,
+                'wal_bytes' => $failedPlan['wal_bytes_after'],
+                'transaction' => 'application_full_run_json_import_retry_' . $seed,
+                'savepoint' => 'full_run_json_batch_retry_' . $seed,
+                'pre_savepoint_wal_pages' => $preSavepointWalPages,
+                'materialize_success_wal_frames' => true,
+            ]);
+
+            $followupRows = [
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 8000 + 1,
+                    'key_name' => 'full_run_feature_flags_' . $seed,
+                    'key_value' => json_encode(['enabled' => true, 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'yes',
+                    'page_number' => $featurePage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 8000 + 2,
+                    'key_name' => 'full_run_catalog_payload_' . $seed,
+                    'key_value' => $jsonbMode
+                        ? new SQLiteBlobValue(SQLiteJsonB::encode(['items' => ['before', 'kept-' . $seed], 'seed' => $seed]))
+                        : json_encode(['items' => ['before', 'kept-' . $seed], 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'no',
+                    'page_number' => $catalogPage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 8000 + 3,
+                    'key_name' => 'full_run_broken_payload_' . $seed,
+                    'key_value' => json_encode(['fixed' => true, 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'no',
+                    'page_number' => $brokenPage,
+                ],
+            ];
+            $followupFrameStart = $preexistingFrames + 4;
+            $followupPreSavepointWalPages = array_merge($preSavepointWalPages, [$featurePage, $catalogPage, $brokenPage]);
+            $followupMutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'full_run_catalog_followup_' . $seed,
+                    'key_name' => 'full_run_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.final',
+                    'value' => 'chained-' . $seed,
+                    'wal_frame_index' => $followupFrameStart,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'full_run_insert_final_' . $seed,
+                    'key_name' => 'full_run_final_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.complete',
+                    'value' => true,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $seed * 8000 + 4,
+                    'insert_load_policy' => 'auto',
+                    'initial_value' => '{}',
+                    'page_number' => $finalPage,
+                    'wal_frame_index' => $followupFrameStart + 1,
+                ],
+            ];
+            $followupPlan = self::plan($followupRows, $followupMutations, [
+                'database_bytes' => $retryPlan['database_bytes_after_import'],
+                'page_size' => $pageSize,
+                'wal_bytes' => $retryPlan['wal_bytes_after'],
+                'transaction' => 'application_full_run_json_import_followup_' . $seed,
+                'savepoint' => 'full_run_json_batch_followup_' . $seed,
+                'pre_savepoint_wal_pages' => $followupPreSavepointWalPages,
+                'materialize_success_wal_frames' => true,
+            ]);
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $tenantId,
+                'page_size' => $pageSize,
+                'jsonb_mode' => $jsonbMode,
+                'preexisting_frames' => $preexistingFrames,
+                'pre_savepoint_wal_pages' => $preSavepointWalPages,
+                'followup_pre_savepoint_wal_pages' => $followupPreSavepointWalPages,
+                'expected_retry_pages' => [$featurePage, $catalogPage, $brokenPage],
+                'expected_followup_pages' => [$catalogPage, $finalPage],
+                'expected_final_key' => 'full_run_final_payload_' . $seed,
+                'database_bytes' => $databaseBytes,
+                'wal_bytes' => $walBytes,
+                'failed_plan' => $failedPlan,
+                'retry_plan' => $retryPlan,
+                'followup_plan' => $followupPlan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
      * @param array<string,mixed> $importPlan
      */
     private static function assertRollbackFramesExist(array $importPlan, int $walFrameCount): void
