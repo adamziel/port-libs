@@ -48,6 +48,31 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 03:24 UTC):
+  Batch61 is integrated locally as source
+  `464ad4011610ee534ae033ab81f08bae2d86f7ae` (`libsqlite: add
+  sixty-first current corpus sweep`). The batch accepted 10 source/test-moving
+  handoffs across row-value UPDATE/DELETE LIMIT parity, SELECT4 aggregate join
+  behavior, date floor/ceiling affinity behavior, window4 value behavior,
+  trigger/FK attached restrict behavior, expression current-time literal SELECT
+  SQL behavior, pager WAL dynamic behavior, PRAGMA data_version
+  local-connection behavior, B-tree whereK OR factoring behavior, and VFS
+  atomic page-size behavior. JSON and UPSERT candidates were rejected as
+  status/notes-only after lane-status exclusion; app-WAL remains parked.
+  Verification passed PHP lint for `14` changed/new PHP files, `git diff
+  --check -- lanes/libsqlite`, no newly-added WordPress/wp source text in the
+  batch source diff, focused selected tests `10 files / 80634 assertions / 0
+  failures / 21139 PASS lines`, accepted-base overlap `1 file / 5857
+  assertions / 0 failures / 1846 PASS lines`, and isolated per-file related
+  guard `171 files / 0 failures / 572676 PASS lines`. The earlier oversized
+  multi-file related guard hit PHP's 128M memory cap in the pager/WAL overwrite
+  file, but that file passed alone on both base and current with `5047`
+  assertions / `0` failures, so it was classified as guard-run memory
+  pressure, not an accepted regression. Honest selected movement is `+19293`,
+  moving libsqlite from `1834768` to `1854061 pass / 0 fail`; mapped coverage
+  remains `1589 / 1589`. Broad release/all-runner parity remains open;
+  gitoxide starts only after libsqlite closure is recorded.
+
 - 2026-05-31 supervisor continuation (integration sample 03:25 UTC):
   Batch60 is integrated locally as source
   `bcc680a0e7998da01f362afa14aec190e01f9e15` (`libsqlite: add
