@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 13:37:21 UTC",
-    "sourceCommit": "e0d5eca0c9fba672ca865172f6c0396119cdbb51",
-    "sourceCommitShort": "e0d5eca0c9fb",
+    "generated": "2026-05-31 13:44:12 UTC",
+    "sourceCommit": "0cbdb423cd7e75b535aebff61b698de758d44cd2",
+    "sourceCommitShort": "0cbdb423cd7e",
     "sourceBranch": "main",
-    "dashboardCommit": "d870e9e4ab2b993f528f9901e649104b92642a26",
-    "dashboardCommitShort": "d870e9e4ab2b",
+    "dashboardCommit": "adef2a1ca7c7277346d62c159b745c4fac362a44",
+    "dashboardCommitShort": "adef2a1ca7c7",
     "averageProgressPercent": "86.8",
     "lanes": [
         {
@@ -98,16 +98,16 @@
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1133",
-            "coverage": "1133 / 3532",
-            "php": "1556 pass / 0 fail",
+            "mapped": "1141",
+            "coverage": "1141 / 3532",
+            "php": "1576 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "static upstream inventory plus upstream Rust/Node/WASM...",
-            "audit": "Accepted source commit e0d5eca0c9fba672ca...",
-            "currentWork": "Native LightningCSS now covers SourceMap generated-column/generated-line offset APIs plus...",
+            "audit": "Accepted source commit 0cbdb423cd7e75b535...",
+            "currentWork": "Native LightningCSS now covers CSS Modules scoping for view-transition declarations, @vie...",
             "nextTarget": "Keep the visible LightningCSS surge workers on current-base handoffs for source-map/bundl...",
             "blocker": "No current LightningCSS implementation blocker for this batch.",
-            "commit": "e0d5eca"
+            "commit": "0cbdb42"
         },
         {
             "library": "markerPDF",
