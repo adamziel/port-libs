@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-$main = '73a6868963993a3328e7d8fe94e5a6ac5078a944';
-$releaseTag = 'dce0ea858eef7ff61ad345cc5cdac62203fb3c10';
-$releaseObject = '21c9b7500cb144b3169a6537961ec2b9e865be81';
+$main = '9b0fc92260312ce44e74ef369f5f4b4d6fd6672f54064da57e9450051e7f5a3c';
+$releaseTag = '3b7a0f55a20c3fe6c451bb9f551e2f7f0d4091b6bb0d0ad0a39fc4fcd4b6d1a9';
+$releaseObject = '6d0f02a4db7bc9a514f45a0bb3ee4a25e0f6be41832fe3482077a9f6cf2c04d8';
 $packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
 $flush = '0000';
 $delimiter = '0001';
@@ -14,7 +14,7 @@ $capabilityLines = [
     'ls-refs=unborn',
     'fetch=shallow filter ref-in-want sideband-all',
     'server-option',
-    'object-format=sha1',
+    'object-format=sha256',
     'agent=git/2.44.0',
 ];
 $responseLines = [
@@ -50,5 +50,5 @@ return [
         'releaseTag' => $releaseTag,
         'releaseObject' => $releaseObject,
     ],
-    'wordpressUse' => 'A PHP deployment tool can parse protocol v2 ls-refs capabilities and response lines to discover the active WordPress branch, release tag target, and unborn staging branch before deciding what to fetch.',
+    'wordpressUse' => 'A PHP deployment tool can parse protocol v2 ls-refs capabilities and SHA-256 response lines to discover the active WordPress branch, release tag target, and unborn staging branch before deciding what to fetch.',
 ];

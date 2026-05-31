@@ -388,12 +388,17 @@ final class PackData
     {
         $shift = 0;
         $size = 0;
+        $valueBits = PHP_INT_SIZE * 8 - 1;
         while ($cursor < strlen($delta)) {
-            if ($shift >= 64) {
+            if ($shift > $valueBits) {
                 throw new \RuntimeException('Delta header size uses too many bits');
             }
             $byte = ord($delta[$cursor++]);
-            $size |= ($byte & 0x7f) << $shift;
+            $value = $byte & 0x7f;
+            if ($value !== 0 && ($shift >= $valueBits || $value > (PHP_INT_MAX >> $shift))) {
+                throw new \RuntimeException('Delta header size exceeds platform integer range');
+            }
+            $size |= $value << $shift;
             if (($byte & 0x80) === 0) {
                 return [$size, $cursor];
             }

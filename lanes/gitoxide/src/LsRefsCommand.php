@@ -258,8 +258,8 @@ final class LsRefsCommand
 
     private static function assertObjectId(string $oid): void
     {
-        if (preg_match('/^[0-9a-fA-F]{40}$/', $oid) !== 1) {
-            throw new \InvalidArgumentException('Protocol ref object id must be a 40-character SHA-1 hex string');
+        if (preg_match('/^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/', $oid) !== 1) {
+            throw new \InvalidArgumentException('Protocol ref object id must be a 40-character SHA-1 or 64-character SHA-256 hex string');
         }
     }
 

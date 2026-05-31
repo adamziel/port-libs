@@ -178,6 +178,35 @@ return [
         $t->throws(RuntimeException::class, static fn () => LsRefsCommand::parseV2PacketLines($packet("ERR repository unavailable\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::parseV2PacketLines('000x'));
     },
+    'parses protocol v2 ls-refs sha256 advertisements like gix hash object ids' => static function (TestRunner $t) use ($packet, $flush): void {
+        $head = '9b0fc92260312ce44e74ef369f5f4b4d6fd6672f54064da57e9450051e7f5a3c';
+        $tag = '3b7a0f55a20c3fe6c451bb9f551e2f7f0d4091b6bb0d0ad0a39fc4fcd4b6d1a9';
+        $target = '6d0f02a4db7bc9a514f45a0bb3ee4a25e0f6be41832fe3482077a9f6cf2c04d8';
+        $capabilities = ProtocolCapabilities::fromV2PacketLines(
+            $packet("version 2\n")
+                . $packet("ls-refs=unborn\n")
+                . $packet("object-format=sha256\n")
+                . $flush
+        );
+
+        $refs = LsRefsCommand::parseV2PacketLines(
+            $packet(strtoupper($head) . " HEAD symref-target:refs/heads/main\n")
+                . $packet("{$tag} refs/tags/wp-release peeled:{$target}\n")
+                . $packet("unborn refs/heads/staging symref-target:refs/heads/main\n")
+                . $flush
+        );
+
+        $t->same(true, $capabilities->capability('object-format')?->supports('sha256'));
+        $t->same('symbolic', $refs[0]->kind);
+        $t->same($head, $refs[0]->object);
+        $t->same(64, strlen($refs[0]->object ?? ''));
+        $t->same('peeled', $refs[1]->kind);
+        $t->same($tag, $refs[1]->tag);
+        $t->same($target, $refs[1]->object);
+        $t->same('unborn', $refs[2]->kind);
+        $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::parseV2RefLine(substr($head, 0, 63) . ' refs/heads/bad'));
+        $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::parseV2RefLine($tag . ' refs/tags/bad peeled:' . $target . 'f'));
+    },
     'rejects malformed protocol v2 ref lines' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::parseV2RefLine('808e50d724f604f69ab93c6da2919c014667bedb'));
         $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::parseV2RefLine('808e50d724f604f69ab93c6da2919c014667bedb HEAD unknown:value'));

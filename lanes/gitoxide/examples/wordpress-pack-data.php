@@ -6,6 +6,7 @@ require __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\Gitoxide\PackData;
 use PortLibs\Gitoxide\PackIndex;
+use PortLibs\Gitoxide\GitObject;
 
 $fixture = require __DIR__ . '/../fixtures/wordpress-pack-data.php';
 $pack = PackData::fromBytes($fixture['packBytes']);
@@ -25,6 +26,54 @@ try {
     $strictDeclaredSizeGuard = true;
 }
 
+$encodeEntryHeader = static function (int $typeId, int $size): string {
+    $out = '';
+    $first = ($typeId << 4) | ($size & 0x0f);
+    $size >>= 4;
+    while ($size !== 0) {
+        $out .= chr($first | 0x80);
+        $first = $size & 0x7f;
+        $size >>= 7;
+    }
+    $out .= chr($first);
+
+    return $out;
+};
+$buildSingleEntryIndex = static function (string $oid, int $offset, string $entryBytes, string $packChecksum): string {
+    $fanout = array_fill(0, 256, 0);
+    $fanout[hexdec(substr($oid, 0, 2))] = 1;
+    for ($i = 1; $i < 256; $i++) {
+        $fanout[$i] += $fanout[$i - 1];
+    }
+
+    $bytes = "\xfftOc" . pack('N', 2);
+    foreach ($fanout as $count) {
+        $bytes .= pack('N', $count);
+    }
+    $bytes .= hex2bin($oid) . pack('N', hexdec(hash('crc32b', $entryBytes))) . pack('N', $offset) . hex2bin($packChecksum);
+
+    return $bytes . hex2bin(hash('sha1', $bytes));
+};
+
+$oversizedDeltaHeaderGuard = false;
+try {
+    $base = new GitObject('blob', 'A');
+    $target = new GitObject('blob', 'B');
+    $oversizedResultDelta = chr(1) . str_repeat(chr(0x80), 9) . chr(0x01);
+    $entryOffset = 12;
+    $entryBytes = $encodeEntryHeader(7, strlen($oversizedResultDelta))
+        . hex2bin($base->oid())
+        . gzcompress($oversizedResultDelta);
+    $malformedPackPrefix = 'PACK' . pack('N2', 2, 1) . $entryBytes;
+    $malformedPackChecksum = hash('sha1', $malformedPackPrefix);
+    $malformedPack = PackData::fromBytes($malformedPackPrefix . hex2bin($malformedPackChecksum));
+    $malformedIndex = PackIndex::fromBytes($buildSingleEntryIndex($target->oid(), $entryOffset, $entryBytes, $malformedPackChecksum));
+
+    $malformedPack->readObjectWithExternalBases($malformedIndex, $target->oid(), [$base->oid() => $base]);
+} catch (RuntimeException) {
+    $oversizedDeltaHeaderGuard = true;
+}
+
 return [
     'version' => $pack->version(),
     'objects' => $pack->count(),
@@ -35,4 +84,5 @@ return [
     'blobPreview' => strtok($blob->body, "\n"),
     'deltaBlobHasPackedEdit' => str_contains($deltaBlob->body, 'reconstructed packed edit'),
     'strictDeclaredSizeGuard' => $strictDeclaredSizeGuard,
+    'oversizedDeltaHeaderGuard' => $oversizedDeltaHeaderGuard,
 ];

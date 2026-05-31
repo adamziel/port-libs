@@ -20,8 +20,8 @@ final class RemoteRef
             throw new \InvalidArgumentException('Remote ref name cannot be empty');
         }
         foreach (['object' => $object, 'tag' => $tag] as $label => $oid) {
-            if ($oid !== null && preg_match('/^[0-9a-f]{40}$/', $oid) !== 1) {
-                throw new \InvalidArgumentException("Remote ref {$label} must be a SHA-1 object id");
+            if ($oid !== null && preg_match('/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/', $oid) !== 1) {
+                throw new \InvalidArgumentException("Remote ref {$label} must be a SHA-1 or SHA-256 object id");
             }
         }
     }

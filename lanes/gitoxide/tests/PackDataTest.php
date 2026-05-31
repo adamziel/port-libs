@@ -151,6 +151,16 @@ $captureWarnings = static function (callable $callback): array {
     return $warnings;
 };
 
+$runtimeExceptionMessage = static function (callable $callback): string {
+    try {
+        $callback();
+    } catch (RuntimeException $exception) {
+        return $exception->getMessage();
+    }
+
+    throw new RuntimeException('Expected RuntimeException was not thrown');
+};
+
 $buildThinWordPressBlobs = static function (): array {
     $stableRows = '';
     for ($i = 0; $i < 80; $i++) {
@@ -371,6 +381,49 @@ return [
         $t->same([], $shortWarnings);
         $t->same([], $mismatchedBaseWarnings);
     },
+    'rejects oversized delta headers before php integer wraparound' => static function (TestRunner $t) use ($buildPackFixture, $encodeDeltaSize, $runtimeExceptionMessage): void {
+        $base = new GitObject('blob', 'A');
+        $oversized = str_repeat(chr(0x80), 9) . chr(0x01);
+
+        [$oversizedResultPackBytes, $oversizedResultIndexBytes, $oversizedResultEntries] = $buildPackFixture([
+            [
+                'type' => 'ref-delta',
+                'typeId' => 7,
+                'body' => $encodeDeltaSize(1) . $oversized,
+                'baseOid' => $base->oid(),
+                'finalType' => 'blob',
+                'finalBody' => 'B',
+            ],
+        ]);
+        $oversizedResultPack = PackData::fromBytes($oversizedResultPackBytes);
+        $oversizedResultIndex = PackIndex::fromBytes($oversizedResultIndexBytes);
+        $resultMessage = $runtimeExceptionMessage(static fn () => $oversizedResultPack->readObjectWithExternalBases(
+            $oversizedResultIndex,
+            $oversizedResultEntries[0]['oid'],
+            [$base->oid() => $base],
+        ));
+
+        [$oversizedBasePackBytes, $oversizedBaseIndexBytes, $oversizedBaseEntries] = $buildPackFixture([
+            [
+                'type' => 'ref-delta',
+                'typeId' => 7,
+                'body' => $oversized . $encodeDeltaSize(1) . chr(0x90) . chr(1),
+                'baseOid' => $base->oid(),
+                'finalType' => 'blob',
+                'finalBody' => 'B',
+            ],
+        ]);
+        $oversizedBasePack = PackData::fromBytes($oversizedBasePackBytes);
+        $oversizedBaseIndex = PackIndex::fromBytes($oversizedBaseIndexBytes);
+        $baseMessage = $runtimeExceptionMessage(static fn () => $oversizedBasePack->readObjectWithExternalBases(
+            $oversizedBaseIndex,
+            $oversizedBaseEntries[0]['oid'],
+            [$base->oid() => $base],
+        ));
+
+        $t->same('Delta header size exceeds platform integer range', $resultMessage);
+        $t->same('Delta header size exceeds platform integer range', $baseMessage);
+    },
     'wordpress fixture reads compacted commit blob and delta objects without git binary' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-data.php';
         $summary = require dirname(__DIR__) . '/examples/wordpress-pack-data.php';
@@ -388,6 +441,7 @@ return [
         $t->same('blob', $deltaBlob->type);
         $t->contains('reconstructed packed edit', $deltaBlob->body);
         $t->same(true, $summary['strictDeclaredSizeGuard']);
+        $t->same(true, $summary['oversizedDeltaHeaderGuard']);
     },
     'wordpress fixture resolves and repairs thin content packs' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-thin-pack-repair.php';
