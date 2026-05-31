@@ -801,7 +801,7 @@ final class SQLiteSelectExpression
         if (is_int($numeric)) {
             return $numeric;
         }
-        if (is_finite($numeric) && floor($numeric) === $numeric && $numeric >= -9223372036854775808.0 && $numeric < 9223372036854775807.0) {
+        if (is_finite($numeric) && floor($numeric) === $numeric && abs($numeric) <= 2251799813685247.0) {
             return (int) $numeric;
         }
 

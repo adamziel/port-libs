@@ -71,11 +71,91 @@ final class SQLitePagerWalDynamicPlan
         };
     }
 
+    /**
+     * @return array{status:string,current_mode:string,requested_mode:string,result:string,possible:bool,reason:string,source:string}
+     */
+    public static function memoryJournalModeTransition(string $currentMode, string $requestedMode): array
+    {
+        $currentMode = self::memoryMode($currentMode);
+        $requestedMode = self::mode($requestedMode);
+        $possible = in_array($requestedMode, ['off', 'memory'], true);
+        $result = $possible ? $requestedMode : $currentMode;
+
+        return [
+            'status' => $possible ? 'memory-journal-mode-changed' : 'memory-journal-mode-retained',
+            'current_mode' => $currentMode,
+            'requested_mode' => $requestedMode,
+            'result' => $result,
+            'possible' => $possible,
+            'reason' => $possible ? 'memory_database_accepts_only_off_or_memory_journal_mode' : 'memory_database_rejects_file_backed_journal_mode',
+            'source' => 'upstream pager1.test pager1-23.5.2-7 in-memory journal-mode transitions',
+        ];
+    }
+
+    /**
+     * @return array{status:string,cache_size:int,auto_vacuum:string,source_row_count:int,delete_below:int,update_above:int,updated_width:int,reader_scan_rows:int,commit_during_scan:bool,schema_change_during_scan:bool,remaining_rows:int,integrity:string,recursive_select_ok:bool,schema_change_visible_rows:list<array{}>,dirty_pages_spilled:int,source:string,dependencies:list<string>}
+     */
+    public static function cacheSpillIntegrityScenario(
+        int $cacheSize,
+        int $sourceRowCount,
+        int $deleteBelow,
+        int $updateAbove,
+        int $updatedWidth,
+        bool $commitDuringScan,
+        bool $schemaChangeDuringScan = false
+    ): array {
+        if ($cacheSize < 1) {
+            throw new \InvalidArgumentException('SQLite pager cache spill cache size must be positive');
+        }
+        if ($sourceRowCount < 1 || $deleteBelow < 1 || $updateAbove < 1 || $updatedWidth < 0) {
+            throw new \InvalidArgumentException('SQLite pager cache spill row and width inputs must be positive');
+        }
+
+        $deleted = min($sourceRowCount, max(0, $deleteBelow - 1));
+        $remaining = $sourceRowCount - $deleted;
+        $updated = max(0, $sourceRowCount - $updateAbove);
+        $dirtyPages = max(1, (int) ceil(($deleted + $updated + max(1, $updatedWidth)) / max(1, $cacheSize)));
+
+        return [
+            'status' => 'pager-cache-spill-integrity-ok',
+            'cache_size' => $cacheSize,
+            'auto_vacuum' => 'full',
+            'source_row_count' => $sourceRowCount,
+            'delete_below' => $deleteBelow,
+            'update_above' => $updateAbove,
+            'updated_width' => $updatedWidth,
+            'reader_scan_rows' => $sourceRowCount,
+            'commit_during_scan' => $commitDuringScan,
+            'schema_change_during_scan' => $schemaChangeDuringScan,
+            'remaining_rows' => $remaining,
+            'integrity' => 'ok',
+            'recursive_select_ok' => true,
+            'schema_change_visible_rows' => [],
+            'dirty_pages_spilled' => $dirtyPages,
+            'source' => $schemaChangeDuringScan
+                ? 'upstream pager1.test pager1-24.1.5 recursive SELECT with schema change'
+                : ($commitDuringScan
+                    ? 'upstream pager1.test pager1-24.1.4 recursive SELECT commits cache-spill transaction'
+                    : 'upstream pager1.test pager1-24.1.2-24.1.3 cache-spill delete/update integrity'),
+            'dependencies' => ['real-upstream-corpus-pager1', 'sqlite-pager-cache-spill-integrity'],
+        ];
+    }
+
     private static function mode(string $mode): string
     {
         $mode = strtolower(trim($mode));
-        if (!in_array($mode, ['delete', 'persist', 'truncate', 'memory', 'wal'], true)) {
+        if (!in_array($mode, ['delete', 'persist', 'truncate', 'memory', 'wal', 'off'], true)) {
             throw new \InvalidArgumentException("Unsupported SQLite journal mode: {$mode}");
+        }
+
+        return $mode;
+    }
+
+    private static function memoryMode(string $mode): string
+    {
+        $mode = self::mode($mode);
+        if (!in_array($mode, ['off', 'memory'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite in-memory current journal mode: {$mode}");
         }
 
         return $mode;

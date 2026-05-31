@@ -440,6 +440,56 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,partial_index:string,table_shape:string,predicate:string,query:string,result_rows:list<array<int,mixed>>,expected_error:string|null,uses_partial_index:bool,collation:string|null,integrity:string,batch:int}>
+     */
+    public static function index6LatePartialIndexTheoremCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index6 late partial-index theorem corpus requires at least one case');
+        }
+
+        $templates = [
+            ['index6-12.1/12.2', 'NOT IN and IN subqueries keep correct truth tables after adding a filtered partial index', 'CREATE INDEX t1a ON t1(a) WHERE b=1; SELECT x FROM t2 WHERE x IN (SELECT a FROM t1)', 't1a', 'rowid', 'b=1', 'x IN (SELECT a FROM t1)', [[1], [2]], null, false, null, 'ok'],
+            ['index6-13.1', 'partial-index theorem does not drop NULL row for OR truth expression', 'CREATE INDEX index_0 ON t0(c0) WHERE c0 NOT NULL; SELECT * FROM t0 WHERE c0 OR 1', 'index_0', 'rowid', 'c0 NOT NULL', 'c0 OR 1', [[null]], null, false, null, 'ok'],
+            ['index6-14.1', 'IS NOT comparison preserves NULL row with multi-column filtered index', 'CREATE INDEX i0 ON t0(c0, c1) WHERE c0 NOT NULL; SELECT * FROM t0 WHERE t0.c0 IS NOT 1', 'i0', 'rowid', 'c0 NOT NULL', 't0.c0 IS NOT 1', [[null, 'row']], null, false, null, 'ok'],
+            ['index6-14.2', 'CASE expression truthiness preserves NULL row with partial index present', 'SELECT * FROM t0 WHERE CASE c0 WHEN 0 THEN 0 ELSE 1 END', 'i0', 'rowid', 'c0 NOT NULL', 'CASE c0 WHEN 0 THEN 0 ELSE 1 END', [[null, 'row']], null, false, null, 'ok'],
+            ['index6-15.1', 'IS FALSE wrapped in IS FALSE preserves NULL row despite expression partial index', 'CREATE INDEX i0 ON t0(1) WHERE c0 NOT NULL; SELECT 1 FROM t0 WHERE (t0.c0 IS FALSE) IS FALSE', 'i0', 'rowid', 'c0 NOT NULL', '(t0.c0 IS FALSE) IS FALSE', [[1]], null, false, null, 'ok'],
+            ['index6-15.2', 'BETWEEN lower-bound expression over IS FALSE preserves NULL row', 'SELECT 1 FROM t0 WHERE (t0.c0 IS FALSE) BETWEEN FALSE AND TRUE', 'i0', 'rowid', 'c0 NOT NULL', '(t0.c0 IS FALSE) BETWEEN FALSE AND TRUE', [[1]], null, false, null, 'ok'],
+            ['index6-15.3', 'BETWEEN upper-bound expression over IS FALSE preserves NULL row', 'SELECT 1 FROM t0 WHERE TRUE BETWEEN (t0.c0 IS FALSE) AND TRUE', 'i0', 'rowid', 'c0 NOT NULL', 'TRUE BETWEEN (t0.c0 IS FALSE) AND TRUE', [[1]], null, false, null, 'ok'],
+            ['index6-15.4', 'BETWEEN right boundary expression over IS FALSE preserves NULL row', 'SELECT 1 FROM t0 WHERE FALSE BETWEEN FALSE AND (t0.c0 IS FALSE)', 'i0', 'rowid', 'c0 NOT NULL', 'FALSE BETWEEN FALSE AND (t0.c0 IS FALSE)', [[1]], null, false, null, 'ok'],
+            ['index6-15.5', 'IN expression over IS FALSE preserves NULL row', 'SELECT 1 FROM t0 WHERE (c0 IS FALSE) IN (FALSE)', 'i0', 'rowid', 'c0 NOT NULL', '(c0 IS FALSE) IN (FALSE)', [[1]], null, false, null, 'ok'],
+            ['index6-16.1/16.3', 'NOCASE collation direction is not commuted when proving partial-index usability', 'CREATE INDEX i0 ON t0(0) WHERE c0 >= c1; SELECT 3 FROM t0 WHERE c1 <= c0', 'i0', 'rowid', 'c0 >= c1', 'c1 <= c0', [[3]], null, false, 'NOCASE', 'ok'],
+            ['index6-17.1/17.3', 'GLOB self-comparison partial index coexists with duplicate constant unique indexes', 'CREATE INDEX i0 ON t0(0) WHERE c0 GLOB c0; CREATE UNIQUE INDEX i1 ON t0(0); SELECT COUNT(*) FROM t0 WHERE t0.c0 GLOB t0.c0', 'i0', 'rowid', 'c0 GLOB c0', 't0.c0 GLOB t0.c0', [[1]], null, true, null, 'ok'],
+            ['index6-18.1', 'partial UNIQUE index with a>NULL does not suppress IS NOT NULL table scan rows', 'CREATE UNIQUE INDEX t1b ON t1(b) WHERE a>NULL; SELECT * FROM t1 WHERE a IS NOT NULL', 't1b', 'rowid', 'a>NULL', 'a IS NOT NULL', [[10, 10]], null, false, null, 'ok'],
+            ['index6-19.2', 'partial index on right-join left table is not used for a full scan that would invent rows', 'SELECT * FROM t2 RIGHT JOIN t3 ON d<>0 LEFT JOIN t1 ON c=3 WHERE t1.a<>0', 'i0', 'rowid', 'c=3', 'RIGHT JOIN no-match loop with t1.a<>0', [], null, false, null, 'ok'],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $partialIndex, $tableShape, $predicate, $query, $rows, $error, $usesPartialIndex, $collation, $integrity] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'index6.test sections index6-12.1 through index6-19.2',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'statement' => $statement,
+                'partial_index' => $partialIndex,
+                'table_shape' => $tableShape,
+                'predicate' => $predicate,
+                'query' => $query,
+                'result_rows' => $rows,
+                'expected_error' => $error,
+                'uses_partial_index' => $usesPartialIndex,
+                'collation' => $collation,
+                'integrity' => $integrity,
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{upstream:string,scenario:string,row_count:int,blob_bytes:int,index_name:string,cache_size:int|null,expected_integrity:string,requires_external_sort:bool,unique_error:string|null,duplicate_value:int|null}>
      */
     public static function index4LargeBuildCases(): array
@@ -4668,11 +4718,31 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
                 false,
             ],
             [
+                'bestindex5-1.5.2',
+                'commuted NULL IS NOT column becomes an IS NOT empty-value constraint',
+                'SELECT * FROM t1 WHERE NULL IS NOT a',
+                [['a', 'IS NOT', '', true]],
+                "a IS NOT ''",
+                [[1, 2, 3.0], [4, 5, 6.0], [7, 8, 9.0]],
+                false,
+                false,
+            ],
+            [
                 'bestindex5-1.6.1',
                 'IS NULL unary constraint is omitted and yields an empty virtual scan',
                 'SELECT * FROM t1 WHERE a IS NULL',
                 [['a', 'IS NULL', null, true]],
                 'a IS NULL',
+                [],
+                false,
+                false,
+            ],
+            [
+                'bestindex5-1.6.2',
+                'commuted NULL IS column becomes an IS empty-value constraint',
+                'SELECT * FROM t1 WHERE NULL IS a',
+                [['a', 'IS', '', true]],
+                "a IS ''",
                 [],
                 false,
                 false,
@@ -4698,6 +4768,16 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
                 false,
             ],
             [
+                'bestindex5-2.1.2',
+                'row-value not-equal over numeric and text-equivalent values is empty',
+                "SELECT * FROM t1 WHERE (a, b) != (7, '8')",
+                [['a', '!=', 7, true], ['b', '!=', '8', true]],
+                "a != '7' AND b != '8'",
+                [],
+                true,
+                false,
+            ],
+            [
                 'bestindex5-2.2.4',
                 'ordinary row-value equality keeps integer and text affinity compatible',
                 'SELECT * FROM t3 WHERE (a, b) == (45, 46)',
@@ -4706,6 +4786,16 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
                 [[45, 46]],
                 true,
                 true,
+            ],
+            [
+                'bestindex5-2.2.5',
+                'row-value equality honors INTEGER/TEXT affinity through virtual-table filtering',
+                "SELECT * FROM t3 WHERE (a, b) == ('45', '46')",
+                [['a', '=', '45', true], ['b', '=', '46', true]],
+                "a = '45' AND b = '46'",
+                [[45, '46']],
+                true,
+                false,
             ],
             [
                 'bestindex5-3.2',
@@ -4742,12 +4832,17 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
         $out = [];
         for ($case = 1; $case <= $cases; $case++) {
             [$section, $scenario, $statement, $constraints, $idxString, $rows, $rowValue, $affinityResidual] = $templates[($case - 1) % count($templates)];
+            $omittedConstraints = array_map(
+                static fn (array $constraint): string => $constraint[0] . ' ' . $constraint[1],
+                $constraints,
+            );
             $out[] = [
                 'source' => 'bestindex5.test sections bestindex5-1.1 through bestindex5-3.5',
                 'case' => $case,
                 'upstream_section' => $section,
                 'scenario' => $scenario,
                 'statement' => $statement,
+                'query' => $statement,
                 'constraints' => array_map(
                     static fn (array $constraint): array => [
                         'column' => $constraint[0],
@@ -4758,11 +4853,16 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
                     $constraints,
                 ),
                 'idx_string' => $idxString,
+                'idxstr' => $idxString,
                 'cost' => $constraints === [] ? 999999.0 : 1000000.0 / (2 ** count($constraints)),
                 'result_rows' => $rows,
+                'rows' => $rows,
                 'xfilter_where' => $idxString === '' ? null : 'WHERE ' . $idxString,
                 'uses_row_value' => $rowValue,
                 'uses_affinity_residual' => $affinityResidual,
+                'constraint_count' => count($constraints),
+                'omitted_constraints' => $omittedConstraints,
+                'detail' => 'xBestIndex idxstr: ' . $idxString,
                 'integrity' => 'ok',
                 'batch' => intdiv($case - 1, count($templates)) + 1,
             ];

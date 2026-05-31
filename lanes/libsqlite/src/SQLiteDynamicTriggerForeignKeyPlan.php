@@ -239,6 +239,139 @@ final class SQLiteDynamicTriggerForeignKeyPlan
      * @param list<array<string,mixed>> $children
      * @return array<string,mixed>
      */
+    public static function deferredCounterScanPlan(array $parents, array $children, string $operation, bool $hasOutstandingDeferredViolation): array
+    {
+        $operation = strtolower(trim($operation));
+        if (!in_array($operation, ['insert-parent', 'delete-child', 'delete-parent'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2-15 operation is unsupported');
+        }
+
+        $parentsByKey = [];
+        foreach ($parents as $parent) {
+            $parentsByKey[(string) ($parent['id'] ?? '')] = true;
+        }
+
+        $violations = [];
+        foreach ($children as $child) {
+            $parentId = $child['parent_id'] ?? null;
+            if ($parentId !== null && !isset($parentsByKey[(string) $parentId])) {
+                $violations[] = $child['id'] ?? count($violations);
+            }
+        }
+
+        $searches = 0;
+        if ($operation === 'insert-parent' && $hasOutstandingDeferredViolation) {
+            $searches = 2;
+        } elseif ($operation === 'delete-child') {
+            $searches = $hasOutstandingDeferredViolation ? 2 : 1;
+        } elseif ($operation === 'delete-parent') {
+            $searches = 1;
+        }
+
+        return [
+            'source' => 'fkey2.test fkey2-15.1.1..15.1.7',
+            'operation' => 'deferred-counter-scan-avoidance',
+            'statement' => $operation,
+            'status' => 'commit-ok',
+            'outstanding_deferred_violation' => $hasOutstandingDeferredViolation,
+            'deferred_violation_count' => count($violations),
+            'violation_child_ids' => array_values($violations),
+            'fk_lookup_count' => $searches,
+            'skipped_unnecessary_fk_scan' => $searches === 0,
+            'dependencies' => [
+                'sqlite-fkey2-zero-deferred-counter-skips-parent-probe',
+                'sqlite-fkey2-nonzero-deferred-counter-rechecks-pending-violation',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    public static function selfReferencingRowPlan(string $schemaKind, int $oldKey, int $oldParent, int $newKey, int $newParent): array
+    {
+        $schemaKind = strtolower(trim($schemaKind));
+        if (!in_array($schemaKind, ['integer-primary-key', 'primary-key', 'unique-parent'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2-16 schema kind is unsupported');
+        }
+
+        $validBefore = $oldParent === $oldKey;
+        $validAfter = $newParent === $newKey;
+
+        return [
+            'source' => 'fkey2.test fkey2-16.1.1..16.1.8',
+            'operation' => 'self-referencing-row-update',
+            'schema_kind' => $schemaKind,
+            'old_key' => $oldKey,
+            'old_parent_key' => $oldParent,
+            'new_key' => $newKey,
+            'new_parent_key' => $newParent,
+            'old_row_valid' => $validBefore,
+            'status' => $validAfter ? 'commit-ok' : 'constraint-failed',
+            'self_reference_preserved' => $validAfter,
+            'delete_self_reference_status' => $validBefore ? 'commit-ok' : 'constraint-failed',
+            'dependencies' => [
+                'sqlite-fkey2-self-referencing-row-may-be-inserted',
+                'sqlite-fkey2-self-referencing-row-may-be-updated-when-key-and-reference-move-together',
+                'sqlite-fkey2-self-referencing-row-delete-does-not-self-violate',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    public static function countChangesForeignKeyPlan(string $statement, bool $deferred, bool $foreignKeyAction = false): array
+    {
+        $statement = strtolower(trim($statement));
+        if (!in_array($statement, ['insert-child-violation', 'update-parent-cascade', 'delete-parent-cascade'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2-17 statement is unsupported');
+        }
+
+        if ($statement === 'insert-child-violation') {
+            return [
+                'source' => 'fkey2.test fkey2-17.1.1..17.1.14',
+                'operation' => 'count-changes-foreign-key-violation',
+                'statement' => $statement,
+                'status' => $deferred ? 'row-then-constraint' : 'constraint-immediate',
+                'deferred' => $deferred,
+                'count_changes_returned_rows' => $deferred ? [1] : [],
+                'changes' => $deferred ? 1 : 0,
+                'total_changes_delta' => $deferred ? 1 : 0,
+                'error_code' => 'SQLITE_CONSTRAINT_FOREIGNKEY',
+                'dependencies' => [
+                    'sqlite-fkey2-count-changes-immediate-fk-fails-before-row-count',
+                    'sqlite-fkey2-count-changes-deferred-fk-returns-row-count-before-failure',
+                ],
+            ];
+        }
+
+        $direct = 1;
+        $action = $foreignKeyAction ? 1 : 0;
+
+        return [
+            'source' => 'fkey2.test fkey2-17.2.1..17.2.10',
+            'operation' => 'count-changes-foreign-key-action',
+            'statement' => $statement,
+            'status' => 'commit-ok',
+            'deferred' => $deferred,
+            'foreign_key_action' => $foreignKeyAction,
+            'count_changes_returned_rows' => [$direct],
+            'changes' => $direct,
+            'total_changes_delta' => $direct + $action,
+            'fk_action_changes_excluded_from_changes' => $foreignKeyAction,
+            'dependencies' => [
+                'sqlite-fkey2-count-changes-excludes-fk-action-rows',
+                'sqlite-fkey2-total-changes-includes-fk-action-rows',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @return array<string,mixed>
+     */
     public static function deferredRestrictDeleteTriggerRepair(
         array $parents,
         array $children,

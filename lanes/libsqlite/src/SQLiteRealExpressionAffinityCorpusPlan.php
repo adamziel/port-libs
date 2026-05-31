@@ -427,7 +427,11 @@ final class SQLiteRealExpressionAffinityCorpusPlan
         }
 
         $real = (float) $literal;
-        if (is_finite($real) && floor($real) === $real && $real >= (float) PHP_INT_MIN && $real <= (float) PHP_INT_MAX) {
+        if (
+            is_finite($real)
+            && floor($real) === $real
+            && abs($real) <= 2251799813685247.0
+        ) {
             return (int) $real;
         }
 

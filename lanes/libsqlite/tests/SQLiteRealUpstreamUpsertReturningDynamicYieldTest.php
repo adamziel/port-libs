@@ -80,11 +80,11 @@ $cases = [
     'upsert3-200 composite final row count' => [static fn (): mixed => count($upsert3Composite()['after']), 2],
     'upsert3-200 composite inserted rows exclude update' => [static fn (): mixed => array_column($upsert3Composite()['inserted_rows'], 'key_name'), ['theta', 'iota']],
     'upsert3-200 composite updated rows include repeated row' => [static fn (): mixed => array_column($upsert3Composite()['updated_rows'], 'key_value'), ['two']],
-    'upsert3-200 table named excluded remains valid target' => [static fn (): mixed => SQLiteUpsertReturningSql::execute(
+    'upsert3-200 unaliased table named excluded resolves qualifier to target row' => [static fn (): mixed => SQLiteUpsertReturningSql::execute(
         "INSERT INTO excluded(a,b,c) VALUES(1,2,0),(1,2,4),(3,4,0) ON CONFLICT(b,a) DO UPDATE SET c=excluded.c+1 RETURNING *",
         ['excluded' => []],
         [['a', 'b']],
-    )['returning'], [['a' => 1, 'b' => 2, 'c' => 0], ['a' => 1, 'b' => 2, 'c' => 5], ['a' => 3, 'b' => 4, 'c' => 0]]],
+    )['returning'], [['a' => 1, 'b' => 2, 'c' => 0], ['a' => 1, 'b' => 2, 'c' => 1], ['a' => 3, 'b' => 4, 'c' => 0]]],
     'upsert1-700 targeted key conflict wins over other unique conflicts' => [static fn (): mixed => $upsert1TargetPrecedence()['returning'][0], ['setting_id' => 3, 'tenant_id' => 20, 'key_name' => 'gamma', 'key_value' => 'retargeted', 'version' => 33]],
     'upsert1-700 targeted key conflict updates key row not rowid row' => [static fn (): mixed => array_column($upsert1TargetPrecedence()['after'], 'key_value'), ['old-alpha', 'old-beta', 'retargeted']],
     'upsert1-101 do nothing returns only inserted rows' => [static fn (): mixed => array_column($doNothing()['returning'], 'key_name'), ['zeta']],

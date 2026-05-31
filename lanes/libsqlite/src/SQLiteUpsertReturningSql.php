@@ -639,10 +639,12 @@ final class SQLiteUpsertReturningSql
         $targetQualifier = $targetAlias ?? $target;
         if (preg_match('/^(?:(excluded|' . preg_quote($targetQualifier, '/') . '|' . preg_quote($target, '/') . ')\.)?([A-Za-z_][A-Za-z0-9_]*)$/i', $expression, $match) === 1) {
             $qualifier = $match[1] ?? '';
-            if ($targetAlias !== null && strcasecmp($qualifier, $target) === 0) {
+            if ($targetAlias !== null && strcasecmp($qualifier, $target) === 0 && strcasecmp($target, 'excluded') !== 0) {
                 throw new \InvalidArgumentException("SQLite UPSERT RETURNING column {$target}.{$match[2]} is missing");
             }
-            $source = strtolower($qualifier) === 'excluded' ? $excluded : $current;
+            $source = strtolower($qualifier) === 'excluded' && !(strcasecmp($target, 'excluded') === 0 && $targetAlias === null)
+                ? $excluded
+                : $current;
             $column = $match[2];
             if (!array_key_exists($column, $source)) {
                 throw new \InvalidArgumentException("SQLite UPSERT RETURNING column {$column} is missing");
@@ -732,6 +734,14 @@ final class SQLiteUpsertReturningSql
         $identifiers = [];
         foreach (self::splitComma($sql) as $part) {
             $part = trim($part);
+            $dequoted = self::dequoteIdentifier($part);
+            if ($dequoted !== null) {
+                if ($dequoted === '') {
+                    throw new \InvalidArgumentException("{$label} is malformed");
+                }
+                $identifiers[] = $dequoted;
+                continue;
+            }
             if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $part) !== 1) {
                 throw new \InvalidArgumentException("{$label} is malformed");
             }

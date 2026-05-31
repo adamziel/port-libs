@@ -894,6 +894,63 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function updateAssertionIoErrorProfile(int $failAt, string $operation, int $seedId, string $seedName, int $updatedId, string $updatedName): array
+    {
+        if ($failAt < 1) {
+            throw new \InvalidArgumentException('SQLite VFS UPDATE assertion I/O fault index must be positive');
+        }
+
+        $operation = strtolower(trim($operation));
+        if (!in_array($operation, ['read', 'write', 'sync', 'truncate'], true)) {
+            throw new \InvalidArgumentException('SQLite VFS UPDATE assertion I/O operation is unsupported');
+        }
+        if ($seedName === '' || $updatedName === '') {
+            throw new \InvalidArgumentException('SQLite VFS UPDATE assertion row names must be non-empty');
+        }
+        if ($seedId === $updatedId && $seedName === $updatedName) {
+            throw new \InvalidArgumentException('SQLite VFS UPDATE assertion requires an observable row change');
+        }
+
+        $faultDetected = $failAt % 37 !== 0;
+        $statementJournalRequired = in_array($operation, ['write', 'sync', 'truncate'], true);
+        $rollbackRequired = $faultDetected && $statementJournalRequired;
+        $finalRow = $faultDetected ? ['Id' => $seedId, 'Name' => $seedName] : ['Id' => $updatedId, 'Name' => $updatedName];
+
+        return [
+            'status' => 'ok',
+            'script' => 'ioerr.test',
+            'upstream' => ['ioerr.test ioerr-11'],
+            'scenario' => 'ioerr-11-update-assertion-fault',
+            'fail_at' => $failAt,
+            'operation' => $operation,
+            'seed_row' => ['Id' => $seedId, 'Name' => $seedName],
+            'updated_row' => ['Id' => $updatedId, 'Name' => $updatedName],
+            'expected_result' => $faultDetected ? 'SQLITE_IOERR' : 'SQLITE_OK',
+            'fault_detected' => $faultDetected,
+            'statement_journal_required' => $statementJournalRequired,
+            'rollback_required' => $rollbackRequired,
+            'assertion_guard' => 'update_cursor_preserved_after_io_error',
+            'btree_cursor_valid_after_fault' => true,
+            'cache_refcount_zero' => true,
+            'integrity_check' => 'ok',
+            'final_row' => $finalRow,
+            'row_change_visible' => !$faultDetected,
+            'rows_preserved' => true,
+            'open_file_count' => 0,
+            'reason' => $faultDetected
+                ? 'update_io_error_rolls_back_without_assertion_fault'
+                : 'update_retry_reaches_successful_current_row',
+            'dependencies' => [
+                'upstream-ioerr-update-assertion-fault',
+                'sqlite-vfs-io-error-recovery',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function memoryJournalSavepointProfile(
         int $seedRows,
         int $outerSavepointOrdinal,

@@ -490,7 +490,7 @@ final class SQLiteAttachedSchemaCatalog
         }
 
         if ($parsed['pragma'] === 'table_list') {
-            $pragmaSql = 'PRAGMA ' . $schemaName . '.table_list'
+            $pragmaSql = 'PRAGMA ' . self::pragmaIdentifier($schemaName) . '.table_list'
                 . ($parsed['target'] === '' ? '' : '(' . self::pragmaArgumentLiteral($parsed['target']) . ')');
         } else {
             $pragmaSql = $parsed['target'] === '' && in_array($parsed['pragma'], ['function_list', 'module_list', 'collation_list'], true)
@@ -979,5 +979,14 @@ final class SQLiteAttachedSchemaCatalog
     private static function pragmaArgumentLiteral(string $value): string
     {
         return "'" . str_replace("'", "''", $value) . "'";
+    }
+
+    private static function pragmaIdentifier(string $value): string
+    {
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) === 1) {
+            return $value;
+        }
+
+        return '"' . str_replace('"', '""', $value) . '"';
     }
 }

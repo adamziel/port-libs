@@ -24,10 +24,14 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::bestindex5VirtualTableConstraintCase
             'bestindex5-1.4.1',
             'bestindex5-1.4.2',
             'bestindex5-1.5.1',
+            'bestindex5-1.5.2',
             'bestindex5-1.6.1',
+            'bestindex5-1.6.2',
             'bestindex5-1.7.1',
             'bestindex5-1.7.2',
+            'bestindex5-2.1.2',
             'bestindex5-2.2.4',
+            'bestindex5-2.2.5',
             'bestindex5-3.2',
             'bestindex5-3.4',
             'bestindex5-3.5',
@@ -40,7 +44,7 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::bestindex5VirtualTableConstraintCase
 
         foreach ($case['constraints'] as $constraint) {
             $t->true(in_array($constraint['column'], ['a', 'b', 'c'], true));
-            $t->true(in_array($constraint['operator'], ['!=', 'IS', 'IS NOT', 'IS NULL', 'IS NOT NULL'], true));
+            $t->true(in_array($constraint['operator'], ['!=', '=', 'IS', 'IS NOT', 'IS NULL', 'IS NOT NULL'], true));
             $t->same(true, $constraint['omitted']);
             $t->true($case['xfilter_where'] !== null);
             $t->true(str_contains($case['xfilter_where'], $constraint['column']));
@@ -84,8 +88,8 @@ $tests['real upstream bestindex5 virtual table constraint dynamic source range']
     $cases = SQLiteBTreeIndexDynamicCorpusPlan::bestindex5VirtualTableConstraintCases(1000);
     $t->same(1000, count($cases));
     $t->same('bestindex5-1.1', $cases[0]['upstream_section']);
-    $t->same('bestindex5-3.4', $cases[13]['upstream_section']);
-    $t->same('bestindex5-3.5', $cases[14]['upstream_section']);
+    $t->same('bestindex5-3.4', $cases[17]['upstream_section']);
+    $t->same('bestindex5-3.5', $cases[18]['upstream_section']);
     $t->same('bestindex5-1.7.1', $cases[999]['upstream_section']);
 };
 

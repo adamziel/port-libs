@@ -509,6 +509,44 @@ for ($seed = 1; $seed <= 40; $seed++) {
         };
 }
 
+for ($seed = 1; $seed <= 40; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $caseValue = $seed % 2 === 0 ? 2 : 3;
+    $limitExpr = "CASE {$caseValue} WHEN 2 THEN {$limitValue} ELSE {$limitValue} END";
+    $offsetExpr = "CASE {$caseValue} WHEN 3 THEN {$offsetValue} ELSE {$offsetValue} END";
+    $sql = "UPDATE app_settings SET state = 'simple_case_dyn' WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update simple case window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 40; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 3) % 4;
+    $caseValue = $seed % 2 === 0 ? 10 : 20;
+    $limitExpr = "CASE {$caseValue} WHEN 10 THEN {$limitValue} ELSE {$limitValue} END";
+    $offsetExpr = "CASE {$caseValue} WHEN 20 THEN {$offsetValue} ELSE {$offsetValue} END";
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue simple case subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
 for ($seed = 1; $seed <= 36; $seed++) {
     $limitValue = ($seed % 3) + 1;
     $offsetValue = $seed % 3;
