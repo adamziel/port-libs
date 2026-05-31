@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 12:13:05 UTC",
-    "sourceCommit": "ede517b306de5b15989b02e48a9b8b7e85b7a7cb",
-    "sourceCommitShort": "ede517b306de",
+    "generated": "2026-05-31 12:22:34 UTC",
+    "sourceCommit": "9e52b7aea6ef8f1b75a6d54ac86cd37805503fd8",
+    "sourceCommitShort": "9e52b7aea6ef",
     "sourceBranch": "main",
-    "dashboardCommit": "7d16ce165e0cd1b52f5be0c5e911145036a0cf68",
-    "dashboardCommitShort": "7d16ce165e0c",
+    "dashboardCommit": "c3882fc9bb4028adb8670f034511682a2989cca4",
+    "dashboardCommitShort": "c3882fc9bb40",
     "averageProgressPercent": "86.4",
     "lanes": [
         {
@@ -64,16 +64,16 @@
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1566",
-            "coverage": "1566 / 2886",
-            "php": "4504 pass / 0 fail",
+            "mapped": "1569",
+            "coverage": "1569 / 2886",
+            "php": "4540 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
-            "audit": "Accepted source commit ede517b306de5b1598...",
-            "currentWork": "Committed Gitoxide config includeIf double-star component-boundary wildmatch parity and a...",
+            "audit": "Accepted source commit 9e52b7aea6ef8f1b75...",
+            "currentWork": "Committed Gitoxide positive signed loose-object size canonicalization, sparse-checkout ab...",
             "nextTarget": "Keep active Gitoxide workers on current-base handoffs for pack/index, smart HTTP, SSH tra...",
             "blocker": "No current Gitoxide PHP blocker for the accepted batch.",
-            "commit": "ede517b"
+            "commit": "9e52b7a"
         },
         {
             "library": "libsqlite",
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "2908763 pass / 0 fail",
+            "php": "2913978 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, upstream corpus closure, source-neut...",
-            "audit": "Accepted source commit ede517b306de5b1598...",
-            "currentWork": "Committed libsqlite atof1 decimal REAL affinity formatting/round-trip coverage and types....",
-            "nextTarget": "Keep active current-base libsqlite workers on real PASS-delta handoffs, prioritizing defa...",
+            "audit": "Accepted source commit 9e52b7aea6ef8f1b75...",
+            "currentWork": "Committed libsqlite whereG B-tree/index likelihood planner, PRAGMA collation virtual rows...",
+            "nextTarget": "Keep active current-base libsqlite workers on real PASS-delta handoffs, prioritizing full...",
             "blocker": "Remaining libsqlite closure items: full-suite/runner confidence beyond fo...",
-            "commit": "ede517b"
+            "commit": "9e52b7a"
         },
         {
             "library": "LightningCSS",
@@ -100,14 +100,14 @@
             "denominator": "3532",
             "mapped": "950",
             "coverage": "950 / 3532",
-            "php": "1158 pass / 0 fail",
+            "php": "1170 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "static upstream inventory plus upstream Rust/Node/WASM...",
             "audit": "audited 2026-05-31",
-            "currentWork": "Native LightningCSS now additionally lowers nested local CSS Modules selectors while pres...",
+            "currentWork": "Native LightningCSS CSSOM helpers now additionally partition normal and !important declar...",
             "nextTarget": "Continue current-base LightningCSS handoffs for custom at-rule parser/visitor parity, tar...",
             "blocker": "No current LightningCSS implementation blocker for this slice.",
-            "commit": "ede517b"
+            "commit": "9e52b7a"
         },
         {
             "library": "markerPDF",
