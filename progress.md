@@ -53,6 +53,29 @@
 ## Current Coordination Snapshot
 
 - 2026-05-31 supervisor continuation (libsqlite selected corpus integration
+  and LightningCSS refill 16:47 UTC): source commit
+  `9ededa2949428f40aa13af09e5e3d80e995f54bf` (`ports: extend sqlite wal vfs
+  trigger date corpus`) landed nine verified libsqlite handoffs after excluding
+  stale shared metadata and skipping one overlapping date handoff. Selected
+  libsqlite evidence moves from `3657167` to `3847998 pass / 0 fail` using
+  `+190831` new focused selected assertions, while the broader touched-file
+  verification passed `10 files / 192440 assertions / 0 failures` under
+  `memory_limit=2048M`. Mapped coverage remains `1589 / 1589`: generated-trigger
+  FK diagnostics, app-WAL post-checkpoint tail recovery checkpoints, LIKE/GLOB
+  application callback dispatch, shared-cache table locks, batch-atomic commit
+  VFS behavior, affinity3 UNION/JOIN USING storage-class parity, zero-argument
+  count() FILTER handling, atof1 decimal REAL suffixes, and JSON102 char-built
+  object validity. Gates passed: PHP lint on changed/new PHP files, `git diff
+  --check -- lanes/libsqlite`, no newly added `CurrentSourceNext`-numbered
+  duplicate filenames, no WordPress/WP/wp_ text introduced by the changed source
+  diff, `SQLiteNoDomainSpecificApiTest`, and
+  `application-wal-rollback-json-dynamic-parity.php --self-test`. Full
+  libsqlite release/all-runner parity was not run for this isolated batch. The
+  visible LightningCSS pool was refilled from 39 to 43 windows in the `main`
+  tmux session using `gpt-5.5` xhigh priority workers, with no dead
+  LightningCSS panes observed after refill.
+
+- 2026-05-31 supervisor continuation (libsqlite selected corpus integration
   16:43 UTC): source commit
   `9612ad0189c6728439502deba1848733af488059` (`ports: extend sqlite btree
   json pragma vfs corpus`) landed ten verified libsqlite handoffs after
