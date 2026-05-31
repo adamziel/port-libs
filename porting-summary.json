@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 09:06:53 UTC",
-    "sourceCommit": "acedf069fc6ff0fa5939ee93f9ce6bed3624c9cd",
-    "sourceCommitShort": "acedf069fc6f",
+    "generated": "2026-05-31 09:12:19 UTC",
+    "sourceCommit": "bec764c0e27c53d87a483ad69672081477855aa3",
+    "sourceCommitShort": "bec764c0e27c",
     "sourceBranch": "main",
-    "dashboardCommit": "4a029f3e79780256b012e7b9ecef793bd9ed2e60",
-    "dashboardCommitShort": "4a029f3e7978",
+    "dashboardCommit": "08755125cb4e60f7bfa76faac2689cdc9c73828d",
+    "dashboardCommitShort": "08755125cb4e",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -64,16 +64,16 @@
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1508",
-            "coverage": "1508 / 2886",
-            "php": "3739 pass / 0 fail",
+            "mapped": "1510",
+            "coverage": "1510 / 2886",
+            "php": "3776 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
-            "audit": "Accepted source commit acedf069fc6ff0fa59...",
-            "currentWork": "GitUrl and RefSpec parse/normalize repository URLs and fetch/push refspecs; MergeBaseFind...",
-            "nextTarget": "Keep integrating current-base Gitoxide handoffs for sparse checkout, config include, pack...",
+            "audit": "Accepted source commit bec764c0e27c53d87a...",
+            "currentWork": "GitConfig now separates subsection backslash escaping from value unquoting and treats bac...",
+            "nextTarget": "Keep integrating current-base Gitoxide handoffs for ls-refs, attributes/pathspec, pack de...",
             "blocker": "No current Gitoxide PHP blocker for the accepted batch.",
-            "commit": "acedf06"
+            "commit": "bec764c"
         },
         {
             "library": "libsqlite",
