@@ -4842,6 +4842,243 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,virtual_table:string,constraints:list<array{column:string,operator:string,value:mixed,usable:bool,used:bool,omitted:bool}>,xbestindex_calls:list<list<array{column:string,operator:string,usable:bool}>>,idxnum:int,idxstr:string,cost:int,estimated_rows:int,result_rows:list<array<int,mixed>>,uses_in_replan:bool,uses_temp_btree:bool,wrong_arg_error:string|null,detail:string,batch:int}>
+     */
+    public static function bestindex1VirtualTableInConstraintCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindex1 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'bestindex1-1.1',
+                'usable equality constraint returns the low-cost virtual-table index',
+                "SELECT * FROM x1 WHERE a = 'abc'",
+                'x1',
+                [['a', '=', 'abc', true, true, true]],
+                [[['a', 'eq', true]]],
+                555,
+                'eq!',
+                0,
+                1,
+                [],
+                false,
+                false,
+                null,
+                'SCAN x1 VIRTUAL TABLE INDEX 555:eq!',
+            ],
+            [
+                'bestindex1-1.2',
+                'IN is initially represented as a usable equality constraint',
+                "SELECT * FROM x1 WHERE a IN ('abc', 'def')",
+                'x1',
+                [['a', 'IN', ['abc', 'def'], true, true, true]],
+                [[['a', 'eq', true]], [['a', 'eq', false]]],
+                555,
+                'eq!',
+                0,
+                1,
+                [],
+                true,
+                false,
+                null,
+                'SCAN x1 VIRTUAL TABLE INDEX 555:eq!',
+            ],
+            [
+                'bestindex1-2.2.use.4',
+                'used equality constraint leaves the core residual active for a scalar probe',
+                "SELECT rowid FROM t1 WHERE a='two'",
+                't1',
+                [['a', '=', 'two', true, true, false]],
+                [[['a', 'eq', true]]],
+                0,
+                "SELECT * FROM t1x WHERE a='%1%'",
+                10,
+                10,
+                [[2]],
+                false,
+                false,
+                null,
+                "SCAN t1 VIRTUAL TABLE INDEX 0:SELECT * FROM t1x WHERE a='%1%'",
+            ],
+            [
+                'bestindex1-2.2.omit.4',
+                'omitted equality constraint is fully enforced by xFilter SQL',
+                "SELECT rowid FROM t1 WHERE a='two'",
+                't1',
+                [['a', '=', 'two', true, true, true]],
+                [[['a', 'eq', true]]],
+                0,
+                "SELECT * FROM t1x WHERE a='%1%'",
+                10,
+                10,
+                [[2]],
+                false,
+                false,
+                null,
+                "SCAN t1 VIRTUAL TABLE INDEX 0:SELECT * FROM t1x WHERE a='%1%'",
+            ],
+            [
+                'bestindex1-2.2.use2.5',
+                'constraint marked used but not implemented by xFilter relies on the residual for IN',
+                "SELECT rowid FROM t1 WHERE a IN ('one', 'four') ORDER BY +rowid",
+                't1',
+                [['a', 'IN', ['one', 'four'], true, true, false]],
+                [[['a', 'eq', true]], [['a', 'eq', false]]],
+                0,
+                'SELECT * FROM t1x',
+                10,
+                10,
+                [[1], [4]],
+                true,
+                true,
+                null,
+                'SCAN t1 VIRTUAL TABLE INDEX 0:SELECT * FROM t1x; USE TEMP B-TREE FOR ORDER BY',
+            ],
+            [
+                'bestindex1-3.4',
+                'outer IN loop keeps both virtual-table equality constraints stable across a cross join',
+                "SELECT * FROM VirtualTableA a CROSS JOIN VirtualTableB b ON b.PrimaryKey=a.PrimaryKey WHERE a.ColumnA IN ('ValueA', 'ValueB') AND a.FlagA=0",
+                'VirtualTableA/VirtualTableB',
+                [
+                    ['ColumnA', 'IN', ['ValueA', 'ValueB'], true, true, false],
+                    ['FlagA', '=', 0, true, true, false],
+                    ['PrimaryKey', '=', 'outer.PrimaryKey', true, true, false],
+                ],
+                [
+                    [['ColumnA', 'eq', true], ['FlagA', 'eq', true]],
+                    [['ColumnA', 'eq', false], ['FlagA', 'eq', true]],
+                    [['PrimaryKey', 'eq', true]],
+                ],
+                0,
+                'SELECT rowid, * FROM t1 WHERE ColumnA = %0% AND flagA = %1%',
+                1000000,
+                4,
+                [[1, 0, 'ValueA', 1, 0, 'ValueA'], [2, 0, 'ValueA', 2, 0, 'ValueA'], [3, 0, 'ValueB', 3, 0, 'ValueB'], [4, 0, 'ValueB', 4, 0, 'ValueB']],
+                true,
+                false,
+                null,
+                'CROSS JOIN preserves outer IN values while the inner virtual table probes PrimaryKey',
+            ],
+            [
+                'bestindex1-3.5',
+                'predicate order does not overwrite registers used by the virtual-table IN loop',
+                "SELECT * FROM VirtualTableA a CROSS JOIN VirtualTableB b ON b.PrimaryKey=a.PrimaryKey WHERE a.FlagA=0 AND a.ColumnA IN ('ValueA', 'ValueB')",
+                'VirtualTableA/VirtualTableB',
+                [
+                    ['FlagA', '=', 0, true, true, false],
+                    ['ColumnA', 'IN', ['ValueA', 'ValueB'], true, true, false],
+                    ['PrimaryKey', '=', 'outer.PrimaryKey', true, true, false],
+                ],
+                [
+                    [['FlagA', 'eq', true], ['ColumnA', 'eq', true]],
+                    [['FlagA', 'eq', true], ['ColumnA', 'eq', false]],
+                    [['PrimaryKey', 'eq', true]],
+                ],
+                0,
+                'SELECT rowid, * FROM t1 WHERE flagA = %0% AND ColumnA = %1%',
+                1000000,
+                4,
+                [[1, 0, 'ValueA', 1, 0, 'ValueA'], [2, 0, 'ValueA', 2, 0, 'ValueA'], [3, 0, 'ValueB', 3, 0, 'ValueB'], [4, 0, 'ValueB', 4, 0, 'ValueB']],
+                true,
+                false,
+                null,
+                'CROSS JOIN result is unchanged when FlagA precedes ColumnA IN in the WHERE clause',
+            ],
+            [
+                'bestindex1-4.1',
+                'standalone IN planning invokes xBestIndex again with the IN equality marked unusable',
+                'SELECT * FROM x1 WHERE a=? AND b BETWEEN ? AND ? AND c IN (1, 2, 3, 4)',
+                'x1',
+                [
+                    ['a', '=', '?', true, true, false],
+                    ['b', '>=', '?', true, true, false],
+                    ['b', '<=', '?', true, true, false],
+                    ['c', 'IN', [1, 2, 3, 4], true, true, false],
+                ],
+                [
+                    [['a', 'eq', true], ['c', 'eq', true], ['b', 'ge', true], ['b', 'le', true]],
+                    [['a', 'eq', true], ['c', 'eq', false], ['b', 'ge', true], ['b', 'le', true]],
+                ],
+                555,
+                'all-usable-then-in-unusable',
+                1000000,
+                0,
+                [],
+                true,
+                false,
+                null,
+                'xBestIndex records the second c IN callback even without a join',
+            ],
+            [
+                'bestindex1-5.0',
+                'tcl virtual-table helper rejects the wrong argument count',
+                "SELECT * FROM tcl('abc')",
+                'tcl',
+                [],
+                [],
+                0,
+                '',
+                1000000,
+                0,
+                [],
+                false,
+                false,
+                'wrong number of arguments',
+                'virtual table module argument validation fails before planning',
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $virtualTable, $rawConstraints, $rawCalls, $idxnum, $idxstr, $cost, $rows, $resultRows, $usesInReplan, $usesTempBtree, $wrongArgError, $detail] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'bestindex1.test sections bestindex1-1.1 through bestindex1-5.0',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'statement' => $statement,
+                'virtual_table' => $virtualTable,
+                'constraints' => array_map(
+                    static fn (array $constraint): array => [
+                        'column' => $constraint[0],
+                        'operator' => $constraint[1],
+                        'value' => $constraint[2],
+                        'usable' => $constraint[3],
+                        'used' => $constraint[4],
+                        'omitted' => $constraint[5],
+                    ],
+                    $rawConstraints,
+                ),
+                'xbestindex_calls' => array_map(
+                    static fn (array $call): array => array_map(
+                        static fn (array $constraint): array => [
+                            'column' => $constraint[0],
+                            'operator' => $constraint[1],
+                            'usable' => $constraint[2],
+                        ],
+                        $call,
+                    ),
+                    $rawCalls,
+                ),
+                'idxnum' => $idxnum,
+                'idxstr' => $idxstr,
+                'cost' => $cost,
+                'estimated_rows' => $rows,
+                'result_rows' => $resultRows,
+                'uses_in_replan' => $usesInReplan,
+                'uses_temp_btree' => $usesTempBtree,
+                'wrong_arg_error' => $wrongArgError,
+                'detail' => $detail,
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,query:string,constraints:list<array{operator:string,column:int,column_name:string,value:mixed>>,limit_constraint:bool,function_constraint:bool,expression_constraint_omitted:bool,cost:int,estimated_rows:int,detail:string,batch:int}>
      */
     public static function bestindexAVirtualTableConstraintCases(int $cases = 1000): array

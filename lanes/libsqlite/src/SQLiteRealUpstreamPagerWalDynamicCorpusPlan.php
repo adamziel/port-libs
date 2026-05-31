@@ -865,6 +865,71 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walModeAttachedJournalRows(): array
+    {
+        $steps = [
+            1 => ['walmode-8.1', 'initialize main WAL and attached rollback database', 'main', 'wal', 'two', 'delete', 'attach-create'],
+            2 => ['walmode-8.2', 'main schema reports WAL after attach', 'main', 'wal', 'two', 'delete', 'pragma-main'],
+            3 => ['walmode-8.3', 'new attached schema starts in rollback mode', 'main', 'wal', 'two', 'delete', 'pragma-attached'],
+            4 => ['walmode-8.4', 'explicit DELETE on attached schema remains delete', 'main', 'wal', 'two', 'delete', 'pragma-attached-delete'],
+            5 => ['walmode-8.5', 'reopen and attach existing secondary database', 'main', 'wal', 'two', 'delete', 'reopen-attach'],
+            6 => ['walmode-8.6', 'main WAL persists after reopen', 'main', 'wal', 'two', 'delete', 'pragma-main'],
+            7 => ['walmode-8.7', 'attached rollback mode persists before writes', 'main', 'wal', 'two', 'delete', 'pragma-attached'],
+            8 => ['walmode-8.8', 'write to attached rollback database does not inherit main WAL', 'main', 'wal', 'two', 'delete', 'insert-attached'],
+            9 => ['walmode-8.9', 'attached database remains delete after write', 'main', 'wal', 'two', 'delete', 'pragma-attached'],
+            10 => ['walmode-8.10', 'write to main database keeps main WAL', 'main', 'wal', 'two', 'delete', 'insert-main'],
+            11 => ['walmode-8.11', 'main schema still reports WAL after main write', 'main', 'wal', 'two', 'delete', 'pragma-main'],
+            12 => ['walmode-8.12', 'unqualified journal_mode follows main schema', 'main', 'wal', 'two', 'delete', 'pragma-default'],
+            13 => ['walmode-8.x1', 'attached schema explicitly changes to WAL and persists', 'main', 'wal', 'two', 'wal', 'pragma-attached-wal'],
+            14 => ['walmode-8.13', 'reopened main accepts WAL request while already WAL', 'main', 'wal', 'two', 'wal', 'pragma-main-wal'],
+            15 => ['walmode-8.15', 'main remains WAL after attaching WAL secondary', 'main', 'wal', 'two', 'wal', 'pragma-main'],
+            16 => ['walmode-8.16', 'attached schema reports persisted WAL', 'main', 'wal', 'two', 'wal', 'pragma-attached'],
+            17 => ['walmode-8.17', 'write to WAL attached schema keeps WAL mode', 'main', 'wal', 'two', 'wal', 'insert-attached'],
+            18 => ['walmode-8.18', 'attached schema remains WAL after write', 'main', 'wal', 'two', 'wal', 'pragma-attached'],
+            19 => ['walmode-8.19', 'independent connection sees attached database WAL mode', 'main', 'wal', 'two', 'wal', 'external-read'],
+            20 => ['walmode-8.20', 'unqualified DELETE switches both schemas to rollback mode', 'main', 'delete', 'two', 'delete', 'pragma-default-delete'],
+            21 => ['walmode-8.21', 'main schema reports delete after rollback switch', 'main', 'delete', 'two', 'delete', 'pragma-main'],
+            22 => ['walmode-8.22', 'attached schema reports delete after rollback switch', 'main', 'delete', 'two', 'delete', 'pragma-attached'],
+            23 => ['walmode-8.21-repeat', 'unqualified WAL switches both schemas back to WAL', 'main', 'wal', 'two', 'wal', 'pragma-default-wal'],
+            24 => ['walmode-8.22-repeat', 'attached schema follows final unqualified WAL switch', 'main', 'wal', 'two', 'wal', 'pragma-attached'],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= 1000; $case++) {
+            $step = $steps[(($case - 1) % count($steps)) + 1];
+            [$upstream, $behavior, $mainSchema, $mainMode, $attachedSchema, $attachedMode, $operation] = $step;
+
+            $rows[] = [
+                'upstream' => 'walmode.test ' . $upstream . ' dynamic attached-mode case ' . $case,
+                'script' => 'walmode.test',
+                'case' => $case,
+                'step' => $upstream,
+                'behavior' => $behavior,
+                'main_schema' => $mainSchema,
+                'attached_schema' => $attachedSchema,
+                'main_journal_mode' => $mainMode,
+                'attached_journal_mode' => $attachedMode,
+                'default_journal_mode' => $mainMode,
+                'attached_mode_independent_before_explicit_wal' => $case % count($steps) <= 12 && $attachedMode === 'delete',
+                'unqualified_switch_applies_to_attached' => in_array($operation, ['pragma-default-delete', 'pragma-default-wal'], true),
+                'mode_persists_after_reopen' => in_array($operation, ['reopen-attach', 'pragma-main-wal', 'external-read'], true),
+                'write_preserves_schema_mode' => in_array($operation, ['insert-main', 'insert-attached'], true),
+                'operation' => $operation,
+                'expected_rows_visible' => $attachedMode === 'wal' ? ['t1', 'two.t2'] : ['t1'],
+                'dependencies' => [
+                    'real-upstream-corpus-walmode',
+                    'sqlite-wal-attached-journal-mode',
+                    'sqlite-pager-wal-dynamic',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array

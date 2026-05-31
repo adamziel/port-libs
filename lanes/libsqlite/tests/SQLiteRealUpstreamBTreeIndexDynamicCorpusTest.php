@@ -1051,4 +1051,94 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::numindexLargeNumericKeyCases(1000) a
     };
 }
 
+// Source truth: SQLite upstream test/bestindex1.test sections 1.1 through
+// 5.0. These cases preserve virtual-table xBestIndex behavior for usable and
+// unusable IN constraints, omitted/used equality constraints, register
+// stability across virtual-table cross joins, and helper argument validation.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::bestindex1VirtualTableInConstraintCases(1000) as $case) {
+    $tests['real upstream bestindex1 virtual table in constraint case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('bestindex1.test sections bestindex1-1.1 through bestindex1-5.0', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1000);
+        $t->true(str_starts_with($case['upstream_section'], 'bestindex1-'));
+        $t->true($case['scenario'] !== '');
+        $t->true($case['statement'] !== '');
+        $t->true($case['virtual_table'] !== '');
+        $t->true($case['cost'] >= 0);
+        $t->true($case['estimated_rows'] >= 0);
+        $t->true($case['detail'] !== '');
+        $t->same($case['uses_temp_btree'], str_contains($case['detail'], 'TEMP B-TREE'));
+        $t->same($case['wrong_arg_error'] !== null, $case['upstream_section'] === 'bestindex1-5.0');
+
+        foreach ($case['constraints'] as $constraint) {
+            $t->true($constraint['column'] !== '');
+            $t->true($constraint['operator'] !== '');
+            $t->same(true, is_bool($constraint['usable']));
+            $t->same(true, is_bool($constraint['used']));
+            $t->same(true, is_bool($constraint['omitted']));
+        }
+
+        foreach ($case['xbestindex_calls'] as $call) {
+            $t->true($call !== []);
+            foreach ($call as $constraint) {
+                $t->true($constraint['column'] !== '');
+                $t->true(in_array($constraint['operator'], ['eq', 'ge', 'le'], true));
+                $t->same(true, is_bool($constraint['usable']));
+            }
+        }
+
+        foreach ($case['result_rows'] as $row) {
+            $t->true(array_values($row) === $row);
+        }
+
+        if ($case['uses_in_replan']) {
+            $t->true(count($case['xbestindex_calls']) >= 2);
+            $unusableSeen = false;
+            foreach ($case['xbestindex_calls'] as $call) {
+                foreach ($call as $constraint) {
+                    $unusableSeen = $unusableSeen || $constraint['usable'] === false;
+                }
+            }
+            $t->same(true, $unusableSeen);
+        }
+
+        if ($case['upstream_section'] === 'bestindex1-1.1' || $case['upstream_section'] === 'bestindex1-1.2') {
+            $t->same(555, $case['idxnum']);
+            $t->same('eq!', $case['idxstr']);
+            $t->same(0, $case['cost']);
+            $t->true(str_contains($case['detail'], 'VIRTUAL TABLE INDEX 555:eq!'));
+        }
+
+        if ($case['upstream_section'] === 'bestindex1-2.2.use.4' || $case['upstream_section'] === 'bestindex1-2.2.omit.4') {
+            $t->same([[2]], $case['result_rows']);
+            $t->same(10, $case['estimated_rows']);
+            $t->true(str_contains($case['idxstr'], "a='%1%'"));
+        }
+
+        if ($case['upstream_section'] === 'bestindex1-2.2.use2.5') {
+            $t->same([[1], [4]], $case['result_rows']);
+            $t->same(true, $case['uses_temp_btree']);
+            $t->same('SELECT * FROM t1x', $case['idxstr']);
+        }
+
+        if ($case['upstream_section'] === 'bestindex1-3.4' || $case['upstream_section'] === 'bestindex1-3.5') {
+            $t->same(4, count($case['result_rows']));
+            $t->same([1, 0, 'ValueA', 1, 0, 'ValueA'], $case['result_rows'][0]);
+            $t->same([4, 0, 'ValueB', 4, 0, 'ValueB'], $case['result_rows'][3]);
+            $t->true(str_contains($case['detail'], 'CROSS JOIN'));
+        }
+
+        if ($case['upstream_section'] === 'bestindex1-4.1') {
+            $t->same(4, count($case['constraints']));
+            $t->same(true, $case['uses_in_replan']);
+            $t->same('all-usable-then-in-unusable', $case['idxstr']);
+        }
+
+        if ($case['upstream_section'] === 'bestindex1-5.0') {
+            $t->same('wrong number of arguments', $case['wrong_arg_error']);
+            $t->same([], $case['constraints']);
+            $t->same([], $case['xbestindex_calls']);
+        }
+    };
+}
+
 return $tests;

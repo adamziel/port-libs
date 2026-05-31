@@ -6,11 +6,11 @@ namespace PortLibs\LibSqlite;
 
 final class SQLitePragmaDynamicSchemaState
 {
-    /** @var array<string, array{cache_size:int,default_cache_size:int,freelist_count:int,page_count:int,max_page_count:int,schema_version:int,user_version:int,database_empty:bool}> */
+    /** @var array<string, array{cache_size:int,default_cache_size:int,cache_spill:int,freelist_count:int,page_count:int,max_page_count:int,schema_version:int,user_version:int,database_empty:bool}> */
     private array $schemas = [];
 
     /**
-     * @param array<string, array{cache_size?:int|string,default_cache_size?:int|string,freelist_count?:int|string,page_count?:int|string,max_page_count?:int|string,schema_version?:int|string,user_version?:int|string,database_empty?:bool}> $schemas
+     * @param array<string, array{cache_size?:int|string,default_cache_size?:int|string,cache_spill?:int|string|bool,freelist_count?:int|string,page_count?:int|string,max_page_count?:int|string,schema_version?:int|string,user_version?:int|string,database_empty?:bool}> $schemas
      */
     public function __construct(array $schemas = [])
     {
@@ -32,7 +32,7 @@ final class SQLitePragmaDynamicSchemaState
     /**
      * @return array{
      *     status:string,
-     *     pragma:'cache_size'|'default_cache_size'|'freelist_count'|'page_count'|'max_page_count'|'schema_version'|'user_version',
+     *     pragma:'cache_size'|'default_cache_size'|'cache_spill'|'freelist_count'|'page_count'|'max_page_count'|'schema_version'|'user_version',
      *     schema:string,
      *     requested:int|null,
      *     value:int,
@@ -46,7 +46,12 @@ final class SQLitePragmaDynamicSchemaState
     {
         $parsed = self::parse($sql);
         $schema = $parsed['schema'];
+        $schemaExplicit = preg_match('/^pragma\s+[A-Za-z_][A-Za-z0-9_]*\s*\./i', ltrim($sql)) === 1;
         $this->ensureSchema($schema);
+
+        if ($parsed['pragma'] === 'cache_spill') {
+            return $this->executeCacheSpill($schema, $parsed['value'], $schemaExplicit);
+        }
 
         return match ($parsed['pragma']) {
             'cache_size' => $this->executeCacheSize($schema, $parsed['value']),
@@ -60,20 +65,20 @@ final class SQLitePragmaDynamicSchemaState
     }
 
     /**
-     * @return array{schema:string,pragma:'cache_size'|'default_cache_size'|'freelist_count'|'page_count'|'max_page_count'|'schema_version'|'user_version',value:int|null}
+     * @return array{schema:string,pragma:'cache_size'|'default_cache_size'|'cache_spill'|'freelist_count'|'page_count'|'max_page_count'|'schema_version'|'user_version',value:int|null}
      */
     public static function parse(string $sql): array
     {
         $trimmed = rtrim(trim($sql), " \t\r\n;");
-        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>cache_size|default_cache_size|freelist_count|page_count|max_page_count|schema_version|user_version)(?:\s*(?:=\s*(?<equals>[+-]?\d+)|\(\s*(?<paren>[+-]?\d+)\s*\)))?$/i', $trimmed, $matches)) {
+        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>cache_size|default_cache_size|cache_spill|freelist_count|page_count|max_page_count|schema_version|user_version)(?:\s*(?:=\s*(?<equals>[+-]?\d+|ON|OFF|TRUE|FALSE)|\(\s*(?<paren>[+-]?\d+|ON|OFF|TRUE|FALSE)\s*\)))?$/i', $trimmed, $matches)) {
             throw new \InvalidArgumentException('Unsupported SQLite dynamic schema PRAGMA SQL');
         }
 
         $value = null;
         if (($matches['equals'] ?? '') !== '') {
-            $value = self::signedInt($matches['equals'], 'SQLite PRAGMA value');
+            $value = self::pragmaValue($matches['equals'], 'SQLite PRAGMA value');
         } elseif (($matches['paren'] ?? '') !== '') {
-            $value = self::signedInt($matches['paren'], 'SQLite PRAGMA value');
+            $value = self::pragmaValue($matches['paren'], 'SQLite PRAGMA value');
         }
 
         return [
@@ -84,7 +89,7 @@ final class SQLitePragmaDynamicSchemaState
     }
 
     /**
-     * @return array<string, array{cache_size:int,default_cache_size:int,freelist_count:int,page_count:int,max_page_count:int,schema_version:int,user_version:int,database_empty:bool}>
+     * @return array<string, array{cache_size:int,default_cache_size:int,cache_spill:int,freelist_count:int,page_count:int,max_page_count:int,schema_version:int,user_version:int,database_empty:bool}>
      */
     public function schemas(): array
     {
@@ -92,17 +97,19 @@ final class SQLitePragmaDynamicSchemaState
     }
 
     /**
-     * @param array{cache_size?:int|string,default_cache_size?:int|string,freelist_count?:int|string,page_count?:int|string,max_page_count?:int|string,schema_version?:int|string,user_version?:int|string,database_empty?:bool} $state
-     * @return array{cache_size:int,default_cache_size:int,freelist_count:int,page_count:int,max_page_count:int,schema_version:int,user_version:int,database_empty:bool}
+     * @param array{cache_size?:int|string,default_cache_size?:int|string,cache_spill?:int|string|bool,freelist_count?:int|string,page_count?:int|string,max_page_count?:int|string,schema_version?:int|string,user_version?:int|string,database_empty?:bool} $state
+     * @return array{cache_size:int,default_cache_size:int,cache_spill:int,freelist_count:int,page_count:int,max_page_count:int,schema_version:int,user_version:int,database_empty:bool}
      */
     private function normalizeSchema(array $state): array
     {
         $default = self::signedInt($state['default_cache_size'] ?? 2000, 'SQLite default_cache_size');
         $pageCount = self::nonNegativeInt($state['page_count'] ?? 0, 'SQLite page_count');
         $maxPageCount = self::nonNegativeInt($state['max_page_count'] ?? max($pageCount, 1073741823), 'SQLite max_page_count');
+        $cacheSize = self::signedInt($state['cache_size'] ?? $default, 'SQLite cache_size');
         return [
-            'cache_size' => self::signedInt($state['cache_size'] ?? $default, 'SQLite cache_size'),
+            'cache_size' => $cacheSize,
             'default_cache_size' => $default,
+            'cache_spill' => self::normalizeCacheSpill($state['cache_spill'] ?? $cacheSize, $cacheSize),
             'freelist_count' => self::nonNegativeInt($state['freelist_count'] ?? 0, 'SQLite freelist_count'),
             'page_count' => $pageCount,
             'max_page_count' => max($pageCount, $maxPageCount),
@@ -145,9 +152,36 @@ final class SQLitePragmaDynamicSchemaState
             $value = $requested;
             $this->schemas[$schema]['default_cache_size'] = $value;
             $this->schemas[$schema]['cache_size'] = $value;
+            if ($this->schemas[$schema]['cache_spill'] > 0 && $this->schemas[$schema]['cache_spill'] < $value) {
+                $this->schemas[$schema]['cache_spill'] = $value;
+            }
         }
 
         return $this->result('default_cache_size', $schema, $requested, $value, $before !== $value, null, 'sqlite-pragma-default-cache-size-state');
+    }
+
+    /**
+     * @return array{status:string,pragma:'cache_spill',schema:string,requested:int|null,value:int,changed:bool,rows:list<array{cache_spill:int}>,reason:string|null,dependencies:list<string>}
+     */
+    private function executeCacheSpill(string $schema, ?int $requested, bool $schemaExplicit): array
+    {
+        $before = $this->schemas[$schema]['cache_spill'];
+        $value = $before;
+        $reason = null;
+        if ($requested !== null) {
+            $value = self::normalizeCacheSpill($requested, $this->schemas[$schema]['cache_size']);
+            if ($schemaExplicit) {
+                $this->schemas[$schema]['cache_spill'] = $value;
+            } else {
+                foreach (array_keys($this->schemas) as $name) {
+                    $this->schemas[$name]['cache_spill'] = self::normalizeCacheSpill($requested, $this->schemas[$name]['cache_size']);
+                }
+                $value = $this->schemas[$schema]['cache_spill'];
+            }
+            $reason = $requested > 0 && $requested < $this->schemas[$schema]['cache_size'] ? 'raised_to_cache_size' : null;
+        }
+
+        return $this->result('cache_spill', $schema, $requested, $value, $before !== $value, $reason, 'sqlite-pragma-cache-spill-state');
     }
 
     /**
@@ -240,6 +274,34 @@ final class SQLitePragmaDynamicSchemaState
         }
 
         return (int) $trimmed;
+    }
+
+    private static function pragmaValue(int|string $value, string $label): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        $upper = strtoupper(trim($value));
+        return match ($upper) {
+            'ON', 'TRUE' => 1,
+            'OFF', 'FALSE' => 0,
+            default => self::signedInt($value, $label),
+        };
+    }
+
+    private static function normalizeCacheSpill(int|string|bool $value, int $cacheSize): int
+    {
+        if (is_bool($value)) {
+            return $value ? $cacheSize : 0;
+        }
+
+        $int = is_int($value) ? $value : self::pragmaValue($value, 'SQLite cache_spill');
+        if ($int === 0) {
+            return 0;
+        }
+
+        return max($cacheSize, abs($int));
     }
 
     private static function nonNegativeInt(int|string $value, string $label): int

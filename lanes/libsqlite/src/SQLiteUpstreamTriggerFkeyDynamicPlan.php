@@ -7,6 +7,93 @@ namespace PortLibs\LibSqlite;
 final class SQLiteUpstreamTriggerFkeyDynamicPlan
 {
     /** @return array<string,mixed> */
+    public static function triggerGRecursiveOnce(): array
+    {
+        $baseValues = [0, 2, 3, 8, 9];
+        $singleSelect = self::triggerGReplay($baseValues, 2, false);
+        $joinSelect = self::triggerGReplay($baseValues, 2, true);
+
+        return [
+            'recursive_triggers' => true,
+            'source' => 'triggerG.test',
+            'single_select' => [
+                'case' => 'triggerG-100/110',
+                'seed' => 2,
+                't3_rows' => $singleSelect['t3'],
+                't2_rows' => $singleSelect['t2'],
+                'fires' => $singleSelect['fires'],
+                'in_rhs' => [1, 2, 3, 4],
+                'once_filter_values' => [2, 3],
+            ],
+            'join_select' => [
+                'case' => 'triggerG-200',
+                'seed' => 2,
+                't3_rows' => $joinSelect['t3'],
+                't2_rows' => $joinSelect['t2'],
+                'fires' => $joinSelect['fires'],
+                'left_in_rhs' => [1, 2, 3, 4],
+                'right_in_rhs' => [2, 3, 4, 5],
+                'once_filter_values' => [2, 3],
+            ],
+            'hex_literal' => [
+                'case' => 'triggerG-300/310',
+                'ok' => false,
+                'error' => 'hex literal too big: 0x2147483648e0e0099',
+            ],
+            'instead_of_view' => [
+                'case' => 'triggerG-400/405/410',
+                'view_rows' => [1234],
+                'delete_ok' => true,
+                'old_row_visible' => 1234,
+            ],
+            'dependencies' => [
+                'sqlite-upstream-triggerG-recursive-op-once',
+                'sqlite-upstream-triggerG-recursive-select-in',
+                'sqlite-upstream-triggerG-instead-of-view-delete',
+            ],
+        ];
+    }
+
+    /** @return array<string,mixed> */
+    public static function fkey8StatementJournal(): array
+    {
+        $cases = [
+            'fkey8-1.1' => ['sql' => 'DELETE FROM p1', 'action' => 'NO ACTION', 'statement_journal' => true, 'reason' => 'immediate foreign-key counter may roll back statement'],
+            'fkey8-1.2.1' => ['sql' => 'DELETE FROM p1', 'action' => 'CASCADE', 'statement_journal' => false, 'reason' => 'cascade delete has no post-action failure source'],
+            'fkey8-1.2.2' => ['sql' => 'DELETE FROM p1', 'action' => 'SET NULL', 'statement_journal' => false, 'reason' => 'nullable SET NULL action is statement-local safe'],
+            'fkey8-1.2.3' => ['sql' => 'DELETE FROM p1', 'action' => 'SET DEFAULT', 'statement_journal' => true, 'reason' => 'default value may violate parent key after action'],
+            'fkey8-1.3' => ['sql' => 'DELETE FROM p1', 'action' => 'CASCADE TRIGGER INSERT', 'statement_journal' => true, 'reason' => 'trigger side effect can create conflicting parent rows'],
+            'fkey8-1.4' => ['sql' => 'DELETE FROM p1', 'action' => 'CASCADE RESTRICT GRANDCHILD', 'statement_journal' => true, 'reason' => 'grandchild restrict can fail after child cascade'],
+            'fkey8-1.5.1' => ['sql' => 'DELETE FROM p1', 'action' => 'CASCADE GRANDCHILD CASCADE', 'statement_journal' => false, 'reason' => 'nested cascade is self-contained'],
+            'fkey8-1.5.2' => ['sql' => 'DELETE FROM p1', 'action' => 'CASCADE GRANDCHILD SET NULL', 'statement_journal' => false, 'reason' => 'nested SET NULL is self-contained'],
+            'fkey8-1.5.3' => ['sql' => 'DELETE FROM p1', 'action' => 'CASCADE GRANDCHILD SET DEFAULT', 'statement_journal' => true, 'reason' => 'nested default can violate parent key after action'],
+            'fkey8-1.6.1' => ['sql' => 'UPDATE p1 SET a = ?', 'action' => 'SET NULL', 'statement_journal' => true, 'reason' => 'bound update value and FK action require statement rollback'],
+            'fkey8-1.6.2' => ['sql' => 'UPDATE OR IGNORE p1 SET a = ?', 'action' => 'SET NULL', 'statement_journal' => false, 'reason' => 'OR IGNORE suppresses FK-side statement rollback path'],
+            'fkey8-1.6.3' => ['sql' => 'UPDATE OR IGNORE p1 SET a = ?', 'action' => 'CASCADE', 'statement_journal' => true, 'reason' => 'cascade update may rewrite child keys despite OR IGNORE'],
+            'fkey8-1.6.4' => ['sql' => 'UPDATE OR IGNORE p1 SET a = ?', 'action' => 'SET NULL NOT NULL CHILD', 'statement_journal' => true, 'reason' => 'SET NULL can trip child NOT NULL constraint'],
+        ];
+
+        foreach ($cases as $case => &$row) {
+            $row['case'] = $case;
+            $row['source'] = 'fkey8.test';
+            $row['uses_stmt_journal'] = $row['statement_journal'] ? 1 : 0;
+        }
+        unset($row);
+
+        return [
+            'foreign_keys' => true,
+            'source' => 'fkey8.test',
+            'cases' => array_values($cases),
+            'journal_cases' => array_values(array_filter($cases, static fn (array $case): bool => $case['statement_journal'])),
+            'no_journal_cases' => array_values(array_filter($cases, static fn (array $case): bool => !$case['statement_journal'])),
+            'dependencies' => [
+                'sqlite-upstream-fkey8-uses-statement-journal',
+                'sqlite-upstream-fkey8-dynamic-foreign-key-actions',
+            ],
+        ];
+    }
+
+    /** @return array<string,mixed> */
     public static function fkey7(): array
     {
         $readCases = [
@@ -115,5 +202,62 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
                 'sqlite-upstream-trigger2-temp-table-trigger-timing',
             ],
         ];
+    }
+
+    /**
+     * @param list<int> $baseValues
+     * @return array{t2:list<int>,t3:list<int>,fires:list<array{new_c:int,inserted_next:?int,rows_added:list<int>}>}
+     */
+    private static function triggerGReplay(array $baseValues, int $seed, bool $join): array
+    {
+        $t2 = [];
+        $t3 = [];
+        $queue = [$seed];
+
+        while ($queue !== []) {
+            $new = array_shift($queue);
+            if (!is_int($new)) {
+                throw new \InvalidArgumentException('SQLite triggerG recursive seed must be integer');
+            }
+            $t3[] = $new;
+            $insertedNext = null;
+            if ($new < 5) {
+                $insertedNext = $new + 1;
+                $queue[] = $insertedNext;
+            }
+
+            $added = [];
+            if ($join) {
+                foreach ($baseValues as $left) {
+                    if (!in_array($left, [1, 2, 3, 4], true)) {
+                        continue;
+                    }
+                    foreach ($baseValues as $right) {
+                        if (!in_array($right, [2, 3, 4, 5], true)) {
+                            continue;
+                        }
+                        $added[] = $new * 10000 + $left * 100 + $right;
+                    }
+                }
+            } else {
+                foreach ($baseValues as $value) {
+                    if (in_array($value, [1, 2, 3, 4], true)) {
+                        $added[] = $new * 100 + $value;
+                    }
+                }
+            }
+            array_push($t2, ...$added);
+
+            $fires[] = [
+                'new_c' => $new,
+                'inserted_next' => $insertedNext,
+                'rows_added' => $added,
+            ];
+        }
+
+        sort($t2);
+        sort($t3);
+
+        return ['t2' => $t2, 't3' => $t3, 'fires' => $fires ?? []];
     }
 }

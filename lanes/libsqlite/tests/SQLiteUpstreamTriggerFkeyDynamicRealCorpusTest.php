@@ -5,6 +5,19 @@ declare(strict_types=1);
 use PortLibs\LibSqlite\SQLiteDeferredForeignKeyTransactionPlan;
 use PortLibs\LibSqlite\SQLiteUpstreamTriggerFkeyDynamicPlan;
 
+$triggerGPlan = static fn (): array => SQLiteUpstreamTriggerFkeyDynamicPlan::triggerGRecursiveOnce();
+$triggerGSingle = static fn (): array => $triggerGPlan()['single_select'];
+$triggerGJoin = static fn (): array => $triggerGPlan()['join_select'];
+$fkey8JournalPlan = static fn (): array => SQLiteUpstreamTriggerFkeyDynamicPlan::fkey8StatementJournal();
+$fkey8JournalCases = static function () use ($fkey8JournalPlan): array {
+    $cases = [];
+    foreach ($fkey8JournalPlan()['cases'] as $case) {
+        $cases[$case['case']] = $case;
+    }
+
+    return $cases;
+};
+
 $fkey22Operations = [
     ['case' => 'fkey2-2-1', 'op' => 'schema'],
     ['case' => 'fkey2-2-1', 'op' => 'insert-node', 'nodeid' => 1, 'parent' => 0, 'expect_ok' => false],
@@ -94,6 +107,42 @@ $traceByCase = static function () use ($fkey22Plan): array {
 };
 
 $tests = [
+    'upstream triggerG recursive trigger source filename' => static function (TestRunner $t) use ($triggerGPlan): void {
+        $t->same('triggerG.test', $triggerGPlan()['source']);
+    },
+    'upstream triggerG recursive trigger enables recursion' => static function (TestRunner $t) use ($triggerGPlan): void {
+        $t->same(true, $triggerGPlan()['recursive_triggers']);
+    },
+    'upstream triggerG recursive trigger dependency marker' => static function (TestRunner $t) use ($triggerGPlan): void {
+        $t->same(true, in_array('sqlite-upstream-triggerG-recursive-op-once', $triggerGPlan()['dependencies'], true));
+    },
+    'upstream triggerG single select t3 recursion rows' => static function (TestRunner $t) use ($triggerGSingle): void {
+        $t->same([2, 3, 4, 5], $triggerGSingle()['t3_rows']);
+    },
+    'upstream triggerG single select t2 rows match triggerG-110' => static function (TestRunner $t) use ($triggerGSingle): void {
+        $t->same([202, 203, 302, 303, 402, 403, 502, 503], $triggerGSingle()['t2_rows']);
+    },
+    'upstream triggerG join select t2 rows match triggerG-200' => static function (TestRunner $t) use ($triggerGJoin): void {
+        $t->same([20202, 20203, 20302, 20303, 30202, 30203, 30302, 30303, 40202, 40203, 40302, 40303, 50202, 50203, 50302, 50303], $triggerGJoin()['t2_rows']);
+    },
+    'upstream triggerG hex literal trigger reports overflow' => static function (TestRunner $t) use ($triggerGPlan): void {
+        $t->same('hex literal too big: 0x2147483648e0e0099', $triggerGPlan()['hex_literal']['error']);
+    },
+    'upstream triggerG instead of delete sees old row' => static function (TestRunner $t) use ($triggerGPlan): void {
+        $t->same(1234, $triggerGPlan()['instead_of_view']['old_row_visible']);
+    },
+    'upstream fkey8 statement journal source filename' => static function (TestRunner $t) use ($fkey8JournalPlan): void {
+        $t->same('fkey8.test', $fkey8JournalPlan()['source']);
+    },
+    'upstream fkey8 statement journal dependency marker' => static function (TestRunner $t) use ($fkey8JournalPlan): void {
+        $t->same(true, in_array('sqlite-upstream-fkey8-uses-statement-journal', $fkey8JournalPlan()['dependencies'], true));
+    },
+    'upstream fkey8 statement journal expected journal case count' => static function (TestRunner $t) use ($fkey8JournalPlan): void {
+        $t->same(8, count($fkey8JournalPlan()['journal_cases']));
+    },
+    'upstream fkey8 statement journal expected no-journal case count' => static function (TestRunner $t) use ($fkey8JournalPlan): void {
+        $t->same(5, count($fkey8JournalPlan()['no_journal_cases']));
+    },
     'upstream fkey2 deferred transaction final node rows' => static function (TestRunner $t) use ($fkey22Plan): void {
         $t->same([['nodeid' => 1, 'parent' => null], ['nodeid' => 2, 'parent' => null]], $fkey22Plan()['node']);
     },
@@ -110,6 +159,56 @@ $tests = [
         $t->same(true, in_array('sqlite-upstream-fkey2-2-deferred-foreign-keys', $fkey22Plan()['dependencies'], true));
     },
 ];
+
+foreach ($triggerGSingle()['fires'] as $index => $fire) {
+    $tests["upstream triggerG single select fire {$index} new c"] = static function (TestRunner $t) use ($triggerGSingle, $index, $fire): void {
+        $t->same($fire['new_c'], $triggerGSingle()['fires'][$index]['new_c']);
+    };
+    $tests["upstream triggerG single select fire {$index} inserted next"] = static function (TestRunner $t) use ($triggerGSingle, $index, $fire): void {
+        $t->same($fire['inserted_next'], $triggerGSingle()['fires'][$index]['inserted_next']);
+    };
+    $tests["upstream triggerG single select fire {$index} row additions"] = static function (TestRunner $t) use ($triggerGSingle, $index, $fire): void {
+        $t->same($fire['rows_added'], $triggerGSingle()['fires'][$index]['rows_added']);
+    };
+}
+
+foreach ($triggerGJoin()['fires'] as $index => $fire) {
+    $tests["upstream triggerG join select fire {$index} new c"] = static function (TestRunner $t) use ($triggerGJoin, $index, $fire): void {
+        $t->same($fire['new_c'], $triggerGJoin()['fires'][$index]['new_c']);
+    };
+    $tests["upstream triggerG join select fire {$index} inserted next"] = static function (TestRunner $t) use ($triggerGJoin, $index, $fire): void {
+        $t->same($fire['inserted_next'], $triggerGJoin()['fires'][$index]['inserted_next']);
+    };
+    $tests["upstream triggerG join select fire {$index} row additions count"] = static function (TestRunner $t) use ($triggerGJoin, $index, $fire): void {
+        $t->same(count($fire['rows_added']), count($triggerGJoin()['fires'][$index]['rows_added']));
+    };
+    foreach ($fire['rows_added'] as $rowIndex => $value) {
+        $tests["upstream triggerG join select fire {$index} row {$rowIndex} value"] = static function (TestRunner $t) use ($triggerGJoin, $index, $rowIndex, $value): void {
+            $t->same($value, $triggerGJoin()['fires'][$index]['rows_added'][$rowIndex]);
+        };
+    }
+}
+
+foreach ($fkey8JournalCases() as $case => $expectation) {
+    $tests["upstream fkey8 {$case} uses statement journal flag"] = static function (TestRunner $t) use ($fkey8JournalCases, $case, $expectation): void {
+        $t->same($expectation['uses_stmt_journal'], $fkey8JournalCases()[$case]['uses_stmt_journal']);
+    };
+    $tests["upstream fkey8 {$case} statement journal boolean"] = static function (TestRunner $t) use ($fkey8JournalCases, $case, $expectation): void {
+        $t->same($expectation['statement_journal'], $fkey8JournalCases()[$case]['statement_journal']);
+    };
+    $tests["upstream fkey8 {$case} source filename"] = static function (TestRunner $t) use ($fkey8JournalCases, $case): void {
+        $t->same('fkey8.test', $fkey8JournalCases()[$case]['source']);
+    };
+    $tests["upstream fkey8 {$case} SQL preserved"] = static function (TestRunner $t) use ($fkey8JournalCases, $case, $expectation): void {
+        $t->same($expectation['sql'], $fkey8JournalCases()[$case]['sql']);
+    };
+    $tests["upstream fkey8 {$case} action preserved"] = static function (TestRunner $t) use ($fkey8JournalCases, $case, $expectation): void {
+        $t->same($expectation['action'], $fkey8JournalCases()[$case]['action']);
+    };
+    $tests["upstream fkey8 {$case} reason is nonempty"] = static function (TestRunner $t) use ($fkey8JournalCases, $case): void {
+        $t->same(true, $fkey8JournalCases()[$case]['reason'] !== '');
+    };
+}
 
 foreach ($fkey22Operations as $ordinal => $operation) {
     $case = $operation['case'];

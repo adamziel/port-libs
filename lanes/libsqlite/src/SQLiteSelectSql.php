@@ -3880,6 +3880,18 @@ final class SQLiteSelectSql
             return $case;
         }
 
+        if (preg_match('/^(not\s+)?exists\s*\(\s*(select\s+.+)\)$/is', $sql, $match) === 1) {
+            $subquerySql = trim($match[2]);
+
+            return [
+                'type' => 'predicate',
+                'predicate' => [
+                    'operator' => isset($match[1]) && trim($match[1]) !== '' ? 'NOT EXISTS' : 'EXISTS',
+                    'subquery' => static fn (array $row): array => self::correlatedSubqueryRows($subquerySql, $tables, $row),
+                ],
+            ];
+        }
+
         $orTerms = self::splitKeyword($sql, 'OR');
         if (count($orTerms) > 1) {
             return [

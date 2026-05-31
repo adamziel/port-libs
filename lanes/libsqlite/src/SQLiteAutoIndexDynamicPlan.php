@@ -116,6 +116,128 @@ final class SQLiteAutoIndexDynamicPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,query_shape:string,table_count:int,index_count:int,stat_count:int,fact_table_rows:int,dimension_rows:int,lookup_rows:int,chosen_loop:string,rejected_loop:string,order_by:list<string>,limit:int,where_terms:list<string>,stat_signature:string,autoindex_suppressed:bool,uses_declared_index:bool,requires_temp_btree:bool,detail:string,non_overlap:string,dependency_closure:string}>
+     */
+    public static function autoindex2RealWorldOveruseCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite autoindex2 real-world corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'section' => 'autoindex2-100',
+                'scenario' => 'wide real-world schema declares enough indexes before planning',
+                'queryShape' => 'schema-stat-seed',
+                'chosen' => 'sqlite_schema declared index inventory',
+                'rejected' => 'automatic covering index before ANALYZE stats',
+                'tempBtree' => false,
+                'detail' => 'CREATE TABLE t1/t2/t3 plus 23 declared indexes establishes the candidate index inventory',
+            ],
+            [
+                'section' => 'autoindex2-110',
+                'scenario' => 'ANALYZE sqlite_master loads high-cardinality fact-table stats',
+                'queryShape' => 'stat1-refresh',
+                'chosen' => 't1x2 did/ssid/ptime/vstatus/exbyte/t1_id',
+                'rejected' => 'automatic covering index on t3(uid)',
+                'tempBtree' => false,
+                'detail' => 'sqlite_stat1 rows make declared t1/t2/t3 indexes cheaper than a transient covering index',
+            ],
+            [
+                'section' => 'autoindex2-120',
+                'scenario' => 'three-table query keeps declared-index order and avoids automatic overuse',
+                'queryShape' => 'three-table-order-limit',
+                'chosen' => 't1x2 did/ssid/ptime/vstatus/exbyte/t1_id',
+                'rejected' => 'automatic covering index on wide fact table',
+                'tempBtree' => false,
+                'detail' => 'EXPLAIN QUERY PLAN for ORDER BY t1.ptime DESC LIMIT 500 does not include AUTO',
+            ],
+            [
+                'section' => 'autoindex2-120',
+                'scenario' => 'ORDER BY and LIMIT stay attached to the declared t1 path',
+                'queryShape' => 'order-limit-cost',
+                'chosen' => 't1x1 ptime/vstatus with t1x2 join filter',
+                'rejected' => 'automatic covering index that would require a sort btree',
+                'tempBtree' => false,
+                'detail' => 'planner preserves t1.ptime DESC LIMIT 500 without reporting AUTOMATIC COVERING INDEX',
+            ],
+        ];
+
+        $whereTerms = [
+            't1.ptime > 1393520400',
+            'param3 <> 9001',
+            't3.flg7 = 1',
+            't1.did = t2.did',
+            't2.uid = t3.uid',
+        ];
+        $orderBy = ['t1.ptime DESC'];
+        $statRows = [
+            't1:t1x3:10747267 260',
+            't1:t1x2:10747267 121 113 2 2 2 1',
+            't1:t1x1:10747267 50 40',
+            't1:t1x0:10747267 1',
+            't2:t2x15:39667 253',
+            't2:t2x14:39667 19834',
+            't2:t2x13:39667 13223',
+            't2:t2x12:39667 7',
+            't2:t2x11:39667 17',
+            't2:t2x10:39667 19834',
+            't2:t2x9:39667 7934',
+            't2:t2x8:39667 11',
+            't2:t2x7:39667 5',
+            't2:t2x6:39667 242',
+            't2:t2x5:39667 1984',
+            't2:t2x4:39667 4408',
+            't2:t2x3:39667 81',
+            't2:t2x2:39667 551',
+            't2:t2x1:39667 2',
+            't2:t2x0:39667 1',
+            't3:t3x6:569 285',
+            't3:t3x5:569 2',
+            't3:t3x4:569 2',
+            't3:t3x3:569 5',
+            't3:t3x2:569 3',
+            't3:t3x1:569 6',
+            't3:t3x0:569 1',
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $stat = $statRows[($batch - 1) % count($statRows)];
+
+            $out[] = [
+                'source' => 'autoindex2.test autoindex2-100 through autoindex2-120',
+                'case' => $case,
+                'upstream_section' => $template['section'],
+                'scenario' => $template['scenario'] . ' batch ' . $batch,
+                'query_shape' => $template['queryShape'],
+                'table_count' => 3,
+                'index_count' => 23,
+                'stat_count' => 23,
+                'fact_table_rows' => 10747267,
+                'dimension_rows' => 39667,
+                'lookup_rows' => 569,
+                'chosen_loop' => $template['chosen'],
+                'rejected_loop' => $template['rejected'],
+                'order_by' => $orderBy,
+                'limit' => 500,
+                'where_terms' => $whereTerms,
+                'stat_signature' => $stat,
+                'autoindex_suppressed' => true,
+                'uses_declared_index' => true,
+                'requires_temp_btree' => $template['tempBtree'],
+                'detail' => $template['detail'],
+                'non_overlap' => 'covers upstream autoindex2.test real-world automatic-index overuse regression; does not repeat autoindex1 join counters, autoindex3 declared-index shadow cases, autoindex4 partial joins, autoindex5 coroutine subqueries, expression-index range costs, or B-tree page relocation',
+                'dependency_closure' => 'no new support component needed; reuses lane-local planner-stat and automatic-index admission models for declared-index cost comparison',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,join_kind:string,on_clause:string,where_clause:string,automatic_index:bool,optimization_control:bool,uses_partial_autoindex:bool,order_by_preserved:bool,right_join_equivalent:bool,result_rows:list<array<int,mixed>>,detail:string,integrity:string}>
      */
     public static function autoindex4PartialIndexJoinCases(int $cases = 1000): array

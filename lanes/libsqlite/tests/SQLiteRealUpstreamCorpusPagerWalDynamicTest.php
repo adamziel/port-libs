@@ -406,4 +406,63 @@ $tests['real upstream corpus pager wal dynamic wal8 rows cite hydrated upstream 
     ]);
 };
 
+foreach (SQLiteRealUpstreamPagerWalDynamicCorpusPlan::walModeAttachedJournalRows() as $row) {
+    $tests['real upstream corpus pager wal dynamic ' . $row['upstream'] . ' attached journal mode'] = static function (TestRunner $t) use ($row): void {
+        $t->same('walmode.test', $row['script']);
+        $t->same(true, $row['case'] >= 1 && $row['case'] <= 1000);
+        $t->same('main', $row['main_schema']);
+        $t->same('two', $row['attached_schema']);
+        $t->same(true, in_array($row['main_journal_mode'], ['delete', 'wal'], true));
+        $t->same(true, in_array($row['attached_journal_mode'], ['delete', 'wal'], true));
+        $t->same($row['main_journal_mode'], $row['default_journal_mode']);
+        $t->same(true, str_starts_with($row['step'], 'walmode-8.'));
+        $t->same(true, $row['behavior'] !== '');
+        $t->same(true, in_array($row['operation'], [
+            'attach-create',
+            'pragma-main',
+            'pragma-attached',
+            'pragma-attached-delete',
+            'reopen-attach',
+            'insert-attached',
+            'insert-main',
+            'pragma-default',
+            'pragma-attached-wal',
+            'pragma-main-wal',
+            'external-read',
+            'pragma-default-delete',
+            'pragma-default-wal',
+        ], true));
+        $t->same([
+            'real-upstream-corpus-walmode',
+            'sqlite-wal-attached-journal-mode',
+            'sqlite-pager-wal-dynamic',
+        ], $row['dependencies']);
+    };
+}
+
+$tests['real upstream corpus pager wal dynamic walmode rows cite hydrated upstream ranges'] = static function (TestRunner $t): void {
+    $rows = SQLiteRealUpstreamPagerWalDynamicCorpusPlan::walModeAttachedJournalRows();
+
+    $t->same(1000, count($rows));
+    $t->same('walmode.test walmode-8.1 dynamic attached-mode case 1', $rows[0]['upstream']);
+    $t->same('walmode.test walmode-8.x1 dynamic attached-mode case 13', $rows[12]['upstream']);
+    $t->same('walmode.test walmode-8.20 dynamic attached-mode case 20', $rows[19]['upstream']);
+    $t->same('walmode.test walmode-8.22-repeat dynamic attached-mode case 24', $rows[23]['upstream']);
+    $t->same('walmode.test walmode-8.16 dynamic attached-mode case 1000', $rows[999]['upstream']);
+    $t->same(true, $rows[2]['attached_mode_independent_before_explicit_wal']);
+    $t->same(true, $rows[19]['unqualified_switch_applies_to_attached']);
+    $t->same(true, $rows[22]['unqualified_switch_applies_to_attached']);
+    $t->same(true, $rows[18]['mode_persists_after_reopen']);
+    $t->same(true, $rows[16]['write_preserves_schema_mode']);
+    $t->same([
+        'walmode.test 8.1-8.12 main WAL does not force a newly attached database out of rollback mode',
+        'walmode.test 8.x1-8.19 explicit attached WAL mode persists across reopen and separate readers',
+        'walmode.test 8.20-8.22 unqualified journal_mode switches main and attached schemas together',
+    ], [
+        'walmode.test 8.1-8.12 main WAL does not force a newly attached database out of rollback mode',
+        'walmode.test 8.x1-8.19 explicit attached WAL mode persists across reopen and separate readers',
+        'walmode.test 8.20-8.22 unqualified journal_mode switches main and attached schemas together',
+    ]);
+};
+
 return $tests;

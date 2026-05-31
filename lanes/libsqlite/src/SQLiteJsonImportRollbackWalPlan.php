@@ -198,6 +198,112 @@ final class SQLiteJsonImportRollbackWalPlan
         return $scenarios;
     }
 
+    /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicDeferredFailureScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL deferred failure dynamic parity requires at least one scenario');
+        }
+
+        $scenarios = [];
+        for ($seed = 1; $seed <= $scenarioCount; $seed++) {
+            $pageSize = $seed % 2 === 0 ? 1024 : 512;
+            $tenantId = 700 + $seed;
+            $featurePage = 4 + ($seed % 3);
+            $catalogPage = 40 + $seed;
+            $brokenPage = 80 + $seed;
+            $walFramesBefore = 4 + ($seed % 6);
+            $jsonbMode = $seed % 4 === 0;
+
+            $rows = [
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 100 + 1,
+                    'key_name' => 'deferred_feature_flags_' . $seed,
+                    'key_value' => json_encode(['enabled' => false, 'version' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'yes',
+                    'page_number' => $featurePage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 100 + 2,
+                    'key_name' => 'deferred_catalog_payload_' . $seed,
+                    'key_value' => $jsonbMode
+                        ? new SQLiteBlobValue(SQLiteJsonB::encode(['items' => ['current'], 'version' => $seed]))
+                        : json_encode(['items' => ['current'], 'version' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'no',
+                    'page_number' => $catalogPage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 100 + 3,
+                    'key_name' => 'deferred_broken_payload_' . $seed,
+                    'key_value' => '{"broken":',
+                    'load_policy' => 'no',
+                    'page_number' => $brokenPage,
+                ],
+            ];
+
+            $mutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'deferred_enable_feature_' . $seed,
+                    'key_name' => 'deferred_feature_flags_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'deferred_append_catalog_' . $seed,
+                    'key_name' => 'deferred_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.items',
+                    'value' => new SQLiteJsonSubtypeValue(json_encode(['current', 'kept-' . $seed], JSON_THROW_ON_ERROR)),
+                    'wal_frame_index' => 2,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'deferred_broken_payload_' . $seed,
+                    'key_name' => 'deferred_broken_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => 3,
+                ],
+            ];
+
+            $databaseBytes = self::scenarioDatabaseBytes($pageSize, max($brokenPage, $catalogPage, $featurePage));
+            $walBytes = self::scenarioWalBytes($pageSize, $walFramesBefore, 0x7800 + $seed, 0x7900 + $seed);
+            $plan = self::plan($rows, $mutations, [
+                'database_bytes' => $databaseBytes,
+                'page_size' => $pageSize,
+                'wal_bytes' => $walBytes,
+                'transaction' => 'application_deferred_json_import_' . $seed,
+                'savepoint' => 'deferred_json_batch_' . $seed,
+                'rollback_on_error' => false,
+            ]);
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $tenantId,
+                'page_size' => $pageSize,
+                'jsonb_mode' => $jsonbMode,
+                'wal_frames_before' => $walFramesBefore,
+                'expected_restored_pages' => [$featurePage, $catalogPage],
+                'expected_failed_statement' => 'deferred_broken_payload_' . $seed,
+                'database_bytes' => $databaseBytes,
+                'wal_bytes' => $walBytes,
+                'plan' => $plan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
     private static function emptyWalBytes(int $pageSize): string
     {
         return pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 0, 0x51, 0x52, 0, 0);
