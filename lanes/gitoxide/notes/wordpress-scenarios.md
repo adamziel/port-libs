@@ -301,6 +301,16 @@ and fetch/push refspecs through native PHP parsers. This models deployment code
 deciding which WordPress branch/tag namespaces to fetch or update without
 shelling out to `git remote` or `git push`.
 
+The URL/refspec example now also covers file-authority URLs, SCP-like IPv6
+remotes, and forced fetch-only refspec normalization.
+
+## WordPress Commit Signature Example
+
+`examples/wordpress-commit-signature.php` now exposes raw multiline `gpgsig`
+bytes while preserving old-git multiline header behavior. This lets deployment
+or package provenance checks inspect signed commit payloads without invoking
+`git cat-file` or `git log`.
+
 ## WordPress Merge Base Example
 
 `examples/wordpress-merge-base.php` now records graph-walk merge-base checks

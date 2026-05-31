@@ -1143,3 +1143,19 @@ Attributes/pathspec state adjustment batch accepted on 2026-05-31:
 - The mapped denominator moves from `1512 / 2886` to `1513 / 2886` for the
   distinct upstream-backed attributes/pathspec state slice. Full Cargo
   workspace tests were not run for this slice.
+
+Commit gpgsig and URL/refspec batch accepted on 2026-05-31:
+
+- Source commit `e319fe192cd0103ff34e7b509ead36237f4955fd` integrates two
+  Gitoxide handoffs without taking stale shared metadata edits. The accepted
+  source slices cover raw multiline commit `gpgsig` extraction with old-git
+  header preservation and URL/refspec parse-normalize parity for
+  file-authority/SCP IPv6 URLs plus forced fetch-only instructions.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused Commit/UrlRefSpec tests `2 files / 654 assertions / 0 failures`,
+  full Gitoxide lane tests `38 files / 3855 assertions / 0 failures`, and two
+  touched examples exiting 0.
+- The mapped denominator moves from `1513 / 2886` to `1515 / 2886` for the two
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.
