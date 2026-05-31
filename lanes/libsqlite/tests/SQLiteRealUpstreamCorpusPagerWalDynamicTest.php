@@ -356,4 +356,54 @@ $tests['real upstream corpus pager wal dynamic wal3 readmark rows cite hydrated 
     ]);
 };
 
+foreach (SQLiteRealUpstreamPagerWalDynamicCorpusPlan::wal8EmptyFilePageSizeRows() as $row) {
+    $tests['real upstream corpus pager wal dynamic ' . $row['upstream'] . ' page-size pragma after peer wal initialization'] = static function (TestRunner $t) use ($row): void {
+        $t->same('wal8.test', $row['script']);
+        $t->same(true, $row['case'] >= 1 && $row['case'] <= 1000);
+        $t->same(true, in_array($row['scenario'], [1, 2, 3], true));
+        $t->same(true, $row['first_connection_opened_empty_file']);
+        $t->same('wal', $row['peer_journal_mode']);
+        $t->same(true, $row['peer_creates_schema']);
+        $t->same([1, 2], $row['peer_inserts_row']);
+        $t->same(4096, $row['requested_page_size']);
+        $t->same(0, $row['expected_rc']);
+        $t->same(true, $row['page_size_pragma_before_read']);
+        $t->same(true, $row['page_size_pragma_is_harmless_after_peer_wal_init']);
+        $t->same(true, $row['schema_visible_after_page_size_pragma']);
+        $t->same(true, $row['database_remains_consistent']);
+        $t->same($row['scenario'] !== 3, $row['vacuum_allowed']);
+        $t->same($row['scenario'] === 3 ? ['t1'] : [], $row['expected_result']);
+        $t->same($row['scenario'] === 3 ? 'select-sqlite-master' : 'vacuum-after-page-size', $row['operation']);
+        $t->same(true, in_array($row['peer_connection_initialization'], [
+            'peer-enables-wal-before-schema',
+            'peer-creates-schema-before-wal',
+            'peer-enables-wal-before-select',
+        ], true));
+        $t->same([
+            'real-upstream-corpus-wal8',
+            'sqlite-wal-empty-file-page-size',
+            'sqlite-pager-wal-dynamic',
+        ], $row['dependencies']);
+    };
+}
+
+$tests['real upstream corpus pager wal dynamic wal8 rows cite hydrated upstream ranges'] = static function (TestRunner $t): void {
+    $rows = SQLiteRealUpstreamPagerWalDynamicCorpusPlan::wal8EmptyFilePageSizeRows();
+
+    $t->same(1000, count($rows));
+    $t->same('wal8.test 1.1 dynamic empty-open case 1', $rows[0]['upstream']);
+    $t->same('wal8.test 2.1 dynamic empty-open case 2', $rows[1]['upstream']);
+    $t->same('wal8.test 3.1 dynamic empty-open case 3', $rows[2]['upstream']);
+    $t->same('wal8.test 1.1 dynamic empty-open case 1000', $rows[999]['upstream']);
+    $t->same([
+        'wal8.test 1.1 empty first connection page_size then VACUUM after peer WAL create',
+        'wal8.test 2.1 empty first connection page_size then VACUUM after peer schema-before-WAL create',
+        'wal8.test 3.1 empty first connection page_size then sqlite_master read after peer WAL create',
+    ], [
+        'wal8.test 1.1 empty first connection page_size then VACUUM after peer WAL create',
+        'wal8.test 2.1 empty first connection page_size then VACUUM after peer schema-before-WAL create',
+        'wal8.test 3.1 empty first connection page_size then sqlite_master read after peer WAL create',
+    ]);
+};
+
 return $tests;

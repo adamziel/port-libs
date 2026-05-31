@@ -109,10 +109,12 @@ $tests['real upstream pragma schema dynamic parse and rejection corpus'] = stati
     $t->same(['schema' => 'main', 'pragma' => 'cache_size', 'value' => -4321], SQLitePragmaDynamicSchemaState::parse('PRAGMA cache_size=-4321'));
     $t->same(['schema' => 'aux', 'pragma' => 'default_cache_size', 'value' => 456], SQLitePragmaDynamicSchemaState::parse('PRAGMA aux.default_cache_size(456)'));
     $t->same(['schema' => 'temp', 'pragma' => 'freelist_count', 'value' => null], SQLitePragmaDynamicSchemaState::parse('PRAGMA temp.freelist_count;'));
+    $t->same(['schema' => 'main', 'pragma' => 'page_count', 'value' => null], SQLitePragmaDynamicSchemaState::parse('pragma PAGE_COUNT'));
+    $t->same(['schema' => 'aux', 'pragma' => 'max_page_count', 'value' => 1024], SQLitePragmaDynamicSchemaState::parse('PRAGMA AUX.MAX_PAGE_COUNT=1024'));
     $t->same(['schema' => 'main', 'pragma' => 'schema_version', 'value' => 211], SQLitePragmaDynamicSchemaState::parse(' PRAGMA SCHEMA_VERSION = 211 '));
     $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaDynamicSchemaState::parse('PRAGMA "main".cache_size'));
-    $t->throws(InvalidArgumentException::class, static fn (): array => SQLitePragmaDynamicSchemaState::parse('PRAGMA page_count'));
     $t->throws(InvalidArgumentException::class, static fn (): array => (new SQLitePragmaDynamicSchemaState())->execute('PRAGMA schema_version=-1'));
+    $t->throws(InvalidArgumentException::class, static fn (): array => (new SQLitePragmaDynamicSchemaState())->execute('PRAGMA max_page_count=-1'));
 };
 
 $tests['real upstream pragma schema dynamic records upstream files and subtests'] = static function (TestRunner $t): void {

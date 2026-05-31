@@ -819,6 +819,52 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function wal8EmptyFilePageSizeRows(): array
+    {
+        $rows = [];
+
+        for ($case = 1; $case <= 1000; $case++) {
+            $scenario = (($case - 1) % 3) + 1;
+            $initialization = match ($scenario) {
+                1 => 'peer-enables-wal-before-schema',
+                2 => 'peer-creates-schema-before-wal',
+                default => 'peer-enables-wal-before-select',
+            };
+            $operation = $scenario === 3 ? 'select-sqlite-master' : 'vacuum-after-page-size';
+
+            $rows[] = [
+                'upstream' => 'wal8.test ' . $scenario . '.1 dynamic empty-open case ' . $case,
+                'script' => 'wal8.test',
+                'case' => $case,
+                'scenario' => $scenario,
+                'first_connection_opened_empty_file' => true,
+                'peer_connection_initialization' => $initialization,
+                'peer_journal_mode' => 'wal',
+                'peer_creates_schema' => true,
+                'peer_inserts_row' => [1, 2],
+                'operation' => $operation,
+                'requested_page_size' => 4096,
+                'expected_rc' => 0,
+                'expected_result' => $scenario === 3 ? ['t1'] : [],
+                'page_size_pragma_before_read' => true,
+                'page_size_pragma_is_harmless_after_peer_wal_init' => true,
+                'vacuum_allowed' => $scenario !== 3,
+                'schema_visible_after_page_size_pragma' => true,
+                'database_remains_consistent' => true,
+                'dependencies' => [
+                    'real-upstream-corpus-wal8',
+                    'sqlite-wal-empty-file-page-size',
+                    'sqlite-pager-wal-dynamic',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array

@@ -1765,6 +1765,56 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $viewRows
+     * @return array<string,mixed>
+     */
+    public static function triggerGExpressionAndViewDeletePlan(string $hexLiteral, array $viewRows, bool $deleteView = true): array
+    {
+        $hex = strtolower(trim($hexLiteral));
+        if (!preg_match('/^0x[0-9a-f]+$/', $hex)) {
+            throw new \InvalidArgumentException('SQLite triggerG hex literal expression is malformed');
+        }
+
+        $mantissa = substr($hex, 2);
+        $mantissa = ltrim($mantissa, '0');
+        $tooBig = strlen($mantissa) > 16 || (strlen($mantissa) === 16 && strcmp($mantissa, '7fffffffffffffff') > 0);
+        $expressionStatus = $tooBig ? 'constraint-error' : 'commit-ok';
+        $expressionError = $tooBig ? 'hex literal too big: ' . $hexLiteral : null;
+
+        $oldRows = [];
+        if ($deleteView) {
+            foreach ($viewRows as $index => $row) {
+                if (!array_key_exists('a', $row)) {
+                    throw new \InvalidArgumentException('SQLite triggerG INSTEAD OF DELETE view row requires column a');
+                }
+                $oldRows[] = [
+                    'row_index' => $index,
+                    'old_a' => $row['a'],
+                ];
+            }
+        }
+
+        return [
+            'source' => 'triggerG.test triggerG-300..410',
+            'operation' => 'trigger-expression-error-and-view-delete-old-row',
+            'status' => $expressionStatus,
+            'hex_literal' => $hexLiteral,
+            'expression_error' => $expressionError,
+            'expression_error_before_side_effects' => $tooBig,
+            'view_delete_attempted' => $deleteView,
+            'view_row_count' => count($viewRows),
+            'instead_of_delete_old_rows' => $oldRows,
+            'instead_of_delete_old_a_values' => array_values(array_map(static fn (array $row): mixed => $row['old_a'], $oldRows)),
+            'view_rows_preserved_after_instead_of_delete' => $viewRows,
+            'dependencies' => [
+                'sqlite-triggerG-trigger-subprogram-expression-errors-propagate',
+                'sqlite-triggerG-instead-of-delete-view-trigger-binds-old-row',
+                'sqlite-triggerG-view-delete-does-not-delete-underlying-select-row',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:string}> $initialRows
      * @return array<string,mixed>
      */

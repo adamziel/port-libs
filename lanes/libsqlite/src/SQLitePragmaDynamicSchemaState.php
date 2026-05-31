@@ -6,11 +6,11 @@ namespace PortLibs\LibSqlite;
 
 final class SQLitePragmaDynamicSchemaState
 {
-    /** @var array<string, array{cache_size:int,default_cache_size:int,freelist_count:int,schema_version:int,user_version:int,database_empty:bool}> */
+    /** @var array<string, array{cache_size:int,default_cache_size:int,freelist_count:int,page_count:int,max_page_count:int,schema_version:int,user_version:int,database_empty:bool}> */
     private array $schemas = [];
 
     /**
-     * @param array<string, array{cache_size?:int|string,default_cache_size?:int|string,freelist_count?:int|string,schema_version?:int|string,user_version?:int|string,database_empty?:bool}> $schemas
+     * @param array<string, array{cache_size?:int|string,default_cache_size?:int|string,freelist_count?:int|string,page_count?:int|string,max_page_count?:int|string,schema_version?:int|string,user_version?:int|string,database_empty?:bool}> $schemas
      */
     public function __construct(array $schemas = [])
     {
@@ -32,7 +32,7 @@ final class SQLitePragmaDynamicSchemaState
     /**
      * @return array{
      *     status:string,
-     *     pragma:'cache_size'|'default_cache_size'|'freelist_count'|'schema_version'|'user_version',
+     *     pragma:'cache_size'|'default_cache_size'|'freelist_count'|'page_count'|'max_page_count'|'schema_version'|'user_version',
      *     schema:string,
      *     requested:int|null,
      *     value:int,
@@ -52,18 +52,20 @@ final class SQLitePragmaDynamicSchemaState
             'cache_size' => $this->executeCacheSize($schema, $parsed['value']),
             'default_cache_size' => $this->executeDefaultCacheSize($schema, $parsed['value']),
             'freelist_count' => $this->executeFreelistCount($schema, $parsed['value']),
+            'page_count' => $this->executePageCount($schema, $parsed['value']),
+            'max_page_count' => $this->executeMaxPageCount($schema, $parsed['value']),
             'schema_version' => $this->executeVersion($schema, 'schema_version', $parsed['value']),
             'user_version' => $this->executeVersion($schema, 'user_version', $parsed['value']),
         };
     }
 
     /**
-     * @return array{schema:string,pragma:'cache_size'|'default_cache_size'|'freelist_count'|'schema_version'|'user_version',value:int|null}
+     * @return array{schema:string,pragma:'cache_size'|'default_cache_size'|'freelist_count'|'page_count'|'max_page_count'|'schema_version'|'user_version',value:int|null}
      */
     public static function parse(string $sql): array
     {
         $trimmed = rtrim(trim($sql), " \t\r\n;");
-        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>cache_size|default_cache_size|freelist_count|schema_version|user_version)(?:\s*(?:=\s*(?<equals>[+-]?\d+)|\(\s*(?<paren>[+-]?\d+)\s*\)))?$/i', $trimmed, $matches)) {
+        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>cache_size|default_cache_size|freelist_count|page_count|max_page_count|schema_version|user_version)(?:\s*(?:=\s*(?<equals>[+-]?\d+)|\(\s*(?<paren>[+-]?\d+)\s*\)))?$/i', $trimmed, $matches)) {
             throw new \InvalidArgumentException('Unsupported SQLite dynamic schema PRAGMA SQL');
         }
 
@@ -82,7 +84,7 @@ final class SQLitePragmaDynamicSchemaState
     }
 
     /**
-     * @return array<string, array{cache_size:int,default_cache_size:int,freelist_count:int,schema_version:int,user_version:int,database_empty:bool}>
+     * @return array<string, array{cache_size:int,default_cache_size:int,freelist_count:int,page_count:int,max_page_count:int,schema_version:int,user_version:int,database_empty:bool}>
      */
     public function schemas(): array
     {
@@ -90,16 +92,20 @@ final class SQLitePragmaDynamicSchemaState
     }
 
     /**
-     * @param array{cache_size?:int|string,default_cache_size?:int|string,freelist_count?:int|string,schema_version?:int|string,user_version?:int|string,database_empty?:bool} $state
-     * @return array{cache_size:int,default_cache_size:int,freelist_count:int,schema_version:int,user_version:int,database_empty:bool}
+     * @param array{cache_size?:int|string,default_cache_size?:int|string,freelist_count?:int|string,page_count?:int|string,max_page_count?:int|string,schema_version?:int|string,user_version?:int|string,database_empty?:bool} $state
+     * @return array{cache_size:int,default_cache_size:int,freelist_count:int,page_count:int,max_page_count:int,schema_version:int,user_version:int,database_empty:bool}
      */
     private function normalizeSchema(array $state): array
     {
         $default = self::signedInt($state['default_cache_size'] ?? 2000, 'SQLite default_cache_size');
+        $pageCount = self::nonNegativeInt($state['page_count'] ?? 0, 'SQLite page_count');
+        $maxPageCount = self::nonNegativeInt($state['max_page_count'] ?? max($pageCount, 1073741823), 'SQLite max_page_count');
         return [
             'cache_size' => self::signedInt($state['cache_size'] ?? $default, 'SQLite cache_size'),
             'default_cache_size' => $default,
             'freelist_count' => self::nonNegativeInt($state['freelist_count'] ?? 0, 'SQLite freelist_count'),
+            'page_count' => $pageCount,
+            'max_page_count' => max($pageCount, $maxPageCount),
             'schema_version' => self::nonNegativeInt($state['schema_version'] ?? 0, 'SQLite schema_version'),
             'user_version' => self::signedInt($state['user_version'] ?? 0, 'SQLite user_version'),
             'database_empty' => (bool) ($state['database_empty'] ?? true),
@@ -155,6 +161,35 @@ final class SQLitePragmaDynamicSchemaState
     }
 
     /**
+     * @return array{status:string,pragma:'page_count',schema:string,requested:int|null,value:int,changed:false,rows:list<array{page_count:int}>,reason:string|null,dependencies:list<string>}
+     */
+    private function executePageCount(string $schema, ?int $requested): array
+    {
+        $value = $this->schemas[$schema]['page_count'];
+
+        return $this->result('page_count', $schema, $requested, $value, false, $requested === null ? null : 'read_only_pragma_ignored', 'sqlite-pragma-page-count-state');
+    }
+
+    /**
+     * @return array{status:string,pragma:'max_page_count',schema:string,requested:int|null,value:int,changed:bool,rows:list<array{max_page_count:int}>,reason:string|null,dependencies:list<string>}
+     */
+    private function executeMaxPageCount(string $schema, ?int $requested): array
+    {
+        $before = $this->schemas[$schema]['max_page_count'];
+        $value = $before;
+        $reason = null;
+        if ($requested !== null) {
+            $requested = self::nonNegativeInt($requested, 'SQLite max_page_count');
+            $minimum = $this->schemas[$schema]['page_count'];
+            $value = max($minimum, $requested);
+            $this->schemas[$schema]['max_page_count'] = $value;
+            $reason = $requested < $minimum ? 'clamped_to_page_count' : null;
+        }
+
+        return $this->result('max_page_count', $schema, $requested, $value, $before !== $value, $reason, 'sqlite-pragma-max-page-count-state');
+    }
+
+    /**
      * @param 'schema_version'|'user_version' $pragma
      * @return array{status:string,pragma:'schema_version'|'user_version',schema:string,requested:int|null,value:int,changed:bool,rows:list<array<string,int>>,reason:string|null,dependencies:list<string>}
      */
@@ -174,7 +209,7 @@ final class SQLitePragmaDynamicSchemaState
     }
 
     /**
-     * @template T of 'cache_size'|'default_cache_size'|'freelist_count'|'schema_version'|'user_version'
+     * @template T of 'cache_size'|'default_cache_size'|'freelist_count'|'page_count'|'max_page_count'|'schema_version'|'user_version'
      * @param T $pragma
      * @return array{status:string,pragma:T,schema:string,requested:int|null,value:int,changed:bool,rows:list<array<string,int>>,reason:string|null,dependencies:list<string>}
      */

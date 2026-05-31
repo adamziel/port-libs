@@ -1148,4 +1148,57 @@ foreach ($roundMalformed as $name => $sql) {
     };
 }
 
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitMagnitude = $limitValue + ($seed % 2 === 0 ? 8 : 12);
+    $offsetMagnitude = $offsetValue + 7;
+    $limitExpr = "{$limitValue} + sign({$limitMagnitude}) - sign(-{$limitMagnitude}) - 2";
+    $offsetExpr = "{$offsetValue} + sign({$offsetMagnitude}) + sign(-{$offsetMagnitude})";
+    $sql = "UPDATE app_settings SET state = 'sign_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update sign expression window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitMagnitude = $limitValue + 5;
+    $offsetMagnitude = $offsetValue + 9;
+    $limitExpr = "{$limitValue} + sign({$limitMagnitude}) + sign(-{$limitMagnitude})";
+    $offsetExpr = "{$offsetValue} + sign({$offsetMagnitude}) + sign(-{$offsetMagnitude})";
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue sign subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+$signMalformed = [
+    'malformed sign null limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT sign(NULL)",
+    'malformed sign text limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT sign('abc')",
+    'malformed sign blob offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET sign(X'ABCD')",
+    'malformed sign arity rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT sign(1, 2)",
+];
+
+foreach ($signMalformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
+    };
+}
+
 return $tests;

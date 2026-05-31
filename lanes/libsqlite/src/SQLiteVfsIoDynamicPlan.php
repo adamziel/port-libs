@@ -2759,6 +2759,135 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @param array<string, bool> $installedCalls
+     * @return array<string, mixed>
+     */
+    public static function unixSystemCallRegistryProfile(array $installedCalls, ?string $operationName = null, ?bool $install = null, ?string $after = null): array
+    {
+        $supportedCalls = [
+            'open', 'close', 'access', 'getcwd', 'stat', 'fstat', 'ftruncate',
+            'fcntl', 'read', 'pread', 'write', 'pwrite', 'fchmod', 'fallocate',
+            'pread64', 'pwrite64', 'unlink', 'openDirectory', 'mkdir', 'rmdir',
+            'statvfs', 'fchown', 'geteuid', 'umask', 'mmap', 'munmap', 'mremap',
+            'getpagesize', 'readlink', 'lstat', 'ioctl',
+        ];
+        $supported = array_fill_keys($supportedCalls, true);
+        $state = [];
+        foreach ($installedCalls as $name => $enabled) {
+            if (!isset($supported[$name])) {
+                throw new \InvalidArgumentException("Unsupported SQLite unix system call: {$name}");
+            }
+            $state[$name] = (bool) $enabled;
+        }
+        foreach ($supportedCalls as $name) {
+            $state[$name] ??= false;
+        }
+
+        $operation = 'list';
+        $exists = null;
+        $notFound = false;
+        if ($operationName !== null) {
+            if ($operationName === '' || !isset($supported[$operationName])) {
+                $notFound = true;
+                $operation = 'notfound';
+            } elseif ($install === null) {
+                $operation = 'exists';
+                $exists = true;
+            } else {
+                $operation = $install ? 'install' : 'reset';
+                $state[$operationName] = $install;
+                $exists = true;
+            }
+        }
+
+        $enabled = array_values(array_filter($supportedCalls, static fn (string $name): bool => $state[$name]));
+        $next = null;
+        if (!$notFound) {
+            $start = $after === null ? -1 : array_search($after, $supportedCalls, true);
+            if ($after !== null && $start === false) {
+                throw new \InvalidArgumentException("Unsupported SQLite unix system call cursor: {$after}");
+            }
+            for ($i = (int) $start + 1, $n = count($supportedCalls); $i < $n; $i++) {
+                if ($state[$supportedCalls[$i]]) {
+                    $next = $supportedCalls[$i];
+                    break;
+                }
+            }
+        }
+
+        return [
+            'status' => $notFound ? 'error' : 'ok',
+            'script' => 'syscall.test',
+            'upstream' => [
+                'syscall.test 1.1.1-1.3.2 xSetSystemCall reset/install',
+                'syscall.test 2.1.1-2.1.2 xGetSystemCall exists',
+                'syscall.test 3.1 xNextSystemCall list',
+            ],
+            'default_vfs' => 'unix',
+            'supported_calls' => $supportedCalls,
+            'operation' => $operation,
+            'operation_name' => $operationName,
+            'exists' => $exists,
+            'not_found' => $notFound,
+            'enabled_calls' => $enabled,
+            'enabled_count' => count($enabled),
+            'next_after' => $after,
+            'next_enabled_call' => $next,
+            'result_code' => $notFound ? 'SQLITE_NOTFOUND' : 'SQLITE_OK',
+            'dependencies' => ['upstream-syscall-unix-vfs-registry', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function singleByteDatabaseOpenProfile(int $fileBytes): array
+    {
+        if ($fileBytes < 0) {
+            throw new \InvalidArgumentException('SQLite single-byte open profile requires a non-negative file size');
+        }
+
+        $treatedAsEmpty = $fileBytes <= 1;
+
+        return [
+            'status' => $treatedAsEmpty ? 'ok' : 'error',
+            'script' => 'syscall.test',
+            'upstream' => ['syscall.test 7.1', 'syscall.test 7.2', 'syscall.test 7.3'],
+            'file_bytes' => $fileBytes,
+            'treated_as_empty_database' => $treatedAsEmpty,
+            'create_table_allowed' => $treatedAsEmpty,
+            'result_code' => $treatedAsEmpty ? 'SQLITE_OK' : 'SQLITE_NOTADB',
+            'message' => $treatedAsEmpty ? '' : 'file is not a database',
+            'header_bytes_required_for_corrupt_detection' => 2,
+            'dependencies' => ['upstream-syscall-single-byte-open', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function fileControlChunkSizeHintProfile(int $chunkSize, int $sizeHint): array
+    {
+        if ($chunkSize < 1 || $sizeHint < 0) {
+            throw new \InvalidArgumentException('SQLite chunk-size file-control profile requires positive chunk size and non-negative hint');
+        }
+
+        $fileBytes = $sizeHint === 0 ? 0 : self::align(max($chunkSize, $sizeHint), $chunkSize);
+
+        return [
+            'status' => 'ok',
+            'script' => 'syscall.test',
+            'upstream' => ['syscall.test 8.1', 'syscall.test 8.2.1-8.2.5'],
+            'chunk_size' => $chunkSize,
+            'size_hint' => $sizeHint,
+            'file_bytes_after_hint' => $fileBytes,
+            'preallocated' => $fileBytes > 0,
+            'growth_rounded_to_chunk' => $fileBytes % $chunkSize === 0,
+            'dependencies' => ['upstream-syscall-file-control-sizehint', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     private static function safeDeleteJournalUpstream(string $scenario): array

@@ -722,7 +722,7 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : self::textLength((string) $value);
         }
-        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round)\s*\((.*)\)$/is', $expression, $match) === 1) {
+        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }
         $predicate = self::evaluateLimitPredicateExpression($expression);
@@ -946,8 +946,21 @@ final class SQLiteUpdateDeleteReturningSql
         if ($function === 'round' && count($parts) !== 1 && count($parts) !== 2) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT round() needs one or two arguments');
         }
+        if ($function === 'sign' && count($parts) !== 1) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT sign() needs one argument');
+        }
 
         $values = array_map(static fn (string $part): int|float|string|null => self::limitExpressionValue($part), $parts);
+        if ($function === 'sign') {
+            if ($values[0] === null) {
+                return null;
+            }
+            if (!is_int($values[0]) && !is_float($values[0]) && !(is_string($values[0]) && is_numeric($values[0]))) {
+                return null;
+            }
+
+            return (float) $values[0] <=> 0.0;
+        }
         if ($function === 'round') {
             if ($values[0] === null) {
                 return null;

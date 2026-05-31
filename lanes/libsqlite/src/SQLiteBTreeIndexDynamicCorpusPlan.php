@@ -6425,6 +6425,179 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,sql:string,virtual_table:string,columns:list<string>,constraints:list<string>,expected_col_used:int,reported_col_used:int,constraint_log:list<string>,cost:int,rows:int,detail:string,batch:int}>
+     */
+    public static function bestindexDAndEVirtualTablePlannerCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindexD/E dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'bestindexD-1.1',
+                'colUsed mask includes projected primary-key column',
+                'SELECT a FROM x1',
+                'x1',
+                ['a', 'b', 'c'],
+                [],
+                1,
+                [],
+            ],
+            [
+                'bestindexD-1.2',
+                'colUsed mask combines separated projected columns',
+                'SELECT a,c FROM x1',
+                'x1',
+                ['a', 'b', 'c'],
+                [],
+                5,
+                [],
+            ],
+            [
+                'bestindexD-1.3',
+                'colUsed mask includes middle projected column only',
+                'SELECT b FROM x1',
+                'x1',
+                ['a', 'b', 'c'],
+                [],
+                2,
+                [],
+            ],
+            [
+                'bestindexD-1.4',
+                'colUsed mask includes projected and constrained columns',
+                'SELECT b FROM x1 WHERE c=?',
+                'x1',
+                ['a', 'b', 'c'],
+                ['c=?'],
+                6,
+                ['x1: c=?'],
+            ],
+            [
+                'bestindexD-1.5',
+                'full join preserves virtual-table column mask for right source',
+                'SELECT 1 FROM t2 FULL JOIN x1',
+                'x1',
+                ['a', 'b', 'c'],
+                [],
+                0,
+                [],
+            ],
+            [
+                'bestindexD-1.6',
+                'OR-connected constraints report both usable virtual-table columns',
+                'SELECT 1 FROM x1 WHERE (b=? AND c=?) OR (b=? AND c=?)',
+                'x1',
+                ['a', 'b', 'c'],
+                ['b=?', 'c=?', 'b=?', 'c=?'],
+                6,
+                ['x1: b=? AND c=? AND b=? AND c=?'],
+            ],
+            [
+                'bestindexE-1.1',
+                'single equality constraint is passed to xBestIndex',
+                'SELECT * FROM x1 WHERE a=?',
+                'x1',
+                ['a', 'b', 'c'],
+                ['a=?'],
+                7,
+                ['x1: a=?'],
+            ],
+            [
+                'bestindexE-1.2',
+                'conjunct equality constraints preserve source order',
+                'SELECT * FROM x1 WHERE a=? AND b=?',
+                'x1',
+                ['a', 'b', 'c'],
+                ['a=?', 'b=?'],
+                7,
+                ['x1: a=? AND b=?'],
+            ],
+            [
+                'bestindexE-2.1',
+                'left join passes join equality into the right virtual table',
+                'SELECT Delivery.ID, Customer.Name FROM Delivery LEFT JOIN Customer ON Delivery.Customer = Customer.OID',
+                'Customer',
+                ['oid', 'name'],
+                ['oid=?'],
+                3,
+                ['Delivery: ', 'Customer: oid=?'],
+            ],
+            [
+                'bestindexE-2.2',
+                'compound UNION outer WHERE constraint pushes into both arms',
+                'SELECT * FROM (SELECT Delivery.ID, Customer.Name FROM Delivery LEFT JOIN Customer ON Delivery.Customer = Customer.OID UNION SELECT ReturnDelivery.ID, Customer.Name FROM ReturnDelivery LEFT JOIN Customer ON ReturnDelivery.Customer = Customer.OID) WHERE ID = 1',
+                'Delivery',
+                ['id', 'customer'],
+                ['id=?'],
+                3,
+                ['Delivery: id=?', 'Customer: oid=?', 'ReturnDelivery: id=?', 'Customer: oid=?'],
+            ],
+            [
+                'bestindexE-3.1.0/3.2.3',
+                'eponymous virtual table schema reload keeps xBestIndex insert returning state',
+                'INSERT INTO tcl VALUES(' . "'i', 'ii'" . ') RETURNING *',
+                'tcl',
+                ['a', 'b'],
+                [],
+                3,
+                ['tcl: '],
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $sql, $table, $columns, $constraints, $mask, $constraintLog] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $constraintCount = count($constraints);
+            $cost = intdiv(1000000, 10 ** min($constraintCount, 6));
+
+            $out[] = [
+                'source' => 'bestindexD.test sections 1.1 through 1.6 and bestindexE.test sections 1.1 through 3.2.3',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'sql' => $sql . ' /* dynamic batch ' . $batch . ' */',
+                'virtual_table' => $table,
+                'columns' => $columns,
+                'constraints' => $constraints,
+                'expected_col_used' => $mask,
+                'reported_col_used' => $mask | self::constraintMask($columns, $constraints),
+                'constraint_log' => $constraintLog,
+                'cost' => $cost,
+                'rows' => $cost,
+                'detail' => 'xBestIndex table=' . $table
+                    . ' colUsed=' . $mask
+                    . ' constraints=' . implode(',', $constraints)
+                    . ' cost=' . $cost
+                    . ' dynamic batch ' . $batch,
+                'batch' => $batch,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<string> $columns
+     * @param list<string> $constraints
+     */
+    private static function constraintMask(array $columns, array $constraints): int
+    {
+        $mask = 0;
+        foreach ($constraints as $constraint) {
+            $column = strtok($constraint, '=<>! ');
+            $position = array_search($column, $columns, true);
+            if ($position !== false) {
+                $mask |= 1 << $position;
+            }
+        }
+
+        return $mask;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

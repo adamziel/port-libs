@@ -4897,6 +4897,9 @@ final class SQLiteSelectSql
                 if ($operator === '|' && (($sql[$offset - 1] ?? null) === '|' || ($sql[$offset + 1] ?? null) === '|')) {
                     continue;
                 }
+                if ($operator === '-' && ($sql[$offset + 1] ?? null) === '>') {
+                    continue;
+                }
                 if (($operator === '+' || $operator === '-') && (self::isUnarySign($sql, $offset) || self::isExponentSign($sql, $offset))) {
                     continue;
                 }
