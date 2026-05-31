@@ -594,12 +594,213 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
         ];
     }
 
+    /** @return array<string,mixed> */
+    public static function trigger1LateRegressionCorpus(): array
+    {
+        $cases = [];
+        foreach (range(1, 160) as $seed) {
+            $baseB = 1 + ($seed % 17);
+            $beforeTriggerB = $baseB * 500;
+            $secondUpdateB = $baseB + 1;
+            $powerOfTwo = 1 << ($seed % 12);
+            $badPower = ($powerOfTwo * 2) + 1;
+            $blobRows = [
+                ['a' => 1, 'b' => '<blob>'],
+                ['a' => 2, 'b' => "'X'"],
+                ['a' => 3, 'b' => "'Z'"],
+            ];
+
+            $cases[] = [
+                'case' => 'trigger1-late-regression-' . $seed,
+                'source' => 'trigger1.test',
+                'scenarios' => [
+                    'trigger1-17.0',
+                    'trigger1-18.0',
+                    'trigger1-18.1',
+                    'trigger1-19.0',
+                    'trigger1-19.1',
+                    'trigger1-20.1',
+                    'trigger1-21.1',
+                    'trigger1-22.10',
+                    'trigger1-23.1',
+                    'trigger1-24.1',
+                    'trigger1-24.2',
+                ],
+                'variant' => $seed,
+                'primary_key_trigger' => [
+                    'case' => 'trigger1-17.0',
+                    'inserted_text_key' => (string) $seed,
+                    'after_insert_update' => ['tt' => (string) $seed, 'ss' => 4],
+                    'integrity_check' => 'ok',
+                    'primary_key_coercion_preserves_unique_text_key' => true,
+                ],
+                'before_update_value_preservation' => [
+                    'case' => 'trigger1-18.0',
+                    'initial' => ['a' => $seed, 'b' => $baseB, 'c' => 3],
+                    'before_trigger_write' => ['b' => $beforeTriggerB],
+                    'statement_update' => 'c=b',
+                    'final' => ['a' => $seed, 'b' => $beforeTriggerB, 'c' => $baseB],
+                    'uses_pre_trigger_source_value' => true,
+                ],
+                'before_update_assignment_order' => [
+                    'case' => 'trigger1-18.1',
+                    'initial' => ['a' => $seed, 'b' => $baseB, 'c' => 3],
+                    'before_trigger_write' => ['b' => $beforeTriggerB],
+                    'statement_update' => 'c=b, b=b+1',
+                    'final' => ['a' => $seed, 'b' => $secondUpdateB, 'c' => $baseB],
+                    'assignments_read_original_row_image' => true,
+                ],
+                'without_rowid_before_update' => [
+                    'case' => 'trigger1-19.0/19.1',
+                    'initial' => ['a' => $seed, 'b' => $baseB, 'c' => 3],
+                    'final_simple' => ['a' => $seed, 'b' => $baseB, 'c' => $baseB],
+                    'final_case' => ['a' => $seed, 'b' => $baseB, 'c' => $baseB === 2 ? 2 : $baseB + 99],
+                    'new_value_read_does_not_expire_register' => true,
+                ],
+                'temp_trigger_detach_drop' => [
+                    'case' => 'trigger1-20.1',
+                    'attached_schema' => 'aux',
+                    'temp_trigger' => 'r20_3',
+                    'drop_after_detach_ok' => true,
+                    'detached_schema_trigger_body_allowed_to_resolve_before_drop' => true,
+                ],
+                'recursive_replace_delete' => [
+                    'case' => 'trigger1-21.1',
+                    'recursive_triggers' => true,
+                    'initial_rows' => [[0, 0, 9], [1, 1, 1]],
+                    'replace_row' => [2, 0, 9],
+                    'final_rows' => [[2, 0, 9]],
+                    'after_delete_trigger_deletes_conflicting_rows_before_replace_insert' => true,
+                ],
+                'window_trigger_register_validity' => [
+                    'case' => 'trigger1-22.10',
+                    'insert_values' => ['Y', 'X', 'Z'],
+                    'final_rows' => $blobRows,
+                    'first_row_rewritten_to_blob_by_temp_before_insert_trigger' => true,
+                    'window_subquery_in_after_update_trigger_preserves_register_validity' => true,
+                ],
+                'syntax_error_rollback' => [
+                    'case' => 'trigger1-23.1',
+                    'statement' => 'INSERT INTO t1 SELECT e_master LIMIT 1,#1',
+                    'ok' => false,
+                    'error' => 'near "#1": syntax error',
+                    'trigger_not_installed' => true,
+                ],
+                'raise_expression' => [
+                    'case' => 'trigger1-24.1/24.2',
+                    'accepted_values' => [0, 1, 2, 4, 8, $powerOfTwo],
+                    'rejected_value' => $badPower,
+                    'error' => sprintf('attempt to insert %d where is not a power of 2', $badPower),
+                    'message_uses_new_row_expression' => true,
+                ],
+            ];
+        }
+
+        return [
+            'source' => 'trigger1.test',
+            'scenarios' => [
+                'trigger1-17.0',
+                'trigger1-18.0',
+                'trigger1-18.1',
+                'trigger1-19.0',
+                'trigger1-19.1',
+                'trigger1-20.1',
+                'trigger1-21.1',
+                'trigger1-22.10',
+                'trigger1-23.1',
+                'trigger1-24.1',
+                'trigger1-24.2',
+            ],
+            'cases' => $cases,
+            'dependencies' => [
+                'sqlite-upstream-trigger1-primary-key-trigger-integrity',
+                'sqlite-upstream-trigger1-before-update-uses-original-row-image',
+                'sqlite-upstream-trigger1-without-rowid-before-update-register-validity',
+                'sqlite-upstream-trigger1-temp-trigger-drop-after-detach',
+                'sqlite-upstream-trigger1-recursive-replace-delete-trigger',
+                'sqlite-upstream-trigger1-window-trigger-register-validity',
+                'sqlite-upstream-trigger1-syntax-error-does-not-install-trigger',
+                'sqlite-upstream-trigger1-raise-expression-message',
+            ],
+        ];
+    }
+
+    /** @return array<string,mixed> */
+    public static function trigger2ConflictPropagation(): array
+    {
+        $insertCases = [
+            'trigger2-6.1a' => ['statement' => 'INSERT INTO tbl VALUES (1,2,3)', 'outer_conflict' => '', 'status' => 'commit-ok', 'rows' => [[1, 2, 3]], 'trigger_rows' => [], 'rolled_back' => false],
+            'trigger2-6.1b' => ['statement' => 'INSERT OR ABORT INTO tbl VALUES (2,2,3)', 'outer_conflict' => 'abort', 'status' => 'constraint-failed', 'rows' => [[1, 2, 3]], 'trigger_rows' => [], 'rolled_back' => false],
+            'trigger2-6.1d' => ['statement' => 'INSERT OR FAIL INTO tbl VALUES (2,2,3)', 'outer_conflict' => 'fail', 'status' => 'constraint-failed', 'rows' => [[1, 2, 3], [2, 2, 3]], 'trigger_rows' => [], 'rolled_back' => false],
+            'trigger2-6.1f' => ['statement' => 'INSERT OR REPLACE INTO tbl VALUES (2,2,3)', 'outer_conflict' => 'replace', 'status' => 'commit-ok', 'rows' => [[1, 2, 3], [2, 0, 0]], 'trigger_rows' => [[2, 0, 0]], 'rolled_back' => false],
+            'trigger2-6.1g' => ['statement' => 'INSERT OR ROLLBACK INTO tbl VALUES (3,2,3)', 'outer_conflict' => 'rollback', 'status' => 'constraint-failed', 'rows' => [], 'trigger_rows' => [], 'rolled_back' => true],
+        ];
+
+        $updateCases = [
+            'trigger2-6.2a' => ['statement' => 'UPDATE tbl SET a=1 WHERE a=4', 'outer_conflict' => '', 'status' => 'commit-ok', 'rows' => [[1, 2, 10], [6, 3, 4]], 'trigger_rows' => [[1, 2, 10]], 'rolled_back' => false],
+            'trigger2-6.2b' => ['statement' => 'UPDATE OR ABORT tbl SET a=4 WHERE a=1', 'outer_conflict' => 'abort', 'status' => 'constraint-failed', 'rows' => [[1, 2, 10], [6, 3, 4]], 'trigger_rows' => [], 'rolled_back' => false],
+            'trigger2-6.2d' => ['statement' => 'UPDATE OR FAIL tbl SET a=4 WHERE a=1', 'outer_conflict' => 'fail', 'status' => 'constraint-failed', 'rows' => [[4, 2, 10], [6, 3, 4]], 'trigger_rows' => [], 'rolled_back' => false],
+            'trigger2-6.2f.1' => ['statement' => 'UPDATE OR REPLACE tbl SET a=1 WHERE a=4', 'outer_conflict' => 'replace', 'status' => 'commit-ok', 'rows' => [[1, 3, 10]], 'trigger_rows' => [[1, 3, 10]], 'rolled_back' => false],
+            'trigger2-6.2f.2' => ['statement' => 'INSERT INTO tbl VALUES (2,3,4)', 'outer_conflict' => '', 'status' => 'commit-ok', 'rows' => [[1, 3, 10], [2, 3, 4]], 'trigger_rows' => [], 'rolled_back' => false],
+            'trigger2-6.2g' => ['statement' => 'UPDATE OR ROLLBACK tbl SET a=4 WHERE a=1', 'outer_conflict' => 'rollback', 'status' => 'constraint-failed', 'rows' => [[4, 2, 3], [6, 3, 4]], 'trigger_rows' => [], 'rolled_back' => true],
+        ];
+
+        $cases = [];
+        foreach (range(1, 100) as $variant) {
+            foreach ($insertCases as $case => $config) {
+                $cases[] = self::trigger2ConflictCase($case, $variant, 'insert-trigger', 'INSERT OR IGNORE INTO tbl VALUES(new.a,0,0)', $config);
+            }
+            foreach ($updateCases as $case => $config) {
+                $cases[] = self::trigger2ConflictCase($case, $variant, 'update-trigger', 'UPDATE OR IGNORE tbl SET a=new.a,c=10', $config);
+            }
+        }
+
+        return [
+            'source' => 'trigger2.test',
+            'scenarios' => array_merge(array_keys($insertCases), array_keys($updateCases)),
+            'cases' => $cases,
+            'dependencies' => [
+                'sqlite-upstream-trigger2-outer-conflict-policy-controls-trigger-insert-conflict',
+                'sqlite-upstream-trigger2-outer-conflict-policy-controls-trigger-update-conflict',
+                'sqlite-upstream-trigger2-fail-preserves-statement-row-before-trigger-conflict',
+                'sqlite-upstream-trigger2-rollback-conflict-rolls-back-transaction',
+                'sqlite-upstream-trigger2-replace-conflict-replaces-trigger-target-row',
+            ],
+        ];
+    }
+
     /** @param list<mixed> $args */
     private static function trigger6Counter(int &$counter, array $args): int
     {
         $counter++;
 
         return $counter;
+    }
+
+    /**
+     * @param array<string,mixed> $config
+     * @return array<string,mixed>
+     */
+    private static function trigger2ConflictCase(string $case, int $variant, string $triggerKind, string $triggerBody, array $config): array
+    {
+        return [
+            'case' => $case,
+            'variant' => $variant,
+            'source' => 'trigger2.test',
+            'section' => 'trigger2-6',
+            'trigger_kind' => $triggerKind,
+            'trigger_body' => $triggerBody,
+            'statement' => $config['statement'],
+            'outer_conflict' => $config['outer_conflict'],
+            'status' => $config['status'],
+            'final_rows' => $config['rows'],
+            'trigger_rows' => $config['trigger_rows'],
+            'rolled_back' => $config['rolled_back'],
+            'error' => $config['status'] === 'constraint-failed' ? 'UNIQUE constraint failed: tbl.a' : null,
+            'statement_changes_preserved' => $config['outer_conflict'] === 'fail',
+            'transaction_rolled_back' => $config['outer_conflict'] === 'rollback',
+            'replace_changed_trigger_target' => $config['outer_conflict'] === 'replace',
+        ];
     }
 
     /**

@@ -2306,4 +2306,73 @@ foreach ($mathMalformed as $name => $sql) {
     };
 }
 
+for ($seed = 1; $seed <= 48; $seed++) {
+    $offsetValue = $seed % 3;
+    $limitExpr = match ($seed % 4) {
+        0 => '2 IS TRUE',
+        1 => "'1english' IS TRUE",
+        2 => '0 IS NOT TRUE',
+        default => 'NULL IS NOT TRUE',
+    };
+    $offsetExpr = $offsetValue === 0
+        ? '0 IS FALSE'
+        : "{$offsetValue} IS TRUE";
+    $effectiveLimit = 1;
+    $effectiveOffset = $offsetValue === 0 ? 1 : 1;
+    $sql = "UPDATE app_settings SET state = 'is_true_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $effectiveOffset, $effectiveLimit);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update is true limit window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same(1, $result['plan']->toArray()['limit']);
+            $t->same(1, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = $seed % 2 === 0
+        ? '5 IS NOT FALSE'
+        : "'0' IS FALSE";
+    $offsetExpr = $offsetValue === 0
+        ? 'NULL IS NOT FALSE'
+        : "{$offsetValue} IS TRUE";
+    $effectiveLimit = 1;
+    $effectiveOffset = $offsetValue === 0 ? 1 : 1;
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $effectiveOffset, $effectiveLimit)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue is false subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+$truthPredicateCases = [
+    'parse numeric true truth limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 2 IS TRUE")['limit'], 1],
+    'parse numeric false truth limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 2 IS FALSE")['limit'], 0],
+    'parse null is not true offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET NULL IS NOT TRUE")['offset'], 1],
+    'parse null is not false offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET NULL IS NOT FALSE")['offset'], 1],
+    'parse text zero is false limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT '0' IS FALSE")['limit'], 1],
+    'parse text numeric prefix is true limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT '2abc' IS TRUE")['limit'], 1],
+    'malformed missing truth left operand rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT IS TRUE"), InvalidArgumentException::class],
+];
+
+foreach ($truthPredicateCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            return;
+        }
+        $t->same($expected, $callback());
+    };
+}
+
 return $tests;

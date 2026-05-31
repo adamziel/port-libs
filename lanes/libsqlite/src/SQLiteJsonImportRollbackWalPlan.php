@@ -1059,6 +1059,63 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicFrameHeaderMismatchScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL frame-header dynamic parity requires at least one scenario');
+        }
+
+        $prefixScenarios = self::dynamicPreexistingWalScenarios($scenarioCount);
+        $scenarios = [];
+        foreach ($prefixScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $pageSize = (int) $base['page_size'];
+            $frameSize = 24 + $pageSize;
+            $targetFrame = (int) $base['preexisting_frames'] + 1;
+            $walBytes = (string) $base['wal_bytes'];
+            $corruption = $seed % 2 === 0 ? 'zero_page' : 'salt_mismatch';
+            $frameOffset = 32 + (($targetFrame - 1) * $frameSize);
+            $corruptWalBytes = $corruption === 'zero_page'
+                ? substr_replace($walBytes, pack('N', 0), $frameOffset, 4)
+                : substr_replace($walBytes, pack('N', 0x91000000 + $seed), $frameOffset + 8, 4);
+            $exceptionMessage = null;
+
+            try {
+                self::plan(
+                    $base['input_rows'],
+                    $base['input_mutations'],
+                    [
+                        'database_bytes' => $base['database_bytes'],
+                        'page_size' => $pageSize,
+                        'wal_bytes' => $corruptWalBytes,
+                        'transaction' => 'application_frame_header_wal_' . $seed,
+                        'savepoint' => 'frame_header_wal_batch_' . $seed,
+                        'pre_savepoint_wal_pages' => $base['pre_savepoint_wal_pages'],
+                    ]
+                );
+            } catch (\InvalidArgumentException $exception) {
+                $exceptionMessage = $exception->getMessage();
+            }
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $base['tenant_id'],
+                'page_size' => $pageSize,
+                'preexisting_frames' => $base['preexisting_frames'],
+                'target_frame' => $targetFrame,
+                'corruption' => $corruption,
+                'frame_offset' => $frameOffset,
+                'corrupt_wal_bytes' => $corruptWalBytes,
+                'exception_message' => $exceptionMessage,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
      * @param array<string,mixed> $importPlan
      */
     private static function assertRollbackFramesExist(array $importPlan, int $walFrameCount): void
@@ -1139,9 +1196,30 @@ final class SQLiteJsonImportRollbackWalPlan
         if ($frameBytes % $frameSize !== 0) {
             throw new \InvalidArgumentException('SQLite Application JSON import rollback WAL bytes have a partial frame tail');
         }
+        $frameCount = intdiv($frameBytes, $frameSize);
+        for ($frame = 1; $frame <= $frameCount; $frame++) {
+            $offset = 32 + (($frame - 1) * $frameSize);
+            $frameHeader = unpack(
+                'Npage_number/Ncommit/Nsalt_1/Nsalt_2/Nchecksum_1/Nchecksum_2',
+                substr($walBytes, $offset, 24)
+            );
+            if (!is_array($frameHeader)) {
+                throw new \InvalidArgumentException('SQLite Application JSON import rollback WAL frame header is incomplete');
+            }
+            if ((int) $frameHeader['page_number'] < 1) {
+                throw new \InvalidArgumentException(
+                    'SQLite Application JSON import rollback WAL frame ' . $frame . ' has an invalid page number'
+                );
+            }
+            if ((int) $frameHeader['salt_1'] !== (int) $header['salt_1'] || (int) $frameHeader['salt_2'] !== (int) $header['salt_2']) {
+                throw new \InvalidArgumentException(
+                    'SQLite Application JSON import rollback WAL frame ' . $frame . ' salt does not match the WAL header'
+                );
+            }
+        }
 
         return [
-            'frame_count' => intdiv($frameBytes, $frameSize),
+            'frame_count' => $frameCount,
             'frame_size' => $frameSize,
         ];
     }

@@ -969,6 +969,45 @@ final class SQLiteWindowFunction
 
     /**
      * @param iterable<mixed> $values
+     * @param iterable<mixed> $indexOrderKeys
+     * @return list<string|null>
+     */
+    public static function groupConcatIndexedCustomRangeValues(
+        iterable $values,
+        iterable $indexOrderKeys,
+        callable $runtimeComparator,
+        string $separator = ',',
+        bool $useRuntimePrefixFrame = false,
+    ): array {
+        $rows = self::rows($values);
+        $keys = self::rows($indexOrderKeys);
+        if (count($rows) !== count($keys)) {
+            throw new \InvalidArgumentException('SQLite window values and ORDER BY keys must have the same row count');
+        }
+
+        $indexOrder = range(0, count($rows) - 1);
+        usort($indexOrder, static function (int $left, int $right) use ($keys): int {
+            return self::compareSqlValues($keys[$left], $keys[$right]) ?: ($left <=> $right);
+        });
+
+        $result = [];
+        foreach ($indexOrder as $position => $rowIndex) {
+            $frame = [];
+            foreach (array_slice($indexOrder, 0, $position + 1) as $candidateIndex) {
+                $comparison = self::normalizeComparison($runtimeComparator($keys[$candidateIndex], $keys[$rowIndex]));
+                if ($useRuntimePrefixFrame ? $comparison >= 0 : $comparison === 0) {
+                    $frame[] = $rows[$candidateIndex];
+                }
+            }
+
+            $result[] = self::groupConcatFrameValues($frame, $separator);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param iterable<mixed> $values
      * @param iterable<mixed> $orderKeys
      * @param iterable<bool|int|float|string|null>|null $filters
      * @return list<array{count:int,sum:int|float|null,groupConcat:string|null,frame:list<int>}>

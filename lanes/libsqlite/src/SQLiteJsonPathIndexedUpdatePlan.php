@@ -40,7 +40,11 @@ final class SQLiteJsonPathIndexedUpdatePlan
                 if (!is_string($path)) {
                     throw new \InvalidArgumentException('SQLite JSON indexed UPDATE mutation path must be text');
                 }
-                $json = SQLiteJsonMutation::mutateSqlFunction($function, $json, $path, $mutation['value'] ?? null);
+                if ($function === 'json_remove' || $function === 'jsonb_remove') {
+                    $json = SQLiteJsonRemove::removeSqlFunction($function, $json, $path);
+                } else {
+                    $json = SQLiteJsonMutation::mutateSqlFunction($function, $json, $path, $mutation['value'] ?? null);
+                }
             }
             if ($json instanceof SQLiteBlobValue) {
                 $json = SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decode($json->bytes));

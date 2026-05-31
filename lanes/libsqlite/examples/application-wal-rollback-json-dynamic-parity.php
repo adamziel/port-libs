@@ -14,6 +14,7 @@ $deferredScenarios = SQLiteJsonImportRollbackWalPlan::dynamicDeferredFailureScen
 $preexistingRetryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalRetryScenarios(4);
 $missingWalTailScenarios = SQLiteJsonImportRollbackWalPlan::dynamicMissingWalTailScenarios(4);
 $partialWalTailScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPartialWalTailScenarios(4);
+$frameHeaderMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFrameHeaderMismatchScenarios(4);
 $summary = [
     'scenario' => 'application-wal-rollback-json-dynamic-parity',
     'scenarioCount' => count($scenarios),
@@ -24,6 +25,7 @@ $summary = [
     'preexistingRetryScenarioCount' => count($preexistingRetryScenarios),
     'missingWalTailScenarioCount' => count($missingWalTailScenarios),
     'partialWalTailScenarioCount' => count($partialWalTailScenarios),
+    'frameHeaderMismatchScenarioCount' => count($frameHeaderMismatchScenarios),
     'statuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $scenarios),
     'preexistingWalStatuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $preexistingWalScenarios),
     'tenantCollisionStatuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $tenantCollisionScenarios),
@@ -47,6 +49,9 @@ $summary = [
     'partialWalTailMessages' => array_map(static fn (array $scenario): ?string => $scenario['exception_message'], $partialWalTailScenarios),
     'partialWalTailCompleteFrameCounts' => array_map(static fn (array $scenario): int => $scenario['complete_frame_count'], $partialWalTailScenarios),
     'partialWalTailPayloadBytes' => array_map(static fn (array $scenario): int => $scenario['partial_payload_bytes'], $partialWalTailScenarios),
+    'frameHeaderMismatchMessages' => array_map(static fn (array $scenario): ?string => $scenario['exception_message'], $frameHeaderMismatchScenarios),
+    'frameHeaderMismatchTargetFrames' => array_map(static fn (array $scenario): int => $scenario['target_frame'], $frameHeaderMismatchScenarios),
+    'frameHeaderMismatchCorruptions' => array_map(static fn (array $scenario): string => $scenario['corruption'], $frameHeaderMismatchScenarios),
     'restoredPages' => array_map(static fn (array $scenario): array => $scenario['plan']['rollback_to_savepoint']['restored_page_numbers'], $scenarios),
 ];
 
@@ -59,6 +64,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['preexistingRetryScenarioCount'] === 4);
     assert($summary['missingWalTailScenarioCount'] === 4);
     assert($summary['partialWalTailScenarioCount'] === 4);
+    assert($summary['frameHeaderMismatchScenarioCount'] === 4);
     assert($summary['statuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['preexistingWalStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['tenantCollisionStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
@@ -81,6 +87,10 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['partialWalTailMessages'] === array_fill(0, 4, 'SQLite Application JSON import rollback WAL bytes have a partial frame tail'));
     assert($summary['partialWalTailCompleteFrameCounts'] === [4, 5, 6, 3]);
     assert($summary['partialWalTailPayloadBytes'] === [38, 75, 112, 149]);
+    assert($summary['frameHeaderMismatchTargetFrames'] === [4, 5, 6, 3]);
+    assert($summary['frameHeaderMismatchCorruptions'] === ['salt_mismatch', 'zero_page', 'salt_mismatch', 'zero_page']);
+    assert($summary['frameHeaderMismatchMessages'][0] === 'SQLite Application JSON import rollback WAL frame 4 salt does not match the WAL header');
+    assert($summary['frameHeaderMismatchMessages'][1] === 'SQLite Application JSON import rollback WAL frame 5 has an invalid page number');
     assert($summary['restoredPages'][0] === [3, 11]);
     fwrite(STDOUT, "application-wal-rollback-json-dynamic-parity self-test passed\n");
     return;

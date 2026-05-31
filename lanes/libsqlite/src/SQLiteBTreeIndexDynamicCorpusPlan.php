@@ -547,6 +547,88 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,statement:string,statement_kind:string,indexed_by:string|null,not_indexed:bool,table_name:string,where_terms:list<string>,result_code:int,error:string|null,uses_index:bool,index_name:string|null,uses_rowid:bool,detail:string,mutates_rows:bool,rowid_rewrite:bool,integrity:string}>
+     */
+    public static function indexedByDmlAndRowidScanCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite indexedby DML and rowid scan corpus requires at least one case');
+        }
+
+        $templates = [
+            self::indexedByDmlCase('indexedby-6.1', 'SELECT * FROM t1 WHERE b = 10 ORDER BY rowid', 'select', null, false, 't1', ['b=?'], 0, null, true, 'i2', false, 'SEARCH t1 USING INDEX i2 (b=?)', false, false),
+            self::indexedByDmlCase('indexedby-6.2', 'SELECT * FROM t1 NOT INDEXED WHERE b = 10 ORDER BY rowid', 'select', null, true, 't1', ['b=?'], 0, null, false, null, false, 'SCAN t1 because NOT INDEXED disables i2', false, false),
+            self::indexedByDmlCase('indexedby-7.1', 'DELETE FROM t1 WHERE a = 5', 'delete', null, false, 't1', ['a=?'], 0, null, true, 'i1', false, 'SEARCH t1 USING INDEX i1 (a=?)', true, false),
+            self::indexedByDmlCase('indexedby-7.2', 'DELETE FROM t1 NOT INDEXED WHERE a = 5', 'delete', null, true, 't1', ['a=?'], 0, null, false, null, false, 'SCAN t1 because NOT INDEXED disables i1 for DELETE', true, false),
+            self::indexedByDmlCase('indexedby-7.3', 'DELETE FROM t1 INDEXED BY i1 WHERE a = 5', 'delete', 'i1', false, 't1', ['a=?'], 0, null, true, 'i1', false, 'SEARCH t1 USING INDEX i1 (a=?)', true, false),
+            self::indexedByDmlCase('indexedby-7.4', 'DELETE FROM t1 INDEXED BY i1 WHERE a = 5 AND b = 10', 'delete', 'i1', false, 't1', ['a=?', 'b=?'], 0, null, true, 'i1', false, 'SEARCH t1 USING INDEX i1 (a=?)', true, false),
+            self::indexedByDmlCase('indexedby-7.5', 'DELETE FROM t1 INDEXED BY i2 WHERE a = 5 AND b = 10', 'delete', 'i2', false, 't1', ['a=?', 'b=?'], 0, null, true, 'i2', false, 'SEARCH t1 USING INDEX i2 (b=?)', true, false),
+            self::indexedByDmlCase('indexedby-7.6', 'DELETE FROM t1 INDEXED BY i2 WHERE a = 5', 'delete', 'i2', false, 't1', ['a=?'], 0, null, true, 'i2', false, 'forced i2 remains legal for DELETE even when only a residual a=? term is available', true, false),
+            self::indexedByDmlCase('indexedby-8.1', 'UPDATE t1 SET rowid=rowid+1 WHERE a = 5', 'update', null, false, 't1', ['a=?'], 0, null, true, 'i1', false, 'SEARCH t1 USING COVERING INDEX i1 (a=?)', true, true),
+            self::indexedByDmlCase('indexedby-8.2', 'UPDATE t1 NOT INDEXED SET rowid=rowid+1 WHERE a = 5', 'update', null, true, 't1', ['a=?'], 0, null, false, null, false, 'SCAN t1 because NOT INDEXED disables i1 for UPDATE row discovery', true, true),
+            self::indexedByDmlCase('indexedby-8.3', 'UPDATE t1 INDEXED BY i1 SET rowid=rowid+1 WHERE a = 5', 'update', 'i1', false, 't1', ['a=?'], 0, null, true, 'i1', false, 'SEARCH t1 USING COVERING INDEX i1 (a=?)', true, true),
+            self::indexedByDmlCase('indexedby-8.4', 'UPDATE t1 INDEXED BY i1 SET rowid=rowid+1 WHERE a = 5 AND b = 10', 'update', 'i1', false, 't1', ['a=?', 'b=?'], 0, null, true, 'i1', false, 'SEARCH t1 USING INDEX i1 (a=?)', true, true),
+            self::indexedByDmlCase('indexedby-8.5', 'UPDATE t1 INDEXED BY i2 SET rowid=rowid+1 WHERE a = 5 AND b = 10', 'update', 'i2', false, 't1', ['a=?', 'b=?'], 0, null, true, 'i2', false, 'SEARCH t1 USING INDEX i2 (b=?)', true, true),
+            self::indexedByDmlCase('indexedby-8.6', 'UPDATE t1 INDEXED BY i2 SET rowid=rowid+1 WHERE a = 5', 'update', 'i2', false, 't1', ['a=?'], 0, null, true, 'i2', false, 'forced i2 remains legal for UPDATE even when only a residual a=? term is available', true, true),
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $template['case'] = $case;
+            $template['batch'] = intdiv($case - 1, count($templates)) + 1;
+            $template['detail'] .= '; indexedby DML replay ' . $template['batch'];
+            $out[] = $template;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<string> $whereTerms
+     * @return array{source:string,case:int,upstream_section:string,batch:int,statement:string,statement_kind:string,indexed_by:string|null,not_indexed:bool,table_name:string,where_terms:list<string>,result_code:int,error:string|null,uses_index:bool,index_name:string|null,uses_rowid:bool,detail:string,mutates_rows:bool,rowid_rewrite:bool,integrity:string}
+     */
+    private static function indexedByDmlCase(
+        string $section,
+        string $statement,
+        string $statementKind,
+        ?string $indexedBy,
+        bool $notIndexed,
+        string $tableName,
+        array $whereTerms,
+        int $resultCode,
+        ?string $error,
+        bool $usesIndex,
+        ?string $indexName,
+        bool $usesRowid,
+        string $detail,
+        bool $mutatesRows,
+        bool $rowidRewrite,
+    ): array {
+        return [
+            'source' => 'indexedby.test sections indexedby-6.1 through indexedby-8.6',
+            'case' => 0,
+            'upstream_section' => $section,
+            'batch' => 0,
+            'statement' => $statement,
+            'statement_kind' => $statementKind,
+            'indexed_by' => $indexedBy,
+            'not_indexed' => $notIndexed,
+            'table_name' => $tableName,
+            'where_terms' => $whereTerms,
+            'result_code' => $resultCode,
+            'error' => $error,
+            'uses_index' => $usesIndex,
+            'index_name' => $indexName,
+            'uses_rowid' => $usesRowid,
+            'detail' => $detail,
+            'mutates_rows' => $mutatesRows,
+            'rowid_rewrite' => $rowidRewrite,
+            'integrity' => $resultCode === 0 ? 'ok' : 'expected-error',
+        ];
+    }
+
+    /**
      * @return list<array{upstream:string,step:int,operation:string,source_a:string,source_b:int,inserted_a:string|null,inserted_b:int|null,deleted_a:string|null,t1_count:int,t2_count:int}>
      */
     public static function btree02CursorMutationCases(): array
@@ -8755,6 +8837,104 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
         }
 
         return $rows;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,stat1_rows:list<array{idx:string,stat:string}>,or_terms:list<string>,range_terms:list<string>,chosen_indexes:list<string>,rejected_plan_terms:list<string>,uses_multi_index_or:bool,uses_any_skip_scan:bool,detail:string,integrity:string}>
+     */
+    public static function whereJMultiIndexRangeCostCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite whereJ multi-index range-cost corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'whereJ-5.1/5.2/5.3',
+                'range-cost planner selects t1abe and t1abf for split e/f OR terms',
+                "SELECT * FROM t1 WHERE (a=1 OR a=2) AND (b=3 OR b=4) AND (d>=5 AND d<=5) AND ((e>=7 AND e<=7) OR (f>=8 AND f<=8)) AND g>0",
+                [
+                    ['idx' => 't1abc', 'stat' => '2000000 8000 1600 800'],
+                    ['idx' => 't1abe', 'stat' => '2000000 8000 1600 150'],
+                    ['idx' => 't1abf', 'stat' => '2000000 8000 1600 150'],
+                ],
+                ['a=1 OR a=2', 'b=3 OR b=4', 'e=7 OR f=8'],
+                ['d>=5', 'd<=5', 'e>=7', 'e<=7', 'f>=8', 'f<=8', 'g>0'],
+                ['t1abe', 't1abf'],
+                ['ANY(a)', 'ANY(b)', 't1abc chosen for both OR arms'],
+            ],
+            [
+                'whereJ-5.1/5.2',
+                'e arm uses t1abe because stat1 third-key selectivity beats t1abc',
+                "SELECT * FROM t1 WHERE a IN (1,2) AND b IN (3,4) AND e BETWEEN 7 AND 7 AND d BETWEEN 5 AND 5 AND g>0",
+                [
+                    ['idx' => 't1abc', 'stat' => '2000000 8000 1600 800'],
+                    ['idx' => 't1abe', 'stat' => '2000000 8000 1600 150'],
+                    ['idx' => 't1abf', 'stat' => '2000000 8000 1600 150'],
+                ],
+                ['a=1 OR a=2', 'b=3 OR b=4'],
+                ['e>=7', 'e<=7', 'd>=5', 'd<=5', 'g>0'],
+                ['t1abe'],
+                ['ANY(a)', 'ANY(b)', 't1abc selected despite weaker e selectivity'],
+            ],
+            [
+                'whereJ-5.1/5.3',
+                'f arm uses t1abf because stat1 third-key selectivity beats t1abc',
+                "SELECT * FROM t1 WHERE a IN (1,2) AND b IN (3,4) AND f BETWEEN 8 AND 8 AND d BETWEEN 5 AND 5 AND g>0",
+                [
+                    ['idx' => 't1abc', 'stat' => '2000000 8000 1600 800'],
+                    ['idx' => 't1abe', 'stat' => '2000000 8000 1600 150'],
+                    ['idx' => 't1abf', 'stat' => '2000000 8000 1600 150'],
+                ],
+                ['a=1 OR a=2', 'b=3 OR b=4'],
+                ['f>=8', 'f<=8', 'd>=5', 'd<=5', 'g>0'],
+                ['t1abf'],
+                ['ANY(a)', 'ANY(b)', 't1abc selected despite weaker f selectivity'],
+            ],
+            [
+                'whereJ-4.2',
+                'join order keeps cx as the scan outer loop before searching px and le',
+                "SELECT px.name, px.description FROM le, cx, px WHERE cx.code='2990' AND cx.type=2 AND px.cx_id=cx.cx_id AND px.px_tid=0 AND px.le_id=le.le_id",
+                [
+                    ['idx' => 'cx_code_type', 'stat' => '280 280 2'],
+                    ['idx' => 'p_pt', 'stat' => '11680827 89824 1'],
+                    ['idx' => 'p_cid0', 'stat' => '11680827 3867 1'],
+                ],
+                ['cx.code=2990', 'cx.type=2'],
+                ['px.cx_id=cx.cx_id', 'px.px_tid=0', 'px.le_id=le.le_id'],
+                ['cx scan', 'p_cid0', 'le primary key'],
+                ['outer search px using p_pt before cx', 'middle cx after px'],
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $stat1Rows, $orTerms, $rangeTerms, $chosenIndexes, $rejectedPlanTerms] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $usesMultiIndexOr = count($chosenIndexes) > 1 && in_array('t1abe', $chosenIndexes, true) && in_array('t1abf', $chosenIndexes, true);
+
+            $out[] = [
+                'source' => 'whereJ.test sections whereJ-4.2 and whereJ-5.1 through whereJ-5.3',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario . ' dynamic replay ' . $batch,
+                'statement' => $statement,
+                'stat1_rows' => $stat1Rows,
+                'or_terms' => $orTerms,
+                'range_terms' => $rangeTerms,
+                'chosen_indexes' => $chosenIndexes,
+                'rejected_plan_terms' => $rejectedPlanTerms,
+                'uses_multi_index_or' => $usesMultiIndexOr,
+                'uses_any_skip_scan' => false,
+                'detail' => $usesMultiIndexOr
+                    ? 'MULTI-INDEX OR using t1abe for e range and t1abf for f range; no ANY skip-scan'
+                    : 'planner keeps the selective range/join order without ANY skip-scan',
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
     }
 
     /**

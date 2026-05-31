@@ -425,6 +425,58 @@ final class SQLiteVfsIoTrafficPlan
     }
 
     /**
+     * @return array{script:string,scenario:string,persistent:bool,fault_index:int,cache_pages:int,auto_vacuum:string,tables:list<string>,setup_rows_per_table:int,updated_tables:list<string>,deleted_tables:list<string>,commit_attempted:bool,result_code:string,rollback_attempted:bool,pointer_map_checked:bool,freelist_consistent:bool,checksum_preserved:bool,integrity_check:string,pager_refcount:int,open_file_count:int,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function ioerr2AutoVacuumCommitFault(
+        string $scenario,
+        int $faultIndex,
+        bool $persistent = false,
+        int $setupRowsPerTable = 128,
+        int $cachePages = 10
+    ): array {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite ioerr2 auto-vacuum commit fault requires a scenario');
+        }
+        if ($faultIndex < 1) {
+            throw new \InvalidArgumentException('SQLite ioerr2 auto-vacuum commit fault requires a positive fault index');
+        }
+        if ($setupRowsPerTable < 1 || $cachePages < 1) {
+            throw new \InvalidArgumentException('SQLite ioerr2 auto-vacuum commit fault requires positive row and cache counts');
+        }
+
+        $faultDetected = $faultIndex % 29 !== 0;
+
+        return [
+            'script' => 'ioerr2.test',
+            'scenario' => $scenario,
+            'persistent' => $persistent,
+            'fault_index' => $faultIndex,
+            'cache_pages' => $cachePages,
+            'auto_vacuum' => 'full',
+            'tables' => ['ab', 'de'],
+            'setup_rows_per_table' => $setupRowsPerTable,
+            'updated_tables' => ['ab', 'de'],
+            'deleted_tables' => ['ab'],
+            'commit_attempted' => true,
+            'result_code' => $faultDetected ? 'disk I/O error' : 'ok',
+            'rollback_attempted' => $faultDetected,
+            'pointer_map_checked' => true,
+            'freelist_consistent' => true,
+            'checksum_preserved' => true,
+            'integrity_check' => 'ok',
+            'pager_refcount' => 0,
+            'open_file_count' => 0,
+            'dependencies' => [
+                'sqlite-upstream-ioerr2-test',
+                'sqlite-auto-vacuum-pointer-map',
+                'sqlite-ioerr-commit-recovery',
+                'sqlite-pager-refcount-cleanup',
+            ],
+            'upstream' => ['ioerr2.test ioerr2-7 auto-vacuum update-delete commit faultsim'],
+        ];
+    }
+
+    /**
      * @return array{script:string,scenario:string,soft_heap_limit:int,cache_pages:int,rows_inserted:int,row_payload_bytes:int,fault_index:int,temp_table:bool,transaction_opened:bool,commit_attempted:bool,rollback_attempted:bool,pager_cache_pressure:bool,memory_reclaim_attempted:bool,pager_error_state:bool,result_code:string,integrity_check:string,open_file_count:int,dependencies:list<string>,upstream:list<string>}
      */
     public static function softHeapIoErrorStress(

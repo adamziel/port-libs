@@ -943,6 +943,18 @@ final class SQLiteUpdateDeleteReturningSql
             return ['matched' => true, 'value' => self::negateNullable($inner['value'])];
         }
 
+        $truth = self::splitLimitTruthPredicate($expression);
+        if ($truth !== null) {
+            $value = self::limitExpressionValue($truth['value']);
+            $truthValue = self::sqliteTruthValue($value);
+            $result = match ($truth['predicate']) {
+                'TRUE' => $truthValue === true,
+                'FALSE' => $truthValue === false,
+            };
+
+            return ['matched' => true, 'value' => $truth['not'] ? !$result : $result];
+        }
+
         $between = self::splitLimitBetween($expression);
         if ($between !== null) {
             $value = self::limitExpressionValue($between['value']);
@@ -1007,6 +1019,32 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return ['matched' => false, 'value' => null];
+    }
+
+    /**
+     * @return array{value:string,predicate:string,not:bool}|null
+     */
+    private static function splitLimitTruthPredicate(string $sql): ?array
+    {
+        foreach (['IS NOT TRUE', 'IS NOT FALSE', 'IS TRUE', 'IS FALSE'] as $keyword) {
+            $position = self::topLevelKeywordPosition($sql, $keyword);
+            if ($position === null) {
+                continue;
+            }
+
+            $value = trim(substr($sql, 0, $position));
+            if ($value === '') {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT IS TRUE/FALSE needs a left operand');
+            }
+
+            return [
+                'value' => $value,
+                'predicate' => str_ends_with($keyword, 'TRUE') ? 'TRUE' : 'FALSE',
+                'not' => str_contains($keyword, 'NOT'),
+            ];
+        }
+
+        return null;
     }
 
     private static function limitNumericValue(string $expression): int|float

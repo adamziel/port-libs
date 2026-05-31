@@ -14,6 +14,7 @@ $retryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRetryAfterRollbackScen
 $preexistingRetryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalRetryScenarios(18);
 $missingWalTailScenarios = SQLiteJsonImportRollbackWalPlan::dynamicMissingWalTailScenarios(18);
 $partialWalTailScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPartialWalTailScenarios(18);
+$frameHeaderMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFrameHeaderMismatchScenarios(18);
 
 $tests = [
     'sqlite application wal rollback json dynamic parity exposes requested scenario count' => static function (TestRunner $t) use ($scenarios): void {
@@ -124,6 +125,19 @@ $tests = [
     'sqlite application wal rollback json dynamic parity partial WAL tail covers varied partial byte counts' => static function (TestRunner $t) use ($partialWalTailScenarios): void {
         $partialByteCounts = array_values(array_unique(array_column($partialWalTailScenarios, 'partial_payload_bytes')));
         $t->same(true, count($partialByteCounts) > 8);
+    },
+    'sqlite application wal rollback json dynamic parity frame-header mismatch exposes requested scenario count' => static function (TestRunner $t) use ($frameHeaderMismatchScenarios): void {
+        $t->same(18, count($frameHeaderMismatchScenarios));
+    },
+    'sqlite application wal rollback json dynamic parity frame-header mismatch covers both corruption classes' => static function (TestRunner $t) use ($frameHeaderMismatchScenarios): void {
+        $corruptions = array_values(array_unique(array_column($frameHeaderMismatchScenarios, 'corruption')));
+        sort($corruptions);
+        $t->same(['salt_mismatch', 'zero_page'], $corruptions);
+    },
+    'sqlite application wal rollback json dynamic parity frame-header mismatch covers both page sizes' => static function (TestRunner $t) use ($frameHeaderMismatchScenarios): void {
+        $pageSizes = array_values(array_unique(array_column($frameHeaderMismatchScenarios, 'page_size')));
+        sort($pageSizes);
+        $t->same([512, 1024], $pageSizes);
     },
 ];
 
@@ -636,6 +650,29 @@ foreach ($partialWalTailScenarios as $scenario) {
     };
 }
 
+foreach ($frameHeaderMismatchScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $prefix = 'sqlite application wal rollback json dynamic parity frame-header mismatch seed ' . $seed . ' ';
+
+    $tests[$prefix . 'rejects corrupt frame header'] = static function (TestRunner $t) use ($scenario): void {
+        $expected = $scenario['corruption'] === 'zero_page'
+            ? 'SQLite Application JSON import rollback WAL frame ' . $scenario['target_frame'] . ' has an invalid page number'
+            : 'SQLite Application JSON import rollback WAL frame ' . $scenario['target_frame'] . ' salt does not match the WAL header';
+        $t->same($expected, $scenario['exception_message']);
+    };
+    $tests[$prefix . 'targets first current-batch frame after prefix'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same((int) $scenario['preexisting_frames'] + 1, $scenario['target_frame']);
+    };
+    $tests[$prefix . 'keeps corrupt wal frame aligned'] = static function (TestRunner $t) use ($scenario): void {
+        $frameSize = 24 + $scenario['page_size'];
+        $t->same(0, (strlen($scenario['corrupt_wal_bytes']) - 32) % $frameSize);
+    };
+    $tests[$prefix . 'records deterministic frame header offset'] = static function (TestRunner $t) use ($scenario): void {
+        $frameSize = 24 + $scenario['page_size'];
+        $t->same(32 + (($scenario['target_frame'] - 1) * $frameSize), $scenario['frame_offset']);
+    };
+}
+
 $tests['sqlite application wal rollback json dynamic parity rejects zero scenarios'] = static function (TestRunner $t): void {
     try {
         SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(0);
@@ -735,6 +772,17 @@ $tests['sqlite application wal rollback json dynamic parity rejects zero partial
     $t->same('rejected', 'accepted');
 };
 
+$tests['sqlite application wal rollback json dynamic parity rejects zero frame-header mismatch scenarios'] = static function (TestRunner $t): void {
+    try {
+        SQLiteJsonImportRollbackWalPlan::dynamicFrameHeaderMismatchScenarios(0);
+    } catch (InvalidArgumentException) {
+        $t->same('rejected', 'rejected');
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
 $tests['sqlite application wal rollback json dynamic parity explicit small batch remains deterministic'] = static function (TestRunner $t): void {
     $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(3);
     $t->same([101, 102, 103], array_column($smallBatch, 'tenant_id'));
@@ -797,6 +845,13 @@ $tests['sqlite application wal rollback json dynamic parity partial wal tail sma
     $t->same([1201, 1202, 1203], array_column($smallBatch, 'tenant_id'));
     $t->same([512, 1024, 512], array_column($smallBatch, 'page_size'));
     $t->same([4, 5, 6], array_column($smallBatch, 'complete_frame_count'));
+};
+
+$tests['sqlite application wal rollback json dynamic parity frame-header mismatch small batch remains deterministic'] = static function (TestRunner $t): void {
+    $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicFrameHeaderMismatchScenarios(4);
+    $t->same([1201, 1202, 1203, 1204], array_column($smallBatch, 'tenant_id'));
+    $t->same([4, 5, 6, 3], array_column($smallBatch, 'target_frame'));
+    $t->same(['salt_mismatch', 'zero_page', 'salt_mismatch', 'zero_page'], array_column($smallBatch, 'corruption'));
 };
 
 $tests['sqlite application wal rollback json dynamic parity rejects wal header page size mismatch'] = static function (TestRunner $t) use ($scenarios): void {
