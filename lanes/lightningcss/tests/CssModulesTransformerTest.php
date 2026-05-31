@@ -267,6 +267,36 @@ CSS;
         $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('#test { composes: foo; color: red }'));
         $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform(':global(.test) { composes: foo; color: red }'));
     },
+    'css modules rejects composes inside nested local rules' => static function (TestRunner $t): void {
+        $transformer = new CssModulesTransformer();
+
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('.foo { .bar { composes: baz; color: red } }'));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('.foo { @media (min-width: 1px) { .bar { composes: baz; color: red } } }'));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('.foo { @media (min-width: 1px) { composes: baz; color: red } }'));
+    },
+    'css modules allows composes inside top-level conditional rule blocks' => static function (TestRunner $t) use ($export, $local): void {
+        $css = <<<'CSS'
+@media (min-width: 1px) {
+  .foo {
+    composes: bar;
+    color: red;
+  }
+
+  .bar {
+    color: blue;
+  }
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css);
+
+        $t->same('@media (width>=1px){.EgL3uq_foo{color:red}.EgL3uq_bar{color:#00f}}', $result['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo', [$local('EgL3uq_bar')]),
+            'bar' => $export('EgL3uq_bar'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
     'css modules keeps parent composes exports while lowering nested local selectors' => static function (TestRunner $t) use ($export, $dependency): void {
         $css = <<<'CSS'
 .foo {

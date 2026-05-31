@@ -133,4 +133,60 @@ return [
         $t->same(9, $decoded[2]['originalLine']);
         $t->same(16, $decoded[3]['originalColumn']);
     },
+    'source map parses upstream raw vlq maps with generated-only segments and names' => static function (TestRunner $t): void {
+        $json = '{"version":3,"mappings":"A,MAAMA;ECGCC;A","sources":["compiled.css","tokens.scss"],"sourcesContent":[".compiled{}",".token{}"],"names":["token","accent"]}';
+
+        $map = SourceMap::fromJson($json);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $data = $map->toArray(null, false);
+
+        $t->same('A,MAAMA;ECGCC;A', $map->writeVlq());
+        $t->same(null, $decoded[0]['sourceIndex']);
+        $t->same(6, $decoded[1]['generatedColumn']);
+        $t->same(0, $decoded[1]['nameIndex']);
+        $t->same(1, $decoded[2]['sourceIndex']);
+        $t->same(1, $decoded[2]['nameIndex']);
+        $t->same(null, $decoded[3]['sourceIndex']);
+        $t->same(['compiled.css', 'tokens.scss'], $data['sources']);
+        $t->same(['.compiled{}', '.token{}'], $data['sourcesContent']);
+        $t->same(['token', 'accent'], $data['names']);
+    },
+    'source map imports raw vlq maps with upstream line and column offsets' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $entry = $map->addSource('entry.css');
+        $map->setSourceContent($entry, '.entry{}');
+        $map->addMapping(0, 0, $entry, 0, 0);
+
+        $map->addVlqMap(
+            'A,MAAMA;ECGCC;A',
+            ['compiled.css', 'tokens.scss'],
+            ['.compiled{}', '.token{}'],
+            ['token', 'accent'],
+            3,
+            10
+        );
+
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $data = $map->toArray(null, false);
+        $closest = $map->findClosestMapping(3, 16);
+
+        $t->same([0, 3, 3, 4, 5], array_column($decoded, 'generatedLine'));
+        $t->same([0, 10, 16, 12, 10], array_column($decoded, 'generatedColumn'));
+        $t->same([0, null, 1, 2, null], array_column($decoded, 'sourceIndex'));
+        $t->same([null, null, 0, 1, null], array_column($decoded, 'nameIndex'));
+        $t->same(['entry.css', 'compiled.css', 'tokens.scss'], $data['sources']);
+        $t->same(['.entry{}', '.compiled{}', '.token{}'], $data['sourcesContent']);
+        $t->same(1, $closest['sourceIndex'] ?? null);
+        $t->same(null, $map->findClosestMapping(2, 0));
+    },
+    'source map rejects invalid raw vlq map indexes' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+
+        $t->throws(OutOfBoundsException::class, static function () use ($map): void {
+            $map->addVlqMap('ACAA', [], [], []);
+        });
+        $t->throws(InvalidArgumentException::class, static function (): void {
+            SourceMap::fromJson('{"version":3,"mappings":"A","sources":[7],"names":[]}');
+        });
+    },
 ];

@@ -304,6 +304,30 @@ return [
             $block->getProperty('animation: fade-in 240ms ease-out; animation-name: slide-up', 'animation-name')
         );
     },
+    'declaration block reads upstream transition cssom longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $transition = 'transition: opacity 200ms ease-in 50ms, transform 1s linear';
+        $t->same(['value' => 'opacity, transform', 'important' => false], $block->getProperty($transition, 'transition-property'));
+        $t->same(['value' => '200ms, 1s', 'important' => false], $block->getProperty($transition, 'transition-duration'));
+        $t->same(['value' => '50ms, 0s', 'important' => false], $block->getProperty($transition, 'transition-delay'));
+        $t->same(['value' => 'ease-in, linear', 'important' => false], $block->getProperty($transition, 'transition-timing-function'));
+        $t->same(['value' => 'opacity 200ms ease-in 50ms, transform 1s linear', 'important' => false], $block->getProperty($transition, 'transition'));
+        $t->same(
+            ['value' => 'opacity 200ms ease-in 50ms, transform 1s linear', 'important' => true],
+            $block->getProperty(
+                'transition-property: opacity, transform !important; transition-duration: 200ms, 1s !important; transition-delay: 50ms, 0s !important; transition-timing-function: ease-in, linear !important',
+                'transition'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                'transition-property: opacity, transform; transition-duration: 200ms; transition-delay: 50ms, 0s; transition-timing-function: ease-in, linear',
+                'transition'
+            )
+        );
+    },
     'declaration block set replaces direct properties and serializes priority' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -453,6 +477,34 @@ return [
             $block->setProperty('animation: fade 200ms ease, slide 300ms', 'animation-name', 'wp-fade, wp-slide')
         );
     },
+    'declaration block sets upstream transition cssom longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'transition: opacity 300ms ease-in 50ms',
+            $block->setProperty('transition: opacity 200ms ease-in 50ms', 'transition-duration', '300ms')
+        );
+        $t->same(
+            'transition: opacity 200ms linear',
+            $block->setProperty('transition: opacity 200ms', 'transition-timing-function', 'linear')
+        );
+        $t->same(
+            'transition: opacity 200ms 100ms',
+            $block->setProperty('transition: opacity 200ms', 'transition-delay', '100ms')
+        );
+        $t->same(
+            'transition: color 200ms; transition-property: opacity, transform',
+            $block->setProperty('transition: color 200ms', 'transition-property', 'opacity, transform')
+        );
+        $t->same(
+            '-webkit-transition: opacity 300ms',
+            $block->setProperty('-webkit-transition: opacity 200ms', '-webkit-transition-duration', '300ms')
+        );
+        $t->same(
+            '-webkit-transition: opacity 200ms; transition-duration: 300ms',
+            $block->setProperty('-webkit-transition: opacity 200ms', 'transition-duration', '300ms')
+        );
+    },
     'declaration block remove drops direct properties and preserves neighbors' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -530,5 +582,25 @@ return [
         $t->same('flex-wrap: wrap', $block->removeProperty('flex-flow: column wrap', 'flex-direction'));
         $t->same('flex-flow: column wrap', $block->removeProperty('flex-flow: column wrap', '-webkit-flex-direction'));
         $t->same('-webkit-flex-wrap: wrap', $block->removeProperty('-webkit-flex-flow: column wrap', '-webkit-flex-direction'));
+    },
+    'declaration block removes upstream transition cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'transition-property: opacity; transition-delay: 50ms; transition-timing-function: ease-in',
+            $block->removeProperty('transition: opacity 200ms ease-in 50ms', 'transition-duration')
+        );
+        $t->same(
+            'transition-property: opacity; transition-duration: 200ms; transition-delay: 50ms',
+            $block->removeProperty('transition: opacity 200ms ease-in 50ms', 'transition-timing-function')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('transition: opacity 200ms; transition-duration: 300ms; color: red', 'transition')
+        );
+        $t->same(
+            '-webkit-transition-property: opacity; -webkit-transition-delay: 0s; -webkit-transition-timing-function: ease',
+            $block->removeProperty('-webkit-transition: opacity 200ms', '-webkit-transition-duration')
+        );
     },
 ];

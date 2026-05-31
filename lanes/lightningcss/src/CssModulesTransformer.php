@@ -29,7 +29,7 @@ final class CssModulesTransformer
         $this->pattern = $options['pattern'] ?? '[hash]_[local]';
         $this->exports = [];
 
-        $code = $this->transformRuleList($this->stripComments($css));
+        $code = $this->transformRuleList($this->stripComments($css), 0);
         if (($options['minify'] ?? true) === true) {
             $code = (new NestingTransformer())->lower($code);
         }
@@ -41,7 +41,7 @@ final class CssModulesTransformer
         ];
     }
 
-    private function transformRuleList(string $css): string
+    private function transformRuleList(string $css, int $styleNestingDepth): string
     {
         $output = '';
         $cursor = 0;
@@ -67,13 +67,13 @@ final class CssModulesTransformer
             $trimmedPrelude = trim($prelude);
 
             if ($trimmedPrelude !== '' && $trimmedPrelude[0] === '@') {
-                $output .= $prelude . '{' . $this->transformAtRuleBody($trimmedPrelude, $body) . '}';
+                $output .= $prelude . '{' . $this->transformAtRuleBody($trimmedPrelude, $body, $styleNestingDepth) . '}';
                 $cursor = $close + 1;
                 continue;
             }
 
             [$selector, $locals] = $this->rewriteSelectorList($prelude);
-            [$rewrittenBody, $composes] = $this->rewriteStyleBody($body);
+            [$rewrittenBody, $composes] = $this->rewriteStyleBody($body, $styleNestingDepth);
             $this->assertValidComposesSelector($prelude, $composes);
             $this->addComposesToLocals($locals, $composes);
 
@@ -84,19 +84,23 @@ final class CssModulesTransformer
         return $output;
     }
 
-    private function transformAtRuleBody(string $prelude, string $body): string
+    private function transformAtRuleBody(string $prelude, string $body, int $styleNestingDepth): string
     {
         if (preg_match('/^@(?:-[a-z]+-)?keyframes\b/i', $prelude) === 1) {
             return $body;
         }
 
-        return $this->transformRuleList($body);
+        if ($styleNestingDepth > 0) {
+            $this->assertNoNestedComposesInAtRuleDeclarations($body);
+        }
+
+        return $this->transformRuleList($body, $styleNestingDepth);
     }
 
     /**
      * @return array{0:string,1:list<array{type:string, name:string, specifier?:string}>}
      */
-    private function rewriteStyleBody(string $body): array
+    private function rewriteStyleBody(string $body, int $styleNestingDepth): array
     {
         $output = '';
         $composes = [];
@@ -108,28 +112,28 @@ final class CssModulesTransformer
 
             if ($nextStatement !== null && ($nextBlock === null || $nextStatement < $nextBlock)) {
                 $statement = substr($body, $cursor, $nextStatement - $cursor + 1);
-                $output .= $this->rewriteDeclarationStatement($statement, $composes);
+                $output .= $this->rewriteDeclarationStatement($statement, $composes, $styleNestingDepth);
                 $cursor = $nextStatement + 1;
                 continue;
             }
 
             if ($nextBlock === null) {
-                $output .= $this->rewriteTrailingDeclarations(substr($body, $cursor), $composes);
+                $output .= $this->rewriteTrailingDeclarations(substr($body, $cursor), $composes, $styleNestingDepth);
                 break;
             }
 
             $prefix = substr($body, $cursor, $nextBlock - $cursor);
             [$declarations, $nestedPrelude] = $this->splitDeclarationsAndNestedPrelude($prefix);
-            $output .= $this->rewriteTrailingDeclarations($declarations, $composes);
+            $output .= $this->rewriteTrailingDeclarations($declarations, $composes, $styleNestingDepth);
             $trimmedNested = trim($nestedPrelude);
             $close = $this->findMatchingBrace($body, $nextBlock);
             $nestedBody = substr($body, $nextBlock + 1, $close - $nextBlock - 1);
 
             if ($trimmedNested !== '' && $trimmedNested[0] === '@') {
-                $output .= $nestedPrelude . '{' . $this->transformAtRuleBody($trimmedNested, $nestedBody) . '}';
+                $output .= $nestedPrelude . '{' . $this->transformAtRuleBody($trimmedNested, $nestedBody, $styleNestingDepth + 1) . '}';
             } else {
                 [$selector, $locals] = $this->rewriteSelectorList($nestedPrelude);
-                [$rewrittenNestedBody, $nestedComposes] = $this->rewriteStyleBody($nestedBody);
+                [$rewrittenNestedBody, $nestedComposes] = $this->rewriteStyleBody($nestedBody, $styleNestingDepth + 1);
                 $this->assertValidComposesSelector($nestedPrelude, $nestedComposes);
                 $this->addComposesToLocals($locals, $nestedComposes);
                 $output .= $selector . '{' . $rewrittenNestedBody . '}';
@@ -144,7 +148,7 @@ final class CssModulesTransformer
     /**
      * @param list<array{type:string, name:string, specifier?:string}> $composes
      */
-    private function rewriteDeclarationStatement(string $statement, array &$composes): string
+    private function rewriteDeclarationStatement(string $statement, array &$composes, int $styleNestingDepth): string
     {
         $trimmed = trim($statement);
         if ($trimmed === '') {
@@ -162,6 +166,10 @@ final class CssModulesTransformer
             return $statement;
         }
 
+        if ($styleNestingDepth > 0) {
+            throw new \InvalidArgumentException('The `composes` property cannot be used within nested rules');
+        }
+
         $value = trim(substr($withoutSemicolon, $colon + 1));
         array_push($composes, ...$this->parseComposesValue($value));
 
@@ -171,25 +179,46 @@ final class CssModulesTransformer
     /**
      * @param list<array{type:string, name:string, specifier?:string}> $composes
      */
-    private function rewriteTrailingDeclarations(string $source, array &$composes): string
+    private function rewriteTrailingDeclarations(string $source, array &$composes, int $styleNestingDepth): string
     {
         $output = '';
         $cursor = 0;
 
         while (($semicolon = $this->findNextTopLevel($source, ';', $cursor)) !== null) {
             $statement = substr($source, $cursor, $semicolon - $cursor + 1);
-            $output .= $this->rewriteDeclarationStatement($statement, $composes);
+            $output .= $this->rewriteDeclarationStatement($statement, $composes, $styleNestingDepth);
             $cursor = $semicolon + 1;
         }
 
         $tail = substr($source, $cursor);
         if (trim($tail) !== '') {
-            $output .= $this->rewriteDeclarationStatement($tail, $composes);
+            $output .= $this->rewriteDeclarationStatement($tail, $composes, $styleNestingDepth);
         } else {
             $output .= $tail;
         }
 
         return $output;
+    }
+
+    private function assertNoNestedComposesInAtRuleDeclarations(string $body): void
+    {
+        $cursor = 0;
+
+        while (($nextBlock = $this->findNextTopLevel($body, '{', $cursor)) !== null) {
+            $prefix = substr($body, $cursor, $nextBlock - $cursor);
+            [$declarations] = $this->splitDeclarationsAndNestedPrelude($prefix);
+            $this->assertNoNestedComposesInDeclarationSource($declarations);
+
+            $cursor = $this->findMatchingBrace($body, $nextBlock) + 1;
+        }
+
+        $this->assertNoNestedComposesInDeclarationSource(substr($body, $cursor));
+    }
+
+    private function assertNoNestedComposesInDeclarationSource(string $source): void
+    {
+        $composes = [];
+        $this->rewriteTrailingDeclarations($source, $composes, 1);
     }
 
     /**

@@ -30,9 +30,9 @@ final class SourceMap
      * @var list<array{
      *     generatedLine:int,
      *     generatedColumn:int,
-     *     sourceIndex:int,
-     *     originalLine:int,
-     *     originalColumn:int,
+     *     sourceIndex:int|null,
+     *     originalLine:int|null,
+     *     originalColumn:int|null,
      *     nameIndex:int|null,
      *     order:int
      * }>
@@ -79,21 +79,12 @@ final class SourceMap
         int $originalColumn,
         ?string $name = null
     ): void {
-        $this->assertNonNegative($generatedLine, 'generated line');
-        $this->assertNonNegative($generatedColumn, 'generated column');
-        $this->assertSourceIndex($sourceIndex);
-        $this->assertNonNegative($originalLine, 'original line');
-        $this->assertNonNegative($originalColumn, 'original column');
+        $this->addRawMapping($generatedLine, $generatedColumn, $sourceIndex, $originalLine, $originalColumn, $name);
+    }
 
-        $this->mappings[] = [
-            'generatedLine' => $generatedLine,
-            'generatedColumn' => $generatedColumn,
-            'sourceIndex' => $sourceIndex,
-            'originalLine' => $originalLine,
-            'originalColumn' => $originalColumn,
-            'nameIndex' => $name === null ? null : $this->addName($name),
-            'order' => count($this->mappings),
-        ];
+    public function addGeneratedMapping(int $generatedLine, int $generatedColumn): void
+    {
+        $this->addRawMapping($generatedLine, $generatedColumn, null, null, null, null);
     }
 
     public function addMappingWithOffset(
@@ -152,11 +143,6 @@ final class SourceMap
                 continue;
             }
 
-            $sourceIndex = $mapping['sourceIndex'];
-            if (!array_key_exists($sourceIndex, $sourceIndexes)) {
-                throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $sourceIndex);
-            }
-
             $nameIndex = null;
             if ($mapping['nameIndex'] !== null) {
                 if (!array_key_exists($mapping['nameIndex'], $nameIndexes)) {
@@ -166,16 +152,207 @@ final class SourceMap
                 $nameIndex = $nameIndexes[$mapping['nameIndex']];
             }
 
+            $sourceIndex = null;
+            if ($mapping['sourceIndex'] !== null) {
+                if (!array_key_exists($mapping['sourceIndex'], $sourceIndexes)) {
+                    throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $mapping['sourceIndex']);
+                }
+
+                $sourceIndex = $sourceIndexes[$mapping['sourceIndex']];
+            }
+
             $this->mappings[] = [
                 'generatedLine' => $generatedLine,
                 'generatedColumn' => $mapping['generatedColumn'],
-                'sourceIndex' => $sourceIndexes[$sourceIndex],
+                'sourceIndex' => $sourceIndex,
                 'originalLine' => $mapping['originalLine'],
                 'originalColumn' => $mapping['originalColumn'],
                 'nameIndex' => $nameIndex,
                 'order' => count($this->mappings),
             ];
         }
+    }
+
+    /**
+     * @param list<string> $sources
+     * @param list<string|null> $sourcesContent
+     * @param list<string> $names
+     */
+    public function addVlqMap(
+        string $mappings,
+        array $sources,
+        array $sourcesContent = [],
+        array $names = [],
+        int $lineOffset = 0,
+        int $columnOffset = 0
+    ): void {
+        $sourceIndexes = [];
+        foreach ($sources as $source) {
+            if (!is_string($source)) {
+                throw new InvalidArgumentException('Source map sources must be strings.');
+            }
+
+            $sourceIndexes[] = $this->addSource($source);
+        }
+
+        foreach ($sourcesContent as $index => $content) {
+            if (!array_key_exists($index, $sourceIndexes) || $content === null) {
+                continue;
+            }
+
+            if (!is_string($content)) {
+                throw new InvalidArgumentException('Source map sourcesContent entries must be strings or null.');
+            }
+
+            $this->setSourceContent($sourceIndexes[$index], $content);
+        }
+
+        $nameIndexes = [];
+        foreach ($names as $name) {
+            if (!is_string($name)) {
+                throw new InvalidArgumentException('Source map names must be strings.');
+            }
+
+            $nameIndexes[] = $this->addName($name);
+        }
+
+        $generatedLine = $lineOffset;
+        $generatedColumn = $columnOffset;
+        $source = 0;
+        $originalLine = 0;
+        $originalColumn = 0;
+        $name = 0;
+        $length = strlen($mappings);
+
+        for ($i = 0; $i < $length;) {
+            $char = $mappings[$i];
+            if ($char === ';') {
+                $generatedLine++;
+                $generatedColumn = $columnOffset;
+                $i++;
+                continue;
+            }
+
+            if ($char === ',') {
+                $i++;
+                continue;
+            }
+
+            $start = $i;
+            while ($i < $length && $mappings[$i] !== ';' && $mappings[$i] !== ',') {
+                $i++;
+            }
+
+            $values = self::decodeVlqSegment(substr($mappings, $start, $i - $start));
+            if ($values === [] || count($values) === 2 || count($values) === 3 || count($values) > 5) {
+                throw new InvalidArgumentException('Invalid source map segment: ' . substr($mappings, $start, $i - $start));
+            }
+
+            $generatedColumn = $this->offsetNonNegative($generatedColumn, $values[0], 'generated column + column offset');
+
+            $sourceIndex = null;
+            $mappedOriginalLine = null;
+            $mappedOriginalColumn = null;
+            $mappedName = null;
+
+            if (count($values) >= 4) {
+                $source = $this->offsetNonNegative($source, $values[1], 'source index');
+                $originalLine = $this->offsetNonNegative($originalLine, $values[2], 'original line');
+                $originalColumn = $this->offsetNonNegative($originalColumn, $values[3], 'original column');
+                if (!array_key_exists($source, $sourceIndexes)) {
+                    throw new OutOfBoundsException('Source map segment references unknown source index: ' . $source);
+                }
+
+                $sourceIndex = $sourceIndexes[$source];
+                $mappedOriginalLine = $originalLine;
+                $mappedOriginalColumn = $originalColumn;
+
+                if (count($values) === 5) {
+                    $name = $this->offsetNonNegative($name, $values[4], 'name index');
+                    if (!array_key_exists($name, $nameIndexes)) {
+                        throw new OutOfBoundsException('Source map segment references unknown name index: ' . $name);
+                    }
+
+                    $mappedName = $names[$name];
+                }
+            }
+
+            if ($generatedLine >= 0) {
+                $this->addRawMapping($generatedLine, $generatedColumn, $sourceIndex, $mappedOriginalLine, $mappedOriginalColumn, $mappedName);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function fromArray(array $data): self
+    {
+        if (!isset($data['mappings']) || !is_string($data['mappings'])) {
+            throw new InvalidArgumentException('Source map mappings must be a string.');
+        }
+
+        $sources = self::listOfStrings($data['sources'] ?? [], 'sources');
+        $sourcesContent = self::listOfNullableStrings($data['sourcesContent'] ?? [], 'sourcesContent');
+        $names = self::listOfStrings($data['names'] ?? [], 'names');
+
+        $map = new self();
+        $map->addVlqMap($data['mappings'], $sources, $sourcesContent, $names);
+
+        return $map;
+    }
+
+    public static function fromJson(string $json): self
+    {
+        $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($data)) {
+            throw new InvalidArgumentException('Source map JSON must decode to an object.');
+        }
+
+        return self::fromArray($data);
+    }
+
+    /**
+     * @return array{generatedLine:int,generatedColumn:int,sourceIndex:int|null,originalLine:int|null,originalColumn:int|null,nameIndex:int|null}|null
+     */
+    public function findClosestMapping(int $generatedLine, int $generatedColumn): ?array
+    {
+        $this->assertNonNegative($generatedLine, 'generated line');
+        $this->assertNonNegative($generatedColumn, 'generated column');
+
+        $lineMappings = [];
+        foreach ($this->mappings as $mapping) {
+            if ($mapping['generatedLine'] === $generatedLine) {
+                $lineMappings[] = $mapping;
+            }
+        }
+
+        if ($lineMappings === []) {
+            return null;
+        }
+
+        usort(
+            $lineMappings,
+            static fn (array $a, array $b): int => [$a['generatedColumn'], $a['order']]
+                <=> [$b['generatedColumn'], $b['order']]
+        );
+
+        $previous = null;
+        foreach ($lineMappings as $mapping) {
+            if ($mapping['generatedColumn'] === $generatedColumn) {
+                return $this->mappingForRead($mapping);
+            }
+
+            if ($mapping['generatedColumn'] > $generatedColumn) {
+                return $previous === null
+                    ? $this->mappingForRead($lineMappings[0], 0)
+                    : $this->mappingForRead($previous);
+            }
+
+            $previous = $mapping;
+        }
+
+        return $this->mappingForRead($lineMappings[0], 0);
     }
 
     public function writeVlq(): string
@@ -218,6 +395,10 @@ final class SourceMap
 
                 $output .= self::encodeVlq($mapping['generatedColumn'] - $previousGeneratedColumn);
                 $previousGeneratedColumn = $mapping['generatedColumn'];
+
+                if ($mapping['sourceIndex'] === null) {
+                    continue;
+                }
 
                 $output .= self::encodeVlq($mapping['sourceIndex'] - $previousSource);
                 $previousSource = $mapping['sourceIndex'];
@@ -384,6 +565,42 @@ final class SourceMap
         }
     }
 
+    private function addRawMapping(
+        int $generatedLine,
+        int $generatedColumn,
+        ?int $sourceIndex,
+        ?int $originalLine,
+        ?int $originalColumn,
+        ?string $name
+    ): void {
+        $this->assertNonNegative($generatedLine, 'generated line');
+        $this->assertNonNegative($generatedColumn, 'generated column');
+
+        $nameIndex = null;
+        if ($sourceIndex !== null) {
+            if ($originalLine === null || $originalColumn === null) {
+                throw new InvalidArgumentException('Original line and column are required for source-backed mappings.');
+            }
+
+            $this->assertSourceIndex($sourceIndex);
+            $this->assertNonNegative($originalLine, 'original line');
+            $this->assertNonNegative($originalColumn, 'original column');
+            $nameIndex = $name === null ? null : $this->addName($name);
+        } elseif ($originalLine !== null || $originalColumn !== null || $name !== null) {
+            throw new InvalidArgumentException('Generated-only mappings cannot include original positions or names.');
+        }
+
+        $this->mappings[] = [
+            'generatedLine' => $generatedLine,
+            'generatedColumn' => $generatedColumn,
+            'sourceIndex' => $sourceIndex,
+            'originalLine' => $originalLine,
+            'originalColumn' => $originalColumn,
+            'nameIndex' => $nameIndex,
+            'order' => count($this->mappings),
+        ];
+    }
+
     private function assertNonNegative(int $value, string $label): void
     {
         if ($value < 0) {
@@ -399,6 +616,74 @@ final class SourceMap
         }
 
         return $offsetValue;
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<string>
+     */
+    private static function listOfStrings(mixed $value, string $label): array
+    {
+        if (!is_array($value)) {
+            throw new InvalidArgumentException('Source map ' . $label . ' must be a list.');
+        }
+
+        $strings = [];
+        foreach (array_values($value) as $entry) {
+            if (!is_string($entry)) {
+                throw new InvalidArgumentException('Source map ' . $label . ' entries must be strings.');
+            }
+
+            $strings[] = $entry;
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<string|null>
+     */
+    private static function listOfNullableStrings(mixed $value, string $label): array
+    {
+        if (!is_array($value)) {
+            throw new InvalidArgumentException('Source map ' . $label . ' must be a list.');
+        }
+
+        $strings = [];
+        foreach (array_values($value) as $entry) {
+            if ($entry !== null && !is_string($entry)) {
+                throw new InvalidArgumentException('Source map ' . $label . ' entries must be strings or null.');
+            }
+
+            $strings[] = $entry;
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @param array{
+     *     generatedLine:int,
+     *     generatedColumn:int,
+     *     sourceIndex:int|null,
+     *     originalLine:int|null,
+     *     originalColumn:int|null,
+     *     nameIndex:int|null,
+     *     order:int
+     * } $mapping
+     * @return array{generatedLine:int,generatedColumn:int,sourceIndex:int|null,originalLine:int|null,originalColumn:int|null,nameIndex:int|null}
+     */
+    private function mappingForRead(array $mapping, ?int $generatedColumn = null): array
+    {
+        return [
+            'generatedLine' => $mapping['generatedLine'],
+            'generatedColumn' => $generatedColumn ?? $mapping['generatedColumn'],
+            'sourceIndex' => $mapping['sourceIndex'],
+            'originalLine' => $mapping['originalLine'],
+            'originalColumn' => $mapping['originalColumn'],
+            'nameIndex' => $mapping['nameIndex'],
+        ];
     }
 
     /**

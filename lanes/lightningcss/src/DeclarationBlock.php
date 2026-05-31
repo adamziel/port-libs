@@ -43,6 +43,13 @@ final class DeclarationBlock
     private const ANIMATION_PLAY_STATES = ['running', 'paused'];
     private const ANIMATION_TIMING_FUNCTIONS = ['linear', 'ease', 'ease-in', 'ease-out', 'ease-in-out', 'step-start', 'step-end'];
     private const ANIMATION_COMPOSITIONS = ['replace', 'add', 'accumulate'];
+    private const TRANSITION_LONGHANDS = [
+        'transition-property',
+        'transition-duration',
+        'transition-delay',
+        'transition-timing-function',
+    ];
+    private const TRANSITION_TIMING_FUNCTIONS = ['linear', 'ease', 'ease-in', 'ease-out', 'ease-in-out', 'step-start', 'step-end'];
     private const GRID_AREA_COMPONENTS = [
         'grid-row-start',
         'grid-column-start',
@@ -143,6 +150,13 @@ final class DeclarationBlock
         $animationValue = $this->getAnimationProperty($entries, $property);
         if ($animationValue !== null) {
             return $animationValue;
+        }
+        $transitionValue = $this->getTransitionProperty($entries, $property);
+        if ($transitionValue !== null) {
+            return $transitionValue;
+        }
+        if ($this->isTransitionProperty($property)) {
+            return null;
         }
         $maskBorderValue = $this->getMaskBorderProperty($entries, $property);
         if ($maskBorderValue !== null) {
@@ -1322,6 +1336,411 @@ final class DeclarationBlock
      * @param list<array{property:string, value:string, important:bool}> $entries
      * @return array{value:string, important:bool}|null
      */
+    private function getTransitionProperty(array $entries, string $property): ?array
+    {
+        $prefix = $this->transitionPrefixForProperty($property);
+        $base = $this->baseTransitionProperty($property);
+        if ($prefix === null || $base === null) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($entries as $entry) {
+            $entryBase = $this->baseTransitionProperty($entry['property']);
+            if ($entryBase === null || $this->transitionPrefixForProperty($entry['property']) !== $prefix) {
+                continue;
+            }
+
+            if ($entryBase === 'transition') {
+                $components = $this->transitionComponentsFromShorthand($entry['value'], $entry['important']);
+                continue;
+            }
+
+            if (in_array($entryBase, self::TRANSITION_LONGHANDS, true)) {
+                $components[$entryBase] = [
+                    'value' => $entry['value'],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($base !== 'transition') {
+            return $components[$base] ?? null;
+        }
+
+        return $this->composeTransitionProperty($components);
+    }
+
+    /**
+     * @return array<string, array{value:string, important:bool}>
+     */
+    private function transitionComponentsFromShorthand(string $value, bool $important): array
+    {
+        $layers = $this->parseTransitionLayers($value);
+        $components = [
+            'transition' => ['value' => $value, 'important' => $important],
+            'transition-property' => ['value' => implode(', ', array_column($layers, 'property')), 'important' => $important],
+            'transition-duration' => ['value' => implode(', ', array_column($layers, 'duration')), 'important' => $important],
+            'transition-delay' => ['value' => implode(', ', array_column($layers, 'delay')), 'important' => $important],
+            'transition-timing-function' => ['value' => implode(', ', array_column($layers, 'timing')), 'important' => $important],
+        ];
+
+        return $components;
+    }
+
+    /**
+     * @return list<array{property:string, duration:string, delay:string, timing:string}>
+     */
+    private function parseTransitionLayers(string $value): array
+    {
+        $layers = [];
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            $layers[] = $this->parseTransitionLayer($layer);
+        }
+
+        return $layers === [] ? [$this->parseTransitionLayer('all')] : $layers;
+    }
+
+    /**
+     * @return array{property:string, duration:string, delay:string, timing:string}
+     */
+    private function parseTransitionLayer(string $layer): array
+    {
+        $property = 'all';
+        $duration = '0s';
+        $delay = '0s';
+        $timing = 'ease';
+        $propertySet = false;
+        $durationSet = false;
+        $delaySet = false;
+        $timingSet = false;
+
+        foreach ($this->splitWhitespaceTopLevel($layer) as $token) {
+            if (!$durationSet && $this->isTransitionTimeToken($token)) {
+                $duration = $this->canonicalTransitionTime($token);
+                $durationSet = true;
+                continue;
+            }
+
+            if (!$timingSet && $this->isTransitionTimingToken($token)) {
+                $timing = $token;
+                $timingSet = true;
+                continue;
+            }
+
+            if (!$delaySet && $this->isTransitionTimeToken($token)) {
+                $delay = $this->canonicalTransitionTime($token);
+                $delaySet = true;
+                continue;
+            }
+
+            if (!$propertySet) {
+                $property = $token;
+                $propertySet = true;
+            } else {
+                $property .= ' ' . $token;
+            }
+        }
+
+        return [
+            'property' => $property,
+            'duration' => $duration,
+            'delay' => $delay,
+            'timing' => $timing,
+        ];
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}> $components
+     * @return array{value:string, important:bool}|null
+     */
+    private function composeTransitionProperty(array $components): ?array
+    {
+        $lists = [];
+        $important = null;
+        $length = null;
+        foreach (self::TRANSITION_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+            if ($important === null) {
+                $important = $components[$longhand]['important'];
+            } elseif ($components[$longhand]['important'] !== $important) {
+                return null;
+            }
+
+            $parts = $this->transitionComponentList($components[$longhand]['value']);
+            if ($parts === []) {
+                return null;
+            }
+            if ($length === null) {
+                $length = count($parts);
+            } elseif (count($parts) !== $length) {
+                return null;
+            }
+            $lists[$longhand] = $parts;
+        }
+
+        $layers = [];
+        for ($i = 0; $i < $length; $i++) {
+            $layers[] = $this->serializeTransitionLayer(
+                $lists['transition-property'][$i],
+                $lists['transition-duration'][$i],
+                $lists['transition-timing-function'][$i],
+                $lists['transition-delay'][$i]
+            );
+        }
+
+        return [
+            'value' => implode(', ', $layers),
+            'important' => $important ?? false,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function transitionComponentList(string $value): array
+    {
+        return array_values(array_filter(
+            array_map(
+                static fn (string $part): string => trim($part),
+                $this->splitTopLevel($value, ',')
+            ),
+            static fn (string $part): bool => $part !== ''
+        ));
+    }
+
+    private function serializeTransitionLayer(string $property, string $duration, string $timing, string $delay): string
+    {
+        $parts = [$property];
+        $duration = $this->canonicalTransitionTime($duration);
+        $delay = $this->canonicalTransitionTime($delay);
+        if (!$this->isZeroTransitionTime($duration) || !$this->isZeroTransitionTime($delay)) {
+            $parts[] = $duration;
+        }
+        if (!$this->isDefaultTransitionTiming($timing)) {
+            $parts[] = $timing;
+        }
+        if (!$this->isZeroTransitionTime($delay)) {
+            $parts[] = $delay;
+        }
+
+        return implode(' ', $parts);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setTransitionLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        $prefix = $this->transitionPrefixForProperty($property);
+        $base = $this->baseTransitionProperty($property);
+        if ($prefix === null || !in_array($base, self::TRANSITION_LONGHANDS, true)) {
+            return null;
+        }
+
+        $valueCount = count($this->transitionComponentList($value));
+        if ($valueCount === 0) {
+            return null;
+        }
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            $entryBase = $this->baseTransitionProperty($entries[$index]['property']);
+            if ($entryBase === null || $this->transitionPrefixForProperty($entries[$index]['property']) !== $prefix) {
+                continue;
+            }
+
+            if ($entryBase === $base) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entryBase !== 'transition') {
+                continue;
+            }
+
+            $layerCount = count($this->parseTransitionLayers($entries[$index]['value']));
+            if ($layerCount !== $valueCount) {
+                continue;
+            }
+
+            $components = $this->transitionComponentsFromShorthand($entries[$index]['value'], $entries[$index]['important']);
+            $components[$base] = [
+                'value' => $value,
+                'important' => $important,
+            ];
+            $transition = $this->composeTransitionProperty($components);
+            if ($transition === null) {
+                continue;
+            }
+
+            $entries[$index] = [
+                'property' => $this->transitionPropertyName($prefix, 'transition'),
+                'value' => $transition['value'],
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function removeTransitionShorthandWithinPriority(array $entries, string $property): array
+    {
+        $prefix = $this->transitionPrefixForProperty($property);
+        if ($prefix === null) {
+            return $entries;
+        }
+
+        return array_values(array_filter(
+            $entries,
+            function (array $entry) use ($prefix): bool {
+                $base = $this->baseTransitionProperty($entry['property']);
+
+                return $base === null || $this->transitionPrefixForProperty($entry['property']) !== $prefix;
+            }
+        ));
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeTransitionLonghand(array $entries, string $property): string
+    {
+        $prefix = $this->transitionPrefixForProperty($property);
+        $base = $this->baseTransitionProperty($property);
+        if ($prefix === null || !in_array($base, self::TRANSITION_LONGHANDS, true)) {
+            return $this->serializeEntries($entries);
+        }
+
+        $result = [];
+        foreach ($entries as $entry) {
+            $entryBase = $this->baseTransitionProperty($entry['property']);
+            if ($entryBase === null || $this->transitionPrefixForProperty($entry['property']) !== $prefix) {
+                $result[] = $entry;
+                continue;
+            }
+
+            if ($entryBase === $base) {
+                continue;
+            }
+
+            if ($entryBase !== 'transition') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->transitionComponentsFromShorthand($entry['value'], $entry['important']);
+            foreach (self::TRANSITION_LONGHANDS as $longhand) {
+                if ($longhand === $base) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $this->transitionPropertyName($prefix, $longhand),
+                    'value' => $components[$longhand]['value'],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    private function isTransitionProperty(string $property): bool
+    {
+        return $this->baseTransitionProperty($property) !== null;
+    }
+
+    private function isTransitionShorthand(string $property): bool
+    {
+        return $this->baseTransitionProperty($property) === 'transition';
+    }
+
+    private function isTransitionLonghand(string $property): bool
+    {
+        $base = $this->baseTransitionProperty($property);
+
+        return $base !== null && in_array($base, self::TRANSITION_LONGHANDS, true);
+    }
+
+    private function transitionPrefixForProperty(string $property): ?string
+    {
+        foreach (['-webkit-', '-moz-'] as $prefix) {
+            if (str_starts_with($property, $prefix . 'transition')) {
+                return $this->baseTransitionProperty($property) === null ? null : $prefix;
+            }
+        }
+
+        if (str_starts_with($property, 'transition')) {
+            return $this->baseTransitionProperty($property) === null ? null : '';
+        }
+
+        return null;
+    }
+
+    private function baseTransitionProperty(string $property): ?string
+    {
+        foreach (['-webkit-', '-moz-'] as $prefix) {
+            if (str_starts_with($property, $prefix)) {
+                $property = substr($property, strlen($prefix));
+                break;
+            }
+        }
+
+        return $property === 'transition' || in_array($property, self::TRANSITION_LONGHANDS, true)
+            ? $property
+            : null;
+    }
+
+    private function transitionPropertyName(string $prefix, string $base): string
+    {
+        return $prefix . $base;
+    }
+
+    private function isTransitionTimeToken(string $token): bool
+    {
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:ms|s)$/i', trim($token)) === 1;
+    }
+
+    private function canonicalTransitionTime(string $token): string
+    {
+        return $this->isZeroTransitionTime($token) ? '0s' : trim($token);
+    }
+
+    private function isZeroTransitionTime(string $token): bool
+    {
+        return preg_match('/^[+-]?(?:0+|0*\.0+)(?:ms|s)$/i', trim($token)) === 1;
+    }
+
+    private function isTransitionTimingToken(string $token): bool
+    {
+        $lower = strtolower(trim($token));
+
+        return in_array($lower, self::TRANSITION_TIMING_FUNCTIONS, true)
+            || preg_match('/^(?:cubic-bezier|steps|linear)\(/', $lower) === 1;
+    }
+
+    private function isDefaultTransitionTiming(string $timing): bool
+    {
+        return strcasecmp(trim($timing), 'ease') === 0;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
     private function getBackgroundProperty(array $entries, string $property): ?array
     {
         if ($property !== 'background' && !in_array($property, self::BACKGROUND_LONGHANDS, true)) {
@@ -1799,6 +2218,10 @@ final class DeclarationBlock
         if ($flexValue !== null) {
             return $this->parseEntries($flexValue);
         }
+        $transitionValue = $this->setTransitionLonghand($entries, $property, $value, $important);
+        if ($transitionValue !== null) {
+            return $this->parseEntries($transitionValue);
+        }
         $animationValue = $this->setAnimationNameLonghand($entries, $property, $value, $important);
         if ($animationValue !== null) {
             return $this->parseEntries($animationValue);
@@ -2186,6 +2609,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isTransitionShorthand($property)) {
+            $normalEntries = $this->removeTransitionShorthandWithinPriority($normalEntries, $property);
+            $importantEntries = $this->removeTransitionShorthandWithinPriority($importantEntries, $property);
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
 
         if ($this->isBoxLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeBoxLonghand($normalEntries, $property));
@@ -2202,6 +2631,12 @@ final class DeclarationBlock
         if ($this->isRemovableFlexLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeFlexLonghand($normalEntries, $property) ?? $this->serializeEntries($normalEntries));
             $importantEntries = $this->parseEntries($this->removeFlexLonghand($importantEntries, $property) ?? $this->serializeEntries($importantEntries));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
+        if ($this->isTransitionLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeTransitionLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeTransitionLonghand($importantEntries, $property));
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }

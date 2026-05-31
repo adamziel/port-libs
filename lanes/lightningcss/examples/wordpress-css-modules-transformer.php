@@ -26,6 +26,13 @@ $css = <<<'CSS'
   composes: heading from "./typography.module.css";
   color: yellow;
 }
+
+@media (min-width: 600px) {
+  .cardCompact {
+    composes: card;
+    gap: 8px;
+  }
+}
 CSS;
 
 $result = (new CssModulesTransformer())->transform($css, [
