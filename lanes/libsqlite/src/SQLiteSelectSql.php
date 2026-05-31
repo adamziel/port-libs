@@ -104,13 +104,7 @@ final class SQLiteSelectSql
         }
 
         $selectSql = trim(substr($sql, 6, $fromOffset - 6));
-        $distinct = false;
-        if (preg_match('/^distinct(?:\s+|$)/i', $selectSql) === 1) {
-            $distinct = true;
-            $selectSql = trim(substr($selectSql, 8));
-        } elseif (preg_match('/^all(?:\s+|$)/i', $selectSql) === 1) {
-            $selectSql = trim(substr($selectSql, 3));
-        }
+        [$selectSql, $distinct] = self::selectModifier($selectSql);
         $tail = trim(substr($sql, $fromOffset + 4));
         if ($selectSql === '' || $tail === '') {
             throw new \InvalidArgumentException('SQLite SELECT SQL needs select list and table');
@@ -307,13 +301,7 @@ final class SQLiteSelectSql
             throw new \InvalidArgumentException('SQLite SELECT SQL needs select list');
         }
 
-        $distinct = false;
-        if (preg_match('/^distinct(?:\s+|$)/i', $selectSql) === 1) {
-            $distinct = true;
-            $selectSql = trim(substr($selectSql, 8));
-        } elseif (preg_match('/^all(?:\s+|$)/i', $selectSql) === 1) {
-            $selectSql = trim(substr($selectSql, 3));
-        }
+        [$selectSql, $distinct] = self::selectModifier($selectSql);
         if ($selectSql === '') {
             throw new \InvalidArgumentException('SQLite SELECT SQL needs select list');
         }
@@ -364,6 +352,22 @@ final class SQLiteSelectSql
         }
 
         return $plan;
+    }
+
+    /**
+     * @return array{0:string,1:bool}
+     */
+    private static function selectModifier(string $selectSql): array
+    {
+        $selectSql = trim($selectSql);
+        if (preg_match('/^distinct(?:\s+|\(|$)/i', $selectSql) === 1) {
+            return [trim(substr($selectSql, 8)), true];
+        }
+        if (preg_match('/^all(?:\s+|$)/i', $selectSql) === 1) {
+            return [trim(substr($selectSql, 3)), false];
+        }
+
+        return [$selectSql, false];
     }
 
     /**

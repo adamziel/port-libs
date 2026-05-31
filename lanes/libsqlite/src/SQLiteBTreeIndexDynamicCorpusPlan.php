@@ -4865,6 +4865,98 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,outer_insert_rowid:int,side_insert_rowid:int|null,trigger_selects_virtual_table:bool,xbestindex_runs_returning:bool,virtual_result_row:list<int>,y1_rows:list<array{rowid:int,a:int,b:int}>,y2_rows:list<array{rowid:int,a:null,b:null}>,planner_idxnum:int,planner_idxstr:string,planner_cost:int,planner_rows:int,batch:int}>
+     */
+    public static function bestindexBReturningSideEffectCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindexB dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'bestindexB-1.1',
+                'plain virtual-table scan returns the xFilter row',
+                false,
+                false,
+            ],
+            [
+                'bestindexB-1.2',
+                'ordinary INSERT RETURNING establishes the first y1 rowid',
+                false,
+                false,
+            ],
+            [
+                'bestindexB-1.3',
+                'BEFORE INSERT trigger may SELECT from the virtual table without changing the outer rowid',
+                true,
+                false,
+            ],
+            [
+                'bestindexB-1.4',
+                'xBestIndex may run an INSERT RETURNING side statement while planning the trigger SELECT',
+                true,
+                true,
+            ],
+            [
+                'bestindexB-1.5',
+                'the xBestIndex side INSERT RETURNING result is preserved after the outer INSERT finishes',
+                true,
+                true,
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $triggerSelectsVirtualTable, $xbestindexRunsReturning] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $outerInsertRowid = match ($section) {
+                'bestindexB-1.2' => 1,
+                'bestindexB-1.3' => 2,
+                'bestindexB-1.4', 'bestindexB-1.5' => 3,
+                default => 0,
+            };
+            $sideInsertRowid = $xbestindexRunsReturning ? $batch : null;
+            $y1Rows = [];
+            if ($outerInsertRowid >= 1) {
+                $y1Rows[] = ['rowid' => 1, 'a' => 1 + ($batch - 1) * 10, 'b' => 2 + ($batch - 1) * 10];
+            }
+            if ($outerInsertRowid >= 2) {
+                $y1Rows[] = ['rowid' => 2, 'a' => 3 + ($batch - 1) * 10, 'b' => 4 + ($batch - 1) * 10];
+            }
+            if ($outerInsertRowid >= 3) {
+                $y1Rows[] = ['rowid' => 3, 'a' => 5 + ($batch - 1) * 10, 'b' => 6 + ($batch - 1) * 10];
+            }
+
+            $y2Rows = [];
+            if ($sideInsertRowid !== null) {
+                $y2Rows[] = ['rowid' => $sideInsertRowid, 'a' => null, 'b' => null];
+            }
+
+            $out[] = [
+                'source' => 'bestindexB.test sections bestindexB-1.0 through bestindexB-1.5',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'outer_insert_rowid' => $outerInsertRowid,
+                'side_insert_rowid' => $sideInsertRowid,
+                'trigger_selects_virtual_table' => $triggerSelectsVirtualTable,
+                'xbestindex_runs_returning' => $xbestindexRunsReturning,
+                'virtual_result_row' => [1, 2, 3],
+                'y1_rows' => $y1Rows,
+                'y2_rows' => $y2Rows,
+                'planner_idxnum' => 0,
+                'planner_idxstr' => 'hello',
+                'planner_cost' => 1000000,
+                'planner_rows' => 1000000,
+                'batch' => $batch,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,constraints:list<array{column:string,operator:string,value:mixed,omitted:bool}>,idx_string:string,cost:float,result_rows:list<array<int,mixed>>,xfilter_where:string|null,uses_row_value:bool,uses_affinity_residual:bool,integrity:string,batch:int}>
      */
     public static function bestindex5VirtualTableConstraintCases(int $cases = 1000): array

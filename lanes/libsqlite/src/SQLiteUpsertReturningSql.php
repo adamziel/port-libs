@@ -490,8 +490,26 @@ final class SQLiteUpsertReturningSql
     {
         $assignments = [];
         foreach (self::splitComma($sql) as $part) {
-            if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/s', trim($part), $match) !== 1) {
+            $part = trim($part);
+            if (preg_match('/^\(([^()]*)\)\s*=\s*\((.+)\)$/s', $part, $tupleMatch) === 1) {
+                $columns = self::identifierList($tupleMatch[1], 'SQLite UPSERT RETURNING row-value assignment column');
+                $expressions = self::rowValueAssignmentExpressions($tupleMatch[2]);
+                if (count($columns) !== count($expressions)) {
+                    throw new \InvalidArgumentException('SQLite UPSERT RETURNING row-value assignment arity mismatch');
+                }
+                foreach ($columns as $index => $column) {
+                    if (array_key_exists($column, $assignments)) {
+                        throw new \InvalidArgumentException("SQLite UPSERT RETURNING assignment column {$column} is duplicated");
+                    }
+                    $assignments[$column] = $expressions[$index];
+                }
+                continue;
+            }
+            if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.+)$/s', $part, $match) !== 1) {
                 throw new \InvalidArgumentException('SQLite UPSERT RETURNING assignments must be column = expression pairs');
+            }
+            if (array_key_exists($match[1], $assignments)) {
+                throw new \InvalidArgumentException("SQLite UPSERT RETURNING assignment column {$match[1]} is duplicated");
             }
             $assignments[$match[1]] = trim($match[2]);
         }
@@ -500,6 +518,19 @@ final class SQLiteUpsertReturningSql
         }
 
         return $assignments;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function rowValueAssignmentExpressions(string $sql): array
+    {
+        $sql = trim($sql);
+        if (preg_match('/^SELECT\s+(.+)$/is', $sql, $match) === 1) {
+            $sql = trim($match[1]);
+        }
+
+        return self::splitComma($sql);
     }
 
     /**

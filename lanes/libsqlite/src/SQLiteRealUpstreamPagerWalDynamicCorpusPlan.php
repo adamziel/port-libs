@@ -689,6 +689,72 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walReadonlyShmCacheSpillRows(): array
+    {
+        $rows = [];
+        $records = [['abc', 'xyz']];
+
+        for ($round = 1; $round <= 9; $round++) {
+            $next = [];
+            foreach ($records as [$left, $right]) {
+                $next[] = [$left . $right, $right . $left];
+            }
+
+            $records = array_merge($records, $next);
+        }
+
+        foreach ($records as $rowid => [$left, $right]) {
+            $digest = hash('sha256', $left . "\0" . $right);
+            $base = [
+                'upstream' => 'walro.test 1.4.4 cache-spill generated row ' . $rowid,
+                'script' => 'walro.test',
+                'section' => 'walro-1.4.4.1..1.4.4.2',
+                'rowid' => $rowid,
+                'left_length' => strlen($left),
+                'right_length' => strlen($right),
+                'left_prefix' => substr($left, 0, 12),
+                'right_prefix' => substr($right, 0, 12),
+                'payload_digest' => $digest,
+                'page_size' => 1024,
+                'cache_size_pages' => 10,
+                'doubling_rounds' => 9,
+                'generated_row_count' => 512,
+                'writer_connection' => 'db2',
+                'readonly_connection' => 'db',
+                'readonly_shm' => true,
+                'checkpoint_before_writer' => [0, 3, 3],
+                'wal_size_during_writer' => 147800,
+                'reader_snapshot_rows_before_commit' => 9,
+                'reader_snapshot_rows_after_commit' => 521,
+                'dependencies' => [
+                    'real-upstream-corpus-walro',
+                    'sqlite-wal-readonly-shm-cache-spill',
+                    'sqlite-wal-log-wrap-snapshot-stability',
+                ],
+            ];
+
+            $rows[] = $base + [
+                'phase' => 'uncommitted-cache-spill-hidden',
+                'visible_to_readonly_reader' => false,
+                'reader_sees_t1_tail' => ['1', '2', '3', '4', '5', '6'],
+                'writer_transaction_open' => true,
+                'commit_required_for_visibility' => true,
+            ];
+            $rows[] = $base + [
+                'phase' => 'committed-cache-spill-visible',
+                'visible_to_readonly_reader' => true,
+                'reader_sees_t2_row' => [$left, $right],
+                'writer_transaction_open' => false,
+                'commit_required_for_visibility' => true,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array
