@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 17:01:51 UTC",
-    "sourceCommit": "412b44687747aab22852c1d28fa85bc7ee934844",
-    "sourceCommitShort": "412b44687747",
+    "generated": "2026-05-31 17:07:17 UTC",
+    "sourceCommit": "72be03b700d5ba4c1da72af9062533356c4ff88d",
+    "sourceCommitShort": "72be03b700d5",
     "sourceBranch": "main",
-    "dashboardCommit": "a7818e8eb5d49fa1e9ef96a9f6ee2ccb800219b6",
-    "dashboardCommitShort": "a7818e8eb5d4",
+    "dashboardCommit": "44a0aa0627faf92039d4df979c9bc2cd917e11ac",
+    "dashboardCommitShort": "44a0aa0627fa",
     "averageProgressPercent": "86.6",
     "lanes": [
         {
@@ -98,16 +98,16 @@
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1539",
-            "coverage": "1539 / 3532",
-            "php": "2489 pass / 0 fail",
+            "mapped": "1553",
+            "coverage": "1553 / 3532",
+            "php": "2545 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "native CSS parser/formatter/minifier, declaration CSSOM...",
-            "audit": "Supervisor accepted source commit 412b446...",
-            "currentWork": "Native LightningCSS now covers CSS Modules animation custom ident/keyframes scoping, rela...",
+            "audit": "Supervisor accepted source commit 72be03b...",
+            "currentWork": "Native LightningCSS now covers escaped @import string/url specifier decoding, transform-f...",
             "nextTarget": "Continue current-base LightningCSS integration from source-only clean candidates, priorit...",
             "blocker": "No current LightningCSS PHP blocker for this batch.",
-            "commit": "412b446"
+            "commit": "72be03b"
         },
         {
             "library": "markerPDF",
