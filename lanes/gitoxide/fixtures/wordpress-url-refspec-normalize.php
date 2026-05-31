@@ -25,6 +25,16 @@ return [
     'expectedLocalMirrorUser' => 'Deploy',
     'expectedLocalMirrorHost' => '[::1]',
     'expectedLocalMirrorPath' => '/var/cache/wp-content/site.git',
+    'homeMirrorUrl' => 'file:///~Deploy.User/wp-content/site.git',
+    'expectedHomeMirrorUrl' => 'file:///~Deploy.User/wp-content/site.git',
+    'expectedHomeMirrorUser' => 'Deploy.User',
+    'expectedHomeMirrorTail' => '/wp-content/site.git',
+    'expectedHomeMirrorShellPath' => '~Deploy.User/wp-content/site.git',
+    'expectedHomeMirrorExpandedPath' => '/srv/users/Deploy.User/wp-content/site.git',
+    'currentHomeDirectory' => '/srv/users/current',
+    'homeDirectories' => [
+        'Deploy.User' => '/srv/users/Deploy.User',
+    ],
     'fetchRefspecs' => [
         '+refs/heads/*:refs/remotes/origin/*',
         '^refs/heads/private',

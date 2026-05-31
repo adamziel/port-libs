@@ -10625,6 +10625,100 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $parentRows
+     * @param list<array<string,mixed>> $childRows
+     * @param array{
+     *     parent_table?:string,
+     *     child_table?:string,
+     *     parent_key_columns?:list<string>,
+     *     child_key_columns?:list<string>,
+     *     target_parent_key?:mixed,
+     *     new_parent_key?:mixed,
+     *     child_index?:array{name?:string,columns?:list<string>,unique?:bool,covering?:bool}|null
+     * } $options
+     * @return array<string,mixed>
+     */
+    public static function foreignKeyChildLookupPlan(array $parentRows, array $childRows, array $options = []): array
+    {
+        if ($parentRows === []) {
+            throw new \InvalidArgumentException('SQLite e_fkey child lookup plan requires parent rows');
+        }
+
+        $parentTable = self::identifier((string) ($options['parent_table'] ?? 'parent_record'), 'child lookup parent table');
+        $childTable = self::identifier((string) ($options['child_table'] ?? 'child_record'), 'child lookup child table');
+        $parentColumns = self::identifierList($options['parent_key_columns'] ?? ['id'], 'child lookup parent columns');
+        $childColumns = self::identifierList($options['child_key_columns'] ?? ['parent_id'], 'child lookup child columns');
+        if (count($parentColumns) !== count($childColumns)) {
+            throw new \InvalidArgumentException('SQLite e_fkey child lookup parent and child key arity must match');
+        }
+
+        $targetKey = array_key_exists('target_parent_key', $options)
+            ? self::foreignKeyChildLookupKey($options['target_parent_key'], $parentColumns, 'target parent key')
+            : self::foreignKeyChildLookupRowKey($parentRows[0], $parentColumns, 'target parent row');
+        $newKey = array_key_exists('new_parent_key', $options)
+            ? self::foreignKeyChildLookupKey($options['new_parent_key'], $parentColumns, 'new parent key')
+            : $targetKey;
+        $index = self::foreignKeyChildLookupIndex($options['child_index'] ?? null, $childColumns);
+        $detail = self::foreignKeyChildLookupDetail($childTable, $childColumns, $index);
+        $parentScan = 'SCAN ' . $parentTable;
+        $where = implode(' AND ', array_map(
+            static fn (string $column): string => $column . ' = ?',
+            $childColumns
+        ));
+        $lookupSql = 'SELECT rowid FROM ' . $childTable . ' WHERE ' . $where;
+        $childMatches = self::foreignKeyChildLookupMatches($childRows, $parentColumns, $childColumns, $targetKey);
+        $parentMatches = self::foreignKeyChildLookupParentMatches($parentRows, $parentColumns, $targetKey);
+        $nullChildRowids = self::foreignKeyChildLookupNullRowids($childRows, $childColumns);
+        $deleteBlocked = $childMatches !== [];
+
+        return [
+            'source' => 'e_fkey.test e_fkey-25.1..27.4',
+            'operation' => 'foreign-key-parent-mutation-child-lookup-plan',
+            'parent_table' => $parentTable,
+            'child_table' => $childTable,
+            'parent_key_columns' => $parentColumns,
+            'child_key_columns' => $childColumns,
+            'target_parent_key' => $targetKey,
+            'new_parent_key' => $newKey,
+            'child_lookup_sql' => $lookupSql,
+            'parent_delete_child_lookup_equivalence' => 'SELECT rowid FROM <child-table> WHERE <child-key> = :parent_key_value',
+            'foreign_key_violation_if_child_lookup_returns_any_row' => $deleteBlocked,
+            'delete_eqp' => [$parentScan, $detail['detail']],
+            'update_eqp' => [$parentScan, $detail['detail'], $detail['detail']],
+            'insert_parent_eqp' => [],
+            'parent_insert_runs_child_lookup' => false,
+            'parent_update_plans_old_and_new_child_lookup' => true,
+            'delete_child_lookup_count' => 1,
+            'update_child_lookup_count' => 2,
+            'child_lookup_detail' => $detail['detail'],
+            'child_lookup_uses_index' => $detail['uses_index'],
+            'child_lookup_avoids_linear_scan' => $detail['uses_index'],
+            'child_lookup_index_name' => $detail['index_name'],
+            'child_lookup_index_columns' => $detail['index_columns'],
+            'child_lookup_index_unique' => $detail['index_unique'],
+            'child_lookup_index_covering' => $detail['index_covering'],
+            'child_lookup_index_terms' => $detail['index_terms'],
+            'matched_parent_rowids' => $parentMatches,
+            'matched_child_rowids' => array_values(array_map(static fn (array $row): int|string => $row['rowid'], $childMatches)),
+            'matched_child_rows' => $childMatches,
+            'matched_child_row_count' => count($childMatches),
+            'null_child_key_rowids' => $nullChildRowids,
+            'null_child_key_short_circuit_count' => count($nullChildRowids),
+            'delete_status' => $deleteBlocked ? 'constraint-failed' : 'commit-ok',
+            'delete_error' => $deleteBlocked ? 'FOREIGN KEY constraint failed' : null,
+            'delete_changes' => !$deleteBlocked && $parentMatches !== [] ? 1 : 0,
+            'upstream_cases' => ['e_fkey-25.2', 'e_fkey-25.3', 'e_fkey-25.5', 'e_fkey-25.6', 'e_fkey-25.7', 'e_fkey-26.2.1', 'e_fkey-26.2.2', 'e_fkey-26.3.1', 'e_fkey-26.3.2', 'e_fkey-26.4.1', 'e_fkey-26.4.2', 'e_fkey-27.3', 'e_fkey-27.4'],
+            'dependencies' => [
+                'sqlite-efkey-parent-delete-runs-child-rowid-lookup',
+                'sqlite-efkey-child-lookup-row-blocks-parent-delete',
+                'sqlite-efkey-parent-update-plans-old-and-new-child-lookups',
+                'sqlite-efkey-child-key-index-avoids-linear-scan',
+                'sqlite-efkey-null-child-key-does-not-match-parent-lookup',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{b:mixed,c:mixed}> $parents
      * @param list<array{d:mixed,e:mixed,f:mixed}> $children
      * @return array<string,mixed>
@@ -12001,6 +12095,239 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return (string) $value;
+    }
+
+    /**
+     * @param list<string> $columns
+     * @return array<string,mixed>
+     */
+    private static function foreignKeyChildLookupKey(mixed $value, array $columns, string $label): array
+    {
+        if (!is_array($value)) {
+            if (count($columns) !== 1) {
+                throw new \InvalidArgumentException("SQLite e_fkey child lookup {$label} must include every key column");
+            }
+
+            return [$columns[0] => $value];
+        }
+
+        $isList = array_keys($value) === range(0, count($value) - 1);
+        if ($isList) {
+            if (count($value) !== count($columns)) {
+                throw new \InvalidArgumentException("SQLite e_fkey child lookup {$label} arity is malformed");
+            }
+
+            $key = [];
+            foreach ($columns as $index => $column) {
+                $key[$column] = $value[$index];
+            }
+
+            return $key;
+        }
+
+        $key = [];
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $value)) {
+                throw new \InvalidArgumentException("SQLite e_fkey child lookup {$label} is missing {$column}");
+            }
+            $key[$column] = $value[$column];
+        }
+
+        return $key;
+    }
+
+    /**
+     * @param list<string> $columns
+     * @return array<string,mixed>
+     */
+    private static function foreignKeyChildLookupRowKey(array $row, array $columns, string $label): array
+    {
+        $key = [];
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException("SQLite e_fkey child lookup {$label} is missing {$column}");
+            }
+            $key[$column] = $row[$column];
+        }
+
+        return $key;
+    }
+
+    /**
+     * @param list<string> $childColumns
+     * @return array{name:string,columns:list<string>,unique:bool,covering:bool,covers_child_key:bool}|null
+     */
+    private static function foreignKeyChildLookupIndex(mixed $index, array $childColumns): ?array
+    {
+        if ($index === null) {
+            return null;
+        }
+        if (!is_array($index)) {
+            throw new \InvalidArgumentException('SQLite e_fkey child lookup index is malformed');
+        }
+
+        $name = self::identifier((string) ($index['name'] ?? ''), 'child lookup index name');
+        $columns = self::identifierList($index['columns'] ?? [], 'child lookup index columns');
+        $covers = true;
+        foreach ($childColumns as $column) {
+            if (!in_array($column, $columns, true)) {
+                $covers = false;
+                break;
+            }
+        }
+
+        return [
+            'name' => $name,
+            'columns' => $columns,
+            'unique' => (bool) ($index['unique'] ?? false),
+            'covering' => (bool) ($index['covering'] ?? true),
+            'covers_child_key' => $covers,
+        ];
+    }
+
+    /**
+     * @param list<string> $childColumns
+     * @param array{name:string,columns:list<string>,unique:bool,covering:bool,covers_child_key:bool}|null $index
+     * @return array{detail:string,uses_index:bool,index_name:?string,index_columns:?list<string>,index_unique:bool,index_covering:bool,index_terms:list<string>}
+     */
+    private static function foreignKeyChildLookupDetail(string $childTable, array $childColumns, ?array $index): array
+    {
+        if ($index === null || !$index['covers_child_key']) {
+            return [
+                'detail' => 'SCAN ' . $childTable,
+                'uses_index' => false,
+                'index_name' => $index['name'] ?? null,
+                'index_columns' => $index['columns'] ?? null,
+                'index_unique' => (bool) ($index['unique'] ?? false),
+                'index_covering' => false,
+                'index_terms' => [],
+            ];
+        }
+
+        $terms = [];
+        foreach ($index['columns'] as $column) {
+            if (in_array($column, $childColumns, true)) {
+                $terms[] = $column . '=?';
+            }
+        }
+
+        return [
+            'detail' => 'SEARCH ' . $childTable . ' USING ' . ($index['covering'] ? 'COVERING ' : '') . 'INDEX ' . $index['name'] . ' (' . implode(' AND ', $terms) . ')',
+            'uses_index' => true,
+            'index_name' => $index['name'],
+            'index_columns' => $index['columns'],
+            'index_unique' => $index['unique'],
+            'index_covering' => $index['covering'],
+            'index_terms' => $terms,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<string> $parentColumns
+     * @param array<string,mixed> $targetKey
+     * @return list<int|string>
+     */
+    private static function foreignKeyChildLookupParentMatches(array $parents, array $parentColumns, array $targetKey): array
+    {
+        $matches = [];
+        foreach (array_values($parents) as $offset => $row) {
+            $matched = true;
+            foreach ($parentColumns as $column) {
+                if (!array_key_exists($column, $row)) {
+                    throw new \InvalidArgumentException("SQLite e_fkey child lookup parent row is missing {$column}");
+                }
+                if ($row[$column] !== $targetKey[$column]) {
+                    $matched = false;
+                    break;
+                }
+            }
+            if ($matched) {
+                $matches[] = self::foreignKeyChildLookupRowid($row, $offset + 1);
+            }
+        }
+
+        return $matches;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $childRows
+     * @param list<string> $parentColumns
+     * @param list<string> $childColumns
+     * @param array<string,mixed> $targetKey
+     * @return list<array{rowid:int|string,child_key:array<string,mixed>,parent_key:array<string,mixed>}>
+     */
+    private static function foreignKeyChildLookupMatches(array $childRows, array $parentColumns, array $childColumns, array $targetKey): array
+    {
+        $matches = [];
+        foreach (array_values($childRows) as $offset => $row) {
+            $childKey = [];
+            $hasNull = false;
+            $matched = true;
+            foreach ($childColumns as $index => $childColumn) {
+                if (!array_key_exists($childColumn, $row)) {
+                    throw new \InvalidArgumentException("SQLite e_fkey child lookup child row is missing {$childColumn}");
+                }
+
+                $value = $row[$childColumn];
+                $childKey[$childColumn] = $value;
+                if ($value === null) {
+                    $hasNull = true;
+                }
+                if ($value !== $targetKey[$parentColumns[$index]]) {
+                    $matched = false;
+                }
+            }
+
+            if ($hasNull || !$matched) {
+                continue;
+            }
+
+            $matches[] = [
+                'rowid' => self::foreignKeyChildLookupRowid($row, $offset + 1),
+                'child_key' => $childKey,
+                'parent_key' => $targetKey,
+            ];
+        }
+
+        return $matches;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $childRows
+     * @param list<string> $childColumns
+     * @return list<int|string>
+     */
+    private static function foreignKeyChildLookupNullRowids(array $childRows, array $childColumns): array
+    {
+        $rowids = [];
+        foreach (array_values($childRows) as $offset => $row) {
+            foreach ($childColumns as $column) {
+                if (!array_key_exists($column, $row)) {
+                    throw new \InvalidArgumentException("SQLite e_fkey child lookup child row is missing {$column}");
+                }
+                if ($row[$column] === null) {
+                    $rowids[] = self::foreignKeyChildLookupRowid($row, $offset + 1);
+                    break;
+                }
+            }
+        }
+
+        return $rowids;
+    }
+
+    private static function foreignKeyChildLookupRowid(array $row, int $fallback): int|string
+    {
+        if (array_key_exists('rowid', $row)) {
+            $rowid = $row['rowid'];
+            if (!is_int($rowid) && !is_string($rowid)) {
+                throw new \InvalidArgumentException('SQLite e_fkey child lookup rowid is malformed');
+            }
+
+            return $rowid;
+        }
+
+        return $fallback;
     }
 
     /**

@@ -290,6 +290,57 @@ return [
         $t->same(null, $nonNumericPortRemainsHostText->port());
         $t->same('ssh://host.xz:abc/path', $nonNumericPortRemainsHostText->toBytes());
     },
+    'git url expands home paths like gix-url expand_path' => static function (TestRunner $t): void {
+        $current = GitUrl::parseHomePath('/~/hello/git');
+        $t->same(true, $current['currentUser']);
+        $t->same(null, $current['user']);
+        $t->same('/hello/git', $current['path']);
+        $t->same('~/hello/git', GitUrl::forShellPath('/~/hello/git'));
+        $t->same('/home/current/hello/git', GitUrl::expandHomePath(
+            '/~/hello/git',
+            static fn (?string $user): ?string => $user === null ? '/home/current' : null
+        ));
+
+        $named = GitUrl::parseHomePath('/~byron/hello/git');
+        $t->same(false, $named['currentUser']);
+        $t->same('byron', $named['user']);
+        $t->same('/hello/git', $named['path']);
+        $t->same('~byron/hello/git', GitUrl::forShellPath('/~byron/hello/git'));
+        $t->same('/home/byron/hello/git', GitUrl::expandHomePath(
+            '/~byron/hello/git',
+            static fn (?string $user): ?string => $user === 'byron' ? '/home/byron' : null
+        ));
+
+        $namedRoot = GitUrl::parseHomePath('/~deploy');
+        $t->same('deploy', $namedRoot['user']);
+        $t->same('/', $namedRoot['path']);
+        $t->same('/srv/deploy', GitUrl::expandHomePath(
+            '/~deploy',
+            static fn (?string $user): ?string => $user === 'deploy' ? '/srv/deploy' : null
+        ));
+        $t->same('~deploy/', GitUrl::forShellPath('/~deploy'));
+
+        $plainAbsolute = GitUrl::parseHomePath('/srv/~deploy/site.git');
+        $t->same(false, $plainAbsolute['currentUser']);
+        $t->same(null, $plainAbsolute['user']);
+        $t->same('/srv/~deploy/site.git', $plainAbsolute['path']);
+        $t->same('/srv/~deploy/site.git', GitUrl::forShellPath('/srv/~deploy/site.git'));
+        $t->same('/srv/~deploy/site.git', GitUrl::expandHomePath(
+            '/srv/~deploy/site.git',
+            static fn (?string $user): ?string => throw new RuntimeException('home lookup should not run')
+        ));
+
+        $relative = GitUrl::parseHomePath('~/hello/git');
+        $t->same(false, $relative['currentUser']);
+        $t->same(null, $relative['user']);
+        $t->same('~/hello/git', $relative['path']);
+        $t->same('~/hello/git', GitUrl::forShellPath('~/hello/git'));
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => GitUrl::expandHomePath('/~missing/repo.git', static fn (?string $user): ?string => null)
+        );
+    },
     'refspec parser maps upstream fetch instruction and prefix behavior' => static function (TestRunner $t): void {
         $cases = [
             'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391:' => [
@@ -623,6 +674,11 @@ return [
         $t->same($fixture['expectedLocalMirrorHost'], $summary['localMirror']['host']);
         $t->same($fixture['expectedLocalMirrorPath'], $summary['localMirror']['path']);
         $t->same($fixture['expectedLocalMirrorUrl'], $summary['localMirror']['normalized']);
+        $t->same($fixture['expectedHomeMirrorUrl'], $summary['homeMirror']['normalized']);
+        $t->same($fixture['expectedHomeMirrorUser'], $summary['homeMirrorHome']['user']);
+        $t->same($fixture['expectedHomeMirrorTail'], $summary['homeMirrorHome']['path']);
+        $t->same($fixture['expectedHomeMirrorShellPath'], $summary['homeMirrorShellPath']);
+        $t->same($fixture['expectedHomeMirrorExpandedPath'], $summary['homeMirrorExpandedPath']);
         $t->same(true, $summary['deploymentRemoteSafe']);
         $t->same($fixture['expectedFetchInstructions'], array_column($summary['fetch'], 'instruction'));
         $t->same($fixture['expectedPushInstructions'], array_column($summary['push'], 'instruction'));

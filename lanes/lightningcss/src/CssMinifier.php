@@ -43,6 +43,17 @@ final class CssMinifier
                 continue;
             }
 
+            if ($char === '\\' && $i + 1 < $length) {
+                if ($pendingSpace && $this->needsSpaceBefore($output, $char)) {
+                    $output .= ' ';
+                }
+                $pendingSpace = false;
+                $end = $this->cssEscapeEndOffset($css, $i);
+                $output .= substr($css, $i, $end - $i + 1);
+                $i = $end;
+                continue;
+            }
+
             if ($char === '"' || $char === "'") {
                 if ($pendingSpace && $this->needsSpaceBefore($output, $char)) {
                     $output .= ' ';

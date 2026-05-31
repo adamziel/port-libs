@@ -887,6 +887,31 @@ return [
             $prefixer->prefixForTargets('.foo { position: sticky; }', ['safari' => 13])
         );
     },
+    'transition prefixer maps upstream break property WebKit browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '.foo { break-before: page; break-after: column; break-inside: avoid; }';
+        $modern = '.foo{break-before:page;break-after:column;break-inside:avoid}';
+        $webkit = '.foo{-webkit-break-before:page;break-before:page;-webkit-break-after:column;break-after:column;-webkit-break-inside:avoid;break-inside:avoid}';
+        $stalePrefixed = '.foo { -webkit-break-before: page; break-before: page; -webkit-break-after: column; break-after: column; -webkit-break-inside: avoid; break-inside: avoid; }';
+
+        $t->same($modern, $prefixer->prefixForTargets($css, ['android' => 2]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['android' => '2.1']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['android' => '4.4.3']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['android' => '4.4.4']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['chrome' => 49]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['chrome' => 50]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['ios_saf' => '3.1']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['ios_saf' => '3.2']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['ios_saf' => '8.1']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['ios_saf' => '8.2']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['opera' => 36]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['opera' => 37]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => 8]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => 9]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['samsung' => 4]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['samsung' => 5]));
+        $t->same($modern, $prefixer->prefixForTargets($stalePrefixed, ['chrome' => 50, 'safari' => 9, 'opera' => 37]));
+    },
     'transition prefixer maps upstream overflow shorthand browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

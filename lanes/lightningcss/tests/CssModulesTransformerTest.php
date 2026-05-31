@@ -376,6 +376,54 @@ CSS;
             $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
         }
     },
+    'css modules serializes upstream attribute selectors inside local global and composed selectors' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card[data-state="wide/layout"] {
+  color: red;
+}
+
+:global(.wp-block[data-kind="core/button"]) .card:is([data-tone="a.b"], .featured) {
+  color: yellow;
+}
+
+.card[class~="is-wide"] {
+  background: blue;
+}
+
+.card[data-space="bar baz"] {
+  margin: 1px;
+}
+
+.card[data-label="Hello, world!"] {
+  border-color: currentColor;
+}
+
+.button {
+  composes: base;
+  background: blue;
+}
+
+.base {
+  color: green;
+}
+CSS);
+
+        $t->same('.EgL3uq_card[data-state=wide\/layout]{color:red}.wp-block[data-kind=core\/button] .EgL3uq_card:is([data-tone=a\.b],.EgL3uq_featured){color:#ff0}.EgL3uq_card[class~=is-wide]{background:#00f}.EgL3uq_card[data-space=bar\ baz]{margin:1px}.EgL3uq_card[data-label="Hello, world!"]{border-color:currentColor}.EgL3uq_button{background:#00f}.EgL3uq_base{color:green}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'featured' => $export('EgL3uq_featured'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform('.card[data-state=.wide] { color: red }'));
+
+        $unminified = (new CssModulesTransformer())->transform('.card[data-state=".wide"] { color: red }', [
+            'minify' => false,
+        ]);
+        $t->same('.EgL3uq_card[data-state=".wide"]{ color: red }', $unminified['code']);
+    },
     'css modules pure mode enforces upstream local selector boundaries' => static function (TestRunner $t) use ($export, $local): void {
         $transformer = new CssModulesTransformer();
 

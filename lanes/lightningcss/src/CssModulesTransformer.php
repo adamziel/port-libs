@@ -22,6 +22,7 @@ final class CssModulesTransformer
     private bool $container = true;
     private bool $customIdents = true;
     private bool $pure = false;
+    private bool $minify = true;
     private bool $preserveEmptyComposesRules = true;
     private bool $preserveDependencyComposesDuplicates = false;
 
@@ -74,6 +75,7 @@ final class CssModulesTransformer
         $this->preserveDependencyComposesDuplicates = ($options['preserveDependencyComposesDuplicates'] ?? false) === true;
         $this->pseudoClasses = $this->normalizePseudoClasses($options['pseudoClasses'] ?? $options['pseudo_classes'] ?? []);
         $this->unusedSymbols = $this->normalizeUnusedSymbols($options['unusedSymbols'] ?? $options['unused_symbols'] ?? []);
+        $this->minify = $minify;
         $this->exports = [];
         $this->references = [];
 
@@ -81,6 +83,7 @@ final class CssModulesTransformer
         $code = $this->transformRuleList($css, 0);
         if ($minify) {
             $code = (new NestingTransformer())->lower($code);
+            $code = $this->rewriteAttributeSelectorsInCss($code);
             $code = $this->restorePreservedEmptyComposesRules($code);
         }
 
@@ -1876,8 +1879,16 @@ final class CssModulesTransformer
             }
 
             if ($char === '[') {
-                $bracketDepth++;
-                $output .= $char;
+                if (!$this->minify) {
+                    $bracketDepth++;
+                    $output .= $char;
+                    continue;
+                }
+
+                $close = $this->findAttributeSelectorEnd($selector, $i);
+                $inner = substr($selector, $i + 1, $close - $i - 1);
+                $output .= '[' . $this->rewriteAttributeSelectorContent($inner) . ']';
+                $i = $close;
                 continue;
             }
 
@@ -2513,6 +2524,266 @@ final class CssModulesTransformer
             'view-transition-old',
             'where',
         ], true);
+    }
+
+    private function findAttributeSelectorEnd(string $selector, int $open): int
+    {
+        $quote = null;
+        $length = strlen($selector);
+
+        for ($i = $open + 1; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                if ($char === '\\' && $i + 1 < $length) {
+                    $i++;
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === ']') {
+                return $i;
+            }
+        }
+
+        throw new \InvalidArgumentException('CSS attribute selector is missing a closing bracket');
+    }
+
+    private function rewriteAttributeSelectorContent(string $content): string
+    {
+        $equals = $this->findNextTopLevel($content, '=', 0);
+        if ($equals === null) {
+            return trim($content);
+        }
+
+        $operatorStart = $equals;
+        $previous = $content[$equals - 1] ?? '';
+        if (in_array($previous, ['~', '|', '^', '$', '*'], true)) {
+            $operatorStart--;
+        }
+
+        $name = trim(substr($content, 0, $operatorStart));
+        $operator = substr($content, $operatorStart, $equals - $operatorStart + 1);
+        $tail = trim(substr($content, $equals + 1));
+        if ($name === '' || $tail === '') {
+            throw new \InvalidArgumentException('Invalid value in attribute selector');
+        }
+
+        [$valueToken, $flags] = $this->splitAttributeSelectorValueAndFlags($tail);
+        $serializedValue = $this->serializeAttributeSelectorValue($valueToken);
+
+        return $name . $operator . $serializedValue . ($flags === '' ? '' : ' ' . $flags);
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private function splitAttributeSelectorValueAndFlags(string $tail): array
+    {
+        $quote = $tail[0] ?? '';
+        if ($quote === '"' || $quote === "'") {
+            $length = strlen($tail);
+            for ($i = 1; $i < $length; $i++) {
+                $char = $tail[$i];
+                if ($char === '\\' && $i + 1 < $length) {
+                    $i++;
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    return [substr($tail, 0, $i + 1), trim(substr($tail, $i + 1))];
+                }
+            }
+
+            throw new \InvalidArgumentException('Invalid value in attribute selector');
+        }
+
+        $token = $this->readCssIdentifierToken($tail, 0);
+        if ($token === null) {
+            throw new \InvalidArgumentException('Invalid value in attribute selector');
+        }
+
+        return [substr($tail, 0, $token['end']), trim(substr($tail, $token['end']))];
+    }
+
+    private function serializeAttributeSelectorValue(string $token): string
+    {
+        if ($this->isQuotedToken($token)) {
+            $decoded = $this->decodeCssStringToken(substr($token, 1, -1));
+            if ($this->canUnquoteAttributeSelectorValue($decoded)) {
+                return $this->escapeCssIdentifier($decoded);
+            }
+
+            return '"' . addcslashes($decoded, "\\\"\n\r\f") . '"';
+        }
+
+        $parsed = $this->readCssIdentifierToken($token, 0);
+        if ($parsed === null || $parsed['end'] !== strlen($token)) {
+            throw new \InvalidArgumentException('Invalid value in attribute selector');
+        }
+
+        return $this->escapeCssIdentifier($parsed['decoded']);
+    }
+
+    private function canUnquoteAttributeSelectorValue(string $value): bool
+    {
+        if ($value === '' || preg_match('/^[0-9]/', $value) === 1) {
+            return false;
+        }
+
+        return !str_contains($value, ',') && !str_contains($value, '!');
+    }
+
+    private function rewriteAttributeSelectorsInCss(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+
+        while (($open = $this->findNextTopLevel($css, '{', $cursor)) !== null) {
+            $preludeStart = $this->findPreludeStart($css, $cursor, $open);
+            $output .= substr($css, $cursor, $preludeStart - $cursor);
+
+            $prelude = substr($css, $preludeStart, $open - $preludeStart);
+            $trimmed = trim($prelude);
+            if ($trimmed !== '' && $trimmed[0] !== '@') {
+                $prelude = $this->rewriteAttributeSelectorsInSelector($prelude);
+            }
+
+            $output .= $prelude . '{';
+            $cursor = $open + 1;
+        }
+
+        return $output . substr($css, $cursor);
+    }
+
+    private function findPreludeStart(string $css, int $start, int $open): int
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $preludeStart = $start;
+
+        for ($i = $start; $i < $open; $i++) {
+            $char = $css[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($css, $i);
+                if ($escapeEnd !== null) {
+                    $i = $escapeEnd;
+                    continue;
+                }
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($parenDepth === 0 && $bracketDepth === 0 && ($char === ';' || $char === '}')) {
+                $preludeStart = $i + 1;
+            }
+        }
+
+        return $preludeStart;
+    }
+
+    private function rewriteAttributeSelectorsInSelector(string $selector): string
+    {
+        $output = '';
+        $quote = null;
+        $parenDepth = 0;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $selector[++$i];
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($selector, $i);
+                if ($escapeEnd !== null) {
+                    $output .= substr($selector, $i, $escapeEnd - $i + 1);
+                    $i = $escapeEnd;
+                    continue;
+                }
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                $output .= $char;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '[' && $parenDepth === 0) {
+                $close = $this->findAttributeSelectorEnd($selector, $i);
+                $inner = substr($selector, $i + 1, $close - $i - 1);
+                $output .= '[' . $this->rewriteAttributeSelectorContent($inner) . ']';
+                $i = $close;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
     }
 
     private function assertCssModulesFunctionalSelector(string $selector): void

@@ -15338,6 +15338,124 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,table_name:string,declared_type:string,affinity:string,raw_values:list<int>,stored_values:list<mixed>,select_sql:string,predicate_sql:string|null,expression_sql:string|null,projection_mode:bool,uses_rowid_btree:bool,comparison_family:string,detail:string,integrity:string}>
+     */
+    public static function where5NullComparisonCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite where5 NULL comparison corpus requires at least one case');
+        }
+
+        $source = 'where5.test sections where5-1.0 through where5-4.7';
+        $whereOperators = [
+            ['where5-%d.0', '<', 'less-than boundary filters the lower row'],
+            ['where5-%d.1', '<=', 'less-or-equal boundary keeps lower and boundary rows'],
+            ['where5-%d.2', '=', 'equality boundary keeps only the boundary row'],
+            ['where5-%d.3', '>=', 'greater-or-equal boundary keeps boundary and upper rows'],
+            ['where5-%d.4', '>', 'greater-than boundary keeps the upper row'],
+            ['where5-%d.5', '<>', 'not-equal boundary keeps lower and upper rows'],
+            ['where5-%d.6', '< NULL', 'less-than NULL filters every row because result is NULL'],
+            ['where5-%d.7', '<= NULL', 'less-or-equal NULL filters every row because result is NULL'],
+            ['where5-%d.8', '= NULL', 'equals NULL filters every row because result is NULL'],
+            ['where5-%d.9', '>= NULL', 'greater-or-equal NULL filters every row because result is NULL'],
+            ['where5-%d.10', '> NULL', 'greater-than NULL filters every row because result is NULL'],
+            ['where5-%d.11', '!= NULL', 'not-equal NULL filters every row because result is NULL'],
+            ['where5-%d.12', 'IS NULL', 'IS NULL finds no non-null upstream seed rows'],
+            ['where5-%d.13', 'IS NOT NULL', 'IS NOT NULL preserves all upstream seed rows'],
+        ];
+        $tables = [
+            ['where5-1', 'app_text_values', 'TEXT', 'TEXT', false, 'TEXT affinity table scan'],
+            ['where5-2', 'app_integer_values', 'INTEGER', 'INTEGER', false, 'INTEGER affinity table scan'],
+            ['where5-3', 'app_integer_primary_values', 'INTEGER PRIMARY KEY', 'INTEGER', true, 'INTEGER PRIMARY KEY rowid btree scan'],
+        ];
+
+        $templates = [];
+        foreach ($tables as [$sectionPrefix, $tableName, $declaredType, $affinity, $usesRowidBtree, $family]) {
+            $sectionGroup = (int) substr($sectionPrefix, -1);
+            foreach ($whereOperators as [$sectionFormat, $operator, $detail]) {
+                $predicate = str_contains($operator, 'NULL') || str_starts_with($operator, 'IS ')
+                    ? 'x ' . $operator
+                    : 'x ' . $operator . ' %d';
+                $templates[] = [
+                    sprintf($sectionFormat, $sectionGroup),
+                    $tableName,
+                    $declaredType,
+                    $affinity,
+                    $predicate,
+                    null,
+                    false,
+                    $usesRowidBtree,
+                    $family,
+                    $detail,
+                ];
+            }
+        }
+
+        foreach ([
+            ['where5-4.0', 'x<NULL', 'projection returns NULL for x<NULL over every row'],
+            ['where5-4.1', 'x<=NULL', 'projection returns NULL for x<=NULL over every row'],
+            ['where5-4.2', 'x==NULL', 'projection returns NULL for x==NULL over every row'],
+            ['where5-4.3', 'x>NULL', 'projection returns NULL for x>NULL over every row'],
+            ['where5-4.4', 'x>=NULL', 'projection returns NULL for x>=NULL over every row'],
+            ['where5-4.5', 'x!=NULL', 'projection returns NULL for x!=NULL over every row'],
+            ['where5-4.6', 'x IS NULL', 'projection returns 0 for x IS NULL over non-null rowid values'],
+            ['where5-4.7', 'x IS NOT NULL', 'projection returns 1 for x IS NOT NULL over non-null rowid values'],
+        ] as [$section, $expression, $detail]) {
+            $templates[] = [
+                $section,
+                'app_integer_primary_values',
+                'INTEGER PRIMARY KEY',
+                'INTEGER',
+                null,
+                $expression,
+                true,
+                true,
+                'INTEGER PRIMARY KEY rowid btree projection',
+                $detail,
+            ];
+        }
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $tableName, $declaredType, $affinity, $predicate, $expression, $projectionMode, $usesRowidBtree, $family, $detail] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $boundary = ($batch % 17) - 8;
+            $rawValues = [$boundary - 1, $boundary, $boundary + 1];
+            $storedValues = array_map(
+                static fn (int $value): mixed => SQLiteAffinityComparison::applyAffinity($value, $affinity),
+                $rawValues,
+            );
+            $predicateSql = is_string($predicate) ? sprintf($predicate, $boundary) : null;
+            $selectSql = $projectionMode
+                ? sprintf('SELECT %s FROM %s ORDER BY x', $expression, $tableName)
+                : sprintf('SELECT x FROM %s WHERE %s ORDER BY x', $tableName, $predicateSql);
+
+            $out[] = [
+                'source' => $source,
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $detail . ' dynamic batch ' . $batch,
+                'table_name' => $tableName,
+                'declared_type' => $declaredType,
+                'affinity' => $affinity,
+                'raw_values' => $rawValues,
+                'stored_values' => $storedValues,
+                'select_sql' => $selectSql,
+                'predicate_sql' => $predicateSql,
+                'expression_sql' => is_string($expression) ? $expression : null,
+                'projection_mode' => $projectionMode,
+                'uses_rowid_btree' => $usesRowidBtree,
+                'comparison_family' => $family,
+                'detail' => $detail,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<int>
      */
     private static function index5SyntheticForwardWritePages(int $startPage, int $count, int $seed): array

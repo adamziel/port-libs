@@ -1088,7 +1088,7 @@ final class SparseCheckoutSpec
 
     private static function normalizePath(string $path): string
     {
-        $path = str_replace('\\', '/', $path);
+        // Git tree paths use "/" separators; a backslash is an ordinary path byte.
         if (str_contains($path, "\0")) {
             throw new \InvalidArgumentException('Sparse checkout path cannot contain NUL bytes');
         }

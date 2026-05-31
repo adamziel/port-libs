@@ -678,6 +678,42 @@ CSS,
         $assertInvalidQuotedUrlImport('@import url("blocks/card.css" "theme.css"); .entry { color: red }');
         $assertInvalidQuotedUrlImport('@import url("blocks/card.css", screen); .entry { color: red }');
     },
+    'css bundler rejects malformed import source tokens before resolver reads' => static function (TestRunner $t): void {
+        $assertMalformedImportSource = static function (string $css) use ($t): void {
+            $reads = [];
+            try {
+                (new CssBundler())->bundleWithReader('/entry.css', static function (string $file) use (&$reads, $css): string {
+                    $reads[] = $file;
+
+                    return $file === '/entry.css' ? $css : '.bad { color: red }';
+                });
+            } catch (CssBundleException $exception) {
+                $t->same('parser-error', $exception->kind);
+                $t->same('Invalid @import source', $exception->getMessage());
+                $t->same('/entry.css', $exception->sourceFile);
+                $t->same(1, $exception->sourceLine);
+                $t->same(1, $exception->sourceColumn);
+                $t->same(['/entry.css'], $reads);
+
+                return;
+            }
+
+            throw new RuntimeException('Expected malformed @import source exception');
+        };
+
+        $assertMalformedImportSource('@import url(; .entry { color: red }');
+        $assertMalformedImportSource('@import "blocks/card.css; .entry { color: red }');
+        $assertMalformedImportSource("@import \"blocks/\ncard.css\"; .entry { color: red }");
+        $assertMalformedImportSource("@import url(\"blocks/\ncard.css\"); .entry { color: red }");
+
+        $t->same(
+            '.card{color:green}.entry{color:red}',
+            (new CssBundler())->bundle('/entry.css', [
+                '/entry.css' => "@import \"blocks/card\\\n.css\"; .entry { color: red }",
+                '/blocks/card.css' => '.card { color: green }',
+            ])
+        );
+    },
     'css bundler combines nested media conditions across import graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print and (color){.c{color:green}}@media print{.b{color:#ff0}}.a{color:red}',

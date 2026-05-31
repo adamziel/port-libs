@@ -12250,11 +12250,90 @@ final class DeclarationBlock
             throw new \InvalidArgumentException('CSS declaration property cannot be empty');
         }
 
+        $property = $this->decodeCssIdentifierEscapes($property);
         if (str_starts_with($property, '--')) {
             return $property;
         }
 
         return strtolower($property);
+    }
+
+    private function decodeCssIdentifierEscapes(string $identifier): string
+    {
+        $output = '';
+        $length = strlen($identifier);
+        for ($i = 0; $i < $length; $i++) {
+            if ($identifier[$i] !== '\\') {
+                $output .= $identifier[$i];
+                continue;
+            }
+
+            $escape = $this->readCssEscape($identifier, $i, $length);
+            if ($escape === null) {
+                $output .= '\\';
+                continue;
+            }
+
+            $output .= $escape['decoded'];
+            $i = $escape['end'] - 1;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @return array{decoded:string,end:int}|null
+     */
+    private function readCssEscape(string $value, int $offset, int $end): ?array
+    {
+        if (($value[$offset] ?? '') !== '\\' || $offset + 1 >= $end) {
+            return null;
+        }
+
+        $next = $value[$offset + 1];
+        if ($next === "\n" || $next === "\r" || $next === "\f") {
+            return null;
+        }
+
+        if (!ctype_xdigit($next)) {
+            return [
+                'decoded' => $next,
+                'end' => $offset + 2,
+            ];
+        }
+
+        $hex = '';
+        $cursor = $offset + 1;
+        while ($cursor < $end && strlen($hex) < 6 && ctype_xdigit($value[$cursor])) {
+            $hex .= $value[$cursor];
+            $cursor++;
+        }
+
+        if ($cursor < $end && ctype_space($value[$cursor])) {
+            if ($value[$cursor] === "\r" && ($value[$cursor + 1] ?? '') === "\n" && $cursor + 1 < $end) {
+                $cursor += 2;
+            } else {
+                $cursor++;
+            }
+        }
+
+        return [
+            'decoded' => $this->codepointToUtf8((int) hexdec($hex)),
+            'end' => $cursor,
+        ];
+    }
+
+    private function codepointToUtf8(int $codepoint): string
+    {
+        if ($codepoint <= 0 || ($codepoint >= 0xd800 && $codepoint <= 0xdfff) || $codepoint > 0x10ffff) {
+            $codepoint = 0xfffd;
+        }
+
+        if (function_exists('mb_chr')) {
+            return mb_chr($codepoint, 'UTF-8');
+        }
+
+        return html_entity_decode('&#x' . dechex($codepoint) . ';', ENT_NOQUOTES, 'UTF-8');
     }
 
     /**
@@ -12311,6 +12390,13 @@ final class DeclarationBlock
                 }
                 $i = $commentEnd + 1;
                 continue;
+            }
+            if ($char === '\\') {
+                $escape = $this->readCssEscape($value, $i, $end);
+                if ($escape !== null) {
+                    $i = $escape['end'] - 1;
+                    continue;
+                }
             }
             if ($char === '"' || $char === "'") {
                 $quote = $char;
@@ -12427,6 +12513,13 @@ final class DeclarationBlock
             }
             if ($char === '"' || $char === "'") {
                 $quote = $char;
+            } elseif ($char === '\\') {
+                $escape = $this->readCssEscape($value, $i, $length);
+                if ($escape !== null) {
+                    $parts[array_key_last($parts)] .= substr($value, $i, $escape['end'] - $i);
+                    $i = $escape['end'] - 1;
+                    continue;
+                }
             } elseif ($char === '(') {
                 $parenDepth++;
             } elseif ($char === ')') {
@@ -12522,6 +12615,12 @@ final class DeclarationBlock
             }
             if ($char === '"' || $char === "'") {
                 $quote = $char;
+            } elseif ($char === '\\') {
+                $escape = $this->readCssEscape($value, $i, $length);
+                if ($escape !== null) {
+                    $i = $escape['end'] - 1;
+                    continue;
+                }
             } elseif ($char === '(') {
                 $parenDepth++;
             } elseif ($char === ')') {

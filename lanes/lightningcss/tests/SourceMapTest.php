@@ -816,7 +816,7 @@ return [
         $t->same([0, 2], array_column($decoded, 'generatedColumn'));
         $t->same([0, 6], array_column($decoded, 'originalLine'));
     },
-    'source map preserves empty generated-line spans from upstream line offsets' => static function (TestRunner $t): void {
+    'source map ignores column offsets on empty generated-line spans like upstream' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $sourceIndex = $map->addSource('theme.css');
         $map->addMapping(0, 0, $sourceIndex, 0, 0);
@@ -828,31 +828,22 @@ return [
         $beforeColumnNoop = $map->writeVlq();
         $map->offsetColumns(1, 3, 2);
         $t->same($beforeColumnNoop, $map->writeVlq());
-        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
-            $map->offsetColumns(1, 3, -4);
-        });
-    },
-    'source map preserves empty generated-line spans from upstream line offsets' => static function (TestRunner $t): void {
-        $map = new SourceMap();
-        $sourceIndex = $map->addSource('theme.css');
-        $map->addMapping(0, 0, $sourceIndex, 0, 0);
-
-        $map->offsetLines(1, 2);
-
-        $t->same('AAAA;;', $map->writeVlq());
-        $t->same([0], array_column(SourceMap::decodeVlq($map->writeVlq()), 'generatedLine'));
-        $beforeColumnNoop = $map->writeVlq();
-        $map->offsetColumns(1, 3, 2);
+        $map->offsetColumns(1, 3, -4);
         $t->same($beforeColumnNoop, $map->writeVlq());
-        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
-            $map->offsetColumns(1, 3, -4);
-        });
-        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
-            $map->offsetColumns(2, 0, -1);
-        });
+        $map->offsetColumns(2, 0, -1);
         $t->same($beforeColumnNoop, $map->writeVlq());
         $map->offsetColumns(5, 3, -4);
         $t->same($beforeColumnNoop, $map->writeVlq());
+    },
+    'source map removes empty generated-line spans from upstream line offsets' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('theme.css');
+        $map->addMapping(0, 0, $sourceIndex, 0, 0);
+
+        $map->offsetLines(1, 2);
+
+        $t->same('AAAA;;', $map->writeVlq());
+        $t->same([0], array_column(SourceMap::decodeVlq($map->writeVlq()), 'generatedLine'));
 
         $map->offsetLines(3, -1);
         $t->same('AAAA;', $map->writeVlq());

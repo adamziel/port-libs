@@ -66,6 +66,43 @@ return [
         );
         $t->same($declarations, $block->removeProperty($declarations, '--BLOCK-ACCENT'));
     },
+    'declaration block decodes escaped css property names in cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'c\\6f lor: red !important; background-color: white; --Block\\2D Accent: blue';
+
+        $t->same(
+            [
+                'color' => 'red !important',
+                'background-color' => 'white',
+                '--Block-Accent' => 'blue',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'red', 'important' => true], $block->getProperty($declarations, 'color'));
+        $t->same(['value' => 'red', 'important' => true], $block->getProperty($declarations, 'c\\6f lor'));
+        $t->same(['value' => 'blue', 'important' => false], $block->getProperty($declarations, '--Block-Accent'));
+        $t->same(['value' => 'blue', 'important' => false], $block->getProperty($declarations, '--Block\\2D Accent'));
+        $t->same(3, $block->length($declarations));
+        $t->same('background-color', $block->item($declarations, 0));
+        $t->same('--Block-Accent', $block->item($declarations, 1));
+        $t->same('color', $block->item($declarations, 2));
+        $t->same(
+            'background-color: white; --Block-Accent: blue; color: green',
+            $block->setProperty($declarations, 'color', 'green')
+        );
+        $t->same(
+            'background-color: white; --Block-Accent: green; color: red !important',
+            $block->setProperty($declarations, '--Block\\2D Accent', 'green')
+        );
+        $t->same(
+            'background-color: white; --Block-Accent: blue',
+            $block->removeProperty($declarations, 'color')
+        );
+        $t->same(
+            'background-color: white; color: red !important',
+            $block->removeProperty($declarations, '--Block-Accent')
+        );
+    },
     'declaration block enumerates upstream cssom length and item order' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'color: red !important; background: white; --Block-Accent: blue; margin: 1rem !important; color: green';

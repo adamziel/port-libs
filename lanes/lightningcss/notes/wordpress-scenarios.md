@@ -102,6 +102,8 @@ This isolated bundle/import graph run extends the same build-free block-theme de
 
 This isolated property-values run adds `examples/wordpress-attr-typed-value-minifier.php` for block CSS that reads typed color and length values from data attributes without Node/WASM. Native minification now preserves upstream `attr()` comma spacing, `%` type spacing, and bare-comma empty fallback serialization for typed custom data-driven styles. No new support component is needed; it reuses `CssMinifier` declaration scanning, function parsing, list splitting, and token helpers.
 
+This isolated CSS Modules run adds `examples/wordpress-css-modules-attribute-selectors.php` for build-free block modules that combine global WordPress block selectors with local CSS Modules attribute selectors. Native PHP now serializes attribute selector values inside scoped selectors, `:global(...)` selectors, and `:is(...)` branches while preserving local `composes` exports, so block CSS such as `.wp-block-query[data-kind="core/query"] .card:is([data-tone="accent.primary"], .featured)` compiles without Node/WASM. No new support component is needed; it reuses `CssModulesTransformer`, `CssMinifier`, `NestingTransformer`, and lane-local selector/token helpers.
+
 ## Next Task
 
 Continue current-base LightningCSS handoffs for remaining CSSOM shorthand splitting/removal parity, custom at-rule parser/visitor parity, target-prefix browser boundaries, media-query range/layer handling, non-overlapping property-value color/font/grid coverage, and source-map/bundler integration. Reject status-only markers and avoid repeating accepted CSSOM priority-bucket, background CSSOM read/write, linear/radial/conic gradient minifier, or bundle supports-condition grouping slices.

@@ -23,6 +23,16 @@ $timeOnlyFinder = new MergeBaseFinder(static function (string $oid) use ($fixtur
 
     return $fixture['commits'][$oid];
 }, useCommitGraphGenerations: false);
+$commitGraphFinder = new MergeBaseFinder(
+    static function (string $oid) use ($fixture): Commit {
+        if (!isset($fixture['commits'][$oid])) {
+            throw new RuntimeException("Missing WordPress commit fixture: {$oid}");
+        }
+
+        return $fixture['commits'][$oid];
+    },
+    commitGraphGeneration: static fn (string $oid): ?int => $fixture['shallowCommitGraphGenerations'][$oid] ?? null,
+);
 
 $reviewBase = $finder->mergeBaseMany($fixture['heads']);
 $deploymentBase = $finder->mergeBaseMany($fixture['deploymentHeads']);
@@ -51,6 +61,10 @@ $sequentialOctopusBase = $finder->mergeBaseOctopus($fixture['octopusSpecialHeads
 $reorderedOctopusBase = $finder->mergeBaseOctopus($fixture['octopusReorderedHeads']);
 $stableOctopusIntersectionBases = $finder->mergeBasesMany($fixture['octopusSpecialHeads']);
 $shallowGraphWalkBase = $timeOnlyFinder->mergeBaseAgainst(
+    $fixture['shallowPluginReview'],
+    $fixture['shallowGraphWalkOthers'],
+);
+$shallowCommitGraphBase = $commitGraphFinder->mergeBaseAgainst(
     $fixture['shallowPluginReview'],
     $fixture['shallowGraphWalkOthers'],
 );
@@ -110,9 +124,11 @@ return [
     'reorderedOctopusKeepsLegacyBaseline' => $reorderedOctopusBase === $fixture['legacyBaseline'],
     'stableIntersectionKeepsLegacyBaseline' => $stableOctopusIntersectionBases === [$fixture['legacyBaseline']],
     'shallowGraphWalkBase' => $shallowGraphWalkBase,
+    'shallowCommitGraphBase' => $shallowCommitGraphBase,
     'shallowPairwiseBase' => $shallowPairwiseBase,
     'shallowReleaseBaseline' => $fixture['shallowReleaseBaseline'],
     'shallowGraphWalkStopsAtReleaseBaseline' => $shallowGraphWalkBase === $fixture['shallowReleaseBaseline'],
+    'shallowCommitGraphUsesMetadata' => $shallowCommitGraphBase === $fixture['shallowReleaseBaseline'],
     'shallowPairwiseStopsAtReleaseBaseline' => $shallowPairwiseBase === $fixture['shallowReleaseBaseline'],
     'timestampSkewHeads' => $fixture['timestampSkewHeads'],
     'timestampSkewBase' => $timestampSkewBase,

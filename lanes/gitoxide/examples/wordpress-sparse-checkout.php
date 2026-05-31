@@ -22,6 +22,10 @@ $wildmatchPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(exclude,glob)wp-content/cache/**',
     ':(glob)wp-content/**/theme.\?son',
 ]);
+$backslashBytePathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/plugins/f\\\\oo/block.json',
+    ':(glob)wp-content/plugins/[[-\\]]/block.json',
+]);
 $posixClassPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/uploads/slot[[:blank:]]/**',
     ':(glob)wp-content/uploads/[[:unknown:]]*.jpg',
@@ -125,6 +129,10 @@ return [
     'pathspecBracketPluginBlockIncluded' => $wildmatchPathspec->includesPath('wp-content/plugins/akismet/block.json', false),
     'pathspecCacheExcludeAuthoritative' => $wildmatchPathspec->skipWorktree('wp-content/cache/page.html', false),
     'pathspecRecursiveEscapedThemeIncluded' => $wildmatchPathspec->includesPath('wp-content/themes/site/theme.?son', false),
+    'pathspecBackslashByteIncluded' => $backslashBytePathspec->includesPath('wp-content/plugins/f\\oo/block.json', false),
+    'pathspecBackslashByteNotSeparator' => $backslashBytePathspec->skipWorktree('wp-content/plugins/f/oo/block.json', false),
+    'pathspecBackslashBracketRangeIncluded' => $backslashBytePathspec->includesPath('wp-content/plugins/\\/block.json', false),
+    'pathspecBackslashRangeDashSkipped' => $backslashBytePathspec->skipWorktree('wp-content/plugins/-/block.json', false),
     'pathspecPosixBlankOddWhitespaceIncluded' => $posixClassPathspec->includesPath("wp-content/uploads/slot\v/photo.jpg", false),
     'pathspecPosixSpaceTabSkipped' => $posixSpaceClassPathspec->skipWorktree("wp-content/uploads/slot\t/photo.jpg", false),
     'pathspecInvalidClassLiteralFallbackIncluded' => $posixClassPathspec->includesPath('wp-content/uploads/[[:unknown:]]*.jpg', false),

@@ -122,13 +122,10 @@ $emptyLineOffsetMap->addMapping(0, 0, $emptyLineOffsetSource, 0, 0);
 $emptyLineOffsetMap->offsetLines(1, 2);
 $emptyLineOffsetBeforeColumnNoop = $emptyLineOffsetMap->toJson(null, false);
 $emptyLineOffsetMap->offsetColumns(1, 3, 2);
-$emptyLineColumnOffsetGuard = false;
-try {
-    $emptyLineOffsetMap->offsetColumns(1, 3, -4);
-} catch (InvalidArgumentException) {
-    $emptyLineColumnOffsetGuard = true;
-}
+$emptyLineOffsetMap->offsetColumns(1, 3, -4);
+$emptyLineOffsetMap->offsetColumns(2, 0, -1);
 $emptyLineOffsetMap->offsetColumns(5, 3, -4);
+$emptyLineColumnOffsetNoop = $emptyLineOffsetBeforeColumnNoop === $emptyLineOffsetMap->toJson(null, false);
 $bufferRoundTripMap = SourceMap::fromBuffer('/', $emptyLineOffsetMap->toBuffer());
 
 $negativeLinePastSpanMap = new SourceMap();
@@ -422,7 +419,7 @@ $actual = [
     'carriageReturnEmptyMap' => $carriageReturnEmptyMap->toJson(null, false),
     'lineSpanMap' => $inlineEditorMap->toJson(null, false),
     'emptyLineColumnOffsetMap' => $emptyLineOffsetMap->toJson(null, false),
-    'emptyLineColumnOffsetGuard' => $emptyLineColumnOffsetGuard && $emptyLineOffsetBeforeColumnNoop === $emptyLineOffsetMap->toJson(null, false),
+    'emptyLineColumnOffsetNoop' => $emptyLineColumnOffsetNoop,
     'bufferRoundTripMap' => $bufferRoundTripMap->toJson(null, false),
     'negativeLinePastSpanGuard' => $negativeLinePastSpanGuard && $negativeLinePastSpanBeforeGuard === $negativeLinePastSpanMap->toJson(null, false),
     'farLineOffsetMap' => $farLineOffsetMap->toJson(null, false),
@@ -464,7 +461,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'carriageReturnEmptyMap' => '{"version":3,"mappings":";AAAA;AACA;AACA","sources":["wp-content/themes/example/legacy-cr.css"],"sourcesContent":[".wp-block-legacy\r.wp-block-modern\n.wp-block-crlf\r\n.wp-block-tail\r.rule"],"names":[]}',
         'lineSpanMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/editor-inline.css"],"sourcesContent":[".wp-block-spacer {\n  margin-top: 1rem;\n}\n"],"names":[]}',
         'emptyLineColumnOffsetMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/empty-line-offset.css"],"sourcesContent":[".wp-block-empty-line-offset {}\n"],"names":[]}',
-        'emptyLineColumnOffsetGuard' => true,
+        'emptyLineColumnOffsetNoop' => true,
         'bufferRoundTripMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/empty-line-offset.css"],"sourcesContent":[".wp-block-empty-line-offset {}\n"],"names":[]}',
         'negativeLinePastSpanGuard' => true,
         'farLineOffsetMap' => '{"version":3,"mappings":"AAAA;;;;EAMA","sources":["wp-content/themes/example/far-line-offset.css"],"sourcesContent":[".wp-block-far-line-offset {}\n"],"names":[]}',

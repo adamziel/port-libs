@@ -49,6 +49,67 @@ final class GitUrl
         return new self(self::SCHEME_FILE, null, null, null, null, $input, true);
     }
 
+    /**
+     * @return array{currentUser: bool, user: ?string, path: string}
+     */
+    public static function parseHomePath(string $path): array
+    {
+        if ($path === '' || $path[0] !== '/') {
+            return ['currentUser' => false, 'user' => null, 'path' => $path];
+        }
+
+        $nextSlash = strpos($path, '/', 1);
+        $segment = $nextSlash === false ? substr($path, 1) : substr($path, 1, $nextSlash - 1);
+        if ($segment === '' || $segment[0] !== '~') {
+            return ['currentUser' => false, 'user' => null, 'path' => $path];
+        }
+
+        $tail = $nextSlash === false ? '/' : substr($path, $nextSlash);
+        if ($segment === '~') {
+            return ['currentUser' => true, 'user' => null, 'path' => $tail];
+        }
+
+        return ['currentUser' => false, 'user' => substr($segment, 1), 'path' => $tail];
+    }
+
+    public static function forShellPath(string $path): string
+    {
+        $parsed = self::parseHomePath($path);
+        if ($parsed['currentUser']) {
+            return '~' . $parsed['path'];
+        }
+        if ($parsed['user'] !== null) {
+            return '~' . $parsed['user'] . $parsed['path'];
+        }
+
+        return $parsed['path'];
+    }
+
+    /**
+     * @param callable(?string): ?string $homeForUser Receives null for the current user, or a user name.
+     */
+    public static function expandHomePath(string $path, callable $homeForUser): string
+    {
+        $parsed = self::parseHomePath($path);
+        if (!$parsed['currentUser'] && $parsed['user'] === null) {
+            return $parsed['path'];
+        }
+
+        $home = $homeForUser($parsed['currentUser'] ? null : $parsed['user']);
+        if ($home === null) {
+            $label = $parsed['currentUser'] ? 'current user' : "user '{$parsed['user']}'";
+            throw new \InvalidArgumentException("Home directory could not be obtained for {$label}");
+        }
+
+        $relative = ltrim($parsed['path'], '/');
+        $base = rtrim($home, '/');
+        if ($base === '') {
+            return $relative === '' ? '/' : '/' . $relative;
+        }
+
+        return $relative === '' ? $base : $base . '/' . $relative;
+    }
+
     public function scheme(): string
     {
         return $this->scheme;

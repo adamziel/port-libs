@@ -105,18 +105,31 @@ final class PathspecSearch
 
     public function longestCommonDirectory(): ?string
     {
+        $firstNonExcluded = null;
+        foreach ($this->patterns as $pattern) {
+            if (!$pattern->exclude) {
+                $firstNonExcluded = $pattern;
+                break;
+            }
+        }
+
+        if ($firstNonExcluded === null) {
+            return null;
+        }
         if ($this->commonPrefix === '') {
             return null;
         }
-        if ($this->prefixDirectory() === $this->commonPrefix) {
-            return $this->commonPrefix;
-        }
-        $slash = strrpos($this->commonPrefix, '/');
-        if ($slash === false) {
+
+        if ($firstNonExcluded->mustBeDirectory) {
             return $this->commonPrefix;
         }
 
-        return substr($this->commonPrefix, 0, $slash + 1);
+        $slash = strrpos($this->commonPrefix, '/');
+        if ($slash === false) {
+            return null;
+        }
+
+        return substr($this->commonPrefix, 0, $slash);
     }
 
     public function match(string $relativePath, ?bool $isDirectory = null, ?GitAttributes $attributes = null): ?PathspecMatch

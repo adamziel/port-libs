@@ -280,6 +280,37 @@ try {
     echo 'bad-url-import: rejected-before-resolution' . PHP_EOL;
 }
 
+$badImportSourceReads = [];
+try {
+    (new CssBundler())->bundleWithReader(
+        '/bad-import-source.css',
+        static function (string $file) use (&$badImportSourceReads): string {
+            $badImportSourceReads[] = $file;
+
+            return $file === '/bad-import-source.css'
+                ? "@import \"blocks/\ncard.css\"; .wp-site-blocks { color: red; }"
+                : '.wp-block-card { color: green; }';
+        }
+    );
+
+    fwrite(STDERR, "Expected malformed quoted import source to be rejected before reading block CSS\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'Invalid @import source'
+        || $exception->sourceFile !== '/bad-import-source.css'
+        || $exception->sourceLine !== 1
+        || $exception->sourceColumn !== 1
+        || $badImportSourceReads !== ['/bad-import-source.css']
+    ) {
+        fwrite(STDERR, 'Unexpected malformed import source diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'malformed-import-source: rejected-before-read' . PHP_EOL;
+}
+
 $mediaBooleanBundle = (new CssBundler())->bundle('/entry.css', [
     '/entry.css' => '@import "print.css" layer(theme.blocks) print; .entry { color: red }',
     '/print.css' => '@import "wide.css" not screen and (width >= 240px); .wp-block-query { color: blue }',

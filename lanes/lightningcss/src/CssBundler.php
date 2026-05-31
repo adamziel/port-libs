@@ -996,11 +996,15 @@ final class CssBundler
 
         if ($this->startsFunction($rest, $offset, 'url')) {
             $open = $offset + strlen($this->readIdentifier($rest, $offset));
-            $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
+            try {
+                $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
+            } catch (CssBundleException) {
+                $this->throwInvalidImportSource($file, $loc);
+            }
             $specifier = $this->parseImportUrlFunctionSource(substr($rest, $open + 1, $close - $open - 1), $file, $loc);
             $offset = $close + 1;
         } elseif (($rest[$offset] ?? '') === '"' || ($rest[$offset] ?? '') === "'") {
-            $end = $this->readQuotedTokenEnd($rest, $offset);
+            $end = $this->readImportSourceStringEnd($rest, $offset, $file, $loc);
             $specifier = $this->cssStringTokenValue(substr($rest, $offset, $end - $offset));
             $offset = $end;
         }
@@ -1058,7 +1062,7 @@ final class CssBundler
     {
         $offset = $this->skipWhitespaceAndComments($source, 0);
         if (($source[$offset] ?? '') === '"' || ($source[$offset] ?? '') === "'") {
-            $end = $this->readQuotedTokenEnd($source, $offset);
+            $end = $this->readImportSourceStringEnd($source, $offset, $file, $loc);
             $after = $this->skipWhitespaceAndComments($source, $end);
             if ($after < strlen($source)) {
                 $this->throwInvalidImportSource($file, $loc);
@@ -2584,6 +2588,30 @@ final class CssBundler
     private function throwInvalidImportSource(string $file, array $loc): void
     {
         throw new CssBundleException('parser-error', 'Invalid @import source', $file, $loc['line'], $loc['column']);
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function readImportSourceStringEnd(string $value, int $offset, string $file, array $loc): int
+    {
+        $quote = $value[$offset] ?? '';
+        $length = strlen($value);
+        for ($i = $offset + 1; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($char === '\\') {
+                $i = $this->cssEscapeEndOffset($value, $i);
+                continue;
+            }
+            if ($char === "\n" || $char === "\r" || $char === "\f") {
+                $this->throwInvalidImportSource($file, $loc);
+            }
+            if ($char === $quote) {
+                return $i + 1;
+            }
+        }
+
+        $this->throwInvalidImportSource($file, $loc);
     }
 
     private function cssStringTokenValue(string $token): string

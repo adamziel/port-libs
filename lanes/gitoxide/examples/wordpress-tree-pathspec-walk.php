@@ -94,6 +94,17 @@ $siblingPrefixPathspecs = PathspecSearch::fromSpecs(
     ['../themes/acme/theme.json'],
     'wp-content/plugins',
 );
+$pluginPruningHintPathspecs = PathspecSearch::fromSpecs([
+    'wp-content/plugins/gutenberg/*.json',
+    'wp-content/plugins/gutenberg/*.gson',
+]);
+$callerPrefixHintPathspecs = PathspecSearch::fromSpecs(
+    [':(icase)mu-plugins/*.php'],
+    'WP-CONTENT',
+);
+$directoryOnlyHintPathspecs = PathspecSearch::fromSpecs([
+    'wp-content/plugins/gutenberg/',
+]);
 $deploymentAttributes = GitAttributes::fromString(
     "wp-content/plugins/gutenberg/** deploy=plugin merge=union\n"
     . "wp-content/plugins/gutenberg/build/** !deploy\n"
@@ -257,6 +268,9 @@ return [
     'mixedPrefixLowerContentSkipped' => !$mixedPrefixPathspecs->isIncluded('wp-content/mu-plugins/Loader.PHP', false),
     'mixedPrefixUpperContentIncluded' => $mixedPrefixPathspecs->isIncluded('WP-CONTENT/mu-plugins/Loader.PHP', false),
     'siblingPrefixContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $siblingPrefixRecords),
+    'pluginPruningHintDirectory' => $pluginPruningHintPathspecs->longestCommonDirectory(),
+    'callerPrefixOnlyPruningHint' => $callerPrefixHintPathspecs->longestCommonDirectory(),
+    'directoryOnlyPruningHint' => $directoryOnlyHintPathspecs->longestCommonDirectory(),
     'attrFilteredContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $attrFilteredRecords),
     'attrFilteredWithoutProviderEmpty' => $attrFilteredWithoutProviderRecords === [],
     'rootEscapingPathspecRejected' => $rootEscapingPathspecRejected,

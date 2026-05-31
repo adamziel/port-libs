@@ -118,6 +118,13 @@ return [
     'shallowThemeReview' => $shallowThemeReview,
     'shallowArchiveReview' => $shallowArchiveReview,
     'shallowGraphWalkOthers' => [$shallowThemeReview, $shallowArchiveReview],
+    'shallowCommitGraphGenerations' => [
+        $shallowStaleParent => 1,
+        $shallowReleaseBaseline => 2,
+        $shallowPluginReview => 3,
+        $shallowThemeReview => 3,
+        $shallowArchiveReview => 1,
+    ],
     'timestampSkewExpectedBase' => $timestampSkewCenter2,
     'timestampSkewLeftReview' => $timestampSkewLeftReview,
     'timestampSkewRightReview' => $timestampSkewRightReview,

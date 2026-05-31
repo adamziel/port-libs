@@ -217,6 +217,74 @@ return [
         $t->same(true, in_array($staleParent, $reads, true));
         $t->same(false, in_array($missingGrandparent, $reads, true));
     },
+    'maps upstream commit graph metadata without recursively inflating stale ancestors' => static function (TestRunner $t) use ($oid): void {
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+        $missingGrandparent = $oid('0');
+        $staleParent = $oid('1');
+        $shared = $oid('2');
+        $left = $oid('3');
+        $right = $oid('4');
+        $unrelated = $oid('5');
+        $reads = [];
+        $generationReads = [];
+        $commits = [
+            $staleParent => $timedCommit(1699999900, [$missingGrandparent]),
+            $shared => $timedCommit(1700000000, [$staleParent]),
+            $left => $timedCommit(1700000100, [$shared]),
+            $right => $timedCommit(1700000200, [$shared]),
+            $unrelated => $timedCommit(1700000300),
+        ];
+        $generations = [
+            $staleParent => 1,
+            $shared => 2,
+            $left => 3,
+            $right => 3,
+            $unrelated => 1,
+        ];
+        $mergeBase = new MergeBaseFinder(
+            static function (string $oid) use ($commits, $missingGrandparent, &$reads): Commit {
+                $reads[] = $oid;
+                if ($oid === $missingGrandparent) {
+                    throw new RuntimeException('Commit-graph-backed walk should not recursively inflate stale ancestors');
+                }
+                if (!isset($commits[$oid])) {
+                    throw new RuntimeException("Missing commit fixture: {$oid}");
+                }
+
+                return $commits[$oid];
+            },
+            commitGraphGeneration: static function (string $oid) use ($generations, &$generationReads): ?int {
+                $generationReads[] = $oid;
+
+                return $generations[$oid] ?? null;
+            },
+        );
+
+        $t->same([$shared], $mergeBase->mergeBasesAgainst($left, [$right, $unrelated]));
+        $t->same($shared, $mergeBase->mergeBase($left, $right));
+        $t->same([$shared], $mergeBase->mergeBases($left, $right));
+        $t->same(true, in_array($staleParent, $reads, true));
+        $t->same(true, in_array($staleParent, $generationReads, true));
+        $t->same(false, in_array($missingGrandparent, $reads, true));
+        $t->same(false, in_array($missingGrandparent, $generationReads, true));
+        $invalidGenerationFinder = new MergeBaseFinder(
+            static fn (string $oid): Commit => $commits[$oid],
+            commitGraphGeneration: static fn (string $oid): int => -1,
+        );
+        $t->throws(InvalidArgumentException::class, static fn () => $invalidGenerationFinder->mergeBase($left, $right));
+    },
     'maps upstream generated merge-base timestamp skew baselines' => static function (TestRunner $t) use ($oid, $finder): void {
         $timedCommit = static fn (int $offsetSeconds, array $parents = []): Commit => new Commit(
             str_repeat('f', 40),
@@ -663,6 +731,16 @@ BASELINE;
 
             return $fixture['commits'][$oid];
         }, useCommitGraphGenerations: false);
+        $commitGraphFinder = new MergeBaseFinder(
+            static function (string $oid) use ($fixture): Commit {
+                if (!isset($fixture['commits'][$oid])) {
+                    throw new RuntimeException("Missing commit fixture: {$oid}");
+                }
+
+                return $fixture['commits'][$oid];
+            },
+            commitGraphGeneration: static fn (string $oid): ?int => $fixture['shallowCommitGraphGenerations'][$oid] ?? null,
+        );
 
         $t->same($fixture['releaseBaseline'], $finder->mergeBaseMany($fixture['heads']));
         $t->same([$fixture['releaseBaseline']], $finder->mergeBasesMany($fixture['deploymentHeads']));
@@ -702,9 +780,12 @@ BASELINE;
         $t->same(true, $example['reorderedOctopusKeepsLegacyBaseline']);
         $t->same(true, $example['stableIntersectionKeepsLegacyBaseline']);
         $t->same($fixture['shallowReleaseBaseline'], $timeOnlyFinder->mergeBaseAgainst($fixture['shallowPluginReview'], $fixture['shallowGraphWalkOthers']));
+        $t->same($fixture['shallowReleaseBaseline'], $commitGraphFinder->mergeBaseAgainst($fixture['shallowPluginReview'], $fixture['shallowGraphWalkOthers']));
         $t->same($fixture['shallowReleaseBaseline'], $example['shallowGraphWalkBase']);
+        $t->same($fixture['shallowReleaseBaseline'], $example['shallowCommitGraphBase']);
         $t->same($fixture['shallowReleaseBaseline'], $example['shallowPairwiseBase']);
         $t->same(true, $example['shallowGraphWalkStopsAtReleaseBaseline']);
+        $t->same(true, $example['shallowCommitGraphUsesMetadata']);
         $t->same(true, $example['shallowPairwiseStopsAtReleaseBaseline']);
         $t->same($fixture['timestampSkewExpectedBase'], $finder->mergeBase($fixture['timestampSkewLeftReview'], $fixture['timestampSkewRightReview']));
         $t->same($fixture['timestampSkewExpectedBase'], $timeOnlyFinder->mergeBase($fixture['timestampSkewLeftReview'], $fixture['timestampSkewRightReview']));

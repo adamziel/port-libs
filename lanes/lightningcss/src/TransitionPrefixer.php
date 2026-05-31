@@ -245,6 +245,7 @@ final class TransitionPrefixer
         $boxSizingChanged = $this->rewriteBoxSizingPrefixEntries($entries, $targetOptions);
         $objectFitChanged = $this->rewriteObjectFitPrefixEntries($entries, $targetOptions);
         $textCompatibilityPrefixChanged = $this->rewriteTextCompatibilityPrefixEntries($entries, $targetOptions);
+        $breakPrefixChanged = $this->rewriteBreakPrefixEntries($entries, $targetOptions);
         $overflowShorthandChanged = $this->rewriteOverflowShorthandFallbackEntries($entries, $targetOptions);
         $transformPrefixChanged = $this->rewriteTransformPrefixEntries($entries, $targetOptions);
         $positionStickyChanged = $this->rewritePositionStickyPrefixEntries($entries, $targetOptions);
@@ -302,7 +303,7 @@ final class TransitionPrefixer
         if ($logicalTextAlignFallback !== null) {
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -993,6 +994,12 @@ final class TransitionPrefixer
                 || $this->targetAtLeast($normalized, 'opera', [15])
                 || $this->targetAtLeast($normalized, 'safari', [6, 1])
                 || $this->targetAtLeast($normalized, 'samsung', [4]),
+            'breakNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [4], [49])
+                || $this->targetInRange($normalized, 'ios_saf', [3, 2], [8, 1])
+                || $this->targetInRange($normalized, 'opera', [15], [36])
+                || $this->targetInRange($normalized, 'safari', [3, 1], [8])
+                || $this->targetInRange($normalized, 'samsung', [0], [4]),
             'overflowShorthandNeedsLonghandFallback' => $this->targetsNeedFeatureFallback($normalized, [
                 'android' => [68],
                 'chrome' => [68],
@@ -3719,6 +3726,22 @@ final class TransitionPrefixer
         return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'box-decoration-break', [
             '-webkit-' => $targetOptions['boxDecorationBreakNeedsWebkit'] ?? false,
         ]) || $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteBreakPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $changed = false;
+        foreach (['break-before', 'break-after', 'break-inside'] as $property) {
+            $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, $property, [
+                '-webkit-' => $targetOptions['breakNeedsWebkit'] ?? false,
+            ]) || $changed;
+        }
+
+        return $changed;
     }
 
     /**

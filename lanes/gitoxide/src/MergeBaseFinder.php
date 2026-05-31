@@ -17,6 +17,11 @@ final class MergeBaseFinder
     private readonly \Closure $readCommit;
 
     /**
+     * @var ?\Closure(string): (?int)
+     */
+    private readonly ?\Closure $commitGraphGeneration;
+
+    /**
      * @var array<string, Commit>
      */
     private array $commitCache = [];
@@ -39,12 +44,20 @@ final class MergeBaseFinder
     public function __construct(
         callable $readCommit,
         private readonly bool $useCommitGraphGenerations = true,
+        ?callable $commitGraphGeneration = null,
     )
     {
         $this->readCommit = \Closure::fromCallable($readCommit);
+        $this->commitGraphGeneration = $commitGraphGeneration === null
+            ? null
+            : \Closure::fromCallable($commitGraphGeneration);
     }
 
-    public static function fromObjectDatabase(ObjectDatabase $database, bool $useCommitGraphGenerations = true): self
+    public static function fromObjectDatabase(
+        ObjectDatabase $database,
+        bool $useCommitGraphGenerations = true,
+        ?callable $commitGraphGeneration = null,
+    ): self
     {
         return new self(static function (string $oid) use ($database): Commit {
             $object = $database->read($oid);
@@ -53,7 +66,7 @@ final class MergeBaseFinder
             }
 
             return Commit::parse($object->body);
-        }, $useCommitGraphGenerations);
+        }, $useCommitGraphGenerations, $commitGraphGeneration);
     }
 
     /**
@@ -523,6 +536,17 @@ final class MergeBaseFinder
         $oid = strtolower($oid);
         if (isset($this->generationCache[$oid])) {
             return $this->generationCache[$oid];
+        }
+
+        if ($this->commitGraphGeneration !== null) {
+            $generation = ($this->commitGraphGeneration)($oid);
+            if ($generation !== null) {
+                if (!is_int($generation) || $generation < 0) {
+                    throw new \InvalidArgumentException('Commit graph generation provider must return a non-negative integer or null');
+                }
+
+                return $this->generationCache[$oid] = $generation;
+            }
         }
 
         $hashLength = self::assertObjectId($oid);

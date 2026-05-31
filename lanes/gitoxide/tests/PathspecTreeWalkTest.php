@@ -378,6 +378,20 @@ return [
         $t->same(true, $leading->directoryMatchesPrefix('d', true));
         $t->same(true, $leading->directoryMatchesPrefix('d/d/generated', true));
         $t->same(false, $leading->directoryMatchesPrefix('d/d/generatedfoo', true));
+
+        $wildcardFiles = PathspecSearch::fromSpecs([
+            'wp-content/plugins/gutenberg/*.json',
+            'wp-content/plugins/gutenberg/*.gson',
+        ]);
+        $t->same('wp-content/plugins/gutenberg', $wildcardFiles->longestCommonDirectory());
+        $t->same('wp-content/plugins', PathspecSearch::fromSpecs([
+            'wp-content/plugins/gutenberg/block.json',
+            'wp-content/plugins/akismet/block.json',
+        ])->longestCommonDirectory());
+        $t->same(null, PathspecSearch::fromSpecs(['foo', 'fob'])->longestCommonDirectory());
+        $t->same('wp-content/plugins/gutenberg', PathspecSearch::fromSpecs([
+            'wp-content/plugins/gutenberg/',
+        ])->longestCommonDirectory());
     },
     'keeps caller prefixes case sensitive under icase pathspecs' => static function (TestRunner $t): void {
         $noCallerPrefix = PathspecSearch::fromSpecs(['foo/bar', 'foo']);
@@ -388,7 +402,7 @@ return [
 
         $t->same('FOO', $search->commonPrefix());
         $t->same('FOO', $search->prefixDirectory());
-        $t->same('FOO', $search->longestCommonDirectory());
+        $t->same(null, $search->longestCommonDirectory());
         $t->same(true, $search->isIncluded('FOO/BAR', false));
         $t->same(true, $search->isIncluded('FOO/bAr', false));
         $t->same(false, $search->isIncluded('foo/BAR', false));
@@ -716,5 +730,8 @@ return [
         ], $example['mixedPrefixContentPaths']);
         $t->same(true, $example['mixedPrefixLowerContentSkipped']);
         $t->same(true, $example['mixedPrefixUpperContentIncluded']);
+        $t->same('wp-content/plugins/gutenberg', $example['pluginPruningHintDirectory']);
+        $t->same(null, $example['callerPrefixOnlyPruningHint']);
+        $t->same('wp-content/plugins/gutenberg', $example['directoryOnlyPruningHint']);
     },
 ];

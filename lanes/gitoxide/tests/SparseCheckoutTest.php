@@ -367,6 +367,17 @@ return [
         $t->same(false, $pathAwareSlashClass->includesPath('wp-content/plugins/foo/bar.php', false));
         $t->same(true, $shellSlashClass->includesPath('wp-content/plugins/foo/bar.php', false));
 
+        $backslashBytes = SparseCheckoutSpec::fromPathspecs([
+            ':(glob)wp-content/plugins/f\\\\oo/block.json',
+            ':(glob)wp-content/plugins/[[-\\]]/block.json',
+        ]);
+        $t->same(true, $backslashBytes->includesPath('wp-content/plugins/f\\oo/block.json', false));
+        $t->same(false, $backslashBytes->includesPath('wp-content/plugins/f/oo/block.json', false));
+        $t->same(true, $backslashBytes->includesPath('wp-content/plugins/\\/block.json', false));
+        $t->same(true, $backslashBytes->includesPath('wp-content/plugins/[/block.json', false));
+        $t->same(true, $backslashBytes->includesPath('wp-content/plugins/]/block.json', false));
+        $t->same(false, $backslashBytes->includesPath('wp-content/plugins/-/block.json', false));
+
         $blob = str_repeat('1', 40);
         $tree = str_repeat('2', 40);
         $root = new Tree([

@@ -60,7 +60,11 @@ final class SQLiteSelectQuery
                     throw new \InvalidArgumentException('SQLite SELECT query select expressions must be arrays');
                 }
             }
+            $implicitWindowOrderBy = self::implicitWindowOutputOrderBy($plan, $select);
             [$rows, $select] = self::applyWindowExpressions($rows, $select);
+            if ($implicitWindowOrderBy !== []) {
+                $rows = self::sortRowsByWindowOrder($rows, $implicitWindowOrderBy);
+            }
             $rows = SQLiteSelectProjection::project($rows, $select);
         }
 
@@ -250,6 +254,108 @@ final class SQLiteSelectQuery
         }
 
         return [$rows, $select];
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     * @param list<array<string,mixed>> $select
+     * @return list<array{expression:array<string,mixed>,direction:string}>
+     */
+    private static function implicitWindowOutputOrderBy(array $plan, array $select): array
+    {
+        foreach (['groupBy', 'distinct', 'orderBy', 'limit', 'offset'] as $clause) {
+            if (array_key_exists($clause, $plan)) {
+                return [];
+            }
+        }
+
+        $orderBy = null;
+        foreach ($select as $expression) {
+            $windows = self::windowExpressionsIn($expression);
+            foreach ($windows as $window) {
+                if (self::expressionList($window['partitionBy'] ?? [], 'window partition expressions') !== []) {
+                    return [];
+                }
+                $candidate = self::windowOrderList($window['orderBy'] ?? []);
+                if ($candidate === []) {
+                    continue;
+                }
+                if ($orderBy === null) {
+                    $orderBy = $candidate;
+                    continue;
+                }
+                if (serialize($orderBy) !== serialize($candidate)) {
+                    return [];
+                }
+            }
+        }
+
+        return $orderBy ?? [];
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     * @return list<array<string,mixed>>
+     */
+    private static function windowExpressionsIn(array $expression): array
+    {
+        if (($expression['type'] ?? null) === 'window') {
+            return [$expression];
+        }
+
+        $windows = [];
+        foreach (['left', 'right', 'operand', 'predicate', 'expression'] as $key) {
+            if (isset($expression[$key]) && is_array($expression[$key])) {
+                foreach (self::windowExpressionsIn($expression[$key]) as $window) {
+                    $windows[] = $window;
+                }
+            }
+        }
+        foreach (['arguments', 'values'] as $key) {
+            if (!isset($expression[$key]) || !is_array($expression[$key]) || !array_is_list($expression[$key])) {
+                continue;
+            }
+            foreach ($expression[$key] as $child) {
+                if (is_array($child)) {
+                    foreach (self::windowExpressionsIn($child) as $window) {
+                        $windows[] = $window;
+                    }
+                }
+            }
+        }
+
+        return $windows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<array{expression:array<string,mixed>,direction:string}> $orderBy
+     * @return list<array<string,mixed>>
+     */
+    private static function sortRowsByWindowOrder(array $rows, array $orderBy): array
+    {
+        $ordered = [];
+        foreach ($rows as $index => $row) {
+            $ordered[] = ['row' => $row, 'index' => $index];
+        }
+
+        usort($ordered, static function (array $left, array $right) use ($orderBy): int {
+            foreach ($orderBy as $term) {
+                $comparison = self::compareSqlValues(
+                    SQLiteSelectExpression::evaluate($left['row'], $term['expression']),
+                    SQLiteSelectExpression::evaluate($right['row'], $term['expression'])
+                );
+                if ($comparison === 0) {
+                    continue;
+                }
+
+                return $term['direction'] === 'DESC' ? -$comparison : $comparison;
+            }
+
+            return $left['index'] <=> $right['index'];
+        });
+
+        return array_map(static fn (array $entry): array => $entry['row'], $ordered);
     }
 
     /**

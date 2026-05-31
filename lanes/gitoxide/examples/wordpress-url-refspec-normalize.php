@@ -12,6 +12,15 @@ $fixture = require __DIR__ . '/../fixtures/wordpress-url-refspec-normalize.php';
 $remote = GitUrl::parse($fixture['remoteUrl']);
 $emptyPortRemote = GitUrl::parse($fixture['emptyPortRemoteUrl']);
 $localMirror = GitUrl::parse($fixture['localMirrorUrl']);
+$homeMirror = GitUrl::parse($fixture['homeMirrorUrl']);
+$homeMirrorHome = GitUrl::parseHomePath($homeMirror->path());
+$homeMirrorShellPath = GitUrl::forShellPath($homeMirror->path());
+$homeMirrorExpandedPath = GitUrl::expandHomePath(
+    $homeMirror->path(),
+    static fn (?string $user): ?string => $user === null
+        ? $fixture['currentHomeDirectory']
+        : ($fixture['homeDirectories'][$user] ?? null)
+);
 $fetch = array_map(
     static fn (string $spec): array => RefSpec::parseFetch($spec)->toArray(),
     $fixture['fetchRefspecs']
@@ -43,6 +52,10 @@ $summary = [
     'remote' => $remote->toArray(),
     'emptyPortRemote' => $emptyPortRemote->toArray(),
     'localMirror' => $localMirror->toArray(),
+    'homeMirror' => $homeMirror->toArray(),
+    'homeMirrorHome' => $homeMirrorHome,
+    'homeMirrorShellPath' => $homeMirrorShellPath,
+    'homeMirrorExpandedPath' => $homeMirrorExpandedPath,
     'fetch' => $fetch,
     'push' => $push,
     'oversizedRemoteRejected' => $oversizedRemoteRejected,
@@ -69,6 +82,21 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if ($summary['localMirror']['normalized'] !== $fixture['expectedLocalMirrorUrl']) {
         throw new RuntimeException('Unexpected normalized local mirror URL');
+    }
+    if ($summary['homeMirror']['normalized'] !== $fixture['expectedHomeMirrorUrl']) {
+        throw new RuntimeException('Unexpected normalized home mirror URL');
+    }
+    if ($summary['homeMirrorHome']['user'] !== $fixture['expectedHomeMirrorUser']) {
+        throw new RuntimeException('Unexpected home mirror user');
+    }
+    if ($summary['homeMirrorHome']['path'] !== $fixture['expectedHomeMirrorTail']) {
+        throw new RuntimeException('Unexpected home mirror tail path');
+    }
+    if ($summary['homeMirrorShellPath'] !== $fixture['expectedHomeMirrorShellPath']) {
+        throw new RuntimeException('Unexpected shell home path');
+    }
+    if ($summary['homeMirrorExpandedPath'] !== $fixture['expectedHomeMirrorExpandedPath']) {
+        throw new RuntimeException('Unexpected expanded home path');
     }
     if (array_column($summary['fetch'], 'instruction') !== $fixture['expectedFetchInstructions']) {
         throw new RuntimeException('Unexpected fetch refspec instructions');
