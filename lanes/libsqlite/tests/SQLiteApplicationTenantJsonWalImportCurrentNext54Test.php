@@ -8,25 +8,25 @@ use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteTenantJsonWalImportPlan;
 
 $currentRows = static fn (): array => [
-    ['site_id' => 1, 'blog_id' => 1, 'option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
-    ['site_id' => 1, 'blog_id' => 1, 'option_id' => 2, 'option_name' => 'theme_mods_twentyfive', 'option_value' => '{"accent":"blue"}', 'autoload' => 'yes'],
-    ['site_id' => 1, 'blog_id' => 2, 'option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://site2.example.test', 'autoload' => 'yes'],
-    ['site_id' => 1, 'blog_id' => 2, 'option_id' => 2, 'option_name' => 'plugin_settings', 'option_value' => '{"enabled":false}', 'autoload' => 'no'],
-    ['scope' => 'network', 'site_id' => 1, 'meta_id' => 1, 'meta_key' => 'site_name', 'meta_value' => 'Network'],
+    ['group_id' => 1, 'tenant_id' => 1, 'setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
+    ['group_id' => 1, 'tenant_id' => 1, 'setting_id' => 2, 'key_name' => 'theme_mods_twentyfive', 'key_value' => '{"accent":"blue"}', 'load_policy' => 'yes'],
+    ['group_id' => 1, 'tenant_id' => 2, 'setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://site2.example.test', 'load_policy' => 'yes'],
+    ['group_id' => 1, 'tenant_id' => 2, 'setting_id' => 2, 'key_name' => 'plugin_settings', 'key_value' => '{"enabled":false}', 'load_policy' => 'no'],
+    ['scope' => 'global', 'group_id' => 1, 'setting_id' => 1, 'key_name' => 'site_name', 'key_value' => 'Global'],
 ];
 
 $jsonRows = static fn (array $rows): string => json_encode(['rows' => $rows], JSON_THROW_ON_ERROR);
 $plan = static fn (array $imports, array $options = []): array => SQLiteTenantJsonWalImportPlan::plan(
     $currentRows(),
     $imports,
-    ['database_path' => '/tmp/wp-multisite-json-wal-current-next54.sqlite'] + $options
+    ['database_path' => '/tmp/app-tenant-json-wal-current-next54.sqlite'] + $options
 );
 
 $rowByKey = static function (array $result, string $key): array {
     foreach ($result['final_rows'] as $row) {
-        $rowKey = (($row['scope'] ?? 'blog') === 'network')
-            ? 'network:' . $row['site_id'] . ':' . $row['option_name']
-            : 'blog:' . $row['site_id'] . ':' . $row['blog_id'] . ':' . $row['option_name'];
+        $rowKey = (($row['scope'] ?? 'tenant') === 'global')
+            ? 'global:' . $row['group_id'] . ':' . $row['key_name']
+            : 'tenant:' . $row['group_id'] . ':' . $row['tenant_id'] . ':' . $row['key_name'];
         if ($rowKey === $key) {
             return $row;
         }
@@ -36,230 +36,230 @@ $rowByKey = static function (array $result, string $key): array {
 };
 
 $cases = [
-    'released blog import is visible in final keys' => static fn (): mixed => $plan([
-        ['name' => 'blog_one', 'blog_id' => 1, 'json' => $jsonRows([
-            ['option_name' => 'plugin_settings', 'option_value' => '{"enabled":true}', 'autoload' => 'yes'],
+    'released tenant import is visible in final keys' => static fn (): mixed => $plan([
+        ['name' => 'tenant_one', 'tenant_id' => 1, 'json' => $jsonRows([
+            ['key_name' => 'plugin_settings', 'key_value' => '{"enabled":true}', 'load_policy' => 'yes'],
         ])],
     ])['final_keys'],
-    'released blog import records one WAL frame' => static fn (): mixed => $plan([
-        ['name' => 'blog_one', 'blog_id' => 1, 'json' => $jsonRows([
-            ['option_name' => 'plugin_settings', 'option_value' => '{"enabled":true}', 'autoload' => 'yes'],
+    'released tenant import records one WAL frame' => static fn (): mixed => $plan([
+        ['name' => 'tenant_one', 'tenant_id' => 1, 'json' => $jsonRows([
+            ['key_name' => 'plugin_settings', 'key_value' => '{"enabled":true}', 'load_policy' => 'yes'],
         ])],
     ])['wal']['frame_count'],
-    'blog two writes use the blog two option table' => static fn (): mixed => $plan([
-        ['name' => 'blog_two', 'blog_id' => 2, 'json' => $jsonRows([
-            ['option_name' => 'widget_recent', 'option_value' => '{"count":3}', 'autoload' => 'no'],
+    'tenant two writes use the tenant two settings table' => static fn (): mixed => $plan([
+        ['name' => 'tenant_two', 'tenant_id' => 2, 'json' => $jsonRows([
+            ['key_name' => 'widget_recent', 'key_value' => '{"count":3}', 'load_policy' => 'no'],
         ])],
     ])['batches'][0]['writes'][0]['table'],
-    'network import targets sitemeta table' => static fn (): mixed => $plan([
-        ['name' => 'network_meta', 'scope' => 'network', 'json' => $jsonRows([
-            ['meta_key' => 'site_settings', 'meta_value' => '{"lang":"en"}'],
+    'global import targets global settings table' => static fn (): mixed => $plan([
+        ['name' => 'global_meta', 'scope' => 'global', 'json' => $jsonRows([
+            ['key_name' => 'site_settings', 'key_value' => '{"lang":"en"}'],
         ])],
     ])['batches'][0]['writes'][0]['table'],
-    'network import key is isolated from blog key' => static fn (): mixed => $plan([
-        ['name' => 'network_settings', 'scope' => 'network', 'json' => $jsonRows([
-            ['meta_key' => 'plugin_settings', 'meta_value' => '{"network":true}'],
+    'global import key is isolated from tenant key' => static fn (): mixed => $plan([
+        ['name' => 'global_settings', 'scope' => 'global', 'json' => $jsonRows([
+            ['key_name' => 'plugin_settings', 'key_value' => '{"global":true}'],
         ])],
     ])['final_keys'],
     'current batch release list retains savepoint name' => static fn (): mixed => $plan([
-        ['name' => 'current_site', 'blog_id' => 1, 'json' => $jsonRows([
-            ['option_name' => 'current_settings', 'option_value' => '{"ok":true}'],
+        ['name' => 'current_site', 'tenant_id' => 1, 'json' => $jsonRows([
+            ['key_name' => 'current_settings', 'key_value' => '{"ok":true}'],
         ])],
     ])['released_batches'],
     'open next batch is final-visible but unreleased' => static fn (): mixed => [
         $plan([
-            ['name' => 'next_site', 'blog_id' => 2, 'release' => false, 'json' => $jsonRows([
-                ['option_name' => 'next_settings', 'option_value' => '{"ok":true}'],
+            ['name' => 'next_site', 'tenant_id' => 2, 'release' => false, 'json' => $jsonRows([
+                ['key_name' => 'next_settings', 'key_value' => '{"ok":true}'],
             ])],
         ])['final_keys'],
         $plan([
-            ['name' => 'next_site', 'blog_id' => 2, 'release' => false, 'json' => $jsonRows([
-                ['option_name' => 'next_settings', 'option_value' => '{"ok":true}'],
+            ['name' => 'next_site', 'tenant_id' => 2, 'release' => false, 'json' => $jsonRows([
+                ['key_name' => 'next_settings', 'key_value' => '{"ok":true}'],
             ])],
         ])['released_keys'],
     ],
     'malformed next batch rolls back without removing released current batch' => static fn (): mixed => [
         $plan([
-            ['name' => 'current_ok', 'blog_id' => 1, 'json' => $jsonRows([
-                ['option_name' => 'current_json', 'option_value' => '{"ok":true}'],
+            ['name' => 'current_ok', 'tenant_id' => 1, 'json' => $jsonRows([
+                ['key_name' => 'current_json', 'key_value' => '{"ok":true}'],
             ])],
-            ['name' => 'next_bad', 'blog_id' => 2, 'json' => '{"rows":['],
+            ['name' => 'next_bad', 'tenant_id' => 2, 'json' => '{"rows":['],
         ])['released_batches'],
         $plan([
-            ['name' => 'current_ok', 'blog_id' => 1, 'json' => $jsonRows([
-                ['option_name' => 'current_json', 'option_value' => '{"ok":true}'],
+            ['name' => 'current_ok', 'tenant_id' => 1, 'json' => $jsonRows([
+                ['key_name' => 'current_json', 'key_value' => '{"ok":true}'],
             ])],
-            ['name' => 'next_bad', 'blog_id' => 2, 'json' => '{"rows":['],
+            ['name' => 'next_bad', 'tenant_id' => 2, 'json' => '{"rows":['],
         ])['rolled_back_batches'],
     ],
-    'malformed option JSON rolls back only its batch' => static fn (): mixed => $plan([
-        ['name' => 'bad_value', 'blog_id' => 1, 'json' => $jsonRows([
-            ['option_name' => 'theme_mods_bad', 'option_value' => '{bad}', 'autoload' => 'yes'],
+    'malformed settings JSON rolls back only its batch' => static fn (): mixed => $plan([
+        ['name' => 'bad_value', 'tenant_id' => 1, 'json' => $jsonRows([
+            ['key_name' => 'theme_mods_bad', 'key_value' => '{bad}', 'load_policy' => 'yes'],
         ])],
     ])['batches'][0]['status'],
     'JSONB source rows are accepted' => static function () use ($currentRows): mixed {
         $result = SQLiteTenantJsonWalImportPlan::plan($currentRows(), [
-            ['name' => 'jsonb_blog', 'blog_id' => 2, 'json' => new SQLiteBlobValue(SQLiteJsonB::encode(['rows' => [
-                ['option_name' => 'jsonb_settings', 'option_value' => '{"ok":true}', 'autoload' => 'no'],
+            ['name' => 'jsonb_tenant', 'tenant_id' => 2, 'json' => new SQLiteBlobValue(SQLiteJsonB::encode(['rows' => [
+                ['key_name' => 'jsonb_settings', 'key_value' => '{"ok":true}', 'load_policy' => 'no'],
             ]]))],
         ]);
 
-        return $result['batches'][0]['json']['option_names'];
+        return $result['batches'][0]['json']['key_names'];
     },
     'JSON subtype source rows are accepted' => static function () use ($currentRows): mixed {
         $result = SQLiteTenantJsonWalImportPlan::plan($currentRows(), [
-            ['name' => 'subtype_blog', 'blog_id' => 1, 'json' => new SQLiteJsonSubtypeValue('{"rows":[{"option_name":"subtype_settings","option_value":"{\"ok\":true}","autoload":"no"}]}')],
+            ['name' => 'subtype_tenant', 'tenant_id' => 1, 'json' => new SQLiteJsonSubtypeValue('{"rows":[{"key_name":"subtype_settings","key_value":"{\"ok\":true}","load_policy":"no"}]}')],
         ]);
 
-        return $result['batches'][0]['json']['option_names'];
+        return $result['batches'][0]['json']['key_names'];
     },
     'path extraction can target nested rows' => static fn (): mixed => $plan([
-        ['name' => 'nested_path', 'blog_id' => 1, 'path' => '$.payload.rows', 'json' => '{"payload":{"rows":[{"option_name":"nested_settings","option_value":"{\"ok\":true}"}]}}'],
-    ])['batches'][0]['json']['option_names'],
+        ['name' => 'nested_path', 'tenant_id' => 1, 'path' => '$.payload.rows', 'json' => '{"payload":{"rows":[{"key_name":"nested_settings","key_value":"{\"ok\":true}"}]}}'],
+    ])['batches'][0]['json']['key_names'],
     'missing path rolls batch back' => static fn (): mixed => $plan([
-        ['name' => 'missing_path', 'blog_id' => 1, 'path' => '$.missing.rows', 'json' => '{"payload":{"rows":[]}}'],
+        ['name' => 'missing_path', 'tenant_id' => 1, 'path' => '$.missing.rows', 'json' => '{"payload":{"rows":[]}}'],
     ])['rolled_back_batches'],
-    'abort conflict rolls back duplicate option batch' => static fn (): mixed => $plan([
-        ['name' => 'abort_conflict', 'blog_id' => 2, 'on_conflict' => 'abort', 'json' => $jsonRows([
-            ['option_name' => 'plugin_settings', 'option_value' => '{"enabled":true}'],
+    'abort conflict rolls back duplicate settings batch' => static fn (): mixed => $plan([
+        ['name' => 'abort_conflict', 'tenant_id' => 2, 'on_conflict' => 'abort', 'json' => $jsonRows([
+            ['key_name' => 'plugin_settings', 'key_value' => '{"enabled":true}'],
         ])],
     ])['batches'][0]['status'],
     'replace conflict records conflict key' => static fn (): mixed => $plan([
-        ['name' => 'replace_conflict', 'blog_id' => 2, 'json' => $jsonRows([
-            ['option_name' => 'plugin_settings', 'option_value' => '{"enabled":true}'],
+        ['name' => 'replace_conflict', 'tenant_id' => 2, 'json' => $jsonRows([
+            ['key_name' => 'plugin_settings', 'key_value' => '{"enabled":true}'],
         ])],
     ])['batches'][0]['conflicts'],
-    'replacement row updates blog two value' => static function () use ($plan, $jsonRows, $rowByKey): mixed {
+    'replacement row updates tenant two value' => static function () use ($plan, $jsonRows, $rowByKey): mixed {
         $result = $plan([
-            ['name' => 'replace_conflict', 'blog_id' => 2, 'json' => $jsonRows([
-                ['option_name' => 'plugin_settings', 'option_value' => '{"enabled":true}', 'autoload' => 'yes'],
+            ['name' => 'replace_conflict', 'tenant_id' => 2, 'json' => $jsonRows([
+                ['key_name' => 'plugin_settings', 'key_value' => '{"enabled":true}', 'load_policy' => 'yes'],
             ])],
         ]);
 
-        return $rowByKey($result, 'blog:1:2:plugin_settings')['autoload'];
+        return $rowByKey($result, 'tenant:1:2:plugin_settings')['load_policy'];
     },
     'WAL frames preserve savepoint names in order' => static fn (): mixed => array_column($plan([
-        ['name' => 'first_blog', 'blog_id' => 1, 'json' => $jsonRows([
-            ['option_name' => 'first_settings', 'option_value' => '{"ok":1}'],
+        ['name' => 'first_tenant', 'tenant_id' => 1, 'json' => $jsonRows([
+            ['key_name' => 'first_settings', 'key_value' => '{"ok":1}'],
         ])],
-        ['name' => 'second_blog', 'blog_id' => 2, 'json' => $jsonRows([
-            ['option_name' => 'second_settings', 'option_value' => '{"ok":2}'],
+        ['name' => 'second_tenant', 'tenant_id' => 2, 'json' => $jsonRows([
+            ['key_name' => 'second_settings', 'key_value' => '{"ok":2}'],
         ])],
     ])['wal']['frames'], 'savepoint'),
-    'page numbers isolate blog tables' => static fn (): mixed => array_column($plan([
-        ['name' => 'first_blog', 'blog_id' => 1, 'json' => $jsonRows([
-            ['option_id' => 70, 'option_name' => 'first_settings', 'option_value' => '{"ok":1}'],
+    'page numbers isolate tenant tables' => static fn (): mixed => array_column($plan([
+        ['name' => 'first_tenant', 'tenant_id' => 1, 'json' => $jsonRows([
+            ['setting_id' => 70, 'key_name' => 'first_settings', 'key_value' => '{"ok":1}'],
         ])],
-        ['name' => 'second_blog', 'blog_id' => 2, 'json' => $jsonRows([
-            ['option_id' => 70, 'option_name' => 'second_settings', 'option_value' => '{"ok":2}'],
+        ['name' => 'second_tenant', 'tenant_id' => 2, 'json' => $jsonRows([
+            ['setting_id' => 70, 'key_name' => 'second_settings', 'key_value' => '{"ok":2}'],
         ])],
     ])['wal']['frames'], 'page_number'),
-    'network page numbers use network range' => static fn (): mixed => $plan([
-        ['name' => 'network_page', 'scope' => 'network', 'json' => $jsonRows([
-            ['meta_id' => 70, 'meta_key' => 'network_settings', 'meta_value' => '{"ok":true}'],
+    'global page numbers use global range' => static fn (): mixed => $plan([
+        ['name' => 'global_page', 'scope' => 'global', 'json' => $jsonRows([
+            ['setting_id' => 70, 'key_name' => 'global_settings', 'key_value' => '{"ok":true}'],
         ])],
     ])['wal']['frames'][0]['page_number'],
-    'dependency marker names multisite JSON WAL import' => static fn (): mixed => in_array('sqlite-application-multisite-json-wal-import', $plan([
-        ['name' => 'deps', 'blog_id' => 1, 'json' => $jsonRows([
-            ['option_name' => 'deps_settings', 'option_value' => '{"ok":true}'],
+    'dependency marker names tenant JSON WAL import' => static fn (): mixed => in_array('sqlite-application-tenant-json-wal-import', $plan([
+        ['name' => 'deps', 'tenant_id' => 1, 'json' => $jsonRows([
+            ['key_name' => 'deps_settings', 'key_value' => '{"ok":true}'],
         ])],
     ])['dependencies'], true),
     'bad source type rolls back batch as JSON admission failure' => static fn (): mixed => $plan([
-        ['name' => 'bad_source_type', 'blog_id' => 1, 'json' => ['rows' => []]],
+        ['name' => 'bad_source_type', 'tenant_id' => 1, 'json' => ['rows' => []]],
     ])['batches'][0]['status'],
-    'bad blog id rolls back row normalization failure' => static fn (): mixed => $plan([
-        ['name' => 'bad_blog_id', 'blog_id' => 0, 'json' => '{"rows":[{"option_name":"bad_blog_settings","option_value":"{\"ok\":true}"}]}'],
+    'bad tenant id rolls back row normalization failure' => static fn (): mixed => $plan([
+        ['name' => 'bad_tenant_id', 'tenant_id' => 0, 'json' => '{"rows":[{"key_name":"bad_tenant_settings","key_value":"{\"ok\":true}"}]}'],
     ])['batches'][0]['status'],
-    'later network release does not release open next blog preview' => static fn (): mixed => $plan([
-        ['name' => 'next_preview', 'blog_id' => 2, 'release' => false, 'json' => $jsonRows([
-            ['option_name' => 'preview_settings', 'option_value' => '{"ok":true}'],
+    'later global release does not release open next tenant preview' => static fn (): mixed => $plan([
+        ['name' => 'next_preview', 'tenant_id' => 2, 'release' => false, 'json' => $jsonRows([
+            ['key_name' => 'preview_settings', 'key_value' => '{"ok":true}'],
         ])],
-        ['name' => 'network_release', 'scope' => 'network', 'json' => $jsonRows([
-            ['meta_key' => 'network_config', 'meta_value' => '{"ok":true}'],
+        ['name' => 'global_release', 'scope' => 'global', 'json' => $jsonRows([
+            ['key_name' => 'global_config', 'key_value' => '{"ok":true}'],
         ])],
     ])['released_keys'],
 ];
 
 $expected = [
-    'released blog import is visible in final keys' => [
-        'blog:1:1:plugin_settings',
-        'blog:1:1:siteurl',
-        'blog:1:1:theme_mods_twentyfive',
-        'blog:1:2:plugin_settings',
-        'blog:1:2:siteurl',
-        'network:1:site_name',
+    'released tenant import is visible in final keys' => [
+        'global:1:site_name',
+        'tenant:1:1:plugin_settings',
+        'tenant:1:1:siteurl',
+        'tenant:1:1:theme_mods_twentyfive',
+        'tenant:1:2:plugin_settings',
+        'tenant:1:2:siteurl',
     ],
-    'released blog import records one WAL frame' => 1,
-    'blog two writes use the blog two option table' => 'wp_2_options',
-    'network import targets sitemeta table' => 'wp_sitemeta',
-    'network import key is isolated from blog key' => [
-        'blog:1:1:siteurl',
-        'blog:1:1:theme_mods_twentyfive',
-        'blog:1:2:plugin_settings',
-        'blog:1:2:siteurl',
-        'network:1:plugin_settings',
-        'network:1:site_name',
+    'released tenant import records one WAL frame' => 1,
+    'tenant two writes use the tenant two settings table' => 'app_tenant_2_settings',
+    'global import targets global settings table' => 'app_tenant_settings',
+    'global import key is isolated from tenant key' => [
+        'global:1:plugin_settings',
+        'global:1:site_name',
+        'tenant:1:1:siteurl',
+        'tenant:1:1:theme_mods_twentyfive',
+        'tenant:1:2:plugin_settings',
+        'tenant:1:2:siteurl',
     ],
     'current batch release list retains savepoint name' => ['current_site'],
     'open next batch is final-visible but unreleased' => [
         [
-            'blog:1:1:siteurl',
-            'blog:1:1:theme_mods_twentyfive',
-            'blog:1:2:next_settings',
-            'blog:1:2:plugin_settings',
-            'blog:1:2:siteurl',
-            'network:1:site_name',
+            'global:1:site_name',
+            'tenant:1:1:siteurl',
+            'tenant:1:1:theme_mods_twentyfive',
+            'tenant:1:2:next_settings',
+            'tenant:1:2:plugin_settings',
+            'tenant:1:2:siteurl',
         ],
         [
-            'blog:1:1:siteurl',
-            'blog:1:1:theme_mods_twentyfive',
-            'blog:1:2:plugin_settings',
-            'blog:1:2:siteurl',
-            'network:1:site_name',
+            'global:1:site_name',
+            'tenant:1:1:siteurl',
+            'tenant:1:1:theme_mods_twentyfive',
+            'tenant:1:2:plugin_settings',
+            'tenant:1:2:siteurl',
         ],
     ],
     'malformed next batch rolls back without removing released current batch' => [['current_ok'], ['next_bad']],
-    'malformed option JSON rolls back only its batch' => 'rolled_back',
+    'malformed settings JSON rolls back only its batch' => 'rolled_back',
     'JSONB source rows are accepted' => ['jsonb_settings'],
     'JSON subtype source rows are accepted' => ['subtype_settings'],
     'path extraction can target nested rows' => ['nested_settings'],
     'missing path rolls batch back' => ['missing_path'],
-    'abort conflict rolls back duplicate option batch' => 'rolled_back',
-    'replace conflict records conflict key' => ['blog:1:2:plugin_settings'],
-    'replacement row updates blog two value' => 'yes',
-    'WAL frames preserve savepoint names in order' => ['first_blog', 'second_blog'],
-    'page numbers isolate blog tables' => [3, 19],
-    'network page numbers use network range' => 41,
-    'dependency marker names multisite JSON WAL import' => true,
+    'abort conflict rolls back duplicate settings batch' => 'rolled_back',
+    'replace conflict records conflict key' => ['tenant:1:2:plugin_settings'],
+    'replacement row updates tenant two value' => 'yes',
+    'WAL frames preserve savepoint names in order' => ['first_tenant', 'second_tenant'],
+    'page numbers isolate tenant tables' => [3, 19],
+    'global page numbers use global range' => 41,
+    'dependency marker names tenant JSON WAL import' => true,
     'bad source type rolls back batch as JSON admission failure' => 'rolled_back',
-    'bad blog id rolls back row normalization failure' => 'rolled_back',
-    'later network release does not release open next blog preview' => [
-        'blog:1:1:siteurl',
-        'blog:1:1:theme_mods_twentyfive',
-        'blog:1:2:plugin_settings',
-        'blog:1:2:siteurl',
-        'network:1:network_config',
-        'network:1:site_name',
+    'bad tenant id rolls back row normalization failure' => 'rolled_back',
+    'later global release does not release open next tenant preview' => [
+        'global:1:global_config',
+        'global:1:site_name',
+        'tenant:1:1:siteurl',
+        'tenant:1:1:theme_mods_twentyfive',
+        'tenant:1:2:plugin_settings',
+        'tenant:1:2:siteurl',
     ],
 ];
 
 $tests = [];
 foreach ($cases as $name => $callback) {
-    $tests['sqlite application multisite json wal import current next54 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
+    $tests['sqlite application tenant json wal import current next54 ' . $name] = static function (TestRunner $t) use ($callback, $expected, $name): void {
         $t->same($expected[$name], $callback());
     };
 }
 
-foreach (range(1, 30) as $blogId) {
-    $tests["sqlite application multisite json wal import current next54 generated blog {$blogId} maps option page"] = static function (TestRunner $t) use ($currentRows, $jsonRows, $blogId): void {
+foreach (range(1, 30) as $tenantId) {
+    $tests["sqlite application tenant json wal import current next54 generated tenant {$tenantId} maps settings page"] = static function (TestRunner $t) use ($currentRows, $jsonRows, $tenantId): void {
         $result = SQLiteTenantJsonWalImportPlan::plan($currentRows(), [
-            ['name' => 'blog_' . $blogId, 'blog_id' => $blogId, 'json' => $jsonRows([
-                ['option_id' => 65, 'option_name' => 'blog_' . $blogId . '_settings', 'option_value' => '{"blog":' . $blogId . '}'],
+            ['name' => 'tenant_' . $tenantId, 'tenant_id' => $tenantId, 'json' => $jsonRows([
+                ['setting_id' => 65, 'key_name' => 'tenant_' . $tenantId . '_settings', 'key_value' => '{"tenant":' . $tenantId . '}'],
             ])],
         ]);
 
-        $t->same('blog:' . 1 . ':' . $blogId . ':blog_' . $blogId . '_settings', $result['batches'][0]['writes'][0]['key']);
-        $t->same(3 + (($blogId - 1) * 16), $result['wal']['frames'][0]['page_number']);
+        $t->same('tenant:' . 1 . ':' . $tenantId . ':tenant_' . $tenantId . '_settings', $result['batches'][0]['writes'][0]['key']);
+        $t->same(3 + (($tenantId - 1) * 16), $result['wal']['frames'][0]['page_number']);
     };
 }
 
@@ -267,7 +267,7 @@ foreach ([
     'bad scope' => ['scope' => 'user', 'json' => '{"rows":[]}'],
     'bad savepoint' => ['name' => 'bad-name', 'json' => '{"rows":[]}'],
 ] as $label => $import) {
-    $tests["sqlite application multisite json wal import current next54 rejects {$label}"] = static function (TestRunner $t) use ($currentRows, $import): void {
+    $tests["sqlite application tenant json wal import current next54 rejects {$label}"] = static function (TestRunner $t) use ($currentRows, $import): void {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteTenantJsonWalImportPlan::plan($currentRows(), [$import]));
     };
 }

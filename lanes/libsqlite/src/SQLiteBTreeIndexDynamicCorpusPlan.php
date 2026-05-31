@@ -7493,6 +7493,68 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,sql:string,table_shape:string,partial_indexes:list<string>,stat_rows:list<array{idx:string|null,stat:string}>,result_rows:list<array<int,mixed>>,expected_error:string|null,integrity:string,index_list_partial:array<string,int>,count_star:int|null,uses_partial_index:bool,detail:string}>
+     */
+    public static function index7WithoutRowidPartialStatsCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index7 WITHOUT ROWID partial-index corpus requires at least one case');
+        }
+
+        $templates = [
+            ['index7-1.1', 'creates WITHOUT ROWID table and two partial indexes with valid integrity', 'CREATE TABLE t1(a,b,c PRIMARY KEY) WITHOUT rowid; CREATE INDEX t1a ON t1(a) WHERE a IS NOT NULL; CREATE INDEX t1b ON t1(b) WHERE b>10', [['t1a', '1'], ['t1b', '1']], [[14, 20], ['ok']], null, [], 20, false],
+            ['index7-1.1a', 'PRAGMA index_list marks partial indexes and the primary-key autoindex separately', 'PRAGMA index_list(t1)', [['sqlite_autoindex_t1_1', '0'], ['t1a', '1'], ['t1b', '1']], [['sqlite_autoindex_t1_1', 0], ['t1a', 1], ['t1b', 1]], null, [], null, false],
+            ['index7-1.1.1', 'count star optimization ignores reduced partial-index cardinality', 'SELECT count(*) FROM t1', [['t1a', '1'], ['t1b', '1']], [[20]], null, [], 20, false],
+            ['index7-1.2', 'partial-index predicate rejects unknown columns before catalog mutation', 'CREATE INDEX bad1 ON t1(a,b) WHERE x IS NOT NULL', [['t1a', '1'], ['t1b', '1']], [], 'no such column: x', [], null, false],
+            ['index7-1.3', 'partial-index predicate rejects subqueries', 'CREATE INDEX bad1 ON t1(a,b) WHERE EXISTS(SELECT * FROM t1)', [['t1a', '1'], ['t1b', '1']], [], 'subqueries prohibited in partial index WHERE clauses', [], null, false],
+            ['index7-1.4', 'partial-index predicate rejects bound parameters', 'CREATE INDEX bad1 ON t1(a,b) WHERE a!=?1', [['t1a', '1'], ['t1b', '1']], [], 'parameters prohibited in partial index WHERE clauses', [], null, false],
+            ['index7-1.5', 'partial-index predicate rejects non-deterministic functions', 'CREATE INDEX bad1 ON t1(a,b) WHERE a!=random()', [['t1a', '1'], ['t1b', '1']], [], 'non-deterministic functions prohibited in partial index WHERE clauses', [], null, false],
+            ['index7-1.6/1.7', 'NOT LIKE partial index is accepted and can satisfy a constrained lookup', "CREATE INDEX bad1 ON t1(a,b) WHERE a NOT LIKE 'abc%'; SELECT c FROM t1 WHERE a NOT LIKE 'abc%' AND a=7 ORDER BY +b", [['bad1', '1'], ['t1a', '1'], ['t1b', '1']], [[7]], null, [], null, true],
+            ['index7-1.8', 'temporary NOT LIKE partial index drops cleanly after cleanup rows are removed', 'DELETE FROM t1 WHERE c>=101; DROP INDEX IF EXISTS bad1', [['t1a', '1'], ['t1b', '1']], [], null, [], null, false],
+            ['index7-1.10', 'ANALYZE records reduced row counts for initial partial indexes', 'ANALYZE; SELECT idx, stat FROM sqlite_stat1 ORDER BY idx; PRAGMA integrity_check', [['t1a', '1'], ['t1b', '1']], [['ok']], null, [['idx' => 't1', 'stat' => '20 1'], ['idx' => 't1a', 'stat' => '14 1'], ['idx' => 't1b', 'stat' => '10 1']], null, false],
+            ['index7-1.11', 'UPDATE into every a value expands t1a statistics while t1b remains filtered', 'UPDATE t1 SET a=b; ANALYZE; SELECT idx, stat FROM sqlite_stat1 ORDER BY idx', [['t1a', '1'], ['t1b', '1']], [['ok']], null, [['idx' => 't1', 'stat' => '20 1'], ['idx' => 't1a', 'stat' => '20 1'], ['idx' => 't1b', 'stat' => '10 1']], null, false],
+            ['index7-1.11b', 'UPDATE nulls and offsets move rows between partial indexes', 'UPDATE t1 SET a=NULL WHERE b%3!=0; UPDATE t1 SET b=b+100; ANALYZE', [['t1a', '1'], ['t1b', '1']], [['ok']], null, [['idx' => 't1', 'stat' => '20 1'], ['idx' => 't1a', 'stat' => '6 1'], ['idx' => 't1b', 'stat' => '20 1']], null, false],
+            ['index7-1.12', 'restoring b values recomputes partial-index statistics', 'UPDATE t1 SET a=CASE WHEN b%3!=0 THEN b END; UPDATE t1 SET b=b-100; ANALYZE', [['t1a', '1'], ['t1b', '1']], [['ok']], null, [['idx' => 't1', 'stat' => '20 1'], ['idx' => 't1a', 'stat' => '13 1'], ['idx' => 't1b', 'stat' => '10 1']], null, false],
+            ['index7-1.13', 'DELETE range shrinks table and partial-index stat rows together', 'DELETE FROM t1 WHERE b BETWEEN 8 AND 12; ANALYZE', [['t1a', '1'], ['t1b', '1']], [['ok']], null, [['idx' => 't1', 'stat' => '15 1'], ['idx' => 't1a', 'stat' => '10 1'], ['idx' => 't1b', 'stat' => '8 1']], null, false],
+            ['index7-1.14', 'REINDEX preserves partial-index statistics after delete shrink', 'REINDEX; ANALYZE', [['t1a', '1'], ['t1b', '1']], [['ok']], null, [['idx' => 't1', 'stat' => '15 1'], ['idx' => 't1a', 'stat' => '10 1'], ['idx' => 't1b', 'stat' => '8 1']], null, false],
+            ['index7-1.15', 'adding a full index leaves existing partial-index stats intact', 'CREATE INDEX t1c ON t1(c); ANALYZE', [['t1a', '1'], ['t1b', '1'], ['t1c', '0']], [['ok']], null, [['idx' => 't1', 'stat' => '15 1'], ['idx' => 't1a', 'stat' => '10 1'], ['idx' => 't1b', 'stat' => '8 1'], ['idx' => 't1c', 'stat' => '15 1']], null, false],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $sql, $partialIndexes, $resultRows, $error, $statRows, $countStar, $usesPartialIndex] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $indexListPartial = [];
+            foreach ($partialIndexes as [$name, $partial]) {
+                $indexListPartial[$name] = (int) $partial;
+            }
+
+            $out[] = [
+                'source' => 'index7.test sections index7-1.1 through index7-1.15',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario . ' dynamic batch ' . $batch,
+                'sql' => $sql,
+                'table_shape' => 'WITHOUT ROWID partial-index table',
+                'partial_indexes' => array_keys($indexListPartial),
+                'stat_rows' => $statRows,
+                'result_rows' => $resultRows,
+                'expected_error' => $error,
+                'integrity' => $error === null ? 'ok' : 'expected-error',
+                'index_list_partial' => $indexListPartial,
+                'count_star' => $countStar,
+                'uses_partial_index' => $usesPartialIndex,
+                'detail' => $usesPartialIndex
+                    ? 'SEARCH t1 USING COVERING INDEX bad1 for WITHOUT ROWID partial-index predicate'
+                    : 'index7 WITHOUT ROWID partial-index lifecycle section ' . $section,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,predicate:string,index_name:string,index_columns:list<string>,factored_lower_bound:string|null,result_a:list<int>,uses_index:bool,detail:string,nocase:bool,count_result:int|null,batch:int}>
      */
     public static function whereKOrTermFactoringCases(int $cases = 1000): array

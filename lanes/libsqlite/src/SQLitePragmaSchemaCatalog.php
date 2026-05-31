@@ -1267,11 +1267,21 @@ final class SQLitePragmaSchemaCatalog
         if (str_starts_with($default, '(') && str_ends_with($default, ')')) {
             $close = self::matchingParen($default, 0);
             if ($close === strlen($default) - 1) {
-                return trim(substr($default, 1, -1));
+                return self::stripDefaultTrailingComment(trim(substr($default, 1, -1)));
             }
         }
 
-        return $default;
+        return self::stripDefaultTrailingComment($default);
+    }
+
+    private static function stripDefaultTrailingComment(string $default): string
+    {
+        $comment = self::topLevelCommentOffset($default);
+        if ($comment === null) {
+            return $default;
+        }
+
+        return rtrim(substr($default, 0, $comment));
     }
 
     private static function defaultValueEnd(string $value): int

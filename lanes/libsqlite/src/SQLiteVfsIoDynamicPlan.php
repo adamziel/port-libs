@@ -760,6 +760,69 @@ final class SQLiteVfsIoDynamicPlan
      * @param list<string> $deviceFlags
      * @return array<string, mixed>
      */
+    public static function atomicCommitPagerCacheRetention(
+        array $deviceFlags,
+        int $pageSize,
+        int $cachePages,
+        int $warmedPayloadPages,
+        int $committedTables,
+        int $corruptOffsetPages,
+        int $corruptPages
+    ): array {
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite atomic pager-cache retention page size must be a power of two at least 512');
+        }
+        if ($cachePages < 1 || $warmedPayloadPages < 1 || $committedTables < 1) {
+            throw new \InvalidArgumentException('SQLite atomic pager-cache retention requires positive cache, payload, and commit table counts');
+        }
+        if ($corruptOffsetPages < 1 || $corruptPages < 1) {
+            throw new \InvalidArgumentException('SQLite atomic pager-cache retention corruption range must be positive');
+        }
+
+        $flags = self::deviceFlags($deviceFlags);
+        $atomic = in_array('atomic', $flags, true) || in_array('batch_atomic', $flags, true);
+        $databasePages = 4 + $warmedPayloadPages;
+        $cacheCanHoldDatabase = $cachePages >= $databasePages;
+        $singlePageCommit = $atomic && $committedTables === 1;
+        $multiPageCommit = $atomic && $committedTables > 1;
+        $usesAtomicPath = $singlePageCommit;
+        $usesRollbackJournal = !$singlePageCommit;
+        $cacheRetained = $atomic && $cacheCanHoldDatabase;
+
+        return [
+            'status' => 'ok',
+            'script' => 'io.test',
+            'upstream' => ['io.test io-6.1', 'io.test io-6.2.1', 'io.test io-6.2.2', 'io.test io-6.2.3'],
+            'device_flags' => $flags,
+            'page_size' => $pageSize,
+            'cache_pages' => $cachePages,
+            'warmed_payload_pages' => $warmedPayloadPages,
+            'database_pages' => $databasePages,
+            'committed_tables' => $committedTables,
+            'atomic_write_capable' => $atomic,
+            'single_page_atomic_commit' => $singlePageCommit,
+            'multi_page_atomic_commit' => $multiPageCommit,
+            'uses_atomic_write_path' => $usesAtomicPath,
+            'uses_rollback_journal' => $usesRollbackJournal,
+            'pager_cache_warmed_by_ordered_reads' => true,
+            'pager_cache_can_hold_database' => $cacheCanHoldDatabase,
+            'pager_cache_retained_after_commit' => $cacheRetained,
+            'external_corrupt_offset_bytes' => $pageSize * $corruptOffsetPages,
+            'external_corrupt_bytes' => $pageSize * $corruptPages,
+            'external_corruption_visible_to_cached_integrity_check' => !$cacheRetained,
+            'integrity_check_before_commit' => 'ok',
+            'integrity_check_after_external_corruption' => $cacheRetained ? 'ok' : 'corrupt',
+            'reason' => $cacheRetained
+                ? 'atomic_commit_preserves_warmed_pager_cache'
+                : 'pager_cache_not_fully_retained_after_commit',
+            'dependencies' => ['upstream-io-atomic-cache-retention', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @param list<string> $deviceFlags
+     * @return array<string, mixed>
+     */
     public static function atomicBatchFaultFallbackProfile(
         array $deviceFlags,
         int $initialRows,

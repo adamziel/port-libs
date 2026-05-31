@@ -26,6 +26,13 @@ $tables = static function (): array {
             ['target_id' => 4, 'tenant_id' => 2, 'key_name' => 'gamma', 'action' => 'cleanup', 'priority' => 10],
             ['target_id' => 5, 'tenant_id' => 3, 'key_name' => 'beta', 'action' => 'cleanup', 'priority' => 50],
         ],
+        'app_setting_payloads' => [
+            ['payload_id' => 1, 'target_tenant_id' => 1, 'target_key_name' => 'beta', 'new_value' => 'B2', 'new_bytes' => 105, 'priority' => 40],
+            ['payload_id' => 2, 'target_tenant_id' => 1, 'target_key_name' => 'gamma', 'new_value' => 'C2', 'new_bytes' => 113, 'priority' => 20],
+            ['payload_id' => 3, 'target_tenant_id' => 2, 'target_key_name' => 'beta', 'new_value' => 'E2', 'new_bytes' => 103, 'priority' => 30],
+            ['payload_id' => 4, 'target_tenant_id' => 2, 'target_key_name' => 'gamma', 'new_value' => 'F2', 'new_bytes' => 134, 'priority' => 10],
+            ['payload_id' => 5, 'target_tenant_id' => 3, 'target_key_name' => 'beta', 'new_value' => 'H2', 'new_bytes' => 155, 'priority' => 50],
+        ],
     ];
 };
 
@@ -38,6 +45,7 @@ $tests['rowvalue update delete limit dynamic parity cites upstream limit and upd
     $t->contains('limit-1.2.5', 'limit-1.2.5 negative offset is treated as zero');
     $t->contains('e_update.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/e_update.test');
     $t->contains('e_delete.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/e_delete.test');
+    $t->contains('rowvalue7.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue7.test');
 };
 
 $updateNegativeOffset = "UPDATE app_settings SET (state, key_value, bytes) = ('refreshed', key_value || ':r', bytes + 7) WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets WHERE action = 'refresh' ORDER BY priority ASC LIMIT -1 OFFSET -3) RETURNING setting_id, tenant_id, key_name, state, key_value, bytes, (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets WHERE action = 'refresh' ORDER BY priority ASC LIMIT -1 OFFSET -3) AS selected_tuple ORDER BY bytes DESC LIMIT 2 OFFSET -4";
@@ -1899,12 +1907,175 @@ for ($limit = 1; $limit <= 6; $limit++) {
 
 $rowValueSelectAssignmentMalformed = [
     'rowvalue select assignment arity mismatch rejected' => "UPDATE app_settings SET (state, key_value) = (SELECT 'only-one') WHERE setting_id = 1 RETURNING setting_id",
-    'rowvalue select assignment from table rejected' => "UPDATE app_settings SET (state, key_value) = (SELECT state, key_value FROM app_setting_targets) WHERE setting_id = 1 RETURNING setting_id",
+    'rowvalue select assignment duplicate target rejected' => "UPDATE app_settings SET (state, state) = (SELECT 'draft', 'final') WHERE setting_id = 1 RETURNING setting_id",
 ];
 
 foreach ($rowValueSelectAssignmentMalformed as $name => $sql) {
     $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($sql): void {
         $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
+    };
+}
+
+for ($limit = 1; $limit <= 5; $limit++) {
+    for ($offset = 0; $offset <= 4; $offset++) {
+        $sql = "UPDATE app_settings SET (key_value, bytes) = (SELECT new_value, new_bytes FROM app_setting_payloads WHERE target_tenant_id = tenant_id AND target_key_name = key_name ORDER BY priority ASC LIMIT 1) WHERE load_policy = 'lazy' RETURNING setting_id, key_value, bytes ORDER BY bytes ASC LIMIT {$limit} OFFSET {$offset}";
+        $windowIds = array_slice([5, 2, 3, 6, 8], $offset, $limit);
+        $selectedExpected = $windowIds;
+        $returningExpected = array_values(array_intersect([2, 3, 5, 6, 8], $windowIds));
+        $expectedValues = [2 => 'B2', 3 => 'C2', 5 => 'E2', 6 => 'F2', 8 => 'H2'];
+        $expectedBytes = [2 => 105, 3 => 113, 5 => 103, 6 => 134, 8 => 155];
+
+        $tests[sprintf('rowvalue update delete limit dynamic parity rowvalue7 correlated select assignment window limit %d offset %d', $limit, $offset)] =
+            static function (TestRunner $t) use ($execute, $sql, $selectedExpected, $returningExpected, $expectedValues, $expectedBytes): void {
+                $result = $execute($sql);
+                $returnedById = array_column($result['returning'], null, 'setting_id');
+                $t->same($selectedExpected, $result['plan']->selectedIds);
+                $t->same($returningExpected, array_column($result['returning'], 'setting_id'));
+                foreach ($returningExpected as $settingId) {
+                    $t->same($expectedValues[$settingId], $returnedById[$settingId]['key_value']);
+                    $t->same($expectedBytes[$settingId], $returnedById[$settingId]['bytes']);
+                }
+            };
+    }
+}
+
+for ($limit = 1; $limit <= 5; $limit++) {
+    for ($offset = 0; $offset <= 4; $offset++) {
+        $sql = "UPDATE app_settings SET (key_value, bytes) = (SELECT new_value, new_bytes FROM app_setting_payloads WHERE target_tenant_id = tenant_id AND target_key_name = key_name ORDER BY priority DESC LIMIT {$offset}, 1) WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT {$limit} OFFSET {$offset}) RETURNING setting_id, tenant_id, key_name, key_value, bytes ORDER BY setting_id LIMIT -1";
+        $windowIds = array_slice([8, 2, 5, 3, 6], $offset, $limit);
+        $expected = array_values(array_intersect([2, 3, 5, 6, 8], $windowIds));
+        $sourceIds = [
+            0 => [2 => 'B2', 3 => 'C2', 5 => 'E2', 6 => 'F2', 8 => 'H2'],
+            1 => [2 => null, 3 => null, 5 => null, 6 => null, 8 => null],
+            2 => [2 => null, 3 => null, 5 => null, 6 => null, 8 => null],
+            3 => [2 => null, 3 => null, 5 => null, 6 => null, 8 => null],
+            4 => [2 => null, 3 => null, 5 => null, 6 => null, 8 => null],
+        ];
+
+        $tests[sprintf('rowvalue update delete limit dynamic parity rowvalue7 correlated select assignment descending tuple limit %d offset %d', $limit, $offset)] =
+            static function (TestRunner $t) use ($execute, $sql, $expected, $sourceIds, $offset): void {
+                $result = $execute($sql);
+                $returnedById = array_column($result['returning'], null, 'setting_id');
+                $t->same($expected, $result['plan']->selectedIds);
+                $t->same($expected, array_column($result['returning'], 'setting_id'));
+                foreach ($expected as $settingId) {
+                    $t->same($sourceIds[$offset][$settingId], $returnedById[$settingId]['key_value']);
+                }
+            };
+    }
+}
+
+$rowValue7NoMatch = "UPDATE app_settings SET (key_value, bytes) = (SELECT new_value, new_bytes FROM app_setting_payloads WHERE target_tenant_id = tenant_id AND target_key_name = 'missing' LIMIT 1) WHERE setting_id IN (1, 2) RETURNING setting_id, key_value, bytes ORDER BY setting_id LIMIT -1";
+$tests['rowvalue update delete limit dynamic parity rowvalue7 no assignment row yields nulls'] =
+    static function (TestRunner $t) use ($execute, $rowValue7NoMatch): void {
+        $result = $execute($rowValue7NoMatch);
+        $t->same([1, 2], $result['plan']->selectedIds);
+        $t->same([null, null], array_column($result['returning'], 'key_value'));
+        $t->same([null, null], array_column($result['returning'], 'bytes'));
+    };
+
+$rowValue7Malformed = [
+    'rowvalue table select assignment missing table rejected' => "UPDATE app_settings SET (key_value, bytes) = (SELECT new_value, new_bytes FROM missing_payloads WHERE target_tenant_id = tenant_id) WHERE setting_id = 1 RETURNING setting_id",
+    'rowvalue table select assignment too many values rejected' => "UPDATE app_settings SET (key_value, bytes) = (SELECT new_value, new_bytes, priority FROM app_setting_payloads WHERE target_tenant_id = tenant_id) WHERE setting_id = 1 RETURNING setting_id",
+];
+
+foreach ($rowValue7Malformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($execute, $sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => $execute($sql));
+    };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limit = 1 + ($seed % 3);
+    $offset = intdiv($seed, 3) % 4;
+    $tupleWindow = array_slice([
+        [2, 'beta'],
+        [1, 'gamma'],
+        [2, 'gamma'],
+        [3, 'beta'],
+        [1, 'beta'],
+    ], $offset, $limit);
+    $tupleSql = implode(', ', array_map(
+        static fn (array $tuple): string => sprintf('(%d, %s)', $tuple[0], var_export($tuple[1], true)),
+        $tupleWindow,
+    ));
+    $sql = "UPDATE app_settings SET state = 'tuple_list_window' WHERE (tenant_id, key_name) IN ({$tupleSql}) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+    $expectedByTuple = [
+        '2|beta' => 5,
+        '1|gamma' => 3,
+        '2|gamma' => 6,
+        '3|beta' => 8,
+        '1|beta' => 2,
+    ];
+    $expected = [];
+    foreach ($tupleWindow as $tuple) {
+        $expected[] = $expectedByTuple[$tuple[0] . '|' . $tuple[1]];
+    }
+    sort($expected);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update explicit tuple list upstream rowvalue seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limit, $offset): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($expected), 'tuple_list_window'), array_column($result['returning'], 'state'));
+            $t->same($limit, min($limit, 3));
+            $t->true($offset >= 0);
+        };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limit = 1 + ($seed % 4);
+    $offset = intdiv($seed, 4) % 3;
+    $tupleWindow = array_slice([
+        [2, 'gamma'],
+        [1, 'beta'],
+        [3, 'beta'],
+        [2, 'beta'],
+        [1, 'gamma'],
+    ], $offset, $limit);
+    $tupleSql = 'VALUES ' . implode(', ', array_map(
+        static fn (array $tuple): string => sprintf('(%d, %s)', $tuple[0], var_export($tuple[1], true)),
+        $tupleWindow,
+    ));
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN ({$tupleSql}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+    $expectedByTuple = [
+        '2|gamma' => 6,
+        '1|beta' => 2,
+        '3|beta' => 8,
+        '2|beta' => 5,
+        '1|gamma' => 3,
+    ];
+    $expected = [];
+    foreach ($tupleWindow as $tuple) {
+        $expected[] = $expectedByTuple[$tuple[0] . '|' . $tuple[1]];
+    }
+    sort($expected);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete values tuple list upstream rowvalue seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limit, $offset): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('VALUES', $sql);
+            $t->true($limit >= 1 && $offset >= 0);
+        };
+}
+
+$explicitTupleMalformed = [
+    'explicit tuple list scalar RHS rejected' => "UPDATE app_settings SET state = 'bad' WHERE (tenant_id, key_name) IN (1, 2) RETURNING setting_id",
+    'explicit tuple list arity mismatch rejected' => "DELETE FROM app_settings WHERE (tenant_id, key_name) IN ((1, 'alpha'), (2)) RETURNING setting_id",
+    'values tuple list empty rejected' => "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (VALUES) RETURNING setting_id",
+];
+
+foreach ($explicitTupleMalformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute($sql, [
+            'app_settings' => [
+                ['setting_id' => 1, 'tenant_id' => 1, 'key_name' => 'alpha'],
+            ],
+        ]));
     };
 }
 

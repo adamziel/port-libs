@@ -396,6 +396,95 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
         ];
     }
 
+    /** @return array<string,mixed> */
+    public static function triggerCDefaultValuesInsert(): array
+    {
+        $schemas = [
+            1 => ['sql' => 'CREATE TABLE t1(a, b)', 'defaults' => [null, null]],
+            2 => ['sql' => "CREATE TABLE t1(a DEFAULT 1, b DEFAULT 'abc')", 'defaults' => [1, 'abc']],
+            3 => ['sql' => 'CREATE TABLE t1(a, b DEFAULT 4.5)', 'defaults' => [null, 4.5]],
+        ];
+
+        $cases = [];
+        foreach (range(1, 240) as $seed) {
+            $schemaNo = (($seed - 1) % 3) + 1;
+            $schema = $schemas[$schemaNo];
+            $defaults = $schema['defaults'];
+            $beforeLog = [$defaults];
+            $afterLog = [$defaults, $defaults];
+            $afterOnlyLog = [$defaults];
+
+            $cases[] = [
+                'case' => 'triggerC-11.' . $schemaNo,
+                'variant' => $seed,
+                'source' => 'triggerC.test',
+                'table_sql' => $schema['sql'],
+                'default_values' => ['a' => $defaults[0], 'b' => $defaults[1]],
+                'before_insert_default_values' => [
+                    'case' => 'triggerC-11.' . $schemaNo . '.1',
+                    'trigger' => 'BEFORE INSERT',
+                    'insert_sql' => 'INSERT INTO t1 DEFAULT VALUES',
+                    'log_rows' => $beforeLog,
+                    'new_row' => ['a' => $defaults[0], 'b' => $defaults[1]],
+                    'fires' => 1,
+                ],
+                'before_after_insert_default_values' => [
+                    'case' => 'triggerC-11.' . $schemaNo . '.2',
+                    'triggers' => ['BEFORE INSERT', 'AFTER INSERT'],
+                    'insert_sql' => 'INSERT INTO t1 DEFAULT VALUES',
+                    'log_rows' => $afterLog,
+                    'fires' => 2,
+                ],
+                'after_insert_after_drop_before' => [
+                    'case' => 'triggerC-11.' . $schemaNo . '.3',
+                    'dropped_trigger' => 'tt1',
+                    'remaining_trigger' => 'tt2',
+                    'insert_sql' => 'INSERT INTO t1 DEFAULT VALUES',
+                    'log_rows' => $afterOnlyLog,
+                    'fires' => 1,
+                ],
+                'new_defaults_visible_to_before_trigger' => true,
+                'new_defaults_visible_to_after_trigger' => true,
+                'dropped_before_trigger_stops_logging' => true,
+            ];
+        }
+
+        return [
+            'source' => 'triggerC.test',
+            'scenarios' => [
+                'triggerC-11.1.1',
+                'triggerC-11.1.2',
+                'triggerC-11.1.3',
+                'triggerC-11.2.1',
+                'triggerC-11.2.2',
+                'triggerC-11.2.3',
+                'triggerC-11.3.1',
+                'triggerC-11.3.2',
+                'triggerC-11.3.3',
+                'triggerC-11.4',
+            ],
+            'cases' => $cases,
+            'view_default_values' => [
+                'case' => 'triggerC-11.4',
+                'source' => 'triggerC.test',
+                'view' => 'v2',
+                'instead_of_trigger' => 'tv2',
+                'insert_sql' => 'INSERT INTO v2 DEFAULT VALUES',
+                'log_rows' => [[null, null, 1, 1]],
+                'new_row' => ['a' => null, 'b' => null],
+                'a_is_null' => true,
+                'b_is_null' => true,
+                'underlying_table_rows_inserted' => 0,
+            ],
+            'dependencies' => [
+                'sqlite-upstream-triggerC-default-values-visible-to-before-insert-trigger',
+                'sqlite-upstream-triggerC-default-values-visible-to-after-insert-trigger',
+                'sqlite-upstream-triggerC-dropped-before-trigger-no-longer-logs',
+                'sqlite-upstream-triggerC-view-default-values-visible-to-instead-of-trigger',
+            ],
+        ];
+    }
+
     /** @param list<mixed> $args */
     private static function trigger6Counter(int &$counter, array $args): int
     {

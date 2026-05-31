@@ -15,17 +15,17 @@ final class SQLiteTenantJsonWalImportPlan
     public static function plan(array $currentRows, array $imports, array $options = []): array
     {
         if ($imports === []) {
-            throw new \InvalidArgumentException('SQLite Application multisite JSON WAL import requires at least one batch');
+            throw new \InvalidArgumentException('SQLite application tenant JSON WAL import requires at least one batch');
         }
 
         $pageSize = (int) ($options['page_size'] ?? 1024);
         if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
-            throw new \InvalidArgumentException('SQLite Application multisite JSON WAL import page size must be a power of two at least 512');
+            throw new \InvalidArgumentException('SQLite application tenant JSON WAL import page size must be a power of two at least 512');
         }
 
-        $databasePath = (string) ($options['database_path'] ?? '/tmp/wp-multisite-json-wal.sqlite');
+        $databasePath = (string) ($options['database_path'] ?? '/tmp/app-tenant-json-wal.sqlite');
         if ($databasePath === '') {
-            throw new \InvalidArgumentException('SQLite Application multisite JSON WAL import requires a database path');
+            throw new \InvalidArgumentException('SQLite application tenant JSON WAL import requires a database path');
         }
 
         $state = self::stateByScope($currentRows);
@@ -57,7 +57,7 @@ final class SQLiteTenantJsonWalImportPlan
                     $key = self::rowKey($normalized);
                     $conflict = isset($state[$scope][$key]);
                     if ($conflict && ($import['on_conflict'] ?? 'replace') === 'abort') {
-                        throw new \InvalidArgumentException("Duplicate multisite import key {$key}");
+                        throw new \InvalidArgumentException("Duplicate tenant import key {$key}");
                     }
 
                     $state[$scope][$key] = $normalized;
@@ -68,9 +68,9 @@ final class SQLiteTenantJsonWalImportPlan
                         'key' => $key,
                         'scope' => $scope,
                         'table' => self::tableName($normalized),
-                        'blog_id' => $normalized['blog_id'],
-                        'site_id' => $normalized['site_id'],
-                        'option_name' => $normalized['option_name'],
+                        'tenant_id' => $normalized['tenant_id'],
+                        'group_id' => $normalized['group_id'],
+                        'key_name' => $normalized['key_name'],
                         'page_number' => $pageNumber,
                         'conflict' => $conflict ? 'replace' : 'insert',
                     ];
@@ -142,7 +142,7 @@ final class SQLiteTenantJsonWalImportPlan
                 'frames' => $walFrames,
             ],
             'dependencies' => [
-                'sqlite-application-multisite-json-wal-import',
+                'sqlite-application-tenant-json-wal-import',
                 'sqlite-application-schema-json-savepoint-wal',
                 'sqlite-application-json-import-wal-savepoint',
             ],
@@ -182,36 +182,35 @@ final class SQLiteTenantJsonWalImportPlan
      */
     private static function normalizeImportRow(array $row, string $scope, array $state): array
     {
-        $network = $scope === 'network';
-        $siteId = self::positiveInt($row['site_id'] ?? 1, 'site_id');
-        $blogId = $network ? 0 : self::positiveInt($row['blog_id'] ?? ($row['site_id'] ?? 1), 'blog_id');
-        $name = $row['option_name'] ?? $row['meta_key'] ?? null;
+        $global = $scope === 'global';
+        $groupId = self::positiveInt($row['group_id'] ?? 1, 'group_id');
+        $tenantId = $global ? 0 : self::positiveInt($row['tenant_id'] ?? ($row['group_id'] ?? 1), 'tenant_id');
+        $name = $row['key_name'] ?? null;
         if (!is_string($name) || $name === '' || str_contains($name, "\0")) {
-            throw new \InvalidArgumentException('SQLite Application multisite JSON import option_name/meta_key must be non-empty text');
+            throw new \InvalidArgumentException('SQLite application tenant JSON import key_name must be non-empty text');
         }
 
-        $value = $row['option_value'] ?? $row['meta_value'] ?? null;
+        $value = $row['key_value'] ?? null;
         if (!is_string($value) && !$value instanceof SQLiteBlobValue && !$value instanceof SQLiteJsonSubtypeValue) {
-            throw new \InvalidArgumentException('SQLite Application multisite JSON import value must be JSON text, JSON subtype, or JSONB blob');
+            throw new \InvalidArgumentException('SQLite application tenant JSON import value must be JSON text, JSON subtype, or JSONB blob');
         }
         if (self::requiresJsonValidation($name) && self::jsonValid($value) !== true) {
-            throw new \InvalidArgumentException("SQLite Application multisite JSON import value for {$name} is malformed JSON");
+            throw new \InvalidArgumentException("SQLite application tenant JSON import value for {$name} is malformed JSON");
         }
 
-        $idKey = $network ? 'meta_id' : 'option_id';
-        $id = isset($row[$idKey]) ? self::positiveInt($row[$idKey], $idKey) : self::nextId($state[$scope] ?? []);
-        $autoload = $network ? 'network' : (string) ($row['autoload'] ?? 'no');
-        if (!$network && !in_array($autoload, ['yes', 'no', 'auto', 'on', 'off'], true)) {
-            throw new \InvalidArgumentException('SQLite Application multisite JSON import autoload must be a Application autoload token');
+        $settingId = isset($row['setting_id']) ? self::positiveInt($row['setting_id'], 'setting_id') : self::nextId($state[$scope] ?? []);
+        $loadPolicy = $global ? 'global' : (string) ($row['load_policy'] ?? 'no');
+        if (!$global && !in_array($loadPolicy, ['yes', 'no', 'auto', 'on', 'off'], true)) {
+            throw new \InvalidArgumentException('SQLite application tenant JSON import load_policy must be a application load_policy token');
         }
 
         return [
-            $idKey => $id,
-            'site_id' => $siteId,
-            'blog_id' => $blogId,
-            'option_name' => $name,
-            'option_value' => $value,
-            'autoload' => $autoload,
+            'setting_id' => $settingId,
+            'group_id' => $groupId,
+            'tenant_id' => $tenantId,
+            'key_name' => $name,
+            'key_value' => $value,
+            'load_policy' => $loadPolicy,
             'scope' => $scope,
         ];
     }
@@ -221,9 +220,9 @@ final class SQLiteTenantJsonWalImportPlan
      */
     private static function batchName(array $import, int $index): string
     {
-        $name = (string) ($import['name'] ?? 'multisite_json_' . ($index + 1));
+        $name = (string) ($import['name'] ?? 'tenant_json_' . ($index + 1));
         if ($name === '' || preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name) !== 1) {
-            throw new \InvalidArgumentException('SQLite Application multisite JSON WAL savepoint names must be SQL identifiers');
+            throw new \InvalidArgumentException('SQLite application tenant JSON WAL savepoint names must be SQL identifiers');
         }
 
         return $name;
@@ -234,16 +233,16 @@ final class SQLiteTenantJsonWalImportPlan
      */
     private static function scope(array $row): string
     {
-        $scope = strtolower((string) ($row['scope'] ?? (($row['network'] ?? false) ? 'network' : 'blog')));
-        if (!in_array($scope, ['blog', 'network'], true)) {
-            throw new \InvalidArgumentException('SQLite Application multisite JSON WAL import scope must be blog or network');
+        $scope = strtolower((string) ($row['scope'] ?? (($row['global'] ?? false) ? 'global' : 'tenant')));
+        if (!in_array($scope, ['tenant', 'global'], true)) {
+            throw new \InvalidArgumentException('SQLite application tenant JSON WAL import scope must be tenant or global');
         }
 
         return $scope;
     }
 
     /**
-     * @return array{valid:bool,path:string,rows:list<array<string,mixed>>,row_count:int,option_names:list<string>,error:?string}
+     * @return array{valid:bool,path:string,rows:list<array<string,mixed>>,row_count:int,key_names:list<string>,error:?string}
      */
     /**
      * @param array<string,mixed> $import
@@ -251,30 +250,30 @@ final class SQLiteTenantJsonWalImportPlan
     private static function jsonRows(mixed $json, string $path, string $scope, array $import): array
     {
         if (!is_string($json) && !$json instanceof SQLiteBlobValue && !$json instanceof SQLiteJsonSubtypeValue) {
-            return self::invalidJson($path, 'SQLite Application multisite JSON WAL import requires JSON text, JSON subtype, or JSONB blob');
+            return self::invalidJson($path, 'SQLite application tenant JSON WAL import requires JSON text, JSON subtype, or JSONB blob');
         }
 
         try {
             $value = $json instanceof SQLiteJsonSubtypeValue ? $json->json : $json;
             if (self::jsonValid($value) !== true) {
-                return self::invalidJson($path, 'SQLite Application multisite JSON WAL import source is malformed JSON');
+                return self::invalidJson($path, 'SQLite application tenant JSON WAL import source is malformed JSON');
             }
             $extracted = SQLiteJsonExtract::extract($value, $path);
             if ($extracted === null) {
-                return self::invalidJson($path, 'SQLite Application multisite JSON WAL import path did not match any rows');
+                return self::invalidJson($path, 'SQLite application tenant JSON WAL import path did not match any rows');
             }
             $decoded = is_string($extracted) ? json_decode($extracted, true, 1001, JSON_THROW_ON_ERROR) : $extracted;
             if (!is_array($decoded)) {
-                throw new \InvalidArgumentException('SQLite Application multisite JSON WAL import path must resolve to rows');
+                throw new \InvalidArgumentException('SQLite application tenant JSON WAL import path must resolve to rows');
             }
             $rows = array_is_list($decoded) ? $decoded : [$decoded];
             $normalized = [];
             foreach ($rows as $row) {
                 if (!is_array($row)) {
-                    throw new \InvalidArgumentException('SQLite Application multisite JSON WAL import rows must be objects');
+                    throw new \InvalidArgumentException('SQLite application tenant JSON WAL import rows must be objects');
                 }
                 $defaults = ['scope' => $scope];
-                foreach (['site_id', 'blog_id', 'network'] as $field) {
+                foreach (['group_id', 'tenant_id', 'global'] as $field) {
                     if (array_key_exists($field, $import)) {
                         $defaults[$field] = $import[$field];
                     }
@@ -287,7 +286,7 @@ final class SQLiteTenantJsonWalImportPlan
                 'path' => $path,
                 'rows' => $normalized,
                 'row_count' => count($normalized),
-                'option_names' => array_values(array_filter(array_map(static fn (array $row): mixed => $row['option_name'] ?? $row['meta_key'] ?? null, $normalized), 'is_string')),
+                'key_names' => array_values(array_filter(array_map(static fn (array $row): mixed => $row['key_name'] ?? null, $normalized), 'is_string')),
                 'error' => null,
             ];
         } catch (\Throwable $throwable) {
@@ -296,11 +295,11 @@ final class SQLiteTenantJsonWalImportPlan
     }
 
     /**
-     * @return array{valid:bool,path:string,rows:list<array<string,mixed>>,row_count:int,option_names:list<string>,error:string}
+     * @return array{valid:bool,path:string,rows:list<array<string,mixed>>,row_count:int,key_names:list<string>,error:string}
      */
     private static function invalidJson(string $path, string $error): array
     {
-        return ['valid' => false, 'path' => $path, 'rows' => [], 'row_count' => 0, 'option_names' => [], 'error' => $error];
+        return ['valid' => false, 'path' => $path, 'rows' => [], 'row_count' => 0, 'key_names' => [], 'error' => $error];
     }
 
     private static function jsonValid(mixed $value): bool
@@ -324,7 +323,7 @@ final class SQLiteTenantJsonWalImportPlan
      */
     private static function rowScope(array $row): string
     {
-        return (string) ($row['scope'] ?? (((int) ($row['blog_id'] ?? 0)) === 0 ? 'network' : 'blog'));
+        return (string) ($row['scope'] ?? (((int) ($row['tenant_id'] ?? 0)) === 0 ? 'global' : 'tenant'));
     }
 
     /**
@@ -332,9 +331,9 @@ final class SQLiteTenantJsonWalImportPlan
      */
     private static function rowKey(array $row): string
     {
-        return self::rowScope($row) === 'network'
-            ? 'network:' . $row['site_id'] . ':' . $row['option_name']
-            : 'blog:' . $row['site_id'] . ':' . $row['blog_id'] . ':' . $row['option_name'];
+        return self::rowScope($row) === 'global'
+            ? 'global:' . $row['group_id'] . ':' . $row['key_name']
+            : 'tenant:' . $row['group_id'] . ':' . $row['tenant_id'] . ':' . $row['key_name'];
     }
 
     /**
@@ -342,8 +341,8 @@ final class SQLiteTenantJsonWalImportPlan
      */
     private static function pageNumber(array $row, string $scope): int
     {
-        $id = (int) ($row[$scope === 'network' ? 'meta_id' : 'option_id'] ?? 1);
-        $base = $scope === 'network' ? 40 : 2 + (((int) $row['blog_id'] - 1) * 16);
+        $id = (int) ($row['setting_id'] ?? 1);
+        $base = $scope === 'global' ? 40 : 2 + (((int) $row['tenant_id'] - 1) * 16);
         return $base + intdiv($id - 1, 64);
     }
 
@@ -352,17 +351,21 @@ final class SQLiteTenantJsonWalImportPlan
      */
     private static function tableName(array $row): string
     {
-        return self::rowScope($row) === 'network' ? 'wp_sitemeta' : 'wp_' . $row['blog_id'] . '_options';
+        if (self::rowScope($row) === 'global') {
+            return 'app_tenant_settings';
+        }
+
+        return ((int) $row['tenant_id']) === 1 ? 'app_settings' : 'app_tenant_' . $row['tenant_id'] . '_settings';
     }
 
     private static function positiveInt(mixed $value, string $field): int
     {
         if (!is_int($value) && !(is_string($value) && ctype_digit($value))) {
-            throw new \InvalidArgumentException("SQLite Application multisite JSON import {$field} must be a positive integer");
+            throw new \InvalidArgumentException("SQLite application tenant JSON import {$field} must be a positive integer");
         }
         $int = (int) $value;
         if ($int <= 0) {
-            throw new \InvalidArgumentException("SQLite Application multisite JSON import {$field} must be positive");
+            throw new \InvalidArgumentException("SQLite application tenant JSON import {$field} must be positive");
         }
 
         return $int;
@@ -375,7 +378,7 @@ final class SQLiteTenantJsonWalImportPlan
     {
         $max = 0;
         foreach ($rows as $row) {
-            $max = max($max, (int) ($row['option_id'] ?? $row['meta_id'] ?? 0));
+            $max = max($max, (int) ($row['setting_id'] ?? 0));
         }
 
         return $max + 1;
@@ -416,7 +419,7 @@ final class SQLiteTenantJsonWalImportPlan
     }
 
     /**
-     * @param array{valid:bool,path:string,rows:list<array<string,mixed>>,row_count:int,option_names:list<string>,error:?string} $json
+     * @param array{valid:bool,path:string,rows:list<array<string,mixed>>,row_count:int,key_names:list<string>,error:?string} $json
      * @param list<array<string,mixed>> $writes
      * @return array<string,mixed>
      */

@@ -33,7 +33,7 @@ final class SQLiteUpdateDeleteReturningSql
             $plan = SQLiteUpdateDeleteLimitPlan::update(
                 $tables[$table],
                 $where,
-                self::assignmentCallbacks($parsed['assignments']),
+                self::assignmentCallbacks($parsed['assignments'], $tables),
                 self::orderByCallbacks($parsed['order_by']),
                 $parsed['limit'],
                 $parsed['offset'],
@@ -517,8 +517,21 @@ final class SQLiteUpdateDeleteReturningSql
                 $rightHandSql = trim($match[2]);
                 if (preg_match('/^SELECT\s+(.+)$/is', $rightHandSql, $selectMatch) === 1) {
                     $selectExpressions = trim($selectMatch[1]);
-                    if ($selectExpressions === '' || self::keywordPosition(' ' . $selectExpressions, ' FROM ') !== null) {
+                    if ($selectExpressions === '') {
                         throw new \InvalidArgumentException('SQLite UPDATE row-value assignment SELECT only supports expression lists');
+                    }
+                    if (self::keywordPosition(' ' . $selectExpressions, ' FROM ') !== null) {
+                        $select = self::parseAssignmentSelect($rightHandSql);
+                        if (count($columns) !== count($select['expressions'])) {
+                            throw new \InvalidArgumentException('SQLite UPDATE row-value assignment arity mismatch');
+                        }
+                        foreach ($columns as $index => $column) {
+                            if (array_key_exists($column, $assignments)) {
+                                throw new \InvalidArgumentException("SQLite UPDATE assignment repeats column {$column}");
+                            }
+                            $assignments[$column] = ['select' => $select, 'index' => $index];
+                        }
+                        continue;
                     }
                     $expressions = self::splitComma($selectExpressions);
                 } else {
@@ -551,17 +564,115 @@ final class SQLiteUpdateDeleteReturningSql
     }
 
     /**
-     * @param array<string,string> $assignments
+     * @return array{expressions:list<string>,table:string,where:?string,order_by:?string,limit:?string}
+     */
+    private static function parseAssignmentSelect(string $sql): array
+    {
+        $sql = trim($sql);
+        if (preg_match('/^SELECT\s+(.+?)\s+FROM\s+([A-Za-z_][A-Za-z0-9_]*)(.*)$/is', $sql, $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite UPDATE row-value assignment SELECT only supports simple SELECT expression lists from one table');
+        }
+
+        $tail = trim($match[3]);
+        $whereSql = null;
+        $orderSql = null;
+        $limitSql = null;
+        $wherePos = self::keywordPosition(' ' . $tail, ' WHERE ');
+        $orderPos = self::keywordPosition(' ' . $tail, ' ORDER BY ');
+        $limitPos = self::keywordPosition(' ' . $tail, ' LIMIT ');
+
+        if ($wherePos !== null) {
+            $whereStart = $wherePos + strlen(' WHERE ') - 1;
+            $whereEnd = self::minPosition($orderPos === null ? null : $orderPos - 1, $limitPos === null ? null : $limitPos - 1) ?? strlen($tail);
+            $whereSql = trim(substr($tail, $whereStart, $whereEnd - $whereStart));
+        }
+        if ($orderPos !== null) {
+            $orderStart = $orderPos + strlen(' ORDER BY ') - 1;
+            $orderEnd = $limitPos !== null && $limitPos > $orderPos ? $limitPos - 1 : strlen($tail);
+            $orderSql = trim(substr($tail, $orderStart, $orderEnd - $orderStart));
+        }
+        if ($limitPos !== null) {
+            $limitSql = trim(substr($tail, $limitPos + strlen(' LIMIT ') - 1));
+        }
+
+        return [
+            'expressions' => self::splitComma(trim($match[1])),
+            'table' => $match[2],
+            'where' => $whereSql,
+            'order_by' => $orderSql,
+            'limit' => $limitSql,
+        ];
+    }
+
+    /**
+     * @param array<string,string|array{select:array{expressions:list<string>,table:string,where:?string,order_by:?string,limit:?string},index:int}> $assignments
+     * @param array<string,list<array<string,mixed>>> $tables
      * @return array<string,callable(array<string,mixed>):mixed>
      */
-    private static function assignmentCallbacks(array $assignments): array
+    private static function assignmentCallbacks(array $assignments, array $tables = []): array
     {
         $callbacks = [];
         foreach ($assignments as $column => $expression) {
+            if (is_array($expression)) {
+                $select = $expression['select'];
+                $index = $expression['index'];
+                $callbacks[$column] = static fn (array $row): mixed => self::assignmentSelectValues($select, $row, $tables)[$index];
+                continue;
+            }
             $callbacks[$column] = static fn (array $row): mixed => self::evaluateExpression($expression, $row);
         }
 
         return $callbacks;
+    }
+
+    /**
+     * @param array{expressions:list<string>,table:string,where:?string,order_by:?string,limit:?string} $select
+     * @param array<string,mixed> $row
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @return list<mixed>
+     */
+    private static function assignmentSelectValues(array $select, array $row, array $tables): array
+    {
+        $table = $select['table'];
+        if (!isset($tables[$table]) || !is_array($tables[$table]) || !array_is_list($tables[$table])) {
+            throw new \InvalidArgumentException("SQLite UPDATE row-value assignment SELECT table {$table} is missing");
+        }
+
+        $sourceRows = [];
+        foreach ($tables[$table] as $sourceRow) {
+            if (!is_array($sourceRow)) {
+                throw new \InvalidArgumentException("SQLite UPDATE row-value assignment SELECT table {$table} rows must be arrays");
+            }
+            $combined = array_merge($row, $sourceRow);
+            if ($select['where'] !== null && $select['where'] !== '') {
+                $predicate = self::wherePredicate($select['where'], $tables)($combined);
+                if ($predicate !== true) {
+                    continue;
+                }
+            }
+            $sourceRows[] = $combined;
+        }
+
+        if ($select['order_by'] !== null && $select['order_by'] !== '') {
+            $sourceRows = self::orderRowValueSelectRows($sourceRows, $select['order_by'], $select['expressions']);
+        }
+        if ($select['limit'] !== null && $select['limit'] !== '') {
+            [$limit, $offset] = self::parseLimit($select['limit']);
+            $offset = max(0, $offset);
+            $sourceRows = $limit !== null && $limit >= 0
+                ? array_slice($sourceRows, $offset, $limit)
+                : array_slice($sourceRows, $offset);
+        }
+        if ($sourceRows === []) {
+            return array_fill(0, count($select['expressions']), null);
+        }
+
+        $values = [];
+        foreach ($select['expressions'] as $expression) {
+            $values[] = self::evaluateExpression(trim($expression), $sourceRows[0]);
+        }
+
+        return $values;
     }
 
     /**

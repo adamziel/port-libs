@@ -175,6 +175,61 @@ final class SQLiteVfsIoTrafficPlan
     }
 
     /**
+     * @param list<string> $deviceFlags
+     * @return array{script:string,scenario:string,device_flags:list<string>,sector_size:int,requested_page_size:int,max_page_size:int,selected_page_size:int,database_file_bytes_after_create:int,atomic_family:string|null,sector_driven:bool,atomic_driven:bool,clamped_to_max:bool,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function defaultPageSizeSelection(
+        string $scenario,
+        array $deviceFlags,
+        int $sectorSize,
+        int $requestedPageSize = 1024,
+        int $maxPageSize = 8192
+    ): array {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite VFS default page-size scenario requires a name');
+        }
+        if ($sectorSize < 0 || ($sectorSize > 0 && ($sectorSize & ($sectorSize - 1)) !== 0)) {
+            throw new \InvalidArgumentException('SQLite VFS default page-size sector size must be zero or a power of two');
+        }
+        if ($requestedPageSize < 512 || ($requestedPageSize & ($requestedPageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite VFS default page-size request must be a power of two at least 512');
+        }
+        if ($maxPageSize < 512 || ($maxPageSize & ($maxPageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite VFS default page-size max must be a power of two at least 512');
+        }
+
+        $flags = self::flags($deviceFlags);
+        $atomicFloor = self::atomicPageSizeFloor($flags);
+        $sectorFloor = $sectorSize === 0 ? 512 : $sectorSize;
+        $selected = max($requestedPageSize, min($sectorFloor, $maxPageSize));
+        if ($atomicFloor !== null) {
+            $selected = max($selected, min($atomicFloor, $maxPageSize));
+        }
+        $selected = min($selected, $maxPageSize);
+
+        return [
+            'script' => 'io.test',
+            'scenario' => $scenario,
+            'device_flags' => $flags,
+            'sector_size' => $sectorSize,
+            'requested_page_size' => $requestedPageSize,
+            'max_page_size' => $maxPageSize,
+            'selected_page_size' => $selected,
+            'database_file_bytes_after_create' => $selected * 2,
+            'atomic_family' => $atomicFloor === null ? null : 'atomic' . $atomicFloor,
+            'sector_driven' => $selected > $requestedPageSize && $selected === min($sectorFloor, $maxPageSize),
+            'atomic_driven' => $atomicFloor !== null && $selected === min(max($atomicFloor, $requestedPageSize), $maxPageSize),
+            'clamped_to_max' => $sectorSize > $maxPageSize || ($atomicFloor !== null && $atomicFloor > $maxPageSize),
+            'dependencies' => [
+                'sqlite-upstream-io-test',
+                'sqlite-vfs-device-characteristics',
+                'sqlite-default-page-size-selection',
+            ],
+            'upstream' => ['io.test io-5.* default page size selected from sector size and atomic capability'],
+        ];
+    }
+
+    /**
      * @return array{script:string,scenario:string,operation:string,error_at:int,detected:bool,rollback_required:bool,hot_journal_left:bool,refcount_check:bool,checksum_check:bool,reason:string,dependencies:list<string>}
      */
     public static function ioErrorBoundary(
@@ -1268,6 +1323,33 @@ final class SQLiteVfsIoTrafficPlan
         }
 
         return $requestedPageSize;
+    }
+
+    /**
+     * @param list<string> $flags
+     */
+    private static function atomicPageSizeFloor(array $flags): ?int
+    {
+        $floors = [
+            'atomic' => 8192,
+            'atomic512' => 1024,
+            'atomic1k' => 1024,
+            'atomic2k' => 2048,
+            'atomic4k' => 4096,
+            'atomic8k' => 8192,
+            'atomic16k' => 16384,
+            'atomic32k' => 32768,
+            'atomic64k' => 65536,
+        ];
+
+        $floor = null;
+        foreach ($flags as $flag) {
+            if (isset($floors[$flag])) {
+                $floor = max($floor ?? 0, $floors[$flag]);
+            }
+        }
+
+        return $floor;
     }
 
     private static function syncMode(string $syncMode): string
