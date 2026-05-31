@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 09:36:13 UTC",
-    "sourceCommit": "e319fe192cd0103ff34e7b509ead36237f4955fd",
-    "sourceCommitShort": "e319fe192cd0",
+    "generated": "2026-05-31 09:48:15 UTC",
+    "sourceCommit": "0b6a219b7c763ad377900409213186a796e2aeb4",
+    "sourceCommitShort": "0b6a219b7c76",
     "sourceBranch": "main",
-    "dashboardCommit": "be94a0db45fc41d34083332350c3f821af96792a",
-    "dashboardCommitShort": "be94a0db45fc",
+    "dashboardCommit": "b93fcc4304dc580bc5e5fbd29f6efe39e1312fc6",
+    "dashboardCommitShort": "b93fcc4304dc",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -64,16 +64,16 @@
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1515",
-            "coverage": "1515 / 2886",
-            "php": "3855 pass / 0 fail",
+            "mapped": "1525",
+            "coverage": "1525 / 2886",
+            "php": "3989 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
-            "audit": "Accepted source commit e319fe192cd0103ff3...",
-            "currentWork": "Commit parsing now exposes raw multiline gpgsig bytes and preserves old-git multiline hea...",
-            "nextTarget": "Keep integrating current-base Gitoxide handoffs for protocol, send-pack, sparse-checkout,...",
+            "audit": "Accepted source commit 0b6a219b7c763ad377...",
+            "currentWork": "Committed ten Gitoxide slices covering sparse checkout, ls-refs, send-pack, fetch sideban...",
+            "nextTarget": "Keep roughly half the worker pool on current-base Gitoxide handoffs for protocol, send-pa...",
             "blocker": "No current Gitoxide PHP blocker for the accepted batch.",
-            "commit": "e319fe1"
+            "commit": "0b6a219"
         },
         {
             "library": "libsqlite",
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "2840323 pass / 0 fail",
+            "php": "2847028 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, upstream corpus closure, source-neut...",
-            "audit": "Accepted source commit e319fe192cd0103ff3...",
-            "currentWork": "Committed three focused libsqlite corpus slices for date/affinity storage, expression aff...",
-            "nextTarget": "Continue integrating current-base libsqlite source/test-moving handoffs with real PASS de...",
-            "blocker": "Remaining libsqlite blockers: pre-existing default-memory app-WAL/pager p...",
-            "commit": "e319fe1"
+            "audit": "Accepted source commit 0b6a219b7c763ad377...",
+            "currentWork": "Committed seven focused libsqlite corpus/parity slices for trigger, window, pager/WAL, SE...",
+            "nextTarget": "Keep roughly half the worker pool on current-base libsqlite source/test-moving handoffs w...",
+            "blocker": "Remaining libsqlite closure items: full-suite/runner confidence beyond th...",
+            "commit": "0b6a219"
         },
         {
             "library": "LightningCSS",
