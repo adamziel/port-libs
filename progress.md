@@ -55,6 +55,31 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (active-session audit + CSS/Git/SQLite
+  parity batch 23:25 UTC): audited the user's AO cleanup concern. There is
+  still one attached tmux session (`main`), not a pile of independent live
+  sessions. The visible windows are the intentional pool: one supervisor, one
+  shell, and `10` active Codex lane workers (`5` LightningCSS, `3` Gitoxide,
+  `2` libsqlite at the sample instant), all launched with `gpt-5.5` xhigh
+  priority and no long sleepers. No active worker was pruned; AO-style cleanup
+  should remove completed/stale panes and archive consumed artifacts, not cut
+  below the requested active pool. Source commit
+  `89903d30c04a94ad3b168ad6bbd42181a216fa46` (`ports: extend git css sqlite
+  parity batch`) landed thirteen screened handoffs. Verification passed
+  staged `git diff --check`, PHP lint on `45` changed/new PHP files, full
+  Gitoxide `40 files / 6246 assertions / 0 failures`, full LightningCSS
+  `13 files / 4821 assertions / 0 failures`, focused libsqlite `4 files /
+  46433 assertions / 0 failures` including `SQLiteNoDomainSpecificApiTest.php`,
+  accepted Gitoxide examples, accepted LightningCSS example self-tests, the
+  libsqlite WAL example self-test, and a cached libsqlite source added-lines
+  guard showing no new `WordPress|wordpress|WP_|wp_` text and no numbered
+  `CurrentSourceNext`/`Plan` suffix additions. Dashboard evidence should now
+  report Gitoxide `1665 / 2886` mapped and `6246 pass / 0 fail`,
+  LightningCSS `2198 / 3532` mapped and `4821 pass / 0 fail`, and libsqlite
+  `1589 / 1589` mapped with `4298033 pass / 0 fail`. Full upstream Cargo,
+  Rust/Node/WASM, and libsqlite release/all runners were not executed for this
+  isolated batch, so those remain honest completion risks.
+
 - 2026-05-31 supervisor continuation (AO cleanup + CSS/Git/SQLite parity batch
   23:10 UTC): answered the active-session concern with evidence. There is still
   one attached tmux session (`main`), not multiple live tmux sessions. The
