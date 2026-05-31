@@ -353,6 +353,14 @@ now exposes a result-buffer guard so native pack readers reject delta
 copy/insert overruns and short applications before accepting compacted content
 objects.
 
+## WordPress URL/Refspec And Empty Pathspec Examples
+
+`examples/wordpress-url-refspec-normalize.php` now covers one-sided push
+refspec writer normalization so deployment tooling can serialize implicit
+destinations such as `HEAD:HEAD` without shelling out to Git. The tree pathspec
+example now covers empty pathspec searches and walks, including prefixed walks,
+so repository traversal can intentionally enumerate complete deploy trees.
+
 ## Next Task
 
 Broaden protocol/transport runner evidence with a controlled focused crate probe, deepen mmap-specific packed-ref race parity beyond metadata/hash invalidation if needed, or map another focused `gix-merge` tree fixture.

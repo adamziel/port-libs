@@ -52,6 +52,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 10:02 UTC):
+  source commit `973514d312c3ffcd8a66f07624e3b5dedad814ae` (`ports: add
+  sqlite pragma window expr and gitoxide pathspec slices`) landed five handoffs
+  after excluding stale shared metadata. Libsqlite gained expression affinity
+  LIKE/ESCAPE error corpus behavior, PRAGMA writable_schema/integrity behavior,
+  and window1 aggregate row behavior; selected libsqlite evidence moves from
+  `2853307` to `2856519 pass / 0 fail`, mapped coverage stays `1589 / 1589`.
+  Gitoxide gained URL/refspec one-sided push writer normalization and
+  tree/pathspec empty-search parity; full Gitoxide evidence moves from `3998`
+  to `4028 pass / 0 fail`, mapped coverage moves from `1527 / 2886` to
+  `1529 / 2886`. Verification passed PHP lint, `git diff --check`, libsqlite
+  selected tests `4 files / 47032 assertions / 0 failures`, Gitoxide focused
+  tests `2 files / 510 assertions / 0 failures`, full Gitoxide lane `38 files
+  / 4028 assertions / 0 failures`, two Gitoxide examples, and changed-source
+  guards for no new libsqlite WordPress/wp or numbered CurrentSourceNext source
+  text. The durable launch constraint now records that every newly started
+  subagent must use `gpt-5.5`, xhigh reasoning, and the fast/priority service
+  tier unless the user explicitly replaces the rule.
+
 - 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 09:58 UTC):
   source commit `652a839d40a7f0fe140f7a77e5c45e4f8765e909` (`ports: add
   sqlite corpus and gitoxide config pack slices`) landed eight handoffs after

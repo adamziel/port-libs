@@ -8,6 +8,9 @@
 - Level: max.
 - Starting workers: 10-11 active lane sessions, resource-gated by CPU, RAM, disk, and independent work availability.
 - Scaling rule: add workers only for bounded slices with clear artifacts; remove or redirect workers that produce broad dirty state without integration-ready outputs.
+- Durable launch constraint: every newly started subagent/worker must run
+  `gpt-5.5` with `model_reasoning_effort="xhigh"` on the fast/priority service
+  tier unless the user explicitly replaces this rule.
 
 ## Non-Goals
 - No lane implementation in the supervisor session.

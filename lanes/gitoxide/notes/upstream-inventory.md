@@ -1196,3 +1196,19 @@ Config/pack-delta batch accepted on 2026-05-31:
 - The mapped denominator moves from `1525 / 2886` to `1527 / 2886` for the two
   distinct upstream-backed behavior slices. Full Cargo workspace tests were not
   run for this slice.
+
+URL/refspec and tree/pathspec batch accepted on 2026-05-31:
+
+- Source commit `973514d312c3ffcd8a66f07624e3b5dedad814ae` integrates two
+  Gitoxide handoffs without taking stale shared metadata edits. The accepted
+  source slices cover URL/refspec one-sided push writer normalization with
+  implicit destination handling, plus tree/pathspec empty-search parity where
+  empty pathspecs match full-tree walks and prefix-constrained walks.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused Gitoxide tests `2 files / 510 assertions / 0 failures`, full
+  Gitoxide lane tests `38 files / 4028 assertions / 0 failures`, and two
+  touched examples exiting 0.
+- The mapped denominator moves from `1527 / 2886` to `1529 / 2886` for the two
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.
