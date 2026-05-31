@@ -48,6 +48,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 03:25 UTC):
+  Batch60 is integrated locally as source
+  `bcc680a0e7998da01f362afa14aec190e01f9e15` (`libsqlite: add
+  sixtieth current corpus sweep`). The batch accepted 11 source/test-moving
+  handoffs across B-tree index6 early partial and index7/indexA planner
+  behavior, trigger/FK parent-update and dynamic DDL behavior, SELECT core
+  batch1 behavior, expression affinity IN-list behavior, windowE frame
+  behavior, PRAGMA schema-version behavior, pager WAL readonly-SHM refresh
+  behavior, JSON101 control-quote behavior, and UPSERT RETURNING hex-yield
+  behavior. One VFS candidate was rejected as status/notes-only after
+  lane-status exclusion. Verification passed PHP lint for `14` changed/new PHP
+  files, `git diff --check -- lanes/libsqlite`, no newly-added WordPress/wp
+  source text in the batch diff, focused selected tests `11 files / 245572
+  assertions / 0 failures / 38681 PASS lines`, accepted-base overlap `1 file /
+  11705 assertions / 0 failures / 1201 PASS lines`, and related
+  B-tree/trigger/PRAGMA guard `93 files / 1124656 assertions / 0 failures /
+  465918 PASS lines`. Honest selected movement is `+37480`, moving libsqlite
+  from `1797288` to `1834768 pass / 0 fail`; mapped coverage remains `1589 /
+  1589`. Broad release/all-runner parity remains open; gitoxide starts only
+  after libsqlite closure is recorded.
+
 - 2026-05-31 supervisor continuation (integration sample 03:17 UTC):
   Batch59 is integrated locally as source
   `3cf53a893d5aeaf0ee24cd9d2842dcba042e22fb` (`libsqlite: add
