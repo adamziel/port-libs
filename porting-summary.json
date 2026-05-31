@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 08:47:10 UTC",
-    "sourceCommit": "6d9f6effa53c12f844dc454fdad15307fa8e550d",
-    "sourceCommitShort": "6d9f6effa53c",
+    "generated": "2026-05-31 08:53:05 UTC",
+    "sourceCommit": "d47dc133c424b595a26aa0ce415c78f1aa11abeb",
+    "sourceCommitShort": "d47dc133c424",
     "sourceBranch": "main",
-    "dashboardCommit": "c7601b6dd28451bfd396b06ece1b5d28fc511afc",
-    "dashboardCommitShort": "c7601b6dd284",
+    "dashboardCommit": "39d456f09a11ac49d242a0722302c4c30ca78c68",
+    "dashboardCommitShort": "39d456f09a11",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -64,16 +64,16 @@
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1498",
-            "coverage": "1498 / 2886",
-            "php": "3124 pass / 0 fail",
+            "mapped": "1500",
+            "coverage": "1500 / 2886",
+            "php": "3161 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
-            "audit": "Accepted source commit 6d9f6eff after rep...",
-            "currentWork": "PackData enforces inflated entry declared sizes before object/delta trust; ProtocolCapabi...",
-            "nextTarget": "Keep integrating current-base Gitoxide handoffs for loose objects, packed refs, reflog, i...",
+            "audit": "Accepted source commit d47dc133 after rep...",
+            "currentWork": "LooseObjectStore verifies object-path hashes, exact payload lengths, and structured objec...",
+            "nextTarget": "Keep integrating current-base Gitoxide handoffs for reflog, index/cache-tree, commit sign...",
             "blocker": "No current Gitoxide PHP blocker for the accepted batch.",
-            "commit": "6d9f6ef"
+            "commit": "d47dc13"
         },
         {
             "library": "libsqlite",
