@@ -168,6 +168,8 @@ The same example now keeps a long-lived path-backed reference store open while a
 
 `examples/wordpress-recursive-tree-merge.php` walks nested WordPress trees, merges independent `post.meta` edits into a new blob, records a full-path `theme.json` content conflict with diff3 marker output, writes the ancestor/ours/theirs blob stages into a Git index v2 file, and checks out a merged worktree containing both clean metadata and the marker-file `theme.json`. The checkout removes a stale plugin file while preserving `.git/config`. The underlying recursive merge also classifies nested directory-file collisions such as a cache directory on one side and a cache file on the other; those tree stages can now expand into file-level index entries. The merge engine detects exact same-object rename/delete and rename/rename conflicts plus bounded similar-blob rename/delete and rename/modify conflicts for renamed plugin entry files, and same-target renamed plugin entry edits now merge or conflict at the renamed path. Bounded plugin directory renames are detected by descendant similarity, including unique renamed internal leaves, so edits left under the old directory on the other side merge or conflict at the new directory path even when the renamed side also renames the main plugin file. When a plugin split creates multiple similar candidate directories, the merge chooses the strictly best match and keeps equal-score ambiguity on the ordinary add/delete path.
 
+The merge fixture mapping now includes the upstream multiple-merge-bases shape. That keeps the native recursive tree merge honest for WordPress deployment histories where two review branches share more than one valid baseline.
+
 ## WordPress Partial Clone Example
 
 `examples/wordpress-partial-clone.php` writes a deterministic WordPress pack/index pair with a `.promisor` sidecar, builds a blobless `FetchFilterSpec`, and stores a tree that references both packed content and an omitted media blob. This models a PHP deployment or package manager distinguishing local packed WordPress content from media bytes promised by a partial clone without invoking `git cat-file`.
@@ -188,6 +190,8 @@ The same example now keeps a long-lived path-backed reference store open while a
 
 `examples/wordpress-multi-pack-index.php` parses a deterministic multi-pack-index fixture that maps content, template, and large media objects to the pack index names and offsets that contain them. This models a PHP object database using one compact MIDX fanout table to select the right WordPress content or media pack before reading pack data.
 
+The pack and MIDX examples now exercise stronger corruption checks for sorted object IDs, fanout consistency, pack IDs, and checksum state before a WordPress content reader trusts compacted package data.
+
 ## WordPress Pack Data Example
 
 `examples/wordpress-pack-data.php` pairs a deterministic pack index with pack data, then reads a packed commit, blob, and OFS_DELTA-reconstructed blob by object ID. This models a PHP object database reading compacted WordPress content on shared hosting without invoking `git cat-file`.
@@ -195,6 +199,16 @@ The same example now keeps a long-lived path-backed reference store open while a
 ## WordPress Object Database Example
 
 `examples/wordpress-object-database.php` writes the deterministic WordPress pack fixture into a temporary `.git/objects/pack` directory, adds a loose draft object, links an alternate shared package object cache through `objects/info/alternates`, maps a draft object through `refs/replace`, then reads every source through one object database. This models package managers, Playground snapshot tools, and shared-hosting deployment code traversing packed, loose, shared-cache, and replacement repository content without invoking the Git binary.
+
+The example now also writes a deployment commit object through the object database. This models import, package, and Playground snapshot tooling that needs the same object-size/hash semantics Gitoxide applies when storing commits, but still must stay inside the native PHP object database boundary.
+
+## WordPress Smart HTTP Follow Redirects Example
+
+`examples/wordpress-smart-http-follow-redirects.php` now records chained safe receive-pack redirects that recompute redirect-issued cookies for each effective endpoint while preserving caller cookies and the generated POST body only for method-preserving receive-pack targets.
+
+## WordPress SSH Receive-Pack Example
+
+`examples/wordpress-receive-pack-transport.php` now records the protocol-v2 and credential boundary passed to caller-injected SSH connectors. This keeps the native lane from shelling out while still exposing the context a hosting integration needs to authorize an SSH receive-pack session.
 
 ## WordPress Multi-Pack Object Database Example
 

@@ -51,6 +51,22 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (Gitoxide batch sample 08:25 UTC):
+  Gitoxide source commit `ac468c29fbc15270b3521495abfb078f30270ac4`
+  (`gitoxide: integrate transport object pack ref merge batch`) landed from
+  six ready current-base handoffs after consolidating only their shared metadata
+  conflicts. Accepted behavior covers object database commit writes, recursive
+  tree merge multiple-merge-base fixture shape, pack/MIDX validation,
+  packed-reference peeled transactions, smart HTTP chained redirect cookie
+  recomputation, and SSH protocol-v2/auth boundary context through
+  caller-injected connectors. Verification passed PHP lint for `22` changed PHP
+  files, `git diff --check -- lanes/gitoxide`, focused tests `7 files / 1582
+  assertions / 0 failures`, full Gitoxide lane tests `32 files / 2963
+  assertions / 0 failures`, and six touched examples. Public Gitoxide evidence
+  should move from `2841` to `2963 pass / 0 fail`; mapped coverage moves from
+  `1485 / 2886` to `1491 / 2886`. This is still not full Cargo workspace pass
+  parity.
+
 - 2026-05-31 supervisor continuation (split/integration sample 08:05 UTC):
   The visible tmux `main` pool was rebalanced to 6 libsqlite and 6 Gitoxide
   isolated workers. New subagent launch defaults are `gpt-5.5` with
