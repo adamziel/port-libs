@@ -43,7 +43,7 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current sample reports 27 GiB total and about 17-18 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 387G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.9G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 372G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.8G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool targets
   an even libsqlite/Gitoxide split; the latest supervisor sample saw 11 active
@@ -51,6 +51,25 @@
   priority service tier.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 10:18 UTC):
+  source commit `0d5385bf389d0db83bc44bd9e6369eded628c4ef` (`ports: add
+  sqlite wal date select pragma window and gitoxide protocol graph slices`)
+  landed eight handoffs after excluding stale shared metadata. Libsqlite gained
+  application WAL rollback-disabled follow-up failure recovery, timediff6
+  datetime modifier roundtrips, SELECT sort/collation inheritance, PRAGMA
+  file-control behavior, and window8 REAL fractional RANGE frame behavior;
+  selected libsqlite evidence moves from `2864736` to `2869693 pass / 0 fail`,
+  mapped coverage stays `1589 / 1589`. Gitoxide gained protocol v2 fetch
+  section sideband fixture parity, merge-base priority graph-walk ordering,
+  and protocol v2 ls-refs smart HTTP service announcement parsing; full
+  Gitoxide evidence moves from `4085` to `4132 pass / 0 fail`, mapped coverage
+  moves from `1532 / 2886` to `1535 / 2886`. Verification passed PHP lint,
+  `git diff --check`, libsqlite selected tests `6 files / 66236 assertions / 0
+  failures`, Gitoxide focused tests `3 files / 262 assertions / 0 failures`,
+  full Gitoxide lane `38 files / 4132 assertions / 0 failures`, four touched
+  examples, and changed-source guards for no new libsqlite WordPress/wp or
+  numbered CurrentSourceNext source text.
 
 - 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 10:11 UTC):
   source commit `e97166a7f62f8b380688e16da83baf2271f246d5` (`ports: add

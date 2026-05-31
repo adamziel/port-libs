@@ -369,6 +369,15 @@ push-response example now parses proc-receive fall-through statuses, and the
 sparse-checkout example now normalizes absolute pathspecs under the worktree
 root for deployment selection.
 
+## WordPress Protocol And Merge-Base Priority Examples
+
+The latest accepted batch extends protocol and graph behavior used by native
+deployment tooling. Protocol v2 fetch parsing now accepts exact upstream
+section/sideband fixture shapes, protocol v2 ls-refs parsing accepts the smart
+HTTP `# service=git-upload-pack` announcement prelude before capabilities, and
+merge-base selection now orders independent common baselines by priority graph
+metadata before deterministic tie-breakers.
+
 ## Next Task
 
 Broaden protocol/transport runner evidence with a controlled focused crate probe, deepen mmap-specific packed-ref race parity beyond metadata/hash invalidation if needed, or map another focused `gix-merge` tree fixture.

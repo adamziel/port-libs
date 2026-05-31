@@ -1229,3 +1229,19 @@ Commit, push-status, and sparse-checkout batch accepted on 2026-05-31:
 - The mapped denominator moves from `1529 / 2886` to `1532 / 2886` for the
   three distinct upstream-backed behavior slices. Full Cargo workspace tests
   were not run for this slice.
+
+Protocol, merge-base, and ls-refs service announcement batch accepted on 2026-05-31:
+
+- Source commit `0d5385bf389d0db83bc44bd9e6369eded628c4ef` integrates three
+  Gitoxide handoffs without taking stale shared metadata edits. The accepted
+  source slices cover protocol v2 fetch section sideband fixture parity,
+  merge-base priority graph-walk ordering for independent bases, and protocol
+  v2 ls-refs smart HTTP service announcement parsing.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused Gitoxide tests `3 files / 262 assertions / 0 failures`, full
+  Gitoxide lane tests `38 files / 4132 assertions / 0 failures`, and three
+  touched examples exiting 0.
+- The mapped denominator moves from `1532 / 2886` to `1535 / 2886` for the
+  three distinct upstream-backed behavior slices. Full Cargo workspace tests
+  were not run for this slice.
