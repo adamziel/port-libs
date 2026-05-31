@@ -2133,7 +2133,9 @@ final class SQLiteCoreScalarFunction
             $formatted .= '.0';
         }
 
-        return str_contains($formatted, 'E') ? str_replace('E', 'e', $formatted) : $formatted;
+        $formatted = str_contains($formatted, 'E') ? str_replace('E', 'e', $formatted) : $formatted;
+
+        return preg_replace('/e([+-])(\d)$/', 'e${1}0${2}', $formatted) ?? $formatted;
     }
 
     private static function powSql(float $base, float $exponent): ?float

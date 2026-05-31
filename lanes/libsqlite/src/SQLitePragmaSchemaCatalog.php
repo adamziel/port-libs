@@ -357,7 +357,7 @@ final class SQLitePragmaSchemaCatalog
                 'schema' => $schemaName,
                 'name' => $record->name,
                 'type' => $record->type,
-                'ncol' => $record->type === 'table' ? count($this->tableInfo($record->name, true)) : count(self::columnsFromCreateTable($sql)),
+                'ncol' => $record->type === 'table' ? count($this->tableInfo($record->name, true)) : $this->viewColumnCount($sql),
                 'wr' => self::isWithoutRowidSql($sql) ? 1 : 0,
                 'strict' => self::isStrictTableSql($sql) ? 1 : 0,
             ];
@@ -462,6 +462,33 @@ final class SQLitePragmaSchemaCatalog
         ];
 
         return array_map(static fn (string $name): array => ['name' => $name], $names);
+    }
+
+    private function viewColumnCount(string $sql): int
+    {
+        if (!preg_match('/\bas\s+select\s+(?<projection>.*?)\s+from\s+/is', $sql, $matches)) {
+            return 0;
+        }
+
+        $projection = trim($matches['projection']);
+        if ($projection === '') {
+            return 0;
+        }
+
+        $knownFunctions = [];
+        foreach ($this->functionList() as $function) {
+            $knownFunctions[$function['name']] = true;
+        }
+
+        if (preg_match_all('/\b(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*\(/', $projection, $functionMatches)) {
+            foreach ($functionMatches['name'] as $functionName) {
+                if (!isset($knownFunctions[strtolower($functionName)])) {
+                    return 0;
+                }
+            }
+        }
+
+        return count(self::splitTopLevel($projection, ','));
     }
 
     /**

@@ -167,11 +167,11 @@ $ioCases = [
     [['atomic'], 2, 'delete', 'full', 1, true, false, false],
     [['atomic'], 3, 'delete', 'full', 4, false, false, false],
     [['safe_append'], 2, 'delete', 'full', 3, false, true, false],
-    [['sequential'], 2, 'delete', 'full', 3, false, false, true],
-    [['safe_append', 'sequential'], 2, 'delete', 'full', 2, false, true, true],
+    [['sequential'], 2, 'delete', 'full', 1, false, false, true],
+    [['safe_append', 'sequential'], 2, 'delete', 'full', 1, false, true, true],
     [['batch_atomic'], 1, 'delete', 'full', 1, true, false, false],
     [['safe_append'], 5, 'truncate', 'normal', 3, false, true, false],
-    [['sequential'], 5, 'persist', 'normal', 3, false, false, true],
+    [['sequential'], 5, 'persist', 'normal', 1, false, false, true],
     [['powersafe_overwrite'], 4, 'wal', 'full', 2, false, false, false],
     [['powersafe_overwrite'], 4, 'off', 'full', 1, false, false, false],
     [['powersafe_overwrite'], 4, 'delete', 'off', 0, false, false, false],
@@ -298,7 +298,7 @@ $tests['real upstream corpus vfs io dynamic cache spill sync matrix follows io 3
         $sequential = in_array('sequential', $flags, true);
         $safeAppend = in_array('safe_append', $flags, true);
         $expectedSyncSequence = [];
-        if ($directorySync) {
+        if (!$sequential && $directorySync) {
             $expectedSyncSequence[] = 'directory';
         }
         if (!$sequential) {

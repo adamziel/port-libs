@@ -32,6 +32,44 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexTestDynamicLookupCases() as $ca
     };
 }
 
+// Source truth: SQLite upstream test/index.test index-4.2 through index-4.12.
+// The upstream script repeatedly creates and drops indexes over the same
+// power-of-two table and verifies lookups keep returning the same values as
+// the usable index set changes.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::indexTestCreateDropLookupDynamicCases(1000) as $case) {
+    $tests['real upstream index create drop lookup dynamic case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('index.test sections index-4.2 through index-4.12', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1000);
+        $t->true(str_starts_with($case['upstream_section'], 'index-4.'));
+        $t->true($case['operation'] !== '');
+        $t->true($case['active_indexes'] === array_values($case['active_indexes']));
+        $t->true($case['lookup_column'] === 'cnt' || $case['lookup_column'] === 'power');
+        $t->true($case['result_column'] === 'cnt' || $case['result_column'] === 'power');
+        $t->true($case['lookup_value'] > 0);
+        $t->true($case['result_value'] > 0);
+        $t->same('ok', $case['integrity']);
+        $t->same($case['uses_index'], $case['index_name'] !== null);
+        if ($case['uses_index']) {
+            $t->true(str_contains($case['detail'], 'USING INDEX ' . $case['index_name']));
+            $t->true(in_array($case['index_name'], $case['active_indexes'], true));
+        } else {
+            $t->same('SCAN test1 after index create/drop sequence', $case['detail']);
+        }
+        if ($case['lookup_column'] === 'power') {
+            $t->true($case['lookup_value'] === 4 || $case['lookup_value'] === 1024);
+            $t->same($case['lookup_value'] === 4 ? 2 : 10, $case['result_value']);
+        }
+        if ($case['lookup_column'] === 'cnt') {
+            $t->same(6, $case['lookup_value']);
+            $t->same(64, $case['result_value']);
+        }
+        if ($case['upstream_section'] === 'index-4.11') {
+            $t->same([], $case['active_indexes']);
+            $t->same(false, $case['uses_index']);
+        }
+    };
+}
+
 // Source truth: SQLite upstream test/index9.test index9-1.1 through 4.5.
 foreach (SQLiteBTreeIndexDynamicCorpusPlan::index9BoundPartialIndexCases() as $case) {
     $tests['real upstream index9 bound partial index ' . $case['upstream']] = static function (TestRunner $t) use ($case): void {

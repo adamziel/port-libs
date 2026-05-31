@@ -109,6 +109,70 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,operation:string,active_indexes:list<string>,lookup_column:string,lookup_value:int,result_column:string,result_value:int,uses_index:bool,index_name:string|null,detail:string,integrity:string}>
+     */
+    public static function indexTestCreateDropLookupDynamicCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index.test create/drop lookup dynamic corpus requires at least one case');
+        }
+
+        $rows = [];
+        for ($i = 1; $i < 20; $i++) {
+            $rows[] = ['cnt' => $i, 'power' => 1 << $i];
+        }
+
+        $templates = [
+            ['index-4.2', 'both indexes available; lookup by power returns count', ['index9' => 'cnt', 'indext' => 'power'], 'power', 4, 'cnt'],
+            ['index-4.3', 'both indexes available; lookup by larger power returns count', ['index9' => 'cnt', 'indext' => 'power'], 'power', 1024, 'cnt'],
+            ['index-4.4', 'both indexes available; lookup by count returns power', ['index9' => 'cnt', 'indext' => 'power'], 'cnt', 6, 'power'],
+            ['index-4.5', 'drop power index; lookup by count still uses count index', ['index9' => 'cnt'], 'cnt', 6, 'power'],
+            ['index-4.6', 'power index dropped; lookup by power scans table', ['index9' => 'cnt'], 'power', 1024, 'cnt'],
+            ['index-4.7', 'recreate indext on count; lookup by count can use either count index', ['index9' => 'cnt', 'indext' => 'cnt'], 'cnt', 6, 'power'],
+            ['index-4.8', 'recreated indext no longer covers power; lookup by power scans table', ['index9' => 'cnt', 'indext' => 'cnt'], 'power', 1024, 'cnt'],
+            ['index-4.9', 'drop original count index; lookup by count uses recreated indext', ['indext' => 'cnt'], 'cnt', 6, 'power'],
+            ['index-4.10', 'only count index remains; lookup by power scans table', ['indext' => 'cnt'], 'power', 1024, 'cnt'],
+            ['index-4.11', 'drop recreated count index; lookup by count scans table', [], 'cnt', 6, 'power'],
+            ['index-4.12', 'no indexes remain; lookup by power scans table', [], 'power', 1024, 'cnt'],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $operation, $indexes, $lookupColumn, $lookupValue, $resultColumn] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $activeIndexes = array_keys($indexes);
+            $indexName = null;
+            foreach ($indexes as $candidate => $column) {
+                if ($column === $lookupColumn) {
+                    $indexName = $candidate;
+                    break;
+                }
+            }
+
+            $usesIndex = $indexName !== null;
+            $out[] = [
+                'source' => 'index.test sections index-4.2 through index-4.12',
+                'case' => $case,
+                'upstream_section' => $section,
+                'operation' => $operation . ' dynamic batch ' . $batch,
+                'active_indexes' => $activeIndexes,
+                'lookup_column' => $lookupColumn,
+                'lookup_value' => $lookupValue,
+                'result_column' => $resultColumn,
+                'result_value' => self::lookup($rows, $lookupColumn, $lookupValue, $resultColumn),
+                'uses_index' => $usesIndex,
+                'index_name' => $indexName,
+                'detail' => $usesIndex
+                    ? 'SEARCH test1 USING INDEX ' . $indexName . ' (' . $lookupColumn . '=?)'
+                    : 'SCAN test1 after index create/drop sequence',
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{upstream:string,where_value:mixed,predicate_value:int,index_name:string,uses_partial_index:bool,objects:list<string>,qpsg:bool}>
      */
     public static function index9BoundPartialIndexCases(): array

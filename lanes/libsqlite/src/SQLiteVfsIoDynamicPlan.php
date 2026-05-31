@@ -213,12 +213,12 @@ final class SQLiteVfsIoDynamicPlan
             $syncs[] = 'database';
         } elseif ($syncMode !== 'off') {
             if ($rollbackJournal) {
-                $syncs[] = 'directory';
                 if (!$sequential) {
+                    $syncs[] = 'directory';
                     $syncs[] = 'journal-pages';
-                }
-                if (!$safeAppend) {
-                    $syncs[] = 'journal-header';
+                    if (!$safeAppend) {
+                        $syncs[] = 'journal-header';
+                    }
                 }
             } elseif ($journalMode === 'wal') {
                 $syncs[] = 'wal';
@@ -359,14 +359,14 @@ final class SQLiteVfsIoDynamicPlan
         $syncTargets = [];
 
         if ($syncMode !== 'off') {
-            if ($directorySync) {
-                $syncTargets[] = 'directory';
-            }
             if (!$sequential) {
+                if ($directorySync) {
+                    $syncTargets[] = 'directory';
+                }
                 $syncTargets[] = 'journal-pages';
-            }
-            if (!$safeAppend && !$sequential) {
-                $syncTargets[] = 'journal-header';
+                if (!$safeAppend) {
+                    $syncTargets[] = 'journal-header';
+                }
             }
             $syncTargets[] = 'database';
         }
