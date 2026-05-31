@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "library": "gitoxide",
-  "estimatedProgress": 90.4,
-  "suiteProgress": "Supervisor-integrated Gitoxide credential helper exchange, partial-clone promisor refresh-never, pack-index/MIDX SHA-256 prefix, tree-merge type-change resolve-tree, and reference transaction deref reflog parity. Verification passed PHP lint on changed files, full Gitoxide lane 40 files / 6246 assertions / 0 failures, accepted examples, and diff checks.",
-  "phpPass": 6246,
+  "estimatedProgress": 90.5,
+  "suiteProgress": "Supervisor-integrated Gitoxide config includeIf reversed-range/POSIX bracket parity, SHA-256 loose-object structured integrity, and related object/tree helpers. Verification passed PHP lint on changed files, full Gitoxide lane 40 files / 6268 assertions / 0 failures, accepted examples, and diff checks.",
+  "phpPass": 6268,
   "phpFail": 0,
   "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
   "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full runner not executed for isolated batch",
-  "audit": "2026-05-31 supervisor batch at source 89903d30c04a: full Gitoxide lane passed 40 files / 6246 assertions / 0 failures. Conservative mapped coverage moves from 1660 / 2886 to 1665 / 2886 for credential helper exchange, partial-clone promisor refresh-never, pack-index/MIDX SHA-256 prefix, tree-merge type-change resolve-tree, and reference transaction deref reflog parity. Full upstream Cargo workspace was not executed.",
-  "currentWork": "Credential helper exchange, partial-clone promisor refresh-never, pack-index/MIDX SHA-256 prefix, tree-merge type-change resolve-tree, and reference transaction deref reflog parity integrated on current base.",
-  "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch. Native PHP full-lane evidence is green at 6246 assertions; continue bounded Gitoxide workers while LightningCSS remains the larger capacity target.",
-  "latestCommit": "89903d30c04a94ad3b168ad6bbd42181a216fa46",
+  "audit": "2026-05-31 supervisor batch at source a364d0704019: full Gitoxide lane passed 40 files / 6268 assertions / 0 failures. Conservative mapped coverage moves from 1665 / 2886 to 1667 / 2886 for config includeIf reversed-range/POSIX class normalization and SHA-256 loose-object structured integrity. Full upstream Cargo workspace was not executed.",
+  "currentWork": "Config includeIf reversed-range/POSIX bracket normalization, SHA-256 loose-object structured integrity, and related object/tree helpers integrated on current base.",
+  "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch. Native PHP full-lane evidence is green at 6268 assertions; continue bounded Gitoxide workers while LightningCSS remains the larger capacity target.",
+  "latestCommit": "a364d07040190b68b467cd69fb969339b783a7fe",
   "nextTask": "Keep three Gitoxide workers on config/include, loose-object integrity, attributes/pathspec, pack/index/object database, reference transactions, tree merge, partial clone, receive-pack/smart HTTP/SSH, URL/refspec, and protocol slices with full-lane PHP gates after each accepted batch.",
-  "commit": "89903d30c04a94ad3b168ad6bbd42181a216fa46"
+  "commit": "a364d07040190b68b467cd69fb969339b783a7fe"
 }

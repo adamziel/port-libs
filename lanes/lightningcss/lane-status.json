@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "library": "LightningCSS",
-  "estimatedProgress": 95.2,
-  "suiteProgress": "Supervisor-integrated LightningCSS CSS Modules state/highlight local-global compose, CSSOM border-spacing read/write, custom at-rule variable exit visitor, and text-decoration longhand target-prefix parity. Verification passed PHP lint on changed files, full LightningCSS lane 13 files / 4821 assertions / 0 failures, accepted examples/self-tests, and diff checks.",
-  "phpPass": 4821,
+  "estimatedProgress": 95.3,
+  "suiteProgress": "Supervisor-integrated LightningCSS CSSOM background longhand removal, custom at-rule parser/visitor behavior, media-query comment token layer parity, and target-prefix length fallback behavior. Verification passed PHP lint on changed files, full LightningCSS lane 13 files / 4877 assertions / 0 failures, accepted examples/self-tests, and diff checks.",
+  "phpPass": 4877,
   "phpFail": 0,
   "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
   "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full runner not executed for isolated batch",
-  "audit": "2026-05-31 supervisor batch at source 89903d30c04a: full LightningCSS lane passed 13 files / 4821 assertions / 0 failures. Conservative mapped coverage moves from 2195 / 3532 to 2198 / 3532 for text-decoration longhand target-prefix boundaries; CSS Modules, CSSOM, and custom at-rule slices deepen represented clusters. Full upstream Rust/Node/WASM runners were not executed.",
-  "currentWork": "CSS Modules state/highlight local-global compose, CSSOM border-spacing read/write, custom at-rule variable exit visitor, and text-decoration longhand target-prefix parity integrated on current base.",
-  "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch. Native PHP full-lane evidence is green at 4821 assertions; continue current-base parity slices with examples and manifest-backed mapping.",
-  "latestCommit": "89903d30c04a94ad3b168ad6bbd42181a216fa46",
+  "audit": "2026-05-31 supervisor batch at source a364d0704019: full LightningCSS lane passed 13 files / 4877 assertions / 0 failures. Conservative mapped coverage moves from 2198 / 3532 to 2202 / 3532 for CSSOM background longhand removal, custom at-rule parser/visitor behavior, media-query comment token layer parity, and target-prefix length fallback behavior. Full upstream Rust/Node/WASM runners were not executed.",
+  "currentWork": "CSSOM background longhand removal, custom at-rule token visitor behavior, media-query comment token layer behavior, and fluid length target fallback behavior integrated on current base.",
+  "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch. Native PHP full-lane evidence is green at 4877 assertions; continue current-base parity slices with examples and manifest-backed mapping.",
+  "latestCommit": "a364d07040190b68b467cd69fb969339b783a7fe",
   "nextTask": "Keep six LightningCSS workers on bundle/import graph, CSS Modules, media queries, target prefixing, source maps, property values, CSSOM, and custom at-rules, with full-lane PHP gates after each accepted batch.",
-  "commit": "89903d30c04a94ad3b168ad6bbd42181a216fa46"
+  "commit": "a364d07040190b68b467cd69fb969339b783a7fe"
 }
