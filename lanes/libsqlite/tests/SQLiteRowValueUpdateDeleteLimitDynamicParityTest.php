@@ -3394,4 +3394,94 @@ foreach ($concatFunctionLimitCases as $name => [$callback, $expected]) {
     };
 }
 
+$introspectionLimitExpr = static function (int $value, int $seed): string {
+    return match ($seed % 8) {
+        0 => "sqlite_compileoption_used('ENABLE_FTS5') + {$value} - 1",
+        1 => "sqlite_compileoption_used('SQLITE_ENABLE_MATH_FUNCTIONS') + {$value} - 1",
+        2 => "sqlite_compileoption_used(sqlite_compileoption_get(14)) + {$value} - 1",
+        3 => "length(sqlite_version()) + {$value} - 6",
+        4 => "length(sqlite_source_id()) + {$value} - 51",
+        5 => "substr(sqlite_version(), 3, 1) - 5 + {$value}",
+        6 => "instr(sqlite_source_id(), '8f70') - instr(sqlite_source_id(), '8f70') + {$value}",
+        default => "sqlite_compileoption_used('THREADSAFE') + {$value} - 1",
+    };
+};
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = $introspectionLimitExpr($limitValue, $seed);
+    $offsetExpr = $introspectionLimitExpr($offsetValue, $seed + 4);
+    $sql = "UPDATE app_settings SET state = 'introspection_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update introspection scalar limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($result['returning']), 'introspection_limit'), array_column($result['returning'], 'state'));
+            $t->contains('ctime.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/ctime.test');
+            $t->contains('func.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test');
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = $introspectionLimitExpr($limitValue, $seed + 2);
+    $offsetExpr = $introspectionLimitExpr($offsetValue, $seed + 6);
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue introspection scalar subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+            $t->contains('ctime.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/ctime.test');
+            $t->contains('func.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test');
+        };
+}
+
+$introspectionLimitCases = [
+    'parse compileoption used limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT sqlite_compileoption_used('ENABLE_FTS5')")['limit'], 1],
+    'parse compileoption used sqlite prefix limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT sqlite_compileoption_used('SQLITE_ENABLE_MATH_FUNCTIONS')")['limit'], 1],
+    'parse compileoption nested get used limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT sqlite_compileoption_used(sqlite_compileoption_get(14))")['limit'], 1],
+    'parse compileoption missing zero limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT sqlite_compileoption_used('OMIT_COMPILEOPTION_DIAGS')")['limit'], 0],
+    'parse sqlite version length limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(sqlite_version())")['limit'], 6],
+    'parse sqlite source id length offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET length(sqlite_source_id())")['offset'], 51],
+    'parse compileoption get length limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(sqlite_compileoption_get(14))")['limit'], 11],
+    'parse sqlite version substr numeric limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT substr(sqlite_version(), 3, 1)")['limit'], 5],
+    'parse sqlite source id instr offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET instr(sqlite_source_id(), '8f70')")['offset'], 12],
+    'malformed direct sqlite version rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT sqlite_version()"), InvalidArgumentException::class],
+    'malformed direct sqlite source id rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT sqlite_source_id()"), InvalidArgumentException::class],
+    'malformed direct compileoption get text rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT sqlite_compileoption_get(14)"), InvalidArgumentException::class],
+    'malformed compileoption get out of range rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT sqlite_compileoption_get(9999)"), InvalidArgumentException::class],
+    'malformed compileoption used null rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT sqlite_compileoption_used(NULL)"), InvalidArgumentException::class],
+    'malformed compileoption used arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT sqlite_compileoption_used()"), InvalidArgumentException::class],
+    'malformed compileoption get arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT sqlite_compileoption_get()"), InvalidArgumentException::class],
+    'malformed sqlite version arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT sqlite_version(1)"), InvalidArgumentException::class],
+    'malformed sqlite source id arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT sqlite_source_id(1)"), InvalidArgumentException::class],
+];
+
+foreach ($introspectionLimitCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity introspection scalar ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            $t->contains('ctime.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/ctime.test');
+            $t->contains('func.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test');
+            return;
+        }
+        $t->same($expected, $callback());
+        $t->contains('ctime.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/ctime.test');
+        $t->contains('func.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test');
+    };
+}
+
 return $tests;

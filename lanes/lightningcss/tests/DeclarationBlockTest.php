@@ -193,6 +193,16 @@ return [
             )
         );
         $t->same(
+            [
+                'value' => '[header-top] "a a a" [header-bottom] [main-top] "b b b" 1fr [main-bottom] / auto 1fr auto',
+                'important' => false,
+            ],
+            $block->getProperty(
+                'grid-template-areas: "a a a" "b b b"; grid-template-rows: [header-top] auto [header-bottom main-top] 1fr [main-bottom]; grid-template-columns: auto 1fr auto',
+                'grid-template'
+            )
+        );
+        $t->same(
             ['value' => '". a a ." ". b b ." 1fr / 10px 1fr 1fr 10px', 'important' => false],
             $block->getProperty(
                 'grid-template-areas: ". a a ." ". b b ."; grid-template-rows: auto 1fr; grid-template-columns: 10px 1fr 1fr 10px',
@@ -219,7 +229,7 @@ return [
 
         $t->same(
             [
-                'value' => '[header-top] "a a a" [header-bottom main-top] "b b b" 1fr [main-bottom] / auto 1fr auto',
+                'value' => '[header-top] "a a a" [header-bottom] [main-top] "b b b" 1fr [main-bottom] / auto 1fr auto',
                 'important' => false,
             ],
             $block->getProperty(

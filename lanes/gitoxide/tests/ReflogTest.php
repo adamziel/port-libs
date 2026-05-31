@@ -178,6 +178,76 @@ return [
         $parsed = ReflogEntry::parse($line);
         $t->same('', $parsed->message);
     },
+    'reference store writes symbolic reflog from existing-must-match object like upstream clone accommodation' => static function (TestRunner $t) use ($old, $new, $zeros): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-reflog-symbolic-peeled-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+
+        $result = $store->updateWithReport(
+            'refs/heads/symbolic',
+            ReferenceTarget::symbolic('refs/heads/alt-main'),
+            ReferenceStore::PREVIOUS_EXISTING_MUST_MATCH,
+            ReferenceTarget::object($new),
+            false,
+            'sha1',
+            $committer,
+            'clone peeled symbolic branch',
+        );
+
+        $t->same('refs/heads/symbolic', $result->reference->name);
+        $t->same('symbolic', $result->reference->target->kind);
+        $t->same('refs/heads/alt-main', $result->reference->target->value);
+        $t->same(null, $store->looseStore()->tryRead('refs/heads/alt-main'));
+
+        $symbolicEntries = $store->reflogEntries('refs/heads/symbolic');
+        $t->same(1, count($symbolicEntries ?? []));
+        $t->same($zeros, $symbolicEntries[0]->previousOid);
+        $t->same($new, $symbolicEntries[0]->newOid);
+        $t->same('clone peeled symbolic branch', $symbolicEntries[0]->message);
+        $t->contains("\tclone peeled symbolic branch\n", (string) $store->reflogContents('refs/heads/symbolic'));
+
+        $plainSymbolicStore = new ReferenceStore($dir . '-plain-symbolic');
+        $plainSymbolicStore->updateWithReport(
+            'HEAD',
+            ReferenceTarget::symbolic('refs/heads/alt-main'),
+            ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+            null,
+            false,
+            'sha1',
+            $committer,
+            'ignored for symbolic ref without peeled object',
+        );
+        $t->same(null, $plainSymbolicStore->reflogEntries('HEAD'));
+
+        $plainSymbolicStore->updateWithReport(
+            'refs/heads/symbolic-object-guard',
+            ReferenceTarget::symbolic('refs/heads/alt-main'),
+            ReferenceStore::PREVIOUS_EXISTING_MUST_MATCH,
+            ReferenceTarget::symbolic('refs/heads/other'),
+            false,
+            'sha1',
+            $committer,
+            'ignored because expected target is symbolic',
+        );
+        $t->same(null, $plainSymbolicStore->reflogEntries('refs/heads/symbolic-object-guard'));
+
+        $objectEntriesBefore = $store->reflogEntries('refs/heads/object-update');
+        $t->same(null, $objectEntriesBefore);
+        $store->updateWithReport(
+            'refs/heads/object-update',
+            ReferenceTarget::object($new),
+            ReferenceStore::PREVIOUS_EXISTING_MUST_MATCH,
+            ReferenceTarget::object($old),
+            false,
+            'sha1',
+            $committer,
+            'normal object update still uses object target',
+        );
+        $objectEntries = $store->reflogEntries('refs/heads/object-update');
+        $t->same(1, count($objectEntries ?? []));
+        $t->same($zeros, $objectEntries[0]->previousOid);
+        $t->same($new, $objectEntries[0]->newOid);
+    },
     'reflog append preserves carriage returns while rejecting line feeds like upstream' => static function (TestRunner $t) use ($old, $new, $other, $zeros): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-reflog-cr-message-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -404,6 +474,12 @@ return [
         $t->same('WordPress Deploy Bot <deploy@example.com>', $summary['trimmedCommitter']);
         $t->contains($fixture['messages'][0], (string) $summary['rawReflog']);
         $t->contains($fixture['messages'][1], (string) $summary['rawReflog']);
+        $t->same($fixture['symbolicSiteRef'], $summary['symbolicRef']);
+        $t->same($fixture['symbolicReferentRef'], $summary['symbolicTarget']);
+        $t->same(false, $summary['symbolicReferentExists']);
+        $t->same([$fixture['symbolicMessage']], $summary['symbolicReflogMessages']);
+        $t->same([str_repeat('0', 40)], $summary['symbolicReflogPreviousOids']);
+        $t->same([$fixture['publishedCommit']], $summary['symbolicReflogNewOids']);
         $t->same(false, $summary['smallBufferReverseDiagnostics'][0]['ok'] ?? true);
         $t->same(true, $summary['smallBufferReverseDiagnostics'][0]['fromEnd'] ?? false);
         $t->same(true, $summary['smallBufferReverseDiagnostics'][0]['bufferTooSmall'] ?? false);

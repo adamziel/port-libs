@@ -3733,6 +3733,73 @@ final class SQLiteVfsIoDynamicPlan
         };
     }
 
+    private static function superlockScenario(string $scenario): string
+    {
+        $scenario = strtolower(trim($scenario));
+        foreach (['superlock-1', 'superlock-2', 'superlock-3', 'superlock-4', 'superlock-5', 'superlock-6'] as $candidate) {
+            if ($scenario === $candidate || str_starts_with($scenario, $candidate . '.')) {
+                return $candidate;
+            }
+        }
+
+        throw new \InvalidArgumentException("Unsupported SQLite superlock scenario: {$scenario}");
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function superlockUpstream(string $scenario): array
+    {
+        return match ($scenario) {
+            'superlock-1' => [
+                'superlock.test 1.1 rollback database setup',
+                'superlock.test 1.2 superlock acquired on rollback database',
+                'superlock.test 1.3 superlock blocks second-client read',
+                'superlock.test 1.4 unlock releases rollback database',
+            ],
+            'superlock-2' => [
+                'superlock.test 2.1 WAL database setup with zero frames',
+                'superlock.test 2.2 superlock acquired on empty WAL database',
+                'superlock.test 2.3 read blocked by superlock',
+                'superlock.test 2.4 write blocked by superlock',
+                'superlock.test 2.5 checkpoint reports busy under superlock',
+                'superlock.test 2.6 unlock releases WAL database',
+            ],
+            'superlock-3' => [
+                'superlock.test 3.1 WAL frame appended',
+                'superlock.test 3.2 superlock acquired with WAL frames',
+                'superlock.test 3.3 read blocked by superlock',
+                'superlock.test 3.4 write blocked by superlock',
+                'superlock.test 3.5 checkpoint reports busy under superlock',
+                'superlock.test 3.6 unlock releases WAL database',
+            ],
+            'superlock-4' => [
+                'superlock.test 4.1 checkpointed WAL frame remains protected',
+                'superlock.test 4.2 superlock acquired with checkpointed WAL frames',
+                'superlock.test 4.3 read blocked by superlock',
+                'superlock.test 4.4 write blocked by superlock',
+                'superlock.test 4.5 checkpoint reports busy under superlock',
+                'superlock.test 4.6 unlock releases WAL database',
+            ],
+            'superlock-5' => [
+                'superlock.test 5.1 WAL database setup',
+                'superlock.test 5.2 three clients hold read/write locks',
+                'superlock.test 5.3 busy handler waits until clients commit',
+                'superlock.test 5.4-5.6 superlock blocks read, write, and checkpoint',
+                'superlock.test 5.8-5.12 superlock without enough busy clears returns database is locked',
+                'superlock.test 5.13-5.19 final superlock releases cleanly',
+            ],
+            'superlock-6' => [
+                'superlock.test 6.1 two WAL databases prepared before swap',
+                'superlock.test 6.2-6.5 swapped database images rebuild WAL index after unlock',
+                'superlock.test 6.6 checkpoint clears WAL frame state',
+                'superlock.test 6.7-6.10 swapped images continue to recover',
+                'superlock.test 6.11 page-size-change WAL database prepared',
+                'superlock.test 6.12-6.15 swapped page-size-change images recover after unlock',
+            ],
+        };
+    }
+
     private static function canonicalPermissionMode(int $permissions): string
     {
         return sprintf('0%04o', $permissions);
@@ -4245,6 +4312,137 @@ final class SQLiteVfsIoDynamicPlan
                 'sqlite-vfs-schema-read-lock-status',
                 'vfs-io-dynamic-real-corpus',
             ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function superlockProfile(
+        string $scenario,
+        int $walFrames = 0,
+        int $checkpointedFrames = 0,
+        int $busyClients = 0,
+        ?int $busyHandlerLimit = null,
+        bool $swapDatabaseImages = false,
+        bool $pageSizeChangedBeforeSwap = false
+    ): array {
+        $canonical = self::superlockScenario($scenario);
+        if ($walFrames < 0 || $checkpointedFrames < 0 || $busyClients < 0 || ($busyHandlerLimit !== null && $busyHandlerLimit < 0)) {
+            throw new \InvalidArgumentException('SQLite superlock profile counts must be non-negative');
+        }
+        if ($checkpointedFrames > $walFrames) {
+            throw new \InvalidArgumentException('SQLite superlock profile checkpointed frames cannot exceed WAL frames');
+        }
+
+        $journalMode = $canonical === 'superlock-1' ? 'delete' : 'wal';
+        if ($journalMode === 'delete') {
+            $walFrames = 0;
+            $checkpointedFrames = 0;
+        } elseif ($canonical === 'superlock-2') {
+            $walFrames = 0;
+            $checkpointedFrames = 0;
+        } elseif ($canonical === 'superlock-3' && $walFrames === 0) {
+            $walFrames = 1;
+        } elseif ($canonical === 'superlock-4' && $walFrames === 0) {
+            $walFrames = 1;
+            $checkpointedFrames = 1;
+        } elseif ($canonical === 'superlock-5' && $walFrames === 0) {
+            $walFrames = 1;
+        } elseif ($canonical === 'superlock-6' && $walFrames === 0) {
+            $walFrames = 1;
+        }
+
+        if ($canonical === 'superlock-4' && $checkpointedFrames === 0) {
+            $checkpointedFrames = $walFrames;
+        }
+
+        $busySequence = [];
+        $superlockAcquired = true;
+        $busyResult = 'SQLITE_OK';
+        if ($canonical === 'superlock-5' && $busyClients > 0) {
+            if ($busyHandlerLimit === null) {
+                $superlockAcquired = false;
+                $busyResult = 'SQLITE_BUSY';
+            } else {
+                $lastAttempt = min($busyClients, $busyHandlerLimit);
+                $busySequence = range(0, $lastAttempt);
+                $superlockAcquired = $busyHandlerLimit >= $busyClients;
+                $busyResult = $superlockAcquired ? 'SQLITE_OK' : 'SQLITE_BUSY';
+            }
+        }
+
+        $blockedOperations = [];
+        $checkpointResult = null;
+        if ($superlockAcquired) {
+            $blockedOperations = [
+                ['operation' => 'read', 'result' => 'database is locked'],
+                ['operation' => 'write', 'result' => 'database is locked'],
+            ];
+            if ($journalMode === 'wal') {
+                $blockedOperations[] = ['operation' => 'checkpoint', 'result' => 'busy'];
+                $checkpointResult = ['busy' => 1, 'log' => -1, 'checkpointed' => -1];
+            }
+        }
+
+        $swapRecoverySequence = [];
+        if ($canonical === 'superlock-6' && $swapDatabaseImages) {
+            $mainRows = $pageSizeChangedBeforeSwap ? [1, 2, 3, 4, 5, 6] : [1, 2, 3, 4];
+            $swapRecoverySequence = [
+                [
+                    'step' => 'swap_aux_into_main',
+                    'select_t1_result' => 'no such table: t1',
+                    'select_t2_result' => ['a', 'b'],
+                    'wal_index_rebuilt_after_unlock' => true,
+                ],
+                [
+                    'step' => 'swap_main_back',
+                    'select_t1_result' => $mainRows,
+                    'select_t2_result' => 'no such table: t2',
+                    'wal_index_rebuilt_after_unlock' => true,
+                ],
+            ];
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'superlock.test',
+            'scenario' => $canonical,
+            'upstream' => self::superlockUpstream($canonical),
+            'journal_mode' => $journalMode,
+            'wal_frames' => $walFrames,
+            'checkpointed_frames' => $checkpointedFrames,
+            'uncheckpointed_frames' => max(0, $walFrames - $checkpointedFrames),
+            'superlock_acquired' => $superlockAcquired,
+            'unlock_token' => $superlockAcquired ? 'unlock' : null,
+            'blocked_operations' => $blockedOperations,
+            'checkpoint_result' => $checkpointResult,
+            'busy_clients' => $busyClients,
+            'busy_handler_limit' => $busyHandlerLimit,
+            'busy_sequence' => $busySequence,
+            'busy_result_code' => $busyResult,
+            'swap_database_images' => $swapDatabaseImages,
+            'page_size_changed_before_swap' => $pageSizeChangedBeforeSwap,
+            'swap_recovery_sequence' => $swapRecoverySequence,
+            'wal_index_recovered_after_swap' => $canonical === 'superlock-6' && $swapDatabaseImages,
+            'reason' => match ($canonical) {
+                'superlock-1' => 'rollback_database_superlock_blocks_readers_until_unlock',
+                'superlock-2' => 'empty_wal_superlock_blocks_read_write_and_checkpoint',
+                'superlock-3' => 'wal_frames_superlock_blocks_read_write_and_checkpoint',
+                'superlock-4' => 'checkpointed_wal_superlock_blocks_read_write_and_checkpoint',
+                'superlock-5' => $superlockAcquired
+                    ? 'busy_handler_waits_for_wal_clients_before_superlock'
+                    : 'superlock_returns_busy_when_clients_do_not_clear',
+                'superlock-6' => 'superlocked_database_swap_rebuilds_wal_index_after_unlock',
+            },
+            'dependencies' => array_values(array_filter([
+                'upstream-superlock-test',
+                'sqlite-vfs-superlock',
+                $journalMode === 'wal' ? 'sqlite-wal-superlock' : 'sqlite-rollback-superlock',
+                $canonical === 'superlock-5' ? 'sqlite-superlock-busy-handler' : null,
+                $canonical === 'superlock-6' ? 'sqlite-wal-index-recovery' : null,
+                'vfs-io-dynamic-real-corpus',
+            ])),
         ];
     }
 

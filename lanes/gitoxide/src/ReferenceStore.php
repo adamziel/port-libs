@@ -313,15 +313,19 @@ final class ReferenceStore
                 $forceCreateReflog,
                 $algorithm,
             );
-            $this->maybeAppendReflog(
-                $physicalName,
-                $existing?->target,
-                $physicalTarget,
-                $committer,
-                $reflogMessage,
-                $forceCreateReflog,
-                $algorithm,
-            );
+
+            $leafReflogTarget = $this->leafReflogTargetForUpdate($physicalTarget, $previous, $expectedTarget);
+            if ($leafReflogTarget !== null) {
+                $this->maybeAppendReflog(
+                    $physicalName,
+                    $physicalTarget->isSymbolic() ? null : $existing?->target,
+                    $leafReflogTarget,
+                    $committer,
+                    $reflogMessage,
+                    $forceCreateReflog,
+                    $algorithm,
+                );
+            }
 
             if ($writesObjectToPackedRefs) {
                 $packedReference = $this->packedReferenceForUpdate(
@@ -980,6 +984,24 @@ final class ReferenceStore
                 $algorithm,
             );
         }
+    }
+
+    private function leafReflogTargetForUpdate(
+        ReferenceTarget $newTarget,
+        string $previous,
+        ?ReferenceTarget $expectedTarget,
+    ): ?ReferenceTarget {
+        if ($newTarget->isObject()) {
+            return $newTarget;
+        }
+
+        if ($previous !== self::PREVIOUS_EXISTING_MUST_MATCH || $expectedTarget === null) {
+            return null;
+        }
+
+        $expectedTarget = $this->physicalTarget($expectedTarget);
+
+        return $expectedTarget->isObject() ? $expectedTarget : null;
     }
 
     private function tryFindPhysical(string $physicalName, string $algorithm): ?ResolvedReference

@@ -8,6 +8,8 @@ $rolledBack = '28ce6a8b26aa170e1de65536fe8abe1832bd3242';
 
 return [
     'siteRef' => 'refs/heads/sites/main',
+    'symbolicSiteRef' => 'refs/heads/sites/current',
+    'symbolicReferentRef' => 'refs/heads/sites/main',
     'corruptSiteRef' => 'refs/heads/sites/corrupt',
     'previousCommit' => $previous,
     'publishedCommit' => $published,
@@ -21,6 +23,7 @@ return [
         "deploy: publish audited block export\rprogress=done",
         'deploy: rollback failed import review',
     ],
+    'symbolicMessage' => 'clone: record peeled deployment target',
     'expectedForwardMessages' => [
         "deploy: publish audited block export\rprogress=done",
         'deploy: rollback failed import review',
@@ -32,5 +35,5 @@ return [
     'boundedReverseBuffer' => 4096,
     'smallReverseBuffer' => 96,
     'corruptLine' => 'not-a-valid-reflog-entry',
-    'wordpressUse' => 'A WordPress deployment tool can append and parse native reflog audit entries for a site content branch, then show the newest deployment or rollback first without invoking git reflog.',
+    'wordpressUse' => 'A WordPress deployment tool can append and parse native reflog audit entries for a site content branch, record peeled object provenance while creating a symbolic current-site ref, then show the newest deployment or rollback first without invoking git reflog.',
 ];

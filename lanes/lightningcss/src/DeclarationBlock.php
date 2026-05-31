@@ -525,8 +525,8 @@ final class DeclarationBlock
         $parts = [];
         $rowCount = count($areas);
         for ($i = 0; $i < $rowCount; $i++) {
-            if ($i === 0 && ($rows['lineNames'][$i] ?? []) !== []) {
-                $parts[] = $this->serializeGridLineNames($rows['lineNames'][$i]);
+            if (($rows['lineNames'][$i] ?? []) !== []) {
+                array_push($parts, ...$this->serializeGridLineNameBoundary($rows['lineNames'][$i]));
             }
 
             $parts[] = '"' . str_replace('"', '\\"', $areas[$i]['text']) . '"';
@@ -535,10 +535,10 @@ final class DeclarationBlock
             if ($track !== null && !$this->isDefaultGridTrackSize($track)) {
                 $parts[] = $track;
             }
+        }
 
-            if (($rows['lineNames'][$i + 1] ?? []) !== []) {
-                $parts[] = $this->serializeGridLineNames($rows['lineNames'][$i + 1]);
-            }
+        if (($rows['lineNames'][$rowCount] ?? []) !== []) {
+            array_push($parts, ...$this->serializeGridLineNameBoundary($rows['lineNames'][$rowCount]));
         }
 
         return implode(' ', $parts) . ' / ' . $this->serializeGridTrackList($columns);
@@ -751,6 +751,22 @@ final class DeclarationBlock
     private function serializeGridLineNames(array $names): string
     {
         return '[' . implode(' ', $names) . ']';
+    }
+
+    /**
+     * @param list<string> $names
+     * @return list<string>
+     */
+    private function serializeGridLineNameBoundary(array $names): array
+    {
+        if (count($names) === 2) {
+            return [
+                $this->serializeGridLineNames([$names[0]]),
+                $this->serializeGridLineNames([$names[1]]),
+            ];
+        }
+
+        return [$this->serializeGridLineNames($names)];
     }
 
     private function normalizeGridTrackValue(string $value): string

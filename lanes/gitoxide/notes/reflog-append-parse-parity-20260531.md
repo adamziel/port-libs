@@ -187,3 +187,49 @@ No new support component is needed. The slice reuses existing native reflog pars
 Non-overlap:
 
 This does not repeat the accepted direct append, empty-directory recovery, tolerant iterator diagnostics, bounded reverse scans, SHA-256 reflog IDs, prepared-reference transaction ordering, packed-ref sidecar refresh, or protocol/send-pack slices. It narrows the remaining reflog append message-byte validation gap against upstream writer behavior.
+
+## Follow-up: Symbolic Ref Peeled-Object Reflog
+
+Slice: `gitoxide-reflog-append-parse-parity-20260531T112710Z`
+
+Base accepted HEAD: `729105b48b26aa61ef0db4b008592ded7b7410d2`
+
+Additional upstream source truth:
+
+- Read `gix-ref/src/store/file/transaction/commit.rs`.
+- Read `gix-ref/src/store/file/loose/reflog.rs`.
+- Read `gix-ref/tests/refs/file/transaction/prepare_and_commit/create_or_update/mod.rs`.
+- Ran exact upstream check:
+  `timeout 180 cargo test -p gix-ref --test refs file::transaction::prepare_and_commit::create_or_update::symbolic_reference_writes_reflog_if_previous_value_is_set --features sha1,sha256 -- --exact --nocapture`
+  passed `1` test, `0` failed, `143` filtered.
+
+Mapped behavior:
+
+- When a reference update writes a symbolic target and the previous-value mode is `ExistingMustMatch(Object)`, upstream `gix-ref` writes a reflog entry for the symbolic ref using a null old object id and the supplied object id as the new reflog object id.
+- The symbolic referent is not created by this accommodation; only the symbolic ref and its reflog are written.
+- Symbolic updates without an object-valued `ExistingMustMatch` continue to skip reflog writes, and ordinary object updates keep using the object target as before.
+
+Native changes:
+
+- Added `ReferenceStore::leafReflogTargetForUpdate()` and wired `updateWithReport()` to use the object-valued `ExistingMustMatch` target as the reflog object id for symbolic reference updates.
+- Added focused PHP coverage for the symbolic-ref reflog accommodation, the non-object guard, and normal object-update behavior.
+- Extended `wordpress-reflog-audit.php` to record peeled object provenance while creating a symbolic current-site ref, without invoking `git reflog` or `git update-ref`.
+
+Verification:
+
+- Before focused PHP pair: `php tools/run-tests.php lanes/gitoxide/tests/ReflogTest.php lanes/gitoxide/tests/ReferenceStoreTest.php`: `2 test files, 517 assertions, 0 failures`.
+- After focused PHP pair: `php tools/run-tests.php lanes/gitoxide/tests/ReflogTest.php lanes/gitoxide/tests/ReferenceStoreTest.php`: `2 test files, 538 assertions, 0 failures`.
+- Full Gitoxide PHP lane: `php tools/run-tests.php lanes/gitoxide/tests`: `39 test files, 4376 assertions, 0 failures`.
+- `php -l lanes/gitoxide/src/ReferenceStore.php`: pass.
+- `php -l lanes/gitoxide/tests/ReflogTest.php`: pass.
+- `php -l lanes/gitoxide/examples/wordpress-reflog-audit.php`: pass.
+- `php -l lanes/gitoxide/fixtures/wordpress-reflog-audit.php`: pass.
+- `php lanes/gitoxide/examples/wordpress-reflog-audit.php`: exit `0`.
+
+Dependency closure:
+
+No new support component is needed. The slice reuses existing native reference targets, previous-value checks, reflog parsing/appending, commit signatures, and reference-store file I/O; no shell-out, live provider, credential, or external Git process is required.
+
+Non-overlap:
+
+This does not repeat accepted reflog message byte validation, direct append, empty-directory recovery, tolerant iterator diagnostics, bounded reverse scans, SHA-256 reflog IDs, dereferenced symbolic update/delete split behavior, prepared-reference transaction ordering, packed-ref sidecar refresh, object database, protocol, send-pack, sparse-checkout, or config slices. It maps the upstream clone-accommodation path for symbolic reference updates carrying an object-valued `ExistingMustMatch` target.

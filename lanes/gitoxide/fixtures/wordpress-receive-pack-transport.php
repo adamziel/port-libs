@@ -256,6 +256,18 @@ return [
 
         return false;
     })(),
+    'smartHttpAdvertisementWithoutServiceHeaderAccepted' => (static function () use ($advertisementBytes): bool {
+        $transport = new \PortLibs\Gitoxide\SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static fn (): array => [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                'body' => $advertisementBytes,
+            ],
+        );
+
+        return $transport->readAdvertisement() === $advertisementBytes;
+    })(),
     'streamWatchdogTimeoutReported' => (static function (): bool {
         if (!function_exists('stream_socket_pair')) {
             return false;
@@ -351,5 +363,5 @@ return [
 
         return false;
     })(),
-    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, surface receive-pack advertisement ERR packets before ref parsing, preflight SSH targets including bracketed IPv6 URLs before handing streams to a caller-approved SSH adapter, pass protocol-v2 GIT_PROTOCOL and redacted credential-helper context metadata to an opted-in adapter without owning live SSH authentication, reject decoded SSH host/user delimiters including encoded at-sign or colon username delimiters, reject unsupported SSH URL passwords, reject decoded smart HTTP credential control bytes, URL/proxy/no-proxy host delimiters, raw URL/proxy control bytes, encoded URL path control bytes, Git-Protocol extra-parameter control bytes, and caller header control bytes, and construct git-daemon service requests from validated git:// URLs or explicit absolute repository URL paths with decoded URL components, without control bytes, decoded host delimiters, or malformed extra parameters, while preserving bracketed IPv6 virtual-host targets.',
+    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, accept smart HTTP receive-pack advertisements with or without the optional service announcement, surface receive-pack advertisement ERR packets before ref parsing, preflight SSH targets including bracketed IPv6 URLs before handing streams to a caller-approved SSH adapter, pass protocol-v2 GIT_PROTOCOL and redacted credential-helper context metadata to an opted-in adapter without owning live SSH authentication, reject decoded SSH host/user delimiters including encoded at-sign or colon username delimiters, reject unsupported SSH URL passwords, reject decoded smart HTTP credential control bytes, URL/proxy/no-proxy host delimiters, raw URL/proxy control bytes, encoded URL path control bytes, Git-Protocol extra-parameter control bytes, and caller header control bytes, and construct git-daemon service requests from validated git:// URLs or explicit absolute repository URL paths with decoded URL components, without control bytes, decoded host delimiters, or malformed extra parameters, while preserving bracketed IPv6 virtual-host targets.',
 ];

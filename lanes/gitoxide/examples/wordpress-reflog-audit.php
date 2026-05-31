@@ -32,6 +32,16 @@ $store->appendReflog(
     $committer,
     $fixture['messages'][1],
 );
+$symbolicUpdate = $store->updateWithReport(
+    $fixture['symbolicSiteRef'],
+    ReferenceTarget::symbolic($fixture['symbolicReferentRef']),
+    ReferenceStore::PREVIOUS_EXISTING_MUST_MATCH,
+    ReferenceTarget::object($fixture['publishedCommit']),
+    false,
+    'sha1',
+    $committer,
+    $fixture['symbolicMessage'],
+);
 
 $corruptLogPath = $dir . '/logs/' . $fixture['corruptSiteRef'];
 $corruptLogDir = dirname($corruptLogPath);
@@ -59,6 +69,12 @@ return [
     'latestNewOid' => $reverse[0]->newOid ?? null,
     'trimmedCommitter' => ($forward[0]->signature->name ?? '') . ' <' . ($forward[0]->signature->email ?? '') . '>',
     'rawReflog' => $store->reflogContents($fixture['siteRef']),
+    'symbolicRef' => $symbolicUpdate->reference->name,
+    'symbolicTarget' => $symbolicUpdate->reference->target->value,
+    'symbolicReferentExists' => $store->looseStore()->tryRead($fixture['symbolicReferentRef']) !== null,
+    'symbolicReflogMessages' => array_map(static fn ($entry): string => $entry->message, $store->reflogEntries($fixture['symbolicSiteRef']) ?? []),
+    'symbolicReflogPreviousOids' => array_map(static fn ($entry): string => $entry->previousOid, $store->reflogEntries($fixture['symbolicSiteRef']) ?? []),
+    'symbolicReflogNewOids' => array_map(static fn ($entry): string => $entry->newOid, $store->reflogEntries($fixture['symbolicSiteRef']) ?? []),
     'smallBufferReverseDiagnostics' => array_map(
         static fn (array $result): array => [
             'ok' => $result['ok'],

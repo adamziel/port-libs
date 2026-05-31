@@ -249,7 +249,7 @@ final class FetchResponse
                 $packData .= $sideband['data'];
             } elseif ($sideband['band'] === 2) {
                 $progressMessages[] = self::trimOneTrailingNewline($sideband['data']);
-            } else {
+            } elseif ($sideband['data'] !== '') {
                 $errorMessages[] = self::trimOneTrailingNewline($sideband['data']);
             }
         }
@@ -346,6 +346,9 @@ final class FetchResponse
         }
         if ($length === 2) {
             return ['kind' => 'response-end', 'payload' => ''];
+        }
+        if ($length === 4) {
+            throw new \InvalidArgumentException('fetch response: empty packet line');
         }
         if ($length < 4) {
             throw new \InvalidArgumentException("fetch response: invalid packet line length {$header}");

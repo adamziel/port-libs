@@ -109,6 +109,20 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => FetchResponse::fromV2PacketLines($packet("packfile\n") . $packet("\x09bad band") . $flush));
         $t->throws(RuntimeException::class, static fn () => FetchResponse::fromV2PacketLines($packet("ERR segmentation fault\n")));
     },
+    'rejects empty packet lines before sideband decoding like gix-packetline' => static function (TestRunner $t) use ($packet, $flush, $invalidArgumentMessage): void {
+        $t->contains(
+            'fetch response: empty packet line',
+            $invalidArgumentMessage(static fn () => FetchResponse::fromV2PacketLines('0004'))
+        );
+        $t->contains(
+            'fetch response: empty packet line',
+            $invalidArgumentMessage(static fn () => FetchResponse::fromV2PacketLines($packet("packfile\n") . '0004' . $flush))
+        );
+        $t->contains(
+            'fetch response: empty packet line',
+            $invalidArgumentMessage(static fn () => FetchResponse::fromV2PacketLines('0004', true))
+        );
+    },
     'caps fetch response packet lines at the gix-packetline 64k maximum' => static function (TestRunner $t) use ($packet, $flush, $invalidArgumentMessage): void {
         $maxPacketLength = 65520;
         $maxSidebandPayload = $maxPacketLength - 4;
@@ -146,6 +160,15 @@ return [
         $t->same('PACKtiny', $response->packData());
         $t->same(['Counting objects: 100% (1/1)'], $response->progressMessages());
         $t->same(['remote rejected a sideband'], $response->errorMessages());
+
+        $keepalive = FetchResponse::fromV2PacketLines(
+            $packet("packfile\n")
+            . $packet("\x03")
+            . $packet("\x01PACKtiny")
+            . $flush
+        );
+        $t->same('PACKtiny', $keepalive->packData());
+        $t->same([], $keepalive->errorMessages());
     },
     'surfaces raw upload-pack ERR packets before sideband decoding' => static function (TestRunner $t) use ($packet, $flush, $runtimeMessage): void {
         $t->contains(
@@ -347,5 +370,6 @@ return [
 
         $summary = require dirname(__DIR__) . '/examples/wordpress-protocol-v2-fetch-response.php';
         $t->same('fetch response: upload-pack error raw WordPress fetch failure', $summary['uploadPackError']);
+        $t->same(true, $summary['emptyErrorKeepaliveIgnored']);
     },
 ];

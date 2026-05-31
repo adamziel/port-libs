@@ -109,9 +109,12 @@ final class SQLiteSelectExpression
             throw new \InvalidArgumentException('SQLite SELECT scalar subquery expression rows must be arrays');
         }
 
-        $columns = array_keys($first);
+        $columns = array_values(array_filter(
+            array_keys($first),
+            static fn (int|string $column): bool => !is_string($column) || !str_starts_with($column, '__sqlite_')
+        ));
         if (count($columns) !== 1) {
-            throw new \InvalidArgumentException('SQLite SELECT scalar subquery expression must return one column');
+            throw new \InvalidArgumentException('sub-select returns ' . count($columns) . ' columns - expected 1');
         }
 
         return $first[$columns[0]];

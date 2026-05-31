@@ -40,6 +40,7 @@ return [
     'unsafeSmartHttpNoProxyDelimiterRejected' => $fixture['unsafeSmartHttpNoProxyDelimiterRejected'],
     'unsafeSmartHttpRawUrlControlByteRejected' => $fixture['unsafeSmartHttpRawUrlControlByteRejected'],
     'unsafeSmartHttpRawProxyControlByteRejected' => $fixture['unsafeSmartHttpRawProxyControlByteRejected'],
+    'smartHttpAdvertisementWithoutServiceHeaderAccepted' => $fixture['smartHttpAdvertisementWithoutServiceHeaderAccepted'],
     'streamWatchdogTimeoutReported' => $fixture['streamWatchdogTimeoutReported'],
     'advertisementErrorReported' => $fixture['advertisementErrorReported'],
     'unsafeSshTargetRejected' => $fixture['unsafeSshTargetRejected'],

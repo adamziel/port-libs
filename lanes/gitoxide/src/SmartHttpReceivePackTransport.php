@@ -1265,13 +1265,17 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private static function stripServiceAdvertisement(string $body): string
     {
         $length = self::packetLengthAt($body, 0, 'smart HTTP receive-pack service header');
-        if ($length < 4 || strlen($body) < $length + 4) {
-            throw new \RuntimeException('smart HTTP receive-pack advertisement ended before service header flush');
-        }
 
         $serviceLine = substr($body, 4, $length - 4);
+        if (!str_starts_with($serviceLine, '# service=')) {
+            return $body;
+        }
+
         if (rtrim($serviceLine, "\n") !== '# service=git-receive-pack') {
             throw new \RuntimeException('smart HTTP receive-pack advertisement service header did not match git-receive-pack');
+        }
+        if (strlen($body) < $length + 4) {
+            throw new \RuntimeException('smart HTTP receive-pack advertisement ended before service header flush');
         }
         if (substr($body, $length, 4) !== '0000') {
             throw new \RuntimeException('smart HTTP receive-pack advertisement missing service header flush');

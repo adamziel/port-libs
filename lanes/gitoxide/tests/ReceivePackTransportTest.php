@@ -477,6 +477,58 @@ return [
         $t->same((string) strlen($request->requestBytes()), $requests[1]['headers']['Content-Length']);
         $t->same($request->requestBytes(), $requests[1]['body']);
     },
+    'smart http receive-pack accepts advertisement without service announcement' => static function (TestRunner $t) use ($packet, $flush): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress smart HTTP optional service announcement payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $requests = [];
+        $client = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$requests, $advertisement, $responseBytes): array {
+                    $requests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+            ),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+        $request = $session->buildRequest([$blob]);
+
+        $response = $client->send($request);
+
+        $t->same(true, $response->isSuccessful());
+        $t->same('refs/heads/main', $response->refStatuses()[0]->effectiveRefName());
+        $t->same(['GET', 'POST'], array_column($requests, 'method'));
+        $t->same('https://git.example.test/wp-content.git/info/refs?service=git-receive-pack', $requests[0]['url']);
+        $t->same(null, $requests[0]['body']);
+        $t->same('https://git.example.test/wp-content.git/git-receive-pack', $requests[1]['url']);
+        $t->same((string) strlen($request->requestBytes()), $requests[1]['headers']['Content-Length']);
+        $t->same($request->requestBytes(), $requests[1]['body']);
+    },
     'smart http receive-pack urls headers and response validation follow git http protocol' => static function (TestRunner $t) use ($packet, $flush): void {
         $t->same(
             'https://example.test/repo.git/info/refs?service=git-receive-pack',
@@ -2318,6 +2370,7 @@ return [
         $t->same(true, $fixture['unsafeSmartHttpNoProxyDelimiterRejected']);
         $t->same(true, $fixture['unsafeSmartHttpRawUrlControlByteRejected']);
         $t->same(true, $fixture['unsafeSmartHttpRawProxyControlByteRejected']);
+        $t->same(true, $fixture['smartHttpAdvertisementWithoutServiceHeaderAccepted']);
         $t->same(true, $fixture['advertisementErrorReported']);
         $t->same(true, $fixture['unsafeSshHostDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshUserDelimiterRejected']);
