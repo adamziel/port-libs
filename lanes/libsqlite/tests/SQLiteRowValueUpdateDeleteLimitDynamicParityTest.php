@@ -2598,4 +2598,80 @@ $tests['rowvalue update delete limit dynamic parity rowvalue4 empty scalar subqu
         $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
     };
 
+for ($seed = 1; $seed <= 64; $seed++) {
+    $operator = match ($seed % 8) {
+        0 => '=',
+        1 => '<>',
+        2 => '!=',
+        3 => 'IS',
+        4 => 'IS NOT',
+        5 => 'IS DISTINCT FROM',
+        6 => 'IS NOT DISTINCT FROM',
+        default => '=',
+    };
+    $limit = 1 + ($seed % 3);
+    $offset = $seed % 2;
+    $state = 'null_scalar_' . $seed;
+    $sql = "UPDATE app_settings SET state = '{$state}' WHERE (tenant_id, key_name) {$operator} (SELECT tenant_id, NULL FROM app_setting_targets ORDER BY priority DESC LIMIT 1 OFFSET 0) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT {$limit} OFFSET {$offset}";
+    $qualified = match ($operator) {
+        '<>', '!=' => [1, 2, 3, 4, 5, 6],
+        'IS NOT', 'IS DISTINCT FROM' => [1, 2, 3, 4, 5, 6, 7, 8],
+        default => [],
+    };
+    $expected = array_slice($qualified, $offset, $limit);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity rowvalue4 null scalar update seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $state): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            if ($expected !== []) {
+                $t->same(array_fill(0, count($expected), $state), array_column($result['returning'], 'state'));
+            } else {
+                $t->same([], $result['returning']);
+            }
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+        };
+}
+
+for ($seed = 1; $seed <= 64; $seed++) {
+    $operator = match ($seed % 8) {
+        0 => '=',
+        1 => '<>',
+        2 => '!=',
+        3 => 'IS',
+        4 => 'IS NOT',
+        5 => 'IS DISTINCT FROM',
+        6 => 'IS NOT DISTINCT FROM',
+        default => '=',
+    };
+    $limit = 1 + (($seed + 1) % 4);
+    $offset = ($seed + 2) % 3;
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) {$operator} (SELECT tenant_id, NULL FROM app_setting_targets ORDER BY priority DESC LIMIT 1 OFFSET 0) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT {$offset}, {$limit}";
+    $qualified = match ($operator) {
+        '<>', '!=' => [1, 2, 3, 4, 5, 6],
+        'IS NOT', 'IS DISTINCT FROM' => [1, 2, 3, 4, 5, 6, 7, 8],
+        default => [],
+    };
+    $expected = array_slice($qualified, $offset, $limit);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity rowvalue4 null scalar delete seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+        };
+}
+
+$tests['rowvalue update delete limit dynamic parity rowvalue4 null scalar truth table summary'] =
+    static function (TestRunner $t) use ($execute): void {
+        $notDistinct = $execute("UPDATE app_settings SET state = 'null_truth' WHERE (tenant_id, key_name) IS NOT DISTINCT FROM (SELECT tenant_id, NULL FROM app_setting_targets ORDER BY priority DESC LIMIT 1) RETURNING setting_id ORDER BY setting_id LIMIT -1");
+        $distinct = $execute("DELETE FROM app_settings WHERE (tenant_id, key_name) IS DISTINCT FROM (SELECT tenant_id, NULL FROM app_setting_targets ORDER BY priority DESC LIMIT 1) RETURNING setting_id ORDER BY setting_id LIMIT 3 OFFSET 2");
+        $t->same([], $notDistinct['plan']->selectedIds);
+        $t->same([3, 4, 5], $distinct['plan']->selectedIds);
+        $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+    };
+
 return $tests;

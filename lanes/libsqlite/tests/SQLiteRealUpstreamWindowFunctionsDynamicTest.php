@@ -7,10 +7,11 @@ use PortLibs\LibSqlite\SQLiteSelectSql;
 $tests = [];
 
 // Upstream source: SQLite test/window1.test 1.1-1.5, 4.1-4.10,
-// test/window2.test 1.1-1.3, 2.1-2.25, test/window6.test 1.1-1.6,
-// 5.0-5.5, 8.1-9.4 and test/windowE.test 4.1-5.2. The table/column
-// names are made generic for the libsqlite port while preserving the
-// upstream row shapes.
+// test/window2.test 1.1-1.3, 2.1-2.25, test/window4.test 1.1-1.19,
+// test/window6.test 1.1-1.6, 5.0-5.5, 8.1-9.4, test/window7.test
+// 1.2-1.8.2, and test/windowE.test 4.1-5.2. The table/column names are
+// made generic for the libsqlite port while preserving the upstream row
+// shapes.
 $basicRows = [
     ['a' => 1, 'b' => 2, 'c' => 3, 'd' => 4],
     ['a' => 5, 'b' => 6, 'c' => 7, 'd' => 8],
@@ -57,17 +58,68 @@ $wideNumberRows = [
     ['id' => 4, 'x' => 0.5],
 ];
 
+$ntileRows = array_map(
+    static fn (string $letter): array => ['letter' => $letter],
+    range('a', 'j')
+);
+
+$peerFrameRows = [];
+for ($b = 1; $b <= 100; $b++) {
+    $peerFrameRows[] = ['a' => $b % 10, 'b' => $b];
+}
+
 $queryBasic = static fn (string $sql): array => SQLiteSelectSql::execute($sql, ['app_basic' => $basicRows]);
 $queryEvents = static fn (string $sql): array => SQLiteSelectSql::execute($sql, ['app_events' => $eventRows]);
 $queryText = static fn (string $sql): array => SQLiteSelectSql::execute($sql, ['app_text' => $textRows]);
 $queryReserved = static fn (string $sql): array => SQLiteSelectSql::execute($sql, ['app_reserved' => $reservedRows]);
 $querySample = static fn (string $sql): array => SQLiteSelectSql::execute($sql, ['app_sample' => $sampleRows]);
 $queryWideNumbers = static fn (string $sql): array => SQLiteSelectSql::execute($sql, ['app_wide_numbers' => $wideNumberRows]);
+$queryNtile = static fn (string $sql): array => SQLiteSelectSql::execute($sql, ['app_ntile_letters' => $ntileRows]);
+$queryPeerFrames = static fn (string $sql): array => SQLiteSelectSql::execute($sql, ['app_peer_frames' => $peerFrameRows]);
 $column = static fn (array $rows, string $name): array => array_column($rows, $name);
 $pairs = static fn (array $rows, string $left, string $right): array => array_map(
     static fn (array $row): array => [$row[$left], $row[$right]],
     $rows
 );
+$ntileBucketForRow = static function (int $rowNumber, int $rowCount, int $bucketCount): int {
+    if ($bucketCount >= $rowCount) {
+        return $rowNumber;
+    }
+
+    $largeBucketSize = intdiv($rowCount + $bucketCount - 1, $bucketCount);
+    $largeBucketCount = $rowCount % $bucketCount;
+    if ($largeBucketCount === 0) {
+        $largeBucketCount = $bucketCount;
+    }
+    $largeRows = $largeBucketSize * $largeBucketCount;
+    if ($rowNumber <= $largeRows) {
+        return intdiv($rowNumber - 1, $largeBucketSize) + 1;
+    }
+
+    return $largeBucketCount + intdiv($rowNumber - $largeRows - 1, $largeBucketSize - 1) + 1;
+};
+$peerGroupSums = [];
+foreach ($peerFrameRows as $row) {
+    $peerGroupSums[$row['a']] = ($peerGroupSums[$row['a']] ?? 0) + $row['b'];
+}
+ksort($peerGroupSums);
+$peerFrameExpected = static function (callable $bounds) use ($peerGroupSums): array {
+    $expected = [];
+    foreach (array_keys($peerGroupSums) as $a) {
+        [$first, $last] = $bounds($a);
+        $sum = 0;
+        foreach ($peerGroupSums as $group => $groupSum) {
+            if ($group >= $first && $group <= $last) {
+                $sum += $groupSum;
+            }
+        }
+        for ($i = 0; $i < 10; $i++) {
+            $expected[] = [$a, $sum];
+        }
+    }
+
+    return $expected;
+};
 
 $cases = [
     'window1 1.1 whole partition sum' => [
@@ -375,6 +427,65 @@ foreach ($window6IdentifierMaps as $name => $map) {
     $tests['real upstream window functions dynamic window6 1.' . $name . ' ordinary aggregate alias'] = static function (TestRunner $t) use ($tables, $table, $x, $alias): void {
         $actual = array_column(SQLiteSelectSql::execute("SELECT sum({$x}) AS {$alias} FROM {$table}", $tables), $alias);
         $t->same([15], $actual);
+    };
+}
+
+$ntileLetters = range('a', 'j');
+foreach (range(1, 19) as $bucketCount) {
+    $tests['real upstream window functions dynamic window4 1.' . $bucketCount . ' ntile bucket distribution'] = static function (TestRunner $t) use ($bucketCount, $ntileLetters, $ntileBucketForRow, $queryNtile): void {
+        $actual = $queryNtile("SELECT letter, ntile({$bucketCount}) OVER (ORDER BY letter) AS bucket FROM app_ntile_letters");
+
+        foreach ($ntileLetters as $index => $letter) {
+            $t->same(
+                [$letter, $ntileBucketForRow($index + 1, count($ntileLetters), $bucketCount)],
+                [$actual[$index]['letter'], $actual[$index]['bucket']],
+                "window4 ntile({$bucketCount}) row {$letter}"
+            );
+        }
+    };
+}
+
+$peerFrameCases = [
+    'window7 1.2 groups current row peer sum' => [
+        'SELECT a, sum(b) OVER (ORDER BY a GROUPS BETWEEN CURRENT ROW AND CURRENT ROW) AS peer_sum FROM app_peer_frames ORDER BY a',
+        static fn () => $peerFrameExpected(static fn (int $a): array => [$a, $a]),
+    ],
+    'window7 1.3 groups zero preceding zero following' => [
+        'SELECT a, sum(b) OVER (ORDER BY a GROUPS BETWEEN 0 PRECEDING AND 0 FOLLOWING) AS peer_sum FROM app_peer_frames ORDER BY a',
+        static fn () => $peerFrameExpected(static fn (int $a): array => [$a, $a]),
+    ],
+    'window7 1.4 groups two preceding two following' => [
+        'SELECT a, sum(b) OVER (ORDER BY a GROUPS BETWEEN 2 PRECEDING AND 2 FOLLOWING) AS peer_sum FROM app_peer_frames ORDER BY a',
+        static fn () => $peerFrameExpected(static fn (int $a): array => [max(0, $a - 2), min(9, $a + 2)]),
+    ],
+    'window7 1.5 range zero preceding zero following' => [
+        'SELECT a, sum(b) OVER (ORDER BY a RANGE BETWEEN 0 PRECEDING AND 0 FOLLOWING) AS peer_sum FROM app_peer_frames ORDER BY a',
+        static fn () => $peerFrameExpected(static fn (int $a): array => [$a, $a]),
+    ],
+    'window7 1.6 range two preceding two following' => [
+        'SELECT a, sum(b) OVER (ORDER BY a RANGE BETWEEN 2 PRECEDING AND 2 FOLLOWING) AS peer_sum FROM app_peer_frames ORDER BY a',
+        static fn () => $peerFrameExpected(static fn (int $a): array => [max(0, $a - 2), min(9, $a + 2)]),
+    ],
+    'window7 1.7 range two preceding one following' => [
+        'SELECT a, sum(b) OVER (ORDER BY a RANGE BETWEEN 2 PRECEDING AND 1 FOLLOWING) AS peer_sum FROM app_peer_frames ORDER BY a',
+        static fn () => $peerFrameExpected(static fn (int $a): array => [max(0, $a - 2), min(9, $a + 1)]),
+    ],
+    'window7 1.8.1 range zero preceding one following' => [
+        'SELECT a, sum(b) OVER (ORDER BY a RANGE BETWEEN 0 PRECEDING AND 1 FOLLOWING) AS peer_sum FROM app_peer_frames ORDER BY a',
+        static fn () => $peerFrameExpected(static fn (int $a): array => [$a, min(9, $a + 1)]),
+    ],
+    'window7 1.8.2 descending range zero preceding one following' => [
+        'SELECT a, sum(b) OVER (ORDER BY a DESC RANGE BETWEEN 0 PRECEDING AND 1 FOLLOWING) AS peer_sum FROM app_peer_frames ORDER BY a',
+        static fn () => $peerFrameExpected(static fn (int $a): array => [$a, min(9, $a + 1)]),
+    ],
+];
+
+foreach ($peerFrameCases as $name => [$sql, $expectedCallback]) {
+    $tests['real upstream window functions dynamic ' . $name] = static function (TestRunner $t) use ($queryPeerFrames, $sql, $expectedCallback): void {
+        $actual = $queryPeerFrames($sql);
+        foreach ($expectedCallback() as $index => $expected) {
+            $t->same($expected, [$actual[$index]['a'], $actual[$index]['peer_sum']], $sql . ' row ' . $index);
+        }
     };
 }
 
