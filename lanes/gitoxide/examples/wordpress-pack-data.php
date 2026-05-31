@@ -39,6 +39,19 @@ $encodeEntryHeader = static function (int $typeId, int $size): string {
 
     return $out;
 };
+$encodeDeltaSize = static function (int $size): string {
+    $out = '';
+    do {
+        $byte = $size & 0x7f;
+        $size >>= 7;
+        if ($size !== 0) {
+            $byte |= 0x80;
+        }
+        $out .= chr($byte);
+    } while ($size !== 0);
+
+    return $out;
+};
 $buildSingleEntryIndex = static function (string $oid, int $offset, string $entryBytes, string $packChecksum): string {
     $fanout = array_fill(0, 256, 0);
     $fanout[hexdec(substr($oid, 0, 2))] = 1;
@@ -74,6 +87,25 @@ try {
     $oversizedDeltaHeaderGuard = true;
 }
 
+$deltaResultBufferGuard = false;
+try {
+    $base = new GitObject('blob', str_repeat('A', 256));
+    $target = new GitObject('blob', 'AA');
+    $copyTooMuchDelta = $encodeDeltaSize(strlen($base->body)) . $encodeDeltaSize(1) . chr(0x90) . chr(2);
+    $entryOffset = 12;
+    $entryBytes = $encodeEntryHeader(7, strlen($copyTooMuchDelta))
+        . hex2bin($base->oid())
+        . gzcompress($copyTooMuchDelta);
+    $malformedPackPrefix = 'PACK' . pack('N2', 2, 1) . $entryBytes;
+    $malformedPackChecksum = hash('sha1', $malformedPackPrefix);
+    $malformedPack = PackData::fromBytes($malformedPackPrefix . hex2bin($malformedPackChecksum));
+    $malformedIndex = PackIndex::fromBytes($buildSingleEntryIndex($target->oid(), $entryOffset, $entryBytes, $malformedPackChecksum));
+
+    $malformedPack->readObjectWithExternalBases($malformedIndex, $target->oid(), [$base->oid() => $base]);
+} catch (RuntimeException) {
+    $deltaResultBufferGuard = true;
+}
+
 return [
     'version' => $pack->version(),
     'objects' => $pack->count(),
@@ -85,4 +117,5 @@ return [
     'deltaBlobHasPackedEdit' => str_contains($deltaBlob->body, 'reconstructed packed edit'),
     'strictDeclaredSizeGuard' => $strictDeclaredSizeGuard,
     'oversizedDeltaHeaderGuard' => $oversizedDeltaHeaderGuard,
+    'deltaResultBufferGuard' => $deltaResultBufferGuard,
 ];

@@ -3525,7 +3525,9 @@ final class SQLiteSelectSql
         }
         $as = self::keywordOffset($item, 'AS');
         if ($as === null) {
-            return [$item, null];
+            $implicitAlias = self::implicitProjectionAlias($item);
+
+            return $implicitAlias ?? [$item, null];
         }
 
         $expression = trim(substr($item, 0, $as));
@@ -3537,6 +3539,93 @@ final class SQLiteSelectSql
         }
 
         return [$expression, $alias];
+    }
+
+    /**
+     * @return array{0:string,1:string}|null
+     */
+    private static function implicitProjectionAlias(string $item): ?array
+    {
+        if (preg_match('/^(.*\S)\s+([A-Za-z_][A-Za-z0-9_]*)$/s', $item, $match) !== 1) {
+            return null;
+        }
+
+        $expression = trim($match[1]);
+        $alias = $match[2];
+        if ($expression === '' || !self::implicitAliasBoundaryIsTopLevel($item, strlen($match[1]))) {
+            return null;
+        }
+        if (self::isReservedProjectionAliasToken($alias)) {
+            return null;
+        }
+        if (preg_match('/(?:^|\s)(?:collate|escape|nulls|is|not)$/i', $expression) === 1) {
+            return null;
+        }
+        if (preg_match('/(?:\|\||->>|->|[+\-*\/%&|<>=~])$/', $expression) === 1) {
+            return null;
+        }
+
+        return [$expression, $alias];
+    }
+
+    private static function implicitAliasBoundaryIsTopLevel(string $sql, int $offset): bool
+    {
+        $depth = 0;
+        $quote = false;
+        for ($i = 0; $i < $offset; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                if ($quote && ($sql[$i + 1] ?? null) === "'") {
+                    $i++;
+                    continue;
+                }
+                $quote = !$quote;
+                continue;
+            }
+            if ($quote) {
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+            }
+        }
+
+        return $depth === 0 && !$quote;
+    }
+
+    private static function isReservedProjectionAliasToken(string $token): bool
+    {
+        return in_array(strtoupper($token), [
+            'AND',
+            'ASC',
+            'BETWEEN',
+            'COLLATE',
+            'DESC',
+            'ELSE',
+            'END',
+            'ESCAPE',
+            'FALSE',
+            'FILTER',
+            'FROM',
+            'GLOB',
+            'IN',
+            'IS',
+            'LIKE',
+            'MATCH',
+            'NOT',
+            'NULL',
+            'NULLS',
+            'OR',
+            'OVER',
+            'REGEXP',
+            'THEN',
+            'TRUE',
+            'WHEN',
+        ], true);
     }
 
     /**

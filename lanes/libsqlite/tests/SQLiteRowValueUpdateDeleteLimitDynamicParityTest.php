@@ -3132,4 +3132,105 @@ foreach ($dateTimeLimitCases as $name => [$callback, $expected]) {
     };
 }
 
+$mathLimitExpr = static function (int $value, int $seed): string {
+    return match ($seed % 8) {
+        0 => 'log2(' . (2 ** $value) . ')',
+        1 => 'log10(' . (10 ** $value) . ')',
+        2 => 'log(2, ' . (2 ** $value) . ')',
+        3 => 'mod(' . ($value + 20) . ', 20)',
+        4 => "{$value} + sin(0)",
+        5 => "{$value} + tan(0)",
+        6 => "{$value} + acos(1)",
+        default => "{$value} + asin(0)",
+    };
+};
+
+$mathOffsetExpr = static function (int $value, int $seed): string {
+    return match ($seed % 8) {
+        0 => 'log2(' . (2 ** $value) . ')',
+        1 => 'log10(' . (10 ** $value) . ')',
+        2 => 'log(2, ' . (2 ** $value) . ')',
+        3 => 'mod(' . ($value + 20) . ', 20)',
+        4 => "{$value} + atan(0)",
+        5 => "{$value} + atan2(0, 1)",
+        6 => "{$value} + exp(0) - 1",
+        default => "{$value} + round(pi()) - 3",
+    };
+};
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = $mathLimitExpr($limitValue, $seed);
+    $offsetExpr = $mathOffsetExpr($offsetValue, $seed + 4);
+    $sql = "UPDATE app_settings SET state = 'math_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update math scalar limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($result['returning']), 'math_limit'), array_column($result['returning'], 'state'));
+            $t->contains('func7.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func7.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = $mathLimitExpr($limitValue, $seed + 7);
+    $offsetExpr = $mathOffsetExpr($offsetValue, $seed + 1);
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue math scalar subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+            $t->contains('func7.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func7.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+$mathLimitCases = [
+    'parse log2 limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT log2(8)")['limit'], 3],
+    'parse log base offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET log(2, 4)")['offset'], 2],
+    'parse log10 limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT log10(100)")['limit'], 2],
+    'parse mod limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT mod(234, 10)")['limit'], 4],
+    'parse exp offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET exp(0)")['offset'], 1],
+    'parse rounded ln exp limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT round(ln(exp(2)))")['limit'], 2],
+    'parse rounded pi limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT round(pi())")['limit'], 3],
+    'parse trig zero limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT sin(0) + cos(0)")['limit'], 1],
+    'parse atan zero offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET atan(0)")['offset'], 0],
+    'parse atan2 zero offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET atan2(0, 1)")['offset'], 0],
+    'malformed negative ln limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT ln(-5)"), InvalidArgumentException::class],
+    'malformed log base one rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT log(1, 100)"), InvalidArgumentException::class],
+    'malformed log2 zero rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT log2(0)"), InvalidArgumentException::class],
+    'malformed mod by zero rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT mod(5, 0)"), InvalidArgumentException::class],
+    'malformed acos outside domain rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT acos(1.0001)"), InvalidArgumentException::class],
+    'malformed asin text rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT asin('foo')"), InvalidArgumentException::class],
+    'malformed pi arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT pi(1)"), InvalidArgumentException::class],
+    'malformed atan2 arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT atan2(0)"), InvalidArgumentException::class],
+];
+
+foreach ($mathLimitCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity math scalar ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            $t->contains('func7.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func7.test');
+            return;
+        }
+        $t->same($expected, $callback());
+        $t->contains('func7.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func7.test');
+    };
+}
+
 return $tests;

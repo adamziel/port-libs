@@ -339,6 +339,9 @@ final class PackData
                 if ($offset + $size > strlen($base)) {
                     throw new \RuntimeException('Delta copy range exceeds base object size');
                 }
+                if (strlen($result) + $size > $resultSize) {
+                    throw new \RuntimeException('Delta copy exceeds declared result size');
+                }
                 $result .= substr($base, $offset, $size);
                 continue;
             }
@@ -350,11 +353,17 @@ final class PackData
             if ($cursor + $command > strlen($delta)) {
                 throw new \RuntimeException('Delta insert data is truncated');
             }
+            if (strlen($result) + $command > $resultSize) {
+                throw new \RuntimeException('Delta insert exceeds declared result size');
+            }
             $result .= substr($delta, $cursor, $command);
             $cursor += $command;
         }
 
-        if (strlen($result) !== $resultSize) {
+        if (strlen($result) < $resultSize) {
+            throw new \RuntimeException('Delta instructions produced fewer bytes than promised');
+        }
+        if (strlen($result) > $resultSize) {
             throw new \RuntimeException("Delta result size mismatch: expected {$resultSize}, got " . strlen($result));
         }
 

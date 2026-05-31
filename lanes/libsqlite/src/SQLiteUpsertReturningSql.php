@@ -9,10 +9,12 @@ final class SQLiteUpsertReturningSql
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<list<string>>|null $uniqueConstraints
+     * @param array<string,mixed>|list<string> $views
      * @return array{target:string,target_alias:?string,conflict_target:list<string>,conflict_where:?string,columns:list<string>,incoming_rows:list<array<string,mixed>>,before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning:list<array<string,mixed>>,changes:int}
      */
-    public static function execute(string $sql, array $tables, ?array $uniqueConstraints = null): array
+    public static function execute(string $sql, array $tables, ?array $uniqueConstraints = null, array $views = []): array
     {
+        self::rejectViewUpsert($sql, $views);
         $parsed = self::parse($sql);
         $target = $parsed['target'];
         if (!isset($tables[$target]) || !is_array($tables[$target]) || !array_is_list($tables[$target])) {
@@ -110,6 +112,60 @@ final class SQLiteUpsertReturningSql
         }
 
         return $completed;
+    }
+
+    /** @param array<string,mixed>|list<string> $views */
+    private static function rejectViewUpsert(string $sql, array $views): void
+    {
+        if ($views === []) {
+            return;
+        }
+
+        $target = self::insertTargetForViewPreflight($sql);
+        if ($target === null || !self::viewNameMatches($target, $views)) {
+            return;
+        }
+        if (self::keywordOffset($sql, 'ON CONFLICT', 0) === null) {
+            return;
+        }
+
+        throw new \InvalidArgumentException('cannot UPSERT a view');
+    }
+
+    private static function insertTargetForViewPreflight(string $sql): ?string
+    {
+        if (preg_match('/^\s*INSERT(?:\s+OR\s+(?:ABORT|FAIL|IGNORE|REPLACE|ROLLBACK))?\s+INTO\s+/i', $sql, $match) !== 1) {
+            return null;
+        }
+
+        $offset = strlen($match[0]);
+        try {
+            $target = self::readIdentifier($sql, $offset, 'SQLite UPSERT RETURNING target table');
+            $offset += strlen($target);
+            $offset = self::skipWhitespace($sql, $offset);
+            if (($sql[$offset] ?? null) === '.') {
+                ++$offset;
+                $offset = self::skipWhitespace($sql, $offset);
+                $target = self::readIdentifier($sql, $offset, 'SQLite UPSERT RETURNING target table');
+            }
+        } catch (\InvalidArgumentException) {
+            return null;
+        }
+
+        return $target;
+    }
+
+    /** @param array<string,mixed>|list<string> $views */
+    private static function viewNameMatches(string $target, array $views): bool
+    {
+        foreach ($views as $name => $metadata) {
+            $view = is_int($name) ? $metadata : $name;
+            if (is_string($view) && strcasecmp($view, $target) === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

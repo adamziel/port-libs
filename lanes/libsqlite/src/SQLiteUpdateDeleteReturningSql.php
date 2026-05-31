@@ -849,7 +849,7 @@ final class SQLiteUpdateDeleteReturningSql
         $scalarFunction = self::wholeLimitScalarFunction($expression);
         if (
             $scalarFunction !== null
-            && in_array($scalarFunction['name'], ['coalesce', 'ifnull', 'nullif', 'min', 'max', 'round', 'sign', 'ceil', 'ceiling', 'floor', 'trunc', 'sqrt', 'pow', 'power', 'upper', 'lower', 'trim', 'ltrim', 'rtrim', 'substr', 'substring', 'instr', 'replace', 'char', 'unicode', 'octet_length', 'hex', 'quote', 'typeof', 'printf', 'format', 'iif', 'if', 'likely', 'unlikely', 'likelihood', 'zeroblob', 'randomblob', 'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime'], true)
+            && in_array($scalarFunction['name'], ['coalesce', 'ifnull', 'nullif', 'min', 'max', 'round', 'sign', 'ceil', 'ceiling', 'floor', 'trunc', 'sqrt', 'pow', 'power', 'exp', 'ln', 'log', 'log10', 'log2', 'mod', 'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'pi', 'upper', 'lower', 'trim', 'ltrim', 'rtrim', 'substr', 'substring', 'instr', 'replace', 'char', 'unicode', 'octet_length', 'hex', 'quote', 'typeof', 'printf', 'format', 'iif', 'if', 'likely', 'unlikely', 'likelihood', 'zeroblob', 'randomblob', 'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime'], true)
         ) {
             return self::evaluateLimitScalarFunction($scalarFunction['name'], $scalarFunction['arguments']);
         }
@@ -1214,6 +1214,15 @@ final class SQLiteUpdateDeleteReturningSql
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs two or three arguments");
         }
         if (in_array($function, ['date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime'], true)) {
+            $values = array_map(static fn (string $part): int|float|string|null => self::limitExpressionValue($part), $parts);
+            $value = SQLiteCoreScalarFunction::sqlFunctionArguments($function, $values);
+            if (!is_int($value) && !is_float($value) && !is_string($value) && $value !== null) {
+                throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() returned an unsupported value");
+            }
+
+            return $value;
+        }
+        if (in_array($function, ['exp', 'ln', 'log', 'log10', 'log2', 'mod', 'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'pi'], true)) {
             $values = array_map(static fn (string $part): int|float|string|null => self::limitExpressionValue($part), $parts);
             $value = SQLiteCoreScalarFunction::sqlFunctionArguments($function, $values);
             if (!is_int($value) && !is_float($value) && !is_string($value) && $value !== null) {

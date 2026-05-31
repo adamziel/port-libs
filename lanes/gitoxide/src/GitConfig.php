@@ -591,6 +591,11 @@ final class GitConfig
 
             if ($byte === '*') {
                 if ($index + 1 < $length && $pattern[$index + 1] === '*') {
+                    if ($index + 2 < $length && $pattern[$index + 2] === '/') {
+                        $regex .= '(?:.*/)?';
+                        $index += 2;
+                        continue;
+                    }
                     $regex .= '.*';
                     $index++;
                 } else {

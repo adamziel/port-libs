@@ -100,6 +100,7 @@ return [
         $t->same('override-value', $loadConditionalValue('onbranch:feature/*/start', ['branchName' => 'refs/heads/feature/a/start']));
         $t->same('base-value', $loadConditionalValue('onbranch:feature/*/start', ['branchName' => 'refs/heads/feature/a/b/start']));
         $t->same('override-value', $loadConditionalValue('onbranch:feature/**/start', ['branchName' => 'refs/heads/feature/a/b/start']));
+        $t->same('override-value', $loadConditionalValue('onbranch:feature/**/start', ['branchName' => 'refs/heads/feature/start']));
     },
 
     'gitdir includeIf conditions follow trailing slash dot path tilde and icase parity' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
@@ -131,6 +132,17 @@ return [
         $write($configPath, "[section]\nvalue = base\n[includeIf \"gitdir:stan?ard/glo*ng/[xwz]ildcards/.git\"]\npath = {$includePath}\n");
         $config = GitConfig::fromFile($configPath, ['gitDir' => $gitDir, 'homeDir' => $root]);
         $t->same('glob-override', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $worktree = $root . '/dir/worktree';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $includePath = $worktree . '/include.config';
+        $configPath = $gitDir . '/config';
+        $write($includePath, "[section]\nvalue = double-star-override\n");
+        $write($configPath, "[section]\nvalue = base\n[includeIf \"gitdir:**/dir/**/worktree/**\"]\npath = {$includePath}\n");
+        $config = GitConfig::fromFile($configPath, ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('double-star-override', $config->value('section', null, 'value'));
     },
 
     'conditional include quoted subsections and globs use upstream backslash escape rules' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
@@ -210,6 +222,7 @@ return [
         $write($root . '/double-star-start', "[user]\ndss = yes\n");
         $write($root . '/double-star-end', "[user]\ndse = yes\n");
         $write($root . '/double-star-middle', "[user]\ndsm = yes\n");
+        $write($root . '/double-star-zero', "[user]\ndsz = yes\n");
         $write($root . '/single-star-middle', "[user]\nssm = yes\n");
         $write($root . '/no', "[user]\nno = no\n");
         $write($root . '/globs', <<<CFG
@@ -225,6 +238,8 @@ return [
         path = "no"
         [includeIf "hasconfig:remote.*.url:https:/**/baz"]
         path = "double-star-middle"
+        [includeIf "hasconfig:remote.*.url:https://foo/**/bar/baz"]
+        path = "double-star-zero"
         [includeIf "hasconfig:remote.*.url:https:/**/nomatch"]
         path = "no"
         [includeIf "hasconfig:remote.*.url:https://*/bar/baz"]
@@ -236,6 +251,7 @@ return [
         $t->same('yes', $config->value('user', null, 'dss'));
         $t->same('yes', $config->value('user', null, 'dse'));
         $t->same('yes', $config->value('user', null, 'dsm'));
+        $t->same('yes', $config->value('user', null, 'dsz'));
         $t->same('yes', $config->value('user', null, 'ssm'));
         $t->same(null, $config->value('user', null, 'no'));
 
@@ -264,9 +280,11 @@ return [
         $t->same('X-WP-Deploy: staging', $fixture['httpExtraHeader']);
         $t->same('true', $fixture['transferFsckObjects']);
         $t->same('matched', $fixture['escapedGitdirPolicy']);
+        $t->same('matched', $fixture['recursiveGitdirPolicy']);
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
         $t->same($fixture['escapedGitdirPolicy'], $summary['escapedGitdirPolicy']);
+        $t->same($fixture['recursiveGitdirPolicy'], $summary['recursiveGitdirPolicy']);
         $t->same($fixture['sectionsLoaded'], $summary['sectionsLoaded']);
     },
 ];

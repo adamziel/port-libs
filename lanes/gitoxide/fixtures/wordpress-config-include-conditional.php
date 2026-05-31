@@ -5,7 +5,7 @@ declare(strict_types=1);
 use PortLibs\Gitoxide\GitConfig;
 
 $root = sys_get_temp_dir() . '/port-libs-wordpress-config-' . bin2hex(random_bytes(6));
-$repo = $root . '/wp-content.git';
+$repo = $root . '/sites/wp-content.git';
 $gitDir = $repo . '/.git';
 mkdir($gitDir, 0777, true);
 
@@ -36,6 +36,11 @@ $write($repo . '/escaped-gitdir.config', <<<CFG
 escapedGitdir = matched
 CFG);
 
+$write($repo . '/recursive-gitdir.config', <<<CFG
+[wordpress]
+recursiveGitdir = matched
+CFG);
+
 $write($gitDir . '/config', <<<CFG
 [core]
 repositoryformatversion = 0
@@ -49,6 +54,8 @@ path = ../deploy-branch.config
 path = ../remote-policy.config
 [includeIf "gitdir:wp\\-content.git/"]
 path = ../escaped-gitdir.config
+[includeIf "gitdir:**/sites/**/wp-content.git/**"]
+path = ../recursive-gitdir.config
 CFG);
 
 $config = GitConfig::fromFile($gitDir . '/config', [
@@ -65,6 +72,7 @@ return [
     'httpExtraHeader' => $config->value('http', null, 'extraHeader'),
     'transferFsckObjects' => $config->value('transfer', null, 'fsckObjects'),
     'escapedGitdirPolicy' => $config->value('wordpress', null, 'escapedGitdir'),
+    'recursiveGitdirPolicy' => $config->value('wordpress', null, 'recursiveGitdir'),
     'sectionsLoaded' => array_map(
         static fn (array $section): string => $section['subsection'] === null
             ? $section['name']

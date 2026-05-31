@@ -424,6 +424,42 @@ return [
         $t->same('Delta header size exceeds platform integer range', $resultMessage);
         $t->same('Delta header size exceeds platform integer range', $baseMessage);
     },
+    'rejects delta instructions that overrun the declared result buffer' => static function (TestRunner $t) use ($buildPackFixture, $encodeDeltaSize, $runtimeExceptionMessage): void {
+        $base = str_repeat('A', 256);
+        $copyTwoIntoOne = $encodeDeltaSize(strlen($base)) . $encodeDeltaSize(1) . chr(0x90) . chr(2);
+        [$copyPackBytes, $copyIndexBytes, $copyEntries] = $buildPackFixture([
+            ['type' => 'blob', 'typeId' => 3, 'body' => $base],
+            ['type' => 'ofs-delta', 'typeId' => 6, 'body' => $copyTwoIntoOne, 'baseEntry' => 0, 'finalType' => 'blob', 'finalBody' => 'AA'],
+        ]);
+        $copyMessage = $runtimeExceptionMessage(static fn () => PackData::fromBytes($copyPackBytes)->readObject(
+            PackIndex::fromBytes($copyIndexBytes),
+            $copyEntries[1]['oid'],
+        ));
+
+        $insertTwoIntoOne = $encodeDeltaSize(0) . $encodeDeltaSize(1) . chr(2) . 'BC';
+        [$insertPackBytes, $insertIndexBytes, $insertEntries] = $buildPackFixture([
+            ['type' => 'blob', 'typeId' => 3, 'body' => ''],
+            ['type' => 'ofs-delta', 'typeId' => 6, 'body' => $insertTwoIntoOne, 'baseEntry' => 0, 'finalType' => 'blob', 'finalBody' => 'BC'],
+        ]);
+        $insertMessage = $runtimeExceptionMessage(static fn () => PackData::fromBytes($insertPackBytes)->readObject(
+            PackIndex::fromBytes($insertIndexBytes),
+            $insertEntries[1]['oid'],
+        ));
+
+        $shortDelta = $encodeDeltaSize(1) . $encodeDeltaSize(2) . chr(1) . 'x';
+        [$shortPackBytes, $shortIndexBytes, $shortEntries] = $buildPackFixture([
+            ['type' => 'blob', 'typeId' => 3, 'body' => 'a'],
+            ['type' => 'ofs-delta', 'typeId' => 6, 'body' => $shortDelta, 'baseEntry' => 0, 'finalType' => 'blob', 'finalBody' => 'x'],
+        ]);
+        $shortMessage = $runtimeExceptionMessage(static fn () => PackData::fromBytes($shortPackBytes)->readObject(
+            PackIndex::fromBytes($shortIndexBytes),
+            $shortEntries[1]['oid'],
+        ));
+
+        $t->same('Delta copy exceeds declared result size', $copyMessage);
+        $t->same('Delta insert exceeds declared result size', $insertMessage);
+        $t->same('Delta instructions produced fewer bytes than promised', $shortMessage);
+    },
     'wordpress fixture reads compacted commit blob and delta objects without git binary' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-data.php';
         $summary = require dirname(__DIR__) . '/examples/wordpress-pack-data.php';
@@ -442,6 +478,7 @@ return [
         $t->contains('reconstructed packed edit', $deltaBlob->body);
         $t->same(true, $summary['strictDeclaredSizeGuard']);
         $t->same(true, $summary['oversizedDeltaHeaderGuard']);
+        $t->same(true, $summary['deltaResultBufferGuard']);
     },
     'wordpress fixture resolves and repairs thin content packs' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-thin-pack-repair.php';

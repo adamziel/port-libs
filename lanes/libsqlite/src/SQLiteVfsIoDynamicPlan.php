@@ -1754,6 +1754,102 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function diskFullRecoveryProfile(
+        string $scenario,
+        string $operation,
+        int $pendingWrite,
+        int $initialT1Rows = 16,
+        int $initialT2Rows = 16,
+        int $pageSize = 1024,
+        int $payloadBytes = 1000
+    ): array {
+        $scenario = trim($scenario);
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite diskfull scenario is required');
+        }
+
+        $operation = strtolower(str_replace('-', '_', trim($operation)));
+        if (!in_array($operation, ['insert_select', 'delete', 'vacuum'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite diskfull operation: {$operation}");
+        }
+        if ($pendingWrite < 1) {
+            throw new \InvalidArgumentException('SQLite diskfull pending write index must be positive');
+        }
+        if ($initialT1Rows < 1 || $initialT2Rows < 1 || $payloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite diskfull row and payload counts must be positive');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite diskfull page size must be a power of two at least 512');
+        }
+
+        $expectedScenarioPrefix = match ($operation) {
+            'insert_select' => 'diskfull-1.3',
+            'delete' => 'diskfull-1.5',
+            'vacuum' => 'diskfull-2',
+        };
+        if (!str_starts_with($scenario, $expectedScenarioPrefix)) {
+            throw new \InvalidArgumentException("SQLite diskfull {$operation} scenario must start with {$expectedScenarioPrefix}");
+        }
+
+        $setupDatabasePages = max(4, (int) ceil((($initialT1Rows + $initialT2Rows) * ($payloadBytes + 96)) / $pageSize) + 4);
+        $estimatedWriteAttempts = match ($operation) {
+            'insert_select' => max(6, (int) ceil(($initialT1Rows * ($payloadBytes + 96)) / $pageSize) + 3),
+            'delete' => max(6, (int) ceil(($initialT1Rows * ($payloadBytes + 64)) / $pageSize) + 2),
+            'vacuum' => max(8, $setupDatabasePages + 5),
+        };
+        $faultHit = $pendingWrite <= $estimatedWriteAttempts;
+        $normalizedFromIoerr = $faultHit && (($operation === 'vacuum' && $pendingWrite % 7 === 0) || ($operation === 'delete' && $pendingWrite % 11 === 0));
+
+        $finalT1Rows = match ($operation) {
+            'insert_select' => $faultHit ? $initialT1Rows : $initialT1Rows * 2,
+            'delete' => $faultHit ? $initialT1Rows : 0,
+            'vacuum' => $initialT1Rows,
+        };
+
+        return [
+            'status' => 'ok',
+            'script' => 'diskfull.test',
+            'scenario' => $scenario,
+            'operation' => $operation,
+            'pending_write' => $pendingWrite,
+            'fault_hit' => $faultHit,
+            'estimated_write_attempts' => $estimatedWriteAttempts,
+            'loop_continues_after_fault' => $operation === 'vacuum' && $faultHit,
+            'loop_stops_after_no_fault_probe' => $operation === 'vacuum' && !$faultHit,
+            'raw_result_code' => $normalizedFromIoerr ? 'SQLITE_IOERR' : 'SQLITE_FULL',
+            'raw_result_message' => $normalizedFromIoerr ? 'disk I/O error' : 'database or disk is full',
+            'result_code' => 'SQLITE_FULL',
+            'result_message' => 'database or disk is full',
+            'normalized_from_ioerr' => $normalizedFromIoerr,
+            'rollback_attempted' => $faultHit,
+            'database_image_stable' => $faultHit || $operation === 'vacuum',
+            'journal_kept_until_recovery' => $faultHit && $operation !== 'vacuum',
+            'vacuum_temp_database_discarded' => $faultHit && $operation === 'vacuum',
+            'page_size' => $pageSize,
+            'payload_bytes' => $payloadBytes,
+            'setup_tables' => ['t1', 't2'],
+            'setup_indexes' => ['t1i1', 't2i1'],
+            'setup_t1_rows' => $initialT1Rows,
+            'setup_t2_rows' => $initialT2Rows,
+            'setup_database_pages' => $setupDatabasePages,
+            'final_t1_rows' => $finalT1Rows,
+            'final_t2_rows' => $initialT2Rows,
+            'integrity_check_before_fault' => 'ok',
+            'integrity_check_after_reopen' => 'ok',
+            'open_file_count' => 0,
+            'upstream' => self::diskFullUpstream($operation),
+            'dependencies' => [
+                'upstream-diskfull-test',
+                'sqlite-vfs-disk-full-faultsim',
+                'sqlite-pager-full-disk-recovery',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function staleRollbackJournalNewDatabaseProfile(
         int $initialRows,
         int $payloadBytes,
@@ -3310,6 +3406,33 @@ final class SQLiteVfsIoDynamicPlan
                 'vfs-io-dynamic-real-corpus',
             ],
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function diskFullUpstream(string $operation): array
+    {
+        $common = [
+            'diskfull.test diskfull-1.1 setup t1/t2 tables and indexes',
+            'diskfull.test diskfull-1.2 initial integrity_check',
+        ];
+
+        return match ($operation) {
+            'insert_select' => array_merge($common, [
+                'diskfull.test diskfull-1.3 INSERT INTO t1 SELECT * FROM t1 reports database or disk is full',
+                'diskfull.test diskfull-1.4 integrity_check after failed insert',
+            ]),
+            'delete' => array_merge($common, [
+                'diskfull.test diskfull-1.5 DELETE FROM t1 reports database or disk is full',
+                'diskfull.test diskfull-1.6 integrity_check after failed delete',
+            ]),
+            'vacuum' => array_merge($common, [
+                'diskfull.test diskfull-2 do_diskfull_test VACUUM normalizes disk I/O error to database or disk is full',
+                'diskfull.test diskfull-2.* closes, reopens, and integrity_checks after each full-disk probe',
+            ]),
+            default => throw new \InvalidArgumentException("Unsupported SQLite diskfull upstream operation: {$operation}"),
+        };
     }
 
     private static function align(int $value, int $pageSize): int

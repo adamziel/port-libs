@@ -14,5 +14,6 @@ return [
     'httpExtraHeader' => $fixture['httpExtraHeader'],
     'transferFsckObjects' => $fixture['transferFsckObjects'],
     'escapedGitdirPolicy' => $fixture['escapedGitdirPolicy'],
+    'recursiveGitdirPolicy' => $fixture['recursiveGitdirPolicy'],
     'sectionsLoaded' => $fixture['sectionsLoaded'],
 ];
