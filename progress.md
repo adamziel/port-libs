@@ -6373,3 +6373,25 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   fixed before commit. Pager/WAL default-memory pressure, known-red broad
   clusters, rejected VFS/JSON regressions, remaining app-WAL/row-value
   conflicts, and release/all-runner parity remain blockers before gitoxide.
+
+## Supervisor Integration 2026-05-31T06:45Z Libsqlite Eighty-Fifth Sweep
+
+- Integrated 15 current-base libsqlite handoffs as source commit
+  `9c516e00d libsqlite: add eighty-fifth current corpus sweep`; one row-value
+  handoff remains parked for a real `SQLiteUpdateDeleteReturningSql` source
+  apply conflict. Stale worker `lane-status.json` hunks were excluded.
+- Public selected libsqlite evidence moves from `2512421` to `2564612 pass / 0
+  fail`, a net `+52191` PASS-line increase after subtracting `7181` accepted
+  base-overlap PASS lines. Mapped coverage remains `1589 / 1589`.
+- Verification passed PHP lint for 21 changed/new PHP files, `git diff --check
+  -- lanes/libsqlite`, no WordPress/wp source text in changed accepted
+  libsqlite source, no new numbered `CurrentNext`/`CurrentSourceNext` class
+  symbols, focused selected tests with `memory_limit=1024M` `14 files / 261779
+  assertions / 0 failures / 59372 PASS lines`, base overlap with
+  `memory_limit=1024M` `2 files / 15362 assertions / 0 failures / 7181 PASS
+  lines`, and a direct related guard with `memory_limit=1024M` `274 files /
+  4038318 assertions / 7 baseline-identical known-red failures / 266128 PASS
+  lines`.
+- Pager/WAL default-memory pressure, known-red broad clusters, rejected VFS/JSON
+  regressions, remaining app-WAL/row-value conflicts, and release/all-runner
+  parity remain blockers before gitoxide.
