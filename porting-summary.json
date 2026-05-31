@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 09:25:56 UTC",
-    "sourceCommit": "48f39766f1f40c97c3538f901bcdf8d04a1f1684",
-    "sourceCommitShort": "48f39766f1f4",
+    "generated": "2026-05-31 09:36:13 UTC",
+    "sourceCommit": "e319fe192cd0103ff34e7b509ead36237f4955fd",
+    "sourceCommitShort": "e319fe192cd0",
     "sourceBranch": "main",
-    "dashboardCommit": "5fcc53ddd1f6ea2073aebe612cfd957296d9ce1b",
-    "dashboardCommitShort": "5fcc53ddd1f6",
+    "dashboardCommit": "be94a0db45fc41d34083332350c3f821af96792a",
+    "dashboardCommitShort": "be94a0db45fc",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -64,16 +64,16 @@
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1513",
-            "coverage": "1513 / 2886",
-            "php": "3796 pass / 0 fail",
+            "mapped": "1515",
+            "coverage": "1515 / 2886",
+            "php": "3855 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
-            "audit": "Accepted source commit 7539b4c34ec18c41ea...",
-            "currentWork": "GitAttributes and pathspec attribute matching now ignore value suffixes when evaluating s...",
-            "nextTarget": "Keep integrating current-base Gitoxide handoffs for loose-object, packed-ref, reflog/inde...",
+            "audit": "Accepted source commit e319fe192cd0103ff3...",
+            "currentWork": "Commit parsing now exposes raw multiline gpgsig bytes and preserves old-git multiline hea...",
+            "nextTarget": "Keep integrating current-base Gitoxide handoffs for protocol, send-pack, sparse-checkout,...",
             "blocker": "No current Gitoxide PHP blocker for the accepted batch.",
-            "commit": "7539b4c"
+            "commit": "e319fe1"
         },
         {
             "library": "libsqlite",
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "2838123 pass / 0 fail",
+            "php": "2840323 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, upstream corpus closure, source-neut...",
-            "audit": "Accepted source commit 48f39766f1f40c97c3...",
-            "currentWork": "Committed two focused libsqlite corpus slices for chained UPSERT RETURNING SQL arms and V...",
+            "audit": "Accepted source commit e319fe192cd0103ff3...",
+            "currentWork": "Committed three focused libsqlite corpus slices for date/affinity storage, expression aff...",
             "nextTarget": "Continue integrating current-base libsqlite source/test-moving handoffs with real PASS de...",
             "blocker": "Remaining libsqlite blockers: pre-existing default-memory app-WAL/pager p...",
-            "commit": "48f3976"
+            "commit": "e319fe1"
         },
         {
             "library": "LightningCSS",
