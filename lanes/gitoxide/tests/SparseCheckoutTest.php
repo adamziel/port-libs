@@ -171,6 +171,41 @@ return [
         $t->same(true, $excludeOnly->includesPath('index.php', false));
         $t->same(false, $excludeOnly->includesPath('wp-content/cache/page.html', false));
     },
+    'pathspec sparse checkout keeps directory only excludes authoritative during prefix traversal' => static function (TestRunner $t) use ($entryNames): void {
+        $upstream = SparseCheckoutSpec::fromPathspecs([
+            ':/foo',
+            ':!/foo/target/',
+        ], prefix: 'foo');
+
+        $t->same(true, $upstream->includesPath('foo', true));
+        $t->same(true, $upstream->includesPath('foo/bar', false));
+        $t->same(true, $upstream->includesPath('foo/target', false));
+        $t->same(false, $upstream->includesPath('foo/target', true));
+        $t->same(false, $upstream->includesPath('foo/target/file', false));
+        $t->same(true, $upstream->skipWorktree('foo/target', true));
+        $t->same(true, $upstream->skipWorktree('foo/target/file', false));
+
+        $wordpress = SparseCheckoutSpec::fromPathspecs([
+            ':/wp-content',
+            ':!/wp-content/cache/',
+        ], prefix: 'wp-content');
+        $blob = str_repeat('1', 40);
+        $tree = str_repeat('2', 40);
+        $wpContent = new Tree([
+            new TreeEntry('100644', 'index.php', $blob),
+            new TreeEntry('040000', 'cache', $tree),
+            new TreeEntry('040000', 'cache-busting', $tree),
+            new TreeEntry('040000', 'plugins', $tree),
+        ]);
+
+        $t->same(true, $wordpress->includesPath('wp-content', true));
+        $t->same(true, $wordpress->includesPath('wp-content/cache', false));
+        $t->same(false, $wordpress->includesPath('wp-content/cache', true));
+        $t->same(false, $wordpress->includesPath('wp-content/cache/page.html', false));
+        $t->same(true, $wordpress->includesPath('wp-content/cache-busting/loader.php', false));
+        $t->same(true, $wordpress->includesPath('wp-content/plugins/gutenberg/block.json', false));
+        $t->same(['index.php', 'cache-busting', 'plugins'], $entryNames($wordpress->includedTreeEntries($wpContent, 'wp-content')));
+    },
     'pathspec sparse checkout uses gix wildmatch brackets escapes and recursive directory globs' => static function (TestRunner $t) use ($entryNames): void {
         $spec = SparseCheckoutSpec::fromPathspecs([
             ':(glob)wp-content/plugins/[ag]*/block.[jt]son',

@@ -410,8 +410,10 @@ $tests['upstream corpus window groups range current next18 direct value range fr
     throw new RuntimeException('Expected direct value RANGE frame without ORDER BY to be rejected');
 };
 
-$tests['upstream corpus window groups range current next18 rejects nonnumeric range key'] = static function (TestRunner $t) use ($options): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute('SELECT sum(bytes) OVER (ORDER BY option_name RANGE BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM app_cache_entries', ['app_cache_entries' => $options]));
+$tests['upstream corpus window groups range current next18 nonnumeric range key uses peer group'] = static function (TestRunner $t) use ($options): void {
+    $rows = SQLiteSelectSql::execute('SELECT sum(bytes) OVER (ORDER BY option_name RANGE BETWEEN CURRENT ROW AND 1 FOLLOWING) AS window_sum FROM app_cache_entries ORDER BY option_id', ['app_cache_entries' => $options]);
+
+    $t->same([10, 10, 20, 30, 30, 40], array_column($rows, 'window_sum'));
 };
 
 $tests['upstream corpus window groups range current next18 direct query nonnumeric filtered range uses peer group'] = static function (TestRunner $t) use ($options): void {

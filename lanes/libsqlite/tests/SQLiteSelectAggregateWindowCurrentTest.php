@@ -180,11 +180,11 @@ $tests['select aggregate window current rejects total without argument'] = stati
     ));
 };
 
-$tests['select aggregate window current rejects range text order offset'] = static function (TestRunner $t) use ($tables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute(
-        'SELECT sum(bytes) OVER (ORDER BY bucket RANGE BETWEEN 1 PRECEDING AND CURRENT ROW) AS metric FROM wp_options',
-        $tables,
-    ));
+$tests['select aggregate window current text range offset uses peer group'] = static function (TestRunner $t) use ($column): void {
+    $t->same(
+        [30, 30, null, 5, 5, 40],
+        $column('SELECT option_id, sum(bytes) OVER (ORDER BY bucket RANGE BETWEEN 1 PRECEDING AND CURRENT ROW) AS metric FROM wp_options ORDER BY option_id', 'metric'),
+    );
 };
 
 return $tests;

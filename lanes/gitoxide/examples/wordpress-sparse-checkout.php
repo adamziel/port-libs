@@ -28,6 +28,10 @@ $prefixedPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(top)wp-config.php',
     ':(exclude,glob)build/**',
 ], prefix: 'wp-content/plugins/gutenberg');
+$directoryExcludePathspec = SparseCheckoutSpec::fromPathspecs([
+    ':/wp-content',
+    ':!/wp-content/cache/',
+], prefix: 'wp-content');
 $deploymentRoot = '/srv/www/example.com/current';
 $absolutePathspec = SparseCheckoutSpec::fromPathspecs([
     $deploymentRoot . '/wp-content/plugins/gutenberg/block.json',
@@ -44,6 +48,8 @@ $root = new Tree([
 ]);
 $wpContent = new Tree([
     new TreeEntry('100644', 'index.php', $blob),
+    new TreeEntry('040000', 'cache', $tree),
+    new TreeEntry('040000', 'cache-busting', $tree),
     new TreeEntry('040000', 'plugins', $tree),
     new TreeEntry('040000', 'uploads', $tree),
 ]);
@@ -79,6 +85,11 @@ return [
     'prefixedPathspecIcaseFileIncluded' => $prefixedPathspec->includesPath('wp-content/plugins/gutenberg/block.json', false),
     'prefixedPathspecUpperPrefixSkipped' => $prefixedPathspec->skipWorktree('WP-CONTENT/plugins/gutenberg/block.json', false),
     'prefixedTopConfigIncluded' => $prefixedPathspec->includesPath('wp-config.php', false),
+    'directoryOnlyCacheDirectorySkipped' => $directoryExcludePathspec->skipWorktree('wp-content/cache', true),
+    'directoryOnlyCacheFileNameIncluded' => $directoryExcludePathspec->includesPath('wp-content/cache', false),
+    'directoryOnlyCacheDescendantSkipped' => $directoryExcludePathspec->skipWorktree('wp-content/cache/page.html', false),
+    'directoryOnlyCacheBustingIncluded' => $directoryExcludePathspec->includesPath('wp-content/cache-busting/loader.php', false),
+    'directoryOnlyEntriesToMaterialize' => $entryNames($directoryExcludePathspec->includedTreeEntries($wpContent, 'wp-content')),
     'absoluteRootPathspecBlockIncluded' => $absolutePathspec->includesPath('wp-content/plugins/gutenberg/block.json', false),
     'absoluteRootPathspecIcaseReadmeIncluded' => $absolutePathspec->includesPath('wp-content/plugins/gutenberg/README.md', false),
     'absoluteRootPathspecUpperPrefixSkipped' => $absolutePathspec->skipWorktree('WP-CONTENT/plugins/gutenberg/README.md', false),

@@ -301,12 +301,20 @@ final class SparseCheckoutSpec
     {
         $included = false;
         $matched = false;
+        $excludedByPathspec = false;
         foreach ($this->patterns as $rule) {
             if (!$this->nonConeRuleMatches($rule, $path, $isDirectory)) {
                 continue;
             }
             $matched = true;
             $included = !$rule['negative'];
+            if (($rule['pathspec'] ?? false) && $rule['negative']) {
+                $excludedByPathspec = true;
+            }
+        }
+
+        if ($excludedByPathspec) {
+            return false;
         }
 
         if (!$included && $isDirectory === true) {

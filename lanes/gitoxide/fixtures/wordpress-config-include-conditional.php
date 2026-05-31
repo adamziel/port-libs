@@ -7,6 +7,7 @@ use PortLibs\Gitoxide\GitConfig;
 $root = sys_get_temp_dir() . '/port-libs-wordpress-config-' . bin2hex(random_bytes(6));
 $repo = $root . '/sites/wp-content.git';
 $gitDir = $repo . '/.git';
+$legacyByte = "\xFF";
 mkdir($gitDir, 0777, true);
 
 $write = static function (string $path, string $contents): void {
@@ -51,6 +52,11 @@ $write($repo . '/bracket-url.config', <<<CFG
 bracketUrl = matched
 CFG);
 
+$write($repo . '/legacy-byte.config', <<<CFG
+[wordpress]
+legacyByte = matched
+CFG);
+
 $write($gitDir . '/config', <<<CFG
 [core]
 repositoryformatversion = 0
@@ -58,6 +64,8 @@ repositoryformatversion = 0
 conflictStyle = diff3
 [remote "origin"]
 url = https://git.example.test/wp-content.git
+[remote "legacy-byte"]
+url = https://git.example.test/wp-content/legacy-{$legacyByte}.git
 [includeIf "onbranch:deploy/"]
 path = ../deploy-branch.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/**"]
@@ -70,6 +78,8 @@ path = ../recursive-gitdir.config
 path = ../slash-class-rejected.config
 [includeIf "hasconfig:remote.*.url:https://git.example[.]test/**"]
 path = ../bracket-url.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/legacy-?.git"]
+path = ../legacy-byte.config
 CFG);
 
 $config = GitConfig::fromFile($gitDir . '/config', [
@@ -89,6 +99,7 @@ return [
     'recursiveGitdirPolicy' => $config->value('wordpress', null, 'recursiveGitdir'),
     'slashClassRejectedPolicy' => $config->value('wordpress', null, 'slashClassRejected'),
     'bracketUrlPolicy' => $config->value('wordpress', null, 'bracketUrl'),
+    'legacyBytePolicy' => $config->value('wordpress', null, 'legacyByte'),
     'sectionsLoaded' => array_map(
         static fn (array $section): string => $section['subsection'] === null
             ? $section['name']

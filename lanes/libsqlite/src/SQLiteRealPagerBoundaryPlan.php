@@ -222,6 +222,83 @@ final class SQLiteRealPagerBoundaryPlan
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function databaseMovedWriteBoundary(string $phase, string $requestedJournalMode, int $variant = 0): array
+    {
+        $phase = strtolower(trim($phase));
+        $requestedJournalMode = strtolower(trim($requestedJournalMode));
+
+        $sections = [
+            'read-after-rename' => ['pager4-1.2', 'database-moved-read-ok', 'select', true, false, false],
+            'write-after-rename' => ['pager4-1.3', 'database-moved-write-readonly', 'update', false, false, false],
+            'write-after-replacement-name' => ['pager4-1.4', 'database-moved-replacement-name-still-readonly', 'update', false, true, false],
+            'restored-name-read' => ['pager4-1.5', 'database-name-restored-read-ok', 'select', true, false, true],
+            'restored-name-write' => ['pager4-1.6', 'database-name-restored-write-ok', 'update', true, false, true],
+            'renamed-off-write' => ['pager4-1.7', 'database-moved-off-journal-write-ok', 'update', true, false, false],
+            'renamed-memory-write' => ['pager4-1.8', 'database-moved-memory-journal-write-ok', 'update', true, false, false],
+            'renamed-delete-write' => ['pager4-1.9', 'database-moved-rollback-journal-write-readonly', 'update', false, false, false],
+            'renamed-truncate-write' => ['pager4-1.10', 'database-moved-rollback-journal-write-readonly', 'update', false, false, false],
+            'renamed-persist-write' => ['pager4-1.11', 'database-moved-rollback-journal-write-readonly', 'update', false, false, false],
+        ];
+
+        if (!isset($sections[$phase])) {
+            throw new \InvalidArgumentException("Unsupported SQLite pager moved-database phase: {$phase}");
+        }
+        if (!in_array($requestedJournalMode, ['delete', 'truncate', 'persist', 'off', 'memory'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite pager moved-database journal mode: {$requestedJournalMode}");
+        }
+        if ($variant < 0) {
+            throw new \InvalidArgumentException('SQLite pager moved-database variant must be non-negative');
+        }
+
+        [$section, $status, $operation, $allowed, $replacementExists, $nameRestored] = $sections[$phase];
+        $initialRow = [673 + ($variant % 41), 'stone-' . ($variant % 17), 'philips-' . ($variant % 13)];
+        $offRow = [107 + ($variant % 89), $initialRow[1], $initialRow[2]];
+        $memoryRow = [$offRow[0], 'memory-' . ($variant % 19), $initialRow[2]];
+        $restoredWriteRow = [537 + ($variant % 97), $initialRow[1], $initialRow[2]];
+        $rowBefore = match ($phase) {
+            'renamed-memory-write' => $offRow,
+            'renamed-delete-write', 'renamed-truncate-write', 'renamed-persist-write' => $memoryRow,
+            default => $initialRow,
+        };
+
+        $finalRow = match ($phase) {
+            'restored-name-write' => $restoredWriteRow,
+            'renamed-off-write' => $offRow,
+            'renamed-memory-write' => $memoryRow,
+            default => $rowBefore,
+        };
+        $readAllowed = $operation === 'select' || $allowed;
+        $readonlyError = !$allowed && $operation === 'update';
+
+        return [
+            'status' => $status,
+            'script' => 'pager4.test',
+            'section' => $section,
+            'phase' => $phase,
+            'operation' => $operation,
+            'requested_journal_mode' => $requestedJournalMode,
+            'effective_journal_mode' => $allowed ? $requestedJournalMode : null,
+            'database_file_moved' => !$nameRestored,
+            'replacement_file_with_original_name' => $replacementExists,
+            'original_name_restored' => $nameRestored,
+            'journal_required_for_write' => in_array($requestedJournalMode, ['delete', 'truncate', 'persist'], true),
+            'write_allowed' => $allowed,
+            'read_allowed' => $readAllowed,
+            'result_code' => $readonlyError ? 1 : 0,
+            'error' => $readonlyError ? 'attempt to write a readonly database' : null,
+            'initial_row' => $initialRow,
+            'row_before_attempt' => $rowBefore,
+            'final_row' => $finalRow,
+            'select_result' => $readAllowed ? [$finalRow] : null,
+            'readonly_error_after_move' => $readonlyError,
+            'source' => 'pager4.test pager4-1.2 through pager4-1.11 SQLITE_READONLY_DBMOVED boundary',
+            'dependencies' => ['real-upstream-corpus-pager4', 'sqlite-pager-database-moved-boundary'],
+        ];
+    }
+
     private static function align(int $value, int $boundary): int
     {
         return intdiv($value + $boundary - 1, $boundary) * $boundary;

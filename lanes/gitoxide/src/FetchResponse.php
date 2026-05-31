@@ -46,8 +46,8 @@ final class FetchResponse
             if ($packet['kind'] === 'delimiter') {
                 continue;
             }
-            if (str_starts_with($packet['payload'], 'ERR ')) {
-                throw new \RuntimeException('fetch response: upload-pack error ' . substr($packet['payload'], 4));
+            if (self::isUploadPackErrorPacket($packet['payload'])) {
+                self::throwUploadPackError($packet['payload']);
             }
 
             $header = rtrim($packet['payload'], "\r\n");
@@ -209,8 +209,8 @@ final class FetchResponse
             if ($packet['kind'] === 'delimiter') {
                 return false;
             }
-            if (str_starts_with($packet['payload'], 'ERR ')) {
-                throw new \RuntimeException('fetch response: upload-pack error ' . substr($packet['payload'], 4));
+            if (self::isUploadPackErrorPacket($packet['payload'])) {
+                self::throwUploadPackError($packet['payload']);
             }
             $out[] = $parse($packet['payload']);
         }
@@ -235,6 +235,9 @@ final class FetchResponse
             }
             if ($packet['kind'] === 'delimiter') {
                 break;
+            }
+            if (!$sidebandAll && self::isUploadPackErrorPacket($packet['payload'])) {
+                self::throwUploadPackError($packet['payload']);
             }
             if ($sidebandAll) {
                 $packData .= $packet['payload'];
@@ -274,6 +277,9 @@ final class FetchResponse
             $packet = self::readPacket($bytes, $offset);
             if (!$sidebandAll || $packet === null || $packet['kind'] !== 'data') {
                 return $packet;
+            }
+            if (self::isUploadPackErrorPacket($packet['payload'])) {
+                self::throwUploadPackError($packet['payload']);
             }
 
             $sideband = self::decodeSidebandPayload($packet['payload']);
@@ -357,6 +363,16 @@ final class FetchResponse
         $offset += $payloadLength;
 
         return ['kind' => 'data', 'payload' => $payload];
+    }
+
+    private static function isUploadPackErrorPacket(string $payload): bool
+    {
+        return str_starts_with($payload, 'ERR ');
+    }
+
+    private static function throwUploadPackError(string $payload): never
+    {
+        throw new \RuntimeException('fetch response: upload-pack error ' . substr($payload, 4));
     }
 
     private static function trimOneTrailingNewline(string $data): string

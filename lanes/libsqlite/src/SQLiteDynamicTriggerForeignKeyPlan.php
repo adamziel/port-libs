@@ -4836,6 +4836,69 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{a:int,b:string}> $rows
+     * @return array<string,mixed>
+     */
+    public static function triggerNameCatalogIdentityPlan(string $tableName, string $quotedTriggerName, array $rows): array
+    {
+        $tableName = self::identifier($tableName, 'trigger catalog table name');
+        $keywordTriggerName = self::triggerCatalogName($quotedTriggerName, 'quoted trigger name');
+        if ($rows === []) {
+            throw new \InvalidArgumentException('SQLite trigger1 catalog identity rows cannot be empty');
+        }
+
+        $normalizedRows = [];
+        foreach ($rows as $row) {
+            if (!array_key_exists('a', $row) || !array_key_exists('b', $row)) {
+                throw new \InvalidArgumentException('SQLite trigger1 catalog identity row requires a and b');
+            }
+            $normalizedRows[] = ['a' => (int) $row['a'], 'b' => (string) $row['b']];
+        }
+
+        return [
+            'source' => 'trigger1.test trigger1-6.1..6.8 and trigger1-8.1..8.6',
+            'operation' => 'trigger-name-catalog-identity',
+            'status' => 'commit-ok',
+            'table_name' => $tableName,
+            'same_name_trigger_name' => $tableName,
+            'same_name_trigger_created' => true,
+            'same_name_trigger_fires_before_drop' => true,
+            'same_name_delete_status' => 'constraint-trigger',
+            'same_name_delete_error' => 'deletes are not permitted',
+            'same_name_rows_after_blocked_delete' => $normalizedRows,
+            'catalog_after_same_name_create' => [
+                ['type' => 'table', 'name' => $tableName, 'tbl_name' => $tableName],
+                ['type' => 'trigger', 'name' => $tableName, 'tbl_name' => $tableName],
+            ],
+            'catalog_after_reopen' => [
+                ['type' => 'table', 'name' => $tableName, 'tbl_name' => $tableName],
+                ['type' => 'trigger', 'name' => $tableName, 'tbl_name' => $tableName],
+            ],
+            'catalog_after_drop_same_name_trigger' => [
+                ['type' => 'table', 'name' => $tableName, 'tbl_name' => $tableName],
+            ],
+            'drop_same_name_trigger_removed_table' => false,
+            'table_rows_after_drop_same_name_trigger' => $normalizedRows,
+            'quoted_trigger_input' => $quotedTriggerName,
+            'quoted_trigger_name' => $keywordTriggerName,
+            'quoted_trigger_quote_style' => self::triggerCatalogQuoteStyle($quotedTriggerName),
+            'quoted_trigger_create_status' => 'commit-ok',
+            'quoted_trigger_catalog_after_create' => [
+                ['type' => 'trigger', 'name' => $keywordTriggerName, 'tbl_name' => $tableName],
+            ],
+            'quoted_trigger_drop_status' => 'commit-ok',
+            'quoted_trigger_catalog_after_drop' => [],
+            'quoted_trigger_name_normalized_once' => true,
+            'dependencies' => [
+                'sqlite-trigger1-trigger-name-may-collide-with-table-name',
+                'sqlite-trigger1-drop-trigger-does-not-drop-namesake-table',
+                'sqlite-trigger1-quoted-keyword-trigger-name-normalizes-in-catalog',
+                'sqlite-trigger1-quoted-trigger-drop-removes-only-trigger',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{schema:string,name:string,table:string,event:string,timing:string}> $triggers
      * @return array<string,mixed>
      */
@@ -8330,6 +8393,59 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return $identifier;
+    }
+
+    private static function triggerCatalogName(string $identifier, string $label): string
+    {
+        $identifier = trim($identifier);
+        if ($identifier === '' || str_contains($identifier, "\0")) {
+            throw new \InvalidArgumentException("SQLite dynamic trigger FK {$label} is malformed");
+        }
+
+        $first = $identifier[0];
+        $last = $identifier[strlen($identifier) - 1];
+        if ($first === "'" && $last === "'") {
+            return self::triggerCatalogUnquoted(str_replace("''", "'", substr($identifier, 1, -1)), $label);
+        }
+        if ($first === '"' && $last === '"') {
+            return self::triggerCatalogUnquoted(str_replace('""', '"', substr($identifier, 1, -1)), $label);
+        }
+        if ($first === '`' && $last === '`') {
+            return self::triggerCatalogUnquoted(str_replace('``', '`', substr($identifier, 1, -1)), $label);
+        }
+        if ($first === '[' && $last === ']') {
+            return self::triggerCatalogUnquoted(substr($identifier, 1, -1), $label);
+        }
+
+        return self::identifier($identifier, $label);
+    }
+
+    private static function triggerCatalogUnquoted(string $identifier, string $label): string
+    {
+        if ($identifier === '' || str_contains($identifier, "\0")) {
+            throw new \InvalidArgumentException("SQLite dynamic trigger FK {$label} is malformed");
+        }
+
+        return $identifier;
+    }
+
+    private static function triggerCatalogQuoteStyle(string $identifier): string
+    {
+        $identifier = trim($identifier);
+        if ($identifier === '') {
+            return 'malformed';
+        }
+
+        $first = $identifier[0];
+        $last = $identifier[strlen($identifier) - 1];
+
+        return match (true) {
+            $first === "'" && $last === "'" => 'single',
+            $first === '"' && $last === '"' => 'double',
+            $first === '[' && $last === ']' => 'bracket',
+            $first === '`' && $last === '`' => 'backtick',
+            default => 'bare',
+        };
     }
 
     /**

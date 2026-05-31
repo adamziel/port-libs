@@ -158,7 +158,7 @@ final class PushResponse
                 throw new \InvalidArgumentException("push response: unexpected {$packet['kind']} packet in report-status stream");
             }
             if (str_starts_with($packet['payload'], 'ERR ')) {
-                throw new \RuntimeException('push response: receive-pack error ' . substr($packet['payload'], 4));
+                throw new \RuntimeException('push response: receive-pack error ' . self::trimLineEnding(substr($packet['payload'], 4)));
             }
 
             $line = self::trimLineEnding($packet['payload']);
@@ -279,7 +279,7 @@ final class PushResponse
 
     private static function trimLineEnding(string $line): string
     {
-        return rtrim($line, "\r\n");
+        return self::trimOneTrailingNewline($line);
     }
 
     private static function trimOneTrailingNewline(string $data): string

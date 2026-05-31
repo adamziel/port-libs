@@ -8,6 +8,12 @@ use PortLibs\Gitoxide\FetchResponse;
 
 $fixture = require __DIR__ . '/../fixtures/wordpress-protocol-v2-fetch-response.php';
 $response = FetchResponse::fromV2PacketLines($fixture['response'], $fixture['sidebandAll'] ?? false);
+$uploadPackError = null;
+try {
+    FetchResponse::fromV2PacketLines($fixture['rawUploadPackErrorResponse'], true);
+} catch (RuntimeException $error) {
+    $uploadPackError = rtrim($error->getMessage());
+}
 
 return [
     'acknowledgements' => array_map(
@@ -38,4 +44,5 @@ return [
         $response->remoteProgress()
     ),
     'errors' => $response->errorMessages(),
+    'uploadPackError' => $uploadPackError,
 ];

@@ -21,6 +21,15 @@ $invalidArgumentMessage = static function (callable $callback): string {
 
     throw new RuntimeException('Expected InvalidArgumentException was not thrown');
 };
+$runtimeMessage = static function (callable $callback): string {
+    try {
+        $callback();
+    } catch (RuntimeException $error) {
+        return $error->getMessage();
+    }
+
+    throw new RuntimeException('Expected RuntimeException was not thrown');
+};
 
 return [
     'parses fetch acknowledgement lines' => static function (TestRunner $t): void {
@@ -137,6 +146,43 @@ return [
         $t->same('PACKtiny', $response->packData());
         $t->same(['Counting objects: 100% (1/1)'], $response->progressMessages());
         $t->same(['remote rejected a sideband'], $response->errorMessages());
+    },
+    'surfaces raw upload-pack ERR packets before sideband decoding' => static function (TestRunner $t) use ($packet, $flush, $runtimeMessage): void {
+        $t->contains(
+            'fetch response: upload-pack error backend died',
+            rtrim($runtimeMessage(static fn () => FetchResponse::fromV2PacketLines(
+                $packet("packfile\n")
+                . $packet("ERR backend died\n")
+                . $flush
+            )))
+        );
+        $t->contains(
+            'fetch response: upload-pack error sideband-all negotiation died',
+            rtrim($runtimeMessage(static fn () => FetchResponse::fromV2PacketLines(
+                $packet("ERR sideband-all negotiation died\n"),
+                true
+            )))
+        );
+        $t->contains(
+            'fetch response: upload-pack error sideband-all pack died',
+            rtrim($runtimeMessage(static fn () => FetchResponse::fromV2PacketLines(
+                $packet("\x01packfile\n")
+                . $packet("ERR sideband-all pack died\n")
+                . $flush,
+                true
+            )))
+        );
+
+        $response = FetchResponse::fromV2PacketLines(
+            $packet("\x01packfile\n")
+            . $packet("\x01PACK")
+            . $packet("\x01ERR bytes inside a sidebanded pack chunk")
+            . $flush,
+            true
+        );
+
+        $t->same(true, $response->hasPack());
+        $t->same('PACKERR bytes inside a sidebanded pack chunk', $response->packData());
     },
     'parses protocol v2 sideband-all response sections before pack data' => static function (TestRunner $t) use ($packet, $delimiter, $flush): void {
         $pack = 'PACK' . pack('N', 2) . pack('N', 2) . 'sideband-all-pack';
@@ -279,7 +325,7 @@ return [
             FetchResponse::fromV2PacketLines($packet("\x03") . $packet("\x01acknowledgments\n") . $packet("\x01NAK\n") . '0000', true)->errorMessages()
         );
     },
-    'wordpress fixture parses fetch response sections and sideband pack bytes' => static function (TestRunner $t): void {
+    'wordpress fixture parses fetch response sections and sideband pack bytes' => static function (TestRunner $t) use ($runtimeMessage): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v2-fetch-response.php';
         $response = FetchResponse::fromV2PacketLines($fixture['response'], $fixture['sidebandAll'] ?? false);
 
@@ -293,6 +339,13 @@ return [
         $t->same($fixture['objects']['main'], $response->wantedRefs()[0]->object);
         $t->same($fixture['packData'], $response->packData());
         $t->same(65520, $fixture['packetLineMaxBytes']);
+        $t->same(
+            'fetch response: upload-pack error raw WordPress fetch failure',
+            rtrim($runtimeMessage(static fn () => FetchResponse::fromV2PacketLines($fixture['rawUploadPackErrorResponse'], true)))
+        );
         $t->same(['remote: preparing WordPress blobless pack', 'Enumerating objects: 1, done.'], $response->progressMessages());
+
+        $summary = require dirname(__DIR__) . '/examples/wordpress-protocol-v2-fetch-response.php';
+        $t->same('fetch response: upload-pack error raw WordPress fetch failure', $summary['uploadPackError']);
     },
 ];

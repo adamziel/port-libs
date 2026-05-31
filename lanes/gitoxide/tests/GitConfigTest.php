@@ -221,6 +221,53 @@ return [
         $t->same('good', $config->value('user', null, 'dash'));
     },
 
+    'conditional include wildmatch stays byte safe for malformed utf8 names' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $legacyByte = "\xFF";
+
+        $root = $tmpDir();
+        $worktree = $root . '/legacy-' . $legacyByte;
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/include.config', "[section]\nvalue = raw-gitdir\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:legacy-?/"]
+        path = ../include.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('raw-gitdir', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $worktree = $root . '/worktree';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/include.config', "[section]\nvalue = raw-branch\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "onbranch:release-?"]
+        path = ../include.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+            'branchName' => 'refs/heads/release-' . $legacyByte,
+        ]);
+        $t->same('raw-branch', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $write($root . '/legacy-byte', "[user]\nlegacyByte = matched\n");
+        $write($root . '/config', <<<CFG
+        [remote "legacy"]
+        url = https://git.example.test/wp-content/legacy-{$legacyByte}.git
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/legacy-?.git"]
+        path = "legacy-byte"
+        CFG);
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same('matched', $config->value('user', null, 'legacyByte'));
+    },
+
     'hasconfig includeIf searches parent config with gix ordering and cycle boundaries' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $root = $tmpDir();
         $write($root . '/include-this', "[user]\nthis = included\n");
@@ -333,12 +380,14 @@ return [
         $t->same('matched', $fixture['recursiveGitdirPolicy']);
         $t->same(null, $fixture['slashClassRejectedPolicy']);
         $t->same('matched', $fixture['bracketUrlPolicy']);
+        $t->same('matched', $fixture['legacyBytePolicy']);
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
         $t->same($fixture['escapedGitdirPolicy'], $summary['escapedGitdirPolicy']);
         $t->same($fixture['recursiveGitdirPolicy'], $summary['recursiveGitdirPolicy']);
         $t->same($fixture['slashClassRejectedPolicy'], $summary['slashClassRejectedPolicy']);
         $t->same($fixture['bracketUrlPolicy'], $summary['bracketUrlPolicy']);
+        $t->same($fixture['legacyBytePolicy'], $summary['legacyBytePolicy']);
         $t->same($fixture['sectionsLoaded'], $summary['sectionsLoaded']);
     },
 ];

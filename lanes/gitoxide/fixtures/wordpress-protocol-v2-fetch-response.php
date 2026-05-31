@@ -28,6 +28,7 @@ return [
         . $packet("\x02Enumerating objects: 1, done.\n")
         . $packet("\x01" . $packData)
         . $flush,
+    'rawUploadPackErrorResponse' => $packet('ERR raw WordPress fetch failure' . "\n"),
     'objects' => [
         'main' => $main,
         'installed' => $installed,
@@ -36,4 +37,5 @@ return [
     'packetLineMaxBytes' => 65520,
     'wordpressUse' => 'A PHP deployment tool can parse protocol v2 sideband-all fetch response sections, confirm the wanted WordPress branch object, collect shallow boundary updates, surface remote progress, and hand channel-1 pack bytes to the object database layer.',
     'packetLineBoundUse' => 'Fetch response packet-lines are bounded to Gitoxide gix-packetline 64k framing before sideband decoding, so an oversized remote payload cannot be interpreted as pack or progress data.',
+    'rawUploadPackErrorUse' => 'Raw upload-pack ERR pkt-lines are surfaced before sideband decoding, so WordPress deployment fetch diagnostics report the server failure text instead of a misleading sideband channel error.',
 ];

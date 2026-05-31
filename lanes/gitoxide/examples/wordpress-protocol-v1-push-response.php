@@ -23,6 +23,12 @@ try {
 } catch (RuntimeException $error) {
     $fatalSidebandRejected = str_contains($error->getMessage(), 'sideband error pre-receive hook declined deployment');
 }
+$carriageReturnStatusRejected = false;
+try {
+    PushResponse::fromReportStatusPacketLines($fixture['carriageReturnStatusResponse']);
+} catch (InvalidArgumentException $error) {
+    $carriageReturnStatusRejected = str_contains($error->getMessage(), 'Reference name contains an invalid byte');
+}
 
 return [
     'unpackOk' => $response->unpackOk(),
@@ -60,4 +66,5 @@ return [
     'oversizedReportStatusRejected' => $oversizedReportStatusRejected,
     'fatalSidebandRejected' => $fatalSidebandRejected,
     'fallThroughAccepted' => $fallThroughResponse->refStatuses()[0]->fallThrough,
+    'carriageReturnStatusRejected' => $carriageReturnStatusRejected,
 ];

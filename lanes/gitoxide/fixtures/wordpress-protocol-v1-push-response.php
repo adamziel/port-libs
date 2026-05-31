@@ -47,4 +47,7 @@ return [
         . $flush,
     'oversizedReportStatus' => 'ffff' . str_repeat('x', 0xffff - 4),
     'fatalSidebandResponse' => $packet("\x03pre-receive hook declined deployment\n") . $flush,
+    'carriageReturnStatusResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/heads/main\r\n")
+        . $flush,
 ];

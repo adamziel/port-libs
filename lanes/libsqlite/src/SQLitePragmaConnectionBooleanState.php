@@ -23,6 +23,7 @@ final class SQLitePragmaConnectionBooleanState
         'recursive_triggers' => false,
         'reverse_unordered_selects' => false,
         'short_column_names' => true,
+        'trusted_schema' => true,
         'writable_schema' => false,
     ];
 

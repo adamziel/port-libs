@@ -447,7 +447,7 @@ final class SQLiteSelectQuery
         }
         if ($frame !== null && in_array($function, ['count', 'sum', 'total', 'avg', 'min', 'max', 'group_concat'], true)) {
             self::assertOrderedRangeOrGroupsFrame($orderBy, $frame);
-            if ($function === 'count' && (($arguments[0]['type'] ?? null) === 'wildcard')) {
+            if ($function === 'count' && ($arguments === [] || (($arguments[0]['type'] ?? null) === 'wildcard'))) {
                 $values = array_fill(0, count($orderedRows), 1);
             } elseif ($arguments === []) {
                 throw new \InvalidArgumentException("SQLite SELECT query {$function}() needs a value argument");

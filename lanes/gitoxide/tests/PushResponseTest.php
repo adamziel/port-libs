@@ -16,6 +16,15 @@ $invalidArgumentMessage = static function (callable $callback): string {
 
     throw new RuntimeException('Expected InvalidArgumentException was not thrown');
 };
+$runtimeMessage = static function (callable $callback): string {
+    try {
+        $callback();
+    } catch (RuntimeException $error) {
+        return $error->getMessage();
+    }
+
+    throw new RuntimeException('Expected RuntimeException was not thrown');
+};
 
 return [
     'parses receive-pack report status without sideband' => static function (TestRunner $t) use ($packet, $flush): void {
@@ -140,6 +149,32 @@ return [
             . $flush
         )));
     },
+    'preserves upstream line-feed-only receive-status text trimming' => static function (TestRunner $t) use ($packet, $flush, $runtimeMessage): void {
+        $rejected = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ng refs/heads/main hook declined\r\n")
+            . $flush
+        );
+        $errorMessage = $runtimeMessage(static fn () => PushResponse::fromReportStatusPacketLines(
+            $packet("ERR hook failed\r\n")
+            . $flush
+        ));
+
+        $t->same("hook declined\r", $rejected->refStatuses()[0]->message);
+        $t->same(true, str_contains($errorMessage, "hook failed\r"));
+        $t->same(false, str_contains($errorMessage, "\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/heads/main\r\n")
+            . $flush
+        ));
+        $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/main\n")
+            . $packet("option refname refs/heads/main\r\n")
+            . $flush
+        ));
+    },
     'parses upstream-shaped sideband push response' => static function (TestRunner $t) use ($packet, $flush): void {
         $advisory = "\nGitHub found 1 vulnerability on the-lean-crate/criner's default branch (1 high). To find out more, visit:\n"
             . "     https://github.com/the-lean-crate/criner/security/dependabot/1\n\n";
@@ -174,17 +209,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("ng refs/heads/main rejected\n") . $packet("option fall-through\n") . $flush));
         $t->throws(RuntimeException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("ERR hook failed\n") . $flush));
     },
-    'surfaces receive-pack fatal errors from sideband responses' => static function (TestRunner $t) use ($packet, $flush, $invalidArgumentMessage): void {
-        $runtimeMessage = static function (callable $callback): string {
-            try {
-                $callback();
-            } catch (RuntimeException $error) {
-                return $error->getMessage();
-            }
-
-            throw new RuntimeException('Expected RuntimeException was not thrown');
-        };
-
+    'surfaces receive-pack fatal errors from sideband responses' => static function (TestRunner $t) use ($packet, $flush, $invalidArgumentMessage, $runtimeMessage): void {
         $t->contains('receive-pack error repository disabled', $runtimeMessage(
             static fn () => PushResponse::fromSidebandPacketLines($packet("ERR repository disabled\n") . $flush)
         ));
@@ -221,5 +246,6 @@ return [
         $t->same(true, $summary['oversizedReportStatusRejected']);
         $t->same(true, $summary['fatalSidebandRejected']);
         $t->same(true, $summary['fallThroughAccepted']);
+        $t->same(true, $summary['carriageReturnStatusRejected']);
     },
 ];

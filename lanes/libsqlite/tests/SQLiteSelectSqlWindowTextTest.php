@@ -80,12 +80,12 @@ $cases = [
     'last value per autoload partition' => [
         'SELECT option_name, last_value(option_name) OVER (PARTITION BY autoload ORDER BY weight DESC, option_id ASC) AS last_name FROM wp_options ORDER BY option_id',
         'last_name',
-        ['blogname', 'blogname', 'blogname', 'theme_mods', 'theme_mods', 'theme_mods'],
+        ['siteurl', 'home', 'blogname', 'cron', 'rewrite_rules', 'theme_mods'],
     ],
     'nth value per autoload partition' => [
         'SELECT option_name, nth_value(option_name, 2) OVER (PARTITION BY autoload ORDER BY weight DESC, option_id ASC) AS second_name FROM wp_options ORDER BY option_id',
         'second_name',
-        ['home', 'home', 'home', 'rewrite_rules', 'rewrite_rules', 'rewrite_rules'],
+        [null, 'home', 'home', null, 'rewrite_rules', 'rewrite_rules'],
     ],
     'partition row numbers reset' => [
         'SELECT option_name, row_number() OVER (PARTITION BY autoload ORDER BY weight DESC, option_id ASC) AS rn FROM wp_options ORDER BY option_id',

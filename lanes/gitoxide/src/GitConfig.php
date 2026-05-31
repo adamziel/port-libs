@@ -629,6 +629,7 @@ final class GitConfig
             $regex .= preg_quote($byte, '~');
         }
 
-        return preg_match('~\A' . $regex . '\z~u' . ($ignoreCase ? 'i' : ''), $text) === 1;
+        // Gitoxide's wildmatch works on BStr bytes, including malformed UTF-8.
+        return preg_match('~\A' . $regex . '\z~' . ($ignoreCase ? 'i' : ''), $text) === 1;
     }
 }

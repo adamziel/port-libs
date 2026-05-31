@@ -203,8 +203,8 @@ final class SQLiteUpsertReturningSql
             $withRows = self::parseValues(trim(substr($withBody, strlen($valuesMatch[0]))), $withColumns);
             $sql = trim(substr($sql, $offset));
         }
-        if (preg_match('/^INSERT\s+INTO\s+/i', $sql, $match) !== 1) {
-            throw new \InvalidArgumentException('SQLite UPSERT RETURNING SQL must start with INSERT INTO');
+        if (preg_match('/^INSERT(?:\s+OR\s+IGNORE)?\s+INTO\s+/i', $sql, $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING SQL must start with INSERT INTO or INSERT OR IGNORE INTO');
         }
 
         $offset = strlen($match[0]);
