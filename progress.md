@@ -52,6 +52,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (libsqlite WAL/FK/row-value/pager
+  integration plus LightningCSS surge 16:00 UTC): source commit
+  `c8e01c478bd73f16bb789f7c43f383a71a42a518` (`ports: add sqlite wal fkey
+  rowvalue pager corpus`) landed four verified libsqlite handoffs after
+  excluding stale shared metadata. Libsqlite selected evidence moves from
+  `3137763` to `3194686 pass / 0 fail` (+`56923` selected assertions), with
+  mapped coverage unchanged at `1589 / 1589`: application WAL rollback JSON
+  post-checkpoint tails, foreign-key parent/index requirement diagnostics,
+  row-value UPDATE/DELETE LIMIT JSON scalar behavior, and master-journal WAL
+  pager behavior. Gates passed: PHP lint on changed/new PHP files, `git diff
+  --check -- lanes/libsqlite`, selected libsqlite gate `6 files / 56926
+  assertions / 0 failures` under `memory_limit=2048M`,
+  `SQLiteNoDomainSpecificApiTest`, and
+  `application-wal-rollback-json-dynamic-parity.php --self-test`. Full
+  libsqlite release/all-runner parity was not run for this isolated batch. The
+  visible LightningCSS pool was raised to `36` windows in the `main` tmux
+  session using `gpt-5.5` xhigh priority workers, adding fresh CSSOM,
+  custom-at-rules, and targets-prefix workers.
+
 - 2026-05-31 supervisor continuation (Gitoxide integration 15:55 UTC): source
   commit `936d2538f83c4656157d51ad8743d62a1affe84a` (`ports: add gitoxide
   pack refs promisor parity`) landed three verified Gitoxide handoffs after
