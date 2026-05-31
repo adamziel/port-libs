@@ -48,6 +48,37 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 01:59 UTC):
+  Batch47 is integrated locally as source
+  `9e86f7d1dc7c3c7a7db7d07274c0e99d36f504e0` (`libsqlite: add
+  forty-seventh current corpus sweep`). The batch accepted 21 behavior handoffs
+  across B-tree bestindex6/bestindex7 and where8 OR behavior, expression
+  affinity real-text and truth-aggregate behavior, JSON101 value-subtype and
+  JSON103 object/window behavior, pager WAL restart/checkpoint behavior, VFS IO
+  atomic multi-page and nolock URI behavior, PRAGMA schema eighth-thousand and
+  shadowing behavior, SELECT6 correlated aggregate and SELECTC alias behavior,
+  trigger/FK self-reference and trigger2 count_changes behavior, UPSERT
+  RETURNING partial-predicate and INSERT SELECT yield behavior, rowvalue
+  UPDATE/DELETE LIMIT parity, and window6/windowfault behavior. Integration
+  fixed the batch-local SELECT aggregate support so `count(*)` wildcard
+  arguments remain on the existing aggregate path instead of being evaluated as
+  scalar group expressions. Verification passed PHP lint for `32` changed/new
+  PHP files, `git diff --check -- lanes/libsqlite`, no newly-added
+  WordPress/wp source text in the batch diff, focused selected tests `21 files /
+  347735 assertions / 0 failures / 40700 PASS lines`, accepted-base overlap `3
+  files / 19208 assertions / 0 failures / 2914 PASS lines`, B-tree related
+  tests `40 files / 742146 assertions / 0 failures / 44653 PASS lines`,
+  trigger/upsert related tests `150 files / 810432 assertions / 0 failures /
+  506653 PASS lines`, pager/VFS related tests `98 files / 1560824 assertions /
+  0 failures / 124468 PASS lines`, mixed/domain tests `11 files / 164772
+  assertions / 0 failures / 13410 PASS lines`, and rowvalue targeted `1 file /
+  2957 assertions / 0 failures / 990 PASS lines`. Honest selected movement is
+  `+37786`, moving libsqlite from `1566206` to `1603992 pass / 0 fail`;
+  mapped coverage remains `1589 / 1589`. Existing source-level WordPress/wp
+  literals remain a source-neutral cleanup track, but this batch added none.
+  App-WAL parity remains parked; broad release/all-runner parity remains open;
+  gitoxide starts only after libsqlite closure is recorded.
+
 - 2026-05-31 supervisor continuation (integration sample 01:46 UTC):
   Batch46 is integrated locally as source
   `d613d5ae33fe09421ed46f9288d4263cf0eaf9a1` (`libsqlite: add forty-sixth
