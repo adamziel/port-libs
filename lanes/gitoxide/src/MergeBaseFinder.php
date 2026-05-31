@@ -97,6 +97,94 @@ final class MergeBaseFinder
     }
 
     /**
+     * Return merge bases between one commit and a hypothetical merge of other commits.
+     *
+     * This mirrors gix_revision::merge_base(first, others): the other heads are
+     * painted as one side of the graph walk. For a stable all-head intersection,
+     * use mergeBasesMany().
+     *
+     * @param list<string> $others
+     * @return list<string>
+     */
+    public function mergeBasesAgainst(string $first, array $others): array
+    {
+        self::assertObjectId($first);
+        $first = strtolower($first);
+
+        $normalizedOthers = [];
+        foreach ($others as $other) {
+            if (!is_string($other)) {
+                throw new \InvalidArgumentException('Merge-base other heads must be object id strings');
+            }
+            self::assertObjectId($other);
+            $normalizedOthers[] = strtolower($other);
+        }
+
+        if ($normalizedOthers === [] || in_array($first, $normalizedOthers, true)) {
+            return [$first];
+        }
+
+        $firstAncestors = $this->ancestorsWithDistance($first);
+        $candidates = [];
+        foreach ($normalizedOthers as $otherIndex => $other) {
+            foreach ($this->ancestorsWithDistance($other) as $candidate => $otherDistance) {
+                if (!isset($firstAncestors[$candidate])) {
+                    continue;
+                }
+
+                if (!isset($candidates[$candidate]) || $otherDistance < $candidates[$candidate]['other']) {
+                    $candidates[$candidate] = [
+                        'first' => $firstAncestors[$candidate],
+                        'other' => $otherDistance,
+                        'otherIndex' => $otherIndex,
+                    ];
+                }
+            }
+        }
+
+        if ($candidates === []) {
+            return [];
+        }
+
+        $best = [];
+        foreach (array_keys($candidates) as $candidate) {
+            $redundant = false;
+            foreach (array_keys($candidates) as $other) {
+                if ($candidate === $other) {
+                    continue;
+                }
+                if (isset($this->ancestorsWithDistance($other)[$candidate])) {
+                    $redundant = true;
+                    break;
+                }
+            }
+            if (!$redundant) {
+                $best[$candidate] = $candidates[$candidate];
+            }
+        }
+
+        uksort($best, static function (string $left, string $right) use ($best): int {
+            $leftDistance = max($best[$left]['first'], $best[$left]['other']);
+            $rightDistance = max($best[$right]['first'], $best[$right]['other']);
+
+            return $leftDistance <=> $rightDistance
+                ?: ($best[$left]['first'] + $best[$left]['other']) <=> ($best[$right]['first'] + $best[$right]['other'])
+                ?: $best[$left]['otherIndex'] <=> $best[$right]['otherIndex']
+                ?: strcmp($left, $right);
+        });
+
+        return array_keys($best);
+    }
+
+    /**
+     * @param list<string> $others
+     */
+    public function mergeBaseAgainst(string $first, array $others): ?string
+    {
+        return $this->mergeBasesAgainst($first, $others)[0] ?? null;
+    }
+
+    /**
      * @param list<string> $heads
      * @return list<string>
      */

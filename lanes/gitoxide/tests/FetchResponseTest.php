@@ -7,6 +7,7 @@ use PortLibs\Gitoxide\FetchCommand;
 use PortLibs\Gitoxide\FetchResponse;
 use PortLibs\Gitoxide\FetchShallowUpdate;
 use PortLibs\Gitoxide\FetchWantedRef;
+use PortLibs\Gitoxide\RemoteProgress;
 
 $packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
 $delimiter = '0001';
@@ -140,9 +141,66 @@ return [
         ], $response->progressMessages());
         $t->same(['remote: warning: reused promisor pack'], $response->errorMessages());
     },
+    'maps remote progress chunks like gix-protocol sideband readers' => static function (TestRunner $t): void {
+        $counting = RemoteProgress::fromText("Counting objects:  25% (1/4)\rCounting objects:  50% (2/4)\r");
+        $enumerating = RemoteProgress::fromText('Enumerating objects: 4, done.');
+
+        $t->same('Counting objects', $counting?->action);
+        $t->same(25, $counting?->percent);
+        $t->same(1, $counting?->step);
+        $t->same(4, $counting?->max);
+        $t->same('Enumerating objects', $enumerating?->action);
+        $t->same(null, $enumerating?->percent);
+        $t->same(4, $enumerating?->step);
+        $t->same(null, $enumerating?->max);
+        $t->same(null, RemoteProgress::fromText('Total 4 (delta 0), reused 4 (delta 0), pack-reused 0'));
+        $t->same(null, RemoteProgress::fromText('remote: preparing blobless pack'));
+    },
+    'parses upstream gix-protocol v2 sideband fixtures with pack trailers' => static function (TestRunner $t): void {
+        $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-sideband.php';
+
+        foreach (['cloneOnlyWithKeepalive', 'cloneOnly2'] as $key) {
+            $response = FetchResponse::fromV2PacketLines($fixtures[$key]['response']);
+
+            $t->same(true, $response->hasPack());
+            $t->same('PACK', substr($response->packData(), 0, 4));
+            $t->same($fixtures[$key]['packBytes'], strlen($response->packData()));
+            $t->same($fixtures[$key]['packTrailer'], bin2hex(substr($response->packData(), -20)));
+            $t->same($fixtures[$key]['progressCount'], count($response->progressMessages()));
+            $t->same([], $response->errorMessages());
+            $t->same([], $response->acknowledgements());
+            $t->same([], $response->shallowUpdates());
+        }
+
+        $keepaliveResponse = $fixtures['cloneOnlyWithKeepalive']['response'];
+        $t->same(true, str_contains($keepaliveResponse, "0005\x01"));
+        $t->same('150a1045f04dc0fc2dbf72313699fda696bf4126', bin2hex(substr(FetchResponse::fromV2PacketLines($keepaliveResponse)->packData(), -20)));
+    },
+    'exposes parsed progress from upstream sideband chunks' => static function (TestRunner $t): void {
+        $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-sideband.php';
+        $response = FetchResponse::fromV2PacketLines($fixtures['cloneOnly2']['response']);
+        $progress = $response->remoteProgress();
+
+        $t->same(6, count($progress));
+        $t->same('Enumerating objects', $progress[0]->action);
+        $t->same(4, $progress[0]->step);
+        $t->same(null, $progress[0]->max);
+        $t->same('Counting objects', $progress[1]->action);
+        $t->same(25, $progress[1]->percent);
+        $t->same(1, $progress[1]->step);
+        $t->same(4, $progress[1]->max);
+        $t->same('Compressing objects', $progress[3]->action);
+        $t->same(50, $progress[3]->percent);
+        $t->same(1, $progress[3]->step);
+        $t->same(2, $progress[3]->max);
+    },
     'rejects malformed sideband-all response packets before section parsing' => static function (TestRunner $t) use ($packet): void {
         $t->throws(InvalidArgumentException::class, static fn () => FetchResponse::fromV2PacketLines($packet("\x09acknowledgments\n"), true));
         $t->throws(RuntimeException::class, static fn () => FetchResponse::fromV2PacketLines($packet("\x01ERR segmentation fault\n"), true));
+        $t->same(
+            [],
+            FetchResponse::fromV2PacketLines($packet("\x03") . $packet("\x01acknowledgments\n") . $packet("\x01NAK\n") . '0000', true)->errorMessages()
+        );
     },
     'wordpress fixture parses fetch response sections and sideband pack bytes' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v2-fetch-response.php';

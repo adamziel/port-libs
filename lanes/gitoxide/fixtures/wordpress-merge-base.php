@@ -25,6 +25,8 @@ $pluginReview = $oid('3');
 $themeReview = $oid('4');
 $contentReview = $oid('5');
 $deployment = $oid('6');
+$archiveRoot = $oid('7');
+$archivedPluginReview = $oid('8');
 
 return [
     'root' => $root,
@@ -33,8 +35,12 @@ return [
     'themeReview' => $themeReview,
     'contentReview' => $contentReview,
     'deployment' => $deployment,
+    'archiveRoot' => $archiveRoot,
+    'archivedPluginReview' => $archivedPluginReview,
     'heads' => [$pluginReview, $themeReview, $contentReview],
     'deploymentHeads' => [$deployment, $pluginReview, $themeReview],
+    'graphWalkHeads' => [$pluginReview, $themeReview, $archivedPluginReview],
+    'graphWalkOthers' => [$themeReview, $archivedPluginReview],
     'commits' => [
         $root => $commit(),
         $release => $commit([$root]),
@@ -42,5 +48,7 @@ return [
         $themeReview => $commit([$release]),
         $contentReview => $commit([$release]),
         $deployment => $commit([$pluginReview, $themeReview]),
+        $archiveRoot => $commit(),
+        $archivedPluginReview => $commit([$archiveRoot]),
     ],
 ];

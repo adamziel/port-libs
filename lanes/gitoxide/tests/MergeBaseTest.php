@@ -64,6 +64,41 @@ return [
 
         $t->same([$leftBase, $rightBase], $mergeBase->mergeBases($leftMerge, $rightMerge));
     },
+    'maps upstream graph walk against a hypothetical merge of other heads' => static function (TestRunner $t) use ($oid, $commit, $finder): void {
+        $root = $oid('1');
+        $shared = $oid('2');
+        $first = $oid('3');
+        $relatedOther = $oid('4');
+        $unrelatedRoot = $oid('8');
+        $unrelatedOther = $oid('9');
+
+        $mergeBase = $finder([
+            $root => $commit(),
+            $shared => $commit([$root]),
+            $first => $commit([$shared]),
+            $relatedOther => $commit([$shared]),
+            $unrelatedRoot => $commit(),
+            $unrelatedOther => $commit([$unrelatedRoot]),
+        ]);
+
+        $t->same([$shared], $mergeBase->mergeBasesAgainst($first, [$relatedOther, $unrelatedOther]));
+        $t->same($shared, $mergeBase->mergeBaseAgainst($first, [$unrelatedOther, $relatedOther]));
+        $t->same([], $mergeBase->mergeBasesMany([$first, $relatedOther, $unrelatedOther]));
+    },
+    'maps upstream graph walk shortcuts without reading commits' => static function (TestRunner $t) use ($oid): void {
+        $first = $oid('1');
+        $unrelated = $oid('9');
+        $reads = [];
+        $mergeBase = new MergeBaseFinder(static function (string $oid) use (&$reads): Commit {
+            $reads[] = $oid;
+            throw new RuntimeException('The upstream shortcut should not read commit objects');
+        });
+
+        $t->same([$first], $mergeBase->mergeBasesAgainst($first, []));
+        $t->same($first, $mergeBase->mergeBaseAgainst($first, [$unrelated, $first]));
+        $t->same([], $reads);
+        $t->throws(InvalidArgumentException::class, static fn () => $mergeBase->mergeBasesAgainst($first, [123]));
+    },
     'maps upstream octopus merge-base for three sequential heads' => static function (TestRunner $t) use ($oid, $commit, $finder): void {
         $first = $oid('1');
         $second = $oid('2');
@@ -138,8 +173,13 @@ return [
 
         $t->same($fixture['releaseBaseline'], $finder->mergeBaseMany($fixture['heads']));
         $t->same([$fixture['releaseBaseline']], $finder->mergeBasesMany($fixture['deploymentHeads']));
+        $t->same([$fixture['releaseBaseline']], $finder->mergeBasesAgainst($fixture['pluginReview'], $fixture['graphWalkOthers']));
+        $t->same([], $finder->mergeBasesMany($fixture['graphWalkHeads']));
         $t->same($fixture['releaseBaseline'], $example['reviewBase']);
         $t->same([$fixture['releaseBaseline']], $example['reviewBases']);
+        $t->same($fixture['releaseBaseline'], $example['graphWalkBase']);
+        $t->same(true, $example['graphWalkKeepsReleaseBaseline']);
+        $t->same(true, $example['octopusRejectsArchiveBranch']);
         $t->same(true, $example['reviewBaseIsReleaseBaseline']);
         $t->same(true, $example['deploymentBaseIsReleaseBaseline']);
     },

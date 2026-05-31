@@ -19,6 +19,8 @@ $finder = new MergeBaseFinder(static function (string $oid) use ($fixture): Comm
 
 $reviewBase = $finder->mergeBaseMany($fixture['heads']);
 $deploymentBase = $finder->mergeBaseMany($fixture['deploymentHeads']);
+$graphWalkBase = $finder->mergeBaseAgainst($fixture['pluginReview'], $fixture['graphWalkOthers']);
+$archiveOctopusBases = $finder->mergeBasesMany($fixture['graphWalkHeads']);
 
 return [
     'reviewHeads' => $fixture['heads'],
@@ -26,7 +28,12 @@ return [
     'reviewBases' => $finder->mergeBasesMany($fixture['heads']),
     'deploymentHeads' => $fixture['deploymentHeads'],
     'deploymentBase' => $deploymentBase,
+    'graphWalkHeads' => $fixture['graphWalkHeads'],
+    'graphWalkBase' => $graphWalkBase,
+    'archiveOctopusBases' => $archiveOctopusBases,
     'expectedReleaseBaseline' => $fixture['releaseBaseline'],
     'reviewBaseIsReleaseBaseline' => $reviewBase === $fixture['releaseBaseline'],
     'deploymentBaseIsReleaseBaseline' => $deploymentBase === $fixture['releaseBaseline'],
+    'graphWalkKeepsReleaseBaseline' => $graphWalkBase === $fixture['releaseBaseline'],
+    'octopusRejectsArchiveBranch' => $archiveOctopusBases === [],
 ];

@@ -7,6 +7,15 @@ use PortLibs\Gitoxide\PushResponse;
 
 $packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
 $flush = '0000';
+$invalidArgumentMessage = static function (callable $callback): string {
+    try {
+        $callback();
+    } catch (InvalidArgumentException $error) {
+        return $error->getMessage();
+    }
+
+    throw new RuntimeException('Expected InvalidArgumentException was not thrown');
+};
 
 return [
     'parses receive-pack report status without sideband' => static function (TestRunner $t) use ($packet, $flush): void {
@@ -89,6 +98,27 @@ return [
         $t->same(null, $unchanged->oldObject);
         $t->same(null, $unchanged->newObject);
     },
+    'enforces upstream packet-line length bounds for receive-pack status' => static function (TestRunner $t) use ($packet, $flush, $invalidArgumentMessage): void {
+        $maxPacketLineLength = 65520;
+        $statusPrefix = 'ng refs/heads/main ';
+        $reason = str_repeat('x', $maxPacketLineLength - 4 - strlen($statusPrefix) - 1);
+        $bounded = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . sprintf('%04x', $maxPacketLineLength) . $statusPrefix . $reason . "\n"
+            . $flush
+        );
+
+        $t->same($reason, $bounded->refStatuses()[0]->message);
+        $t->contains('packet line exceeds maximum length', $invalidArgumentMessage(static fn () => PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . 'ffff' . str_repeat('x', 0xffff - 4)
+            . $flush
+        )));
+        $t->contains('packet line exceeds maximum length', $invalidArgumentMessage(static fn () => PushResponse::fromSidebandPacketLines(
+            'ffff' . "\x02" . str_repeat('x', 0xffff - 5)
+            . $flush
+        )));
+    },
     'parses upstream-shaped sideband push response' => static function (TestRunner $t) use ($packet, $flush): void {
         $advisory = "\nGitHub found 1 vulnerability on the-lean-crate/criner's default branch (1 high). To find out more, visit:\n"
             . "     https://github.com/the-lean-crate/criner/security/dependabot/1\n\n";
@@ -137,5 +167,8 @@ return [
         $t->same($fixture['rewrittenRef']['oldObject'], $rewritten->oldObject);
         $t->same($fixture['rewrittenRef']['newObject'], $rewritten->newObject);
         $t->same(true, $rewritten->forcedUpdate);
+
+        $summary = require dirname(__DIR__) . '/examples/wordpress-protocol-v1-push-response.php';
+        $t->same(true, $summary['oversizedReportStatusRejected']);
     },
 ];

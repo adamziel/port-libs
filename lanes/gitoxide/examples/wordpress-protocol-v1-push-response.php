@@ -10,6 +10,12 @@ use PortLibs\Gitoxide\PushResponse;
 $fixture = require __DIR__ . '/../fixtures/wordpress-protocol-v1-push-response.php';
 $response = PushResponse::fromSidebandPacketLines($fixture['response']);
 $rewrittenResponse = PushResponse::fromReportStatusPacketLines($fixture['rewrittenResponse']);
+$oversizedReportStatusRejected = false;
+try {
+    PushResponse::fromReportStatusPacketLines($fixture['oversizedReportStatus']);
+} catch (InvalidArgumentException $error) {
+    $oversizedReportStatusRejected = str_contains($error->getMessage(), 'packet line exceeds maximum length');
+}
 
 return [
     'unpackOk' => $response->unpackOk(),
@@ -35,4 +41,5 @@ return [
     ),
     'progressMessages' => $response->progressMessages(),
     'errorMessages' => $response->errorMessages(),
+    'oversizedReportStatusRejected' => $oversizedReportStatusRejected,
 ];

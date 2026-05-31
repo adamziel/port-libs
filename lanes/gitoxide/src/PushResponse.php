@@ -6,6 +6,8 @@ namespace PortLibs\Gitoxide;
 
 final class PushResponse
 {
+    private const MAX_PACKET_LINE_LENGTH = 65520;
+
     /**
      * @param list<PushRefStatus> $refStatuses
      * @param list<string> $progressMessages
@@ -253,6 +255,9 @@ final class PushResponse
         }
         if ($length < 4) {
             throw new \InvalidArgumentException("push response: invalid packet line length {$header}");
+        }
+        if ($length > self::MAX_PACKET_LINE_LENGTH) {
+            throw new \InvalidArgumentException("push response: packet line exceeds maximum length {$header}");
         }
 
         $payloadLength = $length - 4;

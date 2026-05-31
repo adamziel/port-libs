@@ -38,4 +38,5 @@ return [
         . $packet("option new-oid {$newSha256}\n")
         . $packet("option forced-update\n")
         . $flush,
+    'oversizedReportStatus' => 'ffff' . str_repeat('x', 0xffff - 4),
 ];

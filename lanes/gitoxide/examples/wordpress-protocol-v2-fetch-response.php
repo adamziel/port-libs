@@ -25,6 +25,16 @@ return [
     'hasPack' => $response->hasPack(),
     'packPrefix' => substr($response->packData(), 0, 4),
     'packBytes' => strlen($response->packData()),
+    'packTrailer' => bin2hex(substr($response->packData(), -20)),
     'progress' => $response->progressMessages(),
+    'remoteProgress' => array_map(
+        static fn ($progress): array => [
+            'action' => $progress->action,
+            'percent' => $progress->percent,
+            'step' => $progress->step,
+            'max' => $progress->max,
+        ],
+        $response->remoteProgress()
+    ),
     'errors' => $response->errorMessages(),
 ];

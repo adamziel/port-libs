@@ -163,6 +163,22 @@ final class FetchResponse
     }
 
     /**
+     * @return list<RemoteProgress>
+     */
+    public function remoteProgress(): array
+    {
+        $progress = [];
+        foreach ($this->progressMessages as $message) {
+            $parsed = RemoteProgress::fromText($message);
+            if ($parsed !== null) {
+                $progress[] = $parsed;
+            }
+        }
+
+        return $progress;
+    }
+
+    /**
      * @return list<string>
      */
     public function errorMessages(): array
