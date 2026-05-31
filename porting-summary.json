@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-31 16:27:06 UTC",
-    "sourceCommit": "7d0fee1b072f094a6ec1365ffb76c2fbe71cdaee",
-    "sourceCommitShort": "7d0fee1b072f",
+    "generated": "2026-05-31 16:34:29 UTC",
+    "sourceCommit": "0fa392727013860f726be218b3b9045c1d54a064",
+    "sourceCommitShort": "0fa392727013",
     "sourceBranch": "main",
-    "dashboardCommit": "084fea1c004e28a03a3680cc6c8bbf0ab3213d81",
-    "dashboardCommitShort": "084fea1c004e",
-    "averageProgressPercent": "86.4",
+    "dashboardCommit": "8690095eb87622d3c7809019c860524eac1631a9",
+    "dashboardCommitShort": "8690095eb876",
+    "averageProgressPercent": "86.5",
     "lanes": [
         {
             "library": "difftastic",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "83.0",
+            "progressPercent": "84.0",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1370",
-            "coverage": "1370 / 3532",
-            "php": "2168 pass / 0 fail",
+            "mapped": "1446",
+            "coverage": "1446 / 3532",
+            "php": "2313 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "native CSS parser/formatter/minifier, declaration CSSOM...",
-            "audit": "Supervisor accepted source commit 7d0fee1...",
-            "currentWork": "Native LightningCSS now extends font/property target fallback behavior, CSSOM place-align...",
+            "audit": "Supervisor accepted source commit 0fa3927...",
+            "currentWork": "Native LightningCSS now covers lch()/oklch() polar color-mix normalization and hue interp...",
             "nextTarget": "Continue integrating current-base LightningCSS handoffs, prioritizing non-overlapping pro...",
             "blocker": "No current LightningCSS PHP blocker for this batch.",
-            "commit": "7d0fee1"
+            "commit": "0fa3927"
         },
         {
             "library": "markerPDF",
