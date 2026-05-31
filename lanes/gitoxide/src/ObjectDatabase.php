@@ -230,6 +230,22 @@ final class ObjectDatabase
     }
 
     /**
+     * @return list<array{path:string,statistics:array{numObjects:int,verifiedObjectIds:list<string>}}>
+     */
+    public function verifyLooseIntegrity(): array
+    {
+        $out = [];
+        foreach ($this->looseStores() as $store) {
+            $out[] = [
+                'path' => $store->objectsDirectory(),
+                'statistics' => $store->verifyIntegrity(),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<string>
      */
     public function alternateObjectDirectories(): array

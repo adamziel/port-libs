@@ -3,7 +3,24 @@
 declare(strict_types=1);
 
 use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\Commit;
+use PortLibs\Gitoxide\GitTag;
 use PortLibs\Gitoxide\LooseObjectStore;
+use PortLibs\Gitoxide\Tree;
+use PortLibs\Gitoxide\TreeEntry;
+
+$looseObjectPath = static fn (string $objectsDirectory, string $oid): string => $objectsDirectory . '/' . substr($oid, 0, 2) . '/' . substr($oid, 2);
+$writeLooseStorage = static function (string $objectsDirectory, string $oid, string $storageBytes) use ($looseObjectPath): void {
+    $path = $looseObjectPath($objectsDirectory, $oid);
+    if (!is_dir(dirname($path)) && !mkdir(dirname($path), 0777, true) && !is_dir(dirname($path))) {
+        throw new RuntimeException('Unable to create loose object test directory');
+    }
+    $compressed = gzcompress($storageBytes);
+    if ($compressed === false) {
+        throw new RuntimeException('Unable to compress loose object fixture');
+    }
+    file_put_contents($path, $compressed);
+};
 
 return [
     'git blob oid matches canonical git hashing' => static function (TestRunner $t): void {
@@ -50,6 +67,72 @@ return [
         $roundTrip = $store->read($oid);
         $t->same('blob', $roundTrip->type);
         $t->same('WordPress export', $roundTrip->body);
+    },
+    'loose object integrity verifies object ids and decodes structured objects' => static function (TestRunner $t): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-integrity-' . bin2hex(random_bytes(4)) . '/.git';
+        $store = new LooseObjectStore($gitDir);
+
+        $blob = new GitObject('blob', 'WordPress export blob');
+        $blobOid = $store->write($blob);
+        $tree = new Tree([new TreeEntry('100644', 'index.html', $blobOid)]);
+        $treeOid = $store->write($tree->toObject());
+        $commit = new Commit(
+            $treeOid,
+            [],
+            'WordPress Importer <importer@example.test> 1710000000 +0000',
+            'WordPress Deploy Bot <deploy@example.test> 1710000300 +0000',
+            "Import block snapshot\n",
+            [],
+        );
+        $commitOid = $store->write($commit->object());
+        $tag = new GitTag($commitOid, 'commit', 'deploy/integrity', null, "Verified deployment object graph\n");
+        $tagOid = $store->write($tag->object());
+
+        $expected = [$blobOid, $treeOid, $commitOid, $tagOid];
+        sort($expected, SORT_STRING);
+        $summary = $store->verifyIntegrity();
+
+        $t->same(4, $summary['numObjects']);
+        $t->same($expected, $summary['verifiedObjectIds']);
+        $t->same($gitDir . '/objects', $store->objectsDirectory());
+    },
+    'loose object integrity rejects path hash mismatches and malformed structured bodies' => static function (TestRunner $t) use ($writeLooseStorage): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-integrity-bad-path-' . bin2hex(random_bytes(4)) . '/.git';
+        $objectsDirectory = $gitDir . '/objects';
+        $expectedOid = (new GitObject('blob', 'expected body'))->oid();
+        $tampered = new GitObject('blob', 'tampered body');
+        $writeLooseStorage($objectsDirectory, $expectedOid, $tampered->storageBytes());
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+
+        try {
+            $store->verifyIntegrity();
+            throw new RuntimeException('Expected loose object hash mismatch to be rejected');
+        } catch (RuntimeException $exception) {
+            $t->contains('Loose object hash mismatch', $exception->getMessage());
+            $t->contains($expectedOid, $exception->getMessage());
+            $t->contains($tampered->oid(), $exception->getMessage());
+        }
+
+        $badTreeStore = new LooseObjectStore(sys_get_temp_dir() . '/port-libs-git-integrity-bad-tree-' . bin2hex(random_bytes(4)) . '/.git');
+        $badTreeOid = $badTreeStore->write(new GitObject('tree', "10099x file\0" . str_repeat("\0", 20)));
+        try {
+            $badTreeStore->verifyIntegrity();
+            throw new RuntimeException('Expected malformed tree body to be rejected');
+        } catch (RuntimeException $exception) {
+            $t->contains("tree object {$badTreeOid} could not be decoded", $exception->getMessage());
+            $t->contains('Tree entry mode must be one to seven octal digits', $exception->getMessage());
+        }
+
+        $shortStore = LooseObjectStore::fromObjectsDirectory(sys_get_temp_dir() . '/port-libs-git-integrity-short-' . bin2hex(random_bytes(4)) . '/objects');
+        $shortOid = str_repeat('a', 40);
+        $writeLooseStorage($shortStore->objectsDirectory(), $shortOid, "blob 12\0short");
+        try {
+            $shortStore->verifyIntegrity();
+            throw new RuntimeException('Expected short loose object body to be rejected');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$shortOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Git object body length mismatch: expected 12, got 5', $exception->getMessage());
+        }
     },
     'invalid storage header is rejected' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => GitObject::fromStorageBytes("blob nope\0body"));

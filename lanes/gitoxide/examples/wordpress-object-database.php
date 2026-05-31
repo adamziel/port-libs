@@ -55,6 +55,11 @@ $draft = $database->read($draftOid);
 $rawDraft = $database->withReplacementsIgnored()->read($draftOid);
 $sharedPackage = $database->read($sharedPackageOid);
 $prefix = $database->lookupPrefix(substr($fixture['objects'][2]['oid'], 0, 8));
+$looseIntegrity = $database->verifyLooseIntegrity();
+$looseIntegrityObjects = array_sum(array_map(
+    static fn (array $row): int => $row['statistics']['numObjects'],
+    $looseIntegrity
+));
 
 return [
     'packedObjects' => $database->packedObjectCount(),
@@ -76,4 +81,8 @@ return [
     'deploymentCommitStoredLoose' => is_file($deploymentCommitPath),
     'deploymentCommitSummary' => $deploymentCommitRoundTrip->messageSummary(),
     'deploymentCommitParent' => $deploymentCommitRoundTrip->parents[0],
+    'looseIntegrityStores' => count($looseIntegrity),
+    'looseIntegrityObjects' => $looseIntegrityObjects,
+    'looseIntegrityVerifiedDeploymentCommit' => in_array($deploymentCommitOid, $looseIntegrity[0]['statistics']['verifiedObjectIds'], true),
+    'looseIntegrityVerifiedSharedPackage' => in_array($sharedPackageOid, $looseIntegrity[1]['statistics']['verifiedObjectIds'], true),
 ];

@@ -69,6 +69,10 @@ $release = $store->update(
     new ObjectDatabase($dir),
 );
 
+$store->looseStore()->writeSymbolic('refs/heads/release-candidate', $fixture['releaseRef']);
+$releaseCandidateTagObject = $store->followToObjectId('refs/heads/release-candidate');
+$releaseCandidatePeeledCommit = $store->peelToObjectId('refs/heads/release-candidate');
+
 $packed = PackedReferences::open($dir . '/packed-refs');
 
 $externalRefreshDir = sys_get_temp_dir() . '/port-libs-wp-packed-ref-refresh-' . bin2hex(random_bytes(4));
@@ -133,6 +137,8 @@ return [
     'releaseRef' => $release->name,
     'releaseTagObject' => $release->targetObjectId(),
     'releasePeeledCommit' => $release->objectId(),
+    'releaseCandidateTagObject' => $releaseCandidateTagObject,
+    'releaseCandidatePeeledCommit' => $releaseCandidatePeeledCommit,
     'packedNames' => $packed->names(),
     'packedProductionCommit' => $packed->find($fixture['productionRef'])->targetObjectId(),
     'packedReleaseTagObject' => $packed->find($fixture['releaseRef'])->targetObjectId(),

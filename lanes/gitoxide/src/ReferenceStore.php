@@ -578,6 +578,36 @@ final class ReferenceStore
         $this->appendPhysicalReflog($physicalName, $previous, $new, $committer, $message, $forceCreate, $algorithm);
     }
 
+    public function followToObjectId(string $name, string $algorithm = 'sha1'): string
+    {
+        $reference = $this->followReferenceToObject($this->find($name, $algorithm), $algorithm);
+        $objectId = $reference->targetObjectId();
+        if ($objectId === null) {
+            throw new \RuntimeException("Reference did not resolve to an object id: {$name}");
+        }
+
+        return $objectId;
+    }
+
+    public function peelToObjectId(string $name, ?ObjectDatabase $objectDatabase = null, string $algorithm = 'sha1'): string
+    {
+        $reference = $this->followReferenceToObject($this->find($name, $algorithm), $algorithm);
+        if ($reference->peeledObjectId !== null) {
+            return $reference->peeledObjectId;
+        }
+
+        $objectId = $reference->targetObjectId();
+        if ($objectId === null) {
+            throw new \RuntimeException("Reference did not resolve to an object id: {$name}");
+        }
+
+        if ($objectDatabase === null) {
+            return $objectId;
+        }
+
+        return $this->peelObjectId(ReferenceTarget::object($objectId, $algorithm), $algorithm, $objectDatabase);
+    }
+
     /**
      * @return list<array{0:string,1:bool}>
      */
@@ -612,6 +642,27 @@ final class ReferenceStore
         }
 
         return $candidates;
+    }
+
+    private function followReferenceToObject(ResolvedReference $reference, string $algorithm): ResolvedReference
+    {
+        $start = $reference->name;
+        $seen = [];
+        $current = $reference;
+
+        while ($current->target->isSymbolic()) {
+            $current = $this->find($current->target->value, $algorithm);
+            if (isset($seen[$current->name])) {
+                throw new \RuntimeException("Symbolic reference cycle while peeling {$start}");
+            }
+            $seen[$current->name] = true;
+
+            if (count($seen) >= 5) {
+                throw new \RuntimeException("Symbolic reference depth limit exceeded while peeling {$start}");
+            }
+        }
+
+        return $current;
     }
 
     private function storeRelativeReference(ResolvedReference $reference): ResolvedReference
@@ -1142,8 +1193,17 @@ final class ReferenceStore
             return null;
         }
 
+        $peeled = $this->peelObjectId($target, $algorithm, $objectDatabase);
+
+        return $peeled === $target->value ? null : $peeled;
+    }
+
+    private function peelObjectId(
+        ReferenceTarget $target,
+        string $algorithm,
+        ObjectDatabase $objectDatabase,
+    ): string {
         $current = $target->value;
-        $peeled = null;
         $seen = [];
         while (true) {
             if (isset($seen[$current])) {
@@ -1153,11 +1213,10 @@ final class ReferenceStore
 
             $object = $objectDatabase->read($current);
             if ($object->type !== 'tag') {
-                return $peeled;
+                return $current;
             }
 
             $tag = GitTag::parse($object->body, $algorithm);
-            $peeled = $tag->target;
             $current = $tag->target;
         }
     }

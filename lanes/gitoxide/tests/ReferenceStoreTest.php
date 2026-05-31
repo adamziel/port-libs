@@ -559,6 +559,77 @@ return [
         $t->contains("^{$commitId}\n", (string) file_get_contents($dir . '/packed-refs'));
         $t->same(false, is_file($dir . '/refs/tags/wp-release-v2026.05'));
     },
+    'reference store peel uses packed peeled ids through symbolic refs without object lookup' => static function (TestRunner $t) use ($old, $tag): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-peel-symbolic-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents(
+            $dir . '/packed-refs',
+            "# pack-refs with: peeled fully-peeled sorted \n"
+            . "{$old} refs/heads/main\n"
+            . "{$tag} refs/tags/wp-release-v2026.05\n"
+            . "^{$old}\n",
+        );
+        $store = ReferenceStore::at($dir);
+        $store->looseStore()->writeSymbolic('HEAD', 'refs/tags/wp-release-v2026.05');
+
+        $release = $store->find('refs/tags/wp-release-v2026.05');
+        $head = $store->find('HEAD');
+
+        $t->same('packed', $release->source);
+        $t->same('loose', $head->source);
+        $t->same('symbolic', $head->kind());
+        $t->same($tag, $release->targetObjectId());
+        $t->same($old, $release->objectId());
+        $t->same($tag, $store->followToObjectId('HEAD'));
+        $t->same($tag, $store->followToObjectId('refs/tags/wp-release-v2026.05'));
+        $t->same($old, $store->peelToObjectId('HEAD'));
+        $t->same($old, $store->peelToObjectId('wp-release-v2026.05'));
+    },
+    'reference store peel follows loose tag chains through object database' => static function (TestRunner $t): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-loose-tag-chain-peel-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+
+        $objects = new LooseObjectStore($dir);
+        $commitId = $objects->write(new GitObject(
+            'commit',
+            'tree ' . str_repeat('0', 40) . "\n"
+            . "author Release Bot <release@example.com> 1770000000 +0000\n"
+            . "committer Release Bot <release@example.com> 1770000000 +0000\n\n"
+            . "Publish WordPress release package\n",
+        ));
+        $innerTagId = $objects->write((new GitTag(
+            $commitId,
+            'commit',
+            'wp-release-v2026.05-inner',
+            'Release Bot <release@example.com> 1770000000 +0000',
+            "Inner release tag\n",
+        ))->object());
+        $outerTagId = $objects->write((new GitTag(
+            $innerTagId,
+            'tag',
+            'wp-release-v2026.05',
+            'Release Bot <release@example.com> 1770000000 +0000',
+            "Outer release tag\n",
+        ))->object());
+
+        $store = ReferenceStore::at($dir);
+        $store->looseStore()->writeDirect('refs/tags/wp-release-v2026.05', $outerTagId);
+
+        $t->same($outerTagId, $store->followToObjectId('wp-release-v2026.05'));
+        $t->same($outerTagId, $store->peelToObjectId('wp-release-v2026.05'));
+        $t->same($commitId, $store->peelToObjectId('wp-release-v2026.05', new ObjectDatabase($dir)));
+        $t->same($commitId, $store->peelToObjectId('refs/tags/wp-release-v2026.05', new ObjectDatabase($dir)));
+    },
+    'reference store peel detects symbolic cycles like upstream gix ref' => static function (TestRunner $t): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-peel-cycle-' . bin2hex(random_bytes(4));
+        $store = ReferenceStore::at($dir);
+        $store->looseStore()->writeSymbolic('refs/loop-a', 'refs/loop-b');
+        $store->looseStore()->writeSymbolic('refs/loop-b', 'refs/loop-a');
+
+        $t->throws(RuntimeException::class, static fn () => $store->followToObjectId('refs/loop-a'));
+        $t->throws(RuntimeException::class, static fn () => $store->peelToObjectId('refs/loop-a'));
+        $t->same('refs/loop-b', $store->find('refs/loop-a')->target->value);
+    },
     'reference store deref update reports log-only symbolic split like upstream gix ref' => static function (TestRunner $t) use ($old, $new): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-deref-update-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -1160,6 +1231,8 @@ return [
         $t->same($fixture['releaseRef'], $summary['releaseRef']);
         $t->same($summary['releaseTagObject'], $summary['packedReleaseTagObject']);
         $t->same($summary['releasePeeledCommit'], $summary['packedReleasePeeledCommit']);
+        $t->same($summary['releaseTagObject'], $summary['releaseCandidateTagObject']);
+        $t->same($summary['releasePeeledCommit'], $summary['releaseCandidatePeeledCommit']);
         $t->same($fixture['expectedPackedNames'], $summary['packedNames']);
         $t->same($fixture['newProductionCommit'], $summary['packedProductionCommit']);
         $t->same($fixture['oldProductionCommit'], $summary['externalPackedBeforeRefresh']);

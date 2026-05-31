@@ -223,6 +223,29 @@ return [
         $cycleDatabase = new ObjectDatabase($gitDir);
         $t->throws(RuntimeException::class, static fn () => $cycleDatabase->alternateObjectDirectories());
     },
+    'object database verifies loose object integrity across primary and alternate stores' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-integrity-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateObjectsDir = $root . '/shared-cache/.git/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+        if (!mkdir($alternateObjectsDir, 0777, true) && !is_dir($alternateObjectsDir)) {
+            throw new RuntimeException("Unable to create alternate objects directory: {$alternateObjectsDir}");
+        }
+
+        $primaryOid = (new LooseObjectStore($gitDir))->write(new GitObject('blob', 'Primary WordPress content object'));
+        $alternateOid = LooseObjectStore::fromObjectsDirectory($alternateObjectsDir)->write(new GitObject('blob', 'Alternate package cache object'));
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $integrity = (new ObjectDatabase($gitDir))->verifyLooseIntegrity();
+        $t->same(2, count($integrity));
+        $t->same([$objectsDir, realpath($alternateObjectsDir)], array_column($integrity, 'path'));
+        $t->same([1, 1], array_map(static fn (array $row): int => $row['statistics']['numObjects'], $integrity));
+        $t->same([$primaryOid], $integrity[0]['statistics']['verifiedObjectIds']);
+        $t->same([$alternateOid], $integrity[1]['statistics']['verifiedObjectIds']);
+    },
     'object database applies loose replacement refs and can ignore them' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-odb-' . bin2hex(random_bytes(4)) . '/.git';
         $loose = new LooseObjectStore($gitDir);
@@ -308,5 +331,9 @@ return [
         $t->same(40, strlen($summary['deploymentCommitOid']));
         $t->same(40, strlen($summary['deploymentCommitParent']));
         $t->same($summary['deploymentCommitParent'], $summary['firstPackOffsetOid']);
+        $t->same(2, $summary['looseIntegrityStores']);
+        $t->same(4, $summary['looseIntegrityObjects']);
+        $t->same(true, $summary['looseIntegrityVerifiedDeploymentCommit']);
+        $t->same(true, $summary['looseIntegrityVerifiedSharedPackage']);
     },
 ];

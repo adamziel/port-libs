@@ -18,6 +18,11 @@ final class LooseObjectStore
         return new self($objectsDirectory, true);
     }
 
+    public function objectsDirectory(): string
+    {
+        return $this->objectsDirectory;
+    }
+
     public function write(GitObject $object): string
     {
         $oid = $object->oid();
@@ -98,6 +103,34 @@ final class LooseObjectStore
         return $ids;
     }
 
+    /**
+     * @return array{numObjects:int,verifiedObjectIds:list<string>}
+     */
+    public function verifyIntegrity(): array
+    {
+        $verified = [];
+        foreach ($this->objectIds() as $oid) {
+            try {
+                $object = $this->read($oid);
+            } catch (\InvalidArgumentException|\RuntimeException $exception) {
+                throw new \RuntimeException("Loose object {$oid} could not be read exactly: {$exception->getMessage()}", 0, $exception);
+            }
+
+            $actual = $object->oid();
+            if ($actual !== $oid) {
+                throw new \RuntimeException("Loose object hash mismatch: expected {$oid}, got {$actual}");
+            }
+
+            self::decodeForIntegrity($object, $oid);
+            $verified[] = $oid;
+        }
+
+        return [
+            'numObjects' => count($verified),
+            'verifiedObjectIds' => $verified,
+        ];
+    }
+
     private function pathFor(string $oid): string
     {
         $oid = strtolower($oid);
@@ -109,6 +142,20 @@ final class LooseObjectStore
     {
         if (preg_match('/^[0-9a-fA-F]{40}$/', $oid) !== 1) {
             throw new \InvalidArgumentException('Loose object id must be a 40-character SHA-1 hex string');
+        }
+    }
+
+    private static function decodeForIntegrity(GitObject $object, string $oid): void
+    {
+        try {
+            match ($object->type) {
+                'blob' => null,
+                'tree' => Tree::parse($object->body),
+                'commit' => Commit::parse($object->body),
+                'tag' => GitTag::parse($object->body),
+            };
+        } catch (\InvalidArgumentException $exception) {
+            throw new \RuntimeException("{$object->type} object {$oid} could not be decoded: {$exception->getMessage()}", 0, $exception);
         }
     }
 }
