@@ -514,7 +514,16 @@ final class SQLiteUpdateDeleteReturningSql
         foreach (self::splitComma($sql) as $part) {
             if (preg_match('/^\(([^()]+)\)\s*=\s*\((.*)\)$/s', trim($part), $match) === 1) {
                 $columns = self::rowValueColumns($match[1]);
-                $expressions = self::splitComma($match[2]);
+                $rightHandSql = trim($match[2]);
+                if (preg_match('/^SELECT\s+(.+)$/is', $rightHandSql, $selectMatch) === 1) {
+                    $selectExpressions = trim($selectMatch[1]);
+                    if ($selectExpressions === '' || self::keywordPosition(' ' . $selectExpressions, ' FROM ') !== null) {
+                        throw new \InvalidArgumentException('SQLite UPDATE row-value assignment SELECT only supports expression lists');
+                    }
+                    $expressions = self::splitComma($selectExpressions);
+                } else {
+                    $expressions = self::splitComma($rightHandSql);
+                }
                 if (count($columns) !== count($expressions)) {
                     throw new \InvalidArgumentException('SQLite UPDATE row-value assignment arity mismatch');
                 }

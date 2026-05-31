@@ -127,7 +127,11 @@ final class SQLiteGroupedAggregate
 
         $filtered = [];
         foreach ($rows as $position => $row) {
+            $valueColumn = $aggregate['valueColumn'] ?? null;
             $value = self::rowValue($row, $column, 'JSON aggregate');
+            if (is_string($valueColumn)) {
+                $value = [$value, self::rowValue($row, $valueColumn, 'JSON aggregate')];
+            }
             if (isset($aggregate['filter']) && is_array($aggregate['filter']) && SQLiteSelectPredicate::filter([$row], $aggregate['filter']) === []) {
                 continue;
             }
@@ -169,7 +173,9 @@ final class SQLiteGroupedAggregate
             }
             $values[] = $value;
         }
-        $summary[$summaryColumn] = SQLiteJsonAggregate::jsonGroupArraySqlFunction($function, $values);
+        $summary[$summaryColumn] = str_contains($function, '_object')
+            ? SQLiteJsonAggregate::jsonGroupObjectSqlFunction($function, $values)
+            : SQLiteJsonAggregate::jsonGroupArraySqlFunction($function, $values);
     }
 
     /**

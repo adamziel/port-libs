@@ -207,4 +207,124 @@ for ($seed = 0; $seed < 32; $seed++) {
     }
 }
 
+$select1AggregateCases = [
+    'select1-2.2 count f1 rows' => [
+        'SELECT count(f1) FROM test1',
+        static fn (array $ctx): array => [$ctx['test1Count']],
+    ],
+    'select1-2.4 count wildcard rows' => [
+        'SELECT COUNT(*) FROM test1',
+        static fn (array $ctx): array => [$ctx['test1Count']],
+    ],
+    'select1-2.5 count wildcard arithmetic' => [
+        'SELECT COUNT(*)+1 FROM test1',
+        static fn (array $ctx): array => [$ctx['test1Count'] + 1],
+    ],
+    'select1-2.7 min f1 aggregate' => [
+        'SELECT Min(f1) FROM test1',
+        static fn (array $ctx): array => [$ctx['minF1']],
+    ],
+    'select1-2.8 scalar min over f1 f2 rows' => [
+        'SELECT MIN(f1,f2) FROM test1 ORDER BY 1',
+        static fn (array $ctx): array => $ctx['rowMins'],
+    ],
+    'select1-2.8.1 coalesce min nullable a' => [
+        "SELECT coalesce(min(a),'xyzzy') FROM t3",
+        static fn (array $ctx): array => [$ctx['minA']],
+    ],
+    'select1-2.8.2 min coalesced nullable a' => [
+        "SELECT min(coalesce(a,'xyzzy')) FROM t3",
+        static fn (array $ctx): array => [$ctx['minCoalescedA']],
+    ],
+    'select1-2.8.3 duplicate min text aggregate' => [
+        'SELECT min(b), min(b) FROM t4',
+        static fn (array $ctx): array => [$ctx['long'], $ctx['long']],
+    ],
+    'select1-2.10 max f1 aggregate' => [
+        'SELECT Max(f1) FROM test1',
+        static fn (array $ctx): array => [$ctx['maxF1']],
+    ],
+    'select1-2.11 scalar max over f1 f2 rows' => [
+        'SELECT max(f1,f2) FROM test1 ORDER BY 1',
+        static fn (array $ctx): array => $ctx['rowMaxes'],
+    ],
+    'select1-2.12 scalar max arithmetic rows' => [
+        'SELECT MAX(f1,f2)+1 FROM test1 ORDER BY 1',
+        static fn (array $ctx): array => array_map(static fn (int $value): int => $value + 1, $ctx['rowMaxes']),
+    ],
+    'select1-2.13 max f1 arithmetic aggregate' => [
+        'SELECT MAX(f1)+1 FROM test1',
+        static fn (array $ctx): array => [$ctx['maxF1'] + 1],
+    ],
+    'select1-2.13.1 coalesce max nullable a' => [
+        "SELECT coalesce(max(a),'xyzzy') FROM t3",
+        static fn (array $ctx): array => [$ctx['maxA']],
+    ],
+    'select1-2.13.2 max coalesced nullable a' => [
+        "SELECT max(coalesce(a,'xyzzy')) FROM t3",
+        static fn (array $ctx): array => ['xyzzy'],
+    ],
+    'select1-2.15 sum f1 aggregate' => [
+        'SELECT Sum(f1) FROM test1',
+        static fn (array $ctx): array => [$ctx['sumF1']],
+    ],
+    'select1-2.17 sum f1 arithmetic aggregate' => [
+        'SELECT SUM(f1)+1 FROM test1',
+        static fn (array $ctx): array => [$ctx['sumF1'] + 1],
+    ],
+    'select1-2.17.1 sum nullable a aggregate' => [
+        'SELECT sum(a) FROM t3',
+        static fn (array $ctx): array => [$ctx['sumA']],
+    ],
+];
+
+for ($seed = 0; $seed < 60; $seed++) {
+    $first = 11 + $seed;
+    $second = 33 + ($seed * 2);
+    $long = 'select1 aggregate long text seed ' . $seed . ' payload payload payload';
+    $test1Rows = [
+        ['f1' => $first, 'f2' => $first + 11],
+        ['f1' => $second, 'f2' => $second + 11],
+    ];
+    $t3Rows = [
+        ['a' => 'abc' . $seed, 'b' => null],
+        ['a' => null, 'b' => 'xyz' . $seed],
+        ['a' => $first, 'b' => $first + 11],
+        ['a' => $second, 'b' => $second + 11],
+    ];
+    $tables = [
+        'test1' => $test1Rows,
+        't3' => $t3Rows,
+        't4' => [['a' => null, 'b' => $long]],
+    ];
+    $rowMins = array_map(static fn (array $row): int => min((int) $row['f1'], (int) $row['f2']), $test1Rows);
+    $rowMaxes = array_map(static fn (array $row): int => max((int) $row['f1'], (int) $row['f2']), $test1Rows);
+    sort($rowMins);
+    sort($rowMaxes);
+
+    $ctx = [
+        'test1Count' => count($test1Rows),
+        't3Count' => count($t3Rows),
+        't3CountA' => 3,
+        't3CountB' => 3,
+        'minF1' => $first,
+        'maxF1' => $second,
+        'sumF1' => $first + $second,
+        'rowMins' => $rowMins,
+        'rowMaxes' => $rowMaxes,
+        'minA' => $first,
+        'maxA' => 'abc' . $seed,
+        'minCoalescedA' => $first,
+        'sumA' => $first + $second,
+        'long' => $long,
+    ];
+
+    foreach ($select1AggregateCases as $name => [$sql, $expectedFn]) {
+        $tests[sprintf('real upstream corpus select1.test yield aggregate %s seed %02d', $name, $seed)] = static function (TestRunner $t) use ($assertSelectFlat, $sql, $tables, $expectedFn, $ctx, $seed, $name): void {
+            $assertSelectFlat($t, $sql, $tables, $expectedFn($ctx));
+            $t->contains('select1-2.', $name . ' seed ' . $seed);
+        };
+    }
+}
+
 return $tests;

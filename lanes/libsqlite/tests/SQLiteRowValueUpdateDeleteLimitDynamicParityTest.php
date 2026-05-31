@@ -1770,4 +1770,59 @@ for ($seed = 1; $seed <= 48; $seed++) {
         };
 }
 
+for ($limit = 1; $limit <= 6; $limit++) {
+    for ($offset = 0; $offset <= 3; $offset++) {
+        $sql = "UPDATE app_settings SET (state, key_value, bytes) = (SELECT 'rv_select', key_value || ':rv', bytes + {$limit}) WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limit} OFFSET {$offset}) RETURNING setting_id, state, key_value, bytes ORDER BY bytes ASC LIMIT -1";
+        $windowIds = array_slice([6, 3, 5, 2, 8], $offset, $limit);
+        $selected = $windowIds;
+        $expected = array_values(array_intersect([2, 3, 5, 6, 8], $windowIds));
+
+        $tests[sprintf('rowvalue update delete limit dynamic parity update rowvalue select assignment ordered tuple limit %d offset %d', $limit, $offset)] =
+            static function (TestRunner $t) use ($execute, $sql, $selected, $expected, $limit): void {
+                $result = $execute($sql);
+                $returnedById = array_column($result['returning'], null, 'setting_id');
+                $expectedValues = [2 => 'B:rv', 3 => 'C:rv', 5 => 'E:rv', 6 => 'F:rv', 8 => 'H:rv'];
+                $actualSelected = $result['plan']->selectedIds;
+                sort($actualSelected);
+                $expectedSelected = $selected;
+                sort($expectedSelected);
+                $t->same($expectedSelected, $actualSelected);
+                $t->same($expected, array_values(array_intersect([2, 3, 5, 6, 8], array_column($result['returning'], 'setting_id'))));
+                $t->same(array_fill(0, count($expected), 'rv_select'), array_column($result['returning'], 'state'));
+                foreach ($expected as $settingId) {
+                    $t->same($expectedValues[$settingId], $returnedById[$settingId]['key_value']);
+                }
+                $t->contains("LIMIT {$limit}", $sql);
+            };
+    }
+}
+
+for ($limit = 1; $limit <= 6; $limit++) {
+    for ($offset = 0; $offset <= 3; $offset++) {
+        $sql = "UPDATE app_settings SET (state, key_value) = (SELECT 'rv_desc', key_value || ':desc') WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT {$offset}, {$limit}) RETURNING setting_id, tenant_id, key_name, state, key_value ORDER BY setting_id LIMIT -1";
+        $windowIds = array_slice([8, 2, 5, 3, 6], $offset, $limit);
+        $expected = array_values(array_intersect([2, 3, 5, 6, 8], $windowIds));
+
+        $tests[sprintf('rowvalue update delete limit dynamic parity update rowvalue select assignment descending comma limit %d offset %d', $limit, $offset)] =
+            static function (TestRunner $t) use ($execute, $sql, $expected, $limit, $offset): void {
+                $result = $execute($sql);
+                $t->same($expected, $result['plan']->selectedIds);
+                $t->same($expected, array_column($result['returning'], 'setting_id'));
+                $t->same(array_fill(0, count($expected), 'rv_desc'), array_column($result['returning'], 'state'));
+                $t->contains("LIMIT {$offset}, {$limit}", $sql);
+            };
+    }
+}
+
+$rowValueSelectAssignmentMalformed = [
+    'rowvalue select assignment arity mismatch rejected' => "UPDATE app_settings SET (state, key_value) = (SELECT 'only-one') WHERE setting_id = 1 RETURNING setting_id",
+    'rowvalue select assignment from table rejected' => "UPDATE app_settings SET (state, key_value) = (SELECT state, key_value FROM app_setting_targets) WHERE setting_id = 1 RETURNING setting_id",
+];
+
+foreach ($rowValueSelectAssignmentMalformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
+    };
+}
+
 return $tests;

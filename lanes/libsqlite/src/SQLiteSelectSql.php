@@ -5388,6 +5388,29 @@ final class SQLiteSelectSql
             ];
         }
 
+        if ($name === 'json_group_object' || $name === 'jsonb_group_object') {
+            if (
+                count($arguments) !== 2
+                || (($arguments[0]['type'] ?? null) !== 'column')
+                || (($arguments[1]['type'] ?? null) !== 'column')
+                || !isset($arguments[0]['name'], $arguments[1]['name'])
+                || !is_string($arguments[0]['name'])
+                || !is_string($arguments[1]['name'])
+            ) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} needs key and value column arguments");
+            }
+            foreach (self::jsonAggregateOrderTerms($term, $name) as $orderTerm) {
+                if (!in_array($orderTerm['direction'], ['ASC', 'DESC'], true)) {
+                    throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} ORDER BY direction must be ASC or DESC");
+                }
+            }
+
+            return [
+                'summaryColumn' => self::jsonAggregateSummaryColumn($term),
+                'valueColumn' => null,
+            ];
+        }
+
         $distinct = ($term['distinct'] ?? false) === true;
         if ($distinct && $name !== 'count') {
             throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name}(DISTINCT ...) is not supported");
@@ -5504,7 +5527,15 @@ final class SQLiteSelectSql
                 continue;
             }
             $aggregate = self::aggregateSummaryColumn($term, null);
-            if ($aggregate === null || (!str_starts_with($aggregate['summaryColumn'], 'jsonGroupArray') && !str_starts_with($aggregate['summaryColumn'], 'jsonbGroupArray'))) {
+            if (
+                $aggregate === null
+                || (
+                    !str_starts_with($aggregate['summaryColumn'], 'jsonGroupArray')
+                    && !str_starts_with($aggregate['summaryColumn'], 'jsonbGroupArray')
+                    && !str_starts_with($aggregate['summaryColumn'], 'jsonGroupObject')
+                    && !str_starts_with($aggregate['summaryColumn'], 'jsonbGroupObject')
+                )
+            ) {
                 foreach (['left', 'right', 'operand'] as $side) {
                     if (isset($term[$side]) && is_array($term[$side])) {
                         array_push($specs, ...self::jsonAggregateSpecs([], [$term[$side]]));
@@ -5518,6 +5549,9 @@ final class SQLiteSelectSql
                 'function' => strtolower($term['name']),
                 'column' => $arguments[0]['name'],
             ];
+            if (isset($arguments[1]['name']) && is_string($arguments[1]['name'])) {
+                $spec['valueColumn'] = $arguments[1]['name'];
+            }
             if (isset($term['orderBy'])) {
                 if (($term['orderBy']['type'] ?? null) === 'column' && isset($term['orderBy']['name']) && is_string($term['orderBy']['name'])) {
                     $spec['orderBy'] = $term['orderBy']['name'];
@@ -5590,7 +5624,16 @@ final class SQLiteSelectSql
     {
         $arguments = $term['arguments'];
         $column = str_replace(['.', '-'], '_', $arguments[0]['name']);
-        $name = strtolower($term['name']) === 'jsonb_group_array' ? 'jsonbGroupArray' : 'jsonGroupArray';
+        $functionName = strtolower($term['name']);
+        if (($functionName === 'json_group_object' || $functionName === 'jsonb_group_object') && isset($arguments[1]['name']) && is_string($arguments[1]['name'])) {
+            $column .= '_' . str_replace(['.', '-'], '_', $arguments[1]['name']);
+        }
+        $name = match ($functionName) {
+            'jsonb_group_array' => 'jsonbGroupArray',
+            'json_group_object' => 'jsonGroupObject',
+            'jsonb_group_object' => 'jsonbGroupObject',
+            default => 'jsonGroupArray',
+        };
         if (($term['distinct'] ?? false) === true) {
             $name .= 'Distinct';
         }

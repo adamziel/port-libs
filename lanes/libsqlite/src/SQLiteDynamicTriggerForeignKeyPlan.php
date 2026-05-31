@@ -5701,6 +5701,59 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @return array<string,mixed>
+     */
+    public static function triggerRecursiveUpdateDepthLimit(int $initialA, int $initialB, int $outerUpdates, int $depthLimit): array
+    {
+        if ($outerUpdates < 1) {
+            throw new \InvalidArgumentException('SQLite triggerC recursive update requires at least one outer update');
+        }
+        if ($depthLimit < 1) {
+            throw new \InvalidArgumentException('SQLite triggerC recursive update depth limit must be positive');
+        }
+
+        $a = $initialA;
+        $b = $initialB;
+        for ($i = 0; $i < $outerUpdates; ++$i) {
+            ++$a;
+            ++$b;
+        }
+
+        $frames = [];
+        for ($depth = 1; $depth <= $depthLimit; ++$depth) {
+            ++$a;
+            ++$b;
+            $frames[] = [
+                'depth' => $depth,
+                'new_a' => $a,
+                'new_b' => $b,
+            ];
+        }
+
+        return [
+            'source' => 'triggerC.test triggerC-13.1..13.2',
+            'operation' => 'after-update-self-recursion-depth-limit',
+            'status' => 'constraint-failed',
+            'error' => 'too many levels of trigger recursion',
+            'initial_row' => ['a' => $initialA, 'b' => $initialB],
+            'outer_update_count' => $outerUpdates,
+            'depth_limit' => $depthLimit,
+            'recursive_frame_count' => count($frames),
+            'first_recursive_frame' => $frames[0],
+            'last_recursive_frame' => $frames[count($frames) - 1],
+            'attempted_final_row' => ['a' => $a, 'b' => $b],
+            'rolled_back_row' => ['a' => $initialA, 'b' => $initialB],
+            'statement_rolled_back' => true,
+            'recursive_triggers' => true,
+            'dependencies' => [
+                'sqlite-triggerC-recursive-after-update-fires-self-update',
+                'sqlite-triggerC-recursion-depth-limit-raises-error',
+                'sqlite-triggerC-recursive-update-statement-rolls-back',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:int,c:int}> $sourceRows
      * @param list<int> $emptyValues
      * @param list<int> $nonEmptyValues

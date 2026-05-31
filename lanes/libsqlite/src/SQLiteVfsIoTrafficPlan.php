@@ -907,6 +907,84 @@ final class SQLiteVfsIoTrafficPlan
     }
 
     /**
+     * @return array{script:string,scenario:string,blob_rowid:int,reopen_rowid:int|null,read_bytes:int,fault_index:int,fault_operation:string,opened_blob:bool,reopen_attempted:bool,reopen_result:string,read_attempted:bool,read_result:string,result_payload:string|null,handle_must_close:bool,connection_error:string,integrity_check:string,open_file_count:int,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function incrementalBlobFaultProfile(
+        string $scenario,
+        int $faultIndex,
+        int $blobRowid = 1,
+        ?int $reopenRowid = null,
+        int $readBytes = 11,
+        string $faultOperation = 'xRead'
+    ): array {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite incremental BLOB fault scenario requires a name');
+        }
+        if ($faultIndex < 1) {
+            throw new \InvalidArgumentException('SQLite incremental BLOB fault profile requires a positive fault index');
+        }
+        if ($blobRowid < 1 || $readBytes < 1) {
+            throw new \InvalidArgumentException('SQLite incremental BLOB fault rowid and read length must be positive');
+        }
+
+        $operation = trim($faultOperation);
+        if (!in_array($operation, ['xRead', 'xWrite', 'xSync', 'xTruncate'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite incremental BLOB fault operation: {$faultOperation}");
+        }
+
+        $canonical = self::incrementalBlobFaultScenario($scenario);
+        $detected = $faultIndex % 31 !== 0;
+        $reopenAttempted = $canonical === 'incrblobfault-1' || $canonical === 'incrblobfault-2';
+        $targetRowid = $reopenRowid ?? ($canonical === 'incrblobfault-2' ? -1 : 1000);
+        $missingRowid = $targetRowid < 1 || $targetRowid > 1024;
+        $readAttempted = $canonical === 'incrblobfault-3';
+
+        $reopenResult = 'not_attempted';
+        if ($reopenAttempted) {
+            if ($detected && $operation === 'xRead') {
+                $reopenResult = 'disk I/O error';
+            } elseif ($missingRowid) {
+                $reopenResult = "no such rowid: {$targetRowid}";
+            } else {
+                $reopenResult = 'ok';
+            }
+        }
+
+        $readResult = 'not_attempted';
+        $payload = null;
+        if ($readAttempted) {
+            $readResult = ($detected && $operation === 'xRead') ? 'disk I/O error' : 'ok';
+            $payload = $readResult === 'ok' ? substr('hello world', 0, $readBytes) : null;
+        }
+
+        return [
+            'script' => 'incrblobfault.test',
+            'scenario' => $scenario,
+            'blob_rowid' => $blobRowid,
+            'reopen_rowid' => $reopenAttempted ? $targetRowid : null,
+            'read_bytes' => $readBytes,
+            'fault_index' => $faultIndex,
+            'fault_operation' => $operation,
+            'opened_blob' => true,
+            'reopen_attempted' => $reopenAttempted,
+            'reopen_result' => $reopenResult,
+            'read_attempted' => $readAttempted,
+            'read_result' => $readResult,
+            'result_payload' => $payload,
+            'handle_must_close' => true,
+            'connection_error' => ($reopenResult === 'disk I/O error' || $readResult === 'disk I/O error') ? 'disk I/O error' : 'not an error',
+            'integrity_check' => 'ok',
+            'open_file_count' => 0,
+            'dependencies' => [
+                'sqlite-upstream-incrblobfault-test',
+                'sqlite-incremental-blob-reopen',
+                'sqlite-vfs-dynamic-fault-recovery',
+            ],
+            'upstream' => self::incrementalBlobFaultUpstream($canonical),
+        ];
+    }
+
+    /**
      * @param list<string> $flags
      * @return list<string>
      */
@@ -1041,6 +1119,30 @@ final class SQLiteVfsIoTrafficPlan
         }
 
         throw new \InvalidArgumentException("Unsupported SQLite sysfault scenario: {$scenario}");
+    }
+
+    private static function incrementalBlobFaultScenario(string $scenario): string
+    {
+        foreach (['incrblobfault-1', 'incrblobfault-2', 'incrblobfault-3'] as $candidate) {
+            if (str_starts_with($scenario, $candidate)) {
+                return $candidate;
+            }
+        }
+
+        throw new \InvalidArgumentException("Unsupported SQLite incremental BLOB fault scenario: {$scenario}");
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function incrementalBlobFaultUpstream(string $scenario): array
+    {
+        return match ($scenario) {
+            'incrblobfault-1' => ['incrblobfault.test 1 sqlite3_blob_reopen high rowid faultsim returns ok or connection error'],
+            'incrblobfault-2' => ['incrblobfault.test 2 sqlite3_blob_reopen negative rowid returns no such rowid or disk I/O error'],
+            'incrblobfault-3' => ['incrblobfault.test 3 incremental blob open/read returns hello world under faultsim'],
+            default => throw new \InvalidArgumentException("Unsupported SQLite incremental BLOB fault scenario: {$scenario}"),
+        };
     }
 
     /**
