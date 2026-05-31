@@ -52,6 +52,19 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (Gitoxide integration 15:55 UTC): source
+  commit `936d2538f83c4656157d51ad8743d62a1affe84a` (`ports: add gitoxide
+  pack refs promisor parity`) landed three verified Gitoxide handoffs after
+  excluding stale shared metadata. Gitoxide full lane evidence moves from
+  `4872` to `4936 pass / 0 fail`, with mapped coverage moving from `1593 /
+  2886` to `1596 / 2886`: SHA-256-aware pack-index prefix/disambiguation,
+  prepared reference transaction no-op lock/reflog semantics, and external
+  promisor hydration refresh for `contains()`/prefix lookup. Gates passed: PHP
+  lint on `14` changed/new PHP files, `git diff --check -- lanes/gitoxide`,
+  focused Gitoxide gate `5 files / 752 assertions / 0 failures`, full Gitoxide
+  `39 files / 4936 assertions / 0 failures`, and three touched examples. Full
+  upstream Cargo workspace tests were not run for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS integration 15:50 UTC):
   source commit `70cf7efb5226c51c4830294e62c0be48581af11b` (`ports: add
   lightningcss modules cssom bundle parity`) landed five verified
