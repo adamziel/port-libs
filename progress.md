@@ -48,6 +48,32 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 00:25 UTC):
+  Latest libsqlite source is integrated as `1b788002e`
+  (`libsqlite: add thirty-third current corpus sweep`). The batch accepted 11
+  behavior-producing handoffs: B-tree index continuation behavior, date4
+  affinity continuation behavior, expression signed-literal affinity, pager
+  WAL MVCC and checksum behavior, PRAGMA schema corrupt-view behavior, SELECT2
+  join semantics, UPSERT/RETURNING trigger old-value behavior, VFS
+  io.test/journal2 dynamic behavior, and window-function pushdown/boolean-view
+  behavior. The VFS slice was supervisor-corrected against upstream `io-3.*`
+  so sequential rollback-journal traffic commits with one database-file sync
+  instead of retaining directory/journal syncs. Verification passed PHP lint
+  for `17` changed/new PHP files, `git diff --check -- lanes/libsqlite`,
+  focused selected tests `12 files / 463273 assertions / 0 failures / 33072
+  PASS lines`, accepted-base overlap `2 files / 378789 assertions / 0 failures
+  / 20080 PASS lines`, VFS related tests `19 files / 437029 assertions / 0
+  failures / 18030 PASS lines`, B-tree related tests `25 files / 816339
+  assertions / 0 failures / 52410 PASS lines`, mixed expression/select/upsert/
+  date/pragma/domain tests `6 files / 37753 assertions / 0 failures / 7736
+  PASS lines`, and no-domain-specific API guard `1 file / 3 assertions / 0
+  failures`. Honest selected movement is `+12992`, so the public row should
+  move to `1344000 pass / 0 fail` with coverage still `1589 / 1589`. App-WAL
+  remains parked unless independently proved; row-value conflict handoffs and
+  blocked-note-only handoffs remain parked for rebase/rework rather than
+  counted; libsqlite remains active until full functional/release/all-runner
+  gates are done before moving the team to gitoxide.
+
 - 2026-05-31 supervisor continuation (integration sample 00:22 UTC):
   Latest libsqlite source is integrated as `3fc7e9752`
   (`libsqlite: add thirty-second current corpus sweep`). The batch accepted 14
