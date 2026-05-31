@@ -585,6 +585,45 @@ return [
         $t->same($old, $store->peelToObjectId('HEAD'));
         $t->same($old, $store->peelToObjectId('wp-release-v2026.05'));
     },
+    'reference store prefixed peeled iteration uses packed peeled ids like upstream gix' => static function (TestRunner $t) use ($old, $new, $tag): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-prefixed-peel-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents(
+            $dir . '/packed-refs',
+            "# pack-refs with: peeled fully-peeled sorted \n"
+            . "{$old} refs/heads/main\n"
+            . "{$tag} refs/heads/release-from-packed\n"
+            . "^{$old}\n"
+            . "{$new} refs/remotes/origin/main\n",
+        );
+        $store = ReferenceStore::at($dir);
+        $store->looseStore()->writeSymbolic('refs/heads/release-candidate', 'refs/heads/release-from-packed');
+        $store->looseStore()->writeSymbolic('refs/heads/remote-candidate', 'refs/remotes/origin/main');
+
+        $peeled = $store->prefixedPeeled('refs/heads/');
+        $tuples = array_map(
+            static fn ($reference): array => [
+                $reference->name,
+                $reference->targetObjectId(),
+                $reference->objectId(),
+                $reference->source,
+            ],
+            $peeled,
+        );
+
+        $t->same(
+            [
+                ['refs/heads/main', $old, $old, 'packed'],
+                ['refs/heads/release-from-packed', $old, $old, 'packed'],
+                ['refs/heads/release-from-packed', $old, $old, 'packed'],
+                ['refs/remotes/origin/main', $new, $new, 'packed'],
+            ],
+            $tuples,
+        );
+        $t->same(['refs/heads/main', 'refs/heads/release-candidate', 'refs/heads/release-from-packed', 'refs/heads/remote-candidate'], array_map(static fn ($reference): string => $reference->name, $store->prefixed('refs/heads/')));
+        $t->same($old, $store->peelToObjectId('refs/heads/release-candidate'));
+        $t->same($new, $store->peelToObjectId('refs/heads/remote-candidate'));
+    },
     'reference store peel follows loose tag chains through object database' => static function (TestRunner $t): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-loose-tag-chain-peel-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);

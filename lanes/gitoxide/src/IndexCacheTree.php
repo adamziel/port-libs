@@ -119,6 +119,26 @@ final class IndexCacheTree
         $this->verifyEntryCountsRecursive($numIndexEntries);
     }
 
+    /**
+     * Verify that this cache tree describes the exact tree used to build a checkout index.
+     *
+     * @param callable(string): GitObject $readObject
+     */
+    public function verifyCheckoutTree(Tree $tree, callable $readObject): void
+    {
+        if ($this->name !== '') {
+            throw new \RuntimeException("TREE root name must be empty, got {$this->name}");
+        }
+
+        $expectedRoot = $tree->toObject()->oid();
+        if ($this->oid !== $expectedRoot) {
+            $actual = $this->oid ?? 'invalid';
+            throw new \RuntimeException("TREE root object id {$actual} does not match checkout tree {$expectedRoot}");
+        }
+
+        $this->verifyObjectBackedNode($tree, $readObject, $expectedRoot);
+    }
+
     public function childNamed(string $name): ?self
     {
         foreach ($this->children as $child) {
@@ -250,6 +270,70 @@ final class IndexCacheTree
         foreach ($this->children as $child) {
             $child->verifyEntryCountsRecursive($numIndexEntries);
         }
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     */
+    private function verifyObjectBackedNode(Tree $tree, callable $readObject, string $parentOid): int
+    {
+        if ($this->numEntries === null || $this->oid === null) {
+            throw new \RuntimeException("TREE entry '{$this->name}' is invalid and cannot be verified against checkout tree objects");
+        }
+
+        $reachableFromChildren = 0;
+        $previous = null;
+        foreach ($this->children as $child) {
+            $reachableFromChildren += $child->numEntries ?? 0;
+            if ($previous !== null && strcmp($previous->name, $child->name) >= 0) {
+                throw new \RuntimeException("Parent tree '{$parentOid}' contained out-of-order cache tree children prev = '{$previous->name}' and next = '{$child->name}'");
+            }
+            $previous = $child;
+        }
+        if ($reachableFromChildren > $this->numEntries) {
+            throw new \RuntimeException("Expected not more than {$this->numEntries} entries to be reachable from TREE entry '{$this->name}', but actual count was {$reachableFromChildren}");
+        }
+
+        $treeChildren = [];
+        foreach ($tree->entries as $entry) {
+            if ($entry->isTree()) {
+                $treeChildren[self::treeChildKey($entry->filename)] = $entry;
+            }
+        }
+
+        foreach ($treeChildren as $entry) {
+            if ($this->childNamed($entry->filename) === null) {
+                throw new \RuntimeException("The tree entry {$entry->oid} at path '{$entry->filename}' in parent tree {$parentOid} was not found in cache tree children");
+            }
+        }
+        if (count($treeChildren) !== count($this->children)) {
+            throw new \RuntimeException("The tree with id {$parentOid} should have " . count($treeChildren) . ' children, but its cached representation had ' . count($this->children) . ' of them');
+        }
+
+        foreach ($this->children as $child) {
+            $treeEntry = $treeChildren[self::treeChildKey($child->name)];
+            if ($child->oid !== $treeEntry->oid) {
+                $actual = $child->oid ?? 'invalid';
+                throw new \RuntimeException("TREE child '{$child->name}' object id {$actual} does not match checkout tree entry {$treeEntry->oid}");
+            }
+
+            $object = $readObject($treeEntry->oid);
+            if (!$object instanceof GitObject) {
+                throw new \RuntimeException('Object reader must return GitObject instances');
+            }
+            if ($object->type !== 'tree') {
+                throw new \RuntimeException("Expected tree object for {$treeEntry->oid}, got {$object->type}");
+            }
+
+            $child->verifyObjectBackedNode(Tree::fromObject($object), $readObject, $treeEntry->oid);
+        }
+
+        return $reachableFromChildren;
+    }
+
+    private static function treeChildKey(string $name): string
+    {
+        return "\0" . $name;
     }
 
     private static function readUInt32At(string $bytes, int $offset): int

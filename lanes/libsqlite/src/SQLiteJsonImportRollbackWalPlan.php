@@ -1999,6 +1999,86 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicRollbackDisabledFollowupScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL rollback-disabled followup dynamic parity requires at least one scenario');
+        }
+
+        $baseScenarios = self::dynamicRollbackDisabledMaterializedWalScenarios($scenarioCount);
+        $scenarios = [];
+        foreach ($baseScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $tenantId = (int) $base['tenant_id'];
+            $pageSize = (int) $base['page_size'];
+            $partialPlan = $base['plan'];
+            $partialFrameCount = (int) $partialPlan['wal_frame_count_after'];
+            $catalogPage = (int) $base['expected_applied_pages'][1];
+            $followupPage = 1520 + $seed;
+            $jsonbMode = (bool) $base['jsonb_mode'];
+            $committedPrefixPages = array_merge(
+                $base['pre_savepoint_wal_pages'],
+                $base['expected_applied_pages']
+            );
+
+            $followupRows = $partialPlan['import_plan']['final_rows'];
+            $followupMutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_followup_catalog_append_' . $seed,
+                    'key_name' => 'disabled_rollback_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.followup',
+                    'value' => 'after-partial-' . $seed,
+                    'wal_frame_index' => $partialFrameCount + 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_followup_insert_summary_' . $seed,
+                    'key_name' => 'disabled_rollback_followup_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.complete',
+                    'value' => true,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $seed * 10000 + 4,
+                    'insert_load_policy' => 'auto',
+                    'initial_value' => '{}',
+                    'page_number' => $followupPage,
+                    'wal_frame_index' => $partialFrameCount + 2,
+                ],
+            ];
+
+            $followupPlan = self::plan($followupRows, $followupMutations, [
+                'database_bytes' => (string) $partialPlan['database_bytes_after_import'],
+                'page_size' => $pageSize,
+                'wal_bytes' => (string) $partialPlan['wal_bytes_after'],
+                'transaction' => 'application_disabled_followup_json_import_' . $seed,
+                'savepoint' => 'disabled_followup_json_batch_' . $seed,
+                'pre_savepoint_wal_pages' => $committedPrefixPages,
+                'materialize_success_wal_frames' => true,
+            ]);
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $tenantId,
+                'page_size' => $pageSize,
+                'jsonb_mode' => $jsonbMode,
+                'preexisting_frames' => $base['preexisting_frames'],
+                'partial_frame_count' => $partialFrameCount,
+                'committed_prefix_pages' => $committedPrefixPages,
+                'expected_followup_pages' => [$catalogPage, $followupPage],
+                'expected_inserted_key' => 'disabled_rollback_followup_payload_' . $seed,
+                'partial_plan' => $partialPlan,
+                'followup_plan' => $followupPlan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
      * @param array<string,mixed> $importPlan
      */
     private static function assertRollbackFramesExist(array $importPlan, int $walFrameCount): void

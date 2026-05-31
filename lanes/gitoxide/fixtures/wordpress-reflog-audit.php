@@ -8,6 +8,7 @@ $rolledBack = '28ce6a8b26aa170e1de65536fe8abe1832bd3242';
 
 return [
     'siteRef' => 'refs/heads/sites/main',
+    'corruptSiteRef' => 'refs/heads/sites/corrupt',
     'previousCommit' => $previous,
     'publishedCommit' => $published,
     'rolledBackCommit' => $rolledBack,
@@ -28,5 +29,6 @@ return [
         $rolledBack,
         $published,
     ],
+    'corruptLine' => 'not-a-valid-reflog-entry',
     'wordpressUse' => 'A WordPress deployment tool can append and parse native reflog audit entries for a site content branch, then show the newest deployment or rollback first without invoking git reflog.',
 ];

@@ -78,6 +78,14 @@ final class ReflogEntry
     }
 
     /**
+     * @return list<array{ok: bool, line: int, fromEnd: bool, raw: string, entry?: self, error?: string}>
+     */
+    public static function iterateForward(string $bytes, string $algorithm = 'any'): array
+    {
+        return self::iterateLines(self::splitLines($bytes), false, $algorithm);
+    }
+
+    /**
      * @return list<self>
      */
     public static function parseReverse(string $bytes, string $algorithm = 'any'): array
@@ -100,6 +108,20 @@ final class ReflogEntry
         }
 
         return $entries;
+    }
+
+    /**
+     * @return list<array{ok: bool, line: int, fromEnd: bool, raw: string, entry?: self, error?: string}>
+     */
+    public static function iterateReverse(string $bytes, string $algorithm = 'any'): array
+    {
+        $lines = self::splitLines($bytes);
+        $reversed = [];
+        for ($index = count($lines) - 1; $index >= 0; $index--) {
+            $reversed[] = $lines[$index];
+        }
+
+        return self::iterateLines($reversed, true, $algorithm);
     }
 
     public static function appendLine(
@@ -177,6 +199,38 @@ final class ReflogEntry
         }
 
         throw new \InvalidArgumentException('Reflog object ids must be SHA-1 or SHA-256 hex ids');
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<array{ok: bool, line: int, fromEnd: bool, raw: string, entry?: self, error?: string}>
+     */
+    private static function iterateLines(array $lines, bool $fromEnd, string $algorithm): array
+    {
+        $results = [];
+        foreach ($lines as $index => $line) {
+            $lineNumber = $index + 1;
+            try {
+                $results[] = [
+                    'ok' => true,
+                    'line' => $lineNumber,
+                    'fromEnd' => $fromEnd,
+                    'raw' => $line,
+                    'entry' => self::parse($line, $algorithm),
+                ];
+            } catch (\InvalidArgumentException $exception) {
+                $suffix = $fromEnd ? ' from the end' : '';
+                $results[] = [
+                    'ok' => false,
+                    'line' => $lineNumber,
+                    'fromEnd' => $fromEnd,
+                    'raw' => $line,
+                    'error' => "In line {$lineNumber}{$suffix}: {$exception->getMessage()}",
+                ];
+            }
+        }
+
+        return $results;
     }
 
     /**

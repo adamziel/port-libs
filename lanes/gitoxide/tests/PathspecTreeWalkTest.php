@@ -154,6 +154,64 @@ return [
         $t->same(true, $leading->directoryMatchesPrefix('d/d/generated', true));
         $t->same(false, $leading->directoryMatchesPrefix('d/d/generatedfoo', true));
     },
+    'keeps caller prefixes case sensitive under icase pathspecs' => static function (TestRunner $t): void {
+        $noCallerPrefix = PathspecSearch::fromSpecs(['foo/bar', 'foo']);
+        $t->same('foo', $noCallerPrefix->commonPrefix());
+        $t->same('', $noCallerPrefix->prefixDirectory());
+
+        $search = PathspecSearch::fromSpecs([':(icase)bar'], 'FOO');
+
+        $t->same('FOO', $search->commonPrefix());
+        $t->same('FOO', $search->prefixDirectory());
+        $t->same('FOO', $search->longestCommonDirectory());
+        $t->same(true, $search->isIncluded('FOO/BAR', false));
+        $t->same(true, $search->isIncluded('FOO/bAr', false));
+        $t->same(false, $search->isIncluded('foo/BAR', false));
+        $t->same(false, $search->canMatch('foo', true));
+        $t->same(true, $search->canMatch('FOO', true));
+        $t->same(false, $search->canMatch('FOO/ba', true));
+        $t->same(true, $search->canMatch('FOO/bar', true));
+        $t->same(false, $search->directoryMatchesPrefix('foo', true));
+        $t->same(true, $search->directoryMatchesPrefix('FOO', true));
+
+        $escaped = PathspecSearch::fromSpecs([':(icase)../bar'], 'fOo');
+        $t->same('', $escaped->commonPrefix());
+        $t->same('', $escaped->prefixDirectory());
+        $t->same(true, $escaped->isIncluded('BAR', false));
+        $t->same(false, $escaped->isIncluded('fOo/BAR', false));
+    },
+    'tree walk respects case-sensitive normalized prefixes' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $root = new Tree([
+            $tree('WP-CONTENT', new Tree([
+                $tree('plugins', new Tree([$blob('Plugin.PHP')])),
+            ])),
+            $tree('wp-content', new Tree([
+                $tree('plugins', new Tree([$blob('plugin.php')])),
+            ])),
+        ]);
+        $readPaths = [];
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            PathspecSearch::fromSpecs([':(icase)plugins/*.php'], 'WP-CONTENT'),
+            static function (TreeEntry $entry, string $path) use (&$objects, &$readPaths): GitObject {
+                $readPaths[] = $path;
+
+                return $objects[$entry->oid];
+            },
+            includeTrees: false,
+        );
+
+        $t->same(['WP-CONTENT/plugins/Plugin.PHP'], $walkPaths($records));
+        $t->same(['WP-CONTENT', 'WP-CONTENT/plugins'], $readPaths);
+    },
     'walks trees breadth first with pathspec matches and subtree pruning' => static function (TestRunner $t) use ($makeTreeStore, $walkPaths): void {
         [$root, $read] = $makeTreeStore();
         $readPaths = [];
@@ -229,6 +287,9 @@ return [
             includeTrees: false,
         );
 
+        $search = PathspecSearch::fromSpecs([], 'wp-content/themes');
+        $t->same('wp-content/themes', $search->prefixDirectory());
+        $t->same('wp-content/themes', $search->longestCommonDirectory());
         $t->same([
             'wp-content/themes/acme/theme.json',
             'wp-content/themes/acme/style.css',

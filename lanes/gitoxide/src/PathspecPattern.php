@@ -19,12 +19,16 @@ final class PathspecPattern
         public readonly string $searchMode = self::SEARCH_SHELL_GLOB,
         public readonly bool $nil = false,
         public readonly int $sequenceNumber = 0,
+        public readonly int $prefixLength = 0,
     ) {
         if (!in_array($searchMode, [self::SEARCH_SHELL_GLOB, self::SEARCH_PATH_AWARE_GLOB, self::SEARCH_LITERAL], true)) {
             throw new \InvalidArgumentException("Unsupported pathspec search mode: {$searchMode}");
         }
         if (str_contains($path, "\0")) {
             throw new \InvalidArgumentException('Pathspec path cannot contain NUL bytes');
+        }
+        if ($prefixLength < 0 || $prefixLength > strlen($path)) {
+            throw new \InvalidArgumentException('Pathspec prefix length is outside the path bounds');
         }
     }
 
@@ -130,7 +134,7 @@ final class PathspecPattern
         );
     }
 
-    public function withPath(string $path): self
+    public function withPath(string $path, ?int $prefixLength = null): self
     {
         return new self(
             $path,
@@ -141,6 +145,7 @@ final class PathspecPattern
             searchMode: $this->searchMode,
             nil: $this->nil,
             sequenceNumber: $this->sequenceNumber,
+            prefixLength: $prefixLength ?? $this->prefixLength,
         );
     }
 
@@ -165,11 +170,7 @@ final class PathspecPattern
 
     public function prefixDirectory(): string
     {
-        $length = $this->firstWildcardPosition() ?? strlen($this->path);
-        $prefix = substr($this->path, 0, $length);
-        $slash = strrpos($prefix, '/');
-
-        return $slash === false ? '' : substr($prefix, 0, $slash);
+        return $this->prefixLength === 0 ? '' : substr($this->path, 0, $this->prefixLength);
     }
 
     /**

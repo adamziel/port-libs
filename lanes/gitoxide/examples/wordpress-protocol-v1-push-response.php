@@ -16,6 +16,12 @@ try {
 } catch (InvalidArgumentException $error) {
     $oversizedReportStatusRejected = str_contains($error->getMessage(), 'packet line exceeds maximum length');
 }
+$fatalSidebandRejected = false;
+try {
+    PushResponse::fromSidebandPacketLines($fixture['fatalSidebandResponse']);
+} catch (RuntimeException $error) {
+    $fatalSidebandRejected = str_contains($error->getMessage(), 'sideband error pre-receive hook declined deployment');
+}
 
 return [
     'unpackOk' => $response->unpackOk(),
@@ -42,4 +48,5 @@ return [
     'progressMessages' => $response->progressMessages(),
     'errorMessages' => $response->errorMessages(),
     'oversizedReportStatusRejected' => $oversizedReportStatusRejected,
+    'fatalSidebandRejected' => $fatalSidebandRejected,
 ];

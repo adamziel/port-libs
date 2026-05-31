@@ -23,6 +23,7 @@ $successfulMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicSu
 $fullRunMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFullRunMaterializedWalScenarios(18);
 $committedPrefixFailureScenarios = SQLiteJsonImportRollbackWalPlan::dynamicCommittedPrefixFailureScenarios(18);
 $rollbackDisabledMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledMaterializedWalScenarios(18);
+$rollbackDisabledFollowupScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupScenarios(18);
 
 $tests = [
     'sqlite application wal rollback json dynamic parity exposes requested scenario count' => static function (TestRunner $t) use ($scenarios): void {
@@ -268,6 +269,24 @@ $tests = [
         sort($jsonModes);
         $t->same([false, true], $jsonModes);
     },
+    'sqlite application wal rollback json dynamic parity rollback-disabled followup exposes requested scenario count' => static function (TestRunner $t) use ($rollbackDisabledFollowupScenarios): void {
+        $t->same(18, count($rollbackDisabledFollowupScenarios));
+    },
+    'sqlite application wal rollback json dynamic parity rollback-disabled followup covers prefix frame counts' => static function (TestRunner $t) use ($rollbackDisabledFollowupScenarios): void {
+        $prefixCounts = array_values(array_unique(array_column($rollbackDisabledFollowupScenarios, 'partial_frame_count')));
+        sort($prefixCounts);
+        $t->same([3, 4, 5, 6], $prefixCounts);
+    },
+    'sqlite application wal rollback json dynamic parity rollback-disabled followup covers both page sizes' => static function (TestRunner $t) use ($rollbackDisabledFollowupScenarios): void {
+        $pageSizes = array_values(array_unique(array_column($rollbackDisabledFollowupScenarios, 'page_size')));
+        sort($pageSizes);
+        $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json dynamic parity rollback-disabled followup covers json text and jsonb rows' => static function (TestRunner $t) use ($rollbackDisabledFollowupScenarios): void {
+        $jsonModes = array_values(array_unique(array_column($rollbackDisabledFollowupScenarios, 'jsonb_mode')));
+        sort($jsonModes);
+        $t->same([false, true], $jsonModes);
+    },
 ];
 
 foreach ($rollbackDisabledMaterializedWalScenarios as $scenario) {
@@ -339,6 +358,108 @@ foreach ($rollbackDisabledMaterializedWalScenarios as $scenario) {
             $commits[] = (int) $frameHeader['commit'];
         }
         $t->same([0, intdiv(strlen($plan['database_bytes_after_import']), $pageSize)], $commits);
+    };
+}
+
+foreach ($rollbackDisabledFollowupScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $partialPlan = $scenario['partial_plan'];
+    $followupPlan = $scenario['followup_plan'];
+    $prefix = 'sqlite application wal rollback json dynamic parity rollback disabled followup seed ' . $seed . ' ';
+
+    $tests[$prefix . 'starts from partial rollback-disabled state'] = static function (TestRunner $t) use ($partialPlan): void {
+        $t->same('partial_rollback', $partialPlan['status']);
+        $t->same(false, $partialPlan['rollback_required']);
+    };
+    $tests[$prefix . 'followup commits without rollback'] = static function (TestRunner $t) use ($followupPlan): void {
+        $t->same('ready', $followupPlan['status']);
+        $t->same(false, $followupPlan['rollback_required']);
+    };
+    $tests[$prefix . 'uses followup transaction name'] = static function (TestRunner $t) use ($followupPlan, $seed): void {
+        $t->same('application_disabled_followup_json_import_' . $seed, $followupPlan['transaction']);
+    };
+    $tests[$prefix . 'uses followup savepoint name'] = static function (TestRunner $t) use ($followupPlan, $seed): void {
+        $t->same('disabled_followup_json_batch_' . $seed, $followupPlan['savepoint']);
+    };
+    $tests[$prefix . 'starts from partial database and wal bytes'] = static function (TestRunner $t) use ($partialPlan, $followupPlan): void {
+        $t->same($partialPlan['database_bytes_after_import'], $followupPlan['database_bytes_before']);
+        $t->same($partialPlan['wal_bytes_after'], $followupPlan['wal_bytes_before']);
+    };
+    $tests[$prefix . 'preserves partial wal prefix'] = static function (TestRunner $t) use ($partialPlan, $followupPlan): void {
+        $t->same($partialPlan['wal_bytes_after'], substr($followupPlan['wal_bytes_after'], 0, strlen($partialPlan['wal_bytes_after'])));
+    };
+    $tests[$prefix . 'appends only followup success frames'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same(2, $followupPlan['materialized_wal_frame_count']);
+        $t->same($scenario['partial_frame_count'] + 2, $followupPlan['wal_frame_count_after']);
+        $t->same(false, $followupPlan['wal_truncated']);
+    };
+    $tests[$prefix . 'records followup applied pages'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same($scenario['expected_followup_pages'], array_column($followupPlan['import_plan']['applied'], 'page_number'));
+    };
+    $tests[$prefix . 'keeps previous failed statement out of followup failures'] = static function (TestRunner $t) use ($partialPlan, $followupPlan, $scenario): void {
+        $t->same([$scenario['tenant_id']], array_column($partialPlan['import_plan']['failed'], 'tenant_id'));
+        $t->same([], $followupPlan['failed_statements']);
+        $t->same(0, $followupPlan['failed_statement_count']);
+    };
+    $tests[$prefix . 'retains tenant id in followup applied rows'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same([$scenario['tenant_id'], $scenario['tenant_id']], array_column($followupPlan['import_plan']['applied'], 'tenant_id'));
+    };
+    $tests[$prefix . 'preserves jsonb mode on continued catalog row'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $value = $followupPlan['import_plan']['applied'][0]['key_value'];
+        $t->same($scenario['jsonb_mode'], $value instanceof SQLiteBlobValue);
+    };
+    $tests[$prefix . 'records inserted followup summary row'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same([false, true], array_column($followupPlan['import_plan']['applied'], 'inserted_setting'));
+        $t->same($scenario['expected_inserted_key'], $followupPlan['import_plan']['applied'][1]['key_name']);
+    };
+    $tests[$prefix . 'rollback preview begins after partial prefix'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $t->same($scenario['partial_frame_count'], $followupPlan['wal_rollback_to_savepoint']['rollback_to_frame']);
+        $t->same($scenario['expected_followup_pages'], $followupPlan['wal_rollback_to_savepoint']['discarded_page_numbers']);
+    };
+    $tests[$prefix . 'savepoint boundary carries partial prefix pages'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $transactionPages = $followupPlan['import_plan']['savepoint_state'][0]['page_numbers'];
+        $expectedPages = $scenario['committed_prefix_pages'];
+        sort($transactionPages);
+        sort($expectedPages);
+        $t->same($expectedPages, $transactionPages);
+    };
+    $tests[$prefix . 'appended frame pages follow partial prefix'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        foreach ($scenario['expected_followup_pages'] as $index => $pageNumber) {
+            $frameOffset = 32 + (($scenario['partial_frame_count'] + $index) * $frameSize);
+            $frameHeader = unpack('Npage_number', substr($followupPlan['wal_bytes_after'], $frameOffset, 4));
+            $t->same($pageNumber, (int) $frameHeader['page_number']);
+        }
+    };
+    $tests[$prefix . 'appended checksums continue after partial prefix'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($followupPlan['wal_bytes_after'], 0, 24), false);
+        for ($frameIndex = 0; $frameIndex < $scenario['partial_frame_count']; $frameIndex++) {
+            $frameOffset = 32 + ($frameIndex * $frameSize);
+            $frame = substr($followupPlan['wal_bytes_after'], $frameOffset, $frameSize);
+            $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($frame, 0, 8) . substr($frame, 24), false, $checksumSeed[0], $checksumSeed[1]);
+        }
+        foreach ($scenario['expected_followup_pages'] as $index => $pageNumber) {
+            $frameOffset = 32 + (($scenario['partial_frame_count'] + $index) * $frameSize);
+            $frame = substr($followupPlan['wal_bytes_after'], $frameOffset, $frameSize);
+            $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($frame, 0, 8) . substr($frame, 24), false, $checksumSeed[0], $checksumSeed[1]);
+            $frameHeader = unpack('Npage_number/Ncommit/Nsalt_1/Nsalt_2/Nchecksum_1/Nchecksum_2', substr($frame, 0, 24));
+            $t->same($pageNumber, (int) $frameHeader['page_number']);
+            $t->same($checksumSeed, [(int) $frameHeader['checksum_1'], (int) $frameHeader['checksum_2']]);
+        }
+    };
+    $tests[$prefix . 'only final followup frame is a commit frame'] = static function (TestRunner $t) use ($followupPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $commits = [];
+        foreach ($scenario['expected_followup_pages'] as $index => $_pageNumber) {
+            $frameOffset = 32 + (($scenario['partial_frame_count'] + $index) * $frameSize);
+            $frameHeader = unpack('Npage_number/Ncommit', substr($followupPlan['wal_bytes_after'], $frameOffset, 8));
+            $commits[] = (int) $frameHeader['commit'];
+        }
+        $t->same([0, intdiv(strlen($followupPlan['database_bytes_after_import']), $pageSize)], $commits);
     };
 }
 
@@ -1595,6 +1716,17 @@ $tests['sqlite application wal rollback json dynamic parity rejects zero rollbac
     $t->same('rejected', 'accepted');
 };
 
+$tests['sqlite application wal rollback json dynamic parity rejects zero rollback-disabled followup scenarios'] = static function (TestRunner $t): void {
+    try {
+        SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupScenarios(0);
+    } catch (InvalidArgumentException) {
+        $t->same('rejected', 'rejected');
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
 $tests['sqlite application wal rollback json dynamic parity explicit small batch remains deterministic'] = static function (TestRunner $t): void {
     $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(3);
     $t->same([101, 102, 103], array_column($smallBatch, 'tenant_id'));
@@ -1715,6 +1847,14 @@ $tests['sqlite application wal rollback json dynamic parity rollback-disabled ma
     $t->same([2, 3, 4, 1], array_column($smallBatch, 'preexisting_frames'));
     $t->same([[63, 1321], [64, 1322], [65, 1323], [66, 1324]], array_column($smallBatch, 'expected_applied_pages'));
     $t->same([4, 5, 6, 3], array_map(static fn (array $scenario): int => $scenario['plan']['wal_frame_count_after'], $smallBatch));
+};
+
+$tests['sqlite application wal rollback json dynamic parity rollback-disabled followup small batch remains deterministic'] = static function (TestRunner $t): void {
+    $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupScenarios(4);
+    $t->same([8101, 8102, 8103, 8104], array_column($smallBatch, 'tenant_id'));
+    $t->same([4, 5, 6, 3], array_column($smallBatch, 'partial_frame_count'));
+    $t->same([[1321, 1521], [1322, 1522], [1323, 1523], [1324, 1524]], array_column($smallBatch, 'expected_followup_pages'));
+    $t->same([6, 7, 8, 5], array_map(static fn (array $scenario): int => $scenario['followup_plan']['wal_frame_count_after'], $smallBatch));
 };
 
 $tests['sqlite application wal rollback json dynamic parity rejects wal header page size mismatch'] = static function (TestRunner $t) use ($scenarios): void {

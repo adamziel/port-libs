@@ -9,7 +9,7 @@ use PortLibs\Gitoxide\ProtocolCapabilities;
 
 $fixture = require __DIR__ . '/../fixtures/wordpress-protocol-v2-ls-refs.php';
 $capabilities = ProtocolCapabilities::fromV2PacketLines($fixture['capabilityAdvertisement']);
-$command = LsRefsCommand::create($fixture['refPrefixes'], $capabilities, 'port-libs/0.1');
+$command = LsRefsCommand::createFromFetchRefspecs($fixture['fetchRefspecs'], $capabilities, 'port-libs/0.1');
 $command->validate();
 $refs = LsRefsCommand::parseV2PacketLines($fixture['responseAdvertisement']);
 
@@ -21,6 +21,8 @@ foreach ($refs as $ref) {
 return [
     'capabilities' => $capabilities->names(),
     'supportsUnborn' => $capabilities->capability('ls-refs')?->supports('unborn'),
+    'fetchRefspecs' => $fixture['fetchRefspecs'],
+    'refPrefixes' => LsRefsCommand::refPrefixesFromFetchRefspecs($fixture['fetchRefspecs']),
     'arguments' => $command->arguments(),
     'requestBytesMatchFixture' => $command->requestBytes() === $fixture['requestBytes'],
     'refCount' => count($refs),

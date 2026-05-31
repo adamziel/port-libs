@@ -217,4 +217,44 @@ return [
         $t->same(['plugins', 'uploads'], $entryNames($spec->includedTreeEntries($wpContent, 'wp-content')));
         $t->same(['akismet', 'gutenberg'], $entryNames($spec->includedTreeEntries($plugins, 'wp-content/plugins')));
     },
+    'pathspec sparse checkout normalizes worktree prefixes with case sensitive prefix matching' => static function (TestRunner $t): void {
+        $spec = SparseCheckoutSpec::fromPathspecs([
+            ':(glob)*.php',
+            ':(icase)BLOCK.JSON',
+            ':(top)wp-config.php',
+            ':(exclude,glob)build/**',
+        ], prefix: 'wp-content/plugins/gutenberg');
+
+        $t->same(true, $spec->includesPath('wp-content/plugins/gutenberg/index.php', false));
+        $t->same(false, $spec->includesPath('wp-content/plugins/gutenberg/src/editor.php', false));
+        $t->same(true, $spec->includesPath('wp-content/plugins/gutenberg/block.json', false));
+        $t->same(true, $spec->includesPath('wp-content/plugins/gutenberg/BLOCK.JSON', false));
+        $t->same(false, $spec->includesPath('WP-CONTENT/plugins/gutenberg/block.json', false));
+        $t->same(false, $spec->includesPath('wp-content/Plugins/gutenberg/block.json', false));
+        $t->same(false, $spec->includesPath('wp-content/plugins/gutenberg/build/index.php', false));
+        $t->same(true, $spec->includesPath('wp-config.php', false));
+        $t->same(true, $spec->includesPath('wp-content', true));
+        $t->same(true, $spec->includesPath('wp-content/plugins', true));
+        $t->same(true, $spec->includesPath('wp-content/plugins/gutenberg', true));
+        $t->same(false, $spec->includesPath('WP-CONTENT', true));
+
+        $sibling = SparseCheckoutSpec::fromPathspecs(['../akismet/*.php'], prefix: 'wp-content/plugins/gutenberg');
+        $t->same(true, $sibling->includesPath('wp-content/plugins/akismet/akismet.php', false));
+        $t->same(false, $sibling->includesPath('wp-content/plugins/gutenberg/index.php', false));
+        $t->same(false, $sibling->includesPath('WP-CONTENT/plugins/akismet/akismet.php', false));
+
+        $prefixedEmpty = SparseCheckoutSpec::fromPathspecs([], prefix: 'wp-content/themes');
+        $t->same(true, $prefixedEmpty->includesPath('wp-content/themes/acme/style.css', false));
+        $t->same(true, $prefixedEmpty->includesPath('wp-content', true));
+        $t->same(false, $prefixedEmpty->includesPath('wp-admin/admin.php', false));
+        $t->same(false, $prefixedEmpty->includesPath('WP-CONTENT/themes/acme/style.css', false));
+
+        $nil = SparseCheckoutSpec::fromPathspecs([':'], prefix: 'wp-content/themes');
+        $t->same(true, $nil->includesPath('wp-admin/admin.php', false));
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => SparseCheckoutSpec::fromPathspecs(['../../../outside.php'], prefix: 'wp-content/plugins'),
+        );
+    },
 ];

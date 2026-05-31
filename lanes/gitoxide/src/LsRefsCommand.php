@@ -42,6 +42,14 @@ final class LsRefsCommand
     }
 
     /**
+     * @param list<string|RefSpec> $fetchRefspecs
+     */
+    public static function createFromFetchRefspecs(array $fetchRefspecs, ProtocolCapabilities $capabilities, ?string $agent = null): self
+    {
+        return self::create(self::refPrefixesFromFetchRefspecs($fetchRefspecs), $capabilities, $agent);
+    }
+
+    /**
      * @return list<string>
      */
     public function features(): array
@@ -129,6 +137,37 @@ final class LsRefsCommand
             }
             $seen[$prefix] = true;
             $out[] = 'ref-prefix ' . $prefix;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<string|RefSpec> $fetchRefspecs
+     * @return list<string>
+     */
+    public static function refPrefixesFromFetchRefspecs(array $fetchRefspecs): array
+    {
+        $seen = [];
+        $out = [];
+        foreach ($fetchRefspecs as $fetchRefspec) {
+            if (is_string($fetchRefspec)) {
+                $fetchRefspec = RefSpec::parseFetch($fetchRefspec);
+            }
+            if (!$fetchRefspec instanceof RefSpec) {
+                throw new \InvalidArgumentException('Fetch refspecs must be strings or RefSpec instances');
+            }
+            if ($fetchRefspec->operation() !== RefSpec::OP_FETCH) {
+                throw new \InvalidArgumentException('Only fetch refspecs can be expanded for ls-refs prefixes');
+            }
+
+            foreach ($fetchRefspec->expandPrefixes() as $prefix) {
+                if (isset($seen[$prefix])) {
+                    continue;
+                }
+                $seen[$prefix] = true;
+                $out[] = $prefix;
+            }
         }
 
         return $out;

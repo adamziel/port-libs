@@ -23,6 +23,7 @@ return [
         $response->wantedRefs()
     ),
     'hasPack' => $response->hasPack(),
+    'packetLineMaxBytes' => $fixture['packetLineMaxBytes'],
     'packPrefix' => substr($response->packData(), 0, 4),
     'packBytes' => strlen($response->packData()),
     'packTrailer' => bin2hex(substr($response->packData(), -20)),

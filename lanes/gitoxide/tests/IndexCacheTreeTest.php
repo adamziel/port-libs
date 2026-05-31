@@ -82,6 +82,20 @@ $cacheNode = static function (string $name, int $entries, string $oid, string $c
 
     return $name . "\0" . $entries . ' ' . $childCount . "\n" . $oidBytes . $children;
 };
+$throwsMessage = static function (TestRunner $t, string $expectedClass, string $messageNeedle, callable $callback): void {
+    try {
+        $callback();
+    } catch (Throwable $throwable) {
+        if (!$throwable instanceof $expectedClass) {
+            throw new RuntimeException('Expected ' . $expectedClass . ', got ' . $throwable::class);
+        }
+        $t->contains($messageNeedle, $throwable->getMessage());
+
+        return;
+    }
+
+    throw new RuntimeException('Expected exception ' . $expectedClass . ' was not thrown');
+};
 
 return [
     'builds and round trips checkout index TREE cache extension' => static function (TestRunner $t) use ($wordpressCheckoutTree, $paths, $childNames): void {
@@ -115,6 +129,86 @@ return [
         $t->same($cacheTree->bodyBytes(), $parsedCacheTree?->bodyBytes());
 
         $parsedCacheTree?->verifyEntryCounts(count($parsedEntries));
+    },
+    'verifies checkout cache tree against object-backed tree children' => static function (TestRunner $t) use ($wordpressCheckoutTree, $throwsMessage, $oid): void {
+        [$tree, $read] = $wordpressCheckoutTree();
+        $bytes = IndexFile::bytesForCheckout($tree, $read);
+        $verified = IndexFile::verifyCheckoutCacheTree($bytes, $tree, $read);
+        $valid = IndexCacheTree::fromTree($tree, $read);
+        $wpContent = $valid->childNamed('wp-content');
+        $plugins = $wpContent?->childNamed('plugins');
+        $uploads = $wpContent?->childNamed('uploads');
+        if ($wpContent === null || $plugins === null || $uploads === null) {
+            throw new RuntimeException('Expected cache tree fixture children were not built');
+        }
+
+        $t->same($valid->oid, $verified->oid);
+        $t->same($valid->bodyBytes(), $verified->bodyBytes());
+        $t->same(5, $verified->childNamed('wp-content')?->numEntries);
+
+        $entries = IndexFile::entriesForCheckout($tree, $read);
+        $staleRootBytes = IndexFile::bytesFor($entries, new IndexCacheTree('', $oid('a'), count($entries)));
+        $throwsMessage(
+            $t,
+            RuntimeException::class,
+            'does not match checkout tree',
+            static fn () => IndexFile::verifyCheckoutCacheTree($staleRootBytes, $tree, $read),
+        );
+        $throwsMessage(
+            $t,
+            RuntimeException::class,
+            'does not contain a TREE cache extension',
+            static fn () => IndexFile::verifyCheckoutCacheTree(IndexFile::bytesFor($entries), $tree, $read),
+        );
+
+        $missingRootChild = new IndexCacheTree('', $valid->oid, $valid->numEntries, []);
+        $throwsMessage(
+            $t,
+            RuntimeException::class,
+            'was not found in cache tree children',
+            static fn () => $missingRootChild->verifyCheckoutTree($tree, $read),
+        );
+
+        $extraRootChild = new IndexCacheTree('', $valid->oid, $valid->numEntries, [
+            $wpContent,
+            new IndexCacheTree('zz-stale', $oid('b'), 0),
+        ]);
+        $throwsMessage(
+            $t,
+            RuntimeException::class,
+            'cached representation had 2 of them',
+            static fn () => $extraRootChild->verifyCheckoutTree($tree, $read),
+        );
+
+        $outOfOrderRoot = new IndexCacheTree('', $valid->oid, $valid->numEntries, [
+            new IndexCacheTree('zz-stale', $oid('c'), 0),
+            $wpContent,
+        ]);
+        $throwsMessage(
+            $t,
+            RuntimeException::class,
+            'out-of-order cache tree children',
+            static fn () => $outOfOrderRoot->verifyCheckoutTree($tree, $read),
+        );
+
+        $staleChildOid = new IndexCacheTree('', $valid->oid, $valid->numEntries, [
+            new IndexCacheTree('wp-content', $oid('d'), $wpContent->numEntries, $wpContent->children),
+        ]);
+        $throwsMessage(
+            $t,
+            RuntimeException::class,
+            "TREE child 'wp-content' object id",
+            static fn () => $staleChildOid->verifyCheckoutTree($tree, $read),
+        );
+
+        $tooSmallWpContent = new IndexCacheTree('wp-content', $wpContent->oid, 3, [$plugins, $uploads]);
+        $badEntryCount = new IndexCacheTree('', $valid->oid, $valid->numEntries, [$tooSmallWpContent]);
+        $throwsMessage(
+            $t,
+            RuntimeException::class,
+            "Expected not more than 3 entries to be reachable from TREE entry 'wp-content'",
+            static fn () => $badEntryCount->verifyCheckoutTree($tree, $read),
+        );
     },
     'sparse checkout index uses v3 skip-worktree flags while cache tree keeps full counts' => static function (TestRunner $t) use ($wordpressCheckoutTree, $paths): void {
         [$tree, $read] = $wordpressCheckoutTree();

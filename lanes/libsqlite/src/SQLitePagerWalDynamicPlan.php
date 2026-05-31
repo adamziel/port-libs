@@ -252,6 +252,65 @@ final class SQLitePagerWalDynamicPlan
     }
 
     /**
+     * @return array{status:string,configured_threshold:int,auto_checkpoint_enabled:bool,registered_hook:string,manual_hook_callbacks_before:int,manual_hook_callbacks_after:int,wal_frames:int,checkpoint_attempted:bool,checkpoint_mode:string,passive_checkpoint:bool,busy_handler_invoked:bool,reader_end_frame:int|null,expected_checkpointed_frame_count:int,wal_grows_past_threshold:bool,source:string,dependencies:list<string>}
+     */
+    public static function walAutoCheckpointPlan(
+        int $configuredThreshold,
+        int $walFrames,
+        bool $manualHookRegisteredBefore,
+        bool $autoCheckpointRegisteredAfterManualHook,
+        bool $manualHookRegisteredAfterAutoCheckpoint,
+        ?int $readerEndFrame = null
+    ): array {
+        if ($walFrames < 0) {
+            throw new \InvalidArgumentException('SQLite WAL auto-checkpoint plan requires a non-negative frame count');
+        }
+        if ($readerEndFrame !== null && $readerEndFrame < 0) {
+            throw new \InvalidArgumentException('SQLite WAL auto-checkpoint plan requires a non-negative reader end frame');
+        }
+
+        $thresholdEnabled = $configuredThreshold > 0;
+        $autoCheckpointEnabled = $thresholdEnabled && !$manualHookRegisteredAfterAutoCheckpoint;
+        $registeredHook = 'none';
+        if ($manualHookRegisteredAfterAutoCheckpoint || ($manualHookRegisteredBefore && !$autoCheckpointRegisteredAfterManualHook)) {
+            $registeredHook = 'manual-wal-hook';
+        } elseif ($autoCheckpointEnabled) {
+            $registeredHook = 'auto-checkpoint';
+        }
+
+        $checkpointAttempted = $autoCheckpointEnabled && $walFrames >= $configuredThreshold;
+        $expectedCheckpointed = 0;
+        if ($checkpointAttempted) {
+            $expectedCheckpointed = $readerEndFrame === null ? $walFrames : min($walFrames, $readerEndFrame);
+        }
+
+        $manualCallbacksBefore = $manualHookRegisteredBefore ? 2 : 0;
+        $manualCallbacksAfter = $manualHookRegisteredAfterAutoCheckpoint ? 2 : 0;
+        if ($autoCheckpointRegisteredAfterManualHook && !$manualHookRegisteredAfterAutoCheckpoint) {
+            $manualCallbacksAfter = 0;
+        }
+
+        return [
+            'status' => $checkpointAttempted ? 'wal-auto-checkpoint-attempted' : ($autoCheckpointEnabled ? 'wal-auto-checkpoint-armed' : 'wal-auto-checkpoint-disabled'),
+            'configured_threshold' => $configuredThreshold,
+            'auto_checkpoint_enabled' => $autoCheckpointEnabled,
+            'registered_hook' => $registeredHook,
+            'manual_hook_callbacks_before' => $manualCallbacksBefore,
+            'manual_hook_callbacks_after' => $manualCallbacksAfter,
+            'wal_frames' => $walFrames,
+            'checkpoint_attempted' => $checkpointAttempted,
+            'checkpoint_mode' => 'passive',
+            'passive_checkpoint' => true,
+            'busy_handler_invoked' => false,
+            'reader_end_frame' => $readerEndFrame,
+            'expected_checkpointed_frame_count' => $expectedCheckpointed,
+            'wal_grows_past_threshold' => !$checkpointAttempted && ($configuredThreshold <= 0 || $walFrames >= max(1, $configuredThreshold)),
+            'source' => 'upstream e_walauto.test 1.* default thresholds, disabled thresholds, hook replacement, and passive auto-checkpoint behavior',
+            'dependencies' => ['real-upstream-corpus-e-walauto', 'sqlite-wal-auto-checkpoint-passive'],
+        ];
+    }
+
+    /**
      * @return array{status:string,scenario:string,vfs_shm_version:int,locking_mode:string,requested_journal_mode:string,result_journal_mode:string,wal_sidecar_exists:bool,shared_memory_used:bool,select_status:string,exclusive_required:bool,normal_locking_allowed:bool,error:?string,source:string,dependencies:list<string>}
      */
     public static function walNoShmExclusiveScenario(

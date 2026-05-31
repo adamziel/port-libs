@@ -52,6 +52,7 @@ final class PathspecSearch
                 $prefix,
                 mustBeDirectory: true,
                 searchMode: PathspecPattern::SEARCH_LITERAL,
+                prefixLength: strlen($prefix),
             );
         }
 
@@ -73,15 +74,22 @@ final class PathspecSearch
 
     public function prefixDirectory(): string
     {
-        $directory = self::dirname($this->commonPrefix);
+        foreach ($this->patterns as $pattern) {
+            if (!$pattern->exclude) {
+                return $pattern->prefixDirectory();
+            }
+        }
 
-        return $directory === '.' ? '' : $directory;
+        return '';
     }
 
     public function longestCommonDirectory(): ?string
     {
         if ($this->commonPrefix === '') {
             return null;
+        }
+        if ($this->prefixDirectory() === $this->commonPrefix) {
+            return $this->commonPrefix;
         }
         $slash = strrpos($this->commonPrefix, '/');
         if ($slash === false) {
@@ -170,6 +178,9 @@ final class PathspecSearch
         if ($this->allPatternsAreExcluded) {
             return false;
         }
+        if ($this->commonPrefix !== '' && !self::pathPrefixesOverlap($relativePath, $this->commonPrefix)) {
+            return false;
+        }
         foreach ($this->patterns as $pattern) {
             if ($pattern->exclude && $pattern->firstWildcardPosition() !== null) {
                 return true;
@@ -210,11 +221,17 @@ final class PathspecSearch
 
     private static function normalizePattern(PathspecPattern $pattern, string $prefix): PathspecPattern
     {
-        if ($pattern->nil || $pattern->top || $prefix === '' || $pattern->path === '') {
+        if ($pattern->nil || $pattern->path === '') {
             return $pattern;
         }
 
-        return $pattern->withPath(self::normalizePath($prefix . '/' . $pattern->path));
+        if ($pattern->top || $prefix === '') {
+            return $pattern->withPath(self::normalizePath($pattern->path), 0);
+        }
+
+        [$path, $prefixLength] = self::normalizePrefixedPath($prefix, $pattern->path);
+
+        return $pattern->withPath($path, $prefixLength);
     }
 
     private function patternMatchKind(PathspecPattern $pattern, string $relativePath, bool $isDirectory): ?string
@@ -353,7 +370,7 @@ final class PathspecSearch
         $prefixes = [];
         foreach ($includePatterns as $pattern) {
             if ($pattern->ignoreCase) {
-                $prefixes[] = '';
+                $prefixes[] = substr($pattern->path, 0, $pattern->prefixLength);
             } else {
                 $firstWildcard = $pattern->firstWildcardPosition();
                 $prefixes[] = substr($pattern->path, 0, $firstWildcard ?? strlen($pattern->path));
@@ -407,10 +424,45 @@ final class PathspecSearch
         return implode('/', $parts);
     }
 
-    private static function dirname(string $path): string
+    /**
+     * @return array{string,int}
+     */
+    private static function normalizePrefixedPath(string $prefix, string $path): array
     {
-        $position = strrpos($path, '/');
+        $segments = [];
+        foreach (explode('/', $prefix) as $part) {
+            if ($part === '') {
+                continue;
+            }
+            $segments[] = [$part, true];
+        }
 
-        return $position === false ? '' : substr($path, 0, $position);
+        $path = str_replace('\\', '/', $path);
+        if (str_contains($path, "\0")) {
+            throw new \InvalidArgumentException('Pathspec relative path cannot contain NUL bytes');
+        }
+
+        foreach (explode('/', trim($path, '/')) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                array_pop($segments);
+                continue;
+            }
+            $segments[] = [$part, false];
+        }
+
+        $parts = array_map(static fn (array $segment): string => $segment[0], $segments);
+        $prefixParts = [];
+        foreach ($segments as [$part, $fromPrefix]) {
+            if (!$fromPrefix) {
+                break;
+            }
+            $prefixParts[] = $part;
+        }
+
+        return [implode('/', $parts), strlen(implode('/', $prefixParts))];
     }
+
 }

@@ -527,6 +527,26 @@ final class ReferenceStore
     }
 
     /**
+     * Follow symbolic refs while iterating and return object-target references.
+     *
+     * Packed refs with stored peeled IDs use that value directly; loose tag
+     * chains need an object database to peel beyond their referenced object.
+     *
+     * @return list<ResolvedReference>
+     */
+    public function prefixedPeeled(string $prefix, ?ObjectDatabase $objectDatabase = null, string $algorithm = 'sha1'): array
+    {
+        return array_map(
+            fn (ResolvedReference $reference): ResolvedReference => $this->peeledReference(
+                $reference,
+                $objectDatabase,
+                $algorithm,
+            ),
+            $this->prefixed($prefix, $algorithm),
+        );
+    }
+
+    /**
      * @return list<ResolvedReference>
      */
     public function looseAll(string $algorithm = 'sha1'): array
@@ -591,6 +611,32 @@ final class ReferenceStore
         return ReflogEntry::parseReverse($contents, $algorithm);
     }
 
+    /**
+     * @return list<array{ok: bool, line: int, fromEnd: bool, raw: string, entry?: ReflogEntry, error?: string}>|null
+     */
+    public function reflogEntryResults(string $name, string $algorithm = 'any'): ?array
+    {
+        $contents = $this->reflogContents($name);
+        if ($contents === null) {
+            return null;
+        }
+
+        return ReflogEntry::iterateForward($contents, $algorithm);
+    }
+
+    /**
+     * @return list<array{ok: bool, line: int, fromEnd: bool, raw: string, entry?: ReflogEntry, error?: string}>|null
+     */
+    public function reflogEntryResultsReverse(string $name, string $algorithm = 'any'): ?array
+    {
+        $contents = $this->reflogContents($name);
+        if ($contents === null) {
+            return null;
+        }
+
+        return ReflogEntry::iterateReverse($contents, $algorithm);
+    }
+
     public function appendReflog(
         string $name,
         ?ReferenceTarget $previous,
@@ -632,6 +678,31 @@ final class ReferenceStore
         }
 
         return $this->peelObjectId(ReferenceTarget::object($objectId, $algorithm), $algorithm, $objectDatabase);
+    }
+
+    private function peeledReference(
+        ResolvedReference $reference,
+        ?ObjectDatabase $objectDatabase,
+        string $algorithm,
+    ): ResolvedReference {
+        $followed = $this->followReferenceToObject($reference, $algorithm);
+        if ($followed->peeledObjectId !== null) {
+            return $followed->withNameAndTarget(
+                $followed->name,
+                ReferenceTarget::object($followed->peeledObjectId, $algorithm),
+            );
+        }
+
+        $objectId = $followed->targetObjectId();
+        if ($objectId === null) {
+            throw new \RuntimeException("Reference did not resolve to an object id: {$reference->name}");
+        }
+
+        if ($objectDatabase !== null) {
+            $objectId = $this->peelObjectId(ReferenceTarget::object($objectId, $algorithm), $algorithm, $objectDatabase);
+        }
+
+        return $followed->withNameAndTarget($followed->name, ReferenceTarget::object($objectId, $algorithm));
     }
 
     /**
@@ -974,6 +1045,10 @@ final class ReferenceStore
         $path = $this->reflogPath($physicalName);
         if (!is_file($path) && !$forceCreate && !$this->shouldAutoCreateReflog($physicalName)) {
             return;
+        }
+
+        if (is_dir($path) && !$this->removeEmptyDirectoryTree($path)) {
+            throw new \RuntimeException("Unable to replace directory blocker with reflog: {$physicalName}");
         }
 
         $directory = dirname($path);
@@ -1320,6 +1395,28 @@ final class ReferenceStore
             @rmdir($current);
             $current = str_replace('\\', '/', dirname($current));
         }
+    }
+
+    private function removeEmptyDirectoryTree(string $directory): bool
+    {
+        $entries = @scandir($directory);
+        if ($entries === false) {
+            throw new \RuntimeException("Unable to inspect reflog directory blocker: {$directory}");
+        }
+
+        foreach (array_diff($entries, ['.', '..']) as $entry) {
+            $path = $directory . '/' . $entry;
+            if (is_dir($path) && !is_link($path)) {
+                if (!$this->removeEmptyDirectoryTree($path)) {
+                    return false;
+                }
+                continue;
+            }
+
+            return false;
+        }
+
+        return @rmdir($directory) || !is_dir($directory);
     }
 
     private function assertPreviousValueAllowsUpdate(

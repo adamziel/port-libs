@@ -243,6 +243,7 @@ final class SQLiteWindowFunction
 
         $start = self::parseFrameBoundary($startBoundary);
         $end = self::parseFrameBoundary($endBoundary);
+        self::validateFrameBoundaryOrder($start, $end);
         $result = [];
         foreach (array_keys($rows) as $index) {
             $nth = self::nthIndexValue($nthRows[$index]);
@@ -579,6 +580,7 @@ final class SQLiteWindowFunction
 
         $start = self::parseFrameBoundary($startBoundary);
         $end = self::parseFrameBoundary($endBoundary);
+        self::validateFrameBoundaryOrder($start, $end);
         $result = [];
         foreach (array_keys($rows) as $index) {
             $frameIndexes = self::frameIndexesBetween($keys, $index, $unit, $start, $end);
@@ -646,6 +648,7 @@ final class SQLiteWindowFunction
         }
         $start = self::parseFrameBoundary($startBoundary);
         $end = self::parseFrameBoundary($endBoundary);
+        self::validateFrameBoundaryOrder($start, $end);
         $result = [];
         foreach (array_keys($rows) as $index) {
             $frameIndexes = self::frameIndexesBetween($keys, $index, $unit, $start, $end);
@@ -712,6 +715,7 @@ final class SQLiteWindowFunction
 
         $start = self::parseFrameBoundary($startBoundary);
         $end = self::parseFrameBoundary($endBoundary);
+        self::validateFrameBoundaryOrder($start, $end);
         $result = [];
         foreach (array_keys($rows) as $index) {
             $frameIndexes = self::frameIndexesBetween($keys, $index, $unit, $start, $end);
@@ -856,6 +860,7 @@ final class SQLiteWindowFunction
 
         $start = self::parseFrameBoundary($startBoundary);
         $end = self::parseFrameBoundary($endBoundary);
+        self::validateFrameBoundaryOrder($start, $end);
         $result = [];
         foreach (array_keys($rows) as $index) {
             $frameIndexes = self::frameIndexesBetween($keys, $index, $unit, $start, $end);
@@ -920,6 +925,7 @@ final class SQLiteWindowFunction
 
         $start = self::parseFrameBoundary($startBoundary);
         $end = self::parseFrameBoundary($endBoundary);
+        self::validateFrameBoundaryOrder($start, $end);
         $order = range(0, count($rows) - 1);
         usort($order, static function (int $left, int $right) use ($keys, $descending, $nullsFirst, $orderComparator): int {
             $leftKey = $keys[$left];
@@ -1051,6 +1057,7 @@ final class SQLiteWindowFunction
 
         $start = self::parseFrameBoundary($startBoundary);
         $end = self::parseFrameBoundary($endBoundary);
+        self::validateFrameBoundaryOrder($start, $end);
         $result = [];
         foreach (array_keys($rows) as $index) {
             $frameIndexes = self::frameIndexesBetween($keys, $index, $unit, $start, $end);
@@ -1411,6 +1418,35 @@ final class SQLiteWindowFunction
         }
 
         throw new \InvalidArgumentException("SQLite window frame boundary is not supported: {$boundary}");
+    }
+
+    /**
+     * @param array{type:string,offset:int|float|null} $start
+     * @param array{type:string,offset:int|float|null} $end
+     */
+    private static function validateFrameBoundaryOrder(array $start, array $end): void
+    {
+        $startOrder = self::frameBoundaryOrder($start);
+        $endOrder = self::frameBoundaryOrder($end);
+
+        if ($startOrder === 4 || $endOrder === 0 || $startOrder > $endOrder) {
+            throw new \InvalidArgumentException('SQLite window frame specification is not supported');
+        }
+    }
+
+    /**
+     * @param array{type:string,offset:int|float|null} $boundary
+     */
+    private static function frameBoundaryOrder(array $boundary): int
+    {
+        return match ($boundary['type']) {
+            'UNBOUNDED PRECEDING' => 0,
+            'PRECEDING' => 1,
+            'CURRENT ROW' => 2,
+            'FOLLOWING' => 3,
+            'UNBOUNDED FOLLOWING' => 4,
+            default => throw new \InvalidArgumentException('SQLite window frame boundary is not supported'),
+        };
     }
 
     /**

@@ -82,4 +82,13 @@ return [
         $t->same($fixture['tagObject'], $packed->find($fixture['releaseTag'])->targetObjectId());
         $t->same($fixture['tagCommit'], $packed->find($fixture['releaseTag'])->objectId());
     },
+    'wordpress packed refs example peels prefixed release candidates through packed data' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-packed-refs.php';
+        $summary = require dirname(__DIR__) . '/examples/wordpress-packed-refs.php';
+
+        $t->same($fixture['branchCommit'], $summary['branch']['commit']);
+        $t->same($fixture['tagObject'], $summary['releaseTag']['tagObject']);
+        $t->same($fixture['tagCommit'], $summary['releaseTag']['peeledCommit']);
+        $t->same($fixture['expectedPeeledHeads'], $summary['peeledHeads']);
+    },
 ];

@@ -33,8 +33,19 @@ $store->appendReflog(
     $fixture['messages'][1],
 );
 
+$corruptLogPath = $dir . '/logs/' . $fixture['corruptSiteRef'];
+$corruptLogDir = dirname($corruptLogPath);
+if (!is_dir($corruptLogDir)) {
+    mkdir($corruptLogDir, 0777, true);
+}
+file_put_contents(
+    $corruptLogPath,
+    $fixture['corruptLine'] . "\n" . (string) $store->reflogContents($fixture['siteRef']),
+);
+
 $forward = $store->reflogEntries($fixture['siteRef']);
 $reverse = $store->reflogEntriesReverse($fixture['siteRef']);
+$diagnostics = $store->reflogEntryResults($fixture['corruptSiteRef']) ?? [];
 
 return [
     'siteRef' => $fixture['siteRef'],
@@ -45,5 +56,13 @@ return [
     'latestNewOid' => $reverse[0]->newOid ?? null,
     'trimmedCommitter' => ($forward[0]->signature->name ?? '') . ' <' . ($forward[0]->signature->email ?? '') . '>',
     'rawReflog' => $store->reflogContents($fixture['siteRef']),
+    'corruptLineDiagnostics' => array_map(
+        static fn (array $result): array => [
+            'ok' => $result['ok'],
+            'line' => $result['line'],
+            'error' => $result['error'] ?? null,
+        ],
+        $diagnostics,
+    ),
     'wordpressUse' => $fixture['wordpressUse'],
 ];

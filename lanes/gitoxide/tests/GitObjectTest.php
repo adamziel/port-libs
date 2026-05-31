@@ -68,6 +68,32 @@ return [
         $t->same('blob', $roundTrip->type);
         $t->same('WordPress export', $roundTrip->body);
     },
+    'loose object store reads bounded headers before full body integrity checks' => static function (TestRunner $t) use ($looseObjectPath, $writeLooseStorage): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-header-' . bin2hex(random_bytes(4)) . '/objects';
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+        $shortOid = str_repeat('b', 40);
+        $writeLooseStorage($objectsDirectory, $shortOid, "blob 12\0short");
+
+        $t->same([
+            'type' => 'blob',
+            'size' => 12,
+            'headerLength' => 8,
+        ], $store->readHeader($shortOid));
+        $t->throws(InvalidArgumentException::class, static fn () => $store->read($shortOid));
+        $t->same(null, $store->tryReadHeader(str_repeat('c', 40)));
+
+        $longHeaderOid = str_repeat('d', 40);
+        $writeLooseStorage($objectsDirectory, $longHeaderOid, 'blob ' . str_repeat('1', 60) . "\0body");
+        $t->throws(InvalidArgumentException::class, static fn () => $store->readHeader($longHeaderOid));
+
+        $badZlibOid = str_repeat('e', 40);
+        $badPath = $looseObjectPath($objectsDirectory, $badZlibOid);
+        if (!is_dir(dirname($badPath)) && !mkdir(dirname($badPath), 0777, true) && !is_dir(dirname($badPath))) {
+            throw new RuntimeException('Unable to create loose object bad-zlib test directory');
+        }
+        file_put_contents($badPath, 'not-zlib');
+        $t->throws(RuntimeException::class, static fn () => $store->readHeader($badZlibOid));
+    },
     'loose object integrity verifies object ids and decodes structured objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-integrity-' . bin2hex(random_bytes(4)) . '/.git';
         $store = new LooseObjectStore($gitDir);

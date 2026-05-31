@@ -150,6 +150,27 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet('ok refs/heads/main' . "\n") . $packet('option old-oid ' . str_repeat('f', 63) . "\n") . $flush));
         $t->throws(RuntimeException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("ERR hook failed\n") . $flush));
     },
+    'surfaces receive-pack fatal errors from sideband responses' => static function (TestRunner $t) use ($packet, $flush, $invalidArgumentMessage): void {
+        $runtimeMessage = static function (callable $callback): string {
+            try {
+                $callback();
+            } catch (RuntimeException $error) {
+                return $error->getMessage();
+            }
+
+            throw new RuntimeException('Expected RuntimeException was not thrown');
+        };
+
+        $t->contains('receive-pack error repository disabled', $runtimeMessage(
+            static fn () => PushResponse::fromSidebandPacketLines($packet("ERR repository disabled\n") . $flush)
+        ));
+        $t->contains('sideband error pre-receive hook declined', $runtimeMessage(
+            static fn () => PushResponse::fromSidebandPacketLines($packet("\x03pre-receive hook declined\n") . $flush)
+        ));
+        $t->contains('missing report-status flush packet', $invalidArgumentMessage(
+            static fn () => PushResponse::fromSidebandPacketLines($packet("\x01" . $packet("unpack ok\n")) . $flush)
+        ));
+    },
     'wordpress fixture parses deployment branch and tag push status' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v1-push-response.php';
         $response = PushResponse::fromSidebandPacketLines($fixture['response']);
@@ -170,5 +191,6 @@ return [
 
         $summary = require dirname(__DIR__) . '/examples/wordpress-protocol-v1-push-response.php';
         $t->same(true, $summary['oversizedReportStatusRejected']);
+        $t->same(true, $summary['fatalSidebandRejected']);
     },
 ];

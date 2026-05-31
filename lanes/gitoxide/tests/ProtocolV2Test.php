@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Gitoxide\LsRefsCommand;
 use PortLibs\Gitoxide\ProtocolCapabilities;
+use PortLibs\Gitoxide\RefSpec;
 
 $packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
 $delimiter = '0001';
@@ -94,6 +95,70 @@ return [
             'ref-prefix refs/heads/feature',
         ], $command->arguments());
         $command->validate();
+    },
+    'expands fetch refspecs into ls-refs ref-prefix arguments like gix-protocol' => static function (TestRunner $t) use ($packet, $delimiter, $flush): void {
+        $capabilities = ProtocolCapabilities::fromV2Lines("version 2\nls-refs=unborn\n");
+        $command = LsRefsCommand::createFromFetchRefspecs([
+            RefSpec::parseFetch('HEAD'),
+            'dwim',
+            'refs/tags/prefix*:refs/tags/prefix*',
+            'refs/heads/main',
+            'dwim',
+            '^refs/heads/old',
+        ], $capabilities, 'port-libs/0.1');
+
+        $t->same([
+            'HEAD',
+            'dwim',
+            'refs/dwim',
+            'refs/tags/dwim',
+            'refs/heads/dwim',
+            'refs/remotes/dwim',
+            'refs/remotes/dwim/HEAD',
+            'refs/tags/prefix',
+            'refs/heads/main',
+        ], LsRefsCommand::refPrefixesFromFetchRefspecs([
+            RefSpec::parseFetch('HEAD'),
+            'dwim',
+            'refs/tags/prefix*:refs/tags/prefix*',
+            'refs/heads/main',
+            'dwim',
+            '^refs/heads/old',
+        ]));
+        $t->same([
+            'symrefs',
+            'peel',
+            'unborn',
+            'ref-prefix HEAD',
+            'ref-prefix dwim',
+            'ref-prefix refs/dwim',
+            'ref-prefix refs/tags/dwim',
+            'ref-prefix refs/heads/dwim',
+            'ref-prefix refs/remotes/dwim',
+            'ref-prefix refs/remotes/dwim/HEAD',
+            'ref-prefix refs/tags/prefix',
+            'ref-prefix refs/heads/main',
+        ], $command->arguments());
+        $t->same(
+            $packet("command=ls-refs\n")
+                . $packet("agent=port-libs/0.1\n")
+                . $delimiter
+                . $packet("symrefs\n")
+                . $packet("peel\n")
+                . $packet("unborn\n")
+                . $packet("ref-prefix HEAD\n")
+                . $packet("ref-prefix dwim\n")
+                . $packet("ref-prefix refs/dwim\n")
+                . $packet("ref-prefix refs/tags/dwim\n")
+                . $packet("ref-prefix refs/heads/dwim\n")
+                . $packet("ref-prefix refs/remotes/dwim\n")
+                . $packet("ref-prefix refs/remotes/dwim/HEAD\n")
+                . $packet("ref-prefix refs/tags/prefix\n")
+                . $packet("ref-prefix refs/heads/main\n")
+                . $flush,
+            $command->requestBytes()
+        );
+        $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::refPrefixesFromFetchRefspecs([RefSpec::parsePush('main:refs/heads/main')]));
     },
     'builds upstream-shaped ls-refs protocol v2 request packet lines' => static function (TestRunner $t) use ($packet, $delimiter, $flush): void {
         $capabilities = ProtocolCapabilities::fromV2PacketLines(
@@ -215,7 +280,8 @@ return [
     'wordpress fixture discovers active branch release tag and unborn staging ref' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v2-ls-refs.php';
         $capabilities = ProtocolCapabilities::fromV2PacketLines($fixture['capabilityAdvertisement']);
-        $command = LsRefsCommand::create($fixture['refPrefixes'], $capabilities, 'port-libs/0.1');
+        $t->same($fixture['refPrefixes'], LsRefsCommand::refPrefixesFromFetchRefspecs($fixture['fetchRefspecs']));
+        $command = LsRefsCommand::createFromFetchRefspecs($fixture['fetchRefspecs'], $capabilities, 'port-libs/0.1');
         $command->validate();
         $refs = LsRefsCommand::parseV2PacketLines($fixture['responseAdvertisement']);
 
@@ -225,14 +291,7 @@ return [
         }
 
         $t->same(true, $capabilities->capability('ls-refs')?->supports('unborn'));
-        $t->same([
-            'symrefs',
-            'peel',
-            'unborn',
-            'ref-prefix HEAD',
-            'ref-prefix refs/heads/main',
-            'ref-prefix refs/tags/wp-release',
-        ], $command->arguments());
+        $t->same(array_merge(['symrefs', 'peel', 'unborn'], LsRefsCommand::prefixArguments($fixture['refPrefixes'])), $command->arguments());
         $t->same($fixture['requestBytes'], $command->requestBytes());
         $t->same('refs/heads/main', $byName['HEAD']->target);
         $t->same($fixture['objects']['main'], $byName['refs/heads/main']->object);

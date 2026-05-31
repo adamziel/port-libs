@@ -43,8 +43,8 @@ final class MergeBaseFinder
      */
     public function mergeBases(string $first, string $second): array
     {
-        self::assertObjectId($first);
-        self::assertObjectId($second);
+        $hashLength = self::assertObjectId($first);
+        self::assertSameObjectFormat($hashLength, $second);
         $first = strtolower($first);
         $second = strtolower($second);
 
@@ -108,7 +108,7 @@ final class MergeBaseFinder
      */
     public function mergeBasesAgainst(string $first, array $others): array
     {
-        self::assertObjectId($first);
+        $hashLength = self::assertObjectId($first);
         $first = strtolower($first);
 
         $normalizedOthers = [];
@@ -116,7 +116,7 @@ final class MergeBaseFinder
             if (!is_string($other)) {
                 throw new \InvalidArgumentException('Merge-base other heads must be object id strings');
             }
-            self::assertObjectId($other);
+            self::assertSameObjectFormat($hashLength, $other);
             $normalizedOthers[] = strtolower($other);
         }
 
@@ -195,11 +195,17 @@ final class MergeBaseFinder
         }
 
         $normalized = [];
+        $hashLength = null;
         foreach ($heads as $head) {
             if (!is_string($head)) {
                 throw new \InvalidArgumentException('Merge-base heads must be object id strings');
             }
-            self::assertObjectId($head);
+            $headLength = self::assertObjectId($head);
+            if ($hashLength === null) {
+                $hashLength = $headLength;
+            } elseif ($headLength !== $hashLength) {
+                throw new \InvalidArgumentException('Merge-base object ids must all use the same hash algorithm');
+            }
             $normalized[] = strtolower($head);
         }
 
@@ -267,6 +273,7 @@ final class MergeBaseFinder
      */
     private function ancestorsWithDistance(string $oid): array
     {
+        $hashLength = self::assertObjectId($oid);
         if (isset($this->ancestorCache[$oid])) {
             return $this->ancestorCache[$oid];
         }
@@ -277,7 +284,7 @@ final class MergeBaseFinder
             [$current, $distance] = $queue[$index];
             foreach ($this->commit($current)->parents as $parent) {
                 $parent = strtolower($parent);
-                self::assertObjectId($parent);
+                self::assertSameObjectFormat($hashLength, $parent);
                 $parentDistance = $distance + 1;
                 if (isset($distances[$parent]) && $distances[$parent] <= $parentDistance) {
                     continue;
@@ -303,10 +310,19 @@ final class MergeBaseFinder
         return $this->commitCache[$oid];
     }
 
-    private static function assertObjectId(string $oid): void
+    private static function assertObjectId(string $oid): int
     {
-        if (preg_match('/^[0-9a-fA-F]{40}$/', $oid) !== 1) {
-            throw new \InvalidArgumentException('Merge-base object id must be a 40-character SHA-1 hex string');
+        if (preg_match('/^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/', $oid) !== 1) {
+            throw new \InvalidArgumentException('Merge-base object id must be a 40-character SHA-1 or 64-character SHA-256 hex string');
+        }
+
+        return strlen($oid);
+    }
+
+    private static function assertSameObjectFormat(int $hashLength, string $oid): void
+    {
+        if (self::assertObjectId($oid) !== $hashLength) {
+            throw new \InvalidArgumentException('Merge-base object ids must all use the same hash algorithm');
         }
     }
 }

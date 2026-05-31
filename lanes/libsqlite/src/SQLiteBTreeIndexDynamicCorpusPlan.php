@@ -11180,6 +11180,211 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,projection:list<string>,or_terms:list<string>,result_rows:list<array<int,mixed>>,result_flat:list<mixed>,selected_i_values:list<int>,matched_rowids:list<int>,chosen_indexes:list<string>,covering_indexes:list<string>,residual_terms:list<string>,requires_table_lookup:bool,uses_or_clause_index_union:bool,empty_result:bool,index_probe_count:int,detail:string,integrity:string}>
+     */
+    public static function whereDCoveringOrIndexCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite whereD covering OR-index corpus requires at least one case');
+        }
+
+        $term = static fn (string $expr, array $constraints, string $index, array $residual = []): array => [
+            'expr' => $expr,
+            'constraints' => $constraints,
+            'index' => $index,
+            'residual' => $residual,
+        ];
+
+        $templates = [
+            self::whereDCoveringOrTemplate(
+                'whereD-1.2',
+                'two equality OR arms project k directly from covering ijk',
+                'SELECT k FROM t WHERE (i=1 AND j=1) OR (i=2 AND j=2)',
+                ['k'],
+                [
+                    $term('i=1 AND j=1', ['i' => 1, 'j' => 1], 'ijk'),
+                    $term('i=2 AND j=2', ['i' => 2, 'j' => 2], 'ijk'),
+                ],
+                'covering ijk supplies k for both OR arms without table lookup',
+            ),
+            self::whereDCoveringOrTemplate(
+                'whereD-1.3',
+                'unary plus leaves the second OR arm as residual while preserving rows',
+                'SELECT k FROM t WHERE (i=1 AND j=1) OR (+i=2 AND j=2)',
+                ['k'],
+                [
+                    $term('i=1 AND j=1', ['i' => 1, 'j' => 1], 'ijk'),
+                    $term('+i=2 AND j=2', ['j' => 2], 'jmn', ['+i' => 2]),
+                ],
+                'the +i residual prevents a fully covering second-arm probe',
+            ),
+            self::whereDCoveringOrTemplate(
+                'whereD-1.4',
+                'n projection is not covered by the ijk equality probes',
+                'SELECT n FROM t WHERE (i=1 AND j=1) OR (i=2 AND j=2)',
+                ['n'],
+                [
+                    $term('i=1 AND j=1', ['i' => 1, 'j' => 1], 'ijk'),
+                    $term('i=2 AND j=2', ['i' => 2, 'j' => 2], 'ijk'),
+                ],
+                'table cursor supplies n after ijk identifies the rowids',
+            ),
+            self::whereDCoveringOrTemplate(
+                'whereD-1.5',
+                'mixed k and n projection forces table lookup after OR index probes',
+                'SELECT k, n FROM t WHERE (i=1 AND j=1) OR (i=2 AND j=2)',
+                ['k', 'n'],
+                [
+                    $term('i=1 AND j=1', ['i' => 1, 'j' => 1], 'ijk'),
+                    $term('i=2 AND j=2', ['i' => 2, 'j' => 2], 'ijk'),
+                ],
+                'k is covered by ijk but n requires fetching the table record',
+            ),
+            self::whereDCoveringOrTemplate(
+                'whereD-1.6',
+                'three equality OR arms project k from covering ijk',
+                'SELECT k FROM t WHERE (i=1 AND j=1) OR (i=2 AND j=2) OR (i=3 AND j=3)',
+                ['k'],
+                [
+                    $term('i=1 AND j=1', ['i' => 1, 'j' => 1], 'ijk'),
+                    $term('i=2 AND j=2', ['i' => 2, 'j' => 2], 'ijk'),
+                    $term('i=3 AND j=3', ['i' => 3, 'j' => 3], 'ijk'),
+                ],
+                'all three OR arms remain covered by ijk',
+            ),
+            self::whereDCoveringOrTemplate(
+                'whereD-1.7',
+                'three equality OR arms preserve row order for uncovered n projection',
+                'SELECT n FROM t WHERE (i=1 AND j=1) OR (i=2 AND j=2) OR (i=3 AND j=3)',
+                ['n'],
+                [
+                    $term('i=1 AND j=1', ['i' => 1, 'j' => 1], 'ijk'),
+                    $term('i=2 AND j=2', ['i' => 2, 'j' => 2], 'ijk'),
+                    $term('i=3 AND j=3', ['i' => 3, 'j' => 3], 'ijk'),
+                ],
+                'OR-arm rowids are unioned before n is read from the table',
+            ),
+            self::whereDCoveringOrTemplate(
+                'whereD-1.8',
+                'second OR arm uses jmn but k projection requires table lookup',
+                'SELECT k FROM t WHERE (i=1 AND j=1) OR (j=2 AND m=2)',
+                ['k'],
+                [
+                    $term('i=1 AND j=1', ['i' => 1, 'j' => 1], 'ijk'),
+                    $term('j=2 AND m=2', ['j' => 2, 'm' => 2], 'jmn'),
+                ],
+                'mixed ijk and jmn probes preserve one/two output while only the ijk arm covers k',
+            ),
+            self::whereDCoveringOrTemplate(
+                'whereD-1.9',
+                'mixed ijk and jmn OR arms project k over three rows',
+                'SELECT k FROM t WHERE (i=1 AND j=1) OR (i=2 AND j=2) OR (j=3 AND m=3)',
+                ['k'],
+                [
+                    $term('i=1 AND j=1', ['i' => 1, 'j' => 1], 'ijk'),
+                    $term('i=2 AND j=2', ['i' => 2, 'j' => 2], 'ijk'),
+                    $term('j=3 AND m=3', ['j' => 3, 'm' => 3], 'jmn'),
+                ],
+                'jmn contributes the third rowid but the table is needed for k',
+            ),
+            self::whereDCoveringOrTemplate(
+                'whereD-1.10',
+                'mixed OR arms project n with only the jmn arm covering the payload',
+                'SELECT n FROM t WHERE (i=1 AND j=1) OR (i=2 AND j=2) OR (j=3 AND m=3)',
+                ['n'],
+                [
+                    $term('i=1 AND j=1', ['i' => 1, 'j' => 1], 'ijk'),
+                    $term('i=2 AND j=2', ['i' => 2, 'j' => 2], 'ijk'),
+                    $term('j=3 AND m=3', ['j' => 3, 'm' => 3], 'jmn'),
+                ],
+                'the first two ijk arms require table lookup for n',
+            ),
+            self::whereDCoveringOrTemplate(
+                'whereD-1.11',
+                'middle jmn OR arm preserves k result order after table lookup',
+                'SELECT k FROM t WHERE (i=1 AND j=1) OR (j=2 AND m=2) OR (i=3 AND j=3)',
+                ['k'],
+                [
+                    $term('i=1 AND j=1', ['i' => 1, 'j' => 1], 'ijk'),
+                    $term('j=2 AND m=2', ['j' => 2, 'm' => 2], 'jmn'),
+                    $term('i=3 AND j=3', ['i' => 3, 'j' => 3], 'ijk'),
+                ],
+                'the jmn middle arm is rowid-only for the k projection',
+            ),
+            self::whereDCoveringOrTemplate(
+                'whereD-1.12',
+                'middle jmn OR arm covers n while ijk arms need table payloads',
+                'SELECT n FROM t WHERE (i=1 AND j=1) OR (j=2 AND m=2) OR (i=3 AND j=3)',
+                ['n'],
+                [
+                    $term('i=1 AND j=1', ['i' => 1, 'j' => 1], 'ijk'),
+                    $term('j=2 AND m=2', ['j' => 2, 'm' => 2], 'jmn'),
+                    $term('i=3 AND j=3', ['i' => 3, 'j' => 3], 'ijk'),
+                ],
+                'the jmn arm is covering but the union as a whole still needs table lookup',
+            ),
+            self::whereDCoveringOrTemplate(
+                'whereD-1.13',
+                'first jmn OR arm still returns k after table lookup',
+                'SELECT k FROM t WHERE (j=1 AND m=1) OR (i=2 AND j=2) OR (i=3 AND j=3)',
+                ['k'],
+                [
+                    $term('j=1 AND m=1', ['j' => 1, 'm' => 1], 'jmn'),
+                    $term('i=2 AND j=2', ['i' => 2, 'j' => 2], 'ijk'),
+                    $term('i=3 AND j=3', ['i' => 3, 'j' => 3], 'ijk'),
+                ],
+                'a jmn-leading OR union must not drop the table lookup needed for k',
+            ),
+            self::whereDCoveringOrTemplate(
+                'whereD-1.14',
+                'commuted j and i equality term remains covered by ijk',
+                'SELECT k FROM t WHERE (i=1 AND j=1) OR (j=2 AND i=2) OR (i=3 AND j=3)',
+                ['k'],
+                [
+                    $term('i=1 AND j=1', ['i' => 1, 'j' => 1], 'ijk'),
+                    $term('j=2 AND i=2', ['j' => 2, 'i' => 2], 'ijk'),
+                    $term('i=3 AND j=3', ['i' => 3, 'j' => 3], 'ijk'),
+                ],
+                'commuted equality terms still map to the same covering index prefix',
+            ),
+            self::whereDCoveringOrTemplate(
+                'whereD-1.15',
+                'OR union over ijk can produce an empty result without scan fallback',
+                'SELECT k FROM t WHERE (i=1 AND j=2) OR (i=2 AND j=1) OR (i=3 AND j=4)',
+                ['k'],
+                [
+                    $term('i=1 AND j=2', ['i' => 1, 'j' => 2], 'ijk'),
+                    $term('i=2 AND j=1', ['i' => 2, 'j' => 1], 'ijk'),
+                    $term('i=3 AND j=4', ['i' => 3, 'j' => 4], 'ijk'),
+                ],
+                'empty OR-arm probes preserve the zero-row result',
+            ),
+            self::whereDCoveringOrTemplate(
+                'whereD-1.16',
+                'nested OR inside one arm is factored into the ijk prefix',
+                'SELECT k FROM t WHERE (i=1 AND (j=1 or j=2)) OR (i=3 AND j=3)',
+                ['k'],
+                [
+                    $term('i=1 AND (j=1 OR j=2)', ['i' => 1, 'j' => [1, 2]], 'ijk'),
+                    $term('i=3 AND j=3', ['i' => 3, 'j' => 3], 'ijk'),
+                ],
+                'nested j alternatives keep the OR union covered by ijk',
+            ),
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $template['case'] = $case;
+            $template['batch'] = intdiv($case - 1, count($templates)) + 1;
+            $template['detail'] .= '; dynamic replay ' . $template['batch'];
+            $out[] = $template;
+        }
+
+        return $out;
+    }
+
+    /**
      * @param list<array<int,mixed>> $resultRows
      * @param list<mixed> $expected
      * @param list<string> $catalogIndexes
@@ -11312,6 +11517,170 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
             'detail' => $detail,
             'integrity' => $resultCode === 0 ? 'ok' : 'expected-error',
         ];
+    }
+
+    /**
+     * @param list<string> $projection
+     * @param list<array{expr:string,constraints:array<string,mixed>,index:string,residual:array<string,mixed>}> $terms
+     * @return array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,projection:list<string>,or_terms:list<string>,result_rows:list<array<int,mixed>>,result_flat:list<mixed>,selected_i_values:list<int>,matched_rowids:list<int>,chosen_indexes:list<string>,covering_indexes:list<string>,residual_terms:list<string>,requires_table_lookup:bool,uses_or_clause_index_union:bool,empty_result:bool,index_probe_count:int,detail:string,integrity:string}
+     */
+    private static function whereDCoveringOrTemplate(
+        string $section,
+        string $scenario,
+        string $statement,
+        array $projection,
+        array $terms,
+        string $detail,
+    ): array {
+        $rows = self::whereDTableRows();
+        $seen = [];
+        $resultRows = [];
+        $selectedIValues = [];
+        $matchedRowids = [];
+        $chosenIndexes = [];
+        $coveringIndexes = [];
+        $residualTerms = [];
+        $requiresTableLookup = false;
+
+        foreach ($terms as $term) {
+            $index = $term['index'];
+            $chosenIndexes[$index] = $index;
+
+            $covered = self::whereDTermIsCovering($projection, $term['constraints'], $term['residual'], $index);
+            if ($covered) {
+                $coveringIndexes[$index] = $index;
+            } else {
+                $requiresTableLookup = true;
+            }
+
+            foreach ($term['residual'] as $column => $value) {
+                $residualTerms[] = $column . '=' . (is_array($value) ? implode('|', $value) : (string) $value);
+            }
+
+            foreach ($rows as $row) {
+                if (!self::whereDMatches($row, $term['constraints']) || !self::whereDMatches($row, $term['residual'])) {
+                    continue;
+                }
+
+                $rowid = (int) $row['rowid'];
+                if (isset($seen[$rowid])) {
+                    continue;
+                }
+
+                $seen[$rowid] = true;
+                $matchedRowids[] = $rowid;
+                $selectedIValues[] = (int) $row['i'];
+                $resultRows[] = self::whereDProject($row, $projection);
+            }
+        }
+
+        return [
+            'source' => 'whereD.test sections whereD-1.2 through whereD-1.16',
+            'case' => 0,
+            'upstream_section' => $section,
+            'batch' => 0,
+            'scenario' => $scenario,
+            'statement' => $statement,
+            'projection' => $projection,
+            'or_terms' => array_column($terms, 'expr'),
+            'result_rows' => $resultRows,
+            'result_flat' => array_merge(...array_map(static fn (array $row): array => array_values($row), $resultRows)) ?: [],
+            'selected_i_values' => $selectedIValues,
+            'matched_rowids' => $matchedRowids,
+            'chosen_indexes' => array_values($chosenIndexes),
+            'covering_indexes' => array_values($coveringIndexes),
+            'residual_terms' => $residualTerms,
+            'requires_table_lookup' => $requiresTableLookup,
+            'uses_or_clause_index_union' => count($terms) > 1,
+            'empty_result' => $resultRows === [],
+            'index_probe_count' => count($terms),
+            'detail' => $detail,
+            'integrity' => 'ok',
+        ];
+    }
+
+    /**
+     * @return list<array{rowid:int,i:int,j:int,k:string,m:int,n:string}>
+     */
+    private static function whereDTableRows(): array
+    {
+        return [
+            ['rowid' => 1, 'i' => 3, 'j' => 3, 'k' => 'three', 'm' => 3, 'n' => 'tres'],
+            ['rowid' => 2, 'i' => 2, 'j' => 2, 'k' => 'two', 'm' => 2, 'n' => 'dos'],
+            ['rowid' => 3, 'i' => 1, 'j' => 1, 'k' => 'one', 'm' => 1, 'n' => 'uno'],
+            ['rowid' => 4, 'i' => 4, 'j' => 4, 'k' => 'four', 'm' => 4, 'n' => 'cuatro'],
+        ];
+    }
+
+    /**
+     * @param array{rowid:int,i:int,j:int,k:string,m:int,n:string} $row
+     * @param array<string,mixed> $constraints
+     */
+    private static function whereDMatches(array $row, array $constraints): bool
+    {
+        foreach ($constraints as $column => $expected) {
+            $column = ltrim((string) $column, '+');
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException('SQLite whereD corpus references unknown column ' . $column);
+            }
+
+            if (is_array($expected)) {
+                if (!in_array($row[$column], $expected, true)) {
+                    return false;
+                }
+                continue;
+            }
+
+            if ($row[$column] !== $expected) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array{rowid:int,i:int,j:int,k:string,m:int,n:string} $row
+     * @param list<string> $projection
+     * @return list<mixed>
+     */
+    private static function whereDProject(array $row, array $projection): array
+    {
+        $result = [];
+        foreach ($projection as $column) {
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException('SQLite whereD corpus projection references unknown column ' . $column);
+            }
+            $result[] = $row[$column];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param list<string> $projection
+     * @param array<string,mixed> $constraints
+     * @param array<string,mixed> $residual
+     */
+    private static function whereDTermIsCovering(array $projection, array $constraints, array $residual, string $index): bool
+    {
+        $columns = match ($index) {
+            'ijk' => ['i', 'j', 'k'],
+            'jmn' => ['j', 'm', 'n'],
+            default => throw new \InvalidArgumentException('SQLite whereD corpus references unknown index ' . $index),
+        };
+
+        if ($residual !== []) {
+            return false;
+        }
+
+        foreach (array_merge($projection, array_map(static fn (string $column): string => ltrim($column, '+'), array_keys($constraints))) as $column) {
+            if (!in_array($column, $columns, true)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

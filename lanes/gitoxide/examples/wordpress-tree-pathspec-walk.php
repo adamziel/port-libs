@@ -50,6 +50,7 @@ $pathspecs = PathspecSearch::fromSpecs([
     ':(icase)WP-CONTENT/MU-PLUGINS/*.PHP',
     ':(literal)wp-content/uploads/2026/[hero].jpg',
 ]);
+$prefixedPathspecs = PathspecSearch::fromSpecs([':(icase)mu-plugins/*.php'], 'WP-CONTENT');
 
 $records = TreePathspecWalk::breadthFirst(
     $root,
@@ -70,4 +71,6 @@ return [
     'gutenbergBuildSkipped' => !$pathspecs->isIncluded('wp-content/plugins/gutenberg/build/index.js', false),
     'literalUploadIncluded' => $pathspecs->isIncluded('wp-content/uploads/2026/[hero].jpg', false),
     'caseFoldedMuPluginIncluded' => $pathspecs->isIncluded('wp-content/mu-plugins/Loader.PHP', false),
+    'prefixCaseSensitiveUpperContentIncluded' => $prefixedPathspecs->isIncluded('WP-CONTENT/mu-plugins/loader.php', false),
+    'prefixCaseSensitiveLowerContentSkipped' => !$prefixedPathspecs->isIncluded('wp-content/mu-plugins/Loader.PHP', false),
 ];

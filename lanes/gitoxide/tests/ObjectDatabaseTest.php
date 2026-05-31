@@ -246,6 +246,31 @@ return [
         $t->same([$primaryOid], $integrity[0]['statistics']['verifiedObjectIds']);
         $t->same([$alternateOid], $integrity[1]['statistics']['verifiedObjectIds']);
     },
+    'object database reads object headers across packed loose and replacement stores' => static function (TestRunner $t) use ($writeWordPressPackFixture): void {
+        [$gitDir, $fixture] = $writeWordPressPackFixture();
+        $loose = new LooseObjectStore($gitDir);
+        $originalOid = $loose->write(new GitObject('blob', 'Draft block header'));
+        $replacement = new GitObject('blob', 'Reviewed block header for publishing');
+        $replacementOid = $loose->write($replacement);
+        (new LooseReferenceStore($gitDir))->writeDirect('refs/replace/' . $originalOid, $replacementOid);
+
+        $database = new ObjectDatabase($gitDir);
+        $packedHeader = $database->readHeader(strtoupper($fixture['objects'][0]['oid']));
+        $t->same('commit', $packedHeader['type']);
+        $t->same(strlen($fixture['objects'][0]['body']), $packedHeader['size']);
+        $t->same('pack', $packedHeader['source']);
+
+        $replacementHeader = $database->readHeader($originalOid);
+        $t->same('blob', $replacementHeader['type']);
+        $t->same(strlen($replacement->body), $replacementHeader['size']);
+        $t->same('loose', $replacementHeader['source']);
+
+        $ignoredHeader = $database->withReplacementsIgnored()->readHeader($originalOid);
+        $t->same('blob', $ignoredHeader['type']);
+        $t->same(strlen('Draft block header'), $ignoredHeader['size']);
+        $t->same('loose', $ignoredHeader['source']);
+        $t->throws(RuntimeException::class, static fn () => $database->readHeader(str_repeat('f', 40)));
+    },
     'object database applies loose replacement refs and can ignore them' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-odb-' . bin2hex(random_bytes(4)) . '/.git';
         $loose = new LooseObjectStore($gitDir);
@@ -331,6 +356,9 @@ return [
         $t->same(40, strlen($summary['deploymentCommitOid']));
         $t->same(40, strlen($summary['deploymentCommitParent']));
         $t->same($summary['deploymentCommitParent'], $summary['firstPackOffsetOid']);
+        $t->same('commit', $summary['deploymentCommitHeaderType']);
+        $t->same(true, $summary['deploymentCommitHeaderSize'] > 0);
+        $t->same(true, $summary['replacementHeaderUsesReviewedDraft']);
         $t->same(2, $summary['looseIntegrityStores']);
         $t->same(4, $summary['looseIntegrityObjects']);
         $t->same(true, $summary['looseIntegrityVerifiedDeploymentCommit']);

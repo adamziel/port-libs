@@ -21,6 +21,13 @@ $reviewBase = $finder->mergeBaseMany($fixture['heads']);
 $deploymentBase = $finder->mergeBaseMany($fixture['deploymentHeads']);
 $graphWalkBase = $finder->mergeBaseAgainst($fixture['pluginReview'], $fixture['graphWalkOthers']);
 $archiveOctopusBases = $finder->mergeBasesMany($fixture['graphWalkHeads']);
+$sha256ReviewBase = $finder->mergeBase($fixture['sha256PluginReview'], $fixture['sha256ThemeReview']);
+$sha256GraphWalkBase = $finder->mergeBaseAgainst($fixture['sha256PluginReview'], $fixture['sha256GraphWalkOthers']);
+$sha256DeployBase = $finder->mergeBaseMany([
+    $fixture['sha256Deploy'],
+    $fixture['sha256PluginReview'],
+    $fixture['sha256ThemeReview'],
+]);
 
 return [
     'reviewHeads' => $fixture['heads'],
@@ -36,4 +43,12 @@ return [
     'deploymentBaseIsReleaseBaseline' => $deploymentBase === $fixture['releaseBaseline'],
     'graphWalkKeepsReleaseBaseline' => $graphWalkBase === $fixture['releaseBaseline'],
     'octopusRejectsArchiveBranch' => $archiveOctopusBases === [],
+    'sha256ReviewHeads' => $fixture['sha256ReviewHeads'],
+    'sha256ReviewBase' => $sha256ReviewBase,
+    'sha256GraphWalkBase' => $sha256GraphWalkBase,
+    'sha256DeployBase' => $sha256DeployBase,
+    'sha256ExpectedReleaseBaseline' => $fixture['sha256ReleaseBaseline'],
+    'sha256ReviewBaseIsReleaseBaseline' => $sha256ReviewBase === $fixture['sha256ReleaseBaseline'],
+    'sha256GraphWalkKeepsReleaseBaseline' => $sha256GraphWalkBase === $fixture['sha256ReleaseBaseline'],
+    'sha256DeployBaseIsReleaseBaseline' => $sha256DeployBase === $fixture['sha256ReleaseBaseline'],
 ];

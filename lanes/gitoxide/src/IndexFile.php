@@ -109,6 +109,30 @@ final class IndexFile
         return null;
     }
 
+    /**
+     * @param callable(string): GitObject $readObject
+     */
+    public static function verifyCheckoutCacheTree(string $bytes, Tree $tree, callable $readObject): IndexCacheTree
+    {
+        $parsed = self::parseIndex($bytes);
+        $cacheTree = null;
+        foreach (self::extensionPayloadsFromParsed($bytes, $parsed) as $signature => $payloads) {
+            if ($signature === IndexCacheTree::SIGNATURE) {
+                $cacheTree = IndexCacheTree::fromBody($payloads[0]);
+                break;
+            }
+        }
+
+        if ($cacheTree === null) {
+            throw new \RuntimeException('Index does not contain a TREE cache extension');
+        }
+
+        $cacheTree->verifyEntryCounts(count($parsed['entries']));
+        $cacheTree->verifyCheckoutTree($tree, $readObject);
+
+        return $cacheTree;
+    }
+
     public static function versionFromBytes(string $bytes): int
     {
         return self::parseIndex($bytes)['version'];
@@ -308,7 +332,15 @@ final class IndexFile
      */
     private static function extensionPayloads(string $bytes): array
     {
-        $parsed = self::parseIndex($bytes);
+        return self::extensionPayloadsFromParsed($bytes, self::parseIndex($bytes));
+    }
+
+    /**
+     * @param array{version:int,entries:list<IndexEntry>,extensionOffset:int} $parsed
+     * @return array<string,list<string>>
+     */
+    private static function extensionPayloadsFromParsed(string $bytes, array $parsed): array
+    {
         $offset = $parsed['extensionOffset'];
         $dataEnd = strlen($bytes) - self::HASH_BYTES;
         $extensions = [];

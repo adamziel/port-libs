@@ -65,6 +65,7 @@ $indexBytes = IndexFile::bytesForCheckout($root, $read, $sparse);
 $entries = IndexFile::entriesFromBytes($indexBytes);
 $cacheTree = IndexFile::cacheTreeFromBytes($indexBytes);
 $cacheTree?->verifyEntryCounts(count($entries));
+$verifiedCacheTree = IndexFile::verifyCheckoutCacheTree($indexBytes, $root, $read);
 
 return [
     'indexVersion' => IndexFile::versionFromBytes($indexBytes),
@@ -79,6 +80,7 @@ return [
         'rootEntries' => $cacheTree?->numEntries,
         'wpContentEntries' => $cacheTree?->childNamed('wp-content')?->numEntries,
         'pluginEntries' => $cacheTree?->childNamed('wp-content')?->childNamed('plugins')?->numEntries,
+        'checkoutParityVerified' => $verifiedCacheTree->oid === $root->toObject()->oid(),
     ],
     'checksum' => IndexFile::checksum($indexBytes),
 ];

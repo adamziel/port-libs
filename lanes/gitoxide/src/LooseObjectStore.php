@@ -6,6 +6,8 @@ namespace PortLibs\Gitoxide;
 
 final class LooseObjectStore
 {
+    private const HEADER_MAX_SIZE = 64;
+
     private readonly string $objectsDirectory;
 
     public function __construct(string $gitDirectory, bool $pathIsObjectsDirectory = false)
@@ -56,6 +58,39 @@ final class LooseObjectStore
         }
 
         return GitObject::fromStorageBytes($bytes);
+    }
+
+    /**
+     * @return array{type:string,size:int,headerLength:int}
+     */
+    public function readHeader(string $oid): array
+    {
+        $header = $this->tryReadHeader($oid);
+        if ($header === null) {
+            throw new \RuntimeException("Loose object not found: {$oid}");
+        }
+
+        return $header;
+    }
+
+    /**
+     * @return null|array{type:string,size:int,headerLength:int}
+     */
+    public function tryReadHeader(string $oid): ?array
+    {
+        self::assertObjectId($oid);
+
+        $path = $this->pathFor($oid);
+        if (!is_file($path)) {
+            return null;
+        }
+
+        $compressed = file_get_contents($path);
+        if ($compressed === false) {
+            throw new \RuntimeException("Unable to read loose object header: {$oid}");
+        }
+
+        return GitObject::decodeLooseHeader(self::inflateHeaderBytes($compressed, strtolower($oid)));
     }
 
     public function tryRead(string $oid): ?GitObject
@@ -143,6 +178,45 @@ final class LooseObjectStore
         if (preg_match('/^[0-9a-fA-F]{40}$/', $oid) !== 1) {
             throw new \InvalidArgumentException('Loose object id must be a 40-character SHA-1 hex string');
         }
+    }
+
+    private static function inflateHeaderBytes(string $compressed, string $oid): string
+    {
+        if ($compressed === '') {
+            throw new \RuntimeException("Unable to inflate loose object header: {$oid}");
+        }
+
+        $context = inflate_init(ZLIB_ENCODING_DEFLATE);
+        if ($context === false) {
+            throw new \RuntimeException('Unable to initialize zlib inflate context');
+        }
+
+        $inflated = '';
+        $offset = 0;
+        $length = strlen($compressed);
+        while ($offset < $length) {
+            $chunk = substr($compressed, $offset, 16);
+            $offset += strlen($chunk);
+            $decoded = @inflate_add($context, $chunk, $offset >= $length ? ZLIB_FINISH : ZLIB_NO_FLUSH);
+            if ($decoded === false) {
+                throw new \RuntimeException("Unable to inflate loose object header: {$oid}");
+            }
+
+            $inflated .= $decoded;
+            $nul = strpos($inflated, "\0");
+            if ($nul !== false) {
+                if ($nul + 1 > self::HEADER_MAX_SIZE) {
+                    throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
+                }
+
+                return substr($inflated, 0, $nul + 1);
+            }
+            if (strlen($inflated) >= self::HEADER_MAX_SIZE) {
+                throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
+            }
+        }
+
+        throw new \InvalidArgumentException('Did not find 0 byte in header');
     }
 
     private static function decodeForIntegrity(GitObject $object, string $oid): void

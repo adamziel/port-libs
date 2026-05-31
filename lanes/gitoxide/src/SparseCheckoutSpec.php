@@ -11,7 +11,7 @@ final class SparseCheckoutSpec
 
     /**
      * @param list<string> $recursiveDirectories
-     * @param list<array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool}> $patterns
+     * @param list<array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool,caseSensitivePrefix?:string}> $patterns
      */
     private function __construct(
         public readonly string $mode,
@@ -134,9 +134,24 @@ final class SparseCheckoutSpec
      *
      * @param list<string> $pathspecs
      */
-    public static function fromPathspecs(array $pathspecs, bool $ignoreCase = false): self
+    public static function fromPathspecs(array $pathspecs, bool $ignoreCase = false, string $prefix = ''): self
     {
+        $prefix = self::normalizePath($prefix);
         if ($pathspecs === []) {
+            if ($prefix !== '') {
+                return new self(self::MODE_NON_CONE, [], [[
+                    'pattern' => $prefix,
+                    'negative' => false,
+                    'directoryOnly' => true,
+                    'anchored' => true,
+                    'literal' => true,
+                    'ignoreCase' => false,
+                    'pathspec' => true,
+                    'always' => false,
+                    'caseSensitivePrefix' => $prefix,
+                ]], $ignoreCase);
+            }
+
             return new self(self::MODE_NON_CONE, [], [[
                 'pattern' => '',
                 'negative' => false,
@@ -146,12 +161,13 @@ final class SparseCheckoutSpec
                 'ignoreCase' => $ignoreCase,
                 'pathspec' => true,
                 'always' => true,
+                'caseSensitivePrefix' => $prefix,
             ]], $ignoreCase);
         }
 
         $patterns = [];
         foreach ($pathspecs as $pathspec) {
-            $patterns[] = self::parsePathspec($pathspec, $ignoreCase);
+            $patterns[] = self::parsePathspec($pathspec, $ignoreCase, $prefix);
         }
 
         $allExcluded = $patterns !== [] && array_reduce(
@@ -310,7 +326,7 @@ final class SparseCheckoutSpec
     }
 
     /**
-     * @param array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool} $rule
+     * @param array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool,caseSensitivePrefix?:string} $rule
      */
     private function nonConeRuleMatches(array $rule, string $path, ?bool $isDirectory): bool
     {
@@ -342,10 +358,14 @@ final class SparseCheckoutSpec
     }
 
     /**
-     * @param array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool} $rule
+     * @param array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool,caseSensitivePrefix?:string} $rule
      */
     private function patternMatchesCandidate(array $rule, string $candidate): bool
     {
+        if (!self::candidateMatchesCaseSensitivePrefix($rule, $candidate)) {
+            return false;
+        }
+
         $ignoreCase = $rule['ignoreCase'] ?? $this->ignoreCase;
         $pattern = $rule['pattern'];
 
@@ -361,7 +381,7 @@ final class SparseCheckoutSpec
     }
 
     /**
-     * @param array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool} $rule
+     * @param array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool,caseSensitivePrefix?:string} $rule
      */
     private function pathspecRuleCanMatchDescendant(array $rule, string $path): bool
     {
@@ -373,6 +393,16 @@ final class SparseCheckoutSpec
         $ignoreCase = $rule['ignoreCase'] ?? $this->ignoreCase;
         $candidate = $ignoreCase ? strtolower($path) : $path;
         $patternForCompare = $ignoreCase ? strtolower($pattern) : $pattern;
+        $caseSensitivePrefix = $rule['caseSensitivePrefix'] ?? '';
+
+        if ($caseSensitivePrefix !== '') {
+            $overlapsPrefix = $path === $caseSensitivePrefix
+                || str_starts_with($caseSensitivePrefix, $path . '/')
+                || str_starts_with($path, $caseSensitivePrefix . '/');
+            if (!$overlapsPrefix) {
+                return false;
+            }
+        }
 
         if ($rule['literal'] ?? false) {
             return $patternForCompare === $candidate || str_starts_with($patternForCompare, $candidate . '/');
@@ -385,6 +415,25 @@ final class SparseCheckoutSpec
 
         return str_starts_with($candidate, rtrim($literalPrefix, '/'))
             || str_starts_with($literalPrefix, $candidate . '/');
+    }
+
+    /**
+     * @param array{caseSensitivePrefix?:string} $rule
+     */
+    private static function candidateMatchesCaseSensitivePrefix(array $rule, string $candidate): bool
+    {
+        $prefix = $rule['caseSensitivePrefix'] ?? '';
+        if ($prefix === '') {
+            return true;
+        }
+
+        if (!str_starts_with($candidate, $prefix)) {
+            return false;
+        }
+
+        $next = $candidate[strlen($prefix)] ?? null;
+
+        return $next === null || $next === '/';
     }
 
     /**
@@ -562,9 +611,9 @@ final class SparseCheckoutSpec
     }
 
     /**
-     * @return array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal:bool,matchSlash:bool,ignoreCase:bool,pathspec:bool,always:bool}
+     * @return array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal:bool,matchSlash:bool,ignoreCase:bool,pathspec:bool,always:bool,caseSensitivePrefix:string}
      */
-    private static function parsePathspec(string $pathspec, bool $defaultIgnoreCase): array
+    private static function parsePathspec(string $pathspec, bool $defaultIgnoreCase, string $prefix): array
     {
         if ($pathspec === '') {
             throw new \InvalidArgumentException('An empty string is not a valid pathspec');
@@ -578,7 +627,7 @@ final class SparseCheckoutSpec
         $cursor = 0;
 
         if ($pathspec === ':') {
-            return self::pathspecRule('', false, false, true, true, $matchSlash, $ignoreCase, true);
+            return self::pathspecRule('', false, false, true, true, $matchSlash, $ignoreCase, true, '');
         }
 
         if ($pathspec[0] === ':') {
@@ -656,14 +705,24 @@ final class SparseCheckoutSpec
         if ($directoryOnly) {
             $pattern = substr($pattern, 0, -1);
         }
-        $pattern = self::normalizePathspecPath($pattern);
+        [$pattern, $caseSensitivePrefix] = self::normalizePathspecPath($pattern, $anchored ? '' : $prefix);
         $always = $pattern === '';
 
-        return self::pathspecRule($pattern, $negative, $directoryOnly, $anchored, $literal, $matchSlash, $ignoreCase, $always);
+        return self::pathspecRule(
+            $pattern,
+            $negative,
+            $directoryOnly,
+            $anchored,
+            $literal,
+            $matchSlash,
+            $ignoreCase,
+            $always,
+            $caseSensitivePrefix,
+        );
     }
 
     /**
-     * @return array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal:bool,matchSlash:bool,ignoreCase:bool,pathspec:bool,always:bool}
+     * @return array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal:bool,matchSlash:bool,ignoreCase:bool,pathspec:bool,always:bool,caseSensitivePrefix:string}
      */
     private static function pathspecRule(
         string $pattern,
@@ -674,6 +733,7 @@ final class SparseCheckoutSpec
         bool $matchSlash,
         bool $ignoreCase,
         bool $always,
+        string $caseSensitivePrefix,
     ): array {
         return [
             'pattern' => $pattern,
@@ -685,6 +745,7 @@ final class SparseCheckoutSpec
             'ignoreCase' => $ignoreCase,
             'pathspec' => true,
             'always' => $always,
+            'caseSensitivePrefix' => $caseSensitivePrefix,
         ];
     }
 
@@ -705,13 +766,23 @@ final class SparseCheckoutSpec
         return strpbrk($pattern, '*?[') !== false || str_contains($pattern, '\\');
     }
 
-    private static function normalizePathspecPath(string $path): string
+    /**
+     * @return array{0:string,1:string}
+     */
+    private static function normalizePathspecPath(string $path, string $prefix = ''): array
     {
-        if (str_contains($path, "\0")) {
+        if (str_contains($path, "\0") || str_contains($prefix, "\0")) {
             throw new \InvalidArgumentException('Sparse checkout path cannot contain NUL bytes');
         }
 
         $parts = [];
+        foreach (explode('/', $prefix) as $part) {
+            if ($part === '') {
+                continue;
+            }
+            $parts[] = ['part' => $part, 'fromPrefix' => true];
+        }
+
         foreach (explode('/', $path) as $part) {
             if ($part === '' || $part === '.') {
                 continue;
@@ -723,10 +794,21 @@ final class SparseCheckoutSpec
                 array_pop($parts);
                 continue;
             }
-            $parts[] = $part;
+            $parts[] = ['part' => $part, 'fromPrefix' => false];
         }
 
-        return implode('/', $parts);
+        $caseSensitivePrefix = [];
+        foreach ($parts as $part) {
+            if (!$part['fromPrefix']) {
+                break;
+            }
+            $caseSensitivePrefix[] = $part['part'];
+        }
+
+        return [
+            implode('/', array_map(static fn (array $part): string => $part['part'], $parts)),
+            implode('/', $caseSensitivePrefix),
+        ];
     }
 
     private function comparisonPath(string $path): string

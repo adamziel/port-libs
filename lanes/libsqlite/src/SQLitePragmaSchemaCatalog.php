@@ -216,29 +216,24 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
-     * @return list<array{seqno: int, cid: int, name: string}>
+     * @return list<array{seqno: int, cid: int, name: string|null}>
      */
     public function indexInfo(string $indexName): array
     {
-        $index = null;
-        foreach ($this->records as $record) {
-            if ($record->type === 'index' && strcasecmp($record->name, $indexName) === 0) {
-                $index = $record;
-                break;
-            }
-        }
-
+        $index = $this->findIndex($indexName);
         if ($index === null) {
             return [];
         }
 
-        $columns = $index->sql === null
-            ? $this->autoIndexColumns($index)
-            : self::columnsFromCreateIndex($index->sql);
         $tableColumns = $this->tableColumnNames($index->tableName);
+        $terms = $index->sql === null
+            ? $this->autoIndexColumnTerms($index)
+            : self::indexTermsFromCreateIndex($index->sql);
+
         $rows = [];
-        foreach ($columns as $seqno => $columnName) {
-            $cid = array_search(strtolower($columnName), $tableColumns, true);
+        foreach ($terms as $seqno => $term) {
+            $columnName = $term['expression'] ? null : $term['name'];
+            $cid = $columnName === null ? -2 : array_search(strtolower($columnName), $tableColumns, true);
             $rows[] = [
                 'seqno' => $seqno,
                 'cid' => $cid === false ? -2 : $cid,
@@ -1011,50 +1006,6 @@ final class SQLitePragmaSchemaCatalog
         $ascOffset = self::findTopLevelKeyword($term, 'ASC');
 
         return $ascOffset === null || $descOffset > $ascOffset;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private static function columnsFromCreateIndex(string $sql): array
-    {
-        $body = self::parenthesizedBody($sql);
-        if ($body === null) {
-            return [];
-        }
-
-        $columns = [];
-        foreach (self::splitTopLevel($body, ',') as $term) {
-            $identifier = self::readIdentifier(trim($term), 0);
-            $columns[] = $identifier === null ? trim($term) : $identifier['identifier'];
-        }
-
-        return $columns;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function autoIndexColumns(SQLiteSchemaRecord $index): array
-    {
-        $table = $this->tables[strtolower($index->tableName)] ?? null;
-        if ($table === null || $table->sql === null) {
-            return [];
-        }
-
-        $autoIndexes = SQLiteCreateTable::automaticIndexColumnMetadata($table->sql);
-        $autoIndexOffset = 0;
-        foreach ($this->indexesByTable[strtolower($index->tableName)] ?? [] as $candidate) {
-            if (!str_starts_with($candidate->name, 'sqlite_autoindex_')) {
-                continue;
-            }
-            if (strcasecmp($candidate->name, $index->name) === 0) {
-                return array_map(static fn (SQLiteIndexColumn $column): string => $column->columnName, $autoIndexes[$autoIndexOffset] ?? []);
-            }
-            $autoIndexOffset++;
-        }
-
-        return [];
     }
 
     /**

@@ -50,9 +50,12 @@ $deploymentCommit = new Commit(
 $deploymentCommitOid = $database->writeCommit($deploymentCommit);
 $deploymentCommitPath = $gitDir . '/objects/' . substr($deploymentCommitOid, 0, 2) . '/' . substr($deploymentCommitOid, 2);
 $deploymentCommitRoundTrip = Commit::parse($database->read($deploymentCommitOid)->body);
+$deploymentCommitHeader = $database->readHeader($deploymentCommitOid);
 $deltaBlob = $database->read($fixture['objects'][2]['oid']);
 $draft = $database->read($draftOid);
 $rawDraft = $database->withReplacementsIgnored()->read($draftOid);
+$draftHeader = $database->readHeader($draftOid);
+$rawDraftHeader = $database->withReplacementsIgnored()->readHeader($draftOid);
 $sharedPackage = $database->read($sharedPackageOid);
 $prefix = $database->lookupPrefix(substr($fixture['objects'][2]['oid'], 0, 8));
 $looseIntegrity = $database->verifyLooseIntegrity();
@@ -81,6 +84,10 @@ return [
     'deploymentCommitStoredLoose' => is_file($deploymentCommitPath),
     'deploymentCommitSummary' => $deploymentCommitRoundTrip->messageSummary(),
     'deploymentCommitParent' => $deploymentCommitRoundTrip->parents[0],
+    'deploymentCommitHeaderType' => $deploymentCommitHeader['type'],
+    'deploymentCommitHeaderSize' => $deploymentCommitHeader['size'],
+    'replacementHeaderUsesReviewedDraft' => $draftHeader['size'] === strlen('Reviewed draft block content ready for publishing.')
+        && $rawDraftHeader['size'] === strlen('Draft block content pending the next packed snapshot.'),
     'looseIntegrityStores' => count($looseIntegrity),
     'looseIntegrityObjects' => $looseIntegrityObjects,
     'looseIntegrityVerifiedDeploymentCommit' => in_array($deploymentCommitOid, $looseIntegrity[0]['statistics']['verifiedObjectIds'], true),

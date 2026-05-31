@@ -91,6 +91,43 @@ return [
         mkdir($dir . '/logs/refs/heads/directory', 0777, true);
         $t->same(null, $store->reflogEntries('refs/heads/directory'));
     },
+    'reference store direct append recovers empty reflog directory blockers like upstream' => static function (TestRunner $t) use ($old, $new, $zeros): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-reflog-dir-recovery-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        mkdir($dir . '/logs/refs/heads/recovered/empty-a/empty-b', 0777, true);
+
+        $store->appendReflog(
+            'refs/heads/recovered',
+            null,
+            ReferenceTarget::object($new),
+            $committer,
+            'replace empty directory blocker',
+        );
+
+        $entries = $store->reflogEntries('refs/heads/recovered');
+        $t->same(1, count($entries ?? []));
+        $t->same($zeros, $entries[0]->previousOid);
+        $t->same($new, $entries[0]->newOid);
+        $t->same('replace empty directory blocker', $entries[0]->message);
+        $t->same(true, is_file($dir . '/logs/refs/heads/recovered'));
+        $t->same(false, is_dir($dir . '/logs/refs/heads/recovered/empty-a'));
+
+        mkdir($dir . '/logs/refs/heads/non-empty', 0777, true);
+        file_put_contents($dir . '/logs/refs/heads/non-empty/held', 'not empty');
+        $t->throws(
+            RuntimeException::class,
+            static fn () => $store->appendReflog(
+                'refs/heads/non-empty',
+                ReferenceTarget::object($old),
+                ReferenceTarget::object($new),
+                $committer,
+                'should not replace non-empty blocker',
+            ),
+        );
+        $t->same(true, is_dir($dir . '/logs/refs/heads/non-empty'));
+        $t->same('not empty', (string) file_get_contents($dir . '/logs/refs/heads/non-empty/held'));
+    },
     'reference store respects auto create boundaries and forced tag reflogs' => static function (TestRunner $t) use ($old, $new, $zeros): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-reflog-autocreate-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -159,6 +196,36 @@ return [
             $t->contains('line 2 from end', $exception->getMessage());
         }
     },
+    'reflog iterator results keep parsing after malformed entries' => static function (TestRunner $t) use ($old, $new, $other, $zeros): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-reflog-result-iterator-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        mkdir($dir . '/logs/refs/heads', 0777, true);
+        file_put_contents(
+            $dir . '/logs/refs/heads/main',
+            "{$zeros} {$old} Deploy Bot <deploy@example.com> 1234 +0000\tcreated\n"
+            . "not-a-reflog-entry\n"
+            . "{$old} {$new} Deploy Bot <deploy@example.com> 1235 +0000\tupdated\n"
+            . "{$new} {$other} Deploy Bot <deploy@example.com> 1236 +0000\tfinal",
+        );
+
+        $forward = $store->reflogEntryResults('refs/heads/main');
+        $reverse = $store->reflogEntryResultsReverse('refs/heads/main');
+
+        $t->same([true, false, true, true], array_map(static fn (array $result): bool => $result['ok'], $forward ?? []));
+        $t->same([1, 2, 3, 4], array_map(static fn (array $result): int => $result['line'], $forward ?? []));
+        $t->same('created', $forward[0]['entry']->message ?? null);
+        $t->same('updated', $forward[2]['entry']->message ?? null);
+        $t->same('final', $forward[3]['entry']->message ?? null);
+        $t->contains('In line 2:', $forward[1]['error'] ?? '');
+        $t->contains('not-a-reflog-entry', $forward[1]['raw'] ?? '');
+
+        $t->same([true, true, false, true], array_map(static fn (array $result): bool => $result['ok'], $reverse ?? []));
+        $t->same([1, 2, 3, 4], array_map(static fn (array $result): int => $result['line'], $reverse ?? []));
+        $t->same('final', $reverse[0]['entry']->message ?? null);
+        $t->same('updated', $reverse[1]['entry']->message ?? null);
+        $t->same('created', $reverse[3]['entry']->message ?? null);
+        $t->contains('In line 3 from the end:', $reverse[2]['error'] ?? '');
+    },
     'reflog entries preserve sha256 object ids like report-status-v2 refs' => static function (TestRunner $t): void {
         $old = str_repeat('1', 64);
         $new = str_repeat('2', 64);
@@ -199,6 +266,9 @@ return [
         $t->same('WordPress Deploy Bot <deploy@example.com>', $summary['trimmedCommitter']);
         $t->contains($fixture['messages'][0], (string) $summary['rawReflog']);
         $t->contains($fixture['messages'][1], (string) $summary['rawReflog']);
+        $t->same([false, true, true], array_map(static fn (array $result): bool => $result['ok'], $summary['corruptLineDiagnostics']));
+        $t->contains('In line 1:', $summary['corruptLineDiagnostics'][0]['error'] ?? '');
+        $t->contains($fixture['corruptLine'], $summary['corruptLineDiagnostics'][0]['error'] ?? '');
         $t->contains('git reflog', $summary['wordpressUse']);
     },
 ];

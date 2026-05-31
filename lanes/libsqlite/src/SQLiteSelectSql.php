@@ -2793,16 +2793,19 @@ final class SQLiteSelectSql
             default => throw new \InvalidArgumentException('SQLite SELECT SQL JOIN type is not supported'),
         };
         if ($natural && $type === 'CROSS') {
-            throw new \InvalidArgumentException('SQLite SELECT SQL NATURAL CROSS JOIN is not supported');
+            $type = 'INNER';
         }
 
         $rest = trim(substr($sql, strlen($match[0])));
         $boundary = self::nextJoinConditionOffset($rest);
+        $nextJoin = self::firstJoinOffset($rest);
+        if ($natural && $boundary !== null && ($nextJoin === null || $boundary < $nextJoin)) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL NATURAL join may not have an ON or USING clause');
+        }
         if ($natural) {
             $boundary = null;
         }
         if ($boundary === null && ($type === 'CROSS' || $natural)) {
-            $nextJoin = self::firstJoinOffset($rest);
             $tableSql = $nextJoin === null ? $rest : trim(substr($rest, 0, $nextJoin));
             $remaining = $nextJoin === null ? '' : trim(substr($rest, $nextJoin));
             $table = self::tableReference($tableSql, $tables, [], $jsonErrorBoundaryColumns, $outerRow);

@@ -6,6 +6,8 @@ namespace PortLibs\Gitoxide;
 
 final class FetchResponse
 {
+    private const MAX_PACKET_LINE_LENGTH = 65520;
+
     /**
      * @param list<FetchAcknowledgement> $acknowledgements
      * @param list<FetchShallowUpdate> $shallowUpdates
@@ -341,6 +343,9 @@ final class FetchResponse
         }
         if ($length < 4) {
             throw new \InvalidArgumentException("fetch response: invalid packet line length {$header}");
+        }
+        if ($length > self::MAX_PACKET_LINE_LENGTH) {
+            throw new \InvalidArgumentException("fetch response: packet line exceeds maximum length {$header}");
         }
 
         $payloadLength = $length - 4;

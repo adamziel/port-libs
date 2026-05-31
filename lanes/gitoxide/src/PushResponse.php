@@ -49,6 +49,9 @@ final class PushResponse
             if ($packet['kind'] !== 'data') {
                 throw new \InvalidArgumentException("push response: unexpected {$packet['kind']} packet in sideband stream");
             }
+            if (str_starts_with($packet['payload'], 'ERR ')) {
+                throw new \RuntimeException('push response: receive-pack error ' . self::trimLineEnding(substr($packet['payload'], 4)));
+            }
             if ($packet['payload'] === '') {
                 throw new \InvalidArgumentException('push response: sideband packet was empty');
             }
@@ -68,6 +71,9 @@ final class PushResponse
 
         if (!$sawFlush) {
             throw new \InvalidArgumentException('push response: missing sideband flush packet');
+        }
+        if ($statusBytes === '' && $errorMessages !== []) {
+            throw new \RuntimeException('push response: sideband error ' . implode("\n", $errorMessages));
         }
 
         return self::parseReportStatus($statusBytes, $progressMessages, $errorMessages);

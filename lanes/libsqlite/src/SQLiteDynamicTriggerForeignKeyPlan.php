@@ -10142,6 +10142,505 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @return array<string,mixed>
+     */
+    public static function fkey2GenfkeyCompatibilityPlan(int $seed): array
+    {
+        if ($seed < 1) {
+            throw new \InvalidArgumentException('SQLite fkey2 genfkey compatibility seed must be positive');
+        }
+
+        $base = $seed * 100;
+        $noAction = self::fkey2GenfkeyNoActionGroup($base);
+        $cascade = self::fkey2GenfkeyActionGroup($base + 1000, 'cascade');
+        $setNull = self::fkey2GenfkeyActionGroup($base + 2000, 'set null');
+
+        return [
+            'source' => 'fkey2.test fkey2-genfkey.1.1..3.6',
+            'operation' => 'foreign-key-genfkey-compatibility',
+            'variant' => $seed,
+            'no_action' => $noAction,
+            'cascade' => $cascade,
+            'set_null' => $setNull,
+            'group_count' => 3,
+            'dependencies' => [
+                'sqlite-fkey2-genfkey-built-in-fk-matches-generated-trigger-no-action',
+                'sqlite-fkey2-genfkey-built-in-fk-matches-generated-trigger-cascade',
+                'sqlite-fkey2-genfkey-built-in-fk-matches-generated-trigger-set-null',
+                'sqlite-fkey2-genfkey-composite-child-null-short-circuits-check',
+                'sqlite-fkey2-genfkey-composite-parent-unique-index-order-is-honored',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function fkey2GenfkeyNoActionGroup(int $base): array
+    {
+        $parents = [
+            ['a' => $base + 1, 'b' => $base + 2, 'c' => $base + 3],
+        ];
+        $singleChildren = [];
+        $compositeChildren = [];
+
+        $insertMissingSingle = self::fkey2GenfkeyInsertSingle($parents, $singleChildren, $base + 99);
+        $insertExistingSingle = self::fkey2GenfkeyInsertSingle($parents, $singleChildren, $base + 1);
+        $singleChildren = $insertExistingSingle['rows'];
+        $insertNullSingle = self::fkey2GenfkeyInsertSingle($parents, $singleChildren, null);
+        $singleChildren = $insertNullSingle['rows'];
+
+        $updateSingleToMissing = self::fkey2GenfkeyUpdateSingleChild($parents, $singleChildren, $base + 1, $base + 88);
+        $updateSingleToExisting = self::fkey2GenfkeyUpdateSingleChild($parents, $singleChildren, null, $base + 1);
+        $singleChildren = $updateSingleToExisting['rows'];
+
+        $insertPartialNullComposite = self::fkey2GenfkeyInsertComposite($parents, $compositeChildren, $base + 2, null);
+        $compositeChildren = $insertPartialNullComposite['rows'];
+        $insertMissingComposite = self::fkey2GenfkeyInsertComposite($parents, $compositeChildren, $base + 4, $base + 5);
+        $insertExistingComposite = self::fkey2GenfkeyInsertComposite($parents, $compositeChildren, $base + 2, $base + 3);
+        $compositeChildren = $insertExistingComposite['rows'];
+
+        $updateParentPrimary = self::fkey2GenfkeyUpdateParentPrimary($parents, $singleChildren, 'no action', $base + 1, $base + 10);
+        $updateParentToNull = self::fkey2GenfkeyUpdateParentPrimary($parents, $singleChildren, 'no action', $base + 1, null);
+        $updateParentComposite = self::fkey2GenfkeyUpdateParentComposite($parents, $compositeChildren, 'no action', $base + 3, $base + 20);
+        $deleteParent = self::fkey2GenfkeyDeleteParent($parents, $singleChildren, $compositeChildren, 'no action', $base + 1);
+
+        return [
+            'source' => 'fkey2.test fkey2-genfkey.1.1..1.19',
+            'action' => 'no action',
+            'parent_rows' => $parents,
+            'insert_missing_single' => $insertMissingSingle,
+            'insert_existing_single' => $insertExistingSingle,
+            'insert_null_single' => $insertNullSingle,
+            'update_single_to_missing' => $updateSingleToMissing,
+            'update_single_to_existing' => $updateSingleToExisting,
+            'insert_partial_null_composite' => $insertPartialNullComposite,
+            'insert_missing_composite' => $insertMissingComposite,
+            'insert_existing_composite' => $insertExistingComposite,
+            'update_parent_primary' => $updateParentPrimary,
+            'update_parent_to_null' => $updateParentToNull,
+            'update_parent_composite' => $updateParentComposite,
+            'delete_parent' => $deleteParent,
+            'final_single_child_keys' => array_values(array_column($singleChildren, 'e')),
+            'final_composite_child_keys' => array_values(array_map(
+                static fn (array $row): array => [$row['h'], $row['i']],
+                $compositeChildren
+            )),
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function fkey2GenfkeyActionGroup(int $base, string $action): array
+    {
+        $action = strtolower($action);
+        if (!in_array($action, ['cascade', 'set null'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2 genfkey action is unsupported');
+        }
+
+        $parents = [
+            ['a' => $base + 1, 'b' => $base + 2, 'c' => $base + 3],
+            ['a' => $base + 4, 'b' => $base + 5, 'c' => $base + 6],
+        ];
+        $singleChildren = [
+            ['e' => $base + 1, 'f' => 'one'],
+            ['e' => $base + 4, 'f' => 'four'],
+        ];
+        $compositeChildren = [
+            ['g' => 'hello', 'h' => $base + 2, 'i' => $base + 3],
+        ];
+
+        $primaryUpdate = self::fkey2GenfkeyUpdateParentPrimary($parents, $singleChildren, $action, $base + 1, $base + 20);
+        $singleAfterUpdate = $primaryUpdate['single_children'];
+        $primaryDelete = self::fkey2GenfkeyDeleteParent($primaryUpdate['parent_rows'], $singleAfterUpdate, $compositeChildren, $action, $base + 4);
+        $singleAfterDelete = $primaryDelete['single_children'];
+
+        $compositeUpdate = self::fkey2GenfkeyUpdateParentComposite($parents, $compositeChildren, $action, $base + 3, $base + 30);
+        $compositeAfterUpdate = $compositeUpdate['composite_children'];
+        $compositeDelete = self::fkey2GenfkeyDeleteParent($compositeUpdate['parent_rows'], $singleChildren, $compositeAfterUpdate, $action, $base + 1);
+
+        return [
+            'source' => $action === 'cascade'
+                ? 'fkey2.test fkey2-genfkey.2.1..2.6'
+                : 'fkey2.test fkey2-genfkey.3.1..3.6',
+            'action' => $action,
+            'parent_rows' => $parents,
+            'primary_update' => $primaryUpdate,
+            'primary_delete' => $primaryDelete,
+            'composite_update' => $compositeUpdate,
+            'composite_delete' => $compositeDelete,
+            'single_keys_after_update' => array_values(array_column($singleAfterUpdate, 'e')),
+            'single_keys_after_delete' => array_values(array_column($singleAfterDelete, 'e')),
+            'composite_keys_after_update' => array_values(array_map(
+                static fn (array $row): array => [$row['h'], $row['i']],
+                $compositeAfterUpdate
+            )),
+            'composite_keys_after_delete' => array_values(array_map(
+                static fn (array $row): array => [$row['h'], $row['i']],
+                $compositeDelete['composite_children']
+            )),
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:int,c:int}> $parents
+     * @param list<array{e:int|null,f:string}> $children
+     * @return array<string,mixed>
+     */
+    private static function fkey2GenfkeyInsertSingle(array $parents, array $children, ?int $key): array
+    {
+        $next = $children;
+        $row = ['e' => $key, 'f' => 'value-' . (string) count($children)];
+        $ok = $key === null || self::fkey2GenfkeyParentPrimaryExists($parents, $key);
+        if ($ok) {
+            $next[] = $row;
+        }
+
+        return [
+            'status' => $ok ? 'commit-ok' : 'constraint-failed',
+            'error' => $ok ? null : 'FOREIGN KEY constraint failed',
+            'inserted_row' => $row,
+            'rows' => $next,
+            'child_keys' => array_values(array_column($next, 'e')),
+            'violation_count' => $ok ? 0 : 1,
+            'null_child_key_short_circuit' => $key === null,
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:int,c:int}> $parents
+     * @param list<array{e:int|null,f:string}> $children
+     * @return array<string,mixed>
+     */
+    private static function fkey2GenfkeyUpdateSingleChild(array $parents, array $children, ?int $oldKey, ?int $newKey): array
+    {
+        $ok = $newKey === null || self::fkey2GenfkeyParentPrimaryExists($parents, $newKey);
+        $next = $children;
+        if ($ok) {
+            foreach ($next as &$child) {
+                if ($child['e'] === $oldKey) {
+                    $child['e'] = $newKey;
+                }
+            }
+            unset($child);
+        }
+
+        return [
+            'status' => $ok ? 'commit-ok' : 'constraint-failed',
+            'error' => $ok ? null : 'FOREIGN KEY constraint failed',
+            'old_key' => $oldKey,
+            'new_key' => $newKey,
+            'rows' => $next,
+            'child_keys' => array_values(array_column($next, 'e')),
+            'violation_count' => $ok ? 0 : 1,
+            'null_child_key_short_circuit' => $newKey === null,
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:int,c:int}> $parents
+     * @param list<array{g:string,h:int|null,i:int|null}> $children
+     * @return array<string,mixed>
+     */
+    private static function fkey2GenfkeyInsertComposite(array $parents, array $children, ?int $h, ?int $i): array
+    {
+        $next = $children;
+        $row = ['g' => 'composite-' . (string) count($children), 'h' => $h, 'i' => $i];
+        $ok = $h === null || $i === null || self::fkey2GenfkeyParentCompositeExists($parents, $h, $i);
+        if ($ok) {
+            $next[] = $row;
+        }
+
+        return [
+            'status' => $ok ? 'commit-ok' : 'constraint-failed',
+            'error' => $ok ? null : 'FOREIGN KEY constraint failed',
+            'inserted_row' => $row,
+            'rows' => $next,
+            'child_keys' => array_values(array_map(static fn (array $child): array => [$child['h'], $child['i']], $next)),
+            'violation_count' => $ok ? 0 : 1,
+            'null_child_key_short_circuit' => $h === null || $i === null,
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:int,c:int}> $parents
+     * @param list<array{e:int|null,f:string}> $singleChildren
+     * @return array<string,mixed>
+     */
+    private static function fkey2GenfkeyUpdateParentPrimary(array $parents, array $singleChildren, string $action, int $oldKey, ?int $newKey): array
+    {
+        if ($newKey === null) {
+            return [
+                'status' => 'datatype-mismatch',
+                'error' => 'datatype mismatch',
+                'old_key' => $oldKey,
+                'new_key' => $newKey,
+                'parent_rows' => $parents,
+                'single_children' => $singleChildren,
+                'action_count' => 0,
+                'violating_child_indexes' => [],
+            ];
+        }
+
+        $matches = self::fkey2GenfkeySingleChildIndexes($singleChildren, $oldKey);
+        if ($matches !== [] && $action === 'no action') {
+            return [
+                'status' => 'constraint-failed',
+                'error' => 'FOREIGN KEY constraint failed',
+                'old_key' => $oldKey,
+                'new_key' => $newKey,
+                'parent_rows' => $parents,
+                'single_children' => $singleChildren,
+                'action_count' => 0,
+                'violating_child_indexes' => $matches,
+            ];
+        }
+
+        foreach ($parents as &$parent) {
+            if ($parent['a'] === $oldKey) {
+                $parent['a'] = $newKey;
+            }
+        }
+        unset($parent);
+
+        $actionCount = 0;
+        foreach ($singleChildren as &$child) {
+            if ($child['e'] !== $oldKey) {
+                continue;
+            }
+
+            $child['e'] = $action === 'set null' ? null : $newKey;
+            $actionCount++;
+        }
+        unset($child);
+
+        return [
+            'status' => 'commit-ok',
+            'error' => null,
+            'old_key' => $oldKey,
+            'new_key' => $newKey,
+            'parent_rows' => $parents,
+            'single_children' => $singleChildren,
+            'action_count' => $actionCount,
+            'violating_child_indexes' => [],
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:int,c:int}> $parents
+     * @param list<array{g:string,h:int|null,i:int|null}> $compositeChildren
+     * @return array<string,mixed>
+     */
+    private static function fkey2GenfkeyUpdateParentComposite(array $parents, array $compositeChildren, string $action, int $oldC, int $newC): array
+    {
+        $oldKeys = [];
+        foreach ($parents as $parent) {
+            if ($parent['c'] === $oldC) {
+                $oldKeys[] = ['b' => $parent['b'], 'c' => $parent['c']];
+            }
+        }
+
+        $matches = self::fkey2GenfkeyCompositeChildIndexes($compositeChildren, $oldKeys);
+        if ($matches !== [] && $action === 'no action') {
+            return [
+                'status' => 'constraint-failed',
+                'error' => 'FOREIGN KEY constraint failed',
+                'old_c' => $oldC,
+                'new_c' => $newC,
+                'parent_rows' => $parents,
+                'composite_children' => $compositeChildren,
+                'action_count' => 0,
+                'violating_child_indexes' => $matches,
+            ];
+        }
+
+        foreach ($parents as &$parent) {
+            if ($parent['c'] === $oldC) {
+                $parent['c'] = $newC;
+            }
+        }
+        unset($parent);
+
+        $actionCount = 0;
+        foreach ($compositeChildren as &$child) {
+            foreach ($oldKeys as $oldKey) {
+                if ($child['h'] !== $oldKey['b'] || $child['i'] !== $oldKey['c']) {
+                    continue;
+                }
+
+                if ($action === 'set null') {
+                    $child['h'] = null;
+                    $child['i'] = null;
+                } else {
+                    $child['i'] = $newC;
+                }
+                $actionCount++;
+            }
+        }
+        unset($child);
+
+        return [
+            'status' => 'commit-ok',
+            'error' => null,
+            'old_c' => $oldC,
+            'new_c' => $newC,
+            'parent_rows' => $parents,
+            'composite_children' => $compositeChildren,
+            'action_count' => $actionCount,
+            'violating_child_indexes' => [],
+            'unique_index_parent_order_honored' => true,
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:int,c:int}> $parents
+     * @param list<array{e:int|null,f:string}> $singleChildren
+     * @param list<array{g:string,h:int|null,i:int|null}> $compositeChildren
+     * @return array<string,mixed>
+     */
+    private static function fkey2GenfkeyDeleteParent(array $parents, array $singleChildren, array $compositeChildren, string $action, int $key): array
+    {
+        $deleted = [];
+        foreach ($parents as $parent) {
+            if ($parent['a'] === $key) {
+                $deleted[] = $parent;
+            }
+        }
+
+        $singleMatches = self::fkey2GenfkeySingleChildIndexes($singleChildren, $key);
+        $compositeMatches = self::fkey2GenfkeyCompositeChildIndexes($compositeChildren, $deleted);
+        if (($singleMatches !== [] || $compositeMatches !== []) && $action === 'no action') {
+            return [
+                'status' => 'constraint-failed',
+                'error' => 'FOREIGN KEY constraint failed',
+                'deleted_parent_keys' => [],
+                'parent_rows' => $parents,
+                'single_children' => $singleChildren,
+                'composite_children' => $compositeChildren,
+                'action_count' => 0,
+                'violating_single_child_indexes' => $singleMatches,
+                'violating_composite_child_indexes' => $compositeMatches,
+            ];
+        }
+
+        $parents = array_values(array_filter($parents, static fn (array $parent): bool => $parent['a'] !== $key));
+        $actionCount = 0;
+        if ($action === 'cascade') {
+            $singleChildren = array_values(array_filter($singleChildren, static function (array $child) use ($key, &$actionCount): bool {
+                if ($child['e'] !== $key) {
+                    return true;
+                }
+                $actionCount++;
+                return false;
+            }));
+            $compositeChildren = array_values(array_filter($compositeChildren, static function (array $child) use ($deleted, &$actionCount): bool {
+                foreach ($deleted as $parent) {
+                    if ($child['h'] === $parent['b'] && $child['i'] === $parent['c']) {
+                        $actionCount++;
+                        return false;
+                    }
+                }
+                return true;
+            }));
+        } elseif ($action === 'set null') {
+            foreach ($singleChildren as &$child) {
+                if ($child['e'] === $key) {
+                    $child['e'] = null;
+                    $actionCount++;
+                }
+            }
+            unset($child);
+
+            foreach ($compositeChildren as &$child) {
+                foreach ($deleted as $parent) {
+                    if ($child['h'] === $parent['b'] && $child['i'] === $parent['c']) {
+                        $child['h'] = null;
+                        $child['i'] = null;
+                        $actionCount++;
+                    }
+                }
+            }
+            unset($child);
+        }
+
+        return [
+            'status' => 'commit-ok',
+            'error' => null,
+            'deleted_parent_keys' => array_values(array_column($deleted, 'a')),
+            'parent_rows' => $parents,
+            'single_children' => $singleChildren,
+            'composite_children' => $compositeChildren,
+            'action_count' => $actionCount,
+            'violating_single_child_indexes' => [],
+            'violating_composite_child_indexes' => [],
+        ];
+    }
+
+    /** @param list<array{a:int,b:int,c:int}> $parents */
+    private static function fkey2GenfkeyParentPrimaryExists(array $parents, int $key): bool
+    {
+        foreach ($parents as $parent) {
+            if ($parent['a'] === $key) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param list<array{a:int,b:int,c:int}> $parents */
+    private static function fkey2GenfkeyParentCompositeExists(array $parents, int $b, int $c): bool
+    {
+        foreach ($parents as $parent) {
+            if ($parent['b'] === $b && $parent['c'] === $c) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{e:int|null,f:string}> $children
+     * @return list<int>
+     */
+    private static function fkey2GenfkeySingleChildIndexes(array $children, int $key): array
+    {
+        $indexes = [];
+        foreach ($children as $index => $child) {
+            if ($child['e'] === $key) {
+                $indexes[] = $index;
+            }
+        }
+
+        return $indexes;
+    }
+
+    /**
+     * @param list<array{g:string,h:int|null,i:int|null}> $children
+     * @param list<array{b:int,c:int}> $keys
+     * @return list<int>
+     */
+    private static function fkey2GenfkeyCompositeChildIndexes(array $children, array $keys): array
+    {
+        $indexes = [];
+        foreach ($children as $index => $child) {
+            if ($child['h'] === null || $child['i'] === null) {
+                continue;
+            }
+            foreach ($keys as $key) {
+                if ($child['h'] === $key['b'] && $child['i'] === $key['c']) {
+                    $indexes[] = $index;
+                    break;
+                }
+            }
+        }
+
+        return $indexes;
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */

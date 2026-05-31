@@ -99,6 +99,42 @@ return [
         $t->same([], $reads);
         $t->throws(InvalidArgumentException::class, static fn () => $mergeBase->mergeBasesAgainst($first, [123]));
     },
+    'maps upstream graph walk with sha256 commit ids' => static function (TestRunner $t) use ($commit, $finder): void {
+        $sha256 = static fn (string $hex): string => str_repeat($hex, 64);
+        $root = $sha256('1');
+        $release = $sha256('2');
+        $pluginReview = $sha256('a');
+        $themeReview = $sha256('b');
+        $deployMerge = $sha256('c');
+        $archiveRoot = $sha256('d');
+        $archiveReview = $sha256('e');
+
+        $mergeBase = $finder([
+            $root => $commit(),
+            $release => $commit([$root]),
+            $pluginReview => $commit([$release]),
+            $themeReview => $commit([$release]),
+            $deployMerge => $commit([$pluginReview, $themeReview]),
+            $archiveRoot => $commit(),
+            $archiveReview => $commit([$archiveRoot]),
+        ]);
+
+        $t->same([$release], $mergeBase->mergeBases($pluginReview, $themeReview));
+        $t->same($themeReview, $mergeBase->mergeBase($deployMerge, $themeReview));
+        $t->same([$release], $mergeBase->mergeBasesAgainst($pluginReview, [$themeReview, $archiveReview]));
+        $t->same($pluginReview, $mergeBase->mergeBaseAgainst($deployMerge, [$pluginReview, $archiveReview]));
+        $t->same([$release], $mergeBase->mergeBasesMany([$deployMerge, $pluginReview, $themeReview]));
+        $t->same($deployMerge, $mergeBase->mergeBaseMany([$deployMerge]));
+        $t->same([], $mergeBase->mergeBasesMany([$pluginReview, $themeReview, $archiveReview]));
+
+        $sha1Review = str_repeat('f', 40);
+        $t->throws(InvalidArgumentException::class, static fn () => $mergeBase->mergeBases($pluginReview, $sha1Review));
+        $mixedParentFinder = $finder([
+            $pluginReview => $commit([$sha1Review]),
+            $sha1Review => $commit(),
+        ]);
+        $t->throws(InvalidArgumentException::class, static fn () => $mixedParentFinder->mergeBase($pluginReview, $release));
+    },
     'maps upstream octopus merge-base for three sequential heads' => static function (TestRunner $t) use ($oid, $commit, $finder): void {
         $first = $oid('1');
         $second = $oid('2');
@@ -182,6 +218,14 @@ return [
         $t->same(true, $example['octopusRejectsArchiveBranch']);
         $t->same(true, $example['reviewBaseIsReleaseBaseline']);
         $t->same(true, $example['deploymentBaseIsReleaseBaseline']);
+        $t->same($fixture['sha256ReleaseBaseline'], $finder->mergeBase($fixture['sha256PluginReview'], $fixture['sha256ThemeReview']));
+        $t->same($fixture['sha256ReleaseBaseline'], $finder->mergeBaseAgainst($fixture['sha256PluginReview'], $fixture['sha256GraphWalkOthers']));
+        $t->same($fixture['sha256ReleaseBaseline'], $example['sha256ReviewBase']);
+        $t->same($fixture['sha256ReleaseBaseline'], $example['sha256GraphWalkBase']);
+        $t->same($fixture['sha256ReleaseBaseline'], $example['sha256DeployBase']);
+        $t->same(true, $example['sha256ReviewBaseIsReleaseBaseline']);
+        $t->same(true, $example['sha256GraphWalkKeepsReleaseBaseline']);
+        $t->same(true, $example['sha256DeployBaseIsReleaseBaseline']);
     },
     'object database reader requires commit objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-' . bin2hex(random_bytes(4)) . '/.git';

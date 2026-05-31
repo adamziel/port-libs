@@ -81,6 +81,13 @@ final class SQLiteSelectProjection
             $prefix = self::requiredString($expression, 'prefix', 'wildcard expression');
         }
 
+        if ($prefix === null) {
+            $usingValues = self::usingJoinWildcardValues($row);
+            if ($usingValues !== null) {
+                return $usingValues;
+            }
+        }
+
         $values = [];
         $matched = false;
         foreach ($row as $column => $value) {
@@ -112,6 +119,75 @@ final class SQLiteSelectProjection
         if (!$matched) {
             $target = $prefix === null ? '*' : $prefix . '.*';
             throw new \InvalidArgumentException("SQLite SELECT wildcard projection matched no columns for {$target}");
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return array<string,mixed>|null
+     */
+    private static function usingJoinWildcardValues(array $row): ?array
+    {
+        $qualifiedAliases = [];
+        foreach ($row as $column => $_value) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite SELECT projection row columns must be non-empty strings');
+            }
+            if (!str_contains($column, '.')) {
+                continue;
+            }
+
+            $alias = substr($column, strrpos($column, '.') + 1);
+            if ($alias !== '') {
+                $qualifiedAliases[$alias] = true;
+            }
+        }
+
+        $coalescedAliases = [];
+        foreach ($row as $column => $_value) {
+            if (!is_string($column) || $column === '' || str_contains($column, '.')) {
+                continue;
+            }
+            if (isset($qualifiedAliases[$column])) {
+                $coalescedAliases[$column] = true;
+            }
+        }
+        if ($coalescedAliases === []) {
+            return null;
+        }
+
+        $values = [];
+        $emittedCoalesced = [];
+        foreach ($row as $column => $value) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite SELECT projection row columns must be non-empty strings');
+            }
+            if (!str_contains($column, '.')) {
+                continue;
+            }
+
+            $alias = substr($column, strrpos($column, '.') + 1);
+            if ($alias === '') {
+                throw new \InvalidArgumentException('SQLite SELECT wildcard projection matched an empty column name');
+            }
+            if (isset($coalescedAliases[$alias])) {
+                if (isset($emittedCoalesced[$alias])) {
+                    continue;
+                }
+                self::appendProjectedValue($values, $alias, $row[$alias]);
+                $emittedCoalesced[$alias] = true;
+                continue;
+            }
+
+            self::appendProjectedValue($values, $alias, $value);
+        }
+
+        foreach ($coalescedAliases as $alias => $_enabled) {
+            if (!isset($emittedCoalesced[$alias]) && array_key_exists($alias, $row)) {
+                self::appendProjectedValue($values, $alias, $row[$alias]);
+            }
         }
 
         return $values;

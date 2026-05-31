@@ -115,6 +115,61 @@ final class ObjectDatabase
         throw new \RuntimeException("Object not found in database: {$oid}");
     }
 
+    /**
+     * @return array{type:string,size:int,source:'pack'|'loose'|'promisor'}
+     */
+    public function readHeader(string $oid): array
+    {
+        self::assertObjectId($oid);
+        $oid = strtolower($oid);
+        $oid = $this->replacementFor($oid) ?? $oid;
+
+        foreach ($this->multiPackIndexes() as $multiPack) {
+            $entry = $multiPack['index']->lookup($oid);
+            if ($entry === null) {
+                continue;
+            }
+
+            $bundle = $this->bundleForMultiPackEntry($multiPack, $entry);
+            if ($bundle === null) {
+                throw new \RuntimeException("Pack referenced by multi-pack-index was not found for object: {$oid}");
+            }
+
+            return self::headerFromObject(
+                $bundle['data']->readObjectAtOffset($bundle['index'], $oid, $entry->packOffset),
+                'pack'
+            );
+        }
+
+        foreach ($this->standalonePackBundles() as $bundle) {
+            if ($bundle['index']->lookup($oid) !== null) {
+                return self::headerFromObject($bundle['data']->readObject($bundle['index'], $oid), 'pack');
+            }
+        }
+
+        foreach ($this->looseStores() as $store) {
+            $header = $store->tryReadHeader($oid);
+            if ($header !== null) {
+                return [
+                    'type' => $header['type'],
+                    'size' => $header['size'],
+                    'source' => 'loose',
+                ];
+            }
+        }
+
+        if ($this->hasPromisorPacks()) {
+            $object = $this->resolvePromisedObject($oid);
+            if ($object !== null) {
+                return self::headerFromObject($object, 'promisor');
+            }
+
+            throw new \RuntimeException("Object promised by partial clone filter but not present locally: {$oid}");
+        }
+
+        throw new \RuntimeException("Object not found in database: {$oid}");
+    }
+
     public function packedObjectCount(): int
     {
         $count = 0;
@@ -725,6 +780,18 @@ final class ObjectDatabase
         }
 
         $this->replacementMap[strtolower($source)] = strtolower($target);
+    }
+
+    /**
+     * @return array{type:string,size:int,source:'pack'|'promisor'}
+     */
+    private static function headerFromObject(GitObject $object, string $source): array
+    {
+        return [
+            'type' => $object->type,
+            'size' => strlen($object->body),
+            'source' => $source,
+        ];
     }
 
     private static function assertObjectId(string $oid): void

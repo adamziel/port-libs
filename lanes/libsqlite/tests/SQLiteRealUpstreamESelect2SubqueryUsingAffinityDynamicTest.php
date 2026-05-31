@@ -66,13 +66,13 @@ for ($case = 0; $case < 1250; $case++) {
     ];
 
     $countLeftSql = 'SELECT * FROM target_numbers, (SELECT count(*) AS y FROM source_count) USING (y)';
-    $countLeftExpected = [$target, 'match-' . $case, $target];
+    $countLeftExpected = [$target, 'match-' . $case];
 
     $textLeftSql = 'SELECT * FROM (SELECT x AS y FROM source_text) AS subquery JOIN target_numbers USING (y)';
-    $textLeftExpected = [$textNumeric, $target, 'match-' . $case];
+    $textLeftExpected = [$textNumeric, 'match-' . $case];
 
     $textRightSql = 'SELECT * FROM target_numbers JOIN (SELECT x AS y FROM source_text) AS subquery USING (y)';
-    $textRightExpected = [$target, 'match-' . $case, $textNumeric];
+    $textRightExpected = [$target, 'match-' . $case];
 
     $textNoMatchSql = 'SELECT * FROM (SELECT label AS x FROM target_numbers WHERE label=\'match-' . $case . '\') AS subquery JOIN source_text USING (x)';
     $textNoMatchExpected = [];

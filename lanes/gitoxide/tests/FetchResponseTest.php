@@ -12,6 +12,15 @@ use PortLibs\Gitoxide\RemoteProgress;
 $packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
 $delimiter = '0001';
 $flush = '0000';
+$invalidArgumentMessage = static function (callable $callback): string {
+    try {
+        $callback();
+    } catch (InvalidArgumentException $error) {
+        return $error->getMessage();
+    }
+
+    throw new RuntimeException('Expected InvalidArgumentException was not thrown');
+};
 
 return [
     'parses fetch acknowledgement lines' => static function (TestRunner $t): void {
@@ -90,6 +99,31 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => FetchResponse::fromV2PacketLines($packet("mystery\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => FetchResponse::fromV2PacketLines($packet("packfile\n") . $packet("\x09bad band") . $flush));
         $t->throws(RuntimeException::class, static fn () => FetchResponse::fromV2PacketLines($packet("ERR segmentation fault\n")));
+    },
+    'caps fetch response packet lines at the gix-packetline 64k maximum' => static function (TestRunner $t) use ($packet, $flush, $invalidArgumentMessage): void {
+        $maxPacketLength = 65520;
+        $maxSidebandPayload = $maxPacketLength - 4;
+        $maxSidebandData = $maxSidebandPayload - 1;
+
+        $maxHeader = sprintf('%04x', $maxPacketLength);
+        $response = FetchResponse::fromV2PacketLines(
+            $packet("packfile\n")
+            . $maxHeader . "\x01" . str_repeat('x', $maxSidebandData)
+            . $flush
+        );
+
+        $t->same(str_repeat('x', $maxSidebandData), $response->packData());
+        $t->same($maxSidebandData, strlen($response->packData()));
+
+        $tooLargeHeader = sprintf('%04x', $maxPacketLength + 1);
+        $t->contains(
+            'packet line exceeds maximum length',
+            $invalidArgumentMessage(static fn () => FetchResponse::fromV2PacketLines(
+                $packet("packfile\n")
+                . $tooLargeHeader . "\x01" . str_repeat('x', $maxSidebandData + 1)
+                . $flush
+            ))
+        );
     },
     'captures sideband progress and error channels without mixing them into pack data' => static function (TestRunner $t) use ($packet, $flush): void {
         $response = FetchResponse::fromV2PacketLines(
@@ -215,6 +249,7 @@ return [
         $t->same('refs/heads/main', $response->wantedRefs()[0]->path);
         $t->same($fixture['objects']['main'], $response->wantedRefs()[0]->object);
         $t->same($fixture['packData'], $response->packData());
+        $t->same(65520, $fixture['packetLineMaxBytes']);
         $t->same(['remote: preparing WordPress blobless pack', 'Enumerating objects: 1, done.'], $response->progressMessages());
     },
 ];

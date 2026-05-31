@@ -27,11 +27,26 @@ $responseLines = [
 return [
     'capabilities' => implode("\n", [...$capabilityLines, '']),
     'capabilityAdvertisement' => implode('', array_map(static fn (string $line): string => $packet($line . "\n"), $capabilityLines)) . $flush,
+    'fetchRefspecs' => [
+        'HEAD',
+        'main',
+        'wp-release',
+        'refs/heads/main',
+    ],
     'refPrefixes' => [
         'HEAD',
+        'main',
+        'refs/main',
+        'refs/tags/main',
         'refs/heads/main',
+        'refs/remotes/main',
+        'refs/remotes/main/HEAD',
+        'wp-release',
+        'refs/wp-release',
         'refs/tags/wp-release',
-        'refs/heads/main',
+        'refs/heads/wp-release',
+        'refs/remotes/wp-release',
+        'refs/remotes/wp-release/HEAD',
     ],
     'requestBytes' => $packet("command=ls-refs\n")
         . $packet("agent=port-libs/0.1\n")
@@ -40,8 +55,18 @@ return [
         . $packet("peel\n")
         . $packet("unborn\n")
         . $packet("ref-prefix HEAD\n")
+        . $packet("ref-prefix main\n")
+        . $packet("ref-prefix refs/main\n")
+        . $packet("ref-prefix refs/tags/main\n")
         . $packet("ref-prefix refs/heads/main\n")
+        . $packet("ref-prefix refs/remotes/main\n")
+        . $packet("ref-prefix refs/remotes/main/HEAD\n")
+        . $packet("ref-prefix wp-release\n")
+        . $packet("ref-prefix refs/wp-release\n")
         . $packet("ref-prefix refs/tags/wp-release\n")
+        . $packet("ref-prefix refs/heads/wp-release\n")
+        . $packet("ref-prefix refs/remotes/wp-release\n")
+        . $packet("ref-prefix refs/remotes/wp-release/HEAD\n")
         . $flush,
     'response' => implode("\n", [...$responseLines, '']),
     'responseAdvertisement' => implode('', array_map(static fn (string $line): string => $packet($line . "\n"), $responseLines)) . $flush,
@@ -50,5 +75,5 @@ return [
         'releaseTag' => $releaseTag,
         'releaseObject' => $releaseObject,
     ],
-    'wordpressUse' => 'A PHP deployment tool can parse protocol v2 ls-refs capabilities and SHA-256 response lines to discover the active WordPress branch, release tag target, and unborn staging branch before deciding what to fetch.',
+    'wordpressUse' => 'A PHP deployment tool can parse protocol v2 ls-refs capabilities, expand shorthand fetch refspecs into Gitoxide-style DWIM ref-prefix request lines, and parse SHA-256 response lines to discover the active WordPress branch, release tag target, and unborn staging branch before deciding what to fetch.',
 ];
