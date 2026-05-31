@@ -152,7 +152,7 @@ final class GitAttributes
      */
     public static function parseRequirements(string $input): array
     {
-        $assignments = self::parseAssignments($input, true);
+        $assignments = self::parseAssignments(self::normalizeRequirementValues($input), false);
         if ($assignments === null || $assignments === []) {
             throw new \InvalidArgumentException('Attribute specification cannot be empty');
         }
@@ -364,6 +364,28 @@ final class GitAttributes
         }
 
         return $out;
+    }
+
+    private static function normalizeRequirementValues(string $input): string
+    {
+        if (!str_contains($input, '=')) {
+            return $input;
+        }
+
+        $normalized = '';
+        foreach (explode(' ', $input) as $field) {
+            $equals = strpos($field, '=');
+            if ($equals === false) {
+                $normalized .= $field . ' ';
+                continue;
+            }
+
+            $name = substr($field, 0, $equals + 1);
+            $value = substr($field, $equals + 1);
+            $normalized .= $name . self::unescapeRequirementValue($value) . ' ';
+        }
+
+        return $normalized;
     }
 
     private static function validAttributeName(string $name): bool

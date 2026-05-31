@@ -122,6 +122,30 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([':(attr:v=inva\#lid)path']));
         $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([':(glob,literal)path']));
     },
+    'pathspec attribute values reject tab bytes after value chunks like gix pathspec parse' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString("wp-content/plugins/** deploy review=yes\n", withBuiltInMacros: false);
+
+        $t->same(true, PathspecMatcher::matchesOne(
+            ":(attr:deploy\treview=yes)wp-content/plugins/**",
+            'wp-content/plugins/editor/block.json',
+            false,
+            $attributes,
+        ));
+        $t->same(true, PathspecSearch::fromSpecs([":(attr:deploy\treview=yes)wp-content/plugins/**"])
+            ->isIncluded('wp-content/plugins/editor/block.json', false, $attributes));
+        $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([
+            ":(attr:deploy=plugin\treview=yes)wp-content/plugins/**",
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => PathspecSearch::fromSpecs([
+            ":(attr:deploy=plugin\treview=yes)wp-content/plugins/**",
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([
+            ":(attr:deploy=plugin\treview)wp-content/plugins/**",
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => PathspecSearch::fromSpecs([
+            ":(attr:deploy=plugin\treview)wp-content/plugins/**",
+        ]));
+    },
     'attribute and pathspec state adjustments ignore value suffixes like gix attributes' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/mu-plugins/** deploy=mustuse -diff=legacy !review=stale\n"
             . "wp-content/mu-plugins/private/** !deploy=old -merge=ours\n");
@@ -220,6 +244,8 @@ return [
         $t->same(['dated-upload' => true], $example['datedUploadAttributes']);
         $t->same(true, $example['datedUploadPathspecMatches']);
         $t->same(true, $example['slashClassDoesNotCrossDirectory']);
+        $t->same(true, $example['tabSeparatedStatePathspecMatches']);
+        $t->same(true, $example['valueTabRequirementRejected']);
         $t->same(true, $example['cacheExcluded']);
         $t->same(true, $example['buildExcludedByPathspec']);
     },

@@ -22,6 +22,13 @@ $wildmatchPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(exclude,glob)wp-content/cache/**',
     ':(glob)wp-content/**/theme.\?son',
 ]);
+$posixClassPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/uploads/slot[[:blank:]]/**',
+    ':(glob)wp-content/uploads/[[:unknown:]]*.jpg',
+]);
+$posixSpaceClassPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/uploads/slot[[:space:]]/**',
+]);
 $prefixedPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)*.php',
     ':(icase)BLOCK.JSON',
@@ -98,6 +105,10 @@ return [
     'pathspecBracketPluginBlockIncluded' => $wildmatchPathspec->includesPath('wp-content/plugins/akismet/block.json', false),
     'pathspecCacheExcludeAuthoritative' => $wildmatchPathspec->skipWorktree('wp-content/cache/page.html', false),
     'pathspecRecursiveEscapedThemeIncluded' => $wildmatchPathspec->includesPath('wp-content/themes/site/theme.?son', false),
+    'pathspecPosixBlankOddWhitespaceIncluded' => $posixClassPathspec->includesPath("wp-content/uploads/slot\v/photo.jpg", false),
+    'pathspecPosixSpaceTabSkipped' => $posixSpaceClassPathspec->skipWorktree("wp-content/uploads/slot\t/photo.jpg", false),
+    'pathspecInvalidClassLiteralFallbackIncluded' => $posixClassPathspec->includesPath('wp-content/uploads/[[:unknown:]]*.jpg', false),
+    'pathspecInvalidClassWildcardExpansionSkipped' => $posixClassPathspec->skipWorktree('wp-content/uploads/[[:unknown:]]hero.jpg', false),
     'prefixedPathspecIndexIncluded' => $prefixedPathspec->includesPath('wp-content/plugins/gutenberg/index.php', false),
     'prefixedPathspecNestedPhpSkipped' => $prefixedPathspec->skipWorktree('wp-content/plugins/gutenberg/src/editor.php', false),
     'prefixedPathspecIcaseFileIncluded' => $prefixedPathspec->includesPath('wp-content/plugins/gutenberg/block.json', false),

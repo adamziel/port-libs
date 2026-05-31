@@ -171,6 +171,28 @@ return [
         $t->same(null, $config->value('user', null, 'miss'));
     },
 
+    'hasconfig includeIf preserves remote URL backslashes as URL bytes' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $root = $tmpDir();
+        $write($root . '/slash-url', "[user]\nslash = should-not-load\n");
+        $write($root . '/literal-backslash-url', "[user]\nliteralBackslash = matched\n");
+        $write($root . '/question-backslash-url', "[user]\nquestionBackslash = matched\n");
+        $write($root . '/config', <<<CFG
+        [remote "windows"]
+        url = https://git.example.test\\wp-content.git
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content.git"]
+        path = "slash-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test\\\\\\\\wp-content.git"]
+        path = "literal-backslash-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test?wp-content.git"]
+        path = "question-backslash-url"
+        CFG);
+
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same(null, $config->value('user', null, 'slash'));
+        $t->same('matched', $config->value('user', null, 'literalBackslash'));
+        $t->same('matched', $config->value('user', null, 'questionBackslash'));
+    },
+
     'conditional include double-star only crosses slash at path component boundaries' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
         $root = $tmpDir();
         $worktree = $root . '/wp/site/content';
@@ -552,6 +574,8 @@ return [
         $t->same('matched', $fixture['bracketUrlPolicy']);
         $t->same('matched', $fixture['posixUrlPolicy']);
         $t->same('matched', $fixture['legacyBytePolicy']);
+        $t->same(null, $fixture['backslashUrlSlashPolicy']);
+        $t->same('matched', $fixture['backslashUrlLiteralPolicy']);
         $t->same(null, $fixture['unboundedDoubleStarRejectedPolicy']);
         $t->same(null, $fixture['invalidPosixPolicy']);
         $t->same(null, $fixture['unclosedBracketPolicy']);
@@ -563,6 +587,8 @@ return [
         $t->same($fixture['bracketUrlPolicy'], $summary['bracketUrlPolicy']);
         $t->same($fixture['posixUrlPolicy'], $summary['posixUrlPolicy']);
         $t->same($fixture['legacyBytePolicy'], $summary['legacyBytePolicy']);
+        $t->same($fixture['backslashUrlSlashPolicy'], $summary['backslashUrlSlashPolicy']);
+        $t->same($fixture['backslashUrlLiteralPolicy'], $summary['backslashUrlLiteralPolicy']);
         $t->same($fixture['unboundedDoubleStarRejectedPolicy'], $summary['unboundedDoubleStarRejectedPolicy']);
         $t->same($fixture['invalidPosixPolicy'], $summary['invalidPosixPolicy']);
         $t->same($fixture['unclosedBracketPolicy'], $summary['unclosedBracketPolicy']);

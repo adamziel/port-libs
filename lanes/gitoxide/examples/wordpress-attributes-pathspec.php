@@ -19,8 +19,18 @@ $classAttributes = GitAttributes::fromString(
     . "wp-content/plugins/foo[/]bar.php slash-class\n",
     withBuiltInMacros: false,
 );
+$tabAttributes = GitAttributes::fromString(
+    "wp-content/plugins/gutenberg/** deploy review=yes\n",
+    withBuiltInMacros: false,
+);
 $datedUploadSearch = PathspecSearch::fromSpecs([':(attr:dated-upload)wp-content/uploads/**']);
 $whitespaceUploadSearch = PathspecSearch::fromSpecs([':(attr:whitespace-upload)wp-content/uploads/**']);
+$valueTabRequirementRejected = false;
+try {
+    PathspecMatcher::fromSpecs([":(attr:deploy=plugin\treview=yes)wp-content/plugins/**"]);
+} catch (InvalidArgumentException) {
+    $valueTabRequirementRejected = true;
+}
 $searchSelected = [];
 foreach ($fixture['paths'] as $path => $isDirectory) {
     if ($search->isIncluded($path, $isDirectory, $attributes)) {
@@ -84,6 +94,13 @@ return [
         false,
         $classAttributes,
     ),
+    'tabSeparatedStatePathspecMatches' => PathspecMatcher::matchesOne(
+        ":(attr:deploy\treview=yes)wp-content/plugins/**",
+        'wp-content/plugins/gutenberg/block.json',
+        false,
+        $tabAttributes,
+    ),
+    'valueTabRequirementRejected' => $valueTabRequirementRejected,
     'cacheExcluded' => !$matcher->matches('wp-content/cache/page.html', false, $attributes),
     'buildExcludedByPathspec' => !$matcher->matches('wp-content/plugins/gutenberg/build/index.js', false, $attributes),
 ];

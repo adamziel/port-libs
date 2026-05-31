@@ -312,6 +312,41 @@ return [
         $t->same(['plugins', 'uploads'], $entryNames($spec->includedTreeEntries($wpContent, 'wp-content')));
         $t->same(['akismet', 'gutenberg'], $entryNames($spec->includedTreeEntries($plugins, 'wp-content/plugins')));
     },
+    'pathspec sparse checkout follows gix POSIX blank and invalid class fallback boundaries' => static function (TestRunner $t) use ($entryNames): void {
+        $blank = SparseCheckoutSpec::fromPathspecs([':(glob)wp-content/uploads/slot[[:blank:]]/**']);
+        $space = SparseCheckoutSpec::fromPathspecs([':(glob)wp-content/uploads/slot[[:space:]]/**']);
+        $invalid = SparseCheckoutSpec::fromPathspecs([':(glob)wp-content/uploads/[[:unknown:]]*.jpg']);
+        $combined = SparseCheckoutSpec::fromPathspecs([
+            ':(glob)wp-content/uploads/slot[[:blank:]]/**',
+            ':(glob)wp-content/uploads/[[:unknown:]]*.jpg',
+        ]);
+
+        $t->same(true, $blank->includesPath("wp-content/uploads/slot\v/photo.jpg", false));
+        $t->same(true, $blank->includesPath("wp-content/uploads/slot\f/photo.jpg", false));
+        $t->same(true, $blank->includesPath("wp-content/uploads/slot\r/photo.jpg", false));
+        $t->same(true, $blank->includesPath("wp-content/uploads/slot\t/photo.jpg", false));
+        $t->same(true, $blank->includesPath('wp-content/uploads/slot /photo.jpg', false));
+        $t->same(false, $blank->includesPath('wp-content/uploads/slotx/photo.jpg', false));
+
+        $t->same(true, $space->includesPath('wp-content/uploads/slot /photo.jpg', false));
+        $t->same(false, $space->includesPath("wp-content/uploads/slot\t/photo.jpg", false));
+        $t->same(false, $space->includesPath("wp-content/uploads/slot\v/photo.jpg", false));
+
+        $t->same(false, $invalid->includesPath('wp-content/uploads/[[:unknown:]]hero.jpg', false));
+        $t->same(true, $invalid->includesPath('wp-content/uploads/[[:unknown:]]*.jpg', false));
+        $t->same(false, $invalid->includesPath('wp-content/uploads/uhero.jpg', false));
+        $t->same(true, $invalid->includesPath('wp-content/uploads', true));
+
+        $blob = str_repeat('1', 40);
+        $tree = str_repeat('2', 40);
+        $uploads = new Tree([
+            new TreeEntry('040000', "slot\v", $tree),
+            new TreeEntry('100644', '[[:unknown:]]*.jpg', $blob),
+            new TreeEntry('100644', '[[:unknown:]]hero.jpg', $blob),
+        ]);
+
+        $t->same(["slot\v", '[[:unknown:]]*.jpg'], $entryNames($combined->includedTreeEntries($uploads, 'wp-content/uploads')));
+    },
     'pathspec sparse checkout normalizes worktree prefixes with case sensitive prefix matching' => static function (TestRunner $t): void {
         $spec = SparseCheckoutSpec::fromPathspecs([
             ':(glob)*.php',

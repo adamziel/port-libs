@@ -19,6 +19,8 @@ return [
     'bracketUrlPolicy' => $fixture['bracketUrlPolicy'],
     'posixUrlPolicy' => $fixture['posixUrlPolicy'],
     'legacyBytePolicy' => $fixture['legacyBytePolicy'],
+    'backslashUrlSlashPolicy' => $fixture['backslashUrlSlashPolicy'],
+    'backslashUrlLiteralPolicy' => $fixture['backslashUrlLiteralPolicy'],
     'unboundedDoubleStarRejectedPolicy' => $fixture['unboundedDoubleStarRejectedPolicy'],
     'invalidPosixPolicy' => $fixture['invalidPosixPolicy'],
     'unclosedBracketPolicy' => $fixture['unclosedBracketPolicy'],

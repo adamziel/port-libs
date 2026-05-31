@@ -404,7 +404,25 @@ final class SparseCheckoutSpec
             return $ignoreCase ? strtolower($pattern) === strtolower($candidate) : $pattern === $candidate;
         }
 
-        return preg_match(self::globRegex($pattern, $rule['matchSlash'] ?? false, $ignoreCase), $candidate) === 1;
+        $regex = self::globRegex($pattern, $rule['matchSlash'] ?? false, $ignoreCase);
+        if ($regex !== null && preg_match($regex, $candidate) === 1) {
+            return true;
+        }
+
+        return ($rule['pathspec'] ?? false) && self::verbatimPathspecMatches($pattern, $candidate, $ignoreCase);
+    }
+
+    private static function verbatimPathspecMatches(string $pattern, string $candidate, bool $ignoreCase): bool
+    {
+        $patternLength = strlen($pattern);
+        $prefix = substr($candidate, 0, $patternLength);
+        $same = $ignoreCase ? strtolower($pattern) === strtolower($prefix) : $pattern === $prefix;
+        if (!$same) {
+            return false;
+        }
+        $next = $candidate[$patternLength] ?? null;
+
+        return $next === null || $next === '/';
     }
 
     /**
@@ -477,7 +495,7 @@ final class SparseCheckoutSpec
         return $paths;
     }
 
-    private static function globRegex(string $pattern, bool $matchSlash, bool $ignoreCase = false): string
+    private static function globRegex(string $pattern, bool $matchSlash, bool $ignoreCase = false): ?string
     {
         $regex = '';
         $length = strlen($pattern);
@@ -514,8 +532,11 @@ final class SparseCheckoutSpec
             if ($char === '[') {
                 $end = self::findCharacterClassEnd($pattern, $i);
                 if ($end !== null) {
-                    $regex .= (!$matchSlash ? '(?!/)' : '')
-                        . self::characterClassRegex(substr($pattern, $i + 1, $end - $i - 1));
+                    $classRegex = self::characterClassRegex(substr($pattern, $i + 1, $end - $i - 1));
+                    if ($classRegex === null) {
+                        return null;
+                    }
+                    $regex .= (!$matchSlash ? '(?!/)' : '') . $classRegex;
                     $i = $end;
                     continue;
                 }
@@ -561,7 +582,7 @@ final class SparseCheckoutSpec
         return null;
     }
 
-    private static function characterClassRegex(string $class): string
+    private static function characterClassRegex(string $class): ?string
     {
         if ($class === '') {
             return preg_quote('[]', '#');
@@ -591,7 +612,7 @@ final class SparseCheckoutSpec
                     $name = substr($class, $i + 2, $end - $i - 2);
                     $mapped = self::posixCharacterClassRegex($name);
                     if ($mapped === null) {
-                        return preg_quote('[' . ($negated ? '!' : '') . $class . ']', '#');
+                        return null;
                     }
                     $body .= $mapped;
                     $i = $end + 1;
@@ -621,18 +642,18 @@ final class SparseCheckoutSpec
     private static function posixCharacterClassRegex(string $class): ?string
     {
         return match ($class) {
-            'alnum' => '[:alnum:]',
-            'alpha' => '[:alpha:]',
-            'blank' => '[:blank:]',
-            'cntrl' => '[:cntrl:]',
-            'digit' => '[:digit:]',
-            'graph' => '[:graph:]',
-            'lower' => '[:lower:]',
-            'print' => '[:print:]',
-            'punct' => '[:punct:]',
+            'alnum' => 'A-Za-z0-9',
+            'alpha' => 'A-Za-z',
+            'blank' => '\\x09-\\x0d ',
+            'cntrl' => '\\x00-\\x1f\\x7f',
+            'digit' => '0-9',
+            'graph' => '\\x21-\\x7e',
+            'lower' => 'a-z',
+            'print' => '\\x20-\\x7e',
+            'punct' => '\\x21-\\x2f\\x3a-\\x40\\x5b-\\x60\\x7b-\\x7e',
             'space' => ' ',
-            'upper' => '[:upper:]',
-            'xdigit' => '[:xdigit:]',
+            'upper' => 'A-Z',
+            'xdigit' => 'A-Fa-f0-9',
             default => null,
         };
     }

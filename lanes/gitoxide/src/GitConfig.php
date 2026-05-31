@@ -577,7 +577,6 @@ final class GitConfig
 
     private static function wildmatch(string $pattern, string $text, bool $ignoreCase): bool
     {
-        $text = self::normalizePath($text);
         $regex = '';
         $length = strlen($pattern);
 

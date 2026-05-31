@@ -62,6 +62,16 @@ $write($repo . '/legacy-byte.config', <<<CFG
 legacyByte = matched
 CFG);
 
+$write($repo . '/backslash-slash-url.config', <<<CFG
+[wordpress]
+backslashUrlSlash = should-not-load
+CFG);
+
+$write($repo . '/backslash-literal-url.config', <<<CFG
+[wordpress]
+backslashUrlLiteral = matched
+CFG);
+
 $write($repo . '/unbounded-double-star.config', <<<CFG
 [wordpress]
 unboundedDoubleStar = should-not-load
@@ -88,6 +98,8 @@ url = https://git.example.test/wp-content.git
 url = https://git.example.test/wp-content/site-7.git
 [remote "legacy-byte"]
 url = https://git.example.test/wp-content/legacy-{$legacyByte}.git
+[remote "backslash-url"]
+url = https://windows.example.test\wp-content.git
 [remote "nested-content"]
 url = https://git.example.test/wp/site/content.git
 [remote "invalid-posix"]
@@ -110,6 +122,10 @@ path = ../bracket-url.config
 path = ../posix-url.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/legacy-?.git"]
 path = ../legacy-byte.config
+[includeIf "hasconfig:remote.*.url:https://windows.example.test/wp-content.git"]
+path = ../backslash-slash-url.config
+[includeIf "hasconfig:remote.*.url:https://windows.example.test\\\\\\\\wp-content.git"]
+path = ../backslash-literal-url.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp/site**content.git"]
 path = ../unbounded-double-star.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[[:word:]].git"]
@@ -137,6 +153,8 @@ return [
     'bracketUrlPolicy' => $config->value('wordpress', null, 'bracketUrl'),
     'posixUrlPolicy' => $config->value('wordpress', null, 'posixUrl'),
     'legacyBytePolicy' => $config->value('wordpress', null, 'legacyByte'),
+    'backslashUrlSlashPolicy' => $config->value('wordpress', null, 'backslashUrlSlash'),
+    'backslashUrlLiteralPolicy' => $config->value('wordpress', null, 'backslashUrlLiteral'),
     'unboundedDoubleStarRejectedPolicy' => $config->value('wordpress', null, 'unboundedDoubleStar'),
     'invalidPosixPolicy' => $config->value('wordpress', null, 'invalidPosix'),
     'unclosedBracketPolicy' => $config->value('wordpress', null, 'unclosedBracket'),
