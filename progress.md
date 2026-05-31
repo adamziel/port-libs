@@ -52,6 +52,20 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (Gitoxide integration 13:53 UTC):
+  source commit `5ebe59bce658967f680a0de102050b918981a952`
+  (`ports: add gitoxide config pathspec sparse parity`) landed three verified
+  Gitoxide handoffs after excluding stale shared status/manifest/progress
+  metadata. Gitoxide full lane evidence moves from `4696` to `4725 pass / 0
+  fail`, with mapped coverage moving from `1580 / 2886` to `1583 / 2886`: +1
+  hasconfig remote URL backslash byte matching slice, +1 attributes/pathspec
+  attr=value tab-boundary validation slice, and +1 sparse-checkout POSIX class
+  fallback slice. Verification passed PHP lint on changed/new Gitoxide PHP
+  files, diff checks, focused Gitoxide gate `4 files / 499 assertions / 0
+  failures`, full Gitoxide lane `39 files / 4725 assertions / 0 failures`,
+  and three touched examples. Full upstream Gitoxide Cargo workspace runner was
+  not run for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS integration 13:50 UTC):
   source commit `997310621560673da7969ef3e7771c4154db832d`
   (`ports: add lightningcss grid flex bundle parity`) landed four verified
