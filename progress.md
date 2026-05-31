@@ -52,6 +52,22 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS integration 15:50 UTC):
+  source commit `70cf7efb5226c51c4830294e62c0be48581af11b` (`ports: add
+  lightningcss modules cssom bundle parity`) landed five verified
+  LightningCSS handoffs after excluding stale shared metadata. LightningCSS
+  full lane evidence moves from `1966` to `2025 pass / 0 fail`, with
+  conservative mapped coverage moving from `1316 / 3532` to `1340 / 3532`:
+  CSS Modules pure-mode selector boundaries, target-aware alpha color fallback
+  and channel clamping, composed FunctionExit/Length custom at-rule visitors,
+  and malformed bundle resolver-result diagnostics. Outline CSSOM
+  shorthand/longhand get/set/remove behavior is verified inside the existing
+  DeclarationBlock CSSOM cluster. Gates passed: PHP lint on `16` changed/new
+  PHP files, `git diff --check -- lanes/lightningcss`, focused LightningCSS
+  gate `5 files / 829 assertions / 0 failures`, full LightningCSS `13 files /
+  2025 assertions / 0 failures`, and five touched examples. Full upstream
+  LightningCSS Rust/Node/WASM runners were not run for this isolated batch.
+
 - 2026-05-31 supervisor continuation (Gitoxide/LightningCSS/libsqlite corpus
   integration plus LightningCSS surge 15:45 UTC): source commit
   `d43627a9d97bc145b33b02f68b652b008fc04b84` (`ports: add git transport css
