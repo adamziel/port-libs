@@ -52,6 +52,22 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS integration 14:05 UTC):
+  source commit `d3d025bf4c95aed7241ed44ebc97b3f59430410c`
+  (`ports: add lightningcss visitor module sourcemap parity`) landed three
+  verified LightningCSS handoffs after excluding stale shared
+  status/manifest/progress metadata. LightningCSS full lane evidence moves
+  from `1619` to `1639 pass / 0 fail`, with conservative mapped coverage
+  moving from `1164 / 3532` to `1166 / 3532`: +1 composed unknown
+  at-rule/token visitor chain behavior and +1 SourceMap addSourceMap
+  line-replacement behavior. CSS Modules local/global selector edge cases are
+  verified but counted inside the existing CSS Modules cluster. Verification
+  passed PHP lint on changed/new LightningCSS PHP files, diff checks, focused
+  LightningCSS gate `3 files / 168 assertions / 0 failures`, full
+  LightningCSS lane `13 files / 1639 assertions / 0 failures`, and three
+  touched examples. Full upstream LightningCSS Rust/Node runners were not run
+  for this isolated batch.
+
 - 2026-05-31 supervisor continuation (Gitoxide integration 13:53 UTC):
   source commit `5ebe59bce658967f680a0de102050b918981a952`
   (`ports: add gitoxide config pathspec sparse parity`) landed three verified
