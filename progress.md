@@ -52,6 +52,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (Gitoxide/LightningCSS integration 12:58
+  UTC): source commit `0a0e1350d0e1a9867a1029e527a87325f564d2a8`
+  (`ports: add git config and cssom parity slices`) landed two verified
+  handoffs after excluding stale lane status JSON. Gitoxide full lane evidence
+  moves from `4589` to `4599 pass / 0 fail`, with mapped coverage moving from
+  `1573 / 2886` to `1574 / 2886` for config includeIf malformed
+  bracket/unsupported POSIX class wildmatch abort behavior. LightningCSS full
+  lane evidence moves from `1257` to `1265 pass / 0 fail`; mapped coverage
+  stays `996 / 3532` because the background CSSOM shorthand/longhand behavior
+  is additional evidence inside an already represented CSSOM declaration block
+  cluster. Verification passed PHP lint for changed files, diff checks,
+  Gitoxide focused gate `1 file / 99 assertions / 0 failures`, full Gitoxide
+  lane `39 files / 4599 assertions / 0 failures`, the Gitoxide config example,
+  LightningCSS focused gate `1 file / 103 assertions / 0 failures`, full
+  LightningCSS lane `13 files / 1265 assertions / 0 failures`, and the
+  LightningCSS background CSSOM example. Root aggregate and full Gitoxide
+  Cargo/LightningCSS Rust/Node suites were not run for this micro-batch.
+
 - 2026-05-31 supervisor continuation (mixed SQLite/Gitoxide/LightningCSS batch
   12:43 UTC plus LightningCSS surge): source commit
   `95a46ca3aa20fe4b86175e1e40bedaca2f4ab3f9` (`ports: add transport maps and
