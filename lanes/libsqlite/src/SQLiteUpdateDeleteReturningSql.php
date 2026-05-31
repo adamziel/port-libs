@@ -1781,7 +1781,7 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         if ($orderSql !== null && $orderSql !== '') {
-            $sourceRows = self::orderRowValueSelectRows($sourceRows, $orderSql);
+            $sourceRows = self::orderRowValueSelectRows($sourceRows, $orderSql, $expressions);
         }
 
         $tuples = [];
@@ -1861,12 +1861,20 @@ final class SQLiteUpdateDeleteReturningSql
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function orderRowValueSelectRows(array $rows, string $orderSql): array
+    private static function orderRowValueSelectRows(array $rows, string $orderSql, array $selectExpressions = []): array
     {
         $terms = self::parseOrderBy($orderSql);
-        usort($rows, static function (array $left, array $right) use ($terms): int {
+        usort($rows, static function (array $left, array $right) use ($terms, $selectExpressions): int {
             foreach ($terms as $term) {
-                if (isset($term['column'])) {
+                if (isset($term['expression']) && preg_match('/^\d+$/', $term['expression']) === 1) {
+                    $ordinal = (int) $term['expression'];
+                    if ($ordinal < 1 || $ordinal > count($selectExpressions)) {
+                        throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value subquery ORDER BY ordinal is out of range');
+                    }
+                    $expression = trim($selectExpressions[$ordinal - 1]);
+                    $leftValue = self::evaluateExpression($expression, $left);
+                    $rightValue = self::evaluateExpression($expression, $right);
+                } elseif (isset($term['column'])) {
                     $leftValue = self::column($left, $term['column']);
                     $rightValue = self::column($right, $term['column']);
                 } elseif (isset($term['expression'])) {

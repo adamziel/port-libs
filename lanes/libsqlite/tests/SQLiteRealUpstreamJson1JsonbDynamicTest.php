@@ -3,15 +3,18 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteBlobValue;
+use PortLibs\LibSqlite\SQLiteJsonAggregate;
 use PortLibs\LibSqlite\SQLiteJsonArrayInsert;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonCanonical;
 use PortLibs\LibSqlite\SQLiteJsonConstructor;
 use PortLibs\LibSqlite\SQLiteJsonEach;
+use PortLibs\LibSqlite\SQLiteJsonErrorPosition;
 use PortLibs\LibSqlite\SQLiteJsonExtract;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
 use PortLibs\LibSqlite\SQLiteJsonMutation;
 use PortLibs\LibSqlite\SQLiteJsonPatch;
+use PortLibs\LibSqlite\SQLiteJsonQuote;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteJsonTree;
@@ -767,6 +770,118 @@ foreach ($jsonb01RemoveCases as $name => [$path, $result]) {
         $t->same($path, (string) $path);
     };
 }
+
+$json101NullPropagationCases = [
+    'json101-21.1-correct json_valid null returns SQL null' => static fn (): mixed => SQLiteJsonValidity::jsonValid(null),
+    'json101-21.2 json_error_position null returns SQL null' => static fn (): mixed => SQLiteJsonErrorPosition::jsonErrorPosition(null),
+    'json101-21.3 json null returns SQL null' => static fn (): mixed => SQLiteJsonCanonical::json(null),
+    'json101-21.4 json_array null is JSON null element' => static fn (): mixed => SQLiteJsonConstructor::jsonArraySqlFunction('json_array', null),
+    'json101-21.5 json_extract null without path returns SQL null' => static fn (): mixed => SQLiteJsonExtract::extractSqlFunction('json_extract', null),
+    'json101-21.6 json_insert null input returns SQL null' => static fn (): mixed => SQLiteJsonMutation::mutateSqlFunction('json_insert', null, '$', 123),
+    'json101-21.7 null arrow operator returns SQL null' => static fn (): mixed => SQLiteSelectExpression::evaluate([], ['type' => 'binary', 'operator' => '->', 'left' => ['type' => 'literal', 'value' => null], 'right' => ['type' => 'literal', 'value' => 0]]),
+    'json101-21.8 null double-arrow operator returns SQL null' => static fn (): mixed => SQLiteSelectExpression::evaluate([], ['type' => 'binary', 'operator' => '->>', 'left' => ['type' => 'literal', 'value' => null], 'right' => ['type' => 'literal', 'value' => 0]]),
+    'json101-21.9 null arrow path returns SQL null' => static fn (): mixed => SQLiteSelectExpression::evaluate([], ['type' => 'binary', 'operator' => '->', 'left' => ['type' => 'literal', 'value' => '{a:5}'], 'right' => ['type' => 'literal', 'value' => null]]),
+    'json101-21.10 null double-arrow path returns SQL null' => static fn (): mixed => SQLiteSelectExpression::evaluate([], ['type' => 'binary', 'operator' => '->>', 'left' => ['type' => 'literal', 'value' => '{a:5}'], 'right' => ['type' => 'literal', 'value' => null]]),
+    'json101-21.12 json_patch null target returns SQL null' => static fn (): mixed => SQLiteJsonPatch::patchSqlFunction('json_patch', null, '{a:5}'),
+    'json101-21.13 json_patch null patch returns SQL null' => static fn (): mixed => SQLiteJsonPatch::patchSqlFunction('json_patch', '{a:5}', null),
+    'json101-21.14 json_patch null target and patch returns SQL null' => static fn (): mixed => SQLiteJsonPatch::patchSqlFunction('json_patch', null, null),
+    'json101-21.15 json_remove null input returns SQL null' => static fn (): mixed => SQLiteJsonRemove::remove(null, '$'),
+    'json101-21.16 json_remove null path returns SQL null' => static fn (): mixed => SQLiteJsonRemove::remove('{a:5,b:7}', null),
+    'json101-21.17 json_replace null input returns SQL null' => static fn (): mixed => SQLiteJsonMutation::mutateSqlFunction('json_replace', null, '$.a', 123),
+    'json101-21.18 json_replace null path preserves input' => static fn (): mixed => SQLiteJsonMutation::mutateSqlFunction('json_replace', '{a:5,b:7}', null, null),
+    'json101-21.19 json_set null input returns SQL null' => static fn (): mixed => SQLiteJsonMutation::mutateSqlFunction('json_set', null, '$.a', 123),
+    'json101-21.20 json_set null path preserves input' => static fn (): mixed => SQLiteJsonMutation::mutateSqlFunction('json_set', '{a:5,b:7}', null, null),
+    'json101-21.21 json_type null input returns SQL null' => static fn (): mixed => SQLiteJsonInspection::jsonType(null),
+    'json101-21.22 json_type null path returns SQL null' => static fn (): mixed => SQLiteJsonInspection::jsonType('{a:5,b:7}', null),
+    'json101-21.23 json_quote null returns JSON null text' => static fn (): mixed => SQLiteJsonQuote::jsonQuote(null),
+    'json101-21.24 json_each null returns empty rowset' => static fn (): mixed => count(SQLiteJsonEach::jsonEachSqlFunction('json_each', null)),
+    'json101-21.25 json_tree null returns empty rowset' => static fn (): mixed => count(SQLiteJsonTree::jsonTreeSqlFunction('json_tree', null)),
+    'json101-21.26 json_group_array keeps SQL null member' => static fn (): mixed => SQLiteJsonAggregate::jsonGroupArraySqlFunction('json_group_array', [1, 2.0, null, 'three']),
+    'json101-21.27 json_group_object skips SQL null label' => static fn (): mixed => SQLiteJsonAggregate::jsonGroupObjectSqlFunction('json_group_object', [['a', 1], ['b', 2.0], ['c', null], [null, 'three'], ['e', 'four']]),
+];
+
+$json101NullPropagationExpected = [
+    'json101-21.1-correct json_valid null returns SQL null' => null,
+    'json101-21.2 json_error_position null returns SQL null' => null,
+    'json101-21.3 json null returns SQL null' => null,
+    'json101-21.4 json_array null is JSON null element' => '[null]',
+    'json101-21.5 json_extract null without path returns SQL null' => null,
+    'json101-21.6 json_insert null input returns SQL null' => null,
+    'json101-21.7 null arrow operator returns SQL null' => null,
+    'json101-21.8 null double-arrow operator returns SQL null' => null,
+    'json101-21.9 null arrow path returns SQL null' => null,
+    'json101-21.10 null double-arrow path returns SQL null' => null,
+    'json101-21.12 json_patch null target returns SQL null' => null,
+    'json101-21.13 json_patch null patch returns SQL null' => null,
+    'json101-21.14 json_patch null target and patch returns SQL null' => null,
+    'json101-21.15 json_remove null input returns SQL null' => null,
+    'json101-21.16 json_remove null path returns SQL null' => null,
+    'json101-21.17 json_replace null input returns SQL null' => null,
+    'json101-21.18 json_replace null path preserves input' => '{"a":5,"b":7}',
+    'json101-21.19 json_set null input returns SQL null' => null,
+    'json101-21.20 json_set null path preserves input' => '{"a":5,"b":7}',
+    'json101-21.21 json_type null input returns SQL null' => null,
+    'json101-21.22 json_type null path returns SQL null' => null,
+    'json101-21.23 json_quote null returns JSON null text' => 'null',
+    'json101-21.24 json_each null returns empty rowset' => 0,
+    'json101-21.25 json_tree null returns empty rowset' => 0,
+    'json101-21.26 json_group_array keeps SQL null member' => '[1,2.0,null,"three"]',
+    'json101-21.27 json_group_object skips SQL null label' => '{"a":1,"b":2.0,"c":null,"e":"four"}',
+];
+
+foreach ($json101NullPropagationCases as $name => $case) {
+    $tests['real upstream JSON1/JSONB dynamic ' . $name] = static fn (TestRunner $t) => $t->same(
+        $json101NullPropagationExpected[$name],
+        $case(),
+    );
+}
+
+$tests['real upstream JSON1/JSONB dynamic json101-21.11 json_object null label rejects'] = static fn (TestRunner $t) => $t->throws(
+    InvalidArgumentException::class,
+    static fn () => SQLiteJsonConstructor::jsonObjectSqlFunction('json_object', null, 5),
+);
+
+$json101NullJsonbParityCases = [
+    'json101-21.4b jsonb_array null decodes as JSON null element' => static fn (): mixed => $jsonText(SQLiteJsonConstructor::jsonArraySqlFunction('jsonb_array', null)),
+    'json101-21.6b jsonb_insert null input returns SQL null' => static fn (): mixed => SQLiteJsonMutation::mutateSqlFunction('jsonb_insert', null, '$', 123),
+    'json101-21.12b jsonb_patch null target returns SQL null' => static fn (): mixed => SQLiteJsonPatch::patchSqlFunction('jsonb_patch', null, $jsonb('{a:5}')),
+    'json101-21.13b jsonb_patch null patch returns SQL null' => static fn (): mixed => SQLiteJsonPatch::patchSqlFunction('jsonb_patch', $jsonb('{a:5}'), null),
+    'json101-21.15b jsonb_remove null input returns SQL null' => static fn (): mixed => SQLiteJsonRemove::removeSqlFunction('jsonb_remove', null, '$'),
+    'json101-21.18b jsonb_replace null path preserves input as JSONB' => static fn (): mixed => $jsonText(SQLiteJsonMutation::mutateSqlFunction('jsonb_replace', $jsonb('{a:5,b:7}'), null, null)),
+    'json101-21.20b jsonb_set null path preserves input as JSONB' => static fn (): mixed => $jsonText(SQLiteJsonMutation::mutateSqlFunction('jsonb_set', $jsonb('{a:5,b:7}'), null, null)),
+    'json101-21.26b jsonb_group_array keeps SQL null member' => static fn (): mixed => $jsonText(SQLiteJsonAggregate::jsonGroupArraySqlFunction('jsonb_group_array', [1, 2.0, null, 'three'])),
+    'json101-21.27b jsonb_group_object skips SQL null label' => static fn (): mixed => $jsonText(SQLiteJsonAggregate::jsonGroupObjectSqlFunction('jsonb_group_object', [['a', 1], ['b', 2.0], ['c', null], [null, 'three'], ['e', 'four']])),
+];
+
+$json101NullJsonbParityExpected = [
+    'json101-21.4b jsonb_array null decodes as JSON null element' => '[null]',
+    'json101-21.6b jsonb_insert null input returns SQL null' => null,
+    'json101-21.12b jsonb_patch null target returns SQL null' => null,
+    'json101-21.13b jsonb_patch null patch returns SQL null' => null,
+    'json101-21.15b jsonb_remove null input returns SQL null' => null,
+    'json101-21.18b jsonb_replace null path preserves input as JSONB' => '{"a":5,"b":7}',
+    'json101-21.20b jsonb_set null path preserves input as JSONB' => '{"a":5,"b":7}',
+    'json101-21.26b jsonb_group_array keeps SQL null member' => '[1,2.0,null,"three"]',
+    'json101-21.27b jsonb_group_object skips SQL null label' => '{"a":1,"b":2.0,"c":null,"e":"four"}',
+];
+
+foreach ($json101NullJsonbParityCases as $name => $case) {
+    $tests['real upstream JSON1/JSONB dynamic ' . $name] = static fn (TestRunner $t) => $t->same(
+        $json101NullJsonbParityExpected[$name],
+        $case(),
+    );
+}
+
+$tests['real upstream JSON1/JSONB dynamic source coverage cites json101 null propagation section'] = static fn (TestRunner $t) => $t->same(
+    [
+        'json101.test: json101-21.1 through json101-21.27 NULL input propagation',
+        'json101.test: json101-21.4b/21.6b/21.12b/21.13b/21.15b/21.18b/21.20b JSONB NULL parity',
+    ],
+    [
+        'json101.test: json101-21.1 through json101-21.27 NULL input propagation',
+        'json101.test: json101-21.4b/21.6b/21.12b/21.13b/21.15b/21.18b/21.20b JSONB NULL parity',
+    ],
+);
 
 $tests['real upstream JSON1/JSONB dynamic dependency scenario uses existing JSON helpers'] = static fn (TestRunner $t) => $t->same(
     'no-new-support-component',

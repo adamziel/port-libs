@@ -94,6 +94,10 @@ $updateNullifLimit = "UPDATE app_settings SET state = 'nullif_limit' WHERE load_
 $deleteCoalesceCastLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT coalesce(NULL, CAST('1.0' AS NUMERIC)), coalesce(NULL, CAST('2.0' AS REAL))";
 $updateRowValueCoalesceSubqueryLimit = "UPDATE app_settings SET state = 'coalesce_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT coalesce(NULL, 3) OFFSET ifnull(NULL, 1)) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
 $deleteRowValueNullifSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT nullif(4, 5) OFFSET nullif(1, 0)) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+$updateRowValueOrdinalSecondSubqueryLimit = "UPDATE app_settings SET state = 'ordinal_second' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets WHERE action = 'refresh' ORDER BY 2 DESC, 1 ASC LIMIT 2 OFFSET 1) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+$deleteRowValueOrdinalFirstSubqueryCommaLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY 1 DESC, 2 ASC LIMIT 1, 3) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+$updateRowValueOrdinalExpressionProjectionLimit = "UPDATE app_settings SET state = 'ordinal_expr' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name || '' FROM app_setting_targets WHERE action = 'refresh' ORDER BY 2 ASC, 1 DESC LIMIT 2 OFFSET 1) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+$deleteRowValueOrdinalLengthProjectionLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY 2 DESC, length(key_name) ASC LIMIT 3 OFFSET 1) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
 
 $cases = [
     'parse update negative offset retained' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateNegativeOffset)['offset'], -4],
@@ -249,6 +253,14 @@ $cases = [
     'update row-value coalesce subquery returns source order' => [static fn (): mixed => array_column($execute($updateRowValueCoalesceSubqueryLimit)['returning'], 'setting_id'), [2, 3, 5]],
     'delete row-value nullif subquery applies before tuple match' => [static fn (): mixed => $execute($deleteRowValueNullifSubqueryLimit)['plan']->selectedIds, [2, 3, 5, 8]],
     'delete row-value nullif subquery keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueNullifSubqueryLimit)['tables']['app_settings'], 'setting_id'), [1, 4, 6, 7]],
+    'update row-value ordinal second subquery applies before tuple match' => [static fn (): mixed => $execute($updateRowValueOrdinalSecondSubqueryLimit)['plan']->selectedIds, [2, 5]],
+    'update row-value ordinal second subquery returns source order' => [static fn (): mixed => array_column($execute($updateRowValueOrdinalSecondSubqueryLimit)['returning'], 'setting_id'), [2, 5]],
+    'delete row-value ordinal first comma subquery applies before tuple match' => [static fn (): mixed => $execute($deleteRowValueOrdinalFirstSubqueryCommaLimit)['plan']->selectedIds, [2, 5, 6]],
+    'delete row-value ordinal first comma subquery keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueOrdinalFirstSubqueryCommaLimit)['tables']['app_settings'], 'setting_id'), [1, 3, 4, 7, 8]],
+    'update row-value ordinal expression projection applies before tuple match' => [static fn (): mixed => $execute($updateRowValueOrdinalExpressionProjectionLimit)['plan']->selectedIds, [2, 3]],
+    'update row-value ordinal expression projection returns source order' => [static fn (): mixed => array_column($execute($updateRowValueOrdinalExpressionProjectionLimit)['returning'], 'setting_id'), [2, 3]],
+    'delete row-value ordinal with expression tie-break applies before tuple match' => [static fn (): mixed => $execute($deleteRowValueOrdinalLengthProjectionLimit)['plan']->selectedIds, [2, 5, 6]],
+    'delete row-value ordinal with expression tie-break keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueOrdinalLengthProjectionLimit)['tables']['app_settings'], 'setting_id'), [1, 3, 4, 7, 8]],
     'malformed modulo zero limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 5%0"), InvalidArgumentException::class],
     'malformed coalesce all null limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT coalesce(NULL, NULL)"), InvalidArgumentException::class],
     'malformed nullif equal limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT nullif(2, 2)"), InvalidArgumentException::class],
@@ -262,6 +274,8 @@ $cases = [
     'malformed non-integral limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1.2"), InvalidArgumentException::class],
     'malformed non-integral exponent limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 2.5e0"), InvalidArgumentException::class],
     'malformed null offset rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET NULL"), InvalidArgumentException::class],
+    'malformed row-value subquery ordinal zero rejected' => [static fn (): mixed => $execute("UPDATE app_settings SET state = 'bad_ordinal' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY 0 LIMIT 1) RETURNING setting_id"), InvalidArgumentException::class],
+    'malformed row-value subquery ordinal out of range rejected' => [static fn (): mixed => $execute("DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY 3 LIMIT 1) RETURNING setting_id"), InvalidArgumentException::class],
     'malformed missing generic rowid rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute($updateNegativeOffset, ['app_settings' => [['tenant_id' => 1, 'key_name' => 'alpha']]], 'setting_id'), InvalidArgumentException::class],
 ];
 
@@ -487,6 +501,56 @@ for ($seed = 1; $seed <= 40; $seed++) {
     $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $effectiveLimit)));
 
     $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue searched case subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = $seed % 3;
+    $direction = $seed % 2 === 0 ? 'ASC' : 'DESC';
+    $sql = "UPDATE app_settings SET state = 'ordinal_dyn' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY 2 {$direction}, 1 ASC LIMIT {$limitValue} OFFSET {$offsetValue}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+    $ordered = $direction === 'ASC'
+        ? [[1, 'beta'], [2, 'beta'], [3, 'beta'], [1, 'gamma'], [2, 'gamma']]
+        : [[1, 'gamma'], [2, 'gamma'], [1, 'beta'], [2, 'beta'], [3, 'beta']];
+    $expectedTuples = array_slice($ordered, $offsetValue, $limitValue);
+    $expected = [];
+    foreach ([1 => [1, 'alpha'], 2 => [1, 'beta'], 3 => [1, 'gamma'], 4 => [2, 'alpha'], 5 => [2, 'beta'], 6 => [2, 'gamma'], 7 => [3, 'alpha'], 8 => [3, 'beta']] as $settingId => $tuple) {
+        if (in_array($tuple, $expectedTuples, true)) {
+            $expected[] = $settingId;
+        }
+    }
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update ordinal subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = ($seed + 1) % 3;
+    $direction = $seed % 2 === 0 ? 'ASC' : 'DESC';
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name || '' FROM app_setting_targets ORDER BY 1 {$direction}, 2 DESC LIMIT {$offsetValue}, {$limitValue}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+    $ordered = $direction === 'ASC'
+        ? [[1, 'gamma'], [1, 'beta'], [2, 'gamma'], [2, 'beta'], [3, 'beta']]
+        : [[3, 'beta'], [2, 'gamma'], [2, 'beta'], [1, 'gamma'], [1, 'beta']];
+    $expectedTuples = array_slice($ordered, $offsetValue, $limitValue);
+    $expected = [];
+    foreach ([1 => [1, 'alpha'], 2 => [1, 'beta'], 3 => [1, 'gamma'], 4 => [2, 'alpha'], 5 => [2, 'beta'], 6 => [2, 'gamma'], 7 => [3, 'alpha'], 8 => [3, 'beta']] as $settingId => $tuple) {
+        if (in_array($tuple, $expectedTuples, true)) {
+            $expected[] = $settingId;
+        }
+    }
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete ordinal expression subquery seed %02d', $seed)] =
         static function (TestRunner $t) use ($execute, $sql, $expected): void {
             $result = $execute($sql);
             $t->same($expected, $result['plan']->selectedIds);

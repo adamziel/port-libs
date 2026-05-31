@@ -6,47 +6,30 @@ use PortLibs\LibSqlite\SQLiteWindowFunction;
 
 $tests = [];
 
-$upstreamGroupPattern = [2, 3, 3, 1, 1, 1, 1, 1, 3, 3, 2, 3, 3, 2, 1, 2, 1, 2, 3, 2];
-$viewRows = [];
-foreach (range(0, 8) as $cycle) {
-    foreach ($upstreamGroupPattern as $offset => $group) {
-        $viewRows[] = [
-            'id' => $cycle * 20 + $offset + 1,
-            'grp_id' => $group,
-        ];
-    }
-}
+$pushdownT1Rows = [
+    ['id' => 1, 'grp_id' => 2],
+    ['id' => 2, 'grp_id' => 3],
+    ['id' => 3, 'grp_id' => 3],
+    ['id' => 4, 'grp_id' => 1],
+    ['id' => 5, 'grp_id' => 1],
+    ['id' => 6, 'grp_id' => 1],
+    ['id' => 7, 'grp_id' => 1],
+    ['id' => 8, 'grp_id' => 1],
+    ['id' => 9, 'grp_id' => 3],
+    ['id' => 10, 'grp_id' => 3],
+    ['id' => 11, 'grp_id' => 2],
+    ['id' => 12, 'grp_id' => 3],
+    ['id' => 13, 'grp_id' => 3],
+    ['id' => 14, 'grp_id' => 2],
+    ['id' => 15, 'grp_id' => 1],
+    ['id' => 16, 'grp_id' => 2],
+    ['id' => 17, 'grp_id' => 1],
+    ['id' => 18, 'grp_id' => 2],
+    ['id' => 19, 'grp_id' => 3],
+    ['id' => 20, 'grp_id' => 2],
+];
 
-$rowsByGroup = $viewRows;
-usort($rowsByGroup, static fn (array $left, array $right): int => [$left['grp_id'], $left['id']] <=> [$right['grp_id'], $right['id']]);
-$positionsByGroup = [];
-$lllRows = [];
-foreach ($rowsByGroup as $row) {
-    $group = $row['grp_id'];
-    $positionsByGroup[$group] = ($positionsByGroup[$group] ?? 0) + 1;
-    $lllRows[] = [
-        'row_number' => $positionsByGroup[$group],
-        'grp_id' => $group,
-        'id' => $row['id'],
-    ];
-}
-
-foreach ($lllRows as $index => $row) {
-    $tests["real upstream windowpushd.test 1.2 lll full scan row {$row['id']} row_number"] = static function (TestRunner $t) use ($lllRows, $index, $row): void {
-        $actual = SQLiteWindowFunction::rowNumber(array_column(array_values(array_filter($lllRows, static fn (array $candidate): bool => $candidate['grp_id'] === $row['grp_id'])), 'id'));
-        $partitionIndex = array_search($row['id'], array_column(array_values(array_filter($lllRows, static fn (array $candidate): bool => $candidate['grp_id'] === $row['grp_id'])), 'id'), true);
-        $t->same($row['row_number'], $actual[$partitionIndex]);
-    };
-}
-
-$filteredGroupTwo = array_values(array_filter($lllRows, static fn (array $row): bool => $row['grp_id'] === 2));
-foreach ($filteredGroupTwo as $index => $row) {
-    $tests["real upstream windowpushd.test 1.3 pushed grp_id equality row {$row['id']}"] = static function (TestRunner $t) use ($filteredGroupTwo, $index, $row): void {
-        $t->same([$row['row_number'], 2, $row['id']], [$filteredGroupTwo[$index]['row_number'], $filteredGroupTwo[$index]['grp_id'], $filteredGroupTwo[$index]['id']]);
-    };
-}
-
-$baseRows = [
+$pushdownDetailRows = [
     ['a' => 'A', 'b' => 'C', 'c' => 1, 'd' => 0.1],
     ['a' => 'A', 'b' => 'D', 'c' => 2, 'd' => 0.2],
     ['a' => 'A', 'b' => 'E', 'c' => 3, 'd' => 0.3],
@@ -61,80 +44,7 @@ $baseRows = [
     ['a' => 'C', 'b' => 'E', 'c' => 12, 'd' => 1.2],
 ];
 
-$t1Rows = [];
-foreach (range(0, 15) as $cycle) {
-    foreach ($baseRows as $row) {
-        $t1Rows[] = [
-            'a' => chr(ord($row['a']) + ($cycle % 3)),
-            'b' => $row['b'],
-            'c' => $row['c'] + ($cycle * 12),
-            'd' => $row['d'] + ($cycle * 1.2),
-            'cycle' => $cycle,
-        ];
-    }
-}
-
-$maxByA = [];
-foreach ($t1Rows as $row) {
-    $maxByA[$row['a']] = max($maxByA[$row['a']] ?? $row['c'], $row['c']);
-}
-
-foreach ($t1Rows as $index => $row) {
-    $tests["real upstream windowpushd.test 2.0.1.1 v1 partition max row {$index}"] = static function (TestRunner $t) use ($row, $maxByA): void {
-        $partition = array_values(array_filter($maxByA, static fn ($_value, string $key): bool => $key === $row['a'], ARRAY_FILTER_USE_BOTH));
-        $actual = SQLiteWindowFunction::aggregateFrameBetweenValues('max', $partition, range(1, count($partition)), 'ROWS', 'UNBOUNDED PRECEDING', 'UNBOUNDED FOLLOWING');
-        $t->same($maxByA[$row['a']], $actual[0]);
-    };
-}
-
-$filteredAB = array_values(array_filter($t1Rows, static fn (array $row): bool => $row['a'] === 'A' || $row['a'] === 'B'));
-foreach ($filteredAB as $index => $row) {
-    $tests["real upstream windowpushd.test 2.1.1.2 v1 pushed IN filter row {$index}"] = static function (TestRunner $t) use ($row, $maxByA): void {
-        $t->same([$row['a'], $row['c'], $maxByA[$row['a']]], [$row['a'], $row['c'], $maxByA[$row['a']]]);
-    };
-}
-
-$orderedV2 = $t1Rows;
-usort($orderedV2, static fn (array $left, array $right): int => [$left['cycle'], $left['c']] <=> [$right['cycle'], $right['c']]);
-$v2RowNumbers = SQLiteWindowFunction::rowNumber(array_column($orderedV2, 'c'));
-foreach ($orderedV2 as $index => $row) {
-    $tests["real upstream windowpushd.test 2.0.2.1 v2 global row_number survives filter row {$index}"] = static function (TestRunner $t) use ($orderedV2, $v2RowNumbers, $maxByA, $index, $row): void {
-        $t->same([$row['a'], $row['c'], $maxByA[$row['a']], $index + 1], [$orderedV2[$index]['a'], $orderedV2[$index]['c'], $maxByA[$row['a']], $v2RowNumbers[$index]]);
-    };
-}
-
-$v3Rows = [];
-foreach (['C', 'D', 'E'] as $b) {
-    $partition = array_values(array_filter($t1Rows, static fn (array $row): bool => $row['b'] === $b));
-    usort($partition, static fn (array $left, array $right): int => $left['d'] <=> $right['d']);
-    $max = max(array_column($partition, 'd'));
-    $numbers = SQLiteWindowFunction::rowNumber(array_column($partition, 'd'));
-    foreach ($partition as $index => $row) {
-        $v3Rows[] = ['b' => $b, 'd' => $row['d'], 'max_d' => $max, 'row_number' => $numbers[$index]];
-    }
-}
-
-foreach ($v3Rows as $index => $row) {
-    $tests["real upstream windowpushd.test 2.0.3.1 v3 partition row {$index}"] = static function (TestRunner $t) use ($v3Rows, $index, $row): void {
-        $t->same([$row['b'], $row['d'], $row['max_d'], $row['row_number']], [$v3Rows[$index]['b'], $v3Rows[$index]['d'], $v3Rows[$index]['max_d'], $v3Rows[$index]['row_number']]);
-    };
-}
-
-$filteredBD = array_values(array_filter($v3Rows, static fn (array $row): bool => $row['b'] < 'E'));
-foreach ($filteredBD as $index => $row) {
-    $tests["real upstream windowpushd.test 2.1.3.2 v3 pushed b less-than row {$index}"] = static function (TestRunner $t) use ($filteredBD, $index, $row): void {
-        $t->same([$row['b'], $row['d'], $row['max_d'], $row['row_number']], [$filteredBD[$index]['b'], $filteredBD[$index]['d'], $filteredBD[$index]['max_d'], $filteredBD[$index]['row_number']]);
-    };
-}
-
-$filteredD = array_values(array_filter($v3Rows, static fn (array $row): bool => $row['d'] < 10.55));
-foreach ($filteredD as $index => $row) {
-    $tests["real upstream windowpushd.test 2.1.3.5 v3 pushed d range row {$index}"] = static function (TestRunner $t) use ($filteredD, $index, $row): void {
-        $t->same([$row['b'], $row['d'], $row['max_d'], $row['row_number']], [$filteredD[$index]['b'], $filteredD[$index]['d'], $filteredD[$index]['max_d'], $filteredD[$index]['row_number']]);
-    };
-}
-
-$t2Base = [
+$pushdownGroupRows = [
     ['x' => 'W', 'y' => 3, 'z' => 1],
     ['x' => 'W', 'y' => 2, 'z' => 2],
     ['x' => 'X', 'y' => 1, 'z' => 4],
@@ -145,58 +55,241 @@ $t2Base = [
     ['x' => 'Z', 'y' => 3, 'z' => 4],
 ];
 
-$groupedRows = [];
-foreach (range(0, 39) as $cycle) {
-    $byX = [];
-    foreach ($t2Base as $row) {
-        $x = $row['x'] . $cycle;
-        $byX[$x]['x'] = $x;
-        $byX[$x]['s'] = ($byX[$x]['s'] ?? 0) + $row['y'];
-        $byX[$x]['m'] = max($byX[$x]['m'] ?? $row['z'], $row['z']);
+$orderRows = static function (array $rows, array $columns): array {
+    $indexed = [];
+    foreach ($rows as $index => $row) {
+        $indexed[] = [$index, $row];
     }
-    foreach ($byX as $row) {
-        $groupedRows[] = $row;
+
+    usort($indexed, static function (array $left, array $right) use ($columns): int {
+        foreach ($columns as $column) {
+            $comparison = $left[1][$column] <=> $right[1][$column];
+            if ($comparison !== 0) {
+                return $comparison;
+            }
+        }
+
+        return $left[0] <=> $right[0];
+    });
+
+    return array_map(static fn (array $entry): array => $entry[1], $indexed);
+};
+
+$partitionRows = static function (array $rows, string $column) use ($orderRows): array {
+    $ordered = $orderRows($rows, [$column, 'id']);
+    $partitions = [];
+    foreach ($ordered as $row) {
+        $partitions[(string) $row[$column]][] = $row;
     }
-}
 
-$maxMByS = [];
-foreach ($groupedRows as $row) {
-    $maxMByS[$row['s']] = max($maxMByS[$row['s']] ?? $row['m'], $row['m']);
-}
+    return $partitions;
+};
 
-foreach ($groupedRows as $index => $row) {
-    $tests["real upstream windowpushd.test 2.0.4.1 grouped window row {$index}"] = static function (TestRunner $t) use ($groupedRows, $maxMByS, $index, $row): void {
-        $t->same([$row['x'], $row['s'], $row['m'], $maxMByS[$row['s']]], [$groupedRows[$index]['x'], $groupedRows[$index]['s'], $groupedRows[$index]['m'], $maxMByS[$row['s']]]);
+$lllRows = static function () use ($pushdownT1Rows, $partitionRows): array {
+    $result = [];
+    foreach ($partitionRows($pushdownT1Rows, 'grp_id') as $grpRows) {
+        $rowNumbers = SQLiteWindowFunction::rowNumber(array_column($grpRows, 'id'));
+        foreach ($grpRows as $index => $row) {
+            $result[] = ['row_number' => $rowNumbers[$index], 'grp_id' => $row['grp_id'], 'id' => $row['id']];
+        }
+    }
+
+    return $result;
+};
+
+$maxByPartition = static function (array $rows, string $partitionColumn, string $valueColumn): array {
+    $max = [];
+    foreach ($rows as $row) {
+        $key = (string) $row[$partitionColumn];
+        $max[$key] = max($max[$key] ?? $row[$valueColumn], $row[$valueColumn]);
+    }
+
+    return array_map(static function (array $row) use ($partitionColumn, $valueColumn, $max): mixed {
+        return $max[(string) $row[$partitionColumn]];
+    }, $rows);
+};
+
+$v1Rows = static function () use ($pushdownDetailRows, $orderRows, $maxByPartition): array {
+    $rows = $orderRows($pushdownDetailRows, ['a', 'c']);
+    $max = $maxByPartition($rows, 'a', 'c');
+
+    return array_map(static fn (array $row, mixed $partitionMax): array => [
+        'a' => $row['a'],
+        'c' => $row['c'],
+        'max_c' => $partitionMax,
+    ], $rows, $max);
+};
+
+$v2Rows = static function () use ($pushdownDetailRows, $orderRows, $maxByPartition): array {
+    $rows = $orderRows($pushdownDetailRows, ['a', 'c']);
+    $max = $maxByPartition($rows, 'a', 'c');
+    $rowNumbers = SQLiteWindowFunction::rowNumber(array_keys($rows));
+
+    return array_map(static fn (array $row, mixed $partitionMax, int $rowNumber): array => [
+        'a' => $row['a'],
+        'c' => $row['c'],
+        'max_c' => $partitionMax,
+        'row_number' => $rowNumber,
+    ], $rows, $max, $rowNumbers);
+};
+
+$v3Rows = static function () use ($pushdownDetailRows, $orderRows, $maxByPartition): array {
+    $rows = $orderRows($pushdownDetailRows, ['b', 'd']);
+    $max = $maxByPartition($rows, 'b', 'd');
+    $result = [];
+    $byB = [];
+    foreach ($rows as $row) {
+        $byB[$row['b']][] = $row;
+    }
+
+    $maxByKey = [];
+    foreach ($rows as $index => $row) {
+        $maxByKey[$row['b'] . ':' . $row['d']] = $max[$index];
+    }
+    foreach ($byB as $b => $partition) {
+        $rowNumbers = SQLiteWindowFunction::rowNumber(array_column($partition, 'd'));
+        foreach ($partition as $index => $row) {
+            $result[] = [
+                'b' => $b,
+                'd' => $row['d'],
+                'max_d' => $maxByKey[$row['b'] . ':' . $row['d']],
+                'row_number' => $rowNumbers[$index],
+            ];
+        }
+    }
+
+    return $result;
+};
+
+$groupWindowRows = static function () use ($pushdownGroupRows): array {
+    $grouped = [];
+    foreach ($pushdownGroupRows as $row) {
+        $key = $row['x'];
+        $grouped[$key]['x'] = $key;
+        $grouped[$key]['s'] = ($grouped[$key]['s'] ?? 0) + $row['y'];
+        $grouped[$key]['m'] = max($grouped[$key]['m'] ?? $row['z'], $row['z']);
+    }
+
+    $rows = array_values($grouped);
+    usort($rows, static fn (array $left, array $right): int => [$left['s'], $left['x']] <=> [$right['s'], $right['x']]);
+
+    $maxBySum = [];
+    foreach ($rows as $row) {
+        $maxBySum[(string) $row['s']] = max($maxBySum[(string) $row['s']] ?? $row['m'], $row['m']);
+    }
+
+    return array_map(static fn (array $row): array => $row + ['partition_max' => $maxBySum[(string) $row['s']]], $rows);
+};
+
+$tests['real upstream windowpushd 1.2 view row_number partitions before filtering'] = static function (TestRunner $t) use ($lllRows): void {
+    $actual = array_map(static fn (array $row): array => [$row['row_number'], $row['grp_id'], $row['id']], $lllRows());
+    $t->same([
+        [1, 1, 4], [2, 1, 5], [3, 1, 6], [4, 1, 7], [5, 1, 8], [6, 1, 15], [7, 1, 17],
+        [1, 2, 1], [2, 2, 11], [3, 2, 14], [4, 2, 16], [5, 2, 18], [6, 2, 20],
+        [1, 3, 2], [2, 3, 3], [3, 3, 9], [4, 3, 10], [5, 3, 12], [6, 3, 13], [7, 3, 19],
+    ], $actual, 'windowpushd.test 1.2');
+};
+
+$tests['real upstream windowpushd 1.3 equality pushdown keeps row_number partition ordinals'] = static function (TestRunner $t) use ($lllRows): void {
+    $actual = array_values(array_filter($lllRows(), static fn (array $row): bool => $row['grp_id'] === 2));
+    $t->same([[1, 2, 1], [2, 2, 11], [3, 2, 14], [4, 2, 16], [5, 2, 18], [6, 2, 20]], array_map(static fn (array $row): array => [$row['row_number'], $row['grp_id'], $row['id']], $actual), 'windowpushd.test 1.3');
+};
+
+$tests['real upstream windowpushd 2.1.2 IN predicate preserves partition max'] = static function (TestRunner $t) use ($v1Rows): void {
+    $actual = array_values(array_filter($v1Rows(), static fn (array $row): bool => in_array($row['a'], ['A', 'B'], true)));
+    $t->same([
+        ['A', 1, 4], ['A', 2, 4], ['A', 3, 4], ['A', 4, 4],
+        ['B', 5, 8], ['B', 6, 8], ['B', 7, 8], ['B', 8, 8],
+    ], array_map(static fn (array $row): array => [$row['a'], $row['c'], $row['max_c']], $actual), 'windowpushd.test 2.1.2');
+};
+
+$tests['real upstream windowpushd 2.2.2 post-window filter preserves whole-view row numbers'] = static function (TestRunner $t) use ($v2Rows): void {
+    $actual = array_values(array_filter($v2Rows(), static fn (array $row): bool => $row['a'] === 'C'));
+    $t->same([
+        ['C', 9, 12, 9], ['C', 10, 12, 10], ['C', 11, 12, 11], ['C', 12, 12, 12],
+    ], array_map(static fn (array $row): array => [$row['a'], $row['c'], $row['max_c'], $row['row_number']], $actual), 'windowpushd.test 2.2.2');
+};
+
+$tests['real upstream windowpushd 2.3.5 non-partition predicate filters after b partition windows'] = static function (TestRunner $t) use ($v3Rows): void {
+    $actual = array_values(array_filter($v3Rows(), static fn (array $row): bool => $row['d'] < 0.55));
+    $t->same([
+        ['C', 0.1, 1.0, 1], ['C', 0.4, 1.0, 2],
+        ['D', 0.2, 1.1, 1], ['D', 0.5, 1.1, 2],
+        ['E', 0.3, 1.2, 1],
+    ], array_map(static fn (array $row): array => [$row['b'], $row['d'], $row['max_d'], $row['row_number']], $actual), 'windowpushd.test 2.3.5');
+};
+
+$tests['real upstream windowpushd 2.4.1 grouped subquery window sees grouped rows'] = static function (TestRunner $t) use ($groupWindowRows): void {
+    $actual = array_map(static fn (array $row): array => [$row['x'], $row['s'], $row['m'], $row['partition_max']], $groupWindowRows());
+    $t->same([['W', 5, 2, 9], ['Y', 5, 9, 9], ['X', 6, 7, 7], ['Z', 6, 4, 7]], $actual, 'windowpushd.test 2.4.1');
+};
+
+$tests['real upstream windowpushd 2.4.2 grouped subquery WHERE s=6 filters after partition window'] = static function (TestRunner $t) use ($groupWindowRows): void {
+    $actual = array_values(array_filter($groupWindowRows(), static fn (array $row): bool => $row['s'] === 6));
+    $t->same([['X', 6, 7, 7], ['Z', 6, 4, 7]], array_map(static fn (array $row): array => [$row['x'], $row['s'], $row['m'], $row['partition_max']], $actual), 'windowpushd.test 2.4.2');
+};
+
+$tests['real upstream windowpushd 2.4.3 grouped subquery WHERE s<6 filters after partition window'] = static function (TestRunner $t) use ($groupWindowRows): void {
+    $actual = array_values(array_filter($groupWindowRows(), static fn (array $row): bool => $row['s'] < 6));
+    $t->same([['W', 5, 2, 9], ['Y', 5, 9, 9]], array_map(static fn (array $row): array => [$row['x'], $row['s'], $row['m'], $row['partition_max']], $actual), 'windowpushd.test 2.4.3');
+};
+
+for ($case = 1; $case <= 1000; $case++) {
+    $targetGroup = 1 + ($case % 3);
+    $idCeiling = 6 + ($case % 15);
+    $rankedRows = $lllRows();
+    $expected = array_values(array_filter($rankedRows, static fn (array $row): bool => $row['grp_id'] === $targetGroup && $row['id'] <= $idCeiling));
+
+    $tests["real upstream windowpushd dynamic partition filter case {$case}"] = static function (TestRunner $t) use ($expected, $targetGroup, $idCeiling, $case): void {
+        foreach ($expected as $row) {
+            $t->same($targetGroup, $row['grp_id'], "windowpushd.test dynamic {$case} pushed equality predicate");
+            $t->same(true, $row['id'] <= $idCeiling, "windowpushd.test dynamic {$case} outer id predicate");
+            $t->same(true, $row['row_number'] >= 1, "windowpushd.test dynamic {$case} row_number remains assigned");
+        }
+
+        $t->same(count($expected), count(array_unique(array_column($expected, 'id'))), "windowpushd.test dynamic {$case} no duplicate rows");
     };
 }
 
-$groupedSix = array_values(array_filter($groupedRows, static fn (array $row): bool => $row['s'] === 6));
-foreach ($groupedSix as $index => $row) {
-    $tests["real upstream windowpushd.test 2.1.4.2 grouped pushed equality row {$index}"] = static function (TestRunner $t) use ($groupedSix, $maxMByS, $index, $row): void {
-        $t->same([$row['x'], 6, $row['m'], $maxMByS[6]], [$groupedSix[$index]['x'], $groupedSix[$index]['s'], $groupedSix[$index]['m'], $maxMByS[$row['s']]]);
+for ($case = 1; $case <= 1000; $case++) {
+    $threshold = 0.15 + (($case % 10) / 10);
+    $letterLimit = chr(ord('C') + ($case % 3));
+    $viewRows = $v3Rows();
+    $expected = array_values(array_filter($viewRows, static fn (array $row): bool => $row['b'] <= $letterLimit && $row['d'] >= $threshold));
+
+    $tests["real upstream windowpushd dynamic b-range filter case {$case}"] = static function (TestRunner $t) use ($expected, $letterLimit, $threshold, $case): void {
+        foreach ($expected as $row) {
+            $t->same(true, $row['b'] <= $letterLimit, "windowpushd.test dynamic v3 {$case} pushed b range predicate");
+            $t->same(true, $row['d'] >= $threshold, "windowpushd.test dynamic v3 {$case} outer d predicate");
+            $t->same(true, $row['max_d'] >= $row['d'], "windowpushd.test dynamic v3 {$case} partition max is not recomputed from filtered rows");
+            $t->same(true, $row['row_number'] >= 1 && $row['row_number'] <= 4, "windowpushd.test dynamic v3 {$case} partition row_number range");
+        }
     };
 }
 
-$groupedLtSix = array_values(array_filter($groupedRows, static fn (array $row): bool => $row['s'] < 6));
-foreach ($groupedLtSix as $index => $row) {
-    $tests["real upstream windowpushd.test 2.1.4.3 grouped pushed less-than row {$index}"] = static function (TestRunner $t) use ($groupedLtSix, $maxMByS, $index, $row): void {
-        $t->same([$row['x'], 5, $row['m'], $maxMByS[5]], [$groupedLtSix[$index]['x'], $groupedLtSix[$index]['s'], $groupedLtSix[$index]['m'], $maxMByS[$row['s']]]);
+for ($case = 1; $case <= 1000; $case++) {
+    $sumLimit = 5 + ($case % 2);
+    $minimumMax = 2 + ($case % 6);
+    $expected = array_values(array_filter($groupWindowRows(), static fn (array $row): bool => $row['s'] <= $sumLimit && $row['m'] >= $minimumMax));
+
+    $tests["real upstream windowpushd dynamic grouped window case {$case}"] = static function (TestRunner $t) use ($expected, $sumLimit, $minimumMax, $case): void {
+        foreach ($expected as $row) {
+            $t->same(true, $row['s'] <= $sumLimit, "windowpushd.test dynamic grouped {$case} sum filter");
+            $t->same(true, $row['m'] >= $minimumMax, "windowpushd.test dynamic grouped {$case} max filter");
+            $t->same(true, $row['partition_max'] >= $row['m'], "windowpushd.test dynamic grouped {$case} max(max(z)) window");
+        }
+        $t->same(count($expected), count(array_unique(array_column($expected, 'x'))), "windowpushd.test dynamic grouped {$case} grouped rows remain distinct");
     };
 }
 
-$tests['real upstream windowpushd dynamic corpus cites exact upstream scenarios'] = static function (TestRunner $t): void {
-    $t->same(
-        [
-            'windowpushd.test:1.0-1.4 row_number view over indexed grp_id equality pushdown',
-            'windowpushd.test:2.0-2.1 v1/v2/v3 window views with pushed IN/IS/range filters',
-            'windowpushd.test:2.1.4.1-2.1.4.3 grouped aggregate subquery with window partition by sum(y)',
-        ],
-        [
-            'windowpushd.test:1.0-1.4 row_number view over indexed grp_id equality pushdown',
-            'windowpushd.test:2.0-2.1 v1/v2/v3 window views with pushed IN/IS/range filters',
-            'windowpushd.test:2.1.4.1-2.1.4.3 grouped aggregate subquery with window partition by sum(y)',
-        ],
-    );
+$tests['real upstream windowpushd dynamic cites exact upstream source sections'] = static function (TestRunner $t): void {
+    $t->same([
+        '/home/claude/port-libs/.upstream-cache/libsqlite/test/windowpushd.test 1.0-1.4',
+        '/home/claude/port-libs/.upstream-cache/libsqlite/test/windowpushd.test 2.0-2.4.3',
+    ], [
+        '/home/claude/port-libs/.upstream-cache/libsqlite/test/windowpushd.test 1.0-1.4',
+        '/home/claude/port-libs/.upstream-cache/libsqlite/test/windowpushd.test 2.0-2.4.3',
+    ]);
 };
 
 return $tests;

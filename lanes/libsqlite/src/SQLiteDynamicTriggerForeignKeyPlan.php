@@ -143,6 +143,98 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<int> $indexedValues
+     * @param list<int> $leftFilter
+     * @param list<int> $rightFilter
+     * @return array<string,mixed>
+     */
+    public static function recursiveTriggerInsertSelectOncePlan(
+        array $indexedValues,
+        int $initialValue,
+        int $maxValue,
+        array $leftFilter,
+        ?array $rightFilter = null
+    ): array {
+        if ($maxValue < $initialValue) {
+            throw new \InvalidArgumentException('SQLite triggerG recursive trigger max value cannot be before the initial value');
+        }
+
+        $indexedValues = array_values(array_map('intval', $indexedValues));
+        sort($indexedValues);
+        $leftFilter = array_values(array_unique(array_map('intval', $leftFilter)));
+        sort($leftFilter);
+        if ($leftFilter === []) {
+            throw new \InvalidArgumentException('SQLite triggerG recursive trigger left filter is empty');
+        }
+
+        if ($rightFilter !== null) {
+            $rightFilter = array_values(array_unique(array_map('intval', $rightFilter)));
+            sort($rightFilter);
+            if ($rightFilter === []) {
+                throw new \InvalidArgumentException('SQLite triggerG recursive trigger right filter is empty');
+            }
+        }
+
+        $tableValues = [$initialValue];
+        $queue = [$initialValue];
+        $triggerRows = [];
+        $triggerInvocations = 0;
+        $selectedLeft = self::filteredIntegers($indexedValues, $leftFilter);
+        $selectedRight = $rightFilter === null ? [] : self::filteredIntegers($indexedValues, $rightFilter);
+
+        while ($queue !== []) {
+            $newValue = array_shift($queue);
+            ++$triggerInvocations;
+
+            if ($newValue < $maxValue) {
+                $nextValue = $newValue + 1;
+                $tableValues[] = $nextValue;
+                $queue[] = $nextValue;
+            }
+
+            if ($rightFilter === null) {
+                foreach ($selectedLeft as $left) {
+                    $triggerRows[] = ($newValue * 100) + $left;
+                }
+                continue;
+            }
+
+            foreach ($selectedLeft as $left) {
+                foreach ($selectedRight as $right) {
+                    $triggerRows[] = ($newValue * 10000) + ($left * 100) + $right;
+                }
+            }
+        }
+
+        sort($tableValues);
+        sort($triggerRows);
+
+        return [
+            'source' => $rightFilter === null ? 'triggerG.test triggerG-100..110' : 'triggerG.test triggerG-200',
+            'operation' => $rightFilter === null ? 'recursive-trigger-insert-select-once' : 'recursive-trigger-join-select-once',
+            'initial_value' => $initialValue,
+            'max_value' => $maxValue,
+            'indexed_values' => $indexedValues,
+            'left_filter' => $leftFilter,
+            'right_filter' => $rightFilter,
+            'selected_left_values' => $selectedLeft,
+            'selected_right_values' => $selectedRight,
+            'recursive_triggers' => true,
+            'trigger_invocations' => $triggerInvocations,
+            'inserted_trigger_values' => $tableValues,
+            'trigger_output_rows' => $triggerRows,
+            'output_count' => count($triggerRows),
+            'dependencies' => [
+                'sqlite-triggerG-recursive-trigger-reruns-insert-select-program',
+                'sqlite-triggerG-op-once-subprogram-does-not-suppress-recursive-select',
+                $rightFilter === null
+                    ? 'sqlite-triggerG-recursive-trigger-single-source-select'
+                    : 'sqlite-triggerG-recursive-trigger-join-source-select',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $parents
      * @param list<array<string,mixed>> $children
      * @return array<string,mixed>
@@ -6311,5 +6403,20 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             'rollback' => 'Trigger rollback',
             default => null,
         };
+    }
+
+    /**
+     * @param list<int> $values
+     * @param list<int> $allowed
+     * @return list<int>
+     */
+    private static function filteredIntegers(array $values, array $allowed): array
+    {
+        $allowedSet = array_fill_keys(array_map('strval', $allowed), true);
+
+        return array_values(array_filter(
+            $values,
+            static fn (int $value): bool => isset($allowedSet[(string) $value])
+        ));
     }
 }
