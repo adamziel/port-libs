@@ -1128,3 +1128,18 @@ ls-refs/pack-delta batch accepted on 2026-05-31:
 - The mapped denominator moves from `1510 / 2886` to `1512 / 2886` for the two
   distinct upstream-backed behavior slices. Full Cargo workspace tests were not
   run for this slice.
+
+Attributes/pathspec state adjustment batch accepted on 2026-05-31:
+
+- Source commit `7539b4c34ec18c41ea9b795e0b7e353988f15922` integrates one
+  Gitoxide handoff without taking stale shared metadata edits. The accepted
+  source slice covers Git attributes/pathspec state filters that validate
+  value-qualified suffixes while matching set/unset state like Gitoxide.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused AttributesPathspec/PathspecTreeWalk tests `2 files / 98 assertions /
+  0 failures`, full Gitoxide lane tests `38 files / 3796 assertions / 0
+  failures`, and the touched example exiting 0.
+- The mapped denominator moves from `1512 / 2886` to `1513 / 2886` for the
+  distinct upstream-backed attributes/pathspec state slice. Full Cargo
+  workspace tests were not run for this slice.

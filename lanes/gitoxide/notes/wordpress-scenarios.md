@@ -316,6 +316,13 @@ paths while skipping excluded build/cache subtrees. This models WordPress
 package and deployment tooling walking repository trees without invoking the
 Git binary.
 
+## WordPress Attributes Pathspec Example
+
+`examples/wordpress-attributes-pathspec.php` now validates value-qualified
+attribute suffixes while matching set/unset state, so filters such as
+`:(attr:-diff=legacy)` can select must-use plugin content without accepting a
+malformed attribute value expression.
+
 ## Next Task
 
 Broaden protocol/transport runner evidence with a controlled focused crate probe, deepen mmap-specific packed-ref race parity beyond metadata/hash invalidation if needed, or map another focused `gix-merge` tree fixture.

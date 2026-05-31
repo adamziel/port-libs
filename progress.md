@@ -45,11 +45,25 @@
 - Memory: current sample reports 27 GiB total and about 17-18 GiB available.
 - Root filesystem: current supervisor sample reports `/` at 452G size with about 387G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.9G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
-  source-moving integration and dashboard publication. The active pool is split
-  at 6 libsqlite workers and 6 Gitoxide workers with no long sleepers; new
-  subagents use `gpt-5.5` xhigh on the priority service tier.
+  source-moving integration and dashboard publication. The active pool targets
+  an even libsqlite/Gitoxide split; the latest supervisor sample saw 11 active
+  workers, no long sleepers, and live subagents using `gpt-5.5` xhigh on the
+  priority service tier.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (Gitoxide batch sample 09:45 UTC):
+  Gitoxide source commit `7539b4c34ec18c41ea9b795e0b7e353988f15922`
+  (`gitoxide: tighten attributes pathspec states`) landed one handoff after
+  excluding stale shared metadata: attributes/pathspec state filters now
+  validate value-qualified suffixes while matching set/unset state like
+  Gitoxide. Verification passed PHP lint for changed/new Gitoxide PHP files,
+  `git diff --check -- lanes/gitoxide`, focused AttributesPathspec/
+  PathspecTreeWalk tests `2 files / 98 assertions / 0 failures`, full Gitoxide
+  lane `38 files / 3796 assertions / 0 failures`, and the touched example.
+  Public Gitoxide evidence should move from `3789` to `3796 pass / 0 fail`;
+  mapped coverage moves from `1512 / 2886` to `1513 / 2886`. This is still not
+  full Cargo workspace pass parity.
 
 - 2026-05-31 supervisor continuation (Gitoxide batch sample 09:34 UTC):
   Gitoxide source commit `22c4c1189a72bc4f6d6235f61cc5854402c4c449`
