@@ -8,7 +8,7 @@ final class SQLiteTenantJsonWalSavepointPlan
 {
     /**
      * @param list<array{tenant_id:int|string,table_name?:string,current_rows:list<array<string,mixed>>,json_imports:list<array{name?:string,json:mixed,path?:string,release?:bool,on_conflict?:string}>}> $sites
-     * @param array{database_path?:string,page_size?:int,journal_mode?:string,sync_mode?:string,replace_conflicts?:bool,continue_on_site_error?:bool,global_table_name?:string,global_json_imports?:list<array{name?:string,json:mixed,path?:string,release?:bool,on_conflict?:string}>} $options
+     * @param array{database_path?:string,page_size?:int,journal_mode?:string,sync_mode?:string,replace_conflicts?:bool,continue_on_site_error?:bool,continue_on_global_error?:bool,rollback_network_on_error?:bool,global_table_name?:string,global_json_imports?:list<array{name?:string,json:mixed,path?:string,release?:bool,on_conflict?:string}>} $options
      * @return array<string,mixed>
      */
     public static function plan(array $sites, array $options = []): array
@@ -23,11 +23,25 @@ final class SQLiteTenantJsonWalSavepointPlan
         $syncMode = strtolower((string) ($options['sync_mode'] ?? 'normal'));
         $replaceConflicts = (bool) ($options['replace_conflicts'] ?? true);
         $continueOnSiteError = (bool) ($options['continue_on_site_error'] ?? true);
+        $continueOnGlobalError = (bool) ($options['continue_on_global_error'] ?? true);
+        $rollbackNetworkOnError = (bool) ($options['rollback_network_on_error'] ?? false);
         $globalTableName = self::identifier((string) ($options['global_table_name'] ?? 'kv_global'), 'global table name');
         $globalImports = $options['global_json_imports'] ?? [];
 
         if (!is_array($globalImports)) {
             throw new \InvalidArgumentException('SQLite tenant JSON WAL global imports must be a list');
+        }
+        if ($databasePath === '' || $databasePath[0] !== '/' || str_contains($databasePath, "\0") || str_contains($databasePath, '..')) {
+            throw new \InvalidArgumentException('SQLite tenant JSON WAL plan requires a safe absolute database path');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite tenant JSON WAL page size must be a power of two at least 512');
+        }
+        if (!in_array($journalMode, ['wal', 'delete', 'truncate', 'persist'], true)) {
+            throw new \InvalidArgumentException('SQLite tenant JSON WAL journal mode must be wal, delete, truncate, or persist');
+        }
+        if (!in_array($syncMode, ['off', 'normal', 'full'], true)) {
+            throw new \InvalidArgumentException('SQLite tenant JSON WAL sync mode must be off, normal, or full');
         }
 
         $sitePlans = [];
@@ -112,13 +126,21 @@ final class SQLiteTenantJsonWalSavepointPlan
                 $prefixedGlobal[] = self::prefixedImport($import, 'network', $importIndex);
             }
 
-            $globalPlan = SQLiteJsonImportWalSavepointPlan::plan([], $prefixedGlobal, [
-                'database_path' => $databasePath,
-                'page_size' => $pageSize,
-                'journal_mode' => $journalMode,
-                'sync_mode' => $syncMode,
-                'replace_conflicts' => $replaceConflicts,
-            ]);
+            try {
+                $globalPlan = SQLiteJsonImportWalSavepointPlan::plan([], $prefixedGlobal, [
+                    'database_path' => $databasePath,
+                    'page_size' => $pageSize,
+                    'journal_mode' => $journalMode,
+                    'sync_mode' => $syncMode,
+                    'replace_conflicts' => $replaceConflicts,
+                ]);
+            } catch (\Throwable $exception) {
+                if (!$continueOnGlobalError) {
+                    throw $exception;
+                }
+
+                $globalPlan = self::rolledBackTenantPlan([], $prefixedGlobal, $exception->getMessage());
+            }
             foreach ($globalPlan['dirty_pages'] as $pageNumber) {
                 $dirtyPages[self::tenantPageNumber(0, (int) $pageNumber)] = true;
             }
@@ -130,6 +152,10 @@ final class SQLiteTenantJsonWalSavepointPlan
             $finalRowsByTable[$globalTableName] = $globalPlan['final_rows'];
             $releasedRowsByTable[$globalTableName] = $globalPlan['released_rows'];
         }
+
+        $networkRolledBack = $rollbackNetworkOnError && ($rolledBackSites !== [] || self::planHasRollback($globalPlan));
+        $publishedWalFrames = $networkRolledBack ? [] : $walFrames;
+        $publishedWalBytes = $networkRolledBack ? 32 : $walBytes;
 
         ksort($dirtyPages);
         ksort($sitePlans);
@@ -149,14 +175,26 @@ final class SQLiteTenantJsonWalSavepointPlan
             'tenants' => array_values($sitePlans),
             'sites' => array_values($sitePlans),
             'global_plan' => $globalPlan,
+            'network_rollback' => [
+                'enabled' => $rollbackNetworkOnError,
+                'required' => $rolledBackSites !== [] || self::planHasRollback($globalPlan),
+                'applied' => $networkRolledBack,
+                'reason' => $networkRolledBack ? 'tenant_json_import_error' : null,
+                'frame_count_before' => count($walFrames),
+                'frame_count_after' => count($publishedWalFrames),
+                'wal_bytes_before' => $walBytes,
+                'wal_bytes_after' => $publishedWalBytes,
+                'discarded_frame_count' => $networkRolledBack ? count($walFrames) : 0,
+                'discarded_tables' => $networkRolledBack ? array_values(array_unique(array_column($walFrames, 'table'))) : [],
+            ],
             'final_rows_by_table' => $finalRowsByTable,
             'released_rows_by_table' => $releasedRowsByTable,
             'dirty_pages' => array_map('intval', array_keys($dirtyPages)),
             'network_wal' => [
                 'path' => $databasePath . '-wal',
-                'frame_count' => count($walFrames),
-                'bytes' => $walBytes,
-                'frames' => $walFrames,
+                'frame_count' => count($publishedWalFrames),
+                'bytes' => $publishedWalBytes,
+                'frames' => $publishedWalFrames,
             ],
             'dependencies' => [
                 'sqlite-tenant-json-wal-savepoint',
@@ -255,6 +293,17 @@ final class SQLiteTenantJsonWalSavepointPlan
             'table' => $tableName,
             'network_page_number' => self::tenantPageNumber($tenantId, $pageNumber),
         ];
+    }
+
+    /**
+     * @param array<string,mixed>|null $plan
+     */
+    private static function planHasRollback(?array $plan): bool
+    {
+        return $plan !== null && (
+            ($plan['status'] ?? null) === 'rolled_back'
+            || (($plan['rolled_back_batches'] ?? []) !== [])
+        );
     }
 
     private static function tenantPageNumber(int $tenantId, int $pageNumber): int

@@ -7,6 +7,7 @@ use PortLibs\LibSqlite\SQLiteJsonImportRollbackWalPlan;
 
 $scenarios = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(24);
 $preexistingWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalScenarios(24);
+$tenantCollisionScenarios = SQLiteJsonImportRollbackWalPlan::dynamicTenantCollisionScenarios(24);
 $deferredScenarios = SQLiteJsonImportRollbackWalPlan::dynamicDeferredFailureScenarios(24);
 $retryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRetryAfterRollbackScenarios(18);
 $preexistingRetryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalRetryScenarios(18);
@@ -42,6 +43,19 @@ $tests = [
     },
     'sqlite application wal rollback json dynamic parity preexisting WAL covers json text and jsonb rows' => static function (TestRunner $t) use ($preexistingWalScenarios): void {
         $jsonModes = array_values(array_unique(array_column($preexistingWalScenarios, 'jsonb_mode')));
+        sort($jsonModes);
+        $t->same([false, true], $jsonModes);
+    },
+    'sqlite application wal rollback json dynamic parity tenant collision exposes requested scenario count' => static function (TestRunner $t) use ($tenantCollisionScenarios): void {
+        $t->same(24, count($tenantCollisionScenarios));
+    },
+    'sqlite application wal rollback json dynamic parity tenant collision covers both page sizes' => static function (TestRunner $t) use ($tenantCollisionScenarios): void {
+        $pageSizes = array_values(array_unique(array_column($tenantCollisionScenarios, 'page_size')));
+        sort($pageSizes);
+        $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json dynamic parity tenant collision covers json text and jsonb rows' => static function (TestRunner $t) use ($tenantCollisionScenarios): void {
+        $jsonModes = array_values(array_unique(array_column($tenantCollisionScenarios, 'jsonb_mode')));
         sort($jsonModes);
         $t->same([false, true], $jsonModes);
     },
@@ -243,6 +257,59 @@ foreach ($preexistingWalScenarios as $scenario) {
     };
     $tests[$prefix . 'keeps JSONB mode on generated scenario'] = static function (TestRunner $t) use ($plan, $scenario): void {
         $value = $plan['import_plan']['applied'][1]['key_value'];
+        $t->same($scenario['jsonb_mode'], $value instanceof SQLiteBlobValue);
+    };
+}
+
+foreach ($tenantCollisionScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $plan = $scenario['plan'];
+    $prefix = 'sqlite application wal rollback json dynamic parity tenant collision seed ' . $seed . ' ';
+
+    $tests[$prefix . 'rolls back target tenant json batch'] = static function (TestRunner $t) use ($plan): void {
+        $t->same('rolled_back_current_json_batch', $plan['status']);
+    };
+    $tests[$prefix . 'uses tenant collision transaction name'] = static function (TestRunner $t) use ($plan, $seed): void {
+        $t->same('application_tenant_collision_json_import_' . $seed, $plan['transaction']);
+    };
+    $tests[$prefix . 'uses tenant collision savepoint name'] = static function (TestRunner $t) use ($plan, $seed): void {
+        $t->same('tenant_collision_json_batch_' . $seed, $plan['savepoint']);
+    };
+    $tests[$prefix . 'records shared key with target tenant setting key'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['target_tenant_id'] . ':' . $scenario['shared_key'], $plan['import_plan']['applied'][0]['setting_key']);
+    };
+    $tests[$prefix . 'does not apply stable tenant row with same key'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same([$scenario['target_tenant_id']], array_column($plan['import_plan']['applied'], 'tenant_id'));
+    };
+    $tests[$prefix . 'stable tenant row keeps original tenant id'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same($scenario['stable_tenant_id'], $scenario['stable_row_after_import']['tenant_id']);
+    };
+    $tests[$prefix . 'stable tenant row keeps shared key name'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same($scenario['shared_key'], $scenario['stable_row_after_import']['key_name']);
+    };
+    $tests[$prefix . 'stable tenant row keeps original page'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same($scenario['stable_page'], $scenario['stable_row_after_import']['page_number']);
+    };
+    $tests[$prefix . 'names failed target tenant statement'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same([$scenario['expected_failed_statement']], $plan['failed_statements']);
+    };
+    $tests[$prefix . 'restores original database bytes'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['database_bytes'], $plan['restored_database_bytes']);
+    };
+    $tests[$prefix . 'rolls wal back to header'] = static function (TestRunner $t) use ($plan): void {
+        $t->same(0, $plan['wal_frame_count_after']);
+    };
+    $tests[$prefix . 'discards all current wal frames after failed tenant batch'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['wal_frames_before'], $plan['discarded_wal_frame_count']);
+    };
+    $tests[$prefix . 'restores only target tenant page'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['expected_restored_pages'], $plan['rollback_to_savepoint']['restored_page_numbers']);
+    };
+    $tests[$prefix . 'does not discard stable tenant page'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same(false, in_array($scenario['stable_page'], $plan['wal_rollback_to_savepoint']['discarded_page_numbers'], true));
+    };
+    $tests[$prefix . 'keeps jsonb mode isolated to target row'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $value = $plan['import_plan']['applied'][0]['key_value'];
         $t->same($scenario['jsonb_mode'], $value instanceof SQLiteBlobValue);
     };
 }
@@ -515,6 +582,17 @@ $tests['sqlite application wal rollback json dynamic parity rejects zero preexis
     $t->same('rejected', 'accepted');
 };
 
+$tests['sqlite application wal rollback json dynamic parity rejects zero tenant collision scenarios'] = static function (TestRunner $t): void {
+    try {
+        SQLiteJsonImportRollbackWalPlan::dynamicTenantCollisionScenarios(0);
+    } catch (InvalidArgumentException) {
+        $t->same('rejected', 'rejected');
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
 $tests['sqlite application wal rollback json dynamic parity rejects zero retry scenarios'] = static function (TestRunner $t): void {
     try {
         SQLiteJsonImportRollbackWalPlan::dynamicRetryAfterRollbackScenarios(0);
@@ -579,6 +657,13 @@ $tests['sqlite application wal rollback json dynamic parity preexisting wal smal
     $t->same([512, 1024, 512], array_column($smallBatch, 'page_size'));
     $t->same([3, 4, 5], array_column($smallBatch, 'preexisting_frames'));
     $t->same([6, 7, 8], array_column($smallBatch, 'wal_frames_before'));
+};
+
+$tests['sqlite application wal rollback json dynamic parity tenant collision small batch remains deterministic'] = static function (TestRunner $t): void {
+    $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicTenantCollisionScenarios(3);
+    $t->same([2101, 2102, 2103], array_column($smallBatch, 'target_tenant_id'));
+    $t->same([3101, 3102, 3103], array_column($smallBatch, 'stable_tenant_id'));
+    $t->same([512, 1024, 512], array_column($smallBatch, 'page_size'));
 };
 
 $tests['sqlite application wal rollback json dynamic parity retry small batch remains deterministic'] = static function (TestRunner $t): void {

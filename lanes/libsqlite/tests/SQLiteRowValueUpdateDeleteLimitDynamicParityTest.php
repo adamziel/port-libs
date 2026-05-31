@@ -110,6 +110,10 @@ $updateLengthLimit = "UPDATE app_settings SET state = 'length_limit' WHERE load_
 $deleteLengthCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT length('x'), length('pq')";
 $updateRowValueLengthSubqueryLimit = "UPDATE app_settings SET state = 'length_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT length('abc') OFFSET length('x')) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
 $deleteRowValueLengthSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT length('pqrs') OFFSET length('xy')) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+$updateQuoteTypeofLimit = "UPDATE app_settings SET state = 'quote_typeof_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT quote(3) OFFSET typeof(1)='integer'";
+$deleteQuoteTypeofCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT typeof('1')='text', quote(2)";
+$updateRowValueQuoteTypeofSubqueryLimit = "UPDATE app_settings SET state = 'quote_typeof_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT quote(3) OFFSET typeof(NULL) IS 'null') RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+$deleteRowValueQuoteTypeofSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT (typeof(1.0)='real')+2 OFFSET quote(1)) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
 
 $cases = [
     'parse update negative offset retained' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateNegativeOffset)['offset'], -4],
@@ -284,6 +288,17 @@ $cases = [
     'update row-value length subquery returns source order' => [static fn (): mixed => array_column($execute($updateRowValueLengthSubqueryLimit)['returning'], 'setting_id'), [2, 3, 5]],
     'delete row-value length subquery applies before tuple match' => [static fn (): mixed => $execute($deleteRowValueLengthSubqueryLimit)['plan']->selectedIds, [2, 5, 8]],
     'delete row-value length subquery keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueLengthSubqueryLimit)['tables']['app_settings'], 'setting_id'), [1, 3, 4, 6, 7]],
+    'parse update quote limit constant expression' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateQuoteTypeofLimit)['limit'], 3],
+    'parse update typeof predicate offset constant expression' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateQuoteTypeofLimit)['offset'], 1],
+    'update quote typeof limit selects ordered lazy window' => [static fn (): mixed => $execute($updateQuoteTypeofLimit)['plan']->selectedIds, [2, 3, 6]],
+    'update quote typeof limit returning source order' => [static fn (): mixed => array_column($execute($updateQuoteTypeofLimit)['returning'], 'setting_id'), [2, 3, 6]],
+    'parse delete typeof predicate comma offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteQuoteTypeofCommaLimit)['offset'], 1],
+    'parse delete quote comma count' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteQuoteTypeofCommaLimit)['limit'], 2],
+    'delete quote typeof comma limit selects ordered lazy window' => [static fn (): mixed => $execute($deleteQuoteTypeofCommaLimit)['plan']->selectedIds, [2, 3]],
+    'update row-value quote typeof subquery applies before tuple match' => [static fn (): mixed => $execute($updateRowValueQuoteTypeofSubqueryLimit)['plan']->selectedIds, [2, 3, 5]],
+    'update row-value quote typeof subquery returns source order' => [static fn (): mixed => array_column($execute($updateRowValueQuoteTypeofSubqueryLimit)['returning'], 'setting_id'), [2, 3, 5]],
+    'delete row-value quote typeof subquery applies before tuple match' => [static fn (): mixed => $execute($deleteRowValueQuoteTypeofSubqueryLimit)['plan']->selectedIds, [2, 3, 5]],
+    'delete row-value quote typeof subquery keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueQuoteTypeofSubqueryLimit)['tables']['app_settings'], 'setting_id'), [1, 4, 6, 7, 8]],
     'malformed modulo zero limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 5%0"), InvalidArgumentException::class],
     'malformed coalesce all null limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT coalesce(NULL, NULL)"), InvalidArgumentException::class],
     'malformed nullif equal limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT nullif(2, 2)"), InvalidArgumentException::class],

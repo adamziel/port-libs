@@ -322,6 +322,113 @@ final class SQLiteJsonImportRollbackWalPlan
     /**
      * @return list<array<string,mixed>>
      */
+    public static function dynamicTenantCollisionScenarios(int $scenarioCount = 18): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL tenant-collision dynamic parity requires at least one scenario');
+        }
+
+        $scenarios = [];
+        for ($seed = 1; $seed <= $scenarioCount; $seed++) {
+            $pageSize = $seed % 2 === 0 ? 1024 : 512;
+            $targetTenantId = 2100 + $seed;
+            $stableTenantId = 3100 + $seed;
+            $sharedKey = 'tenant_shared_payload_' . $seed;
+            $targetPage = 18 + ($seed % 5);
+            $stablePage = 80 + $seed;
+            $brokenPage = 140 + $seed;
+            $walFramesBefore = 5 + ($seed % 4);
+            $jsonbMode = $seed % 3 === 1;
+
+            $rows = [
+                [
+                    'tenant_id' => $targetTenantId,
+                    'setting_id' => $seed * 4000 + 1,
+                    'key_name' => $sharedKey,
+                    'key_value' => $jsonbMode
+                        ? new SQLiteBlobValue(SQLiteJsonB::encode(['enabled' => false, 'tenant' => $targetTenantId]))
+                        : json_encode(['enabled' => false, 'tenant' => $targetTenantId], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'yes',
+                    'page_number' => $targetPage,
+                ],
+                [
+                    'tenant_id' => $stableTenantId,
+                    'setting_id' => $seed * 4000 + 2,
+                    'key_name' => $sharedKey,
+                    'key_value' => json_encode(['enabled' => false, 'tenant' => $stableTenantId, 'stable' => true], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'yes',
+                    'page_number' => $stablePage,
+                ],
+                [
+                    'tenant_id' => $targetTenantId,
+                    'setting_id' => $seed * 4000 + 3,
+                    'key_name' => 'tenant_broken_payload_' . $seed,
+                    'key_value' => '{"broken":',
+                    'load_policy' => 'no',
+                    'page_number' => $brokenPage,
+                ],
+            ];
+
+            $mutations = [
+                [
+                    'tenant_id' => $targetTenantId,
+                    'statement' => 'tenant_enable_shared_' . $seed,
+                    'key_name' => $sharedKey,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => 1,
+                ],
+                [
+                    'tenant_id' => $targetTenantId,
+                    'statement' => 'tenant_broken_payload_' . $seed,
+                    'key_name' => 'tenant_broken_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => 2,
+                ],
+            ];
+
+            $databaseBytes = self::scenarioDatabaseBytes($pageSize, max($brokenPage, $stablePage, $targetPage));
+            $walBytes = self::scenarioWalBytes($pageSize, $walFramesBefore, 0x8200 + $seed, 0x8300 + $seed);
+            $plan = self::plan($rows, $mutations, [
+                'database_bytes' => $databaseBytes,
+                'page_size' => $pageSize,
+                'wal_bytes' => $walBytes,
+                'transaction' => 'application_tenant_collision_json_import_' . $seed,
+                'savepoint' => 'tenant_collision_json_batch_' . $seed,
+            ]);
+
+            $stableRows = array_values(array_filter(
+                $plan['import_plan']['final_rows'],
+                static fn (array $row): bool => $row['tenant_id'] === $stableTenantId
+            ));
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'target_tenant_id' => $targetTenantId,
+                'stable_tenant_id' => $stableTenantId,
+                'page_size' => $pageSize,
+                'shared_key' => $sharedKey,
+                'jsonb_mode' => $jsonbMode,
+                'wal_frames_before' => $walFramesBefore,
+                'expected_restored_pages' => [$targetPage],
+                'stable_page' => $stablePage,
+                'expected_failed_statement' => 'tenant_broken_payload_' . $seed,
+                'database_bytes' => $databaseBytes,
+                'wal_bytes' => $walBytes,
+                'stable_row_after_import' => $stableRows[0] ?? null,
+                'plan' => $plan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
     public static function dynamicDeferredFailureScenarios(int $scenarioCount = 16): array
     {
         if ($scenarioCount < 1) {

@@ -95,6 +95,7 @@ final class SQLiteUpsertReturningDynamicPlan
             }
             $sequence = $incomingIndex + 1;
             if ($conflictIndex === null) {
+                self::ensureNoAdditionalConflict($after, $candidate, $additionalConflictTargets, null, 'insert');
                 $after[] = $candidate;
                 $inserted[] = $candidate;
                 $row = self::projectReturning($projection, $candidate, null, 'insert', $sequence);
@@ -128,6 +129,10 @@ final class SQLiteUpsertReturningDynamicPlan
                 }
                 $new[(string) $column] = self::assignmentValue($source, $old, $candidate);
             }
+
+            $otherRows = $after;
+            unset($otherRows[$conflictIndex]);
+            self::ensureNoAdditionalConflict(array_values($otherRows), $new, $additionalConflictTargets, null, 'update');
 
             $after[$conflictIndex] = $new;
             $updated[] = $new;
@@ -175,6 +180,36 @@ final class SQLiteUpsertReturningDynamicPlan
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<list<string>> $additionalConflictTargets
+     */
+    private static function ensureNoAdditionalConflict(array $rows, array $candidate, array $additionalConflictTargets, ?int $ignoreIndex, string $operation): void
+    {
+        foreach ($additionalConflictTargets as $target) {
+            foreach ($rows as $index => $row) {
+                if ($ignoreIndex !== null && $index === $ignoreIndex) {
+                    continue;
+                }
+                if (self::rowsConflict($row, $candidate, $target)) {
+                    throw new InvalidArgumentException("SQLite UPSERT {$operation} produced a unique constraint conflict");
+                }
+            }
+        }
+    }
+
+    /** @param list<string> $target */
+    private static function rowsConflict(array $left, array $right, array $target): bool
+    {
+        foreach ($target as $column) {
+            if (($left[$column] ?? null) === null || ($right[$column] ?? null) === null || $left[$column] !== $right[$column]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** @param list<string> $columns @param array<string,mixed> $defaults */

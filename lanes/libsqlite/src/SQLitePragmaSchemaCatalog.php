@@ -520,7 +520,7 @@ final class SQLitePragmaSchemaCatalog
         }
 
         $columns = [];
-        foreach (self::splitTopLevel($matches['projection'], ',') as $projection) {
+        foreach (self::splitTopLevel($matches['projection'], ',') as $offset => $projection) {
             $projection = trim($projection);
             if ($projection === '*') {
                 array_push($columns, ...$sourceColumns);
@@ -533,7 +533,18 @@ final class SQLitePragmaSchemaCatalog
 
             $name = self::viewProjectionName($projection);
             if ($name === null) {
-                return [];
+                if (!isset($aliases[$offset])) {
+                    return [];
+                }
+                $columns[] = [
+                    'name' => $aliases[$offset],
+                    'type' => '',
+                    'notNull' => false,
+                    'default' => null,
+                    'primaryKey' => 0,
+                    'hidden' => 0,
+                ];
+                continue;
             }
             $sourceColumn = self::columnByName($sourceColumns, $name);
             $columns[] = $sourceColumn ?? [

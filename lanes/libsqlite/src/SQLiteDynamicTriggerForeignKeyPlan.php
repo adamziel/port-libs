@@ -1277,6 +1277,33 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{node:int,parent:int|null}> $foreignKeyRows
+     * @param list<array{node:int,parent:int|null}> $triggerRows
+     * @return array<string,mixed>
+     */
+    public static function withoutRowidRecursiveCascadePragmaPlan(
+        array $foreignKeyRows,
+        array $triggerRows,
+        int $deleteNode,
+        bool $recursiveTriggers
+    ): array {
+        $plan = self::fkey2RecursiveCascadeIgnoresRecursiveTriggerPragma(
+            $foreignKeyRows,
+            $triggerRows,
+            $deleteNode,
+            $recursiveTriggers
+        );
+
+        $plan['source'] = 'without_rowid3.test without_rowid3-4.1..4.4';
+        $plan['operation'] = 'without-rowid-recursive-foreign-key-cascade-ignores-recursive-trigger-pragma';
+        $plan['without_rowid'] = true;
+        $plan['dependencies'][] = 'sqlite-without-rowid3-recursive-fk-actions-ignore-recursive-trigger-pragma';
+        $plan['dependencies'][] = 'sqlite-without-rowid3-user-trigger-recursion-obeys-recursive-trigger-pragma';
+
+        return $plan;
+    }
+
+    /**
      * @param list<array{a:int|string,b:int|string,c:int|string}> $parents
      * @param list<array{d:int|string,e:int|string,f:int|string}> $children
      * @param array{mode:string,insert?:array{g:int|string,h:int|string,i:int|string},update_shift?:int,cascade_key?:int|string} $statement
@@ -3772,6 +3799,24 @@ final class SQLiteDynamicTriggerForeignKeyPlan
                 'sqlite-fkey2-count-changes-excludes-foreign-key-action-rows',
             ],
         ];
+    }
+
+    /**
+     * @param list<array{b:int|string,c:int|string,label?:string}> $parents
+     * @param list<array{id:int|string,e:int|string|null,f:int|string|null,label?:string}> $children
+     * @param array{operation:string,rows?:list<array{id:int|string,e:int|string|null,f:int|string|null,label?:string>>,set?:array{e?:int|string|null,f?:int|string|null},on_update?:string,deferred?:bool} $statement
+     * @return array<string,mixed>
+     */
+    public static function withoutRowidCountChangesForeignKeyStatement(array $parents, array $children, array $statement): array
+    {
+        $plan = self::countChangesForeignKeyStatement($parents, $children, $statement);
+        $plan['source'] = 'without_rowid3.test without_rowid3-17.1.1..17.1.14';
+        $plan['operation'] = 'without-rowid-foreign-key-count-changes-statement';
+        $plan['without_rowid'] = true;
+        $plan['dependencies'][] = 'sqlite-without-rowid3-count-changes-immediate-fk-fails-before-row-count';
+        $plan['dependencies'][] = 'sqlite-without-rowid3-count-changes-deferred-fk-returns-row-count-before-commit-fail';
+
+        return $plan;
     }
 
     /**
@@ -8848,5 +8893,136 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return $count;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @return array<string,mixed>
+     */
+    public static function foreignKeyCapabilityModePlan(string $mode, array $parents, array $children, mixed $oldKey, mixed $newKey): array
+    {
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['full-support', 'omit-trigger', 'omit-foreign-key'], true)) {
+            throw new \InvalidArgumentException('SQLite e_fkey capability mode is unsupported');
+        }
+
+        $parents = self::capabilityRows($parents, 'parent');
+        $children = self::capabilityRows($children, 'child');
+        $oldKey = self::capabilityKey($oldKey, 'old parent key');
+        $newKey = self::capabilityKey($newKey, 'new parent key');
+        $parentKeysBefore = self::capabilityKeys($parents, 'key');
+        $childKeysBefore = self::capabilityKeys($children, 'parent_key');
+
+        if ($mode === 'omit-foreign-key') {
+            return [
+                'source' => 'e_fkey.test e_fkey-3.1..3.5',
+                'operation' => 'foreign-key-compile-capability-mode',
+                'mode' => $mode,
+                'status' => 'parse-error',
+                'foreign_key_definitions_parsed' => false,
+                'foreign_key_actions_enforced' => false,
+                'pragma_foreign_keys_rows' => [],
+                'pragma_foreign_key_list_rows' => [],
+                'create_child_error' => 'near "ON": syntax error',
+                'declared_type_fallback' => 'REFERENCES p',
+                'parent_keys_before' => $parentKeysBefore,
+                'parent_keys_after' => $parentKeysBefore,
+                'child_keys_before' => $childKeysBefore,
+                'child_keys_after' => $childKeysBefore,
+                'cascade_applied' => false,
+                'dependencies' => [
+                    'sqlite-e-fkey-omit-foreign-key-rejects-references-syntax',
+                    'sqlite-e-fkey-omit-foreign-key-has-empty-foreign-key-pragmas',
+                ],
+            ];
+        }
+
+        $parentKeysAfter = [];
+        foreach ($parentKeysBefore as $key) {
+            $parentKeysAfter[] = $key === $oldKey ? $newKey : $key;
+        }
+
+        $cascadeApplied = $mode === 'full-support';
+        $childKeysAfter = [];
+        foreach ($childKeysBefore as $key) {
+            $childKeysAfter[] = $cascadeApplied && $key === $oldKey ? $newKey : $key;
+        }
+
+        return [
+            'source' => $mode === 'full-support' ? 'e_fkey.test e_fkey-1' : 'e_fkey.test e_fkey-2.1..2.3',
+            'operation' => 'foreign-key-compile-capability-mode',
+            'mode' => $mode,
+            'status' => 'commit-ok',
+            'foreign_key_definitions_parsed' => true,
+            'foreign_key_actions_enforced' => $cascadeApplied,
+            'pragma_foreign_keys_rows' => $cascadeApplied ? [1] : [],
+            'pragma_foreign_key_list_rows' => [[
+                'id' => 0,
+                'seq' => 0,
+                'table' => 'parent_records',
+                'from' => 'parent_key',
+                'to' => '',
+                'on_update' => 'CASCADE',
+                'on_delete' => 'NO ACTION',
+                'match' => 'NONE',
+            ]],
+            'create_child_error' => null,
+            'declared_type_fallback' => null,
+            'parent_keys_before' => $parentKeysBefore,
+            'parent_keys_after' => $parentKeysAfter,
+            'child_keys_before' => $childKeysBefore,
+            'child_keys_after' => $childKeysAfter,
+            'cascade_applied' => $cascadeApplied,
+            'dependencies' => $cascadeApplied
+                ? [
+                    'sqlite-e-fkey-full-support-enforces-cascade-actions',
+                    'sqlite-e-fkey-full-support-pragma-foreign-keys-returns-state-row',
+                ]
+                : [
+                    'sqlite-e-fkey-omit-trigger-parses-fk-definitions',
+                    'sqlite-e-fkey-omit-trigger-does-not-enforce-fk-actions',
+                    'sqlite-e-fkey-omit-trigger-pragma-foreign-keys-is-empty',
+                ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function capabilityRows(array $rows, string $label): array
+    {
+        if ($rows === []) {
+            throw new \InvalidArgumentException("SQLite e_fkey capability {$label} rows are empty");
+        }
+
+        return array_values($rows);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<string>
+     */
+    private static function capabilityKeys(array $rows, string $column): array
+    {
+        $keys = [];
+        foreach ($rows as $row) {
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException("SQLite e_fkey capability row is missing {$column}");
+            }
+            $keys[] = self::capabilityKey($row[$column], $column);
+        }
+
+        return $keys;
+    }
+
+    private static function capabilityKey(mixed $value, string $label): string
+    {
+        if (!is_scalar($value) && $value !== null) {
+            throw new \InvalidArgumentException("SQLite e_fkey capability {$label} is malformed");
+        }
+
+        return (string) $value;
     }
 }

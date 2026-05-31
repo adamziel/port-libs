@@ -1293,6 +1293,59 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function staleRollbackJournalNewDatabaseProfile(
+        int $initialRows,
+        int $payloadBytes,
+        bool $databaseDeletedBeforeReopen,
+        bool $atomicBatchWriteDisabled = true,
+        bool $windowsCopyLockingUnsupported = false
+    ): array {
+        if ($initialRows < 1 || ($initialRows & ($initialRows - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite journal1 stale rollback profile requires a positive power-of-two row count');
+        }
+        if ($payloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite journal1 stale rollback profile requires a positive payload size');
+        }
+
+        $journalCreated = $atomicBatchWriteDisabled && !$windowsCopyLockingUnsupported;
+        $newDatabaseOpened = $databaseDeletedBeforeReopen;
+        $staleJournalIgnored = $journalCreated && $newDatabaseOpened;
+
+        return [
+            'status' => $journalCreated ? 'ok' : 'skipped',
+            'script' => 'journal1.test',
+            'upstream' => [
+                'journal1.test journal1-1.1 create sample database and rollback journal',
+                'journal1.test journal1-1.2 stale copied rollback journal ignored after database deletion',
+            ],
+            'initial_rows' => $initialRows,
+            'payload_bytes' => $payloadBytes,
+            'journal_created_before_rollback' => $journalCreated,
+            'journal_backup_copied' => $journalCreated,
+            'rollback_restored_original_database' => $journalCreated,
+            'database_deleted_before_reopen' => $databaseDeletedBeforeReopen,
+            'new_database_opened' => $newDatabaseOpened,
+            'stale_journal_present_on_reopen' => $journalCreated && $databaseDeletedBeforeReopen,
+            'stale_journal_ignored' => $staleJournalIgnored,
+            'sqlite_master_result_code' => 0,
+            'sqlite_master_rows' => $newDatabaseOpened ? [] : ['t1'],
+            'rollback_attempted_against_new_database' => false,
+            'atomic_batch_write_disabled' => $atomicBatchWriteDisabled,
+            'windows_copy_locking_unsupported' => $windowsCopyLockingUnsupported,
+            'reason' => $staleJournalIgnored
+                ? 'stale_rollback_journal_header_does_not_match_new_database'
+                : ($journalCreated ? 'original_database_was_not_replaced' : 'journal1_guard_skipped_for_platform_or_atomic_batch_write'),
+            'dependencies' => [
+                'upstream-journal1-stale-rollback-journal',
+                'sqlite-rollback-journal-database-identity',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function rollbackJournalPermissionProfile(
         int $databasePermissions,
         int $changedRows,

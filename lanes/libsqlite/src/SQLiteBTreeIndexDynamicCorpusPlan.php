@@ -8105,6 +8105,70 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,batch:int,upstream_section:string,scenario:string,statement:string,row_count:int|null,blob_bytes:int|null,index_name:string,table_name:string,result_code:int,error:string|null,integrity:string,catalog_names:list<string>,index_columns:list<string>,unique:bool,sort_order:string|null,limited_memory:bool}>
+     */
+    public static function index4CreateIndexValidationCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index4 create-index validation corpus requires at least one case');
+        }
+
+        $templates = [
+            ['index4-1.2/1.3', 'large randomblob table builds a normal index and passes integrity_check', 'CREATE INDEX i1 ON t1(x); PRAGMA integrity_check', 65536, 102, 'i1', 't1', 0, null, 'ok', ['i1', 't1'], ['x'], false, null, false],
+            ['index4-1.4/1.5', 'limited-memory cache builds a second normal index and passes integrity_check', 'PRAGMA cache_size = 10; CREATE INDEX i2 ON t1(x); PRAGMA integrity_check', 65536, 102, 'i2', 't1', 0, null, 'ok', ['i1', 'i2', 't1'], ['x'], false, null, true],
+            ['index4-1.6', 'mixed text NULL and overflow-sized values build an index and passes integrity_check', 'CREATE INDEX i1 ON t1(x); PRAGMA integrity_check', 256, 5202, 'i1', 't1', 0, null, 'ok', ['i1', 't1'], ['x'], false, null, false],
+            ['index4-1.7', 'single-row table builds an index and passes integrity_check', 'CREATE INDEX i1 ON t1(x); PRAGMA integrity_check', 1, null, 'i1', 't1', 0, null, 'ok', ['i1', 't1'], ['x'], false, null, false],
+            ['index4-1.8', 'empty table builds an index and passes integrity_check', 'CREATE INDEX i1 ON t1(x); PRAGMA integrity_check', 0, null, 'i1', 't1', 0, null, 'ok', ['i1', 't1'], ['x'], false, null, false],
+            ['index4-2.2', 'CREATE UNIQUE INDEX rejects duplicate table values before adding the index', 'CREATE UNIQUE INDEX i3 ON t2(x)', 5, null, 'i3', 't2', 1, 'UNIQUE constraint failed: t2.x', 'expected-error', ['t2'], ['x'], true, null, false],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [
+                $section,
+                $scenario,
+                $statement,
+                $rowCount,
+                $blobBytes,
+                $indexName,
+                $tableName,
+                $resultCode,
+                $error,
+                $integrity,
+                $catalogNames,
+                $indexColumns,
+                $unique,
+                $sortOrder,
+                $limitedMemory,
+            ] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+
+            $out[] = [
+                'source' => 'index4.test sections 1.2 through 2.2',
+                'case' => $case,
+                'batch' => $batch,
+                'upstream_section' => $section,
+                'scenario' => $scenario . ' dynamic batch ' . $batch,
+                'statement' => $statement,
+                'row_count' => $rowCount,
+                'blob_bytes' => $blobBytes,
+                'index_name' => $indexName,
+                'table_name' => $tableName,
+                'result_code' => $resultCode,
+                'error' => $error,
+                'integrity' => $integrity,
+                'catalog_names' => $catalogNames,
+                'index_columns' => $indexColumns,
+                'unique' => $unique,
+                'sort_order' => $sortOrder,
+                'limited_memory' => $limitedMemory,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @param list<int> $pages
      *
      * @return array{0:int,1:int,2:int}

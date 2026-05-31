@@ -842,7 +842,7 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : self::textLength((string) $value);
         }
-        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode|iif|if|likely|unlikely|likelihood)\s*\((.*)\)$/is', $expression, $match) === 1) {
+        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode|quote|typeof|iif|if|likely|unlikely|likelihood)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }
         $predicate = self::evaluateLimitPredicateExpression($expression);
@@ -1081,6 +1081,9 @@ final class SQLiteUpdateDeleteReturningSql
         if ($function === 'unicode' && count($parts) !== 1) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT unicode() needs one argument');
         }
+        if (($function === 'quote' || $function === 'typeof') && count($parts) !== 1) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
+        }
         if (($function === 'iif' || $function === 'if') && count($parts) !== 3) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs three arguments");
         }
@@ -1188,6 +1191,12 @@ final class SQLiteUpdateDeleteReturningSql
 
             return self::sqliteUnicodeCodepoint((string) $values[0]);
         }
+        if ($function === 'quote') {
+            return self::quoteLimitValue($values[0]);
+        }
+        if ($function === 'typeof') {
+            return self::typeofLimitValue($values[0]);
+        }
         if ($function === 'round') {
             if ($values[0] === null) {
                 return null;
@@ -1236,6 +1245,33 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return null;
+    }
+
+    private static function quoteLimitValue(int|float|string|null $value): string
+    {
+        if ($value === null) {
+            return 'NULL';
+        }
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+
+        return "'" . str_replace("'", "''", $value) . "'";
+    }
+
+    private static function typeofLimitValue(int|float|string|null $value): string
+    {
+        if ($value === null) {
+            return 'null';
+        }
+        if (is_int($value)) {
+            return 'integer';
+        }
+        if (is_float($value)) {
+            return 'real';
+        }
+
+        return 'text';
     }
 
     private static function integerFunctionArgument(int|float|string $value, string $function, string $name): int

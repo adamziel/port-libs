@@ -1204,7 +1204,6 @@ final class SQLiteJsonAggregate
      */
     private static function jsonWindowFrameRows(iterable $rows, string $unit, int|float $preceding, int|float $following, string $exclude, string $rowError): array
     {
-        self::assertWindowBounds($preceding, $following);
         $frameUnit = strtoupper(trim($unit));
         if (!in_array($frameUnit, ['ROWS', 'GROUPS', 'RANGE'], true)) {
             throw new \InvalidArgumentException('SQLite JSON aggregate window frame unit must be ROWS, GROUPS, or RANGE');

@@ -151,7 +151,7 @@ final class SQLiteSelectExpression
                     $when,
                     $expression['base'] ?? null,
                     $branch['when'],
-                    self::caseBranchCollation($expression['base'] ?? null, $branch['when'])
+                    self::caseBranchCollation($row, $expression['base'] ?? null, $branch['when'])
                 )
                 : self::isSqlTrue($when);
             if ($matched) {
@@ -216,6 +216,22 @@ final class SQLiteSelectExpression
             return self::expressionAffinity($row, $expression['operand'] ?? null);
         }
 
+        if (($expression['type'] ?? null) === 'cast') {
+            $target = $expression['target'] ?? null;
+            if (!is_string($target)) {
+                return 'NONE';
+            }
+
+            return match (self::castAffinity($target)) {
+                'integer' => 'INTEGER',
+                'real' => 'REAL',
+                'numeric' => 'NUMERIC',
+                'text' => 'TEXT',
+                'none' => 'BLOB',
+                default => 'NONE',
+            };
+        }
+
         if (($expression['type'] ?? null) !== 'column') {
             return 'NONE';
         }
@@ -246,12 +262,18 @@ final class SQLiteSelectExpression
         return 'NONE';
     }
 
-    private static function caseBranchCollation(mixed $base, mixed $when): ?string
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function caseBranchCollation(array $row, mixed $base, mixed $when): ?string
     {
-        return self::expressionCollation($base) ?? self::expressionCollation($when);
+        return self::expressionCollation($row, $base) ?? self::expressionCollation($row, $when);
     }
 
-    private static function expressionCollation(mixed $expression): ?string
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function expressionCollation(array $row, mixed $expression): ?string
     {
         if (!is_array($expression)) {
             return null;
@@ -263,6 +285,30 @@ final class SQLiteSelectExpression
             }
 
             return strtoupper($collation);
+        }
+        if (($expression['type'] ?? null) === 'column') {
+            $name = $expression['name'] ?? null;
+            if (!is_string($name) || $name === '') {
+                return null;
+            }
+
+            $collations = $row['__sqlite_column_collations'] ?? [];
+            if (!is_array($collations)) {
+                return null;
+            }
+
+            $candidates = [$name];
+            if (str_contains($name, '.')) {
+                $parts = explode('.', $name);
+                $candidates[] = (string) end($parts);
+            }
+
+            foreach ($candidates as $candidate) {
+                $collation = $collations[$candidate] ?? null;
+                if (is_string($collation) && $collation !== '') {
+                    return strtoupper($collation);
+                }
+            }
         }
 
         return null;

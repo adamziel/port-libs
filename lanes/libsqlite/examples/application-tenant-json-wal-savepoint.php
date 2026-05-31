@@ -10,13 +10,13 @@ $sites = [
     [
         'tenant_id' => 1,
         'current_rows' => [
-            ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://main.old', 'autoload' => 'yes'],
-            ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://main.old', 'autoload' => 'yes'],
+            ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://main.old', 'load_policy' => 'yes'],
+            ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'https://main.old', 'load_policy' => 'yes'],
         ],
         'json_imports' => [
             [
                 'name' => 'plugin_settings',
-                'json' => '{"rows":[{"option_name":"main_plugin_settings","option_value":"{\"enabled\":true}","autoload":"yes"}]}',
+                'json' => '{"rows":[{"key_name":"main_plugin_settings","key_value":"{\"enabled\":true}","load_policy":"yes"}]}',
                 'path' => '$.rows',
             ],
             [
@@ -29,13 +29,13 @@ $sites = [
     [
         'tenant_id' => 2,
         'current_rows' => [
-            ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://child.old', 'autoload' => 'yes'],
-            ['option_id' => 2, 'option_name' => 'home', 'option_value' => 'https://child.old', 'autoload' => 'yes'],
+            ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://child.old', 'load_policy' => 'yes'],
+            ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'https://child.old', 'load_policy' => 'yes'],
         ],
         'json_imports' => [
             [
                 'name' => 'plugin_settings',
-                'json' => '{"rows":[{"option_name":"child_plugin_settings","option_value":"{\"enabled\":false}","autoload":"no"}]}',
+                'json' => '{"rows":[{"key_name":"child_plugin_settings","key_value":"{\"enabled\":false}","load_policy":"no"}]}',
                 'path' => '$.rows',
             ],
         ],
@@ -48,10 +48,11 @@ $plan = SQLiteTenantJsonWalSavepointPlan::plan($sites, [
     'global_json_imports' => [
         [
             'name' => 'network_flags',
-            'json' => '{"rows":[{"option_name":"registration","option_value":"none","autoload":"no"}]}',
+            'json' => '{"rows":[{"key_name":"registration","key_value":"none","load_policy":"no"}]}',
             'path' => '$.rows',
         ],
     ],
+    'rollback_network_on_error' => true,
 ]);
 
 echo json_encode([
@@ -61,6 +62,7 @@ echo json_encode([
     'tables' => array_keys($plan['final_rows_by_table']),
     'dirty_pages' => $plan['dirty_pages'],
     'network_wal_frame_count' => $plan['network_wal']['frame_count'],
+    'network_rollback' => $plan['network_rollback'],
     'dependencies' => $plan['dependencies'],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
 
@@ -69,8 +71,12 @@ if (in_array('--self-test', $argv, true)) {
         fwrite(STDERR, "unexpected tenant release summary\n");
         exit(1);
     }
-    if ($plan['network_wal']['frame_count'] !== 3 || !in_array('sqlite-tenant-json-wal-savepoint', $plan['dependencies'], true)) {
+    if ($plan['network_wal']['frame_count'] !== 0 || $plan['network_rollback']['discarded_frame_count'] !== 3) {
         fwrite(STDERR, "unexpected tenant WAL summary\n");
+        exit(1);
+    }
+    if (!in_array('sqlite-tenant-json-wal-savepoint', $plan['dependencies'], true)) {
+        fwrite(STDERR, "missing tenant WAL dependency\n");
         exit(1);
     }
 
