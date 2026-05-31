@@ -52,6 +52,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (libsqlite selected corpus integration
+  16:43 UTC): source commit
+  `9612ad0189c6728439502deba1848733af488059` (`ports: extend sqlite btree
+  json pragma vfs corpus`) landed ten verified libsqlite handoffs after
+  excluding stale shared metadata. Selected libsqlite evidence moves from
+  `3350074` to `3657167 pass / 0 fail` using `+307093` new focused selected
+  assertions, while the broader touched-file verification passed `25 files /
+  432337 assertions / 0 failures` under `memory_limit=2048M`. Mapped coverage
+  remains `1589 / 1589`: where3 LEFT JOIN planner guards, fordelete OpenWrite
+  flags, pager crash recovery, PRAGMA data_store_directory path handling, OR
+  REPLACE UPSERT RETURNING SQL execution, JSON arrow subtype propagation, JSON
+  UPDATE/RETURNING execution, VFS fallocate lifecycle behavior, e_select grouped
+  result semantics, and numeric hex literal parsing. Gates passed: PHP lint on
+  changed/new PHP files, `git diff --check -- lanes/libsqlite`, no newly added
+  `CurrentSourceNext`-numbered duplicate filenames, no WordPress/WP/wp_ text
+  introduced by the changed source diff, `SQLiteNoDomainSpecificApiTest`, and
+  `application-pragma-data-store-directory.php --self-test`. Full libsqlite
+  release/all-runner parity was not run for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS refill and integration
   16:35 UTC): source commit
   `0fa392727013860f726be218b3b9045c1d54a064` (`ports: extend lightningcss
