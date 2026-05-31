@@ -6,7 +6,7 @@
 
 ## Intensity
 - Level: max.
-- Starting workers: 10-20 active sessions, resource-gated by CPU, RAM, disk, and independent work availability.
+- Starting workers: 10-11 active lane sessions, resource-gated by CPU, RAM, disk, and independent work availability.
 - Scaling rule: add workers only for bounded slices with clear artifacts; remove or redirect workers that produce broad dirty state without integration-ready outputs.
 
 ## Non-Goals
@@ -22,8 +22,8 @@
 - New subagent launch rule: all newly started subagents must use
   `gpt-5.5` with `model_reasoning_effort="xhigh"` on the fast/priority service
   tier unless the user explicitly changes this later.
-- Current target: 6 active isolated libsqlite workers and 6 active isolated
-  gitoxide workers in tmux session `main`, with no long sleepers. Preserve
+- Current target: 6 active isolated libsqlite workers and 5 active isolated
+  Gitoxide workers in tmux session `main`, with no long sleepers. Preserve
   dirty worktrees and handoffs while stopping excess libsqlite panes only as
   needed to make room.
 - Gitoxide workers should own bounded upstream-backed slices in protocol/

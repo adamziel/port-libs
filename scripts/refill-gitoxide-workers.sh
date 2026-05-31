@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 TMUX_SESSION="${TMUX_SESSION:-main}"
-TARGET="${GITOXIDE_TARGET_WORKERS:-6}"
+TARGET="${GITOXIDE_TARGET_WORKERS:-5}"
 MAX_STARTS="${GITOXIDE_MAX_REFILL_STARTS:-6}"
 LOCK_FILE="$ROOT/.tmux-team/tmp/refill-gitoxide-workers.lock"
 LOG_DIR="$ROOT/.tmux-team/logs"
