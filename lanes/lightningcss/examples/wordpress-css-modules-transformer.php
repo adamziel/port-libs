@@ -34,3 +34,18 @@ $result = (new CssModulesTransformer())->transform($css, [
 
 echo $result['code'] . PHP_EOL;
 echo json_encode($result['exports'], JSON_PRETTY_PRINT) . PHP_EOL;
+
+try {
+    (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  :global {
+    .legacyUtility {
+      color: red;
+    }
+  }
+}
+CSS);
+    echo 'bare-global: accepted' . PHP_EOL;
+} catch (InvalidArgumentException) {
+    echo 'bare-global: rejected' . PHP_EOL;
+}

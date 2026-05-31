@@ -41,6 +41,38 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules rejects bare global pseudos from upstream nested regression' => static function (TestRunner $t): void {
+        $transformer = new CssModulesTransformer();
+
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform(<<<'CSS'
+.blue {
+  background: blue;
+
+  :global {
+    .red {
+      background: red;
+    }
+  }
+}
+CSS));
+
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform(<<<'CSS'
+.blue {
+  &:global {
+    &.green {
+      background: green;
+    }
+  }
+}
+CSS));
+    },
+    'css modules does not treat standard local-link pseudo as local mode syntax' => static function (TestRunner $t): void {
+        $result = (new CssModulesTransformer())->transform(':local-link { color: red }');
+
+        $t->same(':local-link{color:red}', $result['code']);
+        $t->same([], $result['exports']);
+        $t->same([], $result['references']);
+    },
     'css modules removes local composes declarations and exports composed local class' => static function (TestRunner $t) use ($export, $local): void {
         $css = <<<'CSS'
 .test {

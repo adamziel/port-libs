@@ -8,6 +8,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $files = [
     '/theme.css' => <<<'CSS'
+/*! WP theme bundle license */
 @import url("https://fonts.example/css2?family=Inter");
 @layer reset, theme.blocks;
 @import "tokens.css";
@@ -19,6 +20,7 @@ $files = [
 }
 CSS,
     '/tokens.css' => <<<'CSS'
+/*! Design token package license */
 @custom-media --wp-wide (min-width: 782px);
 :root {
   --wp--style--block-gap: 1.5rem;

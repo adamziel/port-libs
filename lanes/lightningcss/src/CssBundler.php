@@ -19,6 +19,7 @@ final class CssBundler
      * @var list<array{
      *     file:string,
      *     items:list<array<string, mixed>>,
+     *     licenseComments:list<string>,
      *     dependencies:list<array<string, mixed>>,
      *     layer:?string,
      *     supports:?string,
@@ -55,7 +56,7 @@ final class CssBundler
         ]);
         $this->order();
 
-        $raw = $this->inline(0, []);
+        $raw = $this->licenseCommentPrefix() . $this->inline(0, []);
         $raw = (new CustomMediaTransformer())->transform($raw);
 
         return (new CssMinifier())->minify($raw);
@@ -79,6 +80,7 @@ final class CssBundler
         $this->stylesheets[] = [
             'file' => $file,
             'items' => [],
+            'licenseComments' => [],
             'dependencies' => [],
             'layer' => $rule['layer'],
             'supports' => $rule['supports'],
@@ -99,8 +101,19 @@ final class CssBundler
         }
 
         $items = $this->topLevelItems($this->files[$file]);
-        $dependencies = [];
+        $licenseComments = [];
+        $contentItems = [];
         foreach ($items as $item) {
+            if (($item['type'] ?? null) === 'license-comment') {
+                $licenseComments[] = (string) $item['raw'];
+                continue;
+            }
+
+            $contentItems[] = $item;
+        }
+
+        $dependencies = [];
+        foreach ($contentItems as $item) {
             if (($item['type'] ?? null) !== 'import') {
                 continue;
             }
@@ -133,7 +146,8 @@ final class CssBundler
             ];
         }
 
-        $this->stylesheets[$sourceIndex]['items'] = $items;
+        $this->stylesheets[$sourceIndex]['items'] = $contentItems;
+        $this->stylesheets[$sourceIndex]['licenseComments'] = $licenseComments;
         $this->stylesheets[$sourceIndex]['dependencies'] = $dependencies;
 
         return $sourceIndex;
@@ -188,6 +202,18 @@ final class CssBundler
     {
         $visited = [];
         $this->orderStylesheet(0, $visited);
+    }
+
+    private function licenseCommentPrefix(): string
+    {
+        $comments = '';
+        foreach ($this->stylesheets as $stylesheet) {
+            foreach ($stylesheet['licenseComments'] as $comment) {
+                $comments .= $comment;
+            }
+        }
+
+        return $comments;
     }
 
     /**
@@ -292,7 +318,7 @@ final class CssBundler
         $cursor = 0;
 
         while (true) {
-            $cursor = $this->skipWhitespaceAndComments($css, $cursor);
+            $cursor = $this->collectTopLevelTrivia($css, $cursor, $items);
             if ($cursor >= $length) {
                 break;
             }
@@ -343,6 +369,42 @@ final class CssBundler
         }
 
         return $items;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     */
+    private function collectTopLevelTrivia(string $css, int $offset, array &$items): int
+    {
+        $length = strlen($css);
+        while ($offset < $length) {
+            if (ctype_space($css[$offset])) {
+                $offset++;
+                continue;
+            }
+
+            if ($css[$offset] === '/' && ($css[$offset + 1] ?? '') === '*') {
+                $end = strpos($css, '*/', $offset + 2);
+                if ($end === false) {
+                    throw new CssBundleException('parser-error', 'CSS contains an unbalanced comment');
+                }
+
+                $comment = substr($css, $offset, $end - $offset + 2);
+                if (($css[$offset + 2] ?? '') === '!') {
+                    $items[] = [
+                        'type' => 'license-comment',
+                        'raw' => trim($comment),
+                    ];
+                }
+
+                $offset = $end + 2;
+                continue;
+            }
+
+            break;
+        }
+
+        return $offset;
     }
 
     /**

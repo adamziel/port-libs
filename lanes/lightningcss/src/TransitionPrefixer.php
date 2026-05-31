@@ -63,6 +63,7 @@ final class TransitionPrefixer
             $prelude = trim(substr($css, $cursor, $open - $cursor));
             $body = substr($css, $open + 1, $close - $open - 1);
             if (str_starts_with($prelude, '@')) {
+                $prelude = $this->rewriteMediaRangePrelude($prelude, $targetOptions);
                 $prelude = $this->rewriteSupportsBackdropFilterPrelude($prelude, $targetOptions);
                 if ($this->isKeyframesPrelude($prelude)) {
                     $output .= $this->rewriteKeyframesRule($prelude, $body, $targetOptions, $emittedKeyframes);
@@ -236,6 +237,7 @@ final class TransitionPrefixer
         $supportRules = [];
         $colorSchemeChanged = $this->rewriteColorSchemeFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $printColorAdjustChanged = $this->rewritePrintColorAdjustPrefixEntries($entries, $targetOptions);
+        $uiPrefixChanged = $this->rewriteUiPrefixEntries($entries, $targetOptions);
         $maskChanged = $this->rewriteMaskPrefixEntries($entries, $selectors, $supportRules);
         $filterChanged = $this->rewriteFilterPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
         $boxShadowChanged = $this->rewriteBoxShadowPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
@@ -262,11 +264,30 @@ final class TransitionPrefixer
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
         $lightDarkChanged = $this->rewriteLightDarkFallbackEntries($entries, $targetOptions);
         $lightDarkSerializationChanged = $this->rewriteLightDarkAdvancedColorSerializationEntries($entries, $targetOptions);
-        if ($transitionChanged || $colorSchemeChanged || $printColorAdjustChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
+        if ($transitionChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
         return $selectors . '{' . $body . '}';
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteMediaRangePrelude(string $prelude, array $targetOptions): string
+    {
+        $lowerSimpleRanges = $targetOptions['mediaRangeSimpleNeedsFallback'] ?? false;
+        $lowerIntervalRanges = $targetOptions['mediaRangeIntervalNeedsFallback'] ?? false;
+        if ((!$lowerSimpleRanges && !$lowerIntervalRanges) || preg_match('/^@media\b/i', $prelude) !== 1) {
+            return $prelude;
+        }
+
+        $condition = trim(substr($prelude, strlen('@media')));
+        if ($condition === '') {
+            return $prelude;
+        }
+
+        return '@media ' . (new MediaQueryParser())->lowerRangeSyntaxList($condition, $lowerSimpleRanges, $lowerIntervalRanges);
     }
 
     /**
@@ -627,6 +648,25 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'ios_saf', [6], [15])
                 || $this->targetAtLeast($normalized, 'opera', [15])
                 || $this->targetInRange($normalized, 'safari', [6], [15]),
+            'userSelectNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [4], [53])
+                || $this->targetAtLeast($normalized, 'ios_saf', [3])
+                || $this->targetInRange($normalized, 'opera', [15], [40])
+                || $this->targetAtLeast($normalized, 'safari', [3, 1])
+                || $this->targetInRange($normalized, 'samsung', [4], [5]),
+            'userSelectNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [68]),
+            'userSelectNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
+                || $this->targetAtLeast($normalized, 'ie', [10]),
+            'appearanceNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [4], [83])
+                || $this->targetInRange($normalized, 'edge', [79], [83])
+                || $this->targetInRange($normalized, 'ios_saf', [3], [15])
+                || $this->targetInRange($normalized, 'opera', [15], [72])
+                || $this->targetInRange($normalized, 'safari', [3, 1], [15])
+                || $this->targetInRange($normalized, 'samsung', [4], [13]),
+            'appearanceNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [79]),
+            'appearanceNeedsMs' => isset($normalized['ie'])
+                || $this->targetInRange($normalized, 'edge', [12], [18]),
             'textDecorationNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [8], [26])
                 || $this->targetInRange($normalized, 'safari', [8], [26]),
             'textDecorationNeedsMoz' => $this->targetInRange($normalized, 'firefox', [6], [35]),
@@ -672,6 +712,22 @@ final class TransitionPrefixer
                 || isset($normalized['ie'])
             ),
             'lightDarkNormalizeAdvancedColor' => !$lightDarkExcluded && $firefox !== null,
+            'mediaRangeSimpleNeedsFallback' => $this->targetInRange($normalized, 'chrome', [0], [103])
+                || $this->targetInRange($normalized, 'edge', [0], [103])
+                || $this->targetInRange($normalized, 'firefox', [0], [60])
+                || $this->targetInRange($normalized, 'safari', [0], [15, 3])
+                || $this->targetInRange($normalized, 'ios_saf', [0], [15, 3])
+                || $this->targetInRange($normalized, 'android', [0], [103])
+                || $this->targetInRange($normalized, 'opera', [0], [89])
+                || $this->targetInRange($normalized, 'samsung', [0], [19]),
+            'mediaRangeIntervalNeedsFallback' => $this->targetInRange($normalized, 'chrome', [0], [103])
+                || $this->targetInRange($normalized, 'edge', [0], [103])
+                || $this->targetInRange($normalized, 'firefox', [0], [85])
+                || $this->targetInRange($normalized, 'safari', [0], [15, 3])
+                || $this->targetInRange($normalized, 'ios_saf', [0], [15, 3])
+                || $this->targetInRange($normalized, 'android', [0], [103])
+                || $this->targetInRange($normalized, 'opera', [0], [89])
+                || $this->targetInRange($normalized, 'samsung', [0], [19]),
             'keyframesNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [42])
                 || $this->targetInRange($normalized, 'ios_saf', [3], [8, 0])
@@ -1119,6 +1175,112 @@ final class TransitionPrefixer
 
         $entries = $rewritten;
         return true;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteUiPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'user-select', [
+            '-webkit-' => $targetOptions['userSelectNeedsWebkit'] ?? false,
+            '-moz-' => $targetOptions['userSelectNeedsMoz'] ?? false,
+            '-ms-' => $targetOptions['userSelectNeedsMs'] ?? false,
+        ]);
+
+        return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'appearance', [
+            '-webkit-' => $targetOptions['appearanceNeedsWebkit'] ?? false,
+            '-moz-' => $targetOptions['appearanceNeedsMoz'] ?? false,
+            '-ms-' => $targetOptions['appearanceNeedsMs'] ?? false,
+        ]) || $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $neededPrefixes
+     */
+    private function rewriteVendorPrefixedDeclarationGroup(array &$entries, string $baseProperty, array $neededPrefixes): bool
+    {
+        $vendorProperties = [];
+        foreach ($neededPrefixes as $prefix => $_needed) {
+            $vendorProperties[$prefix] = $prefix . $baseProperty;
+        }
+
+        $unprefixedValues = [];
+        $prefixedValues = [];
+        $hasRelevantDeclaration = false;
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $baseProperty) {
+                $hasRelevantDeclaration = true;
+                if (!$entry['important']) {
+                    $unprefixedValues[$entry['value']] = true;
+                }
+                continue;
+            }
+
+            $prefix = $this->uiPrefixForProperty($entry['property'], $vendorProperties);
+            if ($prefix === null) {
+                continue;
+            }
+
+            $hasRelevantDeclaration = true;
+            $prefixedValues[$prefix][$entry['value']] = true;
+        }
+
+        if (!$hasRelevantDeclaration || $unprefixedValues === []) {
+            return false;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        foreach ($entries as $entry) {
+            $prefix = $this->uiPrefixForProperty($entry['property'], $vendorProperties);
+            if (
+                $prefix !== null
+                && !$entry['important']
+                && !($neededPrefixes[$prefix] ?? false)
+                && isset($unprefixedValues[$entry['value']])
+            ) {
+                $changed = true;
+                continue;
+            }
+
+            if ($entry['property'] === $baseProperty && !$entry['important']) {
+                foreach ($neededPrefixes as $neededPrefix => $needed) {
+                    if (!$needed || isset($prefixedValues[$neededPrefix][$entry['value']])) {
+                        continue;
+                    }
+
+                    $rewritten[] = $this->declarationEntry($vendorProperties[$neededPrefix], $entry['value']);
+                    $prefixedValues[$neededPrefix][$entry['value']] = true;
+                    $changed = true;
+                }
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+        return true;
+    }
+
+    /**
+     * @param array<string, string> $vendorProperties
+     */
+    private function uiPrefixForProperty(string $property, array $vendorProperties): ?string
+    {
+        foreach ($vendorProperties as $prefix => $vendorProperty) {
+            if ($property === $vendorProperty) {
+                return $prefix;
+            }
+        }
+
+        return null;
     }
 
     /**

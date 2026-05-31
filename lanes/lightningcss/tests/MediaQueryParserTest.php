@@ -39,6 +39,19 @@ return [
         $t->same('(width>=6px)', $parser->minifyList('(width >= calc(2px + 4px))'));
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('&test, speech'));
     },
+    'media query parser lowers range syntax for legacy target fallbacks' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        $t->same('(min-width:240px)', $parser->lowerRangeSyntaxList('(width >= 240px)'));
+        $t->same('not (max-width:240px)', $parser->lowerRangeSyntaxList('(width > 240px)'));
+        $t->same('(not (min-width:240px)) and (hover)', $parser->lowerRangeSyntaxList('(width < 240px) and (hover)'));
+        $t->same('(min-width:240px)', $parser->lowerRangeSyntaxList('not (width < 240px)'));
+        $t->same('(min-width:100px) and (max-width:200px)', $parser->lowerRangeSyntaxList('(100px <= width <= 200px)'));
+        $t->same('(hover) or ((min-width:100px) and (max-width:200px))', $parser->lowerRangeSyntaxList('(hover) or (100px <= width <= 200px)'));
+        $t->same('(not (max-width:100px)) and (not (min-width:200px))', $parser->lowerRangeSyntaxList('(100px < width < 200px)'));
+        $t->same('not ((not (max-width:100px)) and (not (min-width:200px)))', $parser->lowerRangeSyntaxList('not (100px < width < 200px)'));
+        $t->same('(max-width:200px) and (min-width:100px)', $parser->lowerRangeSyntaxList('(200px >= width >= 100px)'));
+    },
     'css minifier normalizes media query preludes before blocks' => static function (TestRunner $t): void {
         $css = '@media (min-width: 240px) and (hover: hover) { .foo { color: chartreuse; } }';
 

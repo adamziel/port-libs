@@ -22,7 +22,7 @@ final class CssMinifier
 
     public function minify(string $css): string
     {
-        $css = $this->stripComments($css);
+        [$css, $licenseComments] = $this->stripComments($css);
         $output = '';
         $quote = null;
         $pendingSpace = false;
@@ -115,7 +115,10 @@ final class CssMinifier
         $css = $this->normalizeScopeRuleSpacing($css);
         $css = $this->removeEmptyStartingStyleRules($css);
 
-        return $this->compactLegacyPseudoElementColons($css);
+        return $this->prependLicenseComments(
+            $this->compactLegacyPseudoElementColons($css),
+            $licenseComments,
+        );
     }
 
     /**
@@ -338,9 +341,13 @@ final class CssMinifier
         ];
     }
 
-    private function stripComments(string $css): string
+    /**
+     * @return array{0:string,1:list<string>}
+     */
+    private function stripComments(string $css): array
     {
         $output = '';
+        $licenseComments = [];
         $quote = null;
         $length = strlen($css);
         for ($i = 0; $i < $length; $i++) {
@@ -366,7 +373,11 @@ final class CssMinifier
             if ($char === '/' && ($css[$i + 1] ?? '') === '*') {
                 $end = strpos($css, '*/', $i + 2);
                 if ($end === false) {
-                    return $output;
+                    return [$output, $licenseComments];
+                }
+                $comment = substr($css, $i, $end - $i + 2);
+                if (($css[$i + 2] ?? '') === '!') {
+                    $licenseComments[] = trim($comment);
                 }
                 $i = $end + 1;
                 continue;
@@ -375,7 +386,24 @@ final class CssMinifier
             $output .= $char;
         }
 
-        return $output;
+        return [$output, $licenseComments];
+    }
+
+    /**
+     * @param list<string> $licenseComments
+     */
+    private function prependLicenseComments(string $css, array $licenseComments): string
+    {
+        if ($licenseComments === []) {
+            return $css;
+        }
+
+        $prefix = implode("\n", $licenseComments);
+        if ($css === '') {
+            return $prefix;
+        }
+
+        return $prefix . "\n" . $css;
     }
 
     private function compactLegacyPseudoElementColons(string $css): string
@@ -6096,6 +6124,14 @@ final class CssMinifier
 
     private function compressHexColor(string $color): string
     {
+        $lower = strtolower($color);
+        if ($lower === '#ff0000' || $lower === '#f00') {
+            return 'red';
+        }
+        if ($lower === '#808080') {
+            return 'gray';
+        }
+
         if (preg_match('/^#([0-9a-f])\1([0-9a-f])\2([0-9a-f])\3$/i', $color, $matches) === 1) {
             return '#' . strtolower($matches[1] . $matches[2] . $matches[3]);
         }
@@ -10428,7 +10464,7 @@ final class CssMinifier
                 $lower = strtolower($identifier);
                 $previous = $value[$i - 1] ?? '';
                 $next = $value[$i + strlen($identifier)] ?? '';
-                if ($next === '(' && in_array($lower, ['hsl', 'hsla', 'rgb', 'rgba'], true)) {
+                if ($next === '(' && in_array($lower, ['hsl', 'hsla', 'hwb', 'rgb', 'rgba'], true)) {
                     [$function, $offset] = $this->readFunctionRaw($value, $i);
                     $output .= $this->minifyColorFunction($function) ?? $function;
                     $i = $offset;
@@ -10440,8 +10476,16 @@ final class CssMinifier
                     continue;
                 }
 
-                $output .= $colors[$lower] ?? $identifier;
+                $output .= $colors[$lower] ?? $this->minifySystemColorKeyword($identifier);
                 $i += strlen($identifier) - 1;
+                continue;
+            }
+
+            if ($char === '#'
+                && preg_match('/^#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})(?![0-9a-fA-F])/', substr($value, $i), $matches) === 1
+            ) {
+                $output .= $this->compressHexColor($matches[0]);
+                $i += strlen($matches[0]) - 1;
                 continue;
             }
 
@@ -10451,9 +10495,37 @@ final class CssMinifier
         return $output;
     }
 
+    private function minifySystemColorKeyword(string $identifier): string
+    {
+        $systemColors = [
+            'accentcolor',
+            'accentcolortext',
+            'activetext',
+            'buttonborder',
+            'buttonface',
+            'buttontext',
+            'canvas',
+            'canvastext',
+            'field',
+            'fieldtext',
+            'graytext',
+            'highlight',
+            'highlighttext',
+            'linktext',
+            'mark',
+            'marktext',
+            'selecteditem',
+            'selecteditemtext',
+            'visitedtext',
+        ];
+        $lower = strtolower($identifier);
+
+        return in_array($lower, $systemColors, true) ? $lower : $identifier;
+    }
+
     private function minifyColorFunction(string $function): ?string
     {
-        if (preg_match('/^(hsl|hsla|rgb|rgba)\((.*)\)$/is', trim($function), $matches) !== 1) {
+        if (preg_match('/^(hsl|hsla|hwb|rgb|rgba)\((.*)\)$/is', trim($function), $matches) !== 1) {
             return null;
         }
 
@@ -10477,6 +10549,24 @@ final class CssMinifier
             }
 
             [$red, $green, $blue] = $this->hslToRgbBytes($hue, $saturation, $lightness);
+
+            return $this->serializeColorBytes($red, $green, $blue, $alpha);
+        }
+
+        if ($name === 'hwb') {
+            $hue = $this->parseHueDegrees($parts['components'][0] ?? '');
+            $white = $this->parsePercentageComponent($parts['components'][1] ?? '');
+            $black = $this->parsePercentageComponent($parts['components'][2] ?? '');
+            if ($hue === null || $white === null || $black === null) {
+                return null;
+            }
+
+            $alpha = $parts['alpha'] === null ? 1.0 : $this->parseAlphaComponent($parts['alpha']);
+            if ($alpha === null) {
+                return null;
+            }
+
+            [$red, $green, $blue] = $this->hwbToRgbBytes($hue, $white, $black);
 
             return $this->serializeColorBytes($red, $green, $blue, $alpha);
         }
@@ -10535,7 +10625,12 @@ final class CssMinifier
 
     private function parseHueDegrees(string $token): ?float
     {
-        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(deg|grad|rad|turn)?$/i', trim($token), $matches) !== 1) {
+        $token = trim($token);
+        if (strcasecmp($token, 'none') === 0) {
+            return 0.0;
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(deg|grad|rad|turn)?$/i', $token, $matches) !== 1) {
             return null;
         }
 
@@ -10554,7 +10649,12 @@ final class CssMinifier
 
     private function parsePercentageComponent(string $token): ?float
     {
-        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', trim($token), $matches) !== 1) {
+        $token = trim($token);
+        if (strcasecmp($token, 'none') === 0) {
+            return 0.0;
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%?$/', $token, $matches) !== 1) {
             return null;
         }
 
@@ -10566,6 +10666,10 @@ final class CssMinifier
     private function parseRgbComponent(string $token): ?int
     {
         $token = trim($token);
+        if (strcasecmp($token, 'none') === 0) {
+            return 0;
+        }
+
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
             $value = (float) $matches[1];
             if ($value < 0 || $value > 100) {
@@ -10620,9 +10724,43 @@ final class CssMinifier
         };
 
         return [
-            (int) round(($red + $m) * 255),
-            (int) round(($green + $m) * 255),
-            (int) round(($blue + $m) * 255),
+            (int) round(($red + $m) * 255 + 0.000000001),
+            (int) round(($green + $m) * 255 + 0.000000001),
+            (int) round(($blue + $m) * 255 + 0.000000001),
+        ];
+    }
+
+    /**
+     * @return array{0:int,1:int,2:int}
+     */
+    private function hwbToRgbBytes(float $hue, float $white, float $black): array
+    {
+        $sum = $white + $black;
+        if ($sum >= 1.0) {
+            $gray = $sum <= 0.0 ? 0.0 : $white / $sum;
+
+            return [
+                (int) round($gray * 255),
+                (int) round($gray * 255),
+                (int) round($gray * 255),
+            ];
+        }
+
+        $x = 1 - abs(fmod($hue / 60, 2) - 1);
+        [$red, $green, $blue] = match (true) {
+            $hue < 60 => [1.0, $x, 0.0],
+            $hue < 120 => [$x, 1.0, 0.0],
+            $hue < 180 => [0.0, 1.0, $x],
+            $hue < 240 => [0.0, $x, 1.0],
+            $hue < 300 => [$x, 0.0, 1.0],
+            default => [1.0, 0.0, $x],
+        };
+        $factor = 1.0 - $white - $black;
+
+        return [
+            (int) round(($red * $factor + $white) * 255 + 0.000000001),
+            (int) round(($green * $factor + $white) * 255 + 0.000000001),
+            (int) round(($blue * $factor + $white) * 255 + 0.000000001),
         ];
     }
 

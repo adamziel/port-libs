@@ -1105,6 +1105,107 @@ final class DeclarationBlock
             || preg_match('/^border-(?:top|right|bottom|left)(?:-(?:width|style|color))?$/', $property) === 1;
     }
 
+    private function isBorderComponentLonghand(string $property): bool
+    {
+        return preg_match('/^border-(?:top|right|bottom|left)-(?:width|style|color)$/', $property) === 1;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function borderShorthandLonghands(string $property): ?array
+    {
+        if ($property === 'border') {
+            return array_merge(
+                $this->borderComponentLonghands('width'),
+                $this->borderComponentLonghands('style'),
+                $this->borderComponentLonghands('color')
+            );
+        }
+
+        if (in_array($property, ['border-width', 'border-style', 'border-color'], true)) {
+            return $this->borderComponentLonghands(substr($property, strlen('border-')));
+        }
+
+        if (preg_match('/^border-(top|right|bottom|left)$/', $property, $matches) !== 1) {
+            return null;
+        }
+
+        return [
+            "border-{$matches[1]}-width",
+            "border-{$matches[1]}-style",
+            "border-{$matches[1]}-color",
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function borderComponentLonghands(string $component): array
+    {
+        return array_map(
+            static fn (string $side): string => "border-{$side}-{$component}",
+            self::BORDER_SIDES
+        );
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function borderLonghandValuesFromShorthand(string $property, string $value): ?array
+    {
+        if ($property === 'border') {
+            $components = $this->completeBorderComponents($this->parseBorderValue($value));
+            $values = [];
+            foreach (self::BORDER_SIDES as $side) {
+                foreach (self::BORDER_COMPONENTS as $component) {
+                    $values["border-{$side}-{$component}"] = $components[$component];
+                }
+            }
+
+            return $values;
+        }
+
+        if (preg_match('/^border-(width|style|color)$/', $property, $matches) === 1) {
+            $expanded = $this->expandBoxShorthand($value);
+            if ($expanded === null) {
+                return null;
+            }
+
+            $values = [];
+            foreach (self::BORDER_SIDES as $side) {
+                $values["border-{$side}-{$matches[1]}"] = $expanded[$side];
+            }
+
+            return $values;
+        }
+
+        if (preg_match('/^border-(top|right|bottom|left)$/', $property, $matches) === 1) {
+            $components = $this->completeBorderComponents($this->parseBorderValue($value));
+
+            return [
+                "border-{$matches[1]}-width" => $components['width'],
+                "border-{$matches[1]}-style" => $components['style'],
+                "border-{$matches[1]}-color" => $components['color'],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{width:?string, style:?string, color:?string} $components
+     * @return array{width:string, style:string, color:string}
+     */
+    private function completeBorderComponents(array $components): array
+    {
+        return [
+            'width' => $components['width'] ?? 'medium',
+            'style' => $components['style'] ?? 'none',
+            'color' => $components['color'] ?? 'currentcolor',
+        ];
+    }
+
     /**
      * @param list<array{property:string, value:string, important:bool}> $entries
      * @return array{
@@ -2092,6 +2193,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isBorderComponentLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeBorderComponentLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeBorderComponentLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isRemovableFlexLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeFlexLonghand($normalEntries, $property) ?? $this->serializeEntries($normalEntries));
             $importantEntries = $this->parseEntries($this->removeFlexLonghand($importantEntries, $property) ?? $this->serializeEntries($importantEntries));
@@ -2178,6 +2285,61 @@ final class DeclarationBlock
         }
 
         return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeBorderComponentLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            $split = $this->splitBorderShorthandForRemovedLonghand($entry, $property);
+            if ($split === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            array_push($result, ...$split);
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param array{property:string, value:string, important:bool} $entry
+     * @return list<array{property:string, value:string, important:bool}>|null
+     */
+    private function splitBorderShorthandForRemovedLonghand(array $entry, string $property): ?array
+    {
+        $longhands = $this->borderShorthandLonghands($entry['property']);
+        if ($longhands === null || !in_array($property, $longhands, true)) {
+            return null;
+        }
+
+        $values = $this->borderLonghandValuesFromShorthand($entry['property'], $entry['value']);
+        if ($values === null) {
+            return null;
+        }
+
+        $split = [];
+        foreach ($longhands as $longhand) {
+            if ($longhand === $property || !isset($values[$longhand])) {
+                continue;
+            }
+
+            $split[] = [
+                'property' => $longhand,
+                'value' => $values[$longhand],
+                'important' => $entry['important'],
+            ];
+        }
+
+        return $split;
     }
 
     /**

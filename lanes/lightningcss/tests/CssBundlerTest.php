@@ -325,4 +325,36 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler preserves upstream license comments across imported graph' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            "/*! Copyright 2023 Someone awesome */\n/*! Copyright 2023 Someone else */\n.b{color:green}.a{color:red}",
+            $bundle([
+                '/a.css' => <<<'CSS'
+/*! Copyright 2023 Someone awesome */
+/* Some other comment */
+@import "b.css";
+.a { color: red }
+CSS,
+                '/b.css' => <<<'CSS'
+/*! Copyright 2023 Someone else */
+.b { color: green }
+CSS,
+            ], '/a.css')
+        );
+
+        $t->same(
+            "/*! Theme bundle */\n/*! Card component */\n@media screen{.card{color:green}}.theme{color:red}",
+            $bundle([
+                '/theme.css' => <<<'CSS'
+/*! Theme bundle */
+@import "card.css" screen;
+.theme { color: red }
+CSS,
+                '/card.css' => <<<'CSS'
+/*! Card component */
+.card { color: green }
+CSS,
+            ], '/theme.css')
+        );
+    },
 ];

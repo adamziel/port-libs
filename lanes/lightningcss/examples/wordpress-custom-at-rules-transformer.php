@@ -21,6 +21,12 @@ $css = <<<'CSS'
   }
 }
 
+@responsive {
+  .wp-block-card__stack {
+    margin: 10px;
+  }
+}
+
 .wp-block-card {
   @apply card;
 
@@ -50,42 +56,59 @@ $result = $transformer->transform($css, [
     'apply' => [
         'prelude' => '<custom-ident>',
     ],
+    'responsive' => [
+        'prelude' => null,
+        'body' => 'rule-list',
+    ],
     'breakpoint' => [
         'prelude' => '<length>',
         'body' => 'style-block',
     ],
-], [
-    'Rule' => [
-        'custom' => [
-            'tokens' => static function (array $rule) use (&$tokens): array {
-                foreach ($rule['declarations'] as $declaration) {
-                    $tokens[$rule['prelude'] . '.' . $declaration['property']] = $declaration['value'];
-                }
+], CustomAtRuleTransformer::composeVisitors([
+    [
+        'Rule' => [
+            'custom' => [
+                'tokens' => static function (array $rule) use (&$tokens): array {
+                    foreach ($rule['declarations'] as $declaration) {
+                        $tokens[$rule['prelude'] . '.' . $declaration['property']] = $declaration['value'];
+                    }
 
-                return [];
-            },
-            'mixin' => static function (array $rule) use (&$mixins): array {
-                $mixins[$rule['prelude']] = $rule['body'];
+                    return [];
+                },
+                'mixin' => static function (array $rule) use (&$mixins): array {
+                    $mixins[$rule['prelude']] = $rule['body'];
 
-                return [];
-            },
-            'apply' => static function (array $rule, CustomAtRuleTransformer $transformer) use (&$mixins): array {
-                return $transformer->styleBlock($mixins[$rule['prelude']] ?? '');
-            },
-            'breakpoint' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->media(
-                '(width <= ' . $rule['prelude'] . ')',
-                $transformer->styleBlock($rule['body'])
-            ),
+                    return [];
+                },
+                'apply' => static function (array $rule, CustomAtRuleTransformer $transformer) use (&$mixins): array {
+                    return $transformer->styleBlock($mixins[$rule['prelude']] ?? '');
+                },
+            ],
         ],
     ],
-    'Function' => [
-        'token' => static function (array $arguments) use (&$tokens): ?string {
-            return $tokens[$arguments[0] ?? ''] ?? null;
-        },
+    [
+        'Rule' => [
+            'custom' => [
+                'responsive' => static function (array $rule, CustomAtRuleTransformer $transformer): array {
+                    return [
+                        $transformer->ruleList($rule['body']),
+                        $transformer->media('(min-width: 782px)', '.md\\:wp-block-card__stack{margin:10px}'),
+                    ];
+                },
+                'breakpoint' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->media(
+                    '(width <= ' . $rule['prelude'] . ')',
+                    $transformer->styleBlock($rule['body'])
+                ),
+            ],
+        ],
     ],
+]), [
+    'token' => static function (array $arguments) use (&$tokens): ?string {
+        return $tokens[$arguments[0] ?? ''] ?? null;
+    },
 ]);
 
-$expected = '.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
+$expected = '.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {

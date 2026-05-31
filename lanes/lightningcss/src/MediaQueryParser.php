@@ -16,6 +16,19 @@ final class MediaQueryParser
         return implode(',', array_map(fn (string $query): string => $this->minifyQuery($query), $queries));
     }
 
+    public function lowerRangeSyntaxList(string $queryList, bool $lowerSimpleRanges = true, bool $lowerIntervalRanges = true): string
+    {
+        $queries = $this->splitTopLevel($this->minifyList($queryList), ',');
+        if ($queries === []) {
+            return '';
+        }
+
+        return implode(',', array_map(
+            fn (string $query): string => $this->lowerRangeSyntaxCondition($query, $lowerSimpleRanges, $lowerIntervalRanges)['css'],
+            $queries
+        ));
+    }
+
     private function minifyQuery(string $query): string
     {
         $query = trim($query);
@@ -175,6 +188,332 @@ final class MediaQueryParser
         }
 
         return rtrim(rtrim($number, '0'), '.');
+    }
+
+    /**
+     * @return array{css:string,changed:bool,root:?string,bareNot:bool}
+     */
+    private function lowerRangeSyntaxCondition(string $condition, bool $lowerSimpleRanges, bool $lowerIntervalRanges): array
+    {
+        $condition = trim($condition);
+        $orParts = $this->splitTopLevelLogical($condition, 'or');
+        if ($orParts !== null) {
+            $parts = [];
+            $changed = false;
+            foreach ($orParts as $part) {
+                $lowered = $this->lowerRangeSyntaxCondition($part, $lowerSimpleRanges, $lowerIntervalRanges);
+                $parts[] = $lowered['root'] === 'and' || $lowered['bareNot']
+                    ? '(' . $lowered['css'] . ')'
+                    : $lowered['css'];
+                $changed = $changed || $lowered['changed'];
+            }
+
+            return [
+                'css' => implode(' or ', $parts),
+                'changed' => $changed,
+                'root' => 'or',
+                'bareNot' => false,
+            ];
+        }
+
+        $andParts = $this->splitTopLevelLogical($condition, 'and');
+        if ($andParts !== null) {
+            $parts = [];
+            $changed = false;
+            foreach ($andParts as $part) {
+                $lowered = $this->lowerRangeSyntaxCondition($part, $lowerSimpleRanges, $lowerIntervalRanges);
+                $parts[] = $lowered['root'] === 'or' || $lowered['bareNot']
+                    ? '(' . $lowered['css'] . ')'
+                    : $lowered['css'];
+                $changed = $changed || $lowered['changed'];
+            }
+
+            return [
+                'css' => implode(' and ', $parts),
+                'changed' => $changed,
+                'root' => 'and',
+                'bareNot' => false,
+            ];
+        }
+
+        if (preg_match('/^not\s+(.+)$/i', $condition, $matches) === 1) {
+            $inner = trim($matches[1]);
+            $unwrapped = $this->unwrapSingleParenthesizedValue($inner) ?? $inner;
+            $range = $this->lowerRangeFeature($unwrapped, true, $lowerSimpleRanges, $lowerIntervalRanges);
+            if ($range !== null) {
+                return $range;
+            }
+
+            $lowered = $this->lowerRangeSyntaxCondition($inner, $lowerSimpleRanges, $lowerIntervalRanges);
+            if (!$lowered['changed']) {
+                return [
+                    'css' => $condition,
+                    'changed' => false,
+                    'root' => null,
+                    'bareNot' => true,
+                ];
+            }
+
+            return [
+                'css' => 'not (' . $lowered['css'] . ')',
+                'changed' => true,
+                'root' => null,
+                'bareNot' => true,
+            ];
+        }
+
+        $unwrapped = $this->unwrapSingleParenthesizedValue($condition);
+        if ($unwrapped !== null) {
+            $range = $this->lowerRangeFeature($unwrapped, false, $lowerSimpleRanges, $lowerIntervalRanges);
+            if ($range !== null) {
+                return $range;
+            }
+
+            $lowered = $this->lowerRangeSyntaxCondition($unwrapped, $lowerSimpleRanges, $lowerIntervalRanges);
+            if ($lowered['changed']) {
+                return [
+                    'css' => '(' . $lowered['css'] . ')',
+                    'changed' => true,
+                    'root' => null,
+                    'bareNot' => false,
+                ];
+            }
+        }
+
+        $range = $this->lowerRangeFeature($condition, false, $lowerSimpleRanges, $lowerIntervalRanges);
+        if ($range !== null) {
+            return $range;
+        }
+
+        return [
+            'css' => $condition,
+            'changed' => false,
+            'root' => null,
+            'bareNot' => str_starts_with(strtolower($condition), 'not '),
+        ];
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function splitTopLevelLogical(string $condition, string $operator): ?array
+    {
+        $parts = [];
+        $current = '';
+        $quote = null;
+        $parenDepth = 0;
+        $length = strlen($condition);
+        $found = false;
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                $current .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $current .= $condition[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $current .= $char;
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+                $current .= $char;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                $current .= $char;
+                continue;
+            }
+
+            if ($parenDepth === 0 && (ctype_alpha($char) || $char === '_' || $char === '-')) {
+                $start = $i;
+                while ($i < $length && preg_match('/[-_a-zA-Z0-9]/', $condition[$i]) === 1) {
+                    $i++;
+                }
+                $identifier = substr($condition, $start, $i - $start);
+                $previous = $condition[$start - 1] ?? '';
+                $next = $condition[$i] ?? '';
+                if (strcasecmp($identifier, $operator) === 0
+                    && ($previous === '' || preg_match('/[-_a-zA-Z0-9]/', $previous) !== 1)
+                    && ($next === '' || preg_match('/[-_a-zA-Z0-9]/', $next) !== 1)
+                ) {
+                    if (trim($current) === '') {
+                        return null;
+                    }
+                    $parts[] = trim($current);
+                    $current = '';
+                    $found = true;
+                    while (isset($condition[$i]) && ctype_space($condition[$i])) {
+                        $i++;
+                    }
+                    $i--;
+                    continue;
+                }
+
+                $current .= $identifier;
+                $i--;
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        if (!$found || trim($current) === '') {
+            return null;
+        }
+
+        $parts[] = trim($current);
+
+        return $parts;
+    }
+
+    /**
+     * @return array{css:string,changed:bool,root:?string,bareNot:bool}|null
+     */
+    private function lowerRangeFeature(string $feature, bool $negated, bool $lowerSimpleRanges, bool $lowerIntervalRanges): ?array
+    {
+        $feature = trim($feature);
+        $ident = '[_a-zA-Z-][_a-zA-Z0-9-]*';
+        $operator = '<=|>=|<|>';
+
+        if (preg_match('/^(.+?)\s*(' . $operator . ')\s*(' . $ident . ')\s*(' . $operator . ')\s*(.+)$/', $feature, $matches) === 1) {
+            if (!$lowerIntervalRanges) {
+                return null;
+            }
+
+            $name = strtolower($matches[3]);
+            if (!$this->isLegacyRangeFeature($name)) {
+                return null;
+            }
+
+            $left = $this->legacyComparison($name, $this->comparisonFromLeft($matches[2]), $this->minifyValue($matches[1]));
+            $right = $this->legacyComparison($name, $matches[4], $this->minifyValue($matches[5]));
+            $css = $this->andLegacyComparisons([$left, $right]);
+            if ($negated) {
+                return [
+                    'css' => 'not (' . $css . ')',
+                    'changed' => true,
+                    'root' => null,
+                    'bareNot' => true,
+                ];
+            }
+
+            return [
+                'css' => $css,
+                'changed' => true,
+                'root' => 'and',
+                'bareNot' => false,
+            ];
+        }
+
+        if (preg_match('/^(' . $ident . ')\s*(' . $operator . ')\s*(.+)$/', $feature, $matches) !== 1) {
+            return null;
+        }
+
+        if (!$lowerSimpleRanges) {
+            return null;
+        }
+
+        $name = strtolower($matches[1]);
+        if (!$this->isLegacyRangeFeature($name)) {
+            return null;
+        }
+
+        $comparison = $this->legacyComparison(
+            $name,
+            $negated ? $this->invertComparison($matches[2]) : $matches[2],
+            $this->minifyValue($matches[3])
+        );
+
+        return [
+            'css' => $comparison['css'],
+            'changed' => true,
+            'root' => null,
+            'bareNot' => $comparison['bareNot'],
+        ];
+    }
+
+    private function isLegacyRangeFeature(string $feature): bool
+    {
+        if (str_starts_with($feature, 'min-') || str_starts_with($feature, 'max-')) {
+            return false;
+        }
+
+        return in_array($feature, ['width', 'height', 'color', 'resolution'], true);
+    }
+
+    private function comparisonFromLeft(string $operator): string
+    {
+        return match ($operator) {
+            '<' => '>',
+            '<=' => '>=',
+            '>' => '<',
+            '>=' => '<=',
+            default => $operator,
+        };
+    }
+
+    private function invertComparison(string $operator): string
+    {
+        return match ($operator) {
+            '<' => '>=',
+            '<=' => '>',
+            '>' => '<=',
+            '>=' => '<',
+            default => $operator,
+        };
+    }
+
+    /**
+     * @return array{css:string,bareNot:bool}
+     */
+    private function legacyComparison(string $feature, string $operator, string $value): array
+    {
+        return match ($operator) {
+            '>=' => ['css' => '(min-' . $feature . ':' . $value . ')', 'bareNot' => false],
+            '<=' => ['css' => '(max-' . $feature . ':' . $value . ')', 'bareNot' => false],
+            '>' => ['css' => 'not (max-' . $feature . ':' . $value . ')', 'bareNot' => true],
+            '<' => ['css' => 'not (min-' . $feature . ':' . $value . ')', 'bareNot' => true],
+            default => ['css' => '(' . $feature . $operator . $value . ')', 'bareNot' => false],
+        };
+    }
+
+    /**
+     * @param list<array{css:string,bareNot:bool}> $comparisons
+     */
+    private function andLegacyComparisons(array $comparisons): string
+    {
+        return implode(' and ', array_map(
+            static fn (array $comparison): string => $comparison['bareNot']
+                ? '(' . $comparison['css'] . ')'
+                : $comparison['css'],
+            $comparisons
+        ));
+    }
+
+    private function unwrapSingleParenthesizedValue(string $value): ?string
+    {
+        $value = trim($value);
+        if ($value === '' || $value[0] !== '(') {
+            return null;
+        }
+
+        $close = $this->findMatchingDelimiter($value, 0, '(', ')');
+        if ($close !== strlen($value) - 1) {
+            return null;
+        }
+
+        return substr($value, 1, -1);
     }
 
     private function containsTopLevelKeyword(string $value, string $keyword): bool

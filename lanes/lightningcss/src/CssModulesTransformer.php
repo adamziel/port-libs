@@ -380,6 +380,13 @@ final class CssModulesTransformer
                 continue;
             }
 
+            if ($bracketDepth === 0 && (
+                $this->startsWithCssModulesPseudoName($selector, $i, ':global')
+                || $this->startsWithCssModulesPseudoName($selector, $i, ':local')
+            )) {
+                throw new \InvalidArgumentException('CSS Modules :local and :global selectors must use functional syntax');
+            }
+
             if ($bracketDepth === 0 && $mode === 'local' && ($char === '.' || $char === '#')) {
                 $nameStart = $i + 1;
                 if ($nameStart < $length && $this->isIdentStart($selector[$nameStart])) {
@@ -614,6 +621,21 @@ final class CssModulesTransformer
         }
 
         return ($selector[$offset + $length] ?? '') === '(';
+    }
+
+    private function startsWithCssModulesPseudoName(string $selector, int $offset, string $name): bool
+    {
+        $length = strlen($name);
+        if (strncasecmp(substr($selector, $offset, $length), $name, $length) !== 0) {
+            return false;
+        }
+
+        $next = $selector[$offset + $length] ?? '';
+        if ($next === '(') {
+            return false;
+        }
+
+        return $next === '' || !$this->isIdentChar($next);
     }
 
     private function readIdentEnd(string $value, int $start): int

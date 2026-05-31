@@ -488,6 +488,26 @@ return [
             )
         );
     },
+    'declaration block removes upstream border longhands by splitting shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'border-top-width: 1px; border-right-width: 1px; border-bottom-width: 1px; border-left-width: 1px; border-top-style: solid; border-right-style: solid; border-bottom-style: solid; border-left-style: solid; border-top-color: red; border-bottom-color: red; border-left-color: red',
+            $block->removeProperty('border: 1px solid red', 'border-right-color')
+        );
+        $t->same(
+            'border-right-color: green; border-bottom-color: blue; border-left-color: black',
+            $block->removeProperty('border-color: red green blue black', 'border-top-color')
+        );
+        $t->same(
+            'border-top-width: 2px; border-top-style: dotted',
+            $block->removeProperty('border-top: 2px dotted blue; border-top-color: green', 'border-top-color')
+        );
+        $t->same(
+            'color: blue; border-top-width: 1px !important; border-right-width: 1px !important; border-bottom-width: 1px !important; border-top-style: solid !important; border-right-style: solid !important; border-bottom-style: solid !important; border-left-style: solid !important; border-top-color: red !important; border-right-color: red !important; border-bottom-color: red !important; border-left-color: red !important',
+            $block->removeProperty('border: 1px solid red !important; border-left-width: 4px; color: blue', 'border-left-width')
+        );
+    },
     'declaration block removes upstream cssom priority buckets' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

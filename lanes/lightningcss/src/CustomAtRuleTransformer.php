@@ -32,6 +32,39 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * Compose a small subset of LightningCSS visitors used by custom at-rule transforms.
+     *
+     * @param list<array<string, mixed>> $visitors
+     * @return array<string, mixed>
+     */
+    public static function composeVisitors(array $visitors): array
+    {
+        if (count($visitors) === 1) {
+            return $visitors[0];
+        }
+
+        return [
+            'Rule' => [
+                'custom' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    foreach ($visitors as $visitor) {
+                        $callback = self::customRuleVisitorCallback($visitor, $rule['name']);
+                        if ($callback === null) {
+                            continue;
+                        }
+
+                        $replacement = $callback($rule, $transformer);
+                        if ($replacement !== null) {
+                            return $replacement;
+                        }
+                    }
+
+                    return null;
+                },
+            ],
+        ];
+    }
+
+    /**
      * @param array<string, array{prelude?:string, body?:string}> $customAtRules
      * @param array<string, mixed> $visitor
      * @param array<string, callable> $functionVisitors
@@ -339,9 +372,23 @@ final class CustomAtRuleTransformer
     private function buildCustomRule(string $name, string $prelude, ?string $body, ?array $parentSelectors): array
     {
         $definition = $this->customAtRules[$name] ?? [];
-        $bodyType = $body === null ? null : (string) ($definition['body'] ?? 'rule-list');
+        $bodyType = null;
+        if ($body === null) {
+            if (array_key_exists('body', $definition) && $definition['body'] !== null) {
+                throw new \InvalidArgumentException("Custom at-rule @{$name} requires a block body");
+            }
+        } else {
+            if (!array_key_exists('body', $definition) || $definition['body'] === null) {
+                throw new \InvalidArgumentException("Custom at-rule @{$name} does not accept a block body");
+            }
+            $bodyType = (string) $definition['body'];
+            if (!in_array($bodyType, ['declaration-list', 'rule-list', 'style-block'], true)) {
+                throw new \InvalidArgumentException("Unsupported custom at-rule body type for @{$name}: {$bodyType}");
+            }
+        }
+
         $preludeGrammar = $definition['prelude'] ?? null;
-        $preludeValue = $this->parseCustomPreludeValue($prelude, is_string($preludeGrammar) ? $preludeGrammar : null);
+        $preludeValue = $this->parseCustomPreludeValue($name, $prelude, is_string($preludeGrammar) ? $preludeGrammar : null);
         $declarations = [];
         if ($body !== null && $bodyType === 'declaration-list') {
             $declarations = $this->declarationBlock->parseEntries($body);
@@ -358,9 +405,17 @@ final class CustomAtRuleTransformer
         ];
     }
 
-    private function parseCustomPreludeValue(string $prelude, ?string $grammar): string
+    private function parseCustomPreludeValue(string $name, string $prelude, ?string $grammar): string
     {
         $prelude = trim($prelude);
+        if ($grammar === null) {
+            if ($prelude !== '') {
+                throw new \InvalidArgumentException("Custom at-rule @{$name} does not accept a prelude");
+            }
+
+            return '';
+        }
+
         if ($grammar === '<custom-ident>' && preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $prelude) !== 1) {
             throw new \InvalidArgumentException("Invalid custom at-rule prelude for <custom-ident>: {$prelude}");
         }
@@ -401,6 +456,14 @@ final class CustomAtRuleTransformer
         if (!is_array($replacement)) {
             throw new \InvalidArgumentException('Custom at-rule visitor must return a string, array replacement, or null');
         }
+        if (array_is_list($replacement)) {
+            $css = '';
+            foreach ($replacement as $item) {
+                $css .= $this->emitReplacement($item, $parentSelectors);
+            }
+
+            return $css;
+        }
 
         $kind = (string) ($replacement['kind'] ?? '');
         if ($kind === 'remove') {
@@ -439,6 +502,58 @@ final class CustomAtRuleTransformer
         }
 
         throw new \InvalidArgumentException("Unsupported custom at-rule replacement kind: {$kind}");
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function customRuleVisitorCallback(array $visitor, string $ruleName): ?callable
+    {
+        $ruleConfig = $visitor['Rule'] ?? null;
+        if (is_callable($ruleConfig)) {
+            return $ruleConfig;
+        }
+
+        if (is_array($ruleConfig)) {
+            $customConfig = $ruleConfig['custom'] ?? null;
+            if (is_callable($customConfig)) {
+                return $customConfig;
+            }
+
+            if (is_array($customConfig)) {
+                return self::caseInsensitiveCallback($customConfig, $ruleName);
+            }
+        }
+
+        $customConfig = $visitor['custom'] ?? null;
+        if (is_callable($customConfig)) {
+            return $customConfig;
+        }
+
+        if (is_array($customConfig)) {
+            return self::caseInsensitiveCallback($customConfig, $ruleName);
+        }
+
+        return self::caseInsensitiveCallback($visitor, $ruleName);
+    }
+
+    /**
+     * @param array<string|int, mixed> $callbacks
+     */
+    private static function caseInsensitiveCallback(array $callbacks, string $name): ?callable
+    {
+        $callback = $callbacks[$name] ?? $callbacks[strtolower($name)] ?? null;
+        if (is_callable($callback)) {
+            return $callback;
+        }
+
+        foreach ($callbacks as $key => $candidate) {
+            if (is_string($key) && strtolower($key) === strtolower($name) && is_callable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /**

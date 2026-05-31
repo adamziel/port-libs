@@ -14,6 +14,34 @@ return [
         $css = '.x { content: "/* not a comment */"; font-family: Open Sans, sans-serif; }';
         $t->same('.x{content:"/* not a comment */";font-family:Open Sans,sans-serif}', (new CssMinifier())->minify($css));
     },
+    'css minifier preserves upstream license comments' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            "/*! Copyright 2023 Someone awesome */\n.foo{color:red}",
+            $minifier->minify(
+                <<<'CSS'
+/*! Copyright 2023 Someone awesome */
+/* Some other comment */
+.foo {
+  color: red;
+}
+CSS
+            )
+        );
+        $t->same(
+            "/*! Copyright 2023 Someone awesome */\n/*! Copyright 2023 Someone else */\n.foo{color:red}",
+            $minifier->minify(
+                <<<'CSS'
+/*! Copyright 2023 Someone awesome */
+/*! Copyright 2023 Someone else */
+.foo {
+  color: red;
+}
+CSS
+            )
+        );
+    },
     'css minifier preserves descendant spaces before functional pseudo classes' => static function (TestRunner $t): void {
         $css = '.scope :is(.title, .summary) { color: blue; } .scope:not(.is-hidden) { color: red; }';
 
@@ -81,6 +109,33 @@ return [
     'css minifier shortens upstream color keywords in declaration values' => static function (TestRunner $t): void {
         $css = '.foo { color: yellow; background: linear-gradient(blue, white); border-color: black; }';
         $t->same('.foo{color:#ff0;background:linear-gradient(#00f,#fff);border-color:#000}', (new CssMinifier())->minify($css));
+    },
+    'css minifier maps upstream basic color value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{color:#7bffff80}', $minifier->minify('.foo { color: rgb(123 255 255 / 50%) }'));
+        $t->same('.foo{color:#7affff80}', $minifier->minify('.foo { color: rgb(48% 100% 100% / 50%) }'));
+        $t->same('.foo{color:#5f0}', $minifier->minify('.foo { color: hsl(100deg, 100%, 50%) }'));
+        $t->same('.foo{color:#5f0}', $minifier->minify('.foo { color: hsl(100, 100%, 50%) }'));
+        $t->same('.foo{color:#5f0}', $minifier->minify('.foo { color: hsl(100 100% 50%) }'));
+        $t->same('.foo{color:#5f0}', $minifier->minify('.foo { color: hsl(100 100 50) }'));
+        $t->same('.foo{color:#5f0c}', $minifier->minify('.foo { color: hsl(100, 100%, 50%, .8) }'));
+        $t->same('.foo{color:#5f0c}', $minifier->minify('.foo { color: hsl(100 100% 50% / .8) }'));
+        $t->same('.foo{color:#5f0c}', $minifier->minify('.foo { color: hsla(100, 100%, 50%, .8) }'));
+        $t->same('.foo{color:#5f0c}', $minifier->minify('.foo { color: hsla(100 100% 50% / .8) }'));
+        $t->same('.foo{color:#0000}', $minifier->minify('.foo { color: transparent }'));
+        $t->same('.foo{color:currentColor}', $minifier->minify('.foo { color: currentColor }'));
+        $t->same('.foo{color:buttonborder}', $minifier->minify('.foo { color: ButtonBorder }'));
+        $t->same('.foo{color:#00c4ff}', $minifier->minify('.foo { color: hwb(194 0% 0%) }'));
+        $t->same('.foo{color:#00c4ff80}', $minifier->minify('.foo { color: hwb(194 0% 0% / 50%) }'));
+        $t->same('.foo{color:#006280}', $minifier->minify('.foo { color: hwb(194 0% 50%) }'));
+        $t->same('.foo{color:#80e1ff}', $minifier->minify('.foo { color: hwb(194 50% 0%) }'));
+        $t->same('.foo{color:#80e1ff}', $minifier->minify('.foo { color: hwb(194 50 0) }'));
+        $t->same('.foo{color:gray}', $minifier->minify('.foo { color: hwb(194 50% 50%) }'));
+        $t->same('.foo{color:#fff}', $minifier->minify('.foo { color: light-dark(#FFF, #FFF) }'));
+        $t->same('.foo{color:#000}', $minifier->minify('.foo { color: hsl(none none none) }'));
+        $t->same('.foo{color:red}', $minifier->minify('.foo { color: hwb(none none none) }'));
+        $t->same('.foo{color:#000}', $minifier->minify('.foo { color: rgb(none none none) }'));
     },
     'css minifier maps upstream color-scheme value ordering' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

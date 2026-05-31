@@ -215,4 +215,102 @@ CSS,
         $t->same('.foo{color:red}.foo.bar{color:#ff0}', $result);
         $t->contains('&.bar', $mixins['color']);
     },
+    'custom at-rules preserve upstream custom parser inline and block output' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@block test {
+  color: yellow;
+}
+
+@inline test;
+
+.foo {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'block' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+            'inline' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ]);
+
+        $t->same('@block test{color:#ff0}@inline test;.foo{color:red}', $result);
+    },
+    'custom at-rules reject upstream no-prelude and no-body parser shape violations' => static function (TestRunner $t): void {
+        $transformer = new CustomAtRuleTransformer();
+
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@tokens stale;', [
+            'tokens' => [],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@tokens { .foo { color: red; } }', [
+            'tokens' => [],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@breakpoints;', [
+            'breakpoints' => [
+                'body' => 'rule-list',
+            ],
+        ]));
+    },
+    'custom at-rules map upstream visitor rule-array replacement' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@breakpoints {
+  .m-1 {
+    margin: 10px;
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'breakpoints' => [
+                'prelude' => null,
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'breakpoints' => static function (array $rule, CustomAtRuleTransformer $transformer): array {
+                        return [
+                            $transformer->ruleList($rule['body']),
+                            $transformer->media('(min-width: 500px)', '.sm\\:m-1{margin:10px}'),
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.m-1{margin:10px}@media (width>=500px){.sm\\:m-1{margin:10px}}', $result);
+    },
+    'custom at-rules map upstream composed custom rule visitors' => static function (TestRunner $t): void {
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'custom' => [
+                        'testA' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->styleRule('.testA', [
+                            'color' => 'red',
+                        ]),
+                    ],
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'testB' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->styleRule('.testB', [
+                            'color' => 'lime',
+                        ]),
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@testA; @testB;', [
+            'testA' => [],
+            'testB' => [],
+        ], $visitor);
+
+        $t->same('.testA{color:red}.testB{color:#0f0}', $result);
+    },
 ];

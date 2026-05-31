@@ -160,6 +160,114 @@ return [
             $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['chrome' => 137])
         );
     },
+    'transition prefixer maps upstream ui user-select and appearance target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}',
+            $prefixer->prefixForTargets('.foo { user-select: none; }', [
+                'safari' => 8,
+                'opera' => 5,
+                'firefox' => 10,
+                'ie' => 10,
+            ])
+        );
+        $t->same(
+            '.foo{-webkit-user-select:none;user-select:none}',
+            $prefixer->prefixForTargets('.foo { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }', [
+                'safari' => 8,
+                'opera' => 80,
+                'firefox' => 80,
+                'edge' => 80,
+            ])
+        );
+        $t->same(
+            '.foo{user-select:none}',
+            $prefixer->prefixForTargets('.foo { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }', [
+                'opera' => 80,
+                'firefox' => 80,
+                'edge' => 80,
+            ])
+        );
+        $t->same(
+            '.foo{-webkit-appearance:none;-moz-appearance:none;-ms-appearance:none;appearance:none}',
+            $prefixer->prefixForTargets('.foo { appearance: none; }', [
+                'safari' => 8,
+                'chrome' => 80,
+                'firefox' => 10,
+                'ie' => 11,
+            ])
+        );
+        $t->same(
+            '.foo{-webkit-appearance:none;appearance:none}',
+            $prefixer->prefixForTargets('.foo { -webkit-appearance: none; -moz-appearance: none; -ms-appearance: none; appearance: none; }', [
+                'safari' => 15,
+                'chrome' => 85,
+                'firefox' => 80,
+                'edge' => 85,
+            ])
+        );
+        $t->same(
+            '.foo{appearance:none}',
+            $prefixer->prefixForTargets('.foo { -webkit-appearance: none; -moz-appearance: none; -ms-appearance: none; appearance: none; }', [
+                'chrome' => 85,
+                'firefox' => 80,
+                'edge' => 85,
+            ])
+        );
+    },
+    'transition prefixer maps upstream ui browser boundary targets' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-user-select:none;user-select:none}',
+            $prefixer->prefixForTargets('.foo { user-select: none; }', ['chrome' => 53])
+        );
+        $t->same(
+            '.foo{user-select:none}',
+            $prefixer->prefixForTargets('.foo { user-select: none; }', ['chrome' => 54])
+        );
+        $t->same(
+            '.foo{-moz-user-select:none;user-select:none}',
+            $prefixer->prefixForTargets('.foo { user-select: none; }', ['firefox' => 68])
+        );
+        $t->same(
+            '.foo{user-select:none}',
+            $prefixer->prefixForTargets('.foo { user-select: none; }', ['firefox' => 69])
+        );
+        $t->same(
+            '.foo{-ms-user-select:none;user-select:none}',
+            $prefixer->prefixForTargets('.foo { user-select: none; }', ['edge' => 18])
+        );
+        $t->same(
+            '.foo{user-select:none}',
+            $prefixer->prefixForTargets('.foo { user-select: none; }', ['edge' => 19])
+        );
+        $t->same(
+            '.foo{-webkit-appearance:none;appearance:none}',
+            $prefixer->prefixForTargets('.foo { appearance: none; }', ['chrome' => 83])
+        );
+        $t->same(
+            '.foo{appearance:none}',
+            $prefixer->prefixForTargets('.foo { appearance: none; }', ['chrome' => 84])
+        );
+        $t->same(
+            '.foo{-moz-appearance:none;appearance:none}',
+            $prefixer->prefixForTargets('.foo { appearance: none; }', ['firefox' => 79])
+        );
+        $t->same(
+            '.foo{appearance:none}',
+            $prefixer->prefixForTargets('.foo { appearance: none; }', ['firefox' => 80])
+        );
+        $t->same(
+            '.foo{-webkit-appearance:none;appearance:none}',
+            $prefixer->prefixForTargets('.foo { appearance: none; }', ['safari' => 15])
+        );
+        $t->same(
+            '.foo{appearance:none}',
+            $prefixer->prefixForTargets('.foo { appearance: none; }', ['safari' => 16])
+        );
+    },
     'transition prefixer maps upstream border-radius target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -806,6 +914,30 @@ CSS;
         $t->same(
             '.foo{--lightningcss-light:initial;--lightningcss-dark:;color-scheme:light;color:var(--lightningcss-light,red) var(--lightningcss-dark,green)}',
             $prefixer->prefixForTargets('.foo { color-scheme: light; color: light-dark(red, green); }', ['safari' => $encoded(17, 4)])
+        );
+    },
+    'transition prefixer maps upstream media range target fallbacks inside layers' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@layer blocks{@media (min-width:240px){.wp-block-query{color:#7fff00}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= 240px) { .wp-block-query { color: chartreuse; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (width>=240px){.wp-block-query{color:#7fff00}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= 240px) { .wp-block-query { color: chartreuse; } } }', ['firefox' => 64])
+        );
+        $t->same(
+            '@layer blocks{@media (not (min-width:240px)) and (hover){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width < 240px) and (hover) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (hover) or (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media not (max-width:0){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width > 0) { .wp-block-query { color: yellow; } } }', ['chrome' => 85])
         );
     },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
