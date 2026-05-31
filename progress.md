@@ -52,6 +52,21 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS batch 11:45 UTC): source
+  commit `1f61e41049a254ab4c49cf409de971c1a3ce8d4c` (`ports: add
+  lightningcss bundle modules sourcemap slices`) landed three focused
+  LightningCSS handoffs from the new dedicated worker pool. LightningCSS now
+  maps bundle/import graph resolution, CSS Modules local/global/composes
+  export behavior, and source-map v3 Base64 VLQ offsets; mapped coverage moves
+  from `927 / 3532` to `948 / 3532`, and PHP evidence moves from `1088 pass /
+  0 fail` to `1154 pass / 0 fail`. Verification passed PHP lint for all new
+  LightningCSS source/tests/examples, `git diff --check -- lanes/lightningcss`,
+  focused LightningCSS tests `3 files / 66 assertions / 0 failures`, full
+  LightningCSS lane `12 files / 1154 assertions / 0 failures`, and the three
+  new examples. The live tmux pool was refilled back to five visible
+  LightningCSS workers on `gpt-5.5`, xhigh reasoning, and the priority service
+  tier after the first three completed.
+
 - 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 11:36 UTC
   plus LightningCSS scale-up): source commit
   `ee5f118ab55ca11585062e478bb905d900e93d0b` (`ports: add sqlite pragma
