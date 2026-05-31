@@ -52,6 +52,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 11:05 UTC):
+  source commit `9afb23d3c1679935656578073651c6c41d00ed31` (`ports: add
+  sqlite vfs date wal and gitoxide object slices`) landed six handoffs after
+  excluding stale shared metadata. Libsqlite gained VFS win32 long-path dynamic
+  corpus coverage, row-value UPDATE/DELETE LIMIT `concat()` / `concat_ws()`
+  parity, application WAL rollback JSON post-recovery failure parity, and
+  `atof2` alternate-form-2 REAL formatting; selected libsqlite evidence moves
+  from `2888867` to `2891818 pass / 0 fail`, mapped coverage stays `1589 /
+  1589`. Gitoxide gained attributes/pathspec attr-filtered search parity and
+  loose-object directory-candidate integrity parity; full Gitoxide evidence
+  moves from `4315` to `4338 pass / 0 fail`, mapped coverage moves from `1550
+  / 2886` to `1552 / 2886`. Verification passed PHP lint, `git diff --check`,
+  libsqlite selected tests `6 files / 78918 assertions / 0 failures`,
+  Gitoxide focused tests `4 files / 318 assertions / 0 failures`, full
+  Gitoxide lane `39 files / 4338 assertions / 0 failures`, two Gitoxide
+  examples, the libsqlite app-WAL example self-test, and the libsqlite
+  source/API guard. Durable launch policy remains: all newly started
+  subagents/workers use `gpt-5.5`, xhigh reasoning, and the fast/priority
+  service tier unless the user replaces that rule.
+
 - 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 10:52 UTC):
   source commit `99ffc566535e642619d442b0d49df50a7c565c21` (`ports: add
   sqlite dynamic corpus and gitoxide protocol slices`) landed ten handoffs
