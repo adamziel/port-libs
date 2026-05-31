@@ -53,6 +53,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS gradients/CSSOM/modules
+  integration 18:26 UTC): source commit
+  `59b0a249159ec021decfa94c7d85175943a3bf88` (`ports: extend lightningcss
+  gradients cssom maps prefix`) landed seven clean LightningCSS handoffs after
+  excluding stale shared metadata. LightningCSS full lane evidence moves from
+  `2964` to `3060 pass / 0 fail`, with conservative mapped coverage moving
+  from `1647 / 3532` to `1684 / 3532`: 33 radial/conic gradient minifier
+  helper cases, CSS Modules grid custom-ident composition, custom at-rule
+  supports-rule visitor returns, source-map buffer snapshot round trips,
+  border-image target-prefix boundaries, logical border CSSOM
+  read/write/remove behavior, and escaped URL delimiter handling through
+  bundler/custom-media import graph code. Gates passed: PHP lint on 21
+  changed/new PHP files, `git diff --check -- lanes/lightningcss`, no
+  WordPress/WP/wp_ text introduced by changed source diffs, focused
+  LightningCSS gate `8 files / 2799 assertions / 0 failures`, full
+  LightningCSS lane `13 files / 3060 assertions / 0 failures`, and touched
+  example smoke/self-test runs. Full upstream Rust/Node/WASM runners were not
+  executed for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS source-map/bundler/CSSOM
   plus Gitoxide send-pack/smart-HTTP integration 18:22 UTC): source commit
   `66a2609229d7ffc645d9820322ef2ea66acfa272` (`ports: extend lightningcss
