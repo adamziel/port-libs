@@ -1376,6 +1376,66 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function mmapActiveStatementResizeProfile(
+        string $scenario,
+        int $mmapSizeBefore,
+        int $requestedMmapSize,
+        bool $statementActive,
+        int $rowStart = 10,
+        int $rowEnd = 15
+    ): array {
+        $scenario = strtolower(trim($scenario));
+        if (!in_array($scenario, ['mmap3-1.2', 'mmap3-1.3', 'mmap3-1.4', 'mmap3-1.5', 'mmap3-1.6', 'mmap3-1.7', 'mmap3-1.8'], true)) {
+            throw new \InvalidArgumentException('SQLite mmap3 active statement scenario is unsupported');
+        }
+        if ($mmapSizeBefore < 0 || $requestedMmapSize < 0) {
+            throw new \InvalidArgumentException('SQLite mmap3 sizes must be non-negative');
+        }
+        if ($rowStart < 1 || $rowEnd < $rowStart) {
+            throw new \InvalidArgumentException('SQLite mmap3 active statement row range is invalid');
+        }
+
+        $forcedActive = in_array($scenario, ['mmap3-1.4', 'mmap3-1.5', 'mmap3-1.6', 'mmap3-1.8'], true);
+        $statementActive = $statementActive || $forcedActive;
+        $queryRows = $statementActive ? range($rowStart, $rowEnd) : [];
+        $reportedDuringScan = $scenario === 'mmap3-1.6' ? $mmapSizeBefore : null;
+        $resizeDeferred = $statementActive && $requestedMmapSize < $mmapSizeBefore;
+        $resizeAccepted = !$resizeDeferred;
+        $mmapSizeAfter = $resizeAccepted ? $requestedMmapSize : $mmapSizeBefore;
+
+        return [
+            'status' => 'ok',
+            'script' => 'mmap3.test',
+            'scenario' => $scenario,
+            'upstream' => [
+                'mmap3.test mmap3-1.0 row population and initial mmap_size',
+                'mmap3.test mmap3-1.2 direct mmap_size shrink after schema read',
+                'mmap3.test mmap3-1.3 direct mmap_size growth after DROP TABLE',
+                'mmap3.test mmap3-1.4 active statement ignores shrink request',
+                'mmap3.test mmap3-1.5 active statement ignores disable request',
+                'mmap3.test mmap3-1.6 active statement reports retained mmap_size',
+                'mmap3.test mmap3-1.7 direct disable after active cursor finishes',
+                'mmap3.test mmap3-1.8 active statement accepts growth from zero',
+            ],
+            'mmap_size_before' => $mmapSizeBefore,
+            'requested_mmap_size' => $requestedMmapSize,
+            'mmap_size_after' => $mmapSizeAfter,
+            'statement_active' => $statementActive,
+            'resize_deferred_until_statement_finishes' => $resizeDeferred,
+            'resize_accepted_immediately' => $resizeAccepted,
+            'reported_mmap_size_during_scan' => $reportedDuringScan,
+            'scan_row_start' => $rowStart,
+            'scan_row_end' => $rowEnd,
+            'scan_rows' => $queryRows,
+            'quick_check' => 'ok',
+            'schema_tables' => self::mmap3SchemaTables($scenario),
+            'dependencies' => ['upstream-mmap3-active-statement-resize', 'sqlite-mmap-active-cursor-boundary', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function bigMmapSparseBoundaryProfile(int $tableIndex, int $mmapGiB, int $rowCount = 100, int $pageSize = 4096): array
     {
         if ($tableIndex < 0 || $tableIndex > 7) {
@@ -1702,6 +1762,19 @@ final class SQLiteVfsIoDynamicPlan
     {
         $remainder = $value % $pageSize;
         return $remainder === 0 ? $value : $value + ($pageSize - $remainder);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function mmap3SchemaTables(string $scenario): array
+    {
+        return match ($scenario) {
+            'mmap3-1.2' => ['nums', 't1', 't2'],
+            'mmap3-1.3', 'mmap3-1.4', 'mmap3-1.5', 'mmap3-1.6' => ['nums', 't1'],
+            'mmap3-1.7', 'mmap3-1.8' => ['nums', 't1', 't3'],
+            default => [],
+        };
     }
 
     /**

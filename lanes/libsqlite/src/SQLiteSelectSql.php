@@ -3693,16 +3693,69 @@ final class SQLiteSelectSql
             $leftSql = rtrim(substr($leftSql, 0, $notOffset));
         }
 
-        $bounds = self::splitTopLevelByKeyword(trim(substr($sql, $betweenOffset + strlen('BETWEEN'))), 'AND');
-        if (count($bounds) !== 2 || $leftSql === '' || $bounds[0] === '' || $bounds[1] === '') {
+        $boundsSql = trim(substr($sql, $betweenOffset + strlen('BETWEEN')));
+        $boundsAndOffset = self::firstTopLevelKeywordOffset($boundsSql, 'AND');
+        if ($boundsAndOffset === null) {
             throw new \InvalidArgumentException("SQLite SELECT SQL BETWEEN {$context} needs lower and upper operands");
+        }
+
+        $lowerSql = trim(substr($boundsSql, 0, $boundsAndOffset));
+        $upperSql = trim(substr($boundsSql, $boundsAndOffset + strlen('AND')));
+        if ($leftSql === '' || $lowerSql === '' || $upperSql === '') {
+            throw new \InvalidArgumentException("SQLite SELECT SQL BETWEEN {$context} needs lower and upper operands");
+        }
+
+        $tailAndOffset = self::firstTopLevelKeywordOffset($upperSql, 'AND');
+        $tailComparison = self::topLevelComparisonExpressionOperatorIn($upperSql, ['IS NOT', 'NOT LIKE', 'NOT GLOB', 'LIKE', 'GLOB', 'IS', '==', '!=', '<>', '=']);
+        $tailOffset = null;
+        $tailOperator = null;
+        if ($tailComparison !== null) {
+            [$tailOffset, $tailOperator] = $tailComparison;
+        }
+        if ($tailAndOffset !== null && ($tailOffset === null || $tailAndOffset < $tailOffset)) {
+            $tailOffset = $tailAndOffset;
+            $tailOperator = 'AND';
+        }
+
+        if ($tailOffset !== null && $tailOperator !== null) {
+            $betweenUpperSql = trim(substr($upperSql, 0, $tailOffset));
+            $tailRightSql = trim(substr($upperSql, $tailOffset + strlen($tailOperator)));
+            if ($betweenUpperSql === '' || $tailRightSql === '') {
+                throw new \InvalidArgumentException("SQLite SELECT SQL BETWEEN {$context} tail needs both operands");
+            }
+
+            $between = [
+                'operator' => $negate ? 'NOT BETWEEN' : 'BETWEEN',
+                'left' => self::valueExpression($leftSql, $tables),
+                'lower' => self::valueExpression($lowerSql, $tables),
+                'upper' => self::valueExpression($betweenUpperSql, $tables),
+            ];
+
+            if ($tailOperator === 'AND') {
+                return [
+                    'operator' => 'AND',
+                    'terms' => [
+                        $between,
+                        self::predicate($tailRightSql, $tables),
+                    ],
+                ];
+            }
+
+            return [
+                'operator' => strtoupper($tailOperator),
+                'left' => [
+                    'type' => 'predicate',
+                    'predicate' => $between,
+                ],
+                'right' => self::valueExpression($tailRightSql, $tables),
+            ];
         }
 
         return [
             'operator' => $negate ? 'NOT BETWEEN' : 'BETWEEN',
             'left' => self::valueExpression($leftSql, $tables),
-            'lower' => self::valueExpression($bounds[0], $tables),
-            'upper' => self::valueExpression($bounds[1], $tables),
+            'lower' => self::valueExpression($lowerSql, $tables),
+            'upper' => self::valueExpression($upperSql, $tables),
         ];
     }
 
@@ -3751,14 +3804,6 @@ final class SQLiteSelectSql
             return $case;
         }
 
-        $betweenPredicate = self::betweenPredicateSql($sql, $tables, 'expression');
-        if ($betweenPredicate !== null) {
-            return [
-                'type' => 'predicate',
-                'predicate' => $betweenPredicate,
-            ];
-        }
-
         $orTerms = self::splitKeyword($sql, 'OR');
         if (count($orTerms) > 1) {
             return [
@@ -3778,6 +3823,14 @@ final class SQLiteSelectSql
                     'operator' => 'AND',
                     'terms' => array_map(static fn (string $term): array => self::predicate($term, $tables), $andTerms),
                 ],
+            ];
+        }
+
+        $betweenPredicate = self::betweenPredicateSql($sql, $tables, 'expression');
+        if ($betweenPredicate !== null) {
+            return [
+                'type' => 'predicate',
+                'predicate' => $betweenPredicate,
             ];
         }
 
@@ -5624,6 +5677,41 @@ final class SQLiteSelectSql
     {
         $parts = self::splitTopLevelByKeyword($sql, $keyword);
         return count($parts) === 1 ? [trim($sql)] : $parts;
+    }
+
+    private static function firstTopLevelKeywordOffset(string $sql, string $keyword): ?int
+    {
+        $length = strlen($sql);
+        $keywordLength = strlen($keyword);
+        $depth = 0;
+        $quote = false;
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                if ($quote && ($sql[$i + 1] ?? null) === "'") {
+                    $i++;
+                    continue;
+                }
+                $quote = !$quote;
+                continue;
+            }
+            if ($quote) {
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                continue;
+            }
+            if ($depth === 0 && strncasecmp(substr($sql, $i), $keyword, $keywordLength) === 0 && self::keywordBounded($sql, $i, $keywordLength)) {
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     /**

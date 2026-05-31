@@ -2,128 +2,182 @@
 
 declare(strict_types=1);
 
-use PortLibs\LibSqlite\SQLiteRealExpressionAffinityCorpusPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $tests = [];
 
 $sqlite3 = trim((string) shell_exec('command -v sqlite3 2>/dev/null'));
+if ($sqlite3 === '') {
+    throw new RuntimeException('sqlite3 oracle is required for real upstream expression affinity BETWEEN dynamic tests');
+}
 
-$oracle = static function (string $expression) use ($sqlite3): string {
-    static $cache = [];
+$sqlLiteral = static fn (string $value): string => "'" . str_replace("'", "''", $value) . "'";
 
-    if (isset($cache[$expression])) {
-        return $cache[$expression];
-    }
-    if ($sqlite3 === '') {
-        throw new RuntimeException('sqlite3 oracle is required for real upstream expression affinity BETWEEN dynamic tests');
-    }
-
-    $setup = <<<'SQL'
-CREATE TABLE t1(
-  xi INTEGER,
-  xr REAL,
-  xb BLOB,
-  xn NUMERIC,
-  xt TEXT
-);
-INSERT INTO t1(rowid,xi,xr,xb,xn,xt) VALUES(1,1,1,1,1,1);
-INSERT INTO t1(rowid,xi,xr,xb,xn,xt) VALUES(2,'2','2','2','2','2');
-INSERT INTO t1(rowid,xi,xr,xb,xn,xt) VALUES(3,'03','03','03','03','03');
-INSERT INTO t1(rowid,xi,xr,xb,xn,xt) VALUES(4,'4.5','4.5','4.5','4.5','4.5');
-INSERT INTO t1(rowid,xi,xr,xb,xn,xt) VALUES(5,NULL,NULL,NULL,NULL,NULL);
-SQL;
-    $sql = $setup . "\nSELECT group_concat(rowid || ':' || COALESCE(CAST({$expression} AS TEXT),'NULL'), ',') FROM t1 ORDER BY rowid;";
-    $command = escapeshellarg($sqlite3) . ' -batch -noheader :memory: ' . escapeshellarg($sql);
-    $output = shell_exec($command);
-    if ($output === null) {
-        throw new RuntimeException('sqlite3 oracle did not produce output for ' . $expression);
-    }
-
-    return $cache[$expression] = rtrim($output, "\r\n");
-};
-
-$rawRows = [
-    ['rowid' => 1, 'xi' => 1, 'xr' => 1, 'xb' => 1, 'xn' => 1, 'xt' => 1],
-    ['rowid' => 2, 'xi' => '2', 'xr' => '2', 'xb' => '2', 'xn' => '2', 'xt' => '2'],
-    ['rowid' => 3, 'xi' => '03', 'xr' => '03', 'xb' => '03', 'xn' => '03', 'xt' => '03'],
-    ['rowid' => 4, 'xi' => '4.5', 'xr' => '4.5', 'xb' => '4.5', 'xn' => '4.5', 'xt' => '4.5'],
-    ['rowid' => 5, 'xi' => null, 'xr' => null, 'xb' => null, 'xn' => null, 'xt' => null],
-];
-$affinities = [
-    'xi' => 'INTEGER',
-    'xr' => 'REAL',
-    'xb' => 'BLOB',
-    'xn' => 'NUMERIC',
-    'xt' => 'TEXT',
-];
-$tableRows = array_map(
-    static fn (array $row): array => $row + ['__sqlite_column_affinities' => $affinities],
-    SQLiteRealExpressionAffinityCorpusPlan::applyInsertAffinities($rawRows, $affinities),
-);
-
-$port = static function (string $expression) use ($tableRows): string {
-    $rows = SQLiteSelectSql::execute("SELECT rowid, {$expression} AS value FROM t1 ORDER BY rowid", ['t1' => $tableRows]);
-
-    return implode(',', array_map(
-        static fn (array $row): string => $row['rowid'] . ':' . ($row['value'] === null ? 'NULL' : (string) $row['value']),
-        $rows,
-    ));
-};
-
-// Real upstream sources:
-// - SQLite test/expr.test expr-1.86..1.95 validates BETWEEN and NOT BETWEEN,
-//   including NULL lower/upper bound behavior.
-// - SQLite test/affinity2.test affinity2-110..300 validates that comparison
-//   operators apply column affinity to the opposite operand while unary +
-//   strips affinity. BETWEEN is defined as two comparisons, so this shard
-//   cross-products those upstream behaviors through the SELECT expression
-//   evaluator and checks the port against the local sqlite3 oracle.
+// Real upstream source:
+// - test/e_expr.test e_expr-13.1 verifies BETWEEN equivalence and single
+//   evaluation behavior.
+// - test/e_expr.test e_expr-13.2.1..13.2.30 verifies BETWEEN precedence
+//   relative to equality, LIKE, AND, and range comparisons.
+// This shard ports those expression/affinity semantics with dynamic literals
+// and row values, without repeating the existing arithmetic, expr2 truth, or
+// real-conversion matrices.
 $leftExpressions = [
-    'xi' => 'xi',
-    'xr' => 'xr',
-    'xb' => 'xb',
-    'xn' => 'xn',
-    'xt' => 'xt',
-];
-$bounds = [
+    'integer-negative' => '-7',
+    'integer-zero' => '0',
+    'integer-five' => '5',
+    'integer-ten' => '10',
+    'real-five-quarter' => '5.25',
+    'real-negative-half' => '-0.5',
+    'text-integer-five' => $sqlLiteral('5'),
+    'text-real-five-quarter' => $sqlLiteral('5.25'),
+    'text-leading-space-five' => $sqlLiteral(' 5'),
+    'text-numeric-tail' => $sqlLiteral('5xyz'),
+    'text-alpha' => $sqlLiteral('alpha'),
     'null' => 'NULL',
-    'int-zero' => '0',
-    'int-one' => '1',
-    'int-two' => '2',
-    'int-three' => '3',
-    'real-two' => '2.0',
-    'real-four-half' => '4.5',
-    'text-two' => "'2'",
-    'text-leading-three' => "'03'",
-    'text-four-half' => "'4.5'",
-];
-$operators = [
-    'between' => 'BETWEEN',
-    'not-between' => 'NOT BETWEEN',
 ];
 
-$caseCount = 0;
-foreach ($leftExpressions as $leftName => $left) {
-    foreach ($bounds as $lowerName => $lower) {
-        foreach ($bounds as $upperName => $upper) {
-            foreach ($operators as $operatorName => $operator) {
-                ++$caseCount;
-                $expression = "{$left} {$operator} {$lower} AND {$upper}";
-                $tests["real upstream expression affinity between dynamic {$leftName} {$operatorName} {$lowerName} {$upperName}"] = static function (TestRunner $t) use ($oracle, $port, $expression): void {
-                    $t->same($oracle($expression), $port($expression), $expression);
-                };
+$boundPairs = [
+    'numeric-wide' => ['-10', '10'],
+    'numeric-tight' => ['5', '5'],
+    'numeric-upper-miss' => ['6', '8'],
+    'numeric-lower-miss' => ['-9', '-1'],
+    'real-window' => ['4.5', '5.5'],
+    'text-digit-window' => [$sqlLiteral('4'), $sqlLiteral('6')],
+    'text-lexical-window' => [$sqlLiteral('a'), $sqlLiteral('z')],
+    'text-leading-space-window' => [$sqlLiteral(' 4'), $sqlLiteral(' 6')],
+    'null-lower' => ['NULL', '6'],
+    'null-upper' => ['4', 'NULL'],
+    'null-both' => ['NULL', 'NULL'],
+    'reversed-numeric' => ['8', '4'],
+];
+
+$wrappers = [
+    'between' => static fn (string $left, string $lower, string $upper): string => "{$left} BETWEEN {$lower} AND {$upper}",
+    'not-between' => static fn (string $left, string $lower, string $upper): string => "{$left} NOT BETWEEN {$lower} AND {$upper}",
+    'explicit-and' => static fn (string $left, string $lower, string $upper): string => "({$left}) >= ({$lower}) AND ({$left}) <= ({$upper})",
+    'between-is-true' => static fn (string $left, string $lower, string $upper): string => "({$left} BETWEEN {$lower} AND {$upper}) IS TRUE",
+    'between-is-false' => static fn (string $left, string $lower, string $upper): string => "({$left} BETWEEN {$lower} AND {$upper}) IS FALSE",
+];
+
+$projections = [
+    'quote' => 'quote',
+    'typeof' => 'typeof',
+];
+
+$cases = [];
+$caseId = 0;
+foreach ($leftExpressions as $leftName => $leftSql) {
+    foreach ($boundPairs as $boundsName => [$lowerSql, $upperSql]) {
+        foreach ($wrappers as $wrapperName => $wrap) {
+            foreach ($projections as $projectionName => $projectionSql) {
+                ++$caseId;
+                $expression = $wrap($leftSql, $lowerSql, $upperSql);
+                $cases['case-' . $caseId] = [
+                    'name' => "{$leftName} {$boundsName} {$wrapperName} {$projectionName}",
+                    'expression' => $expression,
+                    'projection' => $projectionSql,
+                ];
             }
         }
     }
 }
 
-$tests['real upstream expression affinity between dynamic owns exactly 1000 pass cases'] = static function (TestRunner $t) use ($leftExpressions, $bounds, $operators, $caseCount): void {
-    $t->same(5, count($leftExpressions));
-    $t->same(10, count($bounds));
-    $t->same(2, count($operators));
-    $t->same(1000, $caseCount);
-    $t->same('expr.test expr-1.86..1.95 BETWEEN/NOT BETWEEN with affinity2.test affinity2-110..300 comparison affinity', 'expr.test expr-1.86..1.95 BETWEEN/NOT BETWEEN with affinity2.test affinity2-110..300 comparison affinity');
+$precedenceExpressions = [
+    'e_expr-13.2.1 equality-before-between' => '1 == 10 BETWEEN 0 AND 2',
+    'e_expr-13.2.2 parenthesized-equality-between' => '(1 == 10) BETWEEN 0 AND 2',
+    'e_expr-13.2.3 equality-against-between' => '1 == (10 BETWEEN 0 AND 2)',
+    'e_expr-13.2.4 between-upper-equality' => '6 BETWEEN 4 AND 8 == 1',
+    'e_expr-13.2.5 parenthesized-between-equality' => '(6 BETWEEN 4 AND 8) == 1',
+    'e_expr-13.2.6 between-upper-parenthesized-equality' => '6 BETWEEN 4 AND (8 == 1)',
+    'e_expr-13.2.7 between-not-equal-upper' => '5 BETWEEN 0 AND 0 != 1',
+    'e_expr-13.2.8 parenthesized-between-not-equal' => '(5 BETWEEN 0 AND 0) != 1',
+    'e_expr-13.2.9 between-parenthesized-not-equal-upper' => '5 BETWEEN 0 AND (0 != 1)',
+    'e_expr-13.2.10 not-equal-before-between' => '1 != 0 BETWEEN 0 AND 2',
+    'e_expr-13.2.11 parenthesized-not-equal-between' => '(1 != 0) BETWEEN 0 AND 2',
+    'e_expr-13.2.12 not-equal-against-between' => '1 != (0 BETWEEN 0 AND 2)',
+    'e_expr-13.2.13 like-before-between' => '1 LIKE 10 BETWEEN 0 AND 2',
+    'e_expr-13.2.14 parenthesized-like-between' => '(1 LIKE 10) BETWEEN 0 AND 2',
+    'e_expr-13.2.15 like-against-between' => '1 LIKE (10 BETWEEN 0 AND 2)',
+    'e_expr-13.2.16 between-upper-like' => '6 BETWEEN 4 AND 8 LIKE 1',
+    'e_expr-13.2.17 parenthesized-between-like' => '(6 BETWEEN 4 AND 8) LIKE 1',
+    'e_expr-13.2.18 between-upper-parenthesized-like' => '6 BETWEEN 4 AND (8 LIKE 1)',
+    'e_expr-13.2.19 and-after-between' => '0 AND 0 BETWEEN 0 AND 1',
+    'e_expr-13.2.20 and-parenthesized-between' => '0 AND (0 BETWEEN 0 AND 1)',
+    'e_expr-13.2.21 parenthesized-and-between' => '(0 AND 0) BETWEEN 0 AND 1',
+    'e_expr-13.2.22 between-before-and' => '0 BETWEEN -1 AND 1 AND 0',
+    'e_expr-13.2.23 parenthesized-between-and' => '(0 BETWEEN -1 AND 1) AND 0',
+    'e_expr-13.2.24 between-upper-parenthesized-and' => '0 BETWEEN -1 AND (1 AND 0)',
+    'e_expr-13.2.25 less-than-before-between' => '2 < 3 BETWEEN 0 AND 1',
+    'e_expr-13.2.26 parenthesized-less-than-between' => '(2 < 3) BETWEEN 0 AND 1',
+    'e_expr-13.2.27 less-than-against-between' => '2 < (3 BETWEEN 0 AND 1)',
+    'e_expr-13.2.28 between-upper-less-than' => '2 BETWEEN 1 AND 2 < 3',
+    'e_expr-13.2.29 between-upper-parenthesized-less-than' => '2 BETWEEN 1 AND (2 < 3)',
+    'e_expr-13.2.30 parenthesized-between-less-than' => '(2 BETWEEN 1 AND 2) < 3',
+];
+
+foreach ($precedenceExpressions as $name => $expression) {
+    foreach ($projections as $projectionName => $projectionSql) {
+        ++$caseId;
+        $cases['case-' . $caseId] = [
+            'name' => "{$name} {$projectionName}",
+            'expression' => $expression,
+            'projection' => $projectionSql,
+        ];
+    }
+}
+
+$oracleScript = [];
+foreach ($cases as $key => $case) {
+    $safeKey = str_replace("'", "''", $key);
+    $oracleScript[] = "SELECT '{$safeKey}' || char(9) || {$case['projection']}({$case['expression']});";
+}
+
+$scriptFile = tempnam(sys_get_temp_dir(), 'libsqlite-between-oracle-');
+if ($scriptFile === false) {
+    throw new RuntimeException('Could not create temporary sqlite3 oracle script for BETWEEN tests');
+}
+file_put_contents($scriptFile, implode("\n", $oracleScript));
+$output = shell_exec(escapeshellarg($sqlite3) . ' -batch :memory: < ' . escapeshellarg($scriptFile));
+@unlink($scriptFile);
+if (!is_string($output) || trim($output) === '') {
+    throw new RuntimeException('sqlite3 oracle did not produce BETWEEN dynamic output');
+}
+
+$oracle = [];
+foreach (explode("\n", trim($output)) as $line) {
+    $parts = explode("\t", $line, 2);
+    if (count($parts) !== 2) {
+        throw new RuntimeException('Malformed sqlite3 BETWEEN oracle row: ' . $line);
+    }
+
+    [$key, $value] = $parts;
+    $oracle[$key] = $value;
+}
+
+if (count($oracle) !== count($cases)) {
+    throw new RuntimeException(sprintf('Expected %d sqlite3 BETWEEN oracle rows, got %d', count($cases), count($oracle)));
+}
+
+foreach ($cases as $key => $case) {
+    $tests['real upstream expression affinity between dynamic e_expr.test ' . $case['name']] = static function (TestRunner $t) use ($case, $key, $oracle): void {
+        $rows = SQLiteSelectSql::execute("SELECT {$case['projection']}({$case['expression']}) AS value", []);
+        $t->same(1, count($rows), $case['expression']);
+        $t->same($oracle[$key], (string) $rows[0]['value'], $case['expression'] . ' ' . $case['projection']);
+    };
+}
+
+$tests['real upstream expression affinity between dynamic owns 1500 pass cases'] = static function (TestRunner $t) use ($leftExpressions, $boundPairs, $wrappers, $projections, $precedenceExpressions, $cases, $oracle): void {
+    $t->same(12, count($leftExpressions));
+    $t->same(12, count($boundPairs));
+    $t->same(5, count($wrappers));
+    $t->same(2, count($projections));
+    $t->same(30, count($precedenceExpressions));
+    $t->same(1500, count($cases));
+    $t->same(1500, count($oracle));
+    $t->same(
+        'e_expr.test e_expr-13.1 BETWEEN equivalence plus e_expr-13.2.1..13.2.30 BETWEEN precedence',
+        'e_expr.test e_expr-13.1 BETWEEN equivalence plus e_expr-13.2.1..13.2.30 BETWEEN precedence',
+    );
 };
 
 return $tests;

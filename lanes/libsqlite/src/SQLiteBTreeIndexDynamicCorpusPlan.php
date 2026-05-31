@@ -3939,6 +3939,90 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,journal_mode:string,auto_vacuum:string,statement_active:bool,operation:string,fault_family:string,ordered_rows:list<array{x:int,y:string>>,delete_on_y:string|null,visited_rows:list<array{x:int,y:string>>,remaining_t1_rows:int,integrity:string,result_code:int,error:string|null,detail:string}>
+     */
+    public static function btreeFaultCursorMutationCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite btreefault dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'btreefault-1',
+                'incremental vacuum with an active ordered statement keeps the b-tree consistent after injected allocation faults',
+                'DELETE',
+                'incremental',
+                true,
+                'PRAGMA incremental_vacuum = 10',
+                'oom-t*',
+                [[25, 'a'], [25, 'b'], [25, 'c']],
+                null,
+                [[25, 'a'], [25, 'b'], [25, 'c']],
+                8,
+                'ok',
+                0,
+                null,
+                'faultsim_restore_and_reopen; active SELECT cursor steps twice before incremental_vacuum',
+            ],
+            [
+                'btreefault-2.2',
+                'delete of the indexed row during an ordered cross join stops after the already-yielded rows',
+                'DELETE',
+                'none',
+                true,
+                'DELETE FROM t1 WHERE i=25 during SELECT callback',
+                'oom-t*',
+                [[25, 'a'], [25, 'b'], [25, 'c']],
+                'b',
+                [[25, 'a'], [25, 'b']],
+                0,
+                'ok',
+                0,
+                null,
+                'SELECT x,y FROM t1 CROSS JOIN t2 WHERE t2.x=t1.i AND +t1.i=25 ORDER BY b',
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $journalMode, $autoVacuum, $statementActive, $operation, $faultFamily, $orderedRows, $deleteOnY, $visitedRows, $remainingRows, $integrity, $resultCode, $error, $detail] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates));
+            $offset = $batch * 10;
+            $shiftedOrderedRows = array_map(
+                static fn (array $row): array => ['x' => $row[0] + $offset, 'y' => $row[1]],
+                $orderedRows,
+            );
+            $shiftedVisitedRows = array_map(
+                static fn (array $row): array => ['x' => $row[0] + $offset, 'y' => $row[1]],
+                $visitedRows,
+            );
+
+            $out[] = [
+                'source' => 'btreefault.test btreefault-1 and btreefault-2.2',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'journal_mode' => $journalMode,
+                'auto_vacuum' => $autoVacuum,
+                'statement_active' => $statementActive,
+                'operation' => $operation,
+                'fault_family' => $faultFamily,
+                'ordered_rows' => $shiftedOrderedRows,
+                'delete_on_y' => $deleteOnY,
+                'visited_rows' => $shiftedVisitedRows,
+                'remaining_t1_rows' => $remainingRows,
+                'integrity' => $integrity,
+                'result_code' => $resultCode,
+                'error' => $error,
+                'detail' => $detail,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int
