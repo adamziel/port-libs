@@ -64,6 +64,13 @@ $looseIntegrityObjects = array_sum(array_map(
     $looseIntegrity
 ));
 
+$sha256GitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-sha256-' . bin2hex(random_bytes(4)) . '/.git';
+$sha256Database = new ObjectDatabase($sha256GitDir, objectHash: 'sha256');
+$sha256Object = new GitObject('blob', 'SHA-256-addressed WordPress deployment snapshot.');
+$sha256Oid = $sha256Database->write($sha256Object);
+$sha256Header = $sha256Database->readHeader(strtoupper($sha256Oid));
+$sha256Integrity = $sha256Database->verifyLooseIntegrity();
+
 return [
     'packedObjects' => $database->packedObjectCount(),
     'totalIterableObjects' => count($database->objectIds()),
@@ -92,4 +99,9 @@ return [
     'looseIntegrityObjects' => $looseIntegrityObjects,
     'looseIntegrityVerifiedDeploymentCommit' => in_array($deploymentCommitOid, $looseIntegrity[0]['statistics']['verifiedObjectIds'], true),
     'looseIntegrityVerifiedSharedPackage' => in_array($sharedPackageOid, $looseIntegrity[1]['statistics']['verifiedObjectIds'], true),
+    'sha256LooseObjectOidLength' => strlen($sha256Oid),
+    'sha256LooseObjectReadable' => $sha256Database->read($sha256Oid)->body === $sha256Object->body,
+    'sha256LooseHeaderSource' => $sha256Header['source'],
+    'sha256LooseIntegrityObjects' => $sha256Integrity[0]['statistics']['numObjects'],
+    'sha256LooseIntegrityVerified' => in_array($sha256Oid, $sha256Integrity[0]['statistics']['verifiedObjectIds'], true),
 ];

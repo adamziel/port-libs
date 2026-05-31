@@ -5443,9 +5443,19 @@ final class SQLiteSelectSql
                 $valueColumn = $aggregate['valueColumn'];
             }
         }
-        foreach (['left', 'right', 'operand'] as $side) {
+        foreach (['left', 'right', 'operand', 'predicate'] as $side) {
             if (isset($expression[$side]) && is_array($expression[$side])) {
                 [$hasAggregate, $valueColumn] = self::mergeAggregateValueColumn($expression[$side], $hasAggregate, $valueColumn);
+            }
+        }
+        if (isset($expression['term']) && is_array($expression['term'])) {
+            [$hasAggregate, $valueColumn] = self::mergeAggregateValueColumn($expression['term'], $hasAggregate, $valueColumn);
+        }
+        if (isset($expression['terms']) && is_array($expression['terms']) && array_is_list($expression['terms'])) {
+            foreach ($expression['terms'] as $term) {
+                if (is_array($term)) {
+                    [$hasAggregate, $valueColumn] = self::mergeAggregateValueColumn($term, $hasAggregate, $valueColumn);
+                }
             }
         }
         foreach (['arguments', 'values'] as $side) {
@@ -5891,6 +5901,9 @@ final class SQLiteSelectSql
                 if (isset($expression[$side]) && is_array($expression[$side])) {
                     $expression[$side] = self::rewriteAggregateExpression($expression[$side], $valueColumn);
                 }
+            }
+            if (isset($expression['predicate']) && is_array($expression['predicate'])) {
+                $expression['predicate'] = self::rewriteAggregatePredicate($expression['predicate'], $valueColumn);
             }
             foreach (['arguments', 'values'] as $side) {
                 if (!isset($expression[$side]) || !is_array($expression[$side]) || !array_is_list($expression[$side])) {

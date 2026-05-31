@@ -15,5 +15,7 @@ return [
     'transferFsckObjects' => $fixture['transferFsckObjects'],
     'escapedGitdirPolicy' => $fixture['escapedGitdirPolicy'],
     'recursiveGitdirPolicy' => $fixture['recursiveGitdirPolicy'],
+    'slashClassRejectedPolicy' => $fixture['slashClassRejectedPolicy'],
+    'bracketUrlPolicy' => $fixture['bracketUrlPolicy'],
     'sectionsLoaded' => $fixture['sectionsLoaded'],
 ];

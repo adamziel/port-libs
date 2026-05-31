@@ -707,7 +707,8 @@ final class SQLiteSelectPredicate
         if (!is_array($expression)) {
             return null;
         }
-        if (($expression['type'] ?? null) === 'collate') {
+        $type = $expression['type'] ?? null;
+        if ($type === 'collate') {
             $collation = $expression['collation'] ?? null;
             if (!is_string($collation) || $collation === '') {
                 throw new \InvalidArgumentException('SQLite SELECT COLLATE expression needs a collation');
@@ -715,6 +716,50 @@ final class SQLiteSelectPredicate
 
             return strtoupper($collation);
         }
+
+        if ($type === 'unary' || $type === 'cast') {
+            return self::expressionCollation($expression['operand'] ?? null);
+        }
+
+        if ($type === 'binary') {
+            return self::expressionCollation($expression['left'] ?? null)
+                ?? self::expressionCollation($expression['right'] ?? null);
+        }
+
+        if ($type === 'function' || $type === 'row') {
+            $arguments = $type === 'function'
+                ? ($expression['arguments'] ?? null)
+                : ($expression['values'] ?? null);
+            if (!is_array($arguments) || !array_is_list($arguments)) {
+                return null;
+            }
+            foreach ($arguments as $argument) {
+                $collation = self::expressionCollation($argument);
+                if ($collation !== null) {
+                    return $collation;
+                }
+            }
+
+            return null;
+        }
+
+        if ($type === 'case') {
+            $branches = $expression['branches'] ?? null;
+            if (is_array($branches)) {
+                foreach ($branches as $branch) {
+                    if (!is_array($branch)) {
+                        continue;
+                    }
+                    $collation = self::expressionCollation($branch['then'] ?? null);
+                    if ($collation !== null) {
+                        return $collation;
+                    }
+                }
+            }
+
+            return self::expressionCollation($expression['else'] ?? null);
+        }
+
         return null;
     }
 

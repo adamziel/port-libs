@@ -58,12 +58,16 @@ return [
     'pathspec parser accepts upstream attribute magic and escaped values' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/plugins/** deploy=plugin kind=one,two\n"
             . "wp-content/themes/** deploy=theme kind=one-two\n"
-            . "wp-content/uploads/** -diff binary\n");
+            . "wp-content/uploads/** -diff binary\n"
+            . "wp-content/cache/** !deploy export-ignore\n");
 
         $t->same(true, PathspecMatcher::matchesOne(':(attr:deploy=plugin kind=one\,two)wp-content/**', 'wp-content/plugins/editor/block.json', false, $attributes));
         $t->same(false, PathspecMatcher::matchesOne(':(attr:deploy=plugin kind=one\,two)wp-content/**', 'wp-content/themes/theme.json', false, $attributes));
         $t->same(true, PathspecMatcher::matchesOne(':(attr:-diff)wp-content/uploads/**', 'wp-content/uploads/logo.png', false, $attributes));
-        $t->same(true, PathspecMatcher::matchesOne(':(attr:!deploy)wp-content/uploads/**', 'wp-content/uploads/logo.png', false, $attributes));
+        $t->same(false, PathspecMatcher::matchesOne(':(attr:!deploy)wp-content/uploads/**', 'wp-content/uploads/logo.png', false, $attributes));
+        $t->same(true, PathspecMatcher::matchesOne(':(attr:!deploy)wp-content/cache/**', 'wp-content/cache/page.html', false, $attributes));
+        $t->same(true, PathspecMatcher::matchesOne(':(attr:deploy=plugin !review)wp-content/plugins/**', 'wp-content/plugins/editor/block.json', false, $attributes));
+        $t->same(false, PathspecMatcher::matchesOne(':(attr:!review)wp-content/plugins/**', 'wp-content/plugins/editor/block.json', false, $attributes));
         $t->same(false, PathspecMatcher::matchesOne(':(attr:!deploy)wp-content/plugins/**', 'wp-content/plugins/editor/block.json', false, $attributes));
         $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([':(attr:)']));
         $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([':(attr:one,attr:two)path']));
@@ -126,6 +130,8 @@ return [
         $t->same(['deploy' => 'plugin', 'diff' => null, 'merge' => 'union'], $example['pluginBlockAttributes']);
         $t->same(['binary' => true, 'diff' => false, 'merge' => false, 'text' => false], $example['uploadAttributes']);
         $t->same(['deploy' => 'mustuse', 'diff' => false, 'merge' => 'union'], $example['mustUsePluginAttributes']);
+        $t->same(true, $example['explicitDeployUnspecifiedMatches']);
+        $t->same(false, $example['absentDeployUnspecifiedMatches']);
         $t->same(true, $example['cacheExcluded']);
         $t->same(true, $example['buildExcludedByPathspec']);
     },

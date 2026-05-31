@@ -102,11 +102,16 @@ final class PackData
                 throw new \InvalidArgumentException('Pack entry size header ended unexpectedly');
             }
             $current = ord($this->bytes[$cursor++]);
-            $size |= ($current & 0x7f) << $shift;
-            $shift += 7;
-            if ($shift > 63) {
-                throw new \InvalidArgumentException('Pack entry size header is too large');
+            $componentValue = $current & 0x7f;
+            $component = self::shiftedPackEntrySizeComponent($componentValue, $shift);
+            if ($component > PHP_INT_MAX - $size) {
+                throw new \InvalidArgumentException('Pack entry size header overflowed while decoding');
             }
+            $size += $component;
+            $shift += 7;
+        }
+        if ($cursor - $packOffset !== self::canonicalPackEntryHeaderSize($size)) {
+            throw new \InvalidArgumentException('Pack entry size header uses a non-canonical encoding');
         }
 
         $kind = self::TYPE_IDS[$typeId];
@@ -459,10 +464,38 @@ final class PackData
                 throw new \InvalidArgumentException('Ofs-delta base distance ended unexpectedly');
             }
             $byte = ord($bytes[$cursor++]);
+            if ($distance >= PHP_INT_MAX || $distance + 1 > (PHP_INT_MAX >> 7)) {
+                throw new \InvalidArgumentException('Ofs-delta base distance overflowed while decoding');
+            }
             $distance = (($distance + 1) << 7) | ($byte & 0x7f);
         }
 
         return $distance;
+    }
+
+    private static function shiftedPackEntrySizeComponent(int $value, int $shift): int
+    {
+        if ($value === 0) {
+            return 0;
+        }
+        $valueBits = PHP_INT_SIZE * 8 - 1;
+        if ($shift >= $valueBits || $value > (PHP_INT_MAX >> $shift)) {
+            throw new \InvalidArgumentException('Pack entry size header overflowed while decoding');
+        }
+
+        return $value << $shift;
+    }
+
+    private static function canonicalPackEntryHeaderSize(int $size): int
+    {
+        $bytes = 1;
+        $size >>= 4;
+        while ($size !== 0) {
+            $bytes++;
+            $size >>= 7;
+        }
+
+        return $bytes;
     }
 
     /**

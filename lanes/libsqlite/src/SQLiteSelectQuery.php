@@ -1365,6 +1365,9 @@ final class SQLiteSelectQuery
 
         if ($groupColumn === []) {
             $summaries = SQLiteGroupedAggregate::summarizeAll($rows, $valueColumn, $jsonAggregates);
+            if ($rows === [] && ($groupBy['implicitAggregate'] ?? false) === true) {
+                self::materializeEmptyImplicitAggregateColumns($summaries[0], $plan['select'] ?? []);
+            }
             if ($rows === [] && isset($plan['correlatedOuterRow']) && is_array($plan['correlatedOuterRow'])) {
                 foreach ($plan['correlatedOuterRow'] as $column => $value) {
                     if (is_string($column) && !array_key_exists($column, $summaries[0])) {
@@ -1407,6 +1410,87 @@ final class SQLiteSelectQuery
         }
 
         return $summaries;
+    }
+
+    /**
+     * @param array<string,mixed> $summary
+     * @param mixed $select
+     */
+    private static function materializeEmptyImplicitAggregateColumns(array &$summary, mixed $select): void
+    {
+        if (!is_array($select) || !array_is_list($select)) {
+            return;
+        }
+
+        foreach ($select as $expression) {
+            if (!is_array($expression)) {
+                continue;
+            }
+            foreach (self::emptyImplicitAggregateColumnNames($expression) as $column) {
+                if (!array_key_exists($column, $summary)) {
+                    $summary[$column] = null;
+                }
+            }
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     * @return list<string>
+     */
+    private static function emptyImplicitAggregateColumnNames(array $expression): array
+    {
+        if (($expression['type'] ?? null) === 'subquery') {
+            return [];
+        }
+
+        $columns = [];
+        if (($expression['type'] ?? null) === 'column') {
+            $name = $expression['name'] ?? null;
+            if (is_string($name) && $name !== '') {
+                $columns[] = $name;
+            }
+        }
+
+        foreach (['left', 'right', 'operand', 'predicate', 'expression', 'base'] as $key) {
+            if (isset($expression[$key]) && is_array($expression[$key])) {
+                array_push($columns, ...self::emptyImplicitAggregateColumnNames($expression[$key]));
+            }
+        }
+        if (isset($expression['term']) && is_array($expression['term'])) {
+            array_push($columns, ...self::emptyImplicitAggregateColumnNames($expression['term']));
+        }
+        if (isset($expression['terms']) && is_array($expression['terms']) && array_is_list($expression['terms'])) {
+            foreach ($expression['terms'] as $term) {
+                if (is_array($term)) {
+                    array_push($columns, ...self::emptyImplicitAggregateColumnNames($term));
+                }
+            }
+        }
+        foreach (['arguments', 'values'] as $key) {
+            if (!isset($expression[$key]) || !is_array($expression[$key]) || !array_is_list($expression[$key])) {
+                continue;
+            }
+            foreach ($expression[$key] as $child) {
+                if (is_array($child)) {
+                    array_push($columns, ...self::emptyImplicitAggregateColumnNames($child));
+                }
+            }
+        }
+        if (isset($expression['branches']) && is_array($expression['branches']) && array_is_list($expression['branches'])) {
+            foreach ($expression['branches'] as $branch) {
+                if (!is_array($branch)) {
+                    continue;
+                }
+                foreach (['when', 'then'] as $key) {
+                    if (isset($branch[$key]) && is_array($branch[$key])) {
+                        array_push($columns, ...self::emptyImplicitAggregateColumnNames($branch[$key]));
+                    }
+                }
+            }
+        }
+
+        return array_values(array_unique($columns));
     }
 
     /**

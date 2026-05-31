@@ -161,6 +161,22 @@ $runtimeExceptionMessage = static function (callable $callback): string {
     throw new RuntimeException('Expected RuntimeException was not thrown');
 };
 
+$invalidArgumentMessage = static function (callable $callback): string {
+    try {
+        $callback();
+    } catch (InvalidArgumentException $exception) {
+        return $exception->getMessage();
+    }
+
+    throw new RuntimeException('Expected InvalidArgumentException was not thrown');
+};
+
+$buildRawPack = static function (string $entryBytes): string {
+    $prefix = 'PACK' . pack('N2', 2, 1) . $entryBytes;
+
+    return $prefix . hex2bin(hash('sha1', $prefix));
+};
+
 $buildThinWordPressBlobs = static function (): array {
     $stableRows = '';
     for ($i = 0; $i < 80; $i++) {
@@ -460,6 +476,20 @@ return [
         $t->same('Delta insert exceeds declared result size', $insertMessage);
         $t->same('Delta instructions produced fewer bytes than promised', $shortMessage);
     },
+    'rejects malformed delta entry metadata before size wraparound' => static function (TestRunner $t) use ($buildRawPack, $invalidArgumentMessage): void {
+        $nonCanonicalBlob = chr((3 << 4) | 0x80) . chr(0x00) . gzcompress('');
+        $nonCanonicalMessage = $invalidArgumentMessage(static fn () => PackData::fromBytes($buildRawPack($nonCanonicalBlob))->entryAtOffset(12));
+
+        $overflowingBlob = chr((3 << 4) | 0x80) . str_repeat(chr(0xff), 9) . chr(0x7f) . gzcompress('');
+        $overflowingSizeMessage = $invalidArgumentMessage(static fn () => PackData::fromBytes($buildRawPack($overflowingBlob))->entryAtOffset(12));
+
+        $overflowingOfsDelta = chr(6 << 4) . str_repeat(chr(0xff), 9) . chr(0x7f) . gzcompress('');
+        $overflowingDistanceMessage = $invalidArgumentMessage(static fn () => PackData::fromBytes($buildRawPack($overflowingOfsDelta))->entryAtOffset(12));
+
+        $t->same('Pack entry size header uses a non-canonical encoding', $nonCanonicalMessage);
+        $t->same('Pack entry size header overflowed while decoding', $overflowingSizeMessage);
+        $t->same('Ofs-delta base distance overflowed while decoding', $overflowingDistanceMessage);
+    },
     'wordpress fixture reads compacted commit blob and delta objects without git binary' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-data.php';
         $summary = require dirname(__DIR__) . '/examples/wordpress-pack-data.php';
@@ -479,6 +509,7 @@ return [
         $t->same(true, $summary['strictDeclaredSizeGuard']);
         $t->same(true, $summary['oversizedDeltaHeaderGuard']);
         $t->same(true, $summary['deltaResultBufferGuard']);
+        $t->same(true, $summary['packEntryMetadataGuard']);
     },
     'wordpress fixture resolves and repairs thin content packs' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-thin-pack-repair.php';

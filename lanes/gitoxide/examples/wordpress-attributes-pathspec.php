@@ -25,6 +25,18 @@ return [
         'wp-content/mu-plugins/loader.php',
         ['merge', 'deploy', 'diff'],
     ),
+    'explicitDeployUnspecifiedMatches' => PathspecMatcher::matchesOne(
+        ':(attr:!deploy)wp-content/cache/**',
+        'wp-content/cache/page.html',
+        false,
+        $attributes,
+    ),
+    'absentDeployUnspecifiedMatches' => PathspecMatcher::matchesOne(
+        ':(attr:!deploy)wp-content/uploads/**',
+        'wp-content/uploads/logo.png',
+        false,
+        $attributes,
+    ),
     'cacheExcluded' => !$matcher->matches('wp-content/cache/page.html', false, $attributes),
     'buildExcludedByPathspec' => !$matcher->matches('wp-content/plugins/gutenberg/build/index.js', false, $attributes),
 ];

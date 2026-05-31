@@ -246,6 +246,49 @@ return [
         $t->same([$primaryOid], $integrity[0]['statistics']['verifiedObjectIds']);
         $t->same([$alternateOid], $integrity[1]['statistics']['verifiedObjectIds']);
     },
+    'object database verifies sha256 loose object integrity across primary and alternate stores' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-sha256-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateObjectsDir = $root . '/shared-cache/.git/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+        if (!mkdir($alternateObjectsDir, 0777, true) && !is_dir($alternateObjectsDir)) {
+            throw new RuntimeException("Unable to create alternate objects directory: {$alternateObjectsDir}");
+        }
+
+        $primaryStore = new LooseObjectStore($gitDir, false, 'sha256');
+        $alternateStore = LooseObjectStore::fromObjectsDirectory($alternateObjectsDir, 'sha256');
+        $primaryOid = $primaryStore->write(new GitObject('blob', 'Primary WordPress SHA-256 content object'));
+        $alternateOid = $alternateStore->write(new GitObject('blob', 'Alternate SHA-256 package cache object'));
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $database = new ObjectDatabase($gitDir, objectHash: 'sha256');
+        $writtenOid = $database->write(new GitObject('blob', 'New SHA-256 deployment object'));
+        $t->same(64, strlen($primaryOid));
+        $t->same(64, strlen($alternateOid));
+        $t->same(64, strlen($writtenOid));
+        $t->same(true, $database->contains(strtoupper($primaryOid)));
+        $t->same('Primary WordPress SHA-256 content object', $database->read(strtoupper($primaryOid))->body);
+        $t->same('Alternate SHA-256 package cache object', $database->read($alternateOid)->body);
+        $t->same('blob', $database->readHeader($writtenOid)['type']);
+        $t->same('loose', $database->readHeader($writtenOid)['source']);
+        $t->same([
+            'status' => 'found',
+            'oid' => $alternateOid,
+        ], $database->lookupPrefix(substr($alternateOid, 0, 48)));
+
+        $integrity = $database->verifyLooseIntegrity();
+        $expectedPrimary = [$primaryOid, $writtenOid];
+        sort($expectedPrimary, SORT_STRING);
+        $t->same([$objectsDir, realpath($alternateObjectsDir)], array_column($integrity, 'path'));
+        $t->same([2, 1], array_map(static fn (array $row): int => $row['statistics']['numObjects'], $integrity));
+        $t->same($expectedPrimary, $integrity[0]['statistics']['verifiedObjectIds']);
+        $t->same([$alternateOid], $integrity[1]['statistics']['verifiedObjectIds']);
+        $t->throws(InvalidArgumentException::class, static fn () => (new ObjectDatabase($gitDir))->contains($primaryOid));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->lookupPrefix(str_repeat('f', 65)));
+    },
     'object database reads object headers across packed loose and replacement stores' => static function (TestRunner $t) use ($writeWordPressPackFixture): void {
         [$gitDir, $fixture] = $writeWordPressPackFixture();
         $loose = new LooseObjectStore($gitDir);
@@ -363,5 +406,10 @@ return [
         $t->same(4, $summary['looseIntegrityObjects']);
         $t->same(true, $summary['looseIntegrityVerifiedDeploymentCommit']);
         $t->same(true, $summary['looseIntegrityVerifiedSharedPackage']);
+        $t->same(64, $summary['sha256LooseObjectOidLength']);
+        $t->same(true, $summary['sha256LooseObjectReadable']);
+        $t->same('loose', $summary['sha256LooseHeaderSource']);
+        $t->same(1, $summary['sha256LooseIntegrityObjects']);
+        $t->same(true, $summary['sha256LooseIntegrityVerified']);
     },
 ];

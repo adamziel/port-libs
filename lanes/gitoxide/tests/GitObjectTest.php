@@ -68,6 +68,33 @@ return [
         $t->same('blob', $roundTrip->type);
         $t->same('WordPress export', $roundTrip->body);
     },
+    'loose object store honors sha256 object hash kind for paths headers and integrity' => static function (TestRunner $t): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-sha256-' . bin2hex(random_bytes(4)) . '/.git';
+        $store = new LooseObjectStore($gitDir, false, 'sha256');
+        $object = new GitObject('blob', 'WordPress sha256 content object');
+        $oid = $store->write($object);
+        $path = $gitDir . '/objects/' . substr($oid, 0, 2) . '/' . substr($oid, 2);
+
+        $t->same('sha256', $store->objectHash());
+        $t->same(64, strlen($oid));
+        $t->same($object->oid('sha256'), $oid);
+        $t->same(true, is_file($path));
+        $t->same(false, is_file($gitDir . '/objects/' . substr($object->oid(), 0, 2) . '/' . substr($object->oid(), 2)));
+        $t->same(true, $store->contains(strtoupper($oid)));
+        $t->same('WordPress sha256 content object', $store->read(strtoupper($oid))->body);
+        $t->same([
+            'type' => 'blob',
+            'size' => strlen($object->body),
+            'headerLength' => strlen('blob ' . strlen($object->body) . "\0"),
+        ], $store->readHeader(strtoupper($oid)));
+        $t->same([$oid], $store->objectIds());
+        $t->same([
+            'numObjects' => 1,
+            'verifiedObjectIds' => [$oid],
+        ], $store->verifyIntegrity());
+        $t->throws(InvalidArgumentException::class, static fn () => (new LooseObjectStore($gitDir))->read($oid));
+        $t->throws(InvalidArgumentException::class, static fn () => new LooseObjectStore($gitDir, false, 'md5'));
+    },
     'loose object store reads bounded headers before full body integrity checks' => static function (TestRunner $t) use ($looseObjectPath, $writeLooseStorage): void {
         $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-header-' . bin2hex(random_bytes(4)) . '/objects';
         $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);

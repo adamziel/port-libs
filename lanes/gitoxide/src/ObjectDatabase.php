@@ -34,18 +34,30 @@ final class ObjectDatabase
      */
     private ?array $promisorPacks = null;
 
+    private readonly string $gitDirectory;
+    private readonly bool $ignoreReplacements;
+    private readonly string $replacementRefBase;
+    private readonly ?PromisorObjectResolver $promisorResolver;
+    private readonly string $objectHash;
+
     public function __construct(
-        private readonly string $gitDirectory,
-        private readonly bool $ignoreReplacements = false,
-        private readonly string $replacementRefBase = 'refs/replace',
-        private readonly ?PromisorObjectResolver $promisorResolver = null,
+        string $gitDirectory,
+        bool $ignoreReplacements = false,
+        string $replacementRefBase = 'refs/replace',
+        ?PromisorObjectResolver $promisorResolver = null,
+        string $objectHash = 'sha1',
     )
     {
+        $this->gitDirectory = $gitDirectory;
+        $this->ignoreReplacements = $ignoreReplacements;
+        $this->replacementRefBase = $replacementRefBase;
+        $this->promisorResolver = $promisorResolver;
+        $this->objectHash = self::normalizeObjectHash($objectHash);
     }
 
     public function contains(string $oid): bool
     {
-        self::assertObjectId($oid);
+        $this->assertObjectId($oid);
         $oid = strtolower($oid);
 
         foreach ($this->multiPackIndexes() as $multiPack) {
@@ -72,7 +84,7 @@ final class ObjectDatabase
 
     public function read(string $oid): GitObject
     {
-        self::assertObjectId($oid);
+        $this->assertObjectId($oid);
         $oid = strtolower($oid);
         $oid = $this->replacementFor($oid) ?? $oid;
 
@@ -120,7 +132,7 @@ final class ObjectDatabase
      */
     public function readHeader(string $oid): array
     {
-        self::assertObjectId($oid);
+        $this->assertObjectId($oid);
         $oid = strtolower($oid);
         $oid = $this->replacementFor($oid) ?? $oid;
 
@@ -189,8 +201,9 @@ final class ObjectDatabase
     public function lookupPrefix(string $prefix): array
     {
         $prefix = strtolower($prefix);
-        if (preg_match('/^[0-9a-f]{4,40}$/', $prefix) !== 1) {
-            throw new \InvalidArgumentException('Lookup prefix must be 4 to 40 hexadecimal characters');
+        $maxLength = ReferenceTarget::hashHexLength($this->objectHash);
+        if (preg_match('/^[0-9a-f]{4,' . $maxLength . '}$/', $prefix) !== 1) {
+            throw new \InvalidArgumentException("Lookup prefix must be 4 to {$maxLength} hexadecimal characters");
         }
 
         $matches = [];
@@ -323,17 +336,17 @@ final class ObjectDatabase
 
     public function withReplacementsIgnored(): self
     {
-        return new self($this->gitDirectory, true, $this->replacementRefBase, $this->promisorResolver);
+        return new self($this->gitDirectory, true, $this->replacementRefBase, $this->promisorResolver, $this->objectHash);
     }
 
     public function withPromisorResolver(PromisorObjectResolver $resolver): self
     {
-        return new self($this->gitDirectory, $this->ignoreReplacements, $this->replacementRefBase, $resolver);
+        return new self($this->gitDirectory, $this->ignoreReplacements, $this->replacementRefBase, $resolver, $this->objectHash);
     }
 
     public function write(GitObject $object): string
     {
-        $oid = $object->oid();
+        $oid = $object->oid($this->objectHash);
         if ($this->contains($oid)) {
             return $oid;
         }
@@ -382,7 +395,7 @@ final class ObjectDatabase
 
     public function isPromisorObject(string $oid): bool
     {
-        self::assertObjectId($oid);
+        $this->assertObjectId($oid);
         $oid = strtolower($oid);
 
         foreach ($this->promisorPackBundles() as $bundle) {
@@ -399,7 +412,7 @@ final class ObjectDatabase
      */
     public function objectState(string $oid): array
     {
-        self::assertObjectId($oid);
+        $this->assertObjectId($oid);
         $oid = strtolower($oid);
 
         if ($this->contains($oid)) {
@@ -490,7 +503,7 @@ final class ObjectDatabase
             return null;
         }
 
-        $actualOid = $object->oid();
+        $actualOid = $object->oid($this->objectHash);
         if ($actualOid !== $oid) {
             throw new \RuntimeException("Promisor resolver returned {$actualOid} for requested object: {$oid}");
         }
@@ -502,7 +515,7 @@ final class ObjectDatabase
 
     private function primaryLooseStore(): LooseObjectStore
     {
-        return LooseObjectStore::fromObjectsDirectory($this->objectDirectories()[0]);
+        return LooseObjectStore::fromObjectsDirectory($this->objectDirectories()[0], $this->objectHash);
     }
 
     /**
@@ -600,7 +613,7 @@ final class ObjectDatabase
         }
 
         $this->looseStores = array_map(
-            static fn (string $objectsDirectory): LooseObjectStore => LooseObjectStore::fromObjectsDirectory($objectsDirectory),
+            fn (string $objectsDirectory): LooseObjectStore => LooseObjectStore::fromObjectsDirectory($objectsDirectory, $this->objectHash),
             $this->objectDirectories()
         );
 
@@ -738,7 +751,7 @@ final class ObjectDatabase
 
         $packedRefsPath = rtrim($this->gitDirectory, '/\\') . '/packed-refs';
         if (is_file($packedRefsPath)) {
-            foreach (PackedReferences::open($packedRefsPath)->all() as $reference) {
+            foreach (PackedReferences::open($packedRefsPath, $this->objectHash)->all() as $reference) {
                 $this->recordReplacementRef($prefix, $reference->name, $reference->targetObjectId());
             }
         }
@@ -753,7 +766,7 @@ final class ObjectDatabase
                     continue;
                 }
                 try {
-                    $reference = LooseReference::parse($prefix . '/' . $source, (string) file_get_contents($file));
+                    $reference = LooseReference::parse($prefix . '/' . $source, (string) file_get_contents($file), $this->objectHash);
                 } catch (\InvalidArgumentException) {
                     continue;
                 }
@@ -775,7 +788,8 @@ final class ObjectDatabase
             return;
         }
         $source = substr($name, strlen($prefixWithSlash));
-        if (preg_match('/^[0-9a-fA-F]{40}$/', $source) !== 1) {
+        $length = ReferenceTarget::hashHexLength($this->objectHash);
+        if (preg_match('/^[0-9a-fA-F]{' . $length . '}$/', $source) !== 1) {
             return;
         }
 
@@ -783,7 +797,7 @@ final class ObjectDatabase
     }
 
     /**
-     * @return array{type:string,size:int,source:'pack'|'promisor'}
+     * @return array{type:string,size:int,source:'pack'|'loose'|'promisor'}
      */
     private static function headerFromObject(GitObject $object, string $source): array
     {
@@ -794,10 +808,19 @@ final class ObjectDatabase
         ];
     }
 
-    private static function assertObjectId(string $oid): void
+    private function assertObjectId(string $oid): void
     {
-        if (preg_match('/^[0-9a-fA-F]{40}$/', $oid) !== 1) {
-            throw new \InvalidArgumentException('Object id must be a 40-character SHA-1 hex string');
+        $length = ReferenceTarget::hashHexLength($this->objectHash);
+        if (preg_match('/^[0-9a-fA-F]{' . $length . '}$/', $oid) !== 1) {
+            throw new \InvalidArgumentException("Object id must be a {$length}-character " . strtoupper($this->objectHash) . ' hex string');
         }
+    }
+
+    private static function normalizeObjectHash(string $objectHash): string
+    {
+        $normalized = strtolower($objectHash);
+        ReferenceTarget::hashHexLength($normalized);
+
+        return $normalized;
     }
 }

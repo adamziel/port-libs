@@ -67,6 +67,11 @@ $buildSingleEntryIndex = static function (string $oid, int $offset, string $entr
 
     return $bytes . hex2bin(hash('sha1', $bytes));
 };
+$buildRawPack = static function (string $entryBytes): string {
+    $prefix = 'PACK' . pack('N2', 2, 1) . $entryBytes;
+
+    return $prefix . hex2bin(hash('sha1', $prefix));
+};
 
 $oversizedDeltaHeaderGuard = false;
 try {
@@ -106,6 +111,19 @@ try {
     $deltaResultBufferGuard = true;
 }
 
+$packEntryMetadataGuard = false;
+try {
+    $nonCanonicalBlob = chr((3 << 4) | 0x80) . chr(0x00) . gzcompress('');
+    PackData::fromBytes($buildRawPack($nonCanonicalBlob))->entryAtOffset(12);
+} catch (InvalidArgumentException) {
+    try {
+        $overflowingOfsDelta = chr(6 << 4) . str_repeat(chr(0xff), 9) . chr(0x7f) . gzcompress('');
+        PackData::fromBytes($buildRawPack($overflowingOfsDelta))->entryAtOffset(12);
+    } catch (InvalidArgumentException) {
+        $packEntryMetadataGuard = true;
+    }
+}
+
 return [
     'version' => $pack->version(),
     'objects' => $pack->count(),
@@ -118,4 +136,5 @@ return [
     'strictDeclaredSizeGuard' => $strictDeclaredSizeGuard,
     'oversizedDeltaHeaderGuard' => $oversizedDeltaHeaderGuard,
     'deltaResultBufferGuard' => $deltaResultBufferGuard,
+    'packEntryMetadataGuard' => $packEntryMetadataGuard,
 ];

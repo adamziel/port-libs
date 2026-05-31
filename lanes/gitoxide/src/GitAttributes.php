@@ -65,6 +65,50 @@ final class GitAttributes
         ?bool $isDirectory = null,
         bool $ignoreCase = false,
     ): array {
+        return $this->resolveAttributesForPath($path, $selected, $isDirectory, $ignoreCase)['states'];
+    }
+
+    /**
+     * @param list<array{name:string,state:string,value:?string}> $requirements
+     */
+    public function matchesRequirements(string $path, array $requirements, ?bool $isDirectory = null): bool
+    {
+        $selected = array_values(array_unique(array_map(
+            static fn (array $requirement): string => $requirement['name'],
+            $requirements,
+        )));
+        $result = $this->resolveAttributesForPath($path, $selected, $isDirectory, false);
+        if (!$result['matchedSelected']) {
+            return false;
+        }
+
+        foreach ($requirements as $requirement) {
+            $actual = $result['states'][$requirement['name']] ?? null;
+            $matches = match ($requirement['state']) {
+                self::STATE_SET => $actual === true,
+                self::STATE_UNSET => $actual === false,
+                self::STATE_UNSPECIFIED => $actual === null,
+                self::STATE_VALUE => $actual === $requirement['value'],
+                default => false,
+            };
+            if (!$matches) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<string> $selected
+     * @return array{states:array<string, bool|string|null>,matchedSelected:bool}
+     */
+    private function resolveAttributesForPath(
+        string $path,
+        array $selected = [],
+        ?bool $isDirectory = null,
+        bool $ignoreCase = false,
+    ): array {
         $path = self::normalizePath($path);
         $selectedSet = [];
         foreach ($selected as $name) {
@@ -77,6 +121,7 @@ final class GitAttributes
                 $states[$name] = null;
             }
         }
+        $matchedSelected = false;
 
         foreach ($this->rules as $rule) {
             if (!self::patternMatches($rule['pattern'], $path, $isDirectory, $ignoreCase, $rule['base'])) {
@@ -93,40 +138,13 @@ final class GitAttributes
                     self::STATE_UNSPECIFIED => null,
                     default => throw new \LogicException('Unknown attribute state'),
                 };
+                $matchedSelected = true;
             }
         }
 
         ksort($states, SORT_STRING);
 
-        return $states;
-    }
-
-    /**
-     * @param list<array{name:string,state:string,value:?string}> $requirements
-     */
-    public function matchesRequirements(string $path, array $requirements, ?bool $isDirectory = null): bool
-    {
-        $selected = array_values(array_unique(array_map(
-            static fn (array $requirement): string => $requirement['name'],
-            $requirements,
-        )));
-        $states = $this->attributesForPath($path, $selected, $isDirectory, false);
-
-        foreach ($requirements as $requirement) {
-            $actual = $states[$requirement['name']] ?? null;
-            $matches = match ($requirement['state']) {
-                self::STATE_SET => $actual === true,
-                self::STATE_UNSET => $actual === false,
-                self::STATE_UNSPECIFIED => $actual === null,
-                self::STATE_VALUE => $actual === $requirement['value'],
-                default => false,
-            };
-            if (!$matches) {
-                return false;
-            }
-        }
-
-        return true;
+        return ['states' => $states, 'matchedSelected' => $matchedSelected];
     }
 
     /**

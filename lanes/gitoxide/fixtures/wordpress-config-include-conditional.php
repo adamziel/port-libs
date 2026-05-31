@@ -41,6 +41,16 @@ $write($repo . '/recursive-gitdir.config', <<<CFG
 recursiveGitdir = matched
 CFG);
 
+$write($repo . '/slash-class-rejected.config', <<<CFG
+[wordpress]
+slashClassRejected = should-not-load
+CFG);
+
+$write($repo . '/bracket-url.config', <<<CFG
+[wordpress]
+bracketUrl = matched
+CFG);
+
 $write($gitDir . '/config', <<<CFG
 [core]
 repositoryformatversion = 0
@@ -56,6 +66,10 @@ path = ../remote-policy.config
 path = ../escaped-gitdir.config
 [includeIf "gitdir:**/sites/**/wp-content.git/**"]
 path = ../recursive-gitdir.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test[/]wp-content.git"]
+path = ../slash-class-rejected.config
+[includeIf "hasconfig:remote.*.url:https://git.example[.]test/**"]
+path = ../bracket-url.config
 CFG);
 
 $config = GitConfig::fromFile($gitDir . '/config', [
@@ -73,6 +87,8 @@ return [
     'transferFsckObjects' => $config->value('transfer', null, 'fsckObjects'),
     'escapedGitdirPolicy' => $config->value('wordpress', null, 'escapedGitdir'),
     'recursiveGitdirPolicy' => $config->value('wordpress', null, 'recursiveGitdir'),
+    'slashClassRejectedPolicy' => $config->value('wordpress', null, 'slashClassRejected'),
+    'bracketUrlPolicy' => $config->value('wordpress', null, 'bracketUrl'),
     'sectionsLoaded' => array_map(
         static fn (array $section): string => $section['subsection'] === null
             ? $section['name']

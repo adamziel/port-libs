@@ -11082,6 +11082,116 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,table_name:string,index_name:string|null,reverse_unordered_selects:bool,reopened:bool,vacuumed:bool,ordered:bool,order_by:string|null,predicate:string|null,result_rows:list<array<int,mixed>>,result_flat:list<mixed>,uses_index:bool,sort_count:int,integrity:string,detail:string}>
+     */
+    public static function whereAReverseUnorderedIndexCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite whereA reverse unordered dynamic corpus requires at least one case');
+        }
+
+        $rowidRows = [
+            [1, 2, 3],
+            [2, 'hello', 'world'],
+            [3, 4.53, null],
+        ];
+        $rowidReverseRows = array_reverse($rowidRows);
+        $bIndexRows = [
+            [1, 2, 3],
+            [3, 4.53, null],
+            [2, 'hello', 'world'],
+        ];
+        $bIndexReverseRows = array_reverse($bIndexRows);
+        $flatten = static function (array $rows): array {
+            $flat = [];
+            foreach ($rows as $row) {
+                foreach ($row as $value) {
+                    $flat[] = $value;
+                }
+            }
+
+            return $flat;
+        };
+        $template = static function (
+            string $section,
+            string $scenario,
+            string $statement,
+            string $table,
+            ?string $index,
+            bool $reverse,
+            bool $reopened,
+            bool $vacuumed,
+            bool $ordered,
+            ?string $orderBy,
+            ?string $predicate,
+            array $rows,
+            bool $usesIndex,
+            int $sortCount,
+            string $detail,
+        ) use ($flatten): array {
+            return [
+                'source' => 'whereA.test sections whereA-1.1 through whereA-6.1',
+                'case' => 0,
+                'upstream_section' => $section,
+                'batch' => 0,
+                'scenario' => $scenario,
+                'statement' => $statement,
+                'table_name' => $table,
+                'index_name' => $index,
+                'reverse_unordered_selects' => $reverse,
+                'reopened' => $reopened,
+                'vacuumed' => $vacuumed,
+                'ordered' => $ordered,
+                'order_by' => $orderBy,
+                'predicate' => $predicate,
+                'result_rows' => $rows,
+                'result_flat' => $flatten($rows),
+                'uses_index' => $usesIndex,
+                'sort_count' => $sortCount,
+                'integrity' => 'ok',
+                'detail' => $detail,
+            ];
+        };
+
+        $templates = [
+            $template('whereA-1.1', 'baseline rowid table scan returns insertion rowid order', 'SELECT * FROM t1', 't1', null, false, false, false, false, null, null, $rowidRows, false, 0, 'rowid table scan before reverse_unordered_selects'),
+            $template('whereA-1.2', 'reverse_unordered_selects reverses the unordered rowid table scan', 'PRAGMA reverse_unordered_selects=1; SELECT * FROM t1', 't1', null, true, false, false, false, null, null, $rowidReverseRows, false, 0, 'reverse table cursor scan over rowid order'),
+            $template('whereA-1.3', 'reopen preserves reverse_unordered_selects behavior for unordered scans', 'db close; sqlite3 db test.db; SELECT * FROM t1', 't1', null, true, true, false, false, null, null, $rowidReverseRows, false, 0, 'reopened database keeps reverse unordered scan direction'),
+            $template('whereA-1.4', 'ORDER BY rowid overrides reverse unordered scan direction', 'SELECT * FROM t1 ORDER BY rowid', 't1', null, true, true, false, true, 'rowid ASC', null, $rowidRows, false, 0, 'explicit rowid ordering restores ascending output'),
+            $template('whereA-1.5', 'VACUUM does not disturb explicit rowid order', 'VACUUM; SELECT * FROM t1 ORDER BY rowid', 't1', null, true, false, true, true, 'rowid ASC', null, $rowidRows, false, 0, 'vacuumed table preserves ordered rowid scan'),
+            $template('whereA-1.6', 'PRAGMA reverse_unordered_selects readback reports enabled state', 'PRAGMA reverse_unordered_selects', 'pragma', null, true, false, false, true, null, null, [[1]], false, 0, 'pragma state is one after enabling reverse unordered scans'),
+            $template('whereA-1.7', 'reopen plus VACUUM still leaves unordered scan reversed', 'PRAGMA reverse_unordered_selects=1; VACUUM; SELECT * FROM t1', 't1', null, true, true, true, false, null, null, $rowidReverseRows, false, 0, 'vacuumed reopened table keeps reverse unordered rowid cursor'),
+            $template('whereA-1.8', 'unique index lookup with impossible rowid NULL constraint returns no rows', 'SELECT * FROM t1 WHERE b=2 AND a IS NULL', 't1', 'sqlite_autoindex_t1_1', true, false, false, false, null, 'b=2 AND a IS NULL', [], true, 0, 'unique b index search intersects with impossible INTEGER PRIMARY KEY null test'),
+            $template('whereA-1.9', 'unique index lookup with non-null rowid returns the matching row', 'SELECT * FROM t1 WHERE b=2 AND a IS NOT NULL', 't1', 'sqlite_autoindex_t1_1', true, false, false, false, null, 'b=2 AND a IS NOT NULL', [[1, 2, 3]], true, 0, 'unique b index search keeps rowid non-null row'),
+            $template('whereA-2.1', 'rowid range scan follows ascending order with reverse disabled', 'PRAGMA reverse_unordered_selects=0; SELECT * FROM t1 WHERE a>0', 't1', 'integer-primary-key', false, false, false, false, null, 'a>0', $rowidRows, true, 0, 'rowid range cursor scans forward'),
+            $template('whereA-2.2', 'rowid range scan reverses when unordered reversal is enabled', 'PRAGMA reverse_unordered_selects=1; SELECT * FROM t1 WHERE a>0', 't1', 'integer-primary-key', true, false, false, false, null, 'a>0', $rowidReverseRows, true, 0, 'rowid range cursor scans backward under reverse_unordered_selects'),
+            $template('whereA-2.3', 'ORDER BY rowid fixes rowid range scan output despite reversal', 'SELECT * FROM t1 WHERE a>0 ORDER BY rowid', 't1', 'integer-primary-key', true, false, false, true, 'rowid ASC', 'a>0', $rowidRows, true, 0, 'ordered rowid range cursor scans forward'),
+            $template('whereA-3.1', 'unique index range on b uses SQLite numeric-before-text index order', 'PRAGMA reverse_unordered_selects=0; SELECT * FROM t1 WHERE b>0', 't1', 'sqlite_autoindex_t1_1', false, false, false, false, null, 'b>0', $bIndexRows, true, 0, 'b index scan visits integer, real, then text keys'),
+            $template('whereA-3.2', 'reverse unordered scans reverse the b index range cursor', 'PRAGMA reverse_unordered_selects=1; SELECT * FROM t1 WHERE b>0', 't1', 'sqlite_autoindex_t1_1', true, false, false, false, null, 'b>0', $bIndexReverseRows, true, 0, 'b index range cursor scans backward under reverse_unordered_selects'),
+            $template('whereA-3.3', 'ORDER BY b keeps b index order even with reversal enabled', 'SELECT * FROM t1 WHERE b>0 ORDER BY b', 't1', 'sqlite_autoindex_t1_1', true, false, false, true, 'b ASC', 'b>0', $bIndexRows, true, 0, 'ordered b index range cursor scans forward'),
+            $template('whereA-4.1', 'new table unordered scan inherits reverse scan direction', 'CREATE TABLE t2(x); INSERT 1,2; SELECT x FROM t2', 't2', null, true, false, false, false, null, null, [[2], [1]], false, 0, 'reverse rowid scan over t2 returns inserted rows backward'),
+            $template('whereA-4.2', 'creating t2x does not add a temp sort for unordered t2 scan', 'CREATE INDEX t2x ON t2(x); SELECT x FROM t2', 't2', 't2x', true, false, false, false, null, null, [[2], [1]], false, 0, 'unordered scan is still reverse table order and sort counter remains zero'),
+            $template('whereA-4.3', 'ORDER BY x uses t2x without temp sorting', 'SELECT x FROM t2 ORDER BY x', 't2', 't2x', true, false, false, true, 'x ASC', null, [[1], [2]], true, 0, 'ascending ORDER BY is satisfied by index t2x'),
+            $template('whereA-4.4', 'ORDER BY x DESC uses t2x backward without temp sorting', 'SELECT x FROM t2 ORDER BY x DESC', 't2', 't2x', true, false, false, true, 'x DESC', null, [[2], [1]], true, 0, 'descending ORDER BY is satisfied by index t2x'),
+            $template('whereA-4.5', 'dropping t2x forces temp sort for ORDER BY x', 'DROP INDEX t2x; SELECT x FROM t2 ORDER BY x', 't2', null, true, false, false, true, 'x ASC', null, [[1], [2]], false, 1, 'without t2x a temp sort is required for ascending ORDER BY'),
+            $template('whereA-4.6', 'dropping t2x forces temp sort for ORDER BY x DESC', 'SELECT x FROM t2 ORDER BY x DESC', 't2', null, true, false, false, true, 'x DESC', null, [[2], [1]], false, 1, 'without t2x a temp sort is required for descending ORDER BY'),
+            $template('whereA-5.1', 'OR range on indexed b returns the one qualifying row under reverse scans', 'SELECT a FROM t1 WHERE b=-99 OR b>1', 't1', 't1b', true, false, false, false, null, 'b=-99 OR b>1', [[1]], true, 0, 'OR predicate probes t1b and preserves the single matching row'),
+            $template('whereA-6.1', 'analyzed duplicate-column index handles OR equality under reverse scans', 'SELECT a FROM t1 WHERE a=1 OR a=2', 't1', 't1aa', true, false, false, false, null, 'a=1 OR a=2', [[1]], true, 0, 'stat1-adjusted duplicate-column index keeps the row for a=1'),
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $template['case'] = $case;
+            $template['batch'] = intdiv($case - 1, count($templates)) + 1;
+            $template['detail'] .= '; dynamic replay ' . $template['batch'];
+            $out[] = $template;
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,stat1_rows:list<array{idx:string,stat:string}>,or_terms:list<string>,range_terms:list<string>,chosen_indexes:list<string>,rejected_plan_terms:list<string>,uses_multi_index_or:bool,uses_any_skip_scan:bool,detail:string,integrity:string}>
      */
     public static function whereJMultiIndexRangeCostCases(int $cases = 1000): array

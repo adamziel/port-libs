@@ -171,6 +171,56 @@ return [
         $t->same(null, $config->value('user', null, 'miss'));
     },
 
+    'conditional include bracket classes do not match slash separators' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
+        $root = $tmpDir();
+        $worktree = $root . '/work/tree';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/include.config', "[section]\nvalue = slash-class-override\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:work[/]tree/"]
+        path = ../include.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('base', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $worktree = $root . '/work-tree';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/include.config', "[section]\nvalue = non-slash-class-override\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:work[!/]tree/"]
+        path = ../include.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('non-slash-class-override', $config->value('section', null, 'value'));
+
+        $t->same('base-value', $loadConditionalValue('onbranch:feature[/]start', ['branchName' => 'refs/heads/feature/start']));
+        $t->same('override-value', $loadConditionalValue('onbranch:feature[-]start', ['branchName' => 'refs/heads/feature-start']));
+
+        $root = $tmpDir();
+        $write($root . '/slash-class', "[user]\nslash = bad\n");
+        $write($root . '/dash-class', "[user]\ndash = good\n");
+        $write($root . '/config', <<<CFG
+        [remote "slash"]
+        url = https://git.example.test/wp-content.git
+        [remote "dash"]
+        url = https://git.example.test-wp-content.git
+        [includeIf "hasconfig:remote.*.url:https://git.example.test[/]wp-content.git"]
+        path = "slash-class"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test[-]wp-content.git"]
+        path = "dash-class"
+        CFG);
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same(null, $config->value('user', null, 'slash'));
+        $t->same('good', $config->value('user', null, 'dash'));
+    },
+
     'hasconfig includeIf searches parent config with gix ordering and cycle boundaries' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $root = $tmpDir();
         $write($root . '/include-this', "[user]\nthis = included\n");
@@ -281,10 +331,14 @@ return [
         $t->same('true', $fixture['transferFsckObjects']);
         $t->same('matched', $fixture['escapedGitdirPolicy']);
         $t->same('matched', $fixture['recursiveGitdirPolicy']);
+        $t->same(null, $fixture['slashClassRejectedPolicy']);
+        $t->same('matched', $fixture['bracketUrlPolicy']);
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
         $t->same($fixture['escapedGitdirPolicy'], $summary['escapedGitdirPolicy']);
         $t->same($fixture['recursiveGitdirPolicy'], $summary['recursiveGitdirPolicy']);
+        $t->same($fixture['slashClassRejectedPolicy'], $summary['slashClassRejectedPolicy']);
+        $t->same($fixture['bracketUrlPolicy'], $summary['bracketUrlPolicy']);
         $t->same($fixture['sectionsLoaded'], $summary['sectionsLoaded']);
     },
 ];

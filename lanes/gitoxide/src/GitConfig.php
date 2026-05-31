@@ -619,7 +619,7 @@ final class GitConfig
                             $class = substr($class, 1);
                         }
                         $class = str_replace(['\\', '~', ']'], ['\\\\', '\\~', '\\]'], $class);
-                        $regex .= '[' . ($negated ? '^' : '') . $class . ']';
+                        $regex .= '(?!/)[' . ($negated ? '^' : '') . $class . ']';
                         $index = $end;
                         continue;
                     }

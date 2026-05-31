@@ -7,17 +7,23 @@ namespace PortLibs\Gitoxide;
 final class LooseObjectStore
 {
     private const HEADER_MAX_SIZE = 64;
+    private const HASH_ALGORITHMS = [
+        'sha1' => 40,
+        'sha256' => 64,
+    ];
 
     private readonly string $objectsDirectory;
+    private readonly string $algorithm;
 
-    public function __construct(string $gitDirectory, bool $pathIsObjectsDirectory = false)
+    public function __construct(string $gitDirectory, bool $pathIsObjectsDirectory = false, string $algorithm = 'sha1')
     {
         $this->objectsDirectory = rtrim($pathIsObjectsDirectory ? $gitDirectory : $gitDirectory . '/objects', '/');
+        $this->algorithm = self::normalizeAlgorithm($algorithm);
     }
 
-    public static function fromObjectsDirectory(string $objectsDirectory): self
+    public static function fromObjectsDirectory(string $objectsDirectory, string $algorithm = 'sha1'): self
     {
-        return new self($objectsDirectory, true);
+        return new self($objectsDirectory, true, $algorithm);
     }
 
     public function objectsDirectory(): string
@@ -25,9 +31,14 @@ final class LooseObjectStore
         return $this->objectsDirectory;
     }
 
+    public function objectHash(): string
+    {
+        return $this->algorithm;
+    }
+
     public function write(GitObject $object): string
     {
-        $oid = $object->oid();
+        $oid = $object->oid($this->algorithm);
         $path = $this->pathFor($oid);
         $directory = dirname($path);
         if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
@@ -45,7 +56,7 @@ final class LooseObjectStore
 
     public function read(string $oid): GitObject
     {
-        self::assertObjectId($oid);
+        $this->assertObjectId($oid);
 
         $path = $this->pathFor($oid);
         if (!is_file($path)) {
@@ -78,7 +89,7 @@ final class LooseObjectStore
      */
     public function tryReadHeader(string $oid): ?array
     {
-        self::assertObjectId($oid);
+        $this->assertObjectId($oid);
 
         $path = $this->pathFor($oid);
         if (!is_file($path)) {
@@ -95,7 +106,7 @@ final class LooseObjectStore
 
     public function tryRead(string $oid): ?GitObject
     {
-        self::assertObjectId($oid);
+        $this->assertObjectId($oid);
         if (!$this->contains($oid)) {
             return null;
         }
@@ -105,7 +116,7 @@ final class LooseObjectStore
 
     public function contains(string $oid): bool
     {
-        self::assertObjectId($oid);
+        $this->assertObjectId($oid);
 
         return is_file($this->pathFor(strtolower($oid)));
     }
@@ -123,13 +134,14 @@ final class LooseObjectStore
         $ids = [];
         $directories = glob($objectsDirectory . '/[0-9a-f][0-9a-f]', GLOB_ONLYDIR) ?: [];
         sort($directories, SORT_STRING);
+        $suffixLength = self::hashHexLength($this->algorithm) - 2;
         foreach ($directories as $directory) {
             $prefix = basename($directory);
             $files = glob($directory . '/*') ?: [];
             sort($files, SORT_STRING);
             foreach ($files as $file) {
                 $suffix = basename($file);
-                if (is_file($file) && preg_match('/^[0-9a-f]{38}$/', $suffix) === 1) {
+                if (is_file($file) && preg_match('/^[0-9a-f]{' . $suffixLength . '}$/', $suffix) === 1) {
                     $ids[] = $prefix . $suffix;
                 }
             }
@@ -151,7 +163,7 @@ final class LooseObjectStore
                 throw new \RuntimeException("Loose object {$oid} could not be read exactly: {$exception->getMessage()}", 0, $exception);
             }
 
-            $actual = $object->oid();
+            $actual = $object->oid($this->algorithm);
             if ($actual !== $oid) {
                 throw new \RuntimeException("Loose object hash mismatch: expected {$oid}, got {$actual}");
             }
@@ -173,11 +185,27 @@ final class LooseObjectStore
         return $this->objectsDirectory . '/' . substr($oid, 0, 2) . '/' . substr($oid, 2);
     }
 
-    private static function assertObjectId(string $oid): void
+    private function assertObjectId(string $oid): void
     {
-        if (preg_match('/^[0-9a-fA-F]{40}$/', $oid) !== 1) {
-            throw new \InvalidArgumentException('Loose object id must be a 40-character SHA-1 hex string');
+        $length = self::hashHexLength($this->algorithm);
+        if (preg_match('/^[0-9a-fA-F]{' . $length . '}$/', $oid) !== 1) {
+            throw new \InvalidArgumentException("Loose object id must be a {$length}-character " . strtoupper($this->algorithm) . ' hex string');
         }
+    }
+
+    private static function normalizeAlgorithm(string $algorithm): string
+    {
+        $algorithm = strtolower($algorithm);
+        if (!isset(self::HASH_ALGORITHMS[$algorithm])) {
+            throw new \InvalidArgumentException("Unsupported loose object hash algorithm: {$algorithm}");
+        }
+
+        return $algorithm;
+    }
+
+    private static function hashHexLength(string $algorithm): int
+    {
+        return self::HASH_ALGORITHMS[$algorithm];
     }
 
     private static function inflateHeaderBytes(string $compressed, string $oid): string

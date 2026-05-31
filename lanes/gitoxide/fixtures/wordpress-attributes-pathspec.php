@@ -5,7 +5,7 @@ declare(strict_types=1);
 return [
     'attributes' => <<<'ATTRS'
 *.php text diff=php
-wp-content/cache/** export-ignore
+wp-content/cache/** !deploy export-ignore
 wp-content/uploads/** binary
 wp-content/plugins/gutenberg/** merge=union deploy=plugin
 wp-content/plugins/gutenberg/build/** -deploy
