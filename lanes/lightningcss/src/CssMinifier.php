@@ -2507,6 +2507,7 @@ final class CssMinifier
         $value = $this->minifyImageSetFunctions($value);
         $value = $this->minifyGradientFunctions($value);
         $value = $this->minifyBoxLengthListValue($property, $value);
+        $value = $this->minifyBorderSpacingValue($property, $value);
         if (str_starts_with($property, '--')) {
             if ($customPropertyColorCalc) {
                 $value = $this->minifyColorFunctionsAndHex($value);
@@ -3230,6 +3231,25 @@ final class CssMinifier
         }
 
         return implode(' ', array_map(fn (string $token): string => $this->minifyLengthToken($token), $tokens));
+    }
+
+    private function minifyBorderSpacingValue(string $property, string $value): string
+    {
+        if (strtolower($property) !== 'border-spacing') {
+            return $value;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === [] || count($tokens) > 2) {
+            return trim($value);
+        }
+
+        $tokens = array_map(fn (string $token): string => $this->minifyLengthToken($token), $tokens);
+        if (count($tokens) === 2 && $tokens[1] === $tokens[0]) {
+            array_pop($tokens);
+        }
+
+        return implode(' ', $tokens);
     }
 
     private function minifyLengthToken(string $token): string
@@ -9057,6 +9077,9 @@ final class CssMinifier
         $lowerRows = strtolower($rows);
         $lowerColumns = strtolower($columns);
         if (str_contains($lowerRows, 'auto-flow') || str_contains($lowerColumns, 'auto-flow')) {
+            return null;
+        }
+        if (strcasecmp($rows, 'none') === 0) {
             return null;
         }
         if (str_contains($rows, '"') || str_contains($rows, "'")) {

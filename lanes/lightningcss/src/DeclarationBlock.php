@@ -8396,9 +8396,15 @@ final class DeclarationBlock
         }
 
         $lastMatch = null;
-        foreach ($entries as $index => $entry) {
-            if ($entry['property'] === $property) {
+        $propertyGroups = $this->cssomLogicalGroupCategoriesForProperty($property);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($this->cssomLogicalGroupsConflict($propertyGroups, $this->cssomLogicalGroupCategoriesForProperty($entries[$index]['property']))) {
+                break;
+            }
+
+            if ($entries[$index]['property'] === $property) {
                 $lastMatch = $index;
+                break;
             }
         }
 
@@ -8415,6 +8421,128 @@ final class DeclarationBlock
         }
 
         return $entries;
+    }
+
+    /**
+     * @return list<array{group:string, category:string}>
+     */
+    private function cssomLogicalGroupCategoriesForProperty(string $property): array
+    {
+        $groups = [];
+        foreach ($this->cssomLonghandsForLogicalGroupBoundary($property) as $longhand) {
+            $group = $this->cssomLogicalGroupCategoryForLonghand($longhand);
+            if ($group === null) {
+                continue;
+            }
+
+            $groups[$group['group'] . ':' . $group['category']] = $group;
+        }
+
+        return array_values($groups);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function cssomLonghandsForLogicalGroupBoundary(string $property): array
+    {
+        if (isset(self::BOX_SHORTHANDS[$property])) {
+            return array_values(self::BOX_SHORTHANDS[$property]);
+        }
+
+        if ($this->isBoxLonghand($property)) {
+            return [$property];
+        }
+
+        $logicalAxis = $this->logicalBoxAxisForShorthand($property);
+        if ($logicalAxis !== null) {
+            return [
+                $logicalAxis['axisShorthand'] . '-start',
+                $logicalAxis['axisShorthand'] . '-end',
+            ];
+        }
+
+        if ($this->logicalBoxLonghandParts($property) !== null) {
+            return [$property];
+        }
+
+        if (isset(self::SIZE_LOGICAL_GROUPS[$property])) {
+            return [$property];
+        }
+
+        $borderLonghands = $this->borderShorthandLonghands($property);
+        if ($borderLonghands !== null) {
+            return $borderLonghands;
+        }
+
+        if ($this->isBorderComponentLonghand($property)) {
+            return [$property];
+        }
+
+        if ($this->isBorderRadiusShorthand($property)) {
+            return $this->borderRadiusLonghandsForPrefix($this->borderRadiusPrefixForProperty($property) ?? '');
+        }
+
+        if ($this->isBorderRadiusLonghand($property) || $this->isLogicalBorderRadiusLonghand($property)) {
+            return [$property];
+        }
+
+        return [$property];
+    }
+
+    /**
+     * @return array{group:string, category:string}|null
+     */
+    private function cssomLogicalGroupCategoryForLonghand(string $longhand): ?array
+    {
+        if (isset(self::SIZE_LOGICAL_GROUPS[$longhand])) {
+            return self::SIZE_LOGICAL_GROUPS[$longhand];
+        }
+
+        $boxShorthand = $this->boxShorthandForLonghand($longhand);
+        if ($boxShorthand !== null) {
+            return ['group' => $boxShorthand, 'category' => 'physical'];
+        }
+
+        $logicalBox = $this->logicalBoxLonghandParts($longhand);
+        if ($logicalBox !== null) {
+            return ['group' => $logicalBox['shorthand'], 'category' => 'logical'];
+        }
+
+        if (preg_match('/^border-(?:top|right|bottom|left)-(width|style|color)$/', $longhand, $matches) === 1) {
+            return ['group' => 'border-' . $matches[1], 'category' => 'physical'];
+        }
+
+        if (preg_match('/^border-(?:block|inline)-(?:start|end)-(width|style|color)$/', $longhand, $matches) === 1) {
+            return ['group' => 'border-' . $matches[1], 'category' => 'logical'];
+        }
+
+        if ($this->isBorderRadiusLonghand($longhand)) {
+            return ['group' => 'border-radius', 'category' => 'physical'];
+        }
+
+        if ($this->isLogicalBorderRadiusLonghand($longhand)) {
+            return ['group' => 'border-radius', 'category' => 'logical'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{group:string, category:string}> $leftGroups
+     * @param list<array{group:string, category:string}> $rightGroups
+     */
+    private function cssomLogicalGroupsConflict(array $leftGroups, array $rightGroups): bool
+    {
+        foreach ($leftGroups as $leftGroup) {
+            foreach ($rightGroups as $rightGroup) {
+                if ($leftGroup['group'] === $rightGroup['group'] && $leftGroup['category'] !== $rightGroup['category']) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

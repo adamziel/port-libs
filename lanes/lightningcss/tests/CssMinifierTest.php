@@ -142,6 +142,16 @@ CSS
             $t->same($expected, $minifier->minify($input));
         }
     },
+    'css minifier maps upstream border spacing value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{border-spacing:0}', $minifier->minify('.foo { border-spacing: 0px; }'));
+        $t->same('.foo{border-spacing:0}', $minifier->minify('.foo { border-spacing: 0px 0px; }'));
+        $t->same('.foo{border-spacing:12px 0}', $minifier->minify('.foo { border-spacing: 12px   0px; }'));
+        $t->same('.foo{border-spacing:6px 0}', $minifier->minify('.foo { border-spacing: calc(3px * 2) calc(5px * 0); }'));
+        $t->same('.foo{border-spacing:6px 8px}', $minifier->minify('.foo { border-spacing: calc(3px * 2) max(0px, 8px); }'));
+        $t->same('.foo{border-spacing:-20px}', $minifier->minify('.foo { border-spacing: -20px; }'));
+    },
     'css minifier maps upstream basic color value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -1352,6 +1362,18 @@ CSS
             '.grid-shorthand-areas-rows{grid:".content."20px/1fr 3fr}',
             $minifier->minify(
                 '.grid-shorthand-areas-rows { grid: auto / 1fr 3fr; grid-template-rows: 20px; grid-template-areas: ". content ."; }'
+            )
+        );
+        $t->same(
+            '.test-auto-flow-row-1{grid:none/1fr 2fr 1fr;grid-template-areas:".one."}',
+            $minifier->minify(
+                '.test-auto-flow-row-1 { grid: auto-flow / 1fr 2fr 1fr; grid-template-areas: "  .   one  .  "; }'
+            )
+        );
+        $t->same(
+            '.test-auto-flow-row-2{grid:none/100px 100px;grid-template-areas:"one two"}',
+            $minifier->minify(
+                '.test-auto-flow-row-2 { grid: auto-flow auto / 100px 100px; grid-template-areas: " one two "; }'
             )
         );
     },
@@ -3479,6 +3501,23 @@ CSS;
 
         $t->same(
             '.wp-block-post-template .wp-block-post{box-shadow:12px 12px #0006,inset 0 0 12px 4px #0006}',
+            (new CssMinifier())->minify($css)
+        );
+    },
+    'wordpress table border spacing presets minify without node' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-table.is-style-loose-spacing table {
+  border-collapse: separate;
+  border-spacing: 0px 12px;
+}
+
+.wp-block-table.is-style-compact-spacing table {
+  border-spacing: 0px 0px;
+}
+CSS;
+
+        $t->same(
+            '.wp-block-table.is-style-loose-spacing table{border-collapse:separate;border-spacing:0 12px}.wp-block-table.is-style-compact-spacing table{border-spacing:0}',
             (new CssMinifier())->minify($css)
         );
     },

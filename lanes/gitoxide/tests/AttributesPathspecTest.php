@@ -200,6 +200,86 @@ return [
         $t->same(true, $deployment->isIncluded('wp-content/uploads/logo.png', false, $attributes));
         $t->throws(InvalidArgumentException::class, static fn () => PathspecSearch::fromSpecs([':(attr:one,attr:two)path']));
     },
+    'combined attribute sources apply nested precedence to attr pathspec matches like gix search' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromSources([
+            [
+                'contents' => "wp-content/** deploy=root review=pending\n"
+                    . "wp-content/cache/** export-ignore\n"
+                    . "[attr]root-binary binary root-macro\n"
+                    . "wp-content/uploads/** root-binary\n",
+            ],
+            [
+                'baseDirectory' => 'wp-content/plugins',
+                'contents' => "gutenberg/** deploy=plugin merge=union local-macro\n"
+                    . "gutenberg/build/** -deploy\n"
+                    . "private/** !deploy\n"
+                    . "[attr]local-macro nested-macro\n",
+                'allowMacros' => false,
+            ],
+            [
+                'baseDirectory' => 'wp-content/themes/acme',
+                'contents' => "style.css deploy=theme\n",
+            ],
+        ]);
+
+        $t->same([
+            'deploy' => 'plugin',
+            'merge' => 'union',
+            'review' => 'pending',
+        ], $attributes->attributesForPath('wp-content/plugins/gutenberg/block.json', ['deploy', 'merge', 'review']));
+        $t->same([
+            'deploy' => false,
+            'merge' => 'union',
+        ], $attributes->attributesForPath('wp-content/plugins/gutenberg/build/index.js', ['deploy', 'merge']));
+        $t->same(['deploy' => null], $attributes->attributesForPath('wp-content/plugins/private/secret.php', ['deploy']));
+        $t->same(['deploy' => 'theme'], $attributes->attributesForPath('wp-content/themes/acme/style.css', ['deploy']));
+        $t->same([
+            'diff' => false,
+            'merge' => false,
+            'root-macro' => true,
+            'text' => false,
+        ], $attributes->attributesForPath('wp-content/uploads/logo.png', ['diff', 'merge', 'root-macro', 'text']));
+        $t->same([
+            'local-macro' => true,
+            'nested-macro' => null,
+        ], $attributes->attributesForPath('wp-content/plugins/gutenberg/block.json', ['local-macro', 'nested-macro']));
+
+        $search = PathspecSearch::fromSpecs([
+            ':(attr:deploy=plugin)wp-content/plugins/**',
+            ':(attr:deploy=theme)wp-content/themes/**',
+            ':!:(attr:-deploy)wp-content/plugins/gutenberg/build/**',
+            ':!:(attr:export-ignore)wp-content/cache/**',
+        ]);
+        $paths = [
+            'wp-content/cache/page.html' => false,
+            'wp-content/plugins/gutenberg/block.json' => false,
+            'wp-content/plugins/gutenberg/build/index.js' => false,
+            'wp-content/plugins/private/secret.php' => false,
+            'wp-content/themes/acme/style.css' => false,
+            'wp-content/uploads/logo.png' => false,
+        ];
+
+        $included = [];
+        foreach ($paths as $path => $isDirectory) {
+            if ($search->isIncluded($path, $isDirectory, $attributes)) {
+                $included[] = $path;
+            }
+        }
+        $t->same([
+            'wp-content/plugins/gutenberg/block.json',
+            'wp-content/themes/acme/style.css',
+        ], $included);
+
+        $matcher = PathspecMatcher::fromSpecs([
+            ':(attr:deploy=plugin)wp-content/plugins/**',
+            ':(attr:deploy=theme)wp-content/themes/**',
+            ':!:(attr:-deploy)wp-content/plugins/gutenberg/build/**',
+        ]);
+        $t->same([
+            'wp-content/plugins/gutenberg/block.json',
+            'wp-content/themes/acme/style.css',
+        ], $matcher->matchingPaths($paths, $attributes));
+    },
     'pathspec search applies exclude first directory prefixes icase and attr filters' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/plugins/gutenberg/** deploy=plugin merge=union\n"
             . "wp-content/plugins/gutenberg/build/** -deploy\n"
@@ -312,6 +392,18 @@ return [
             'recursively-assigned-attr' => true,
             'text' => true,
         ], $example['recursiveMacroAttributes']);
+        $t->same([
+            'wp-content/plugins/gutenberg/block.json',
+            'wp-content/themes/twentytwentyfour/theme.json',
+        ], $example['nestedSelectedForDeployment']);
+        $t->same([
+            'deploy' => 'plugin',
+            'merge' => 'union',
+            'review' => 'pending',
+        ], $example['nestedPluginAttributes']);
+        $t->same(true, $example['nestedBuildExcluded']);
+        $t->same(['deploy' => 'theme', 'merge' => 'union'], $example['nestedThemeAttributes']);
+        $t->same(['local-macro' => true, 'nested-macro' => null], $example['nestedLocalMacroDefinitionIgnored']);
         $t->same(true, $example['cacheExcluded']);
         $t->same(true, $example['buildExcludedByPathspec']);
     },

@@ -583,5 +583,6 @@ return [
         $t->same(true, $summary['looseIntegrityDirectoryBlockerRejected']);
         $t->same(true, $summary['looseIntegrityNestedCandidateRejected']);
         $t->same(true, $summary['looseIntegritySizeMismatchRejected']);
+        $t->same(true, $summary['looseIntegrityTraversalErrorIgnored']);
     },
 ];

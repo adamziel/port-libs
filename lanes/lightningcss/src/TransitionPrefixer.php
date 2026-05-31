@@ -240,6 +240,7 @@ final class TransitionPrefixer
         $animationChanged = $this->rewriteAnimationPrefixEntries($entries, $targetOptions);
         $colorSchemeChanged = $this->rewriteColorSchemeFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $printColorAdjustChanged = $this->rewritePrintColorAdjustPrefixEntries($entries, $targetOptions);
+        $columnsChanged = $this->rewriteColumnsPrefixEntries($entries, $targetOptions);
         $uiPrefixChanged = $this->rewriteUiPrefixEntries($entries, $targetOptions);
         $boxSizingChanged = $this->rewriteBoxSizingPrefixEntries($entries, $targetOptions);
         $objectFitChanged = $this->rewriteObjectFitPrefixEntries($entries, $targetOptions);
@@ -294,7 +295,7 @@ final class TransitionPrefixer
         if ($logicalInsetFallback !== null) {
             return $logicalInsetFallback . implode('', $supportRules);
         }
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -891,6 +892,13 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'ios_saf', [6], [15])
                 || $this->targetAtLeast($normalized, 'opera', [15])
                 || $this->targetInRange($normalized, 'safari', [6], [15]),
+            'columnsNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [4], [49])
+                || $this->targetInRange($normalized, 'ios_saf', [3, 2], [8, 1])
+                || $this->targetInRange($normalized, 'opera', [15], [36])
+                || $this->targetInRange($normalized, 'safari', [3, 1], [8])
+                || $this->targetInRange($normalized, 'samsung', [0], [4]),
+            'columnsNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [51]),
             'displayFlexNeedsOldWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 2])
                 || $this->targetInRange($normalized, 'chrome', [4], [20])
                 || $this->targetInRange($normalized, 'ios_saf', [3, 2], [6])
@@ -3480,6 +3488,34 @@ final class TransitionPrefixer
 
         $entries = $rewritten;
         return true;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteColumnsPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $changed = false;
+        foreach ([
+            'columns',
+            'column-width',
+            'column-gap',
+            'column-rule',
+            'column-rule-color',
+            'column-rule-width',
+            'column-count',
+            'column-rule-style',
+            'column-span',
+            'column-fill',
+        ] as $property) {
+            $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, $property, [
+                '-webkit-' => $targetOptions['columnsNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['columnsNeedsMoz'] ?? false,
+            ]) || $changed;
+        }
+
+        return $changed;
     }
 
     /**

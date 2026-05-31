@@ -423,6 +423,49 @@ return [
             $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['chrome' => 137])
         );
     },
+    'transition prefixer maps upstream multi-column target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '.foo { columns: 12em; column-gap: 20px; column-rule: 1px solid black; column-count: 3; column-span: all; column-fill: balance; }';
+
+        $t->same(
+            '.foo{-webkit-columns:12em;-moz-columns:12em;columns:12em;-webkit-column-gap:20px;-moz-column-gap:20px;column-gap:20px;-webkit-column-rule:1px solid #000;-moz-column-rule:1px solid #000;column-rule:1px solid #000;-webkit-column-count:3;-moz-column-count:3;column-count:3;-webkit-column-span:all;-moz-column-span:all;column-span:all;-webkit-column-fill:balance;-moz-column-fill:balance;column-fill:balance}',
+            $prefixer->prefixForTargets($css, ['chrome' => 49, 'firefox' => 51])
+        );
+        $t->same(
+            '.foo{columns:12em;column-gap:20px}',
+            $prefixer->prefixForTargets('.foo { -webkit-columns: 12em; -moz-columns: 12em; columns: 12em; -webkit-column-gap: 20px; -moz-column-gap: 20px; column-gap: 20px; }', ['chrome' => 50, 'firefox' => 52])
+        );
+        $t->same(
+            '.foo{-webkit-columns:12em;columns:12em}',
+            $prefixer->prefixForTargets('.foo { -webkit-columns: 12em; -moz-columns: 12em; columns: 12em; }', ['chrome' => 49])
+        );
+        $t->same(
+            '.foo{-moz-columns:12em;columns:12em}',
+            $prefixer->prefixForTargets('.foo { -webkit-columns: 12em; -moz-columns: 12em; columns: 12em; }', ['firefox' => 51])
+        );
+    },
+    'transition prefixer maps upstream multi-column browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '.foo { columns: 12em; column-gap: 20px; }';
+        $webkit = '.foo{-webkit-columns:12em;columns:12em;-webkit-column-gap:20px;column-gap:20px}';
+        $moz = '.foo{-moz-columns:12em;columns:12em;-moz-column-gap:20px;column-gap:20px}';
+        $modern = '.foo{columns:12em;column-gap:20px}';
+
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['chrome' => 49]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['chrome' => 50]));
+        $t->same($moz, $prefixer->prefixForTargets($css, ['firefox' => 51]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['firefox' => 52]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => 8]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => 9]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['opera' => 36]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['opera' => 37]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['android' => '4.4.3']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['android' => '4.4.4']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['ios_saf' => '8.1']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['ios_saf' => '8.2']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['samsung' => 4]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['samsung' => 5]));
+    },
     'transition prefixer maps upstream ui user-select and appearance target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -2452,6 +2495,14 @@ CSS;
         $t->throws(
             InvalidArgumentException::class,
             static fn () => $prefixer->prefixForTargets('@layer blocks { @media (width >= var(--theme-breakpoint)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $prefixer->prefixForTargets('@layer blocks { @media screen not (width >= 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $prefixer->prefixForTargets('@layer blocks { @media print (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
         );
     },
     'transition prefixer maps upstream media range include and exclude flags inside layers' => static function (TestRunner $t): void {

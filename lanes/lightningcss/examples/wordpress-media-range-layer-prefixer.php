@@ -128,6 +128,16 @@ try {
     $actual['invalidRangeValueGuard'] = 'invalid-media-query';
 }
 
+try {
+    $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media screen not (width >= 240px) { .wp-block-query { color: chartreuse; } } }',
+        ['firefox' => 60]
+    );
+    $actual['missingAndGuard'] = 'missing';
+} catch (InvalidArgumentException) {
+    $actual['missingAndGuard'] = 'invalid-media-query';
+}
+
 $expected = [
     'safari15' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query{color:#7fff00}}@media (width:320px){.wp-block-query.is-exact-width{color:#ff0}}@media not screen and not (min-width:240px){.wp-block-query.is-print-narrow{color:#ff0}}@media screen and not (max-width:max(10px,1rem)){.wp-block-query.is-fluid-breakpoint{color:#ff0}}@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query.is-style-featured{color:#ff0}}@media (color) and (-webkit-min-device-pixel-ratio:2),(color) and (min-resolution:2dppx){.wp-block-query.is-density-aware{color:#ff0}}@media (min-aspect-ratio:16/9) and (not (max-color-index:2)){.wp-block-query.is-wide-color{color:#ff0}}@media (min-theme-breakpoint:2){.wp-block-query.is-custom-breakpoint{color:#ff0}}@media (theme-state:expanded){.wp-block-query.is-expanded-state{color:#ff0}}}',
     'firefox60' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query{color:#7fff00}}@media (width:320px){.wp-block-query.is-exact-width{color:#ff0}}@media not screen and not (min-width:240px){.wp-block-query.is-print-narrow{color:#ff0}}@media screen and not (max-width:max(10px,1rem)){.wp-block-query.is-fluid-breakpoint{color:#ff0}}@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query.is-style-featured{color:#ff0}}@media (color) and (min-resolution:2dppx){.wp-block-query.is-density-aware{color:#ff0}}@media (min-aspect-ratio:16/9) and (not (max-color-index:2)){.wp-block-query.is-wide-color{color:#ff0}}@media (min-theme-breakpoint:2){.wp-block-query.is-custom-breakpoint{color:#ff0}}@media (theme-state:expanded){.wp-block-query.is-expanded-state{color:#ff0}}}',
@@ -142,6 +152,7 @@ $expected = [
     'invalidIntervalGuard' => 'invalid-media-query',
     'invalidFunctionGuard' => 'invalid-media-query',
     'invalidRangeValueGuard' => 'invalid-media-query',
+    'missingAndGuard' => 'invalid-media-query',
 ];
 
 if ($actual !== $expected) {

@@ -169,6 +169,11 @@ return [
             'only screen and',
             '()',
             'screen and ()',
+            'screen (width >= 240px)',
+            'screen not (width >= 240px)',
+            'only screen (width >= 240px)',
+            'not screen (width >= 240px)',
+            'print (100px <= width <= 200px)',
         ];
 
         foreach ($invalid as $query) {
@@ -322,6 +327,11 @@ return [
             '@layer blocks { @media (hover) and { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media screen and { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media screen and () { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media screen (width >= 240px) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media screen not (width >= 240px) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media not screen (width >= 240px) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media only screen (width >= 240px) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media print (100px <= width <= 200px) { .wp-block-query { color: chartreuse; } } }',
         ] as $css) {
             $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify($css));
         }

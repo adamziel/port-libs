@@ -630,6 +630,59 @@ CSS);
         ], $escapedResult['exports']);
         $t->same([], $escapedResult['references']);
     },
+    'css modules treats comments as upstream token separators inside composes values' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
+        $localResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.test {
+  composes: foo/* comment */bar;
+  background: white;
+}
+
+.foo {
+  color: red;
+}
+
+.bar {
+  color: blue;
+}
+CSS);
+
+        $t->same('.EgL3uq_test{background:#fff}.EgL3uq_foo{color:red}.EgL3uq_bar{color:#00f}', $localResult['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [$local('EgL3uq_foo'), $local('EgL3uq_bar')]),
+            'foo' => $export('EgL3uq_foo'),
+            'bar' => $export('EgL3uq_bar'),
+        ], $localResult['exports']);
+        $t->same([], $localResult['references']);
+
+        $globalResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.test {
+  composes: foo/* comment */from/* comment */global;
+  background: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_test{background:#fff}', $globalResult['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [$global('foo')]),
+        ], $globalResult['exports']);
+        $t->same([], $globalResult['references']);
+
+        $dependencyResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.test {
+  composes: foo/* comment */bar/* comment */from/* comment */"./tokens.css";
+  background: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_test{background:#fff}', $dependencyResult['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [
+                $dependency('foo', './tokens.css'),
+                $dependency('bar', './tokens.css'),
+            ]),
+        ], $dependencyResult['exports']);
+        $t->same([], $dependencyResult['references']);
+    },
     'css modules decodes escaped dependency specifiers in composes metadata' => static function (TestRunner $t) use ($export, $dependency): void {
         $css = <<<'CSS'
 .test {

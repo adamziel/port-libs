@@ -751,13 +751,14 @@ final class CssBundler
                 continue;
             }
 
-            $this->appendCssModuleReference($resolved, [
+            $resolved[] = [
                 'type' => 'local',
                 'name' => $depExport['name'],
-            ]);
-            $stack[$key] = true;
-            foreach ($this->resolveCssModuleReferences($depSourceIndex, $depExport['composes'], $stack) as $depReference) {
-                $this->appendCssModuleReference($resolved, $depReference);
+            ];
+            $nextStack = $stack;
+            $nextStack[$key] = true;
+            foreach ($this->resolveCssModuleReferences($depSourceIndex, $depExport['composes'], $nextStack) as $depReference) {
+                $resolved[] = $depReference;
             }
         }
 
@@ -874,6 +875,30 @@ final class CssBundler
                     );
                 }
                 break;
+            }
+
+            if ($this->startsAtKeyword($css, $cursor, '@import')) {
+                if (!$importsAllowed) {
+                    $loc = $this->sourceLocation($css, $cursor + strlen('@import'));
+                    throw new CssBundleException(
+                        'parser-error',
+                        '@import rules must precede all rules aside from @charset and @layer statements',
+                        $file,
+                        $loc['line'],
+                        $loc['column'],
+                    );
+                }
+
+                $loc = $this->sourceLocation($css, $cursor);
+                $this->parseImportStatement(substr($css, $cursor, $blockOpen - $cursor), $loc, $file);
+
+                throw new CssBundleException(
+                    'parser-error',
+                    '@import rules cannot contain blocks',
+                    $file,
+                    $loc['line'],
+                    $loc['column'],
+                );
             }
 
             $close = $this->findMatchingDelimiter($css, $blockOpen, '{', '}');
@@ -1598,7 +1623,7 @@ final class CssBundler
     }
 
     /**
-     * @return array{hash?:string,filename:string,projectRoot?:string,pattern:string,minify:bool,dashedIdents:bool,grid:bool,container:bool}
+     * @return array{hash?:string,filename:string,projectRoot?:string,pattern:string,minify:bool,dashedIdents:bool,grid:bool,container:bool,preserveDependencyComposesDuplicates:bool}
      */
     private function cssModuleTransformOptions(string $file): array
     {
@@ -1609,6 +1634,7 @@ final class CssBundler
             'dashedIdents' => ($this->cssModuleOptions['dashedIdents'] ?? $this->cssModuleOptions['dashed_idents'] ?? false) === true,
             'grid' => ($this->cssModuleOptions['grid'] ?? true) !== false,
             'container' => ($this->cssModuleOptions['container'] ?? true) !== false,
+            'preserveDependencyComposesDuplicates' => true,
         ];
 
         $projectRoot = $this->cssModuleProjectRoot();

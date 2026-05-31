@@ -730,7 +730,7 @@ final class GitConfig
             $byte = $class[$index];
             if ($byte === '\\') {
                 if ($index + 1 < $length) {
-                    $body .= self::escapeCharacterClassByte($class[++$index]);
+                    $body .= self::escapeEscapedCharacterClassByte($class[++$index]);
                 } else {
                     $body .= '\\\\';
                 }
@@ -769,6 +769,11 @@ final class GitConfig
             '~' => '\\~',
             default => $byte,
         };
+    }
+
+    private static function escapeEscapedCharacterClassByte(string $byte): string
+    {
+        return preg_quote($byte, '~');
     }
 
     private static function posixCharacterClassRegex(string $class): ?string

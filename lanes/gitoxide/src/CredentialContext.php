@@ -152,7 +152,7 @@ final class CredentialContext
         }
 
         $protocol = $parsed->scheme();
-        $host = $this->host;
+        $host = null;
         if ($parsed->host() !== null && $parsed->host() !== '') {
             $host = $parsed->host();
             $port = $parsed->port();

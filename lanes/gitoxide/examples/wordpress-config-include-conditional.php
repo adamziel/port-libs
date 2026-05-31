@@ -18,6 +18,7 @@ return [
     'slashClassRejectedPolicy' => $fixture['slashClassRejectedPolicy'],
     'bracketUrlPolicy' => $fixture['bracketUrlPolicy'],
     'posixUrlPolicy' => $fixture['posixUrlPolicy'],
+    'escapedHyphenUrlPolicy' => $fixture['escapedHyphenUrlPolicy'],
     'legacyBytePolicy' => $fixture['legacyBytePolicy'],
     'literalTildePathPolicy' => $fixture['literalTildePathPolicy'],
     'installPrefixPathPolicy' => $fixture['installPrefixPathPolicy'],

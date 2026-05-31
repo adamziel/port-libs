@@ -86,6 +86,22 @@ return [
         $t->same(null, $result->context->path);
         $t->same(false, str_contains($result->nextActionBytes(), "path=stale/repository/path\n"));
     },
+    'credential cascade helper file urls clear stale network host context' => static function (TestRunner $t): void {
+        $cascade = new CredentialCascade([
+            static fn (): string => "host=stale.example.test\nusername=stale-user\nurl=file:///srv/wp-content.git\n",
+            static fn (): string => "username=deploy\npassword=token\n",
+        ], useHttpPath: true);
+
+        $result = $cascade->get(new CredentialContext(url: 'https://origin.example.test/wp-content.git'));
+
+        $t->same('file', $result->context->protocol);
+        $t->same(null, $result->context->host);
+        $t->same('srv/wp-content.git', $result->context->path);
+        $t->same('deploy', $result->username);
+        $t->same('token', $result->password);
+        $t->same(false, str_contains($result->nextActionBytes(), "host=stale.example.test\n"));
+        $t->same(false, str_contains($result->nextActionBytes(), "\nhost="));
+    },
     'credential cascade honors quit and query user only boundaries' => static function (TestRunner $t): void {
         $calls = [];
         $quit = new CredentialCascade([

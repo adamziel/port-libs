@@ -119,6 +119,23 @@ try {
         && str_contains($exception->getMessage(), 'Loose object inflated size mismatch');
 }
 
+$unwalkableGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-unwalkable-' . bin2hex(random_bytes(4)) . '/.git';
+$unwalkableStore = new LooseObjectStore($unwalkableGitDir);
+$unwalkableOid = $unwalkableStore->write(new GitObject('blob', 'Verified deployment object beside transient scratch data.'));
+$unwalkableDirectory = $unwalkableGitDir . '/objects/transient-unwalkable';
+if (!mkdir($unwalkableDirectory, 0777, true) && !is_dir($unwalkableDirectory)) {
+    throw new RuntimeException("Unable to create unwalkable loose object directory: {$unwalkableDirectory}");
+}
+file_put_contents($unwalkableDirectory . '/ignored.tmp', 'transient deployment scratch file');
+chmod($unwalkableDirectory, 0000);
+try {
+    $looseIntegrityTraversalSummary = (new ObjectDatabase($unwalkableGitDir))->verifyLooseIntegrity();
+} finally {
+    chmod($unwalkableDirectory, 0777);
+}
+$looseIntegrityTraversalErrorIgnored = $looseIntegrityTraversalSummary[0]['statistics']['numObjects'] === 1
+    && in_array($unwalkableOid, $looseIntegrityTraversalSummary[0]['statistics']['verifiedObjectIds'], true);
+
 return [
     'packedObjects' => $database->packedObjectCount(),
     'totalIterableObjects' => count($database->objectIds()),
@@ -155,4 +172,5 @@ return [
     'looseIntegrityDirectoryBlockerRejected' => $looseIntegrityDirectoryBlockerRejected,
     'looseIntegrityNestedCandidateRejected' => $looseIntegrityNestedCandidateRejected,
     'looseIntegritySizeMismatchRejected' => $looseIntegritySizeMismatchRejected,
+    'looseIntegrityTraversalErrorIgnored' => $looseIntegrityTraversalErrorIgnored,
 ];

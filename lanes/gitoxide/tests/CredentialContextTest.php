@@ -156,6 +156,16 @@ return [
         $t->same(null, $fileUrl->host);
         $t->same('srv/repo.git', $fileUrl->path);
 
+        $fileUrlClearsNetworkContext = (new CredentialContext(
+            url: 'file:///srv/wp-content.git',
+            host: 'stale.example.test',
+            username: 'stale-user',
+        ))->destructureUrl(true);
+        $t->same('file', $fileUrlClearsNetworkContext->protocol);
+        $t->same(null, $fileUrlClearsNetworkContext->host);
+        $t->same(null, $fileUrlClearsNetworkContext->username);
+        $t->same('srv/wp-content.git', $fileUrlClearsNetworkContext->path);
+
         $composed = (new CredentialContext(
             protocol: 'https',
             host: 'github.com',
@@ -194,6 +204,9 @@ return [
         $t->same('git.example.test', $fixture['encodedContext']['host']);
         $t->same('wp-content deploy.git', $fixture['encodedContext']['path']);
         $t->same('Deploy Bot', $fixture['encodedContext']['username']);
+        $t->same(true, $fixture['fileUrlClearedHost']);
+        $t->same(true, $fixture['fileUrlClearedUsername']);
+        $t->same('srv/wp-content.git', $fixture['fileUrlPath']);
         $t->same(null, $fixture['clearedPassword']);
         $t->same(false, $fixture['emptyQuitFalse']);
         $t->same(1711398853, $fixture['passwordExpiryUtc']);
@@ -201,6 +214,7 @@ return [
         $t->same(true, $fixture['rootHttpPathCleared']);
         $t->same($fixture['credentialUrl'], $summary['credentialUrl']);
         $t->same($fixture['encodedContext']['path'], $summary['encodedPath']);
+        $t->same(true, $summary['fileUrlClearedHost']);
         $t->same(true, $summary['rootHttpPathCleared']);
         $t->same(false, $summary['emptyQuitFalse']);
         $t->same(false, $summary['secretsInCleartextLog']);

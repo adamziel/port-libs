@@ -367,6 +367,35 @@ try {
     echo 'invalid-import-layer: rejected-before-read' . PHP_EOL;
 }
 
+$invalidLayerBlockReads = [];
+try {
+    (new CssBundler())->bundleWithReader(
+        '/invalid-layer-block.css',
+        static function (string $file) use (&$invalidLayerBlockReads): string {
+            $invalidLayerBlockReads[] = $file;
+
+            return $file === '/invalid-layer-block.css'
+                ? '@import "tokens.css" layer(theme.tokens, theme.blocks) {}; .wp-site-blocks { color: red }'
+                : ':root { --wp--preset--color--brand: blue; }';
+        }
+    );
+
+    fwrite(STDERR, "Expected block-form invalid import layer diagnostic before block-theme graph resolution\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'Invalid @import layer name: theme.tokens, theme.blocks'
+        || $exception->sourceFile !== '/invalid-layer-block.css'
+        || $invalidLayerBlockReads !== ['/invalid-layer-block.css']
+    ) {
+        fwrite(STDERR, 'Unexpected block-form invalid layer diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'invalid-import-layer-block: rejected-before-read' . PHP_EOL;
+}
+
 $externalLayerMediaBundle = (new CssBundler())->bundle('/external-layer-media.css', [
     '/external-layer-media.css' => <<<'CSS'
 @import "https://cdn.example/theme.css" supports(display: flex) layer;

@@ -23,6 +23,7 @@ final class CssModulesTransformer
     private bool $customIdents = true;
     private bool $pure = false;
     private bool $preserveEmptyComposesRules = true;
+    private bool $preserveDependencyComposesDuplicates = false;
 
     /** @var array<string, string> */
     private array $pseudoClasses = [];
@@ -44,7 +45,7 @@ final class CssModulesTransformer
      *   references:array<string, array{type:string, name:string, specifier:string}>
      * }
      *
-     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, grid?:bool, container?:bool, customIdents?:bool, custom_idents?:bool, pure?:bool, pseudoClasses?:array<string, string>, pseudo_classes?:array<string, string>} $options
+     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, grid?:bool, container?:bool, customIdents?:bool, custom_idents?:bool, pure?:bool, pseudoClasses?:array<string, string>, pseudo_classes?:array<string, string>, preserveDependencyComposesDuplicates?:bool} $options
      */
     public function transform(string $css, array $options = []): array
     {
@@ -67,6 +68,7 @@ final class CssModulesTransformer
         $this->pure = ($options['pure'] ?? false) === true;
         $minify = ($options['minify'] ?? true) === true;
         $this->preserveEmptyComposesRules = $minify;
+        $this->preserveDependencyComposesDuplicates = ($options['preserveDependencyComposesDuplicates'] ?? false) === true;
         $this->pseudoClasses = $this->normalizePseudoClasses($options['pseudoClasses'] ?? $options['pseudo_classes'] ?? []);
         $this->exports = [];
         $this->references = [];
@@ -1504,7 +1506,10 @@ final class CssModulesTransformer
         foreach ($locals as $local) {
             $this->ensureExport($local);
             foreach ($composes as $compose) {
-                if (in_array($compose, $this->exports[$local]['composes'], true)) {
+                if (
+                    !($this->preserveDependencyComposesDuplicates && ($compose['type'] ?? '') === 'dependency')
+                    && in_array($compose, $this->exports[$local]['composes'], true)
+                ) {
                     continue;
                 }
                 $this->exports[$local]['composes'][] = $compose;
@@ -2998,6 +3003,12 @@ final class CssModulesTransformer
         $output = '';
         $licenseComments = [];
         $quote = null;
+        $braceDepth = 0;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $declarationHead = '';
+        $inDeclarationValue = false;
+        $inComposesDeclarationValue = false;
         $length = strlen($css);
 
         for ($i = 0; $i < $length; $i++) {
@@ -3030,9 +3041,53 @@ final class CssModulesTransformer
                     $licenseComments[] = trim($comment);
                 } elseif (str_contains(substr($css, $i + 2, $end - $i - 2), 'cssmodules-pure-no-check')) {
                     $output .= self::PURE_NO_CHECK_MARKER;
+                } elseif ($inComposesDeclarationValue) {
+                    $output .= ' ';
                 }
                 $i = $end + 1;
                 continue;
+            }
+
+            if ($char === '{') {
+                $braceDepth++;
+                $declarationHead = '';
+                $inDeclarationValue = false;
+                $inComposesDeclarationValue = false;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+                $declarationHead = '';
+                $inDeclarationValue = false;
+                $inComposesDeclarationValue = false;
+                $output .= $char;
+                continue;
+            }
+
+            if ($braceDepth > 0 && $parenDepth === 0 && $bracketDepth === 0) {
+                if ($char === ';') {
+                    $declarationHead = '';
+                    $inDeclarationValue = false;
+                    $inComposesDeclarationValue = false;
+                } elseif ($char === ':' && !$inDeclarationValue) {
+                    $inComposesDeclarationValue = strcasecmp(trim($declarationHead), 'composes') === 0;
+                    $declarationHead = '';
+                    $inDeclarationValue = true;
+                } elseif (!$inDeclarationValue) {
+                    $declarationHead .= $char;
+                }
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
             }
 
             $output .= $char;

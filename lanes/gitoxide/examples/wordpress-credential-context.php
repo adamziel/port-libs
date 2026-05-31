@@ -13,6 +13,8 @@ return [
     'requestBytes' => $fixture['requestBytes'],
     'emptyQuitFalse' => $fixture['emptyQuitFalse'],
     'rootHttpPathCleared' => $fixture['rootHttpPathCleared'],
+    'fileUrlClearedHost' => $fixture['fileUrlClearedHost'],
+    'fileUrlPath' => $fixture['fileUrlPath'],
     'redactedBytes' => $fixture['redactedBytes'],
     'secretsInCleartextLog' => str_contains($fixture['redactedBytes'], 'wp-deploy-token')
         || str_contains($fixture['redactedBytes'], 'wp-refresh-token'),

@@ -27,6 +27,11 @@ $actual = [
         'padding-left',
         '2rem'
     ),
+    'physicalShorthandAfterLogicalFallback' => $block->setProperty(
+        'margin: var(--wp--preset--spacing--30); margin-inline-start: var(--wp--preset--spacing--40)',
+        'margin',
+        'var(--wp--preset--spacing--50)'
+    ),
     'removedInlineStart' => $block->removeProperty($declarations, 'margin-inline-start'),
 ];
 
@@ -42,6 +47,7 @@ $expected = [
     'logicalSpacingAfterPhysicalFallback' => 'margin-inline-start: var(--wp--preset--spacing--40); margin-left: 2rem; margin-inline-start: var(--wp--preset--spacing--50)',
     'logicalSpacingInShorthand' => 'margin-inline: var(--wp--preset--spacing--50) 2rem; padding-block: 1rem 2rem',
     'physicalSpacingAfterLogicalFallback' => 'padding-left: 1rem; padding-inline-start: var(--wp--preset--spacing--30); padding-left: 2rem',
+    'physicalShorthandAfterLogicalFallback' => 'margin: var(--wp--preset--spacing--30); margin-inline-start: var(--wp--preset--spacing--40); margin: var(--wp--preset--spacing--50)',
     'removedInlineStart' => 'margin-inline-end: 2rem; padding-block: 1rem 2rem',
 ];
 

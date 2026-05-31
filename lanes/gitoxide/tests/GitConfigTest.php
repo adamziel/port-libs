@@ -283,6 +283,68 @@ return [
         $t->same('good', $config->value('user', null, 'dash'));
     },
 
+    'conditional include escaped hyphen bracket classes stay literal' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
+        $t->same('base-value', $loadConditionalValue('onbranch:release/[a\\\\-c]ite', [
+            'branchName' => 'refs/heads/release/bite',
+        ]));
+        $t->same('override-value', $loadConditionalValue('onbranch:release/[a\\\\-c]ite', [
+            'branchName' => 'refs/heads/release/-ite',
+        ]));
+        $t->same('override-value', $loadConditionalValue('onbranch:release/[a\\\\-c]ite', [
+            'branchName' => 'refs/heads/release/cite',
+        ]));
+
+        $root = $tmpDir();
+        $worktree = $root . '/deploy/site-b';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/include.config', "[section]\nvalue = escaped-hyphen\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:deploy/site-[a\\\\-c]/"]
+        path = ../include.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('base', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $worktree = $root . '/deploy/site--';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/include.config', "[section]\nvalue = escaped-hyphen\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:deploy/site-[a\\\\-c]/"]
+        path = ../include.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('escaped-hyphen', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $write($root . '/range-url', "[user]\nrange = should-not-load\n");
+        $write($root . '/config', <<<CFG
+        [remote "range"]
+        url = https://git.example.test/wp-content/site-b.git
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[a\\\\-c].git"]
+        path = "range-url"
+        CFG);
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same(null, $config->value('user', null, 'range'));
+
+        $root = $tmpDir();
+        $write($root . '/literal-url', "[user]\nliteral = matched\n");
+        $write($root . '/config', <<<CFG
+        [remote "literal"]
+        url = https://git.example.test/wp-content/site--.git
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[a\\\\-c].git"]
+        path = "literal-url"
+        CFG);
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same('matched', $config->value('user', null, 'literal'));
+    },
+
     'conditional include POSIX bracket classes match gix wildmatch classes' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
         $t->same('override-value', $loadConditionalValue('onbranch:deploy/[[:alpha:]]ite', ['branchName' => 'refs/heads/deploy/site']));
         $t->same('base-value', $loadConditionalValue('onbranch:deploy/[[:digit:]]ite', ['branchName' => 'refs/heads/deploy/site']));
@@ -703,6 +765,7 @@ return [
         $t->same(null, $fixture['slashClassRejectedPolicy']);
         $t->same('matched', $fixture['bracketUrlPolicy']);
         $t->same('matched', $fixture['posixUrlPolicy']);
+        $t->same('matched', $fixture['escapedHyphenUrlPolicy']);
         $t->same('matched', $fixture['legacyBytePolicy']);
         $t->same('matched', $fixture['literalTildePathPolicy']);
         $t->same('matched', $fixture['installPrefixPathPolicy']);
@@ -720,6 +783,7 @@ return [
         $t->same($fixture['slashClassRejectedPolicy'], $summary['slashClassRejectedPolicy']);
         $t->same($fixture['bracketUrlPolicy'], $summary['bracketUrlPolicy']);
         $t->same($fixture['posixUrlPolicy'], $summary['posixUrlPolicy']);
+        $t->same($fixture['escapedHyphenUrlPolicy'], $summary['escapedHyphenUrlPolicy']);
         $t->same($fixture['legacyBytePolicy'], $summary['legacyBytePolicy']);
         $t->same($fixture['literalTildePathPolicy'], $summary['literalTildePathPolicy']);
         $t->same($fixture['installPrefixPathPolicy'], $summary['installPrefixPathPolicy']);

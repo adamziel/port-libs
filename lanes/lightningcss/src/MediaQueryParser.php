@@ -51,6 +51,7 @@ final class MediaQueryParser
         $this->validateTopLevelLogicalOperators($query);
         $this->validateTopLevelConditionFunctions($query);
         $query = $this->normalizeBooleanConditionGroups($query);
+        $this->validateExplicitMediaTypeConditionSeparator($query);
         $this->validateExplicitMediaTypeCondition($query);
         $query = $this->invertNegatedSimpleRangeConditions($query);
         $query = $this->normalizeRedundantTopLevelConditionWrappers($query);
@@ -73,6 +74,26 @@ final class MediaQueryParser
 
         if ($this->splitTopLevelLogical($mediaPrefix['condition'], 'or') !== null) {
             throw new \InvalidArgumentException('Media query conditions after an explicit media type cannot contain top-level or');
+        }
+    }
+
+    private function validateExplicitMediaTypeConditionSeparator(string $query): void
+    {
+        if (preg_match('/^(?:(not|only)\s+)?([_a-zA-Z-][_a-zA-Z0-9-]*)\s+(.+)$/i', $query, $matches) !== 1) {
+            return;
+        }
+
+        $type = strtolower($matches[2]);
+        $tail = ltrim($matches[3]);
+        if ($type === 'not' && str_starts_with($tail, '(')) {
+            return;
+        }
+        if (($type === 'not' || $type === 'only') && preg_match('/^[_a-zA-Z-][_a-zA-Z0-9-]*$/', $tail) === 1) {
+            return;
+        }
+
+        if (preg_match('/^and(?:\s|$)/i', $tail) !== 1) {
+            throw new \InvalidArgumentException('Media query condition after an explicit media type must start with and');
         }
     }
 

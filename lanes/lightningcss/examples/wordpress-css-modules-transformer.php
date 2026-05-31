@@ -197,6 +197,25 @@ CSS, [
     'hash' => 'BlockA',
 ]);
 
+$commentedComposesResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.commentCard {
+  composes: card/* local separator */cardBase;
+  composes: utility/* global separator */from/* global separator */global;
+  composes: reset/* dependency separator */from/* dependency separator */"./core.module.css";
+  color: yellow;
+}
+
+.card {
+  color: red;
+}
+
+.cardBase {
+  color: blue;
+}
+CSS, [
+    'hash' => 'BlockA',
+]);
+
 try {
     (new CssModulesTransformer())->transform(<<<'CSS'
 .card {
@@ -345,6 +364,8 @@ $actual = [
     'rawPseudoFunctionExports' => $rawPseudoFunctionResult['exports'],
     'composeOnly' => $composeOnlyResult['code'],
     'composeOnlyExports' => $composeOnlyResult['exports'],
+    'commentedComposes' => $commentedComposesResult['code'],
+    'commentedComposesExports' => $commentedComposesResult['exports'],
 ];
 
 $expected = [
@@ -651,6 +672,42 @@ $expected = [
             'isReferenced' => false,
         ],
     ],
+    'commentedComposes' => '.BlockA_commentCard{color:#ff0}.BlockA_card{color:red}.BlockA_cardBase{color:#00f}',
+    'commentedComposesExports' => [
+        'commentCard' => [
+            'name' => 'BlockA_commentCard',
+            'composes' => [
+                [
+                    'type' => 'local',
+                    'name' => 'BlockA_card',
+                ],
+                [
+                    'type' => 'local',
+                    'name' => 'BlockA_cardBase',
+                ],
+                [
+                    'type' => 'global',
+                    'name' => 'utility',
+                ],
+                [
+                    'type' => 'dependency',
+                    'name' => 'reset',
+                    'specifier' => './core.module.css',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+        'card' => [
+            'name' => 'BlockA_card',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'cardBase' => [
+            'name' => 'BlockA_cardBase',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+    ],
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -679,3 +736,4 @@ echo 'dashed-idents: ' . $actual['dashedIdents'] . PHP_EOL;
 echo 'pseudo-classes: ' . $actual['pseudoClasses'] . PHP_EOL;
 echo 'raw-pseudo-function: ' . $actual['rawPseudoFunction'] . PHP_EOL;
 echo 'compose-only: ' . $actual['composeOnly'] . PHP_EOL;
+echo 'commented-composes: ' . $actual['commentedComposes'] . PHP_EOL;

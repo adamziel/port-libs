@@ -31,6 +31,11 @@ $rootHttpContext = (new CredentialContext(
     url: 'https://GIT.example.test/',
     path: 'stale/wp-content.git',
 ))->destructureUrl(true);
+$fileUrlContext = (new CredentialContext(
+    url: 'file:///srv/wp-content.git',
+    host: 'stale.git.example.test',
+    username: 'deploy-bot',
+))->destructureUrl(true);
 
 return [
     'requestBytes' => $request->storageBytes(),
@@ -43,6 +48,9 @@ return [
     'passwordExpiryUtc' => $helperResponse->passwordExpiryUtc,
     'emptyQuitFalse' => $emptyQuit->quit,
     'rootHttpPathCleared' => $rootHttpContext->path === null,
+    'fileUrlClearedHost' => $fileUrlContext->host === null,
+    'fileUrlClearedUsername' => $fileUrlContext->username === null,
+    'fileUrlPath' => $fileUrlContext->path,
     'redactedBytes' => $redacted->storageBytes(),
     'clearedPassword' => $cleared->password,
     'clearedOauthRefreshToken' => $cleared->oauthRefreshToken,

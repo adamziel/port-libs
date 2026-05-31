@@ -48,6 +48,7 @@ $moduleExport = static fn (string $name, array $composes = []): array => [
     'isReferenced' => false,
 ];
 $moduleLocal = static fn (string $name): array => ['type' => 'local', 'name' => $name];
+$moduleGlobal = static fn (string $name): array => ['type' => 'global', 'name' => $name];
 $moduleDashed = static fn (string $name, bool $isReferenced = false): array => [
     'name' => $name,
     'composes' => [],
@@ -631,6 +632,52 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler maps upstream media range conjunctions through layered import graph' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@media ((width>=250px) or (color)) and (orientation:landscape){@layer theme.blocks{.c{color:green}}}@media ((width>=250px) or (color)){@layer theme.blocks{.b{color:#00f}}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(theme.blocks) ((min-width: 250px) or (color)); .a { color: red }',
+                '/b.css' => '@import "c.css" (orientation: landscape); .b { color: blue }',
+                '/c.css' => '.c { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@media print and (width>=250px) and (color){@layer theme.blocks{.c{color:green}}}@media print and (width>=250px){@layer theme.blocks{.b{color:#00f}}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(theme.blocks) print and (min-width: 250px); .a { color: red }',
+                '/b.css' => '@import "c.css" (color); .b { color: blue }',
+                '/c.css' => '.c { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@media only screen{@layer theme.blocks{.c{color:green}}}.b{color:#00f}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" all; .a { color: red }',
+                '/b.css' => '@import "c.css" layer(theme.blocks) only screen; .b { color: blue }',
+                '/c.css' => '.c { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@media only screen{@layer theme.blocks{.c{color:green}}@layer theme.blocks{.b{color:#00f}}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(theme.blocks) only screen; .a { color: red }',
+                '/b.css' => '@import "c.css" all; .b { color: blue }',
+                '/c.css' => '.c { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@media not all and (width>=250px){@layer theme.blocks{.c{color:green}}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(theme.blocks) not all; .a { color: red }',
+                '/b.css' => '@import "c.css" (min-width: 250px); .b { color: blue }',
+                '/c.css' => '.c { color: green }',
+            ], '/a.css')
+        );
+    },
     'css bundler merges repeated import conditions like upstream' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print,screen{.b{color:green}}.a{color:red}',
@@ -843,6 +890,29 @@ CSS,
 
         $assertInvalidLayerImport('@import "tokens.css" layer(foo, bar); .entry { color: red }', 'Invalid @import layer name: foo, bar');
         $assertInvalidLayerImport('@import "tokens.css" layer(); .entry { color: red }', 'Invalid @import layer name: ');
+    },
+    'css bundler rejects block-form invalid import layer names before graph resolution' => static function (TestRunner $t): void {
+        $reads = [];
+        try {
+            (new CssBundler())->bundleWithReader('/entry.css', static function (string $file) use (&$reads): string {
+                $reads[] = $file;
+
+                return $file === '/entry.css'
+                    ? '@import "tokens.css" layer(foo, bar) {}; .entry { color: red }'
+                    : ':root { --gap: 1rem }';
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('parser-error', $exception->kind);
+            $t->same('Invalid @import layer name: foo, bar', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
+            $t->same(['/entry.css'], $reads);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected invalid block-form @import layer name exception');
     },
     'css bundler maps external import ordering diagnostics' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
@@ -1260,6 +1330,46 @@ CSS,
             'entry' => $moduleExport('entry_entry', [
                 $moduleLocal('dep_card'),
                 $moduleLocal('dep_token'),
+            ]),
+        ], $result['exports']);
+    },
+    'css bundler preserves upstream repeated source-index css module composes' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal, $moduleGlobal): void {
+        $result = $bundleModules([
+            '/entry.css' => <<<'CSS'
+.entry {
+  composes: card card from "./card.css";
+  color: red;
+}
+CSS,
+            '/card.css' => <<<'CSS'
+.card {
+  composes: wp-utility from global;
+  composes: token from "./tokens.css";
+  background: blue;
+}
+CSS,
+            '/tokens.css' => <<<'CSS'
+.token {
+  color: green;
+}
+CSS,
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/card.css' => 'dep',
+                '/tokens.css' => 'tok',
+            ],
+        ]);
+
+        $t->same('.tok_token{color:green}.dep_card{background:#00f}.entry_entry{color:red}', $result['code']);
+        $t->same([
+            'entry' => $moduleExport('entry_entry', [
+                $moduleLocal('dep_card'),
+                $moduleGlobal('wp-utility'),
+                $moduleLocal('tok_token'),
+                $moduleLocal('dep_card'),
+                $moduleGlobal('wp-utility'),
+                $moduleLocal('tok_token'),
             ]),
         ], $result['exports']);
     },

@@ -33,8 +33,33 @@ $recursiveMacroAttributes = GitAttributes::fromString(
     . "wp-content/** other a-cycle\n"
     . "wp-content/** -other b-cycle\n"
 );
+$nestedAttributes = GitAttributes::fromSources([
+    [
+        'contents' => "wp-content/** deploy=root review=pending\n"
+            . "wp-content/cache/** export-ignore\n"
+            . "[attr]root-binary binary root-macro\n"
+            . "wp-content/uploads/** root-binary\n",
+    ],
+    [
+        'baseDirectory' => 'wp-content/plugins',
+        'contents' => "gutenberg/** deploy=plugin merge=union local-macro\n"
+            . "gutenberg/build/** -deploy\n"
+            . "[attr]local-macro nested-macro\n",
+        'allowMacros' => false,
+    ],
+    [
+        'baseDirectory' => 'wp-content/themes/twentytwentyfour',
+        'contents' => "theme.json deploy=theme merge=union\n",
+    ],
+]);
 $datedUploadSearch = PathspecSearch::fromSpecs([':(attr:dated-upload)wp-content/uploads/**']);
 $whitespaceUploadSearch = PathspecSearch::fromSpecs([':(attr:whitespace-upload)wp-content/uploads/**']);
+$nestedDeploymentSearch = PathspecSearch::fromSpecs([
+    ':(attr:deploy=plugin)wp-content/plugins/**',
+    ':(attr:deploy=theme)wp-content/themes/**',
+    ':!:(attr:-deploy)wp-content/plugins/gutenberg/build/**',
+    ':!:(attr:export-ignore)wp-content/cache/**',
+]);
 $valueTabRequirementRejected = false;
 try {
     PathspecMatcher::fromSpecs([":(attr:deploy=plugin\treview=yes)wp-content/plugins/**"]);
@@ -48,6 +73,13 @@ foreach ($fixture['paths'] as $path => $isDirectory) {
     }
 }
 sort($searchSelected, SORT_STRING);
+$nestedSelected = [];
+foreach ($fixture['paths'] as $path => $isDirectory) {
+    if ($nestedDeploymentSearch->isIncluded($path, $isDirectory, $nestedAttributes)) {
+        $nestedSelected[] = $path;
+    }
+}
+sort($nestedSelected, SORT_STRING);
 $pluginSearchMatch = $search->match('wp-content/plugins/gutenberg/block.json', false, $attributes);
 
 return [
@@ -118,6 +150,24 @@ return [
     'recursiveMacroPathspecMatches' => PathspecSearch::fromSpecs([
         ':(attr:text recursively-assigned-attr macro-overridden -other)wp-content/**',
     ])->isIncluded('wp-content/plugins/gutenberg/block.php', false, $recursiveMacroAttributes),
+    'nestedSelectedForDeployment' => $nestedSelected,
+    'nestedPluginAttributes' => $nestedAttributes->attributesForPath(
+        'wp-content/plugins/gutenberg/block.json',
+        ['deploy', 'merge', 'review'],
+    ),
+    'nestedBuildExcluded' => !$nestedDeploymentSearch->isIncluded(
+        'wp-content/plugins/gutenberg/build/index.js',
+        false,
+        $nestedAttributes,
+    ),
+    'nestedThemeAttributes' => $nestedAttributes->attributesForPath(
+        'wp-content/themes/twentytwentyfour/theme.json',
+        ['deploy', 'merge'],
+    ),
+    'nestedLocalMacroDefinitionIgnored' => $nestedAttributes->attributesForPath(
+        'wp-content/plugins/gutenberg/block.json',
+        ['local-macro', 'nested-macro'],
+    ),
     'cacheExcluded' => !$matcher->matches('wp-content/cache/page.html', false, $attributes),
     'buildExcludedByPathspec' => !$matcher->matches('wp-content/plugins/gutenberg/build/index.js', false, $attributes),
 ];

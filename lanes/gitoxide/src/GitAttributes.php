@@ -23,14 +23,69 @@ final class GitAttributes
 
     public static function fromString(string $contents, string $baseDirectory = '', bool $withBuiltInMacros = true): self
     {
-        $macros = $withBuiltInMacros ? [
+        $rules = [];
+        $macros = self::builtInMacros($withBuiltInMacros);
+        self::appendParsedSource($contents, $baseDirectory, true, $rules, $macros);
+
+        return new self($rules, $macros);
+    }
+
+    /**
+     * @param list<string|array{contents:string,baseDirectory?:string,allowMacros?:bool}> $sources
+     */
+    public static function fromSources(array $sources, bool $withBuiltInMacros = true): self
+    {
+        $rules = [];
+        $macros = self::builtInMacros($withBuiltInMacros);
+
+        foreach ($sources as $source) {
+            if (is_string($source)) {
+                self::appendParsedSource($source, '', true, $rules, $macros);
+                continue;
+            }
+            if (!is_array($source) || !isset($source['contents']) || !is_string($source['contents'])) {
+                throw new \InvalidArgumentException('Attribute sources must be strings or arrays with string contents');
+            }
+            $baseDirectory = $source['baseDirectory'] ?? '';
+            if (!is_string($baseDirectory)) {
+                throw new \InvalidArgumentException('Attribute source baseDirectory must be a string');
+            }
+            $allowMacros = $source['allowMacros'] ?? true;
+            if (!is_bool($allowMacros)) {
+                throw new \InvalidArgumentException('Attribute source allowMacros must be a boolean');
+            }
+
+            self::appendParsedSource($source['contents'], $baseDirectory, $allowMacros, $rules, $macros);
+        }
+
+        return new self($rules, $macros);
+    }
+
+    /**
+     * @return array<string, list<array{name:string,state:string,value:?string}>>
+     */
+    private static function builtInMacros(bool $enabled): array
+    {
+        return $enabled ? [
             'binary' => [
                 ['name' => 'diff', 'state' => self::STATE_UNSET, 'value' => null],
                 ['name' => 'merge', 'state' => self::STATE_UNSET, 'value' => null],
                 ['name' => 'text', 'state' => self::STATE_UNSET, 'value' => null],
             ],
         ] : [];
-        $rules = [];
+    }
+
+    /**
+     * @param list<array{pattern:array{text:string,absolute:bool,mustBeDirectory:bool,noSubDirectory:bool},assignments:list<array{name:string,state:string,value:?string}>,line:int,base:string}> $rules
+     * @param array<string, list<array{name:string,state:string,value:?string}>> $macros
+     */
+    private static function appendParsedSource(
+        string $contents,
+        string $baseDirectory,
+        bool $allowMacros,
+        array &$rules,
+        array &$macros,
+    ): void {
         $baseDirectory = self::normalizePath($baseDirectory);
         $contents = preg_replace('/^\xEF\xBB\xBF/', '', $contents) ?? $contents;
         foreach (preg_split('/\r\n|\n|\r/', $contents) ?: [] as $lineNumber => $line) {
@@ -40,7 +95,9 @@ final class GitAttributes
             }
 
             if ($parsed['macro'] !== null) {
-                $macros[$parsed['macro']] = $parsed['assignments'];
+                if ($allowMacros) {
+                    $macros[$parsed['macro']] = $parsed['assignments'];
+                }
                 continue;
             }
 
@@ -51,8 +108,6 @@ final class GitAttributes
                 'base' => $baseDirectory,
             ];
         }
-
-        return new self($rules, $macros);
     }
 
     /**

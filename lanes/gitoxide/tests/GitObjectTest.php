@@ -296,6 +296,28 @@ return [
             $t->contains('Loose object not found', $exception->getMessage());
         }
     },
+    'loose object integrity ignores traversal errors but verifies yielded objects' => static function (TestRunner $t): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-integrity-unwalkable-' . bin2hex(random_bytes(4)) . '/.git';
+        $store = new LooseObjectStore($gitDir);
+        $oid = $store->write(new GitObject('blob', 'WordPress object database stays verifiable'));
+        $unwalkableDirectory = $gitDir . '/objects/transient-unwalkable';
+        if (!mkdir($unwalkableDirectory, 0777, true) && !is_dir($unwalkableDirectory)) {
+            throw new RuntimeException("Unable to create unwalkable loose object directory: {$unwalkableDirectory}");
+        }
+        file_put_contents($unwalkableDirectory . '/ignored.tmp', 'transient deployment scratch file');
+        chmod($unwalkableDirectory, 0000);
+
+        try {
+            $summary = $store->verifyIntegrity();
+        } finally {
+            chmod($unwalkableDirectory, 0777);
+        }
+
+        $t->same([
+            'numObjects' => 1,
+            'verifiedObjectIds' => [$oid],
+        ], $summary);
+    },
     'loose object integrity accepts positive signed size headers only under canonical ids' => static function (TestRunner $t) use ($writeLooseStorage): void {
         $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-integrity-plus-size-' . bin2hex(random_bytes(4)) . '/objects';
         $canonicalObject = new GitObject('blob', 'data');

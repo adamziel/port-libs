@@ -241,9 +241,9 @@ final class LooseObjectStore
      */
     private function collectIntegrityObjectIds(string $directory, int $depth, int $suffixLength, array &$ids): void
     {
-        $entries = scandir($directory);
+        $entries = @scandir($directory);
         if ($entries === false) {
-            throw new \RuntimeException("Unable to scan loose object directory: {$directory}");
+            return;
         }
 
         foreach ($entries as $entry) {

@@ -1208,6 +1208,34 @@ return [
             $block->setProperty('padding-inline: 1rem 2rem !important', 'padding-inline-start', '3rem')
         );
     },
+    'declaration block sets upstream shorthands after opposite logical group fallbacks' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'margin: 1rem; margin-inline-start: 2rem; margin: 3rem',
+            $block->setProperty('margin: 1rem; margin-inline-start: 2rem', 'margin', '3rem')
+        );
+        $t->same(
+            'margin-inline: 1rem 2rem; margin-left: 4rem; margin-inline: 3rem',
+            $block->setProperty('margin-inline: 1rem 2rem; margin-left: 4rem', 'margin-inline', '3rem')
+        );
+        $t->same(
+            'scroll-padding: 8px; scroll-padding-block-start: 12px; scroll-padding: 16px',
+            $block->setProperty('scroll-padding: 8px; scroll-padding-block-start: 12px', 'scroll-padding', '16px')
+        );
+        $t->same(
+            'border-color: red; border-inline-start-color: blue; border-color: green',
+            $block->setProperty('border-color: red; border-inline-start-color: blue', 'border-color', 'green')
+        );
+        $t->same(
+            'border-block-color: red blue; border-left-color: black; border-block-color: green',
+            $block->setProperty('border-block-color: red blue; border-left-color: black', 'border-block-color', 'green')
+        );
+        $t->same(
+            'border-radius: 8px; border-start-start-radius: 12px; border-radius: 16px',
+            $block->setProperty('border-radius: 8px; border-start-start-radius: 12px', 'border-radius', '16px')
+        );
+    },
     'declaration block reads and writes upstream inset cssom rect shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

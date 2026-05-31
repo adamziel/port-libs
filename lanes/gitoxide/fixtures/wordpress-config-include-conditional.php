@@ -58,6 +58,11 @@ $write($repo . '/posix-url.config', <<<CFG
 posixUrl = matched
 CFG);
 
+$write($repo . '/escaped-hyphen-url.config', <<<CFG
+[wordpress]
+escapedHyphenUrl = matched
+CFG);
+
 $write($repo . '/legacy-byte.config', <<<CFG
 [wordpress]
 legacyByte = matched
@@ -117,6 +122,8 @@ conflictStyle = diff3
 url = https://git.example.test/wp-content.git
 [remote "site-seven"]
 url = https://git.example.test/wp-content/site-7.git
+[remote "literal-hyphen"]
+url = https://git.example.test/wp-content/site--.git
 [remote "legacy-byte"]
 url = https://git.example.test/wp-content/legacy-{$legacyByte}.git
 [remote "backslash-url"]
@@ -141,6 +148,8 @@ path = ../slash-class-rejected.config
 path = ../bracket-url.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[[:digit:]].git"]
 path = ../posix-url.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[a\\\\-c].git"]
+path = ../escaped-hyphen-url.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/legacy-?.git"]
 path = ../legacy-byte.config
 [includeIf "gitdir:wp-content.git/"]
@@ -182,6 +191,7 @@ return [
     'slashClassRejectedPolicy' => $config->value('wordpress', null, 'slashClassRejected'),
     'bracketUrlPolicy' => $config->value('wordpress', null, 'bracketUrl'),
     'posixUrlPolicy' => $config->value('wordpress', null, 'posixUrl'),
+    'escapedHyphenUrlPolicy' => $config->value('wordpress', null, 'escapedHyphenUrl'),
     'legacyBytePolicy' => $config->value('wordpress', null, 'legacyByte'),
     'literalTildePathPolicy' => $config->value('wordpress', null, 'literalTildePath'),
     'installPrefixPathPolicy' => $config->value('wordpress', null, 'installPrefixPath'),
