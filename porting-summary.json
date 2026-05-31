@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 15:53:41 UTC",
-    "sourceCommit": "936d2538f83c4656157d51ad8743d62a1affe84a",
-    "sourceCommitShort": "936d2538f83c",
+    "generated": "2026-05-31 16:01:33 UTC",
+    "sourceCommit": "c8e01c478bd73f16bb789f7c43f383a71a42a518",
+    "sourceCommitShort": "c8e01c478bd7",
     "sourceBranch": "main",
-    "dashboardCommit": "52c9e3a026e7033db40552f3e9e64f46e0d45447",
-    "dashboardCommitShort": "52c9e3a026e7",
+    "dashboardCommit": "b7e54464cccb86f3418d0891406add4a87463ac6",
+    "dashboardCommitShort": "b7e54464cccb",
     "averageProgressPercent": "86.2",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "3137763 pass / 0 fail",
+            "php": "3194686 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, upstream corpus closure, source-neut...",
-            "audit": "Supervisor accepted source commit d43627a...",
-            "currentWork": "Native libsqlite now extends real upstream behavior across where2 B-tree/index selection,...",
+            "audit": "Supervisor accepted source commit c8e01c4...",
+            "currentWork": "Native libsqlite now extends real corpus behavior across WAL rollback JSON post-checkpoin...",
             "nextTarget": "Keep current-base libsqlite workers on full-runner closure and high-yield real corpus fix...",
             "blocker": "Remaining libsqlite closure items: full release/all-runner parity is stil...",
-            "commit": "d43627a"
+            "commit": "c8e01c4"
         },
         {
             "library": "LightningCSS",
