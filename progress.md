@@ -46,11 +46,33 @@
 - Root filesystem: current supervisor sample reports `/` at 452G size with about 351G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.0G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool includes
-  a LightningCSS surge currently targeted at 40 visible workers plus active
+  a LightningCSS surge currently targeted at 43 visible workers plus active
   libsqlite/Gitoxide workers; the latest refill started LightningCSS workers on
   `gpt-5.5` xhigh with the priority service tier and no long sleeper loop.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (LightningCSS refill and integration
+  16:35 UTC): source commit
+  `0fa392727013860f726be218b3b9045c1d54a064` (`ports: extend lightningcss
+  color grid cssom prefix parity`) landed seven verified LightningCSS handoffs
+  after excluding stale shared metadata. The visible `main` tmux pool was
+  raised from 39 to 43 LightningCSS worker windows on `gpt-5.5` xhigh priority
+  workers, adding CSS Modules, CSSOM, custom at-rules, and targets-prefix
+  slices while preserving the active libsqlite/Gitoxide pools. LightningCSS
+  full lane evidence moves from `2168` to `2313 pass / 0 fail`, with
+  conservative mapped coverage moving from `1370 / 3532` to `1446 / 3532`:
+  lch()/oklch() polar color-mix normalization and hue interpolation, grid
+  auto-flow and placement composition, Rust-compatible CSS Modules hash and
+  content-hash patterns, WebKit mask/mask-border browser-boundary target
+  prefixes, and CSSOM font, border-radius, and logical-axis read/write/remove
+  behavior. Gates passed: PHP lint on changed/new PHP files, `git diff
+  --check -- lanes/lightningcss`, no WordPress/WP/wp_ text introduced by the
+  changed source diff, full LightningCSS lane `13 files / 2313 assertions / 0
+  failures`, and seven touched examples exiting 0. Eleven overlapping
+  LightningCSS candidates were deferred for conflict-aware consolidation. Full
+  upstream LightningCSS Rust/Node/WASM runners were not run for this isolated
+  batch.
 
 - 2026-05-31 supervisor continuation (LightningCSS integration 16:25 UTC):
   source commit `7d0fee1b072f094a6ec1365ffb76c2fbe71cdaee`
