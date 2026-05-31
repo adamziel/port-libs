@@ -590,6 +590,20 @@ return [
             $prefixer->prefixForTargets('.foo { background: url(img.png); background-clip: text; }', ['edge' => 13])
         );
     },
+    'transition prefixer maps upstream clip-path WebKit target boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $prefixed = '.foo{-webkit-clip-path:circle(50px);clip-path:circle(50px)}';
+        $modern = '.foo{clip-path:circle(50px)}';
+
+        $t->same($prefixed, $prefixer->prefixForTargets('.foo { clip-path: circle(50px); }', ['chrome' => 30]));
+        $t->same($modern, $prefixer->prefixForTargets('.foo { clip-path: circle(50px); }', ['chrome' => 80]));
+        $t->same($prefixed, $prefixer->prefixForTargets('.foo { clip-path: circle(50px); }', ['safari' => 8]));
+        $t->same($modern, $prefixer->prefixForTargets('.foo { clip-path: circle(50px); }', ['safari' => 14]));
+        $t->same($prefixed, $prefixer->prefixForTargets('.foo { clip-path: circle(50px); }', ['chrome' => 54]));
+        $t->same($modern, $prefixer->prefixForTargets('.foo { clip-path: circle(50px); }', ['chrome' => 55]));
+        $t->same($prefixed, $prefixer->prefixForTargets('.foo { clip-path: circle(50px); }', ['safari' => 9]));
+        $t->same($modern, $prefixer->prefixForTargets('.foo { clip-path: circle(50px); }', ['safari' => 10]));
+    },
     'transition prefixer maps upstream logical inset target fallbacks' => static function (TestRunner $t) use ($variants): void {
         $prefixer = new TransitionPrefixer();
         $selector = $variants('.foo');

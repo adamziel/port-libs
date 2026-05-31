@@ -243,6 +243,7 @@ final class TransitionPrefixer
         $textCompatibilityPrefixChanged = $this->rewriteTextCompatibilityPrefixEntries($entries, $targetOptions);
         $positionStickyChanged = $this->rewritePositionStickyPrefixEntries($entries, $targetOptions);
         $backgroundClipChanged = $this->rewriteBackgroundClipPrefixEntries($entries, $targetOptions);
+        $clipPathChanged = $this->rewriteClipPathPrefixEntries($entries, $targetOptions);
         $maskChanged = $this->rewriteMaskPrefixEntries($entries, $targetOptions, $selectors, $supportRules);
         $filterChanged = $this->rewriteFilterPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
         $boxShadowChanged = $this->rewriteBoxShadowPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
@@ -277,7 +278,7 @@ final class TransitionPrefixer
         if ($logicalInsetFallback !== null) {
             return $logicalInsetFallback . implode('', $supportRules);
         }
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -893,6 +894,12 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'safari', [3, 2], [13])
                 || $this->targetInRange($normalized, 'samsung', [4], [24]),
             'backgroundClipNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [14]),
+            'clipPathNeedsWebkit' => $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [24], [54])
+                || $this->targetInRange($normalized, 'ios_saf', [7], [9])
+                || $this->targetInRange($normalized, 'opera', [15], [41])
+                || $this->targetInRange($normalized, 'safari', [7], [9])
+                || $this->targetInRange($normalized, 'samsung', [4], [5]),
             'textDecorationNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [8], [26])
                 || $this->targetInRange($normalized, 'safari', [8], [26]),
             'textDecorationNeedsMoz' => $this->targetInRange($normalized, 'firefox', [6], [35]),
@@ -3194,6 +3201,17 @@ final class TransitionPrefixer
         }
 
         return $removed ? implode(' ', $filtered) : null;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteClipPathPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'clip-path', [
+            '-webkit-' => $targetOptions['clipPathNeedsWebkit'] ?? false,
+        ]);
     }
 
     /**
