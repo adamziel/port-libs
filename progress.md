@@ -43,16 +43,36 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current supervisor sample reports 27 GiB total and about 13 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 345G available after bounded cache/log/worktree cleanup; `/tmp` has about 6.4G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 341G available after bounded cache/log/worktree cleanup; `/tmp` has about 5.0G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool includes
-  a LightningCSS surge currently at 50 visible workers after a bounded refill
-  toward target 50, plus 5 active Gitoxide workers and 6 active SQLite closure
-  workers. The latest refill started LightningCSS/Gitoxide/SQLite workers on
+  a LightningCSS surge currently at 58 visible workers after a bounded refill
+  toward target 58, plus 5 active Gitoxide workers and 6 active SQLite closure
+  workers. The latest refill started LightningCSS/Gitoxide workers on
   `gpt-5.5` xhigh with the priority service tier; the latest process sample
-  found no `sleep 900` or `Sleeping 900` workers.
+  found no real `sleep 900` or `Sleeping 900` workers.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (LightningCSS worker surge and focused
+  integration 19:08 UTC): source commit
+  `5d2786e654010485b6c0ad588bacaa9bd3e13ecd` (`ports: extend lightningcss
+  visitor cssom sourcemap and prefix parity`) landed seven clean
+  LightningCSS handoffs after screening the newest ready markers against
+  current source `6bce4e1b` and rejecting overlapping bundle-import duplicates.
+  LightningCSS full lane evidence moves from `3328` to `3375 pass / 0 fail`,
+  with conservative mapped coverage moving from `1800 / 3532` to `1807 /
+  3532`: custom at-rule MediaQuery/SupportsCondition visitor rows, style
+  attribute Length/dependency visitor behavior, backdrop-filter transition-name
+  prefix/browser-boundary helpers, and a SourceMap raw-VLQ ordered-vector
+  guard. CSSOM logical-size get/set behavior, CSS Modules resolver diagnostics,
+  and negated interval media range lowering deepen already represented
+  clusters. Gates passed: PHP lint on 16 changed PHP files, `git diff
+  --check`, no WordPress/WP/wp_ source symbols under `lanes/lightningcss/src`,
+  touched LightningCSS examples, and full LightningCSS lane `13 files / 3375
+  assertions / 0 failures`. Full upstream Rust/Node/WASM runners were not
+  executed for this isolated batch. The supervisor refilled visible workers to
+  58 LightningCSS, 5 Gitoxide, and 6 SQLite on `gpt-5.5` xhigh priority.
 
 - 2026-05-31 supervisor continuation (LightningCSS parsing/CSSOM/modules plus
   Gitoxide tree/partial-clone/credential integration 19:00 UTC): source commit
