@@ -449,6 +449,69 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function wal2CheckpointFullSyncRows(): array
+    {
+        $settings = [
+            1 => [[0, 0, 'off'], [0, 0], [0, 0], [0, 0]],
+            2 => [[0, 0, 'normal'], [1, 0], [0, 0], [2, 0]],
+            3 => [[0, 0, 'full'], [2, 0], [1, 0], [2, 0]],
+            4 => [[0, 1, 'off'], [0, 0], [0, 0], [0, 0]],
+            5 => [[0, 1, 'normal'], [0, 1], [0, 0], [0, 2]],
+            6 => [[0, 1, 'full'], [0, 2], [0, 1], [0, 2]],
+            7 => [[1, 0, 'off'], [0, 0], [0, 0], [0, 0]],
+            8 => [[1, 0, 'normal'], [0, 1], [0, 0], [0, 2]],
+            9 => [[1, 0, 'full'], [1, 1], [1, 0], [0, 2]],
+            10 => [[1, 1, 'off'], [0, 0], [0, 0], [0, 0]],
+            11 => [[1, 1, 'normal'], [0, 1], [0, 0], [0, 2]],
+            12 => [[1, 1, 'full'], [0, 2], [0, 1], [0, 2]],
+        ];
+
+        $rows = [];
+        foreach ($settings as $testNumber => [$pragmaSettings, $restartSync, $commitSync, $checkpointSync]) {
+            [$checkpointFullfsync, $fullfsync, $synchronous] = $pragmaSettings;
+            for ($transaction = 1; $transaction <= 100; $transaction++) {
+                $phase = match (($transaction - 1) % 4) {
+                    0 => 'restart',
+                    1, 2 => 'commit',
+                    default => 'checkpoint',
+                };
+                $expected = match ($phase) {
+                    'restart' => $restartSync,
+                    'commit' => $commitSync,
+                    default => $checkpointSync,
+                };
+
+                $rows[] = [
+                    'upstream' => 'wal2.test 15.' . $testNumber . ' dynamic transaction ' . $transaction,
+                    'test_number' => $testNumber,
+                    'transaction' => $transaction,
+                    'phase' => $phase,
+                    'checkpoint_fullfsync' => $checkpointFullfsync,
+                    'fullfsync' => $fullfsync,
+                    'synchronous' => $synchronous,
+                    'normal_sync_count' => $expected[0],
+                    'full_sync_count' => $expected[1],
+                    'total_sync_count' => $expected[0] + $expected[1],
+                    'uses_fullsync' => $expected[1] > 0,
+                    'sync_disabled' => $synchronous === 'off',
+                    'wal_autocheckpoint' => 'off',
+                    'journal_mode' => 'wal',
+                    'page_size' => 4096,
+                    'dependencies' => [
+                        'real-upstream-corpus-wal2',
+                        'sqlite-wal-checkpoint-fullfsync',
+                        'sqlite-vfs-xsync-counts',
+                    ],
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array

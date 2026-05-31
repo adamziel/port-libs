@@ -2040,6 +2040,84 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function quickBalanceDynamicWriteProfile(int $pageSize, int $payloadBytes, int $rowCount): array
+    {
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite quick-balance dynamic page size must be a power of two at least 512');
+        }
+        if ($payloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite quick-balance dynamic payload must be positive');
+        }
+        if ($rowCount < 1) {
+            throw new \InvalidArgumentException('SQLite quick-balance dynamic row count must be positive');
+        }
+
+        $cellBytes = $payloadBytes + 8;
+        $rootLeafCapacity = max(1, intdiv($pageSize - 16, $cellBytes));
+        $splitRow = $rootLeafCapacity + 1;
+        $quickBalanceRow = ($rootLeafCapacity * 2) + 1;
+        $events = [];
+
+        for ($row = 1; $row <= $rowCount; $row++) {
+            if ($row < $splitRow) {
+                $writes = 2;
+                $reason = 'root_leaf_and_change_counter';
+                $upstream = 'io.test io-1.2';
+            } elseif ($row === $splitRow) {
+                $writes = 4;
+                $reason = 'two_leaf_pages_root_and_change_counter';
+                $upstream = 'io.test io-1.3';
+            } elseif ($row === $quickBalanceRow) {
+                $writes = 3;
+                $reason = 'quick_balance_new_leaf_root_and_change_counter';
+                $upstream = 'io.test io-1.5';
+            } else {
+                $writes = 2;
+                $reason = 'leaf_page_and_change_counter';
+                $upstream = 'io.test io-1.4';
+            }
+
+            $events[] = [
+                'row' => $row,
+                'upstream' => $upstream,
+                'database_writes' => $writes,
+                'reason' => $reason,
+            ];
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'io.test',
+            'upstream' => [
+                'io.test io-1.1',
+                'io.test io-1.2',
+                'io.test io-1.3',
+                'io.test io-1.4',
+                'io.test io-1.5',
+            ],
+            'page_size' => $pageSize,
+            'payload_bytes' => $payloadBytes,
+            'row_count' => $rowCount,
+            'root_leaf_capacity' => $rootLeafCapacity,
+            'split_row' => $splitRow,
+            'quick_balance_row' => $quickBalanceRow,
+            'events' => $events,
+            'total_database_writes' => array_sum(array_column($events, 'database_writes')),
+            'split_events' => count(array_filter($events, static fn (array $event): bool => $event['reason'] === 'two_leaf_pages_root_and_change_counter')),
+            'quick_balance_events' => count(array_filter($events, static fn (array $event): bool => $event['reason'] === 'quick_balance_new_leaf_root_and_change_counter')),
+            'canonical_io_1_shape' => $pageSize === 1024 && $payloadBytes === 230 && $rootLeafCapacity === 4,
+            'dependencies' => [
+                'sqlite-upstream-io-test',
+                'sqlite-vfs-quick-balance-traffic',
+                'sqlite-pager-io-traffic',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     private static function safeDeleteJournalUpstream(string $scenario): array

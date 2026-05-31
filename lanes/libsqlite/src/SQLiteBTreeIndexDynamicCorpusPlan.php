@@ -4708,6 +4708,171 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,param1:int,param2:int,sql_variant:int,constraints:list<array{table:string,column:string,operator:string,usable:bool}>,chosen:list<array{table:string,column:string,index:int,cost:int,rows:int}>,malfunction:bool,error:string|null,result_rows:list<array<int,mixed>>,detail:string}>
+     */
+    public static function bestindex4VirtualTableUsableFlagCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindex4 dynamic corpus requires at least one case');
+        }
+
+        $templates = [];
+        for ($param1 = 0; $param1 < 16; $param1++) {
+            for ($param2 = 0; $param2 < 16; $param2++) {
+                foreach ([2, 3, 4] as $sqlVariant) {
+                    $templates[] = [$param1, $param2, $sqlVariant];
+                }
+            }
+        }
+        $templates[] = ['hidden-arg-unusable', 0, 0];
+        $templates[] = ['hidden-arg-usable', 0, 0];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$param1, $param2, $sqlVariant] = $templates[($case - 1) % count($templates)];
+
+            if ($param1 === 'hidden-arg-unusable') {
+                $out[] = [
+                    'source' => 'bestindex4.test sections bestindex4-2.1 and bestindex4-2.2',
+                    'case' => $case,
+                    'upstream_section' => 'bestindex4-2.1',
+                    'scenario' => 'table-valued function hidden argument cannot drive an index on the outer table',
+                    'param1' => 0,
+                    'param2' => 0,
+                    'sql_variant' => 21,
+                    'constraints' => [['table' => 'x1', 'column' => 'd', 'operator' => '=', 'usable' => false]],
+                    'chosen' => [
+                        ['table' => 'x1', 'column' => '', 'index' => 0, 'cost' => 100000000, 'rows' => 100000000],
+                        ['table' => 't1', 'column' => 'x', 'index' => 1, 'cost' => 10, 'rows' => 1],
+                    ],
+                    'malfunction' => false,
+                    'error' => null,
+                    'result_rows' => [],
+                    'detail' => 'SCAN x1 VIRTUAL TABLE INDEX 0; SEARCH t1 USING COVERING INDEX sqlite_autoindex_t1_1 (x=?)',
+                ];
+                continue;
+            }
+
+            if ($param1 === 'hidden-arg-usable') {
+                $out[] = [
+                    'source' => 'bestindex4.test sections bestindex4-2.1 and bestindex4-2.2',
+                    'case' => $case,
+                    'upstream_section' => 'bestindex4-2.2',
+                    'scenario' => 'table-valued function hidden argument is usable only after the outer row is available',
+                    'param1' => 0,
+                    'param2' => 0,
+                    'sql_variant' => 22,
+                    'constraints' => [['table' => 'x1', 'column' => 'd', 'operator' => '=', 'usable' => true]],
+                    'chosen' => [
+                        ['table' => 't1', 'column' => 'x', 'index' => 1, 'cost' => 10, 'rows' => 1],
+                        ['table' => 'x1', 'column' => 'd', 'index' => 555, 'cost' => 100, 'rows' => 10],
+                    ],
+                    'malfunction' => false,
+                    'error' => null,
+                    'result_rows' => [],
+                    'detail' => 'SCAN t1; SCAN x1 VIRTUAL TABLE INDEX 555 after hidden argument becomes usable',
+                ];
+                continue;
+            }
+
+            $constraints = self::bestindex4Constraints($sqlVariant);
+            $malfunction = (($param1 & 0x08) !== 0) || (($param2 & 0x08) !== 0);
+            $chosen = [
+                self::bestindex4Choice('t1', (int) $param1, $constraints['t1']),
+                self::bestindex4Choice('t2', (int) $param2, $constraints['t2']),
+            ];
+
+            $out[] = [
+                'source' => 'bestindex4.test sections bestindex4-1.0.0.2 through bestindex4-1.15.15.4 and bestindex4-2.1/2.2',
+                'case' => $case,
+                'upstream_section' => 'bestindex4-1.' . $param1 . '.' . $param2 . '.' . $sqlVariant,
+                'scenario' => 'xBestIndex honors usable equality constraints for joined virtual tables with bitmask params',
+                'param1' => (int) $param1,
+                'param2' => (int) $param2,
+                'sql_variant' => $sqlVariant,
+                'constraints' => array_merge($constraints['t1'], $constraints['t2']),
+                'chosen' => $chosen,
+                'malfunction' => $malfunction,
+                'error' => $malfunction ? 'xBestIndex used an unusable constraint' : null,
+                'result_rows' => [],
+                'detail' => $malfunction
+                    ? 'malfunction bit ignores usable flag and the statement is rejected'
+                    : self::bestindex4Detail($chosen),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return array{t1:list<array{table:string,column:string,operator:string,usable:bool}>,t2:list<array{table:string,column:string,operator:string,usable:bool}>}
+     */
+    private static function bestindex4Constraints(int $sqlVariant): array
+    {
+        return match ($sqlVariant) {
+            2 => [
+                't1' => [['table' => 't1', 'column' => 'id', 'operator' => '=', 'usable' => false]],
+                't2' => [
+                    ['table' => 't2', 'column' => 'host', 'operator' => '=', 'usable' => true],
+                    ['table' => 't2', 'column' => 'class', 'operator' => '=', 'usable' => true],
+                ],
+            ],
+            3 => [
+                't1' => [['table' => 't1', 'column' => 'host', 'operator' => '=', 'usable' => false]],
+                't2' => [
+                    ['table' => 't2', 'column' => 'class', 'operator' => '=', 'usable' => true],
+                    ['table' => 't2', 'column' => 'id', 'operator' => '=', 'usable' => true],
+                ],
+            ],
+            default => [
+                't1' => [['table' => 't1', 'column' => 'host', 'operator' => '=', 'usable' => false]],
+                't2' => [
+                    ['table' => 't2', 'column' => 'id', 'operator' => '=', 'usable' => true],
+                    ['table' => 't2', 'column' => 'class', 'operator' => '=', 'usable' => true],
+                ],
+            ],
+        };
+    }
+
+    /**
+     * @param list<array{table:string,column:string,operator:string,usable:bool}> $constraints
+     * @return array{table:string,column:string,index:int,cost:int,rows:int}
+     */
+    private static function bestindex4Choice(string $table, int $param, array $constraints): array
+    {
+        $columnBits = ['id' => 0x01, 'host' => 0x02, 'class' => 0x04];
+        foreach ($constraints as $index => $constraint) {
+            $supported = (($param & ($columnBits[$constraint['column']] ?? 0)) !== 0);
+            if ($constraint['usable'] && $supported) {
+                return [
+                    'table' => $table,
+                    'column' => $constraint['column'],
+                    'index' => $index,
+                    'cost' => 1000000,
+                    'rows' => 1000000,
+                ];
+            }
+        }
+
+        return ['table' => $table, 'column' => '', 'index' => -1, 'cost' => 1000000, 'rows' => 1000000];
+    }
+
+    /**
+     * @param list<array{table:string,column:string,index:int,cost:int,rows:int}> $chosen
+     */
+    private static function bestindex4Detail(array $chosen): string
+    {
+        $parts = [];
+        foreach ($chosen as $choice) {
+            $parts[] = $choice['column'] === ''
+                ? 'SCAN ' . $choice['table'] . ' VIRTUAL TABLE INDEX 0'
+                : 'SCAN ' . $choice['table'] . ' VIRTUAL TABLE INDEX 0:' . $choice['column'] . ' EQ ?';
+        }
+
+        return implode('; ', $parts);
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

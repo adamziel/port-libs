@@ -707,6 +707,104 @@ final class SQLiteUpsertReturningDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{upstream:string,source:string,seed:int,variant:string,before:list<array<string,int|string>>,incoming:list<array<string,int|string>>,conflict_target:list<string>,partial_index:string,after:list<array<string,int|string>>,returning:list<array<string,mixed>>,decisions:list<string>,changes:int,skipped:int,dependencies:list<string>}>
+     */
+    public static function upsert4PartialIndexReturningDynamicCases(int $caseCount = 1000): array
+    {
+        if ($caseCount < 1) {
+            throw new \InvalidArgumentException('SQLite upstream UPSERT partial-index corpus case count must be positive');
+        }
+
+        $variants = [
+            [
+                'upstream' => 'upsert4-4.1.2',
+                'variant' => 'x target with y greater than zero matches partial unique index',
+                'conflict_target' => ['x'],
+                'partial_index' => 'y>0',
+                'candidate' => static fn (int $base): array => ['id' => $base + 5, 'x' => 'one-' . $base, 'y' => 10, 'payload' => 'candidate-x-match-' . $base],
+                'partial' => static fn (array $row): bool => (int) $row['y'] > 0,
+            ],
+            [
+                'upstream' => 'upsert4-4.1.3',
+                'variant' => 'x target without matching partial predicate inserts a distinct row',
+                'conflict_target' => ['x'],
+                'partial_index' => 'y>0',
+                'candidate' => static fn (int $base): array => ['id' => $base + 5, 'x' => 'one-' . $base, 'y' => -10, 'payload' => 'candidate-x-miss-' . $base],
+                'partial' => static fn (array $row): bool => (int) $row['y'] > 0,
+            ],
+            [
+                'upstream' => 'upsert4-4.1.5',
+                'variant' => 'y target with nocase xyz predicate matches partial unique index',
+                'conflict_target' => ['y'],
+                'partial_index' => "x='xyz' COLLATE nocase",
+                'candidate' => static fn (int $base): array => ['id' => $base + 5, 'x' => 'xYz', 'y' => 3, 'payload' => 'candidate-y-nocase-' . $base],
+                'partial' => static fn (array $row): bool => strtolower((string) $row['x']) === 'xyz',
+            ],
+            [
+                'upstream' => 'upsert4-4.2.3',
+                'variant' => 'y target binary predicate misses nocase-only candidate',
+                'conflict_target' => ['y'],
+                'partial_index' => "x='xyz' COLLATE binary",
+                'candidate' => static fn (int $base): array => ['id' => $base + 5, 'x' => 'xYz', 'y' => 3, 'payload' => 'candidate-y-binary-miss-' . $base],
+                'partial' => static fn (array $row): bool => (string) $row['x'] === 'xyz',
+            ],
+        ];
+
+        $cases = [];
+        for ($seed = 1; count($cases) < $caseCount; ++$seed) {
+            $base = $seed * 100;
+            $before = [
+                ['id' => $base + 1, 'x' => 'one-' . $base, 'y' => 1, 'payload' => 'seed-one-' . $base],
+                ['id' => $base + 2, 'x' => 'two-' . $base, 'y' => 2, 'payload' => 'seed-two-' . $base],
+                ['id' => $base + 3, 'x' => 'xyz', 'y' => 3, 'payload' => 'seed-xyz-lower-' . $base],
+                ['id' => $base + 4, 'x' => 'XYZ', 'y' => 4, 'payload' => 'seed-xyz-upper-' . $base],
+            ];
+
+            foreach ($variants as $variant) {
+                $incoming = [$variant['candidate']($base)];
+                $plan = SQLiteUpsertReturningDynamicPlan::execute(
+                    $before,
+                    $incoming,
+                    ['id', 'x', 'y', 'payload'],
+                    $variant['conflict_target'],
+                    [],
+                    [],
+                    ['id', 'x', 'y', 'payload'],
+                    $variant['partial'],
+                    true,
+                );
+
+                $cases[] = [
+                    'upstream' => $variant['upstream'],
+                    'source' => 'upsert4.test',
+                    'seed' => $seed,
+                    'variant' => $variant['variant'],
+                    'before' => $before,
+                    'incoming' => $incoming,
+                    'conflict_target' => $variant['conflict_target'],
+                    'partial_index' => $variant['partial_index'],
+                    'after' => $plan['after'],
+                    'returning' => $plan['returning_rows'],
+                    'decisions' => array_column($plan['decisions'], 'action'),
+                    'changes' => $plan['changes'],
+                    'skipped' => count($plan['skipped_rows']),
+                    'dependencies' => [
+                        'upsert4.test-4.1.2-through-4.2.3',
+                        'sqlite-upsert-partial-unique-conflict-target',
+                        'sqlite-returning-changed-row-stream',
+                    ],
+                ];
+
+                if (count($cases) >= $caseCount) {
+                    break 2;
+                }
+            }
+        }
+
+        return $cases;
+    }
+
+    /**
      * @param list<string> $order
      * @return list<array<string,mixed>>
      */

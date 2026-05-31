@@ -144,7 +144,16 @@ final class SQLiteSelectExpression
             }
 
             $when = self::caseExpressionValue($row, $branch['when'], 'branch WHEN');
-            $matched = $hasBase ? self::caseBaseMatches($base, $when, self::caseBranchCollation($expression['base'] ?? null, $branch['when'])) : self::isSqlTrue($when);
+            $matched = $hasBase
+                ? self::caseBaseMatches(
+                    $row,
+                    $base,
+                    $when,
+                    $expression['base'] ?? null,
+                    $branch['when'],
+                    self::caseBranchCollation($expression['base'] ?? null, $branch['when'])
+                )
+                : self::isSqlTrue($when);
             if ($matched) {
                 return self::caseExpressionValue($row, $branch['then'], 'branch THEN');
             }
@@ -174,13 +183,67 @@ final class SQLiteSelectExpression
         throw new \InvalidArgumentException("SQLite SELECT CASE expression {$context} must be scalar, BLOB, or NULL");
     }
 
-    private static function caseBaseMatches(mixed $base, mixed $when, ?string $collation): bool
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function caseBaseMatches(array $row, mixed $base, mixed $when, mixed $baseExpression, mixed $whenExpression, ?string $collation): bool
     {
         if ($base === null || $when === null) {
             return false;
         }
 
-        return self::compareCaseValues($base, $when, $collation) === 0;
+        $comparison = SQLiteAffinityComparison::compare(
+            $base,
+            $when,
+            self::expressionAffinity($row, $baseExpression),
+            self::expressionAffinity($row, $whenExpression),
+            $collation ?? 'BINARY'
+        );
+
+        return $comparison === 0;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function expressionAffinity(array $row, mixed $expression): string
+    {
+        if (!is_array($expression)) {
+            return 'NONE';
+        }
+
+        if (($expression['type'] ?? null) === 'collate') {
+            return self::expressionAffinity($row, $expression['operand'] ?? null);
+        }
+
+        if (($expression['type'] ?? null) !== 'column') {
+            return 'NONE';
+        }
+
+        $name = $expression['name'] ?? null;
+        if (!is_string($name) || $name === '') {
+            return 'NONE';
+        }
+
+        $affinities = $row['__sqlite_column_affinities'] ?? [];
+        if (!is_array($affinities)) {
+            return 'NONE';
+        }
+
+        $candidates = [$name];
+        if (str_contains($name, '.')) {
+            $parts = explode('.', $name);
+            $candidates[] = (string) end($parts);
+        }
+
+        foreach ($candidates as $candidate) {
+            $affinity = $affinities[$candidate] ?? null;
+            if (is_string($affinity) && $affinity !== '') {
+                return $affinity;
+            }
+        }
+
+        return 'NONE';
     }
 
     private static function caseBranchCollation(mixed $base, mixed $when): ?string

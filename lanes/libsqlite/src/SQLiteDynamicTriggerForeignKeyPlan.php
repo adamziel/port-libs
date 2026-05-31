@@ -2345,6 +2345,110 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{b:int|string,c:int|string,label?:string}> $parents
+     * @param list<array{id:int|string,e:int|string|null,f:int|string|null,label?:string}> $children
+     * @param array{operation:string,rows?:list<array{id:int|string,e:int|string|null,f:int|string|null,label?:string>>,set?:array{e?:int|string|null,f?:int|string|null},on_update?:string,deferred?:bool} $statement
+     * @return array<string,mixed>
+     */
+    public static function countChangesForeignKeyStatement(array $parents, array $children, array $statement): array
+    {
+        $operation = strtolower((string) ($statement['operation'] ?? ''));
+        if (!in_array($operation, ['insert-child', 'update-child'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2 count_changes operation is unsupported');
+        }
+
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $deferred = (bool) ($statement['deferred'] ?? false);
+        $onUpdate = strtolower((string) ($statement['on_update'] ?? 'no action'));
+        if (!in_array($onUpdate, ['no action', 'cascade', 'set null', 'set default'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2 count_changes on_update action is unsupported');
+        }
+
+        $attemptedRows = 0;
+        $fkActionRows = 0;
+        $events = [];
+
+        if ($operation === 'insert-child') {
+            foreach ((array) ($statement['rows'] ?? []) as $row) {
+                if (!is_array($row)) {
+                    throw new \InvalidArgumentException('SQLite fkey2 count_changes child row is malformed');
+                }
+                $children[] = $row;
+                ++$attemptedRows;
+                $events[] = ['step' => 'insert-child', 'id' => $row['id'] ?? null, 'e' => $row['e'] ?? null, 'f' => $row['f'] ?? null];
+            }
+        } else {
+            $set = (array) ($statement['set'] ?? []);
+            foreach ($children as $index => $child) {
+                $old = $child;
+                if (array_key_exists('e', $set)) {
+                    $children[$index]['e'] = $set['e'];
+                }
+                if (array_key_exists('f', $set)) {
+                    $children[$index]['f'] = $set['f'];
+                }
+                ++$attemptedRows;
+                $events[] = [
+                    'step' => 'update-child',
+                    'id' => $child['id'] ?? null,
+                    'old' => [$old['e'] ?? null, $old['f'] ?? null],
+                    'new' => [$children[$index]['e'] ?? null, $children[$index]['f'] ?? null],
+                ];
+            }
+        }
+
+        $violations = self::compositeCountChangesViolations($parents, $children);
+        $immediateFailure = !$deferred && $violations !== [];
+        $status = $violations === [] ? 'statement-ok' : ($deferred ? 'deferred-constraint-failed' : 'constraint-failed');
+
+        if ($operation === 'update-child' && $violations === [] && $onUpdate !== 'no action') {
+            foreach ($children as $index => $child) {
+                if ($onUpdate === 'cascade') {
+                    $children[$index]['e'] = $child['e'];
+                    $children[$index]['f'] = $child['f'];
+                    ++$fkActionRows;
+                    $events[] = ['step' => 'fk-action-cascade', 'id' => $child['id'] ?? null];
+                } elseif ($onUpdate === 'set null') {
+                    $children[$index]['e'] = null;
+                    $children[$index]['f'] = null;
+                    ++$fkActionRows;
+                    $events[] = ['step' => 'fk-action-set-null', 'id' => $child['id'] ?? null];
+                } elseif ($onUpdate === 'set default') {
+                    $children[$index]['e'] = 0;
+                    $children[$index]['f'] = 0;
+                    ++$fkActionRows;
+                    $events[] = ['step' => 'fk-action-set-default', 'id' => $child['id'] ?? null];
+                }
+            }
+        }
+
+        return [
+            'source' => 'fkey2.test fkey2-17.1.1..17.1.6',
+            'operation' => 'foreign-key-count-changes-statement',
+            'status' => $status,
+            'deferred' => $deferred,
+            'count_changes_enabled' => true,
+            'sqlite3_step_result' => $immediateFailure ? 'SQLITE_CONSTRAINT' : 'SQLITE_ROW',
+            'finalize_result' => $violations === [] ? 'SQLITE_OK' : 'SQLITE_CONSTRAINT',
+            'returned_count_rows' => $immediateFailure ? [] : [$attemptedRows],
+            'changes' => $violations === [] || $deferred ? $attemptedRows : 0,
+            'total_changes_delta' => ($violations === [] || $deferred ? $attemptedRows : 0) + $fkActionRows,
+            'foreign_key_action_rows_not_counted' => $fkActionRows > 0,
+            'fk_action_rows' => $fkActionRows,
+            'violations' => $violations,
+            'violation_count' => count($violations),
+            'child_pairs' => array_values(array_map(static fn (array $row): array => [$row['e'] ?? null, $row['f'] ?? null], $children)),
+            'events' => $events,
+            'dependencies' => [
+                'sqlite-fkey2-count-changes-immediate-fk-fails-before-row-count',
+                'sqlite-fkey2-count-changes-deferred-fk-returns-row-count-before-commit-fail',
+                'sqlite-fkey2-count-changes-excludes-foreign-key-action-rows',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{id:int|string,label?:string}> $parents
      * @param list<array{id:int|string,parent_id:int|string|null,label?:string}> $children
      * @param array{kind:string,parent_id?:int|string,child_id?:int|string|null,replace_parent_id?:int|string|null,trigger_replaces_parent?:bool,self_referential?:bool} $statement
@@ -4904,6 +5008,34 @@ final class SQLiteDynamicTriggerForeignKeyPlan
                 continue;
             }
             $violations[] = ['cid' => $child['cid'], 'pid' => $child['pid']];
+        }
+
+        return $violations;
+    }
+
+    private static function compositeCountChangesViolations(array $parents, array $children): array
+    {
+        $parentKeys = [];
+        foreach ($parents as $parent) {
+            $parentKeys[self::valueKey($parent['b'] ?? null) . '|' . self::valueKey($parent['c'] ?? null)] = true;
+        }
+
+        $violations = [];
+        foreach ($children as $child) {
+            $e = $child['e'] ?? null;
+            $f = $child['f'] ?? null;
+            if ($e === null || $f === null) {
+                continue;
+            }
+
+            $key = self::valueKey($e) . '|' . self::valueKey($f);
+            if (!isset($parentKeys[$key])) {
+                $violations[] = [
+                    'child_id' => $child['id'] ?? null,
+                    'child_key' => [$e, $f],
+                    'parent_key' => [$e, $f],
+                ];
+            }
         }
 
         return $violations;

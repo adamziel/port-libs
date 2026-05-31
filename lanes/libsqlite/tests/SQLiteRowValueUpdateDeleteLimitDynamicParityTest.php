@@ -88,6 +88,12 @@ $updateSearchedCaseLimit = "UPDATE app_settings SET state = 'case_limit' WHERE l
 $deleteSearchedCaseCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT CASE WHEN '1' THEN 1 ELSE 3 END, CASE WHEN 0 THEN 1 ELSE 2 END";
 $updateRowValueSearchedCaseSubqueryLimit = "UPDATE app_settings SET state = 'case_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT CASE WHEN TRUE THEN 3 ELSE 1 END OFFSET CASE WHEN NULL THEN 4 ELSE 1 END) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
 $deleteRowValueSearchedCaseSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT CASE WHEN 'not numeric' THEN 1 ELSE 2 END OFFSET CASE WHEN 1 THEN 2 ELSE 0 END) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+$updateCoalesceLimit = "UPDATE app_settings SET state = 'coalesce_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT coalesce(NULL, 2) OFFSET coalesce(NULL, 1)";
+$deleteIfnullCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT ifnull(NULL, 1), ifnull(NULL, 2)";
+$updateNullifLimit = "UPDATE app_settings SET state = 'nullif_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT nullif(3, 4) OFFSET nullif(1, 0)";
+$deleteCoalesceCastLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT coalesce(NULL, CAST('1.0' AS NUMERIC)), coalesce(NULL, CAST('2.0' AS REAL))";
+$updateRowValueCoalesceSubqueryLimit = "UPDATE app_settings SET state = 'coalesce_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT coalesce(NULL, 3) OFFSET ifnull(NULL, 1)) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+$deleteRowValueNullifSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT nullif(4, 5) OFFSET nullif(1, 0)) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
 
 $cases = [
     'parse update negative offset retained' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateNegativeOffset)['offset'], -4],
@@ -226,7 +232,28 @@ $cases = [
     'update row-value searched CASE subquery returns source order' => [static fn (): mixed => array_column($execute($updateRowValueSearchedCaseSubqueryLimit)['returning'], 'setting_id'), [2, 3, 5]],
     'delete row-value searched CASE subquery applies numeric truth branch' => [static fn (): mixed => $execute($deleteRowValueSearchedCaseSubqueryLimit)['plan']->selectedIds, [2, 5]],
     'delete row-value searched CASE subquery keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueSearchedCaseSubqueryLimit)['tables']['app_settings'], 'setting_id'), [1, 3, 4, 6, 7, 8]],
+    'parse update coalesce limit first non-null' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateCoalesceLimit)['limit'], 2],
+    'parse update coalesce offset first non-null' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateCoalesceLimit)['offset'], 1],
+    'update coalesce limit selects ordered lazy window' => [static fn (): mixed => $execute($updateCoalesceLimit)['plan']->selectedIds, [2, 3]],
+    'update coalesce limit returns source order' => [static fn (): mixed => array_column($execute($updateCoalesceLimit)['returning'], 'setting_id'), [2, 3]],
+    'parse delete ifnull comma offset first replacement' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteIfnullCommaLimit)['offset'], 1],
+    'parse delete ifnull comma count first replacement' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteIfnullCommaLimit)['limit'], 2],
+    'delete ifnull comma limit selects ordered lazy window' => [static fn (): mixed => $execute($deleteIfnullCommaLimit)['plan']->selectedIds, [2, 3]],
+    'parse update nullif limit keeps unequal first argument' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateNullifLimit)['limit'], 3],
+    'parse update nullif offset keeps unequal first argument' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateNullifLimit)['offset'], 1],
+    'update nullif limit selects ordered lazy window' => [static fn (): mixed => $execute($updateNullifLimit)['plan']->selectedIds, [2, 3, 6]],
+    'parse delete coalesce cast comma offset coerces integral numeric' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteCoalesceCastLimit)['offset'], 1],
+    'parse delete coalesce cast comma count coerces integral real' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteCoalesceCastLimit)['limit'], 2],
+    'delete coalesce cast comma limit selects ordered lazy window' => [static fn (): mixed => $execute($deleteCoalesceCastLimit)['plan']->selectedIds, [2, 3]],
+    'update row-value coalesce subquery applies before tuple match' => [static fn (): mixed => $execute($updateRowValueCoalesceSubqueryLimit)['plan']->selectedIds, [2, 3, 5]],
+    'update row-value coalesce subquery returns source order' => [static fn (): mixed => array_column($execute($updateRowValueCoalesceSubqueryLimit)['returning'], 'setting_id'), [2, 3, 5]],
+    'delete row-value nullif subquery applies before tuple match' => [static fn (): mixed => $execute($deleteRowValueNullifSubqueryLimit)['plan']->selectedIds, [2, 3, 5, 8]],
+    'delete row-value nullif subquery keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueNullifSubqueryLimit)['tables']['app_settings'], 'setting_id'), [1, 4, 6, 7]],
     'malformed modulo zero limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 5%0"), InvalidArgumentException::class],
+    'malformed coalesce all null limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT coalesce(NULL, NULL)"), InvalidArgumentException::class],
+    'malformed nullif equal limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT nullif(2, 2)"), InvalidArgumentException::class],
+    'malformed ifnull arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT ifnull(NULL)"), InvalidArgumentException::class],
+    'malformed coalesce arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT coalesce(NULL)"), InvalidArgumentException::class],
     'malformed cast null limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT CAST(NULL AS INTEGER)"), InvalidArgumentException::class],
     'malformed cast blob offset rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET CAST(X'ABCD' AS INT)"), InvalidArgumentException::class],
     'malformed nonintegral real cast limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT CAST('2.5' AS REAL)"), InvalidArgumentException::class],
@@ -246,6 +273,42 @@ foreach ($cases as $name => [$callback, $expected]) {
         }
         $t->same($expected, $callback());
     };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = ($seed + 1) % 3;
+    $limitExpr = $seed % 2 === 0 ? "coalesce(NULL, {$limitValue})" : "ifnull(NULL, {$limitValue})";
+    $offsetExpr = $seed % 3 === 0 ? "coalesce(NULL, {$offsetValue})" : "nullif({$offsetValue}, -1)";
+    $sql = "UPDATE app_settings SET state = 'scalar_fn_dyn' WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update scalar function window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 2) % 4;
+    $limitExpr = $seed % 2 === 0 ? "coalesce(NULL, {$limitValue})" : "nullif({$limitValue}, 99)";
+    $offsetExpr = $seed % 3 === 0 ? "ifnull(NULL, {$offsetValue})" : "coalesce(NULL, {$offsetValue})";
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue scalar function subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
 }
 
 for ($seed = 1; $seed <= 48; $seed++) {

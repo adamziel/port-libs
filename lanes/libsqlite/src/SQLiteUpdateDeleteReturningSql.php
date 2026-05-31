@@ -690,6 +690,9 @@ final class SQLiteUpdateDeleteReturningSql
         if (preg_match('/^abs\s*\((.+)\)$/is', $expression, $match) === 1) {
             return abs(self::limitNumericValue($match[1]));
         }
+        if (preg_match('/^(coalesce|ifnull|nullif)\s*\((.*)\)$/is', $expression, $match) === 1) {
+            return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
+        }
         if (preg_match('/^-?\d+$/', $expression) === 1) {
             return (int) $expression;
         }
@@ -805,6 +808,33 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT CAST type {$type} is not supported");
+    }
+
+    private static function evaluateLimitScalarFunction(string $function, string $arguments): int|float|string|null
+    {
+        $parts = self::splitComma($arguments);
+        if ($function === 'ifnull' && count($parts) !== 2) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT ifnull() needs two arguments');
+        }
+        if ($function === 'nullif' && count($parts) !== 2) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT nullif() needs two arguments');
+        }
+        if ($function === 'coalesce' && count($parts) < 2) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT coalesce() needs at least two arguments');
+        }
+
+        $values = array_map(static fn (string $part): int|float|string|null => self::limitExpressionValue($part), $parts);
+        if ($function === 'nullif') {
+            return $values[0] == $values[1] ? null : $values[0];
+        }
+
+        foreach ($values as $value) {
+            if ($value !== null) {
+                return $value;
+            }
+        }
+
+        return null;
     }
 
     /**

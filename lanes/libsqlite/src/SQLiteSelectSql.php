@@ -528,7 +528,18 @@ final class SQLiteSelectSql
         $parts['arms'][$lastIndex] = $lastSql;
 
         $arms = [];
-        foreach ($parts['arms'] as $armSql) {
+        foreach ($parts['arms'] as $index => $armSql) {
+            if ($index !== $lastIndex) {
+                [, $armOrderSql, $armLimitSql] = self::stripCompoundTailClauses($armSql);
+                if ($armOrderSql !== null) {
+                    $operator = strtoupper((string) ($parts['operators'][$index] ?? 'compound'));
+                    throw new \InvalidArgumentException("ORDER BY clause should come after {$operator} not before");
+                }
+                if ($armLimitSql !== null) {
+                    $operator = strtoupper((string) ($parts['operators'][$index] ?? 'compound'));
+                    throw new \InvalidArgumentException("LIMIT clause should come after {$operator} not before");
+                }
+            }
             if (self::splitCompoundSql($armSql) !== null) {
                 throw new \InvalidArgumentException('SQLite SELECT SQL compound arms cannot contain nested compound SELECT text');
             }

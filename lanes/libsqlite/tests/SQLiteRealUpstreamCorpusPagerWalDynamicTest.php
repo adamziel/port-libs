@@ -258,4 +258,34 @@ $tests['real upstream corpus pager wal dynamic walhook autocheckpoint row count'
     $t->same(997, $rows[999]['checkpoint_count']);
 };
 
+foreach (SQLiteRealUpstreamPagerWalDynamicCorpusPlan::wal2CheckpointFullSyncRows() as $row) {
+    $tests['real upstream corpus pager wal dynamic ' . $row['upstream'] . ' checkpoint fullsync counts'] = static function (TestRunner $t) use ($row): void {
+        $t->same(4096, $row['page_size']);
+        $t->same('wal', $row['journal_mode']);
+        $t->same('off', $row['wal_autocheckpoint']);
+        $t->same(true, in_array($row['phase'], ['restart', 'commit', 'checkpoint'], true));
+        $t->same(true, $row['test_number'] >= 1 && $row['test_number'] <= 12);
+        $t->same(true, $row['transaction'] >= 1 && $row['transaction'] <= 100);
+        $t->same($row['normal_sync_count'] + $row['full_sync_count'], $row['total_sync_count']);
+        $t->same($row['full_sync_count'] > 0, $row['uses_fullsync']);
+        $t->same($row['synchronous'] === 'off', $row['sync_disabled']);
+        $t->same(true, in_array('real-upstream-corpus-wal2', $row['dependencies'], true));
+        $t->same(true, in_array('sqlite-wal-checkpoint-fullfsync', $row['dependencies'], true));
+        $t->same(true, in_array('sqlite-vfs-xsync-counts', $row['dependencies'], true));
+    };
+}
+
+$tests['real upstream corpus pager wal dynamic wal2 checkpoint fullsync row count'] = static function (TestRunner $t): void {
+    $rows = SQLiteRealUpstreamPagerWalDynamicCorpusPlan::wal2CheckpointFullSyncRows();
+
+    $t->same(1200, count($rows));
+    $t->same('wal2.test 15.1 dynamic transaction 1', $rows[0]['upstream']);
+    $t->same('wal2.test 15.12 dynamic transaction 100', $rows[1199]['upstream']);
+    $t->same([0, 0, 'off'], [$rows[0]['checkpoint_fullfsync'], $rows[0]['fullfsync'], $rows[0]['synchronous']]);
+    $t->same([1, 1, 'full'], [$rows[1100]['checkpoint_fullfsync'], $rows[1100]['fullfsync'], $rows[1100]['synchronous']]);
+    $t->same(['restart', 'commit', 'commit', 'checkpoint'], array_column(array_slice($rows, 0, 4), 'phase'));
+    $t->same([0, 0], [$rows[0]['normal_sync_count'], $rows[0]['full_sync_count']]);
+    $t->same([0, 2], [$rows[1103]['normal_sync_count'], $rows[1103]['full_sync_count']]);
+};
+
 return $tests;
