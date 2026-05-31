@@ -3484,4 +3484,104 @@ foreach ($introspectionLimitCases as $name => [$callback, $expected]) {
     };
 }
 
+$sqlStringLiteral = static function (string $value): string {
+    return "'" . str_replace("'", "''", $value) . "'";
+};
+
+$jsonLimitExpr = static function (int $value, int $seed) use ($sqlStringLiteral): string {
+    $object = $sqlStringLiteral('{"n":' . $value . ',"a":[0,1,2,3,4],"kind":"limit"}');
+    $arrayValues = $value > 0 ? implode(',', range(1, $value)) : '';
+    $array = $sqlStringLiteral('[' . $arrayValues . ']');
+    $valid = $sqlStringLiteral('{"ok":true}');
+    $pathN = $sqlStringLiteral('$.n');
+    $pathA = $sqlStringLiteral('$.a');
+    $reversePath = $sqlStringLiteral('$[#-' . (5 - $value) . ']');
+
+    return match ($seed % 8) {
+        0 => "json_extract({$object}, {$pathN})",
+        1 => "json_array_length({$array})",
+        2 => "json_array_length({$object}, {$pathA}) - 5 + {$value}",
+        3 => "json_valid({$valid}) + {$value} - 1",
+        4 => "json_error_position({$valid}) + {$value}",
+        5 => "(json_type({$object}, {$pathA}) = 'array') + {$value} - 1",
+        6 => "json_quote({$value})",
+        default => 'json_extract(' . $sqlStringLiteral('[0,1,2,3,4]') . ', ' . $reversePath . ')',
+    };
+};
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = $jsonLimitExpr($limitValue, $seed);
+    $offsetExpr = $jsonLimitExpr($offsetValue, $seed + 4);
+    $sql = "UPDATE app_settings SET state = 'json_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update json scalar limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($result['returning']), 'json_limit'), array_column($result['returning'], 'state'));
+            $t->contains('json101.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/json101.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = $jsonLimitExpr($limitValue, $seed + 2);
+    $offsetExpr = $jsonLimitExpr($offsetValue, $seed + 6);
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue json scalar subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+            $t->contains('json101.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/json101.test');
+            $t->contains('json105.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/json105.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+$jsonLimitCases = [
+    'parse json extract integer limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_extract(' . $sqlStringLiteral('{"n":3}') . ', ' . $sqlStringLiteral('$.n') . ')')['limit'], 3],
+    'parse json extract reverse array path limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_extract(' . $sqlStringLiteral('[0,1,2,3]') . ', ' . $sqlStringLiteral('$[#-1]') . ')')['limit'], 3],
+    'parse json array length root limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_array_length(' . $sqlStringLiteral('[1,2,3,4]') . ')')['limit'], 4],
+    'parse json array length path offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET json_array_length(' . $sqlStringLiteral('{"a":[1,2]}') . ', ' . $sqlStringLiteral('$.a') . ')')['offset'], 2],
+    'parse json valid strict limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_valid(' . $sqlStringLiteral('{"a":1}') . ')')['limit'], 1],
+    'parse json error position valid offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET json_error_position(' . $sqlStringLiteral('{"a":1}') . ')')['offset'], 0],
+    'parse json type predicate limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_type(' . $sqlStringLiteral('{"a":[1]}') . ', ' . $sqlStringLiteral('$.a') . ') = ' . $sqlStringLiteral('array'))['limit'], 1],
+    'parse json quote numeric limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_quote(3)')['limit'], 3],
+    'parse json valid false zero limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_valid(' . $sqlStringLiteral('{"a":}') . ')')['limit'], 0],
+    'malformed json extract text rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_extract(' . $sqlStringLiteral('{"n":"two"}') . ', ' . $sqlStringLiteral('$.n') . ')'), InvalidArgumentException::class],
+    'malformed json extract missing path rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_extract(' . $sqlStringLiteral('{"n":3}') . ')'), InvalidArgumentException::class],
+    'malformed json extract invalid input rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_extract(' . $sqlStringLiteral('{"a":}') . ', ' . $sqlStringLiteral('$.a') . ')'), InvalidArgumentException::class],
+    'malformed direct json type text rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_type(' . $sqlStringLiteral('{"a":1}') . ', ' . $sqlStringLiteral('$.a') . ')'), InvalidArgumentException::class],
+    'malformed json valid null rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_valid(NULL)'), InvalidArgumentException::class],
+    'malformed json quote text rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_quote(' . $sqlStringLiteral('abc') . ')'), InvalidArgumentException::class],
+    'malformed json valid arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_valid()'), InvalidArgumentException::class],
+    'malformed json array length path type rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_array_length(' . $sqlStringLiteral('[1]') . ', 1)'), InvalidArgumentException::class],
+];
+
+foreach ($jsonLimitCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity json scalar ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            $t->contains('json101.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/json101.test');
+            return;
+        }
+        $t->same($expected, $callback());
+        $t->contains('json101.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/json101.test');
+    };
+}
+
 return $tests;

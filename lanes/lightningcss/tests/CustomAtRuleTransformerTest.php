@@ -396,6 +396,102 @@ CSS;
         $t->same('.menu_link{background:#056ef0}', $result);
         $t->same(['blue' => '#056ef0'], $declared);
     },
+    'custom at-rules compose upstream function visitors with declaration-list parser' => static function (TestRunner $t): void {
+        $definitions = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'custom' => [
+                        'tokens' => static function (array $rule) use (&$definitions): array {
+                            foreach ($rule['declarations'] as $declaration) {
+                                $definitions[$rule['prelude'] . '.' . $declaration['property']] = $declaration['value'];
+                            }
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Function' => static function (array $arguments, string $raw, string $name) use (&$definitions): ?string {
+                    if ($name !== 'theme') {
+                        return null;
+                    }
+
+                    return $definitions[$arguments[0] ?? ''] ?? null;
+                },
+            ],
+            [
+                'Function' => [
+                    'spacing' => static fn (array $arguments): ?string => ($arguments[0] ?? null) === 'card' ? '16px' : null,
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@tokens wp {
+  accent: yellow;
+}
+
+.wp-block-card {
+  color: theme('wp.accent');
+  padding: spacing('card');
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+        ], $visitor);
+
+        $t->same('.wp-block-card{color:#ff0;padding:16px}', $result);
+        $t->same(['wp.accent' => 'yellow'], $definitions);
+    },
+    'custom at-rules expose upstream dashed-ident preludes to token visitors' => static function (TestRunner $t): void {
+        $aliases = [];
+        $seenPreludeTokens = [];
+        $seenValueTokens = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'unknown' => [
+                        'token' => static function (array $rule) use (&$aliases, &$seenPreludeTokens): array {
+                            $seenPreludeTokens = $rule['preludeTokens'];
+                            $aliases[$rule['preludeTokens'][0]['value']] = $rule['preludeTokens'][1]['value'];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Token' => [
+                    'at-keyword' => static function (array $token) use (&$aliases, &$seenValueTokens): ?string {
+                        $seenValueTokens[] = $token;
+
+                        return $aliases[$token['value']] ?? null;
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@token --wp-accent #056ef0;
+
+.wp-block-card {
+  outline-color: @--wp-accent;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.wp-block-card{outline-color:#056ef0}', $result);
+        $t->same(['type' => 'dashed-ident', 'value' => '--wp-accent'], $seenPreludeTokens[0]);
+        $t->same(['type' => 'raw', 'value' => '#056ef0'], $seenPreludeTokens[1]);
+        $t->same(['type' => 'at-keyword', 'value' => '--wp-accent', 'raw' => '@--wp-accent'], $seenValueTokens[0]);
+    },
     'custom at-rules visit unknown at-rule blocks inside style rules' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .wp-block-card {

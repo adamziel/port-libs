@@ -976,7 +976,7 @@ final class SQLiteUpdateDeleteReturningSql
         $scalarFunction = self::wholeLimitScalarFunction($expression);
         if (
             $scalarFunction !== null
-            && in_array($scalarFunction['name'], ['coalesce', 'ifnull', 'nullif', 'min', 'max', 'round', 'sign', 'ceil', 'ceiling', 'floor', 'trunc', 'sqrt', 'pow', 'power', 'exp', 'ln', 'log', 'log10', 'log2', 'mod', 'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'pi', 'upper', 'lower', 'trim', 'ltrim', 'rtrim', 'substr', 'substring', 'instr', 'replace', 'concat', 'concat_ws', 'char', 'unicode', 'octet_length', 'hex', 'quote', 'typeof', 'printf', 'format', 'iif', 'if', 'likely', 'unlikely', 'likelihood', 'zeroblob', 'randomblob', 'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime', 'sqlite_version', 'sqlite_source_id', 'sqlite_compileoption_get', 'sqlite_compileoption_used'], true)
+            && in_array($scalarFunction['name'], ['coalesce', 'ifnull', 'nullif', 'min', 'max', 'round', 'sign', 'ceil', 'ceiling', 'floor', 'trunc', 'sqrt', 'pow', 'power', 'exp', 'ln', 'log', 'log10', 'log2', 'mod', 'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'pi', 'upper', 'lower', 'trim', 'ltrim', 'rtrim', 'substr', 'substring', 'instr', 'replace', 'concat', 'concat_ws', 'char', 'unicode', 'octet_length', 'hex', 'quote', 'typeof', 'printf', 'format', 'iif', 'if', 'likely', 'unlikely', 'likelihood', 'zeroblob', 'randomblob', 'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime', 'sqlite_version', 'sqlite_source_id', 'sqlite_compileoption_get', 'sqlite_compileoption_used', 'json_valid', 'json_error_position', 'json_type', 'json_array_length', 'json_extract', 'json_quote'], true)
         ) {
             return self::evaluateLimitScalarFunction($scalarFunction['name'], $scalarFunction['arguments']);
         }
@@ -1367,6 +1367,15 @@ final class SQLiteUpdateDeleteReturningSql
         if (($function === 'sqlite_compileoption_get' || $function === 'sqlite_compileoption_used') && count($parts) !== 1) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
         }
+        if ($function === 'json_extract' && count($parts) < 2) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT json_extract() needs a JSON value and at least one path');
+        }
+        if (($function === 'json_valid' || $function === 'json_type' || $function === 'json_array_length') && count($parts) !== 1 && count($parts) !== 2) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one or two arguments");
+        }
+        if (($function === 'json_error_position' || $function === 'json_quote') && count($parts) !== 1) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
+        }
         if (in_array($function, ['sqlite_version', 'sqlite_source_id', 'sqlite_compileoption_get', 'sqlite_compileoption_used'], true)) {
             $values = array_map(static fn (string $part): int|float|string|null => self::limitExpressionValue($part), $parts);
             $value = SQLiteCoreScalarFunction::sqlFunctionArguments($function, $values);
@@ -1393,6 +1402,9 @@ final class SQLiteUpdateDeleteReturningSql
             }
 
             return $value;
+        }
+        if (in_array($function, ['json_valid', 'json_error_position', 'json_type', 'json_array_length', 'json_extract', 'json_quote'], true)) {
+            return self::evaluateLimitJsonScalarFunction($function, $parts);
         }
 
         if ($function === 'iif' || $function === 'if') {
@@ -1612,6 +1624,79 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $parts
+     */
+    private static function evaluateLimitJsonScalarFunction(string $function, array $parts): int|float|string|null
+    {
+        $values = array_map(static fn (string $part): int|float|string|null => self::limitExpressionValue($part), $parts);
+
+        if ($function === 'json_valid') {
+            $value = SQLiteJsonValidity::jsonValidSqlFunctionArguments($function, $values);
+
+            return $value === null ? null : ($value ? 1 : 0);
+        }
+        if ($function === 'json_error_position') {
+            return SQLiteJsonErrorPosition::jsonErrorPositionSqlFunctionArguments(
+                $function,
+                [self::limitJsonTextArgument($values[0])],
+            );
+        }
+        if ($function === 'json_quote') {
+            return SQLiteJsonQuote::jsonQuoteSqlFunctionArguments($function, $values);
+        }
+        if ($function === 'json_extract') {
+            $json = self::limitJsonTextArgument($values[0]);
+            $paths = [];
+            foreach (array_slice($values, 1) as $value) {
+                $path = self::limitJsonPathArgument($value, $function);
+                if ($path === null) {
+                    return null;
+                }
+                $paths[] = $path;
+            }
+            $value = SQLiteJsonExtract::extractSqlFunction($function, $json, ...$paths);
+            if (!is_int($value) && !is_float($value) && !is_string($value) && $value !== null) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT json_extract() returned an unsupported value');
+            }
+
+            return $value;
+        }
+        if ($function === 'json_type' || $function === 'json_array_length') {
+            $json = self::limitJsonTextArgument($values[0]);
+            $path = array_key_exists(1, $values) ? self::limitJsonPathArgument($values[1], $function) : '$';
+            $value = SQLiteJsonInspection::inspectionSqlFunction($function, $json, $path);
+            if (!is_int($value) && !is_float($value) && !is_string($value) && $value !== null) {
+                throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() returned an unsupported value");
+            }
+
+            return $value;
+        }
+
+        throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() is not supported");
+    }
+
+    private static function limitJsonTextArgument(int|float|string|null $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return (string) $value;
+    }
+
+    private static function limitJsonPathArgument(int|float|string|null $value, string $function): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_string($value)) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() path argument must be text or NULL");
+        }
+
+        return $value;
     }
 
     private static function quoteLimitValue(int|float|string|null $value): string

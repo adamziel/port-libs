@@ -112,6 +112,21 @@ final class CustomAtRuleTransformer
                     return null;
                 },
             ],
+            'Function' => static function (array $arguments, string $raw, string $name, self $transformer) use ($visitors): mixed {
+                foreach ($visitors as $visitor) {
+                    $callback = self::functionVisitorCallback($visitor, $name);
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($arguments, $raw, strtolower($name), $transformer);
+                    if ($replacement !== null) {
+                        return $replacement;
+                    }
+                }
+
+                return null;
+            },
         ];
     }
 
@@ -734,6 +749,23 @@ final class CustomAtRuleTransformer
         return null;
     }
 
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function functionVisitorCallback(array $visitor, string $functionName): ?callable
+    {
+        $functionConfig = $visitor['Function'] ?? null;
+        if (is_callable($functionConfig)) {
+            return $functionConfig;
+        }
+
+        if (is_array($functionConfig)) {
+            return self::caseInsensitiveCallback($functionConfig, $functionName);
+        }
+
+        return null;
+    }
+
     private static function isUnknownRuleReplacement(mixed $replacement): bool
     {
         return is_array($replacement)
@@ -902,7 +934,7 @@ final class CustomAtRuleTransformer
                 continue;
             }
 
-            if ($char === '@' && preg_match('/@(-?[_a-zA-Z][-_a-zA-Z0-9]*)/A', substr($value, $i), $matches) === 1) {
+            if ($char === '@' && preg_match('/@(--[-_a-zA-Z0-9]+|-?[_a-zA-Z][-_a-zA-Z0-9]*)/A', substr($value, $i), $matches) === 1) {
                 $raw = $matches[0];
                 $replacement = $this->callTokenVisitor('at-keyword', [
                     'type' => 'at-keyword',
@@ -976,6 +1008,14 @@ final class CustomAtRuleTransformer
                         'type' => 'string',
                         'value' => stripcslashes(substr($token, 1, -1)),
                     ],
+                ];
+                continue;
+            }
+
+            if (preg_match('/^--[-_a-zA-Z0-9]+$/', $token) === 1) {
+                $tokens[] = [
+                    'type' => 'dashed-ident',
+                    'value' => $token,
                 ];
                 continue;
             }

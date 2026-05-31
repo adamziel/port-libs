@@ -351,6 +351,8 @@ CSS
         $t->same('@font-face{src:url(test.woff)}', $minifier->minify('@font-face {src: url(test.woff);}'));
         $t->same('@font-face{src:local(Test)}', $minifier->minify('@font-face {src: local("Test");}'));
         $t->same('@font-face{src:local(Foo Bar)}', $minifier->minify('@font-face {src: local("Foo Bar");}'));
+        $t->same('@font-face{src:local(Test)}', $minifier->minify('@font-face {src: local(Test);}'));
+        $t->same('@font-face{src:local(Foo Bar)}', $minifier->minify('@font-face {src: local(Foo Bar);}'));
         $t->same(
             '@font-face{src:url(test.woff)format("woff")}',
             $minifier->minify('@font-face {src: url("test.woff") format(woff);}')
@@ -362,6 +364,22 @@ CSS
         $t->same(
             '@font-face{src:url(test.otf)format("opentype")tech(features-aat)}',
             $minifier->minify('@font-face {src: url("test.otf") format(opentype) tech(features-aat);}')
+        );
+        $t->same(
+            '@font-face{src:url(test.woff)format("woff")tech(color-colrv1)}',
+            $minifier->minify('@font-face {src: url("test.woff") format(woff) tech(color-colrv1);}')
+        );
+        $t->same(
+            '@font-face{src:url(test.woff2)format("woff2")tech(variations)}',
+            $minifier->minify('@font-face {src: url("test.woff2") format(woff2) tech(variations);}')
+        );
+        $t->same(
+            '@font-face{src:url(test.woff)format("woff")tech(palettes)}',
+            $minifier->minify('@font-face {src: url("test.woff") format(woff) tech(palettes);}')
+        );
+        $t->same(
+            '@font-face{src:url(foo.ttf)format("opentype")tech(color-colrv1)}',
+            $minifier->minify('@font-face {src: url("foo.ttf") format(opentype) tech(color-colrv1);}')
         );
         $t->same(
             '@font-face{src:url(test.woff)format("woff")tech(features-opentype,color-sbix)}',
@@ -383,8 +401,15 @@ CSS
             '@font-face{src:local("") url(test.woff)}',
             $minifier->minify('@font-face {src: local("") url("test.woff");}')
         );
+        $t->same('@font-face{font-weight:200 400}', $minifier->minify('@font-face {font-weight: 200 400}'));
+        $t->same('@font-face{font-weight:400}', $minifier->minify('@font-face {font-weight: 400 400}'));
+        $t->same('@font-face{font-stretch:50% 200%}', $minifier->minify('@font-face {font-stretch: 50% 200%}'));
+        $t->same('@font-face{font-stretch:50%}', $minifier->minify('@font-face {font-stretch: 50% 50%}'));
         $t->same('@font-face{unicode-range:U+26}', $minifier->minify('@font-face {unicode-range: u+26;}'));
+        $t->same('@font-face{unicode-range:U+26}', $minifier->minify('@font-face {unicode-range: U+26;}'));
+        $t->same('@font-face{unicode-range:U+0-7F}', $minifier->minify('@font-face {unicode-range: U+0-7F;}'));
         $t->same('@font-face{unicode-range:U+25-FF}', $minifier->minify('@font-face {unicode-range: U+0025-00FF;}'));
+        $t->same('@font-face{unicode-range:U+4??}', $minifier->minify('@font-face {unicode-range: U+4??;}'));
         $t->same('@font-face{unicode-range:U+4??}', $minifier->minify('@font-face {unicode-range: U+400-4FF;}'));
         $t->same(
             '@font-face{unicode-range:U+25-FF,U+4??}',
@@ -395,8 +420,26 @@ CSS
             $minifier->minify('@font-face {unicode-range: U+A5, U+4E00-9FFF, U+30??, U+FF00-FF9F;}')
         );
         $t->same('@font-face{unicode-range:U+????}', $minifier->minify('@font-face {unicode-range: U+0000-FFFF;}'));
+        $t->same('@font-face{unicode-range:U+10????}', $minifier->minify('@font-face {unicode-range: U+10????;}'));
         $t->same('@font-face{unicode-range:U+10????}', $minifier->minify('@font-face {unicode-range: U+100000-10FFFF;}'));
         $t->same('@font-face{unicode-range:U+1E1E?}', $minifier->minify('@font-face {unicode-range: U+1e1e?;}'));
+        $t->same('@font-face{unicode-range:U+????}', $minifier->minify('@font-face {unicode-range: U+????;}'));
+        $t->same(
+            '@font-face{unicode-range:U+????,U+1????,U+10????}',
+            $minifier->minify('@font-face {unicode-range: u+????, U+1????, U+10????;}')
+        );
+        $t->same(
+            '@font-face{font-family:Inter;font-style:oblique 0deg 10deg;font-weight:100 900;src:url(../fonts/Inter.var.woff2?v=3.19)format("woff2");font-display:swap}',
+            $minifier->minify(
+                '@font-face { font-family: Inter; font-style: oblique 0deg 10deg; font-weight: 100 900; src: url("../fonts/Inter.var.woff2?v=3.19") format("woff2"); font-display: swap; }'
+            )
+        );
+        $t->same(
+            '@font-face{font-family:Inter;font-style:oblique;font-weight:100 900;src:url(../fonts/Inter.var.woff2?v=3.19)format("woff2");font-display:swap}',
+            $minifier->minify(
+                '@font-face { font-family: Inter; font-style: oblique 14deg 14deg; font-weight: 100 900; src: url("../fonts/Inter.var.woff2?v=3.19") format("woff2"); font-display: swap; }'
+            )
+        );
     },
     'css minifier maps upstream font palette values minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

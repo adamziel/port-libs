@@ -147,6 +147,32 @@ return [
             $block->getProperty('mask-border-source: none; mask-border: 25; mask-border-source: url(frame.svg)', 'mask-border-source')
         );
     },
+    'declaration block reads upstream mask border cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $mask = 'mask-border: url("frame.svg") 10 40 10 40 / 12px / 2 round round luminance';
+
+        $t->same(['value' => 'url(frame.svg)', 'important' => false], $block->getProperty($mask, 'mask-border-source'));
+        $t->same(['value' => '10 40', 'important' => false], $block->getProperty($mask, 'mask-border-slice'));
+        $t->same(['value' => '12px', 'important' => false], $block->getProperty($mask, 'mask-border-width'));
+        $t->same(['value' => '2', 'important' => false], $block->getProperty($mask, 'mask-border-outset'));
+        $t->same(['value' => 'round', 'important' => false], $block->getProperty($mask, 'mask-border-repeat'));
+        $t->same(['value' => 'luminance', 'important' => false], $block->getProperty($mask, 'mask-border-mode'));
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty('mask-border: 25', 'mask-border-source'));
+        $t->same(
+            ['value' => 'url(frame.svg) 10 40 / 12px / 2 round luminance', 'important' => false],
+            $block->getProperty(
+                'mask-border-source: url("frame.svg"); mask-border-slice: 10 40 10 40; mask-border-width: 12px; mask-border-outset: 2; mask-border-repeat: round round; mask-border-mode: luminance',
+                'mask-border'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                'mask-border-source: url(frame.svg); mask-border-slice: 10; mask-border-width: 12px !important; mask-border-outset: 2; mask-border-repeat: round; mask-border-mode: luminance',
+                'mask-border'
+            )
+        );
+    },
     'declaration block reads upstream border cssom shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -317,6 +343,32 @@ return [
         $t->same(
             ['value' => '1rem', 'important' => true],
             $block->getProperty('gap: 1rem !important; row-gap: 2rem', 'row-gap')
+        );
+    },
+    'declaration block reads upstream scroll snap cssom rect shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => '1rem 2rem 3rem 4rem', 'important' => false],
+            $block->getProperty(
+                'scroll-margin-top: 1rem; scroll-margin-right: 2rem; scroll-margin-bottom: 3rem; scroll-margin-left: 4rem',
+                'scroll-margin'
+            )
+        );
+        $t->same(
+            ['value' => '2rem', 'important' => false],
+            $block->getProperty('scroll-margin: 1rem 2rem 3rem 4rem', 'scroll-margin-right')
+        );
+        $t->same(
+            ['value' => 'var(--wp--style--block-gap)', 'important' => true],
+            $block->getProperty('scroll-padding: var(--wp--style--block-gap) !important', 'scroll-padding-bottom')
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                'scroll-padding-top: 1rem; scroll-padding-right: 1rem !important; scroll-padding-bottom: 1rem; scroll-padding-left: 1rem',
+                'scroll-padding'
+            )
         );
     },
     'declaration block reads upstream animation name cssom longhand' => static function (TestRunner $t): void {
@@ -584,6 +636,26 @@ return [
             $block->setProperty('gap: 1rem !important', 'row-gap', '3rem')
         );
     },
+    'declaration block sets upstream scroll snap cssom rect longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'scroll-margin: 2rem 1rem 1rem',
+            $block->setProperty('scroll-margin: 1rem', 'scroll-margin-top', '2rem')
+        );
+        $t->same(
+            'scroll-padding: 1rem 2rem 1rem 3rem',
+            $block->setProperty('scroll-padding: 1rem 2rem', 'scroll-padding-left', '3rem')
+        );
+        $t->same(
+            'scroll-padding: 1rem; scroll-padding-inline-start: 2rem; scroll-padding-left: 3rem',
+            $block->setProperty('scroll-padding: 1rem; scroll-padding-inline-start: 2rem', 'scroll-padding-left', '3rem')
+        );
+        $t->same(
+            'scroll-margin-top: 2rem; scroll-margin: 1rem !important',
+            $block->setProperty('scroll-margin: 1rem !important', 'scroll-margin-top', '2rem')
+        );
+    },
     'declaration block sets upstream animation name cssom longhand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -722,6 +794,26 @@ return [
         $t->same(
             'list-style: square; list-style-position: inside !important',
             $block->setProperty('list-style: square', 'list-style-position', 'inside', true)
+        );
+    },
+    'declaration block sets upstream mask border cssom longhands in existing shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'mask-border: url(new-frame.svg) 25 / 12px / 2 round luminance',
+            $block->setProperty('mask-border: url(old-frame.svg) 25 / 12px / 2 round luminance', 'mask-border-source', 'url("new-frame.svg")')
+        );
+        $t->same(
+            'mask-border: url(frame.svg) 20 40 fill / 12px round',
+            $block->setProperty('mask-border: url(frame.svg) 10 / 12px round', 'mask-border-slice', '20 40 20 40 fill')
+        );
+        $t->same(
+            'mask-border: url(frame.svg) 25 luminance',
+            $block->setProperty('mask-border: url(frame.svg) 25', 'mask-border-mode', 'luminance')
+        );
+        $t->same(
+            'mask-border-source: url(new-frame.svg); mask-border: url(old-frame.svg) 25 !important',
+            $block->setProperty('mask-border: url(old-frame.svg) 25 !important', 'mask-border-source', 'url(new-frame.svg)')
         );
     },
     'declaration block remove drops direct properties and preserves neighbors' => static function (TestRunner $t): void {
@@ -906,6 +998,29 @@ return [
             $block->removeProperty('gap: 1rem !important; row-gap: 3rem', 'row-gap')
         );
     },
+    'declaration block removes upstream scroll snap cssom rect longhands and shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'scroll-margin-right: 2rem; scroll-margin-bottom: 3rem; scroll-margin-left: 4rem',
+            $block->removeProperty('scroll-margin: 1rem 2rem 3rem 4rem', 'scroll-margin-top')
+        );
+        $t->same(
+            'scroll-padding-top: 1rem; scroll-padding-bottom: 3rem; scroll-padding-left: 4rem',
+            $block->removeProperty('scroll-padding: 1rem 2rem 3rem 4rem', 'scroll-padding-right')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty(
+                'scroll-margin: 1rem; scroll-margin-top: 2rem; scroll-margin-left: 3rem; color: red',
+                'scroll-margin'
+            )
+        );
+        $t->same(
+            'color: red; scroll-padding-right: 1rem !important; scroll-padding-bottom: 1rem !important; scroll-padding-left: 1rem !important',
+            $block->removeProperty('scroll-padding: 1rem !important; scroll-padding-top: 2rem; color: red', 'scroll-padding-top')
+        );
+    },
     'declaration block removes upstream animation cssom longhands and shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1003,6 +1118,26 @@ return [
         $t->same(
             'color: red; list-style-position: inside !important; list-style-type: square !important',
             $block->removeProperty('list-style: inside url(marker.svg) square !important; color: red', 'list-style-image')
+        );
+    },
+    'declaration block removes upstream mask border cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'mask-border-slice: 25; mask-border-width: 12px; mask-border-outset: 2; mask-border-repeat: round; mask-border-mode: luminance',
+            $block->removeProperty('mask-border: url(frame.svg) 25 / 12px / 2 round luminance', 'mask-border-source')
+        );
+        $t->same(
+            'mask-border-source: url(frame.svg); mask-border-slice: 25; mask-border-width: 12px; mask-border-outset: 0; mask-border-repeat: round',
+            $block->removeProperty('mask-border: url(frame.svg) 25 / 12px round', 'mask-border-mode')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('mask-border: url(frame.svg) 25; mask-border-mode: luminance; color: red', 'mask-border')
+        );
+        $t->same(
+            'color: red; mask-border-slice: 25 !important; mask-border-width: 1 !important; mask-border-outset: 0 !important; mask-border-repeat: stretch !important; mask-border-mode: alpha !important',
+            $block->removeProperty('mask-border: url(frame.svg) 25 !important; color: red; mask-border-source: url(new-frame.svg)', 'mask-border-source')
         );
     },
 ];

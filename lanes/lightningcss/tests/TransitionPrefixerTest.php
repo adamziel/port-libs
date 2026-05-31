@@ -421,6 +421,67 @@ return [
             $prefixer->prefixForTargets('.foo { position: sticky; }', ['safari' => 13])
         );
     },
+    'transition prefixer maps upstream logical inset target fallbacks' => static function (TestRunner $t) use ($variants): void {
+        $prefixer = new TransitionPrefixer();
+        $selector = $variants('.foo');
+
+        $t->same(
+            $selector['ltr-webkit'] . '{left:2px}'
+                . $selector['ltr-modern'] . '{left:2px}'
+                . $selector['rtl-webkit'] . '{right:2px}'
+                . $selector['rtl-modern'] . '{right:2px}',
+            $prefixer->prefixForTargets('.foo { inset-inline-start: 2px; }', ['safari' => 8])
+        );
+        $t->same(
+            $selector['ltr-webkit'] . '{left:2px;right:4px}'
+                . $selector['ltr-modern'] . '{left:2px;right:4px}'
+                . $selector['rtl-webkit'] . '{left:4px;right:2px}'
+                . $selector['rtl-modern'] . '{left:4px;right:2px}',
+            $prefixer->prefixForTargets('.foo { inset-inline-start: 2px; inset-inline-end: 4px; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{left:2px;right:2px}',
+            $prefixer->prefixForTargets('.foo { inset-inline: 2px; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{top:2px}',
+            $prefixer->prefixForTargets('.foo { inset-block-start: 2px; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{bottom:2px}',
+            $prefixer->prefixForTargets('.foo { inset-block-end: 2px; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{top:1px;bottom:3px;left:2px;right:4px}',
+            $prefixer->prefixForTargets('.foo { top: 1px; left: 2px; bottom: 3px; right: 4px; }', ['safari' => 8])
+        );
+    },
+    'transition prefixer maps upstream logical inset browser boundaries' => static function (TestRunner $t) use ($variants): void {
+        $prefixer = new TransitionPrefixer();
+        $selector = $variants('.foo');
+        $inlineStartFallback = $selector['ltr-webkit'] . '{left:2px}'
+            . $selector['ltr-modern'] . '{left:2px}'
+            . $selector['rtl-webkit'] . '{right:2px}'
+            . $selector['rtl-modern'] . '{right:2px}';
+
+        $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { inset-inline-start: 2px; }', ['safari' => '14.0']));
+        $t->same('.foo{inset-inline-start:2px}', $prefixer->prefixForTargets('.foo { inset-inline-start: 2px; }', ['safari' => '14.1']));
+        $t->same($inlineStartFallback, $prefixer->prefixForTargets('.foo { inset-inline-start: 2px; }', ['ios_saf' => '14.4']));
+        $t->same('.foo{inset-inline-start:2px}', $prefixer->prefixForTargets('.foo { inset-inline-start: 2px; }', ['ios_saf' => '14.5']));
+        $t->same('.foo{top:2px}', $prefixer->prefixForTargets('.foo { inset-block-start: 2px; }', ['chrome' => 86]));
+        $t->same('.foo{inset-block-start:2px}', $prefixer->prefixForTargets('.foo { inset-block-start: 2px; }', ['chrome' => 87]));
+        $t->same('.foo{left:2px;right:2px}', $prefixer->prefixForTargets('.foo { inset-inline: 2px; }', ['firefox' => 62]));
+        $t->same('.foo{inset-inline:2px}', $prefixer->prefixForTargets('.foo { inset-inline: 2px; }', ['firefox' => 63]));
+        $t->same('.foo{top:1px;bottom:3px;left:2px;right:4px}', $prefixer->prefixForTargets('.foo { inset: 1px 4px 3px 2px; }', ['ie' => 11]));
+        $t->same('.foo{top:2px}', $prefixer->prefixForTargets('.foo { inset-block-start: 2px; }', [
+            'browsers' => ['chrome' => 120],
+            'include' => ['LogicalProperties'],
+        ]));
+        $t->same('.foo{inset-block-start:2px}', $prefixer->prefixForTargets('.foo { inset-block-start: 2px; }', [
+            'browsers' => ['safari' => '14.0'],
+            'exclude' => ['logical-properties'],
+        ]));
+    },
     'transition prefixer maps upstream display flex target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

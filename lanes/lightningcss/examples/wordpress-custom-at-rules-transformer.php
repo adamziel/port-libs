@@ -10,6 +10,7 @@ $css = <<<'CSS'
 @asset "wp-block-card/view.js";
 @asset-style "wp-block-card/style.css";
 @block-color #056ef0;
+@token --wp-ring #056ef0;
 
 @tokens wp {
   --gap: 24px;
@@ -34,6 +35,7 @@ $css = <<<'CSS'
 .wp-block-card {
   @apply card;
   outline-color: @wp-accent;
+  box-shadow: 0 0 0 1px @--wp-ring;
 
   @breakpoint 782px {
     display: grid;
@@ -116,6 +118,11 @@ $result = $transformer->transform($css, [
 
                     return [];
                 }
+                if ($rule['name'] === 'token') {
+                    $colorAliases[$rule['preludeTokens'][0]['value']] = $rule['preludeTokens'][1]['value'];
+
+                    return [];
+                }
 
                 $colorAliases[$rule['name']] = $rule['prelude'];
 
@@ -139,14 +146,15 @@ $result = $transformer->transform($css, [
                 return $colorAliases[$token['value']] ?? null;
             },
         ],
+        'Function' => [
+            'token' => static function (array $arguments) use (&$tokens): ?string {
+                return $tokens[$arguments[0] ?? ''] ?? null;
+            },
+        ],
     ],
-]), [
-    'token' => static function (array $arguments) use (&$tokens): ?string {
-        return $tokens[$arguments[0] ?? ''] ?? null;
-    },
-]);
+]));
 
-$expected = '.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
+$expected = '.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{outline-color:#056ef0;box-shadow:0 0 0 1px #056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {
@@ -160,7 +168,7 @@ if (($argv[1] ?? null) === '--self-test') {
         fwrite(STDERR, "Unexpected custom at-rule dependencies:\n" . json_encode($dependencies) . "\n");
         exit(1);
     }
-    if ($colorAliases !== ['wp-accent' => '#056ef0']) {
+    if ($colorAliases !== ['wp-accent' => '#056ef0', '--wp-ring' => '#056ef0']) {
         fwrite(STDERR, "Unexpected custom at-rule color aliases:\n" . json_encode($colorAliases) . "\n");
         exit(1);
     }

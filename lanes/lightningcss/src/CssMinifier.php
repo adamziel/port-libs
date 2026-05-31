@@ -3276,7 +3276,7 @@ final class CssMinifier
             return implode(' ', $tokens);
         }
         if (count($tokens) === 3 && $tokens[1] === $tokens[2]) {
-            return $tokens[1] === '0deg' ? 'oblique' : 'oblique ' . $tokens[1];
+            return 'oblique';
         }
         if (count($tokens) === 2 && $tokens[1] === '0deg') {
             return 'oblique';

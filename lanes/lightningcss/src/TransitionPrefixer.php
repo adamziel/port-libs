@@ -268,6 +268,12 @@ final class TransitionPrefixer
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
         $lightDarkChanged = $this->rewriteLightDarkFallbackEntries($entries, $targetOptions);
         $lightDarkSerializationChanged = $this->rewriteLightDarkAdvancedColorSerializationEntries($entries, $targetOptions);
+        $logicalInsetFallback = ($targetOptions['logicalInsetNeedsFallback'] ?? false)
+            ? $this->rewriteLogicalInsetFallbackRule($selectors, $entries)
+            : null;
+        if ($logicalInsetFallback !== null) {
+            return $logicalInsetFallback . implode('', $supportRules);
+        }
         if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
@@ -744,6 +750,8 @@ final class TransitionPrefixer
             || $this->featureListContains($targets['include'] ?? [], 'media-queries');
         $mediaIntervalExcluded = $this->featureListContains($targets['exclude'] ?? [], 'media-interval-syntax')
             || $this->featureListContains($targets['exclude'] ?? [], 'media-queries');
+        $logicalPropertiesIncluded = $this->featureListContains($targets['include'] ?? [], 'logical-properties');
+        $logicalPropertiesExcluded = $this->featureListContains($targets['exclude'] ?? [], 'logical-properties');
         $normalized = [];
         foreach ($browserTargets as $browser => $version) {
             if (!is_scalar($version)) {
@@ -889,6 +897,17 @@ final class TransitionPrefixer
                 || $this->targetAtLeast($normalized, 'firefox', [4])
             ),
             'clampNeedsMaxMinFallback' => $this->targetInRange($normalized, 'safari', [0], [12]),
+            'logicalInsetNeedsFallback' => $logicalPropertiesIncluded || (!$logicalPropertiesExcluded && (
+                $this->targetInRange($normalized, 'android', [0], [86, 255, 255])
+                || $this->targetInRange($normalized, 'chrome', [0], [86, 255, 255])
+                || $this->targetInRange($normalized, 'edge', [0], [86, 255, 255])
+                || $this->targetInRange($normalized, 'firefox', [0], [62, 255, 255])
+                || $this->targetInRange($normalized, 'ios_saf', [0], [14, 4, 255])
+                || $this->targetInRange($normalized, 'opera', [0], [61, 255, 255])
+                || $this->targetInRange($normalized, 'safari', [0], [14, 0, 255])
+                || $this->targetInRange($normalized, 'samsung', [0], [13, 255, 255])
+                || isset($normalized['ie'])
+            )),
             'lightDarkNeedsFallback' => !$lightDarkExcluded && (
                 ($chrome !== null && !$this->targetAtLeast($normalized, 'chrome', [123]))
                 || (isset($normalized['edge']) && !$this->targetAtLeast($normalized, 'edge', [123]))
@@ -1220,6 +1239,173 @@ final class TransitionPrefixer
             'border-end-start-radius' => $direction === 'rtl' ? 'border-bottom-right-radius' : 'border-bottom-left-radius',
             default => null,
         };
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function rewriteLogicalInsetFallbackRule(string $selectors, array $entries): ?string
+    {
+        $ltrEntries = [];
+        $rtlEntries = [];
+        $changed = false;
+        $needsDirectionSplit = false;
+
+        foreach ($entries as $entry) {
+            $fallback = $this->logicalInsetFallbackEntries($entry);
+            if ($fallback === null) {
+                $ltrEntries[] = $entry;
+                $rtlEntries[] = $entry;
+                continue;
+            }
+
+            array_push($ltrEntries, ...$fallback['ltr']);
+            array_push($rtlEntries, ...$fallback['rtl']);
+            $changed = true;
+            $needsDirectionSplit = $needsDirectionSplit || $fallback['directional'];
+        }
+
+        if (!$changed) {
+            return null;
+        }
+
+        if (!$needsDirectionSplit) {
+            return $selectors . '{' . $this->serializeDeclarations($ltrEntries) . '}';
+        }
+
+        return $this->selectorVariant($selectors, 'ltr-webkit') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
+            . $this->selectorVariant($selectors, 'ltr-modern') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
+            . $this->selectorVariant($selectors, 'rtl-webkit') . '{' . $this->serializeDeclarations($rtlEntries) . '}'
+            . $this->selectorVariant($selectors, 'rtl-modern') . '{' . $this->serializeDeclarations($rtlEntries) . '}';
+    }
+
+    /**
+     * @param array{property:string,name:string,value:string,important:bool} $entry
+     * @return array{ltr:list<array{property:string,name:string,value:string,important:bool}>,rtl:list<array{property:string,name:string,value:string,important:bool}>,directional:bool}|null
+     */
+    private function logicalInsetFallbackEntries(array $entry): ?array
+    {
+        $important = $entry['important'];
+
+        switch ($entry['property']) {
+            case 'inset-inline-start':
+                return [
+                    'ltr' => [$this->declarationEntry('left', $entry['value'], $important)],
+                    'rtl' => [$this->declarationEntry('right', $entry['value'], $important)],
+                    'directional' => true,
+                ];
+
+            case 'inset-inline-end':
+                return [
+                    'ltr' => [$this->declarationEntry('right', $entry['value'], $important)],
+                    'rtl' => [$this->declarationEntry('left', $entry['value'], $important)],
+                    'directional' => true,
+                ];
+
+            case 'inset-inline':
+                $inline = $this->axisSides($entry['value']);
+                if ($inline === null) {
+                    return null;
+                }
+
+                return [
+                    'ltr' => [
+                        $this->declarationEntry('left', $inline[0], $important),
+                        $this->declarationEntry('right', $inline[1], $important),
+                    ],
+                    'rtl' => [
+                        $this->declarationEntry('left', $inline[1], $important),
+                        $this->declarationEntry('right', $inline[0], $important),
+                    ],
+                    'directional' => $inline[0] !== $inline[1],
+                ];
+
+            case 'inset-block-start':
+                return [
+                    'ltr' => [$this->declarationEntry('top', $entry['value'], $important)],
+                    'rtl' => [$this->declarationEntry('top', $entry['value'], $important)],
+                    'directional' => false,
+                ];
+
+            case 'inset-block-end':
+                return [
+                    'ltr' => [$this->declarationEntry('bottom', $entry['value'], $important)],
+                    'rtl' => [$this->declarationEntry('bottom', $entry['value'], $important)],
+                    'directional' => false,
+                ];
+
+            case 'inset-block':
+                $block = $this->axisSides($entry['value']);
+                if ($block === null) {
+                    return null;
+                }
+                $blockEntries = [
+                    $this->declarationEntry('top', $block[0], $important),
+                    $this->declarationEntry('bottom', $block[1], $important),
+                ];
+
+                return [
+                    'ltr' => $blockEntries,
+                    'rtl' => $blockEntries,
+                    'directional' => false,
+                ];
+
+            case 'inset':
+                $box = $this->boxSides($entry['value']);
+                if ($box === null) {
+                    return null;
+                }
+                $boxEntries = [
+                    $this->declarationEntry('top', $box['top'], $important),
+                    $this->declarationEntry('bottom', $box['bottom'], $important),
+                    $this->declarationEntry('left', $box['left'], $important),
+                    $this->declarationEntry('right', $box['right'], $important),
+                ];
+
+                return [
+                    'ltr' => $boxEntries,
+                    'rtl' => $boxEntries,
+                    'directional' => false,
+                ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0:string,1:string}|null
+     */
+    private function axisSides(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === [] || count($tokens) > 2) {
+            return null;
+        }
+
+        return [$tokens[0], $tokens[1] ?? $tokens[0]];
+    }
+
+    /**
+     * @return array{top:string,right:string,bottom:string,left:string}|null
+     */
+    private function boxSides(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === [] || count($tokens) > 4) {
+            return null;
+        }
+
+        $top = $tokens[0];
+        $right = $tokens[1] ?? $top;
+        $bottom = $tokens[2] ?? $top;
+        $left = $tokens[3] ?? $right;
+
+        return [
+            'top' => $top,
+            'right' => $right,
+            'bottom' => $bottom,
+            'left' => $left,
+        ];
     }
 
     /**

@@ -19,6 +19,18 @@ final class DeclarationBlock
             'bottom' => 'padding-bottom',
             'left' => 'padding-left',
         ],
+        'scroll-margin' => [
+            'top' => 'scroll-margin-top',
+            'right' => 'scroll-margin-right',
+            'bottom' => 'scroll-margin-bottom',
+            'left' => 'scroll-margin-left',
+        ],
+        'scroll-padding' => [
+            'top' => 'scroll-padding-top',
+            'right' => 'scroll-padding-right',
+            'bottom' => 'scroll-padding-bottom',
+            'left' => 'scroll-padding-left',
+        ],
         'inset' => [
             'top' => 'top',
             'right' => 'right',
@@ -92,6 +104,16 @@ final class DeclarationBlock
         'list-style-image',
         'list-style-type',
     ];
+    private const MASK_BORDER_LONGHANDS = [
+        'mask-border-source',
+        'mask-border-slice',
+        'mask-border-width',
+        'mask-border-outset',
+        'mask-border-repeat',
+        'mask-border-mode',
+    ];
+    private const MASK_BORDER_REPEAT_KEYWORDS = ['stretch', 'repeat', 'round', 'space'];
+    private const MASK_BORDER_MODE_KEYWORDS = ['alpha', 'luminance'];
 
     /**
      * @return array<string, string>
@@ -318,52 +340,409 @@ final class DeclarationBlock
      */
     private function getMaskBorderProperty(array $entries, string $property): ?array
     {
-        if ($property !== 'mask-border-source') {
+        if (!$this->isMaskBorderProperty($property)) {
             return null;
         }
 
-        $match = null;
+        $components = [];
         foreach ($entries as $entry) {
-            if ($entry['property'] === 'mask-border-source') {
-                $match = [
-                    'value' => $entry['value'],
+            if ($entry['property'] === 'mask-border') {
+                $parsed = $this->parseMaskBorderComponents($entry['value']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach (self::MASK_BORDER_LONGHANDS as $longhand) {
+                    $components[$longhand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($this->isMaskBorderLonghand($entry['property'])) {
+                $components[$entry['property']] = [
+                    'value' => $this->normalizeMaskBorderLonghandValue($entry['property'], $entry['value']),
                     'important' => $entry['important'],
                 ];
-                continue;
             }
-
-            if ($entry['property'] !== 'mask-border') {
-                continue;
-            }
-
-            $source = $this->parseMaskBorderSource($entry['value']);
-            if ($source === null) {
-                continue;
-            }
-
-            $match = [
-                'value' => $source,
-                'important' => $entry['important'],
-            ];
         }
 
-        return $match;
+        if ($property !== 'mask-border') {
+            return $components[$property] ?? null;
+        }
+
+        foreach (self::MASK_BORDER_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->composeMaskBorderShorthandValue([
+                'mask-border-source' => $components['mask-border-source']['value'],
+                'mask-border-slice' => $components['mask-border-slice']['value'],
+                'mask-border-width' => $components['mask-border-width']['value'],
+                'mask-border-outset' => $components['mask-border-outset']['value'],
+                'mask-border-repeat' => $components['mask-border-repeat']['value'],
+                'mask-border-mode' => $components['mask-border-mode']['value'],
+            ]),
+            'important' => $important,
+        ];
     }
 
-    private function parseMaskBorderSource(string $value): ?string
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setMaskBorderLonghand(array $entries, string $property, string $value, bool $important): ?string
     {
-        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
-            if ($this->isMaskBorderSourceToken($token)) {
-                return $token;
+        if (!$this->isMaskBorderLonghand($property)) {
+            return null;
+        }
+
+        $value = $this->normalizeMaskBorderLonghandValue($property, $value);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
             }
+
+            if ($entries[$index]['property'] !== 'mask-border') {
+                continue;
+            }
+            if ($entries[$index]['important'] !== $important) {
+                return null;
+            }
+
+            $components = $this->parseMaskBorderComponents($entries[$index]['value']);
+            if ($components === null) {
+                continue;
+            }
+
+            $components[$property] = $value;
+            $entries[$index] = [
+                'property' => 'mask-border',
+                'value' => $this->composeMaskBorderShorthandValue($components),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
         }
 
         return null;
     }
 
+    /**
+     * @return array{
+     *     mask-border-source:string,
+     *     mask-border-slice:string,
+     *     mask-border-width:string,
+     *     mask-border-outset:string,
+     *     mask-border-repeat:string,
+     *     mask-border-mode:string
+     * }|null
+     */
+    private function parseMaskBorderComponents(string $value): ?array
+    {
+        $groups = array_map('trim', $this->splitTopLevel($value, '/'));
+        if (count($groups) > 3) {
+            return null;
+        }
+
+        $components = [
+            'mask-border-source' => 'none',
+            'mask-border-slice' => '100%',
+            'mask-border-width' => '1',
+            'mask-border-outset' => '0',
+            'mask-border-repeat' => 'stretch',
+            'mask-border-mode' => 'alpha',
+        ];
+        $sourceSet = false;
+        $sliceTokens = [];
+        $repeatTokens = [];
+
+        foreach ($this->splitWhitespaceTopLevel($groups[0] ?? '') as $token) {
+            $lower = strtolower(trim($token));
+            if (in_array($lower, self::MASK_BORDER_MODE_KEYWORDS, true)) {
+                $components['mask-border-mode'] = $lower;
+                continue;
+            }
+
+            if (in_array($lower, self::MASK_BORDER_REPEAT_KEYWORDS, true)) {
+                $repeatTokens[] = $lower;
+                continue;
+            }
+
+            if (!$sourceSet && $this->isMaskBorderSourceToken($token)) {
+                $components['mask-border-source'] = $this->normalizeMaskBorderSourceValue($token);
+                $sourceSet = true;
+                continue;
+            }
+
+            $sliceTokens[] = $token;
+        }
+
+        if (count($repeatTokens) > 2) {
+            return null;
+        }
+        if ($repeatTokens !== []) {
+            $components['mask-border-repeat'] = $this->normalizeMaskBorderRepeatValue(implode(' ', $repeatTokens));
+        }
+        if ($sliceTokens !== []) {
+            $components['mask-border-slice'] = $this->normalizeMaskBorderSliceValue(implode(' ', $sliceTokens));
+        }
+        if (isset($groups[1]) && $groups[1] !== '') {
+            $parsedWidth = $this->parseMaskBorderSlashComponent($groups[1]);
+            if ($parsedWidth['rect'] !== null) {
+                $components['mask-border-width'] = $parsedWidth['rect'];
+            }
+            array_push($repeatTokens, ...$parsedWidth['repeatTokens']);
+            if ($parsedWidth['mode'] !== null) {
+                $components['mask-border-mode'] = $parsedWidth['mode'];
+            }
+        }
+        if (isset($groups[2]) && $groups[2] !== '') {
+            $parsedOutset = $this->parseMaskBorderSlashComponent($groups[2]);
+            if ($parsedOutset['rect'] !== null) {
+                $components['mask-border-outset'] = $parsedOutset['rect'];
+            }
+            array_push($repeatTokens, ...$parsedOutset['repeatTokens']);
+            if ($parsedOutset['mode'] !== null) {
+                $components['mask-border-mode'] = $parsedOutset['mode'];
+            }
+        }
+        if (count($repeatTokens) > 2) {
+            return null;
+        }
+        if ($repeatTokens !== []) {
+            $components['mask-border-repeat'] = $this->normalizeMaskBorderRepeatValue(implode(' ', $repeatTokens));
+        }
+
+        return $components;
+    }
+
+    /**
+     * @return array{rect:?string, repeatTokens:list<string>, mode:?string}
+     */
+    private function parseMaskBorderSlashComponent(string $value): array
+    {
+        $rectTokens = [];
+        $repeatTokens = [];
+        $mode = null;
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower(trim($token));
+            if (in_array($lower, self::MASK_BORDER_MODE_KEYWORDS, true)) {
+                $mode = $lower;
+                continue;
+            }
+            if (in_array($lower, self::MASK_BORDER_REPEAT_KEYWORDS, true)) {
+                $repeatTokens[] = $lower;
+                continue;
+            }
+
+            $rectTokens[] = $token;
+        }
+
+        return [
+            'rect' => $rectTokens === [] ? null : $this->normalizeMaskBorderRectValue(implode(' ', $rectTokens)),
+            'repeatTokens' => $repeatTokens,
+            'mode' => $mode,
+        ];
+    }
+
     private function isMaskBorderSourceToken(string $token): bool
     {
         return strtolower($token) === 'none' || $this->isBackgroundImageToken($token);
+    }
+
+    private function normalizeMaskBorderLonghandValue(string $property, string $value): string
+    {
+        return match ($property) {
+            'mask-border-source' => $this->normalizeMaskBorderSourceValue($value),
+            'mask-border-slice' => $this->normalizeMaskBorderSliceValue($value),
+            'mask-border-width', 'mask-border-outset' => $this->normalizeMaskBorderRectValue($value),
+            'mask-border-repeat' => $this->normalizeMaskBorderRepeatValue($value),
+            'mask-border-mode' => strtolower(trim($value)),
+            default => trim($value),
+        };
+    }
+
+    private function normalizeMaskBorderSourceValue(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^url\(/i', $value) === 1) {
+            return $this->normalizeCssUrlToken($value);
+        }
+
+        return strtolower($value) === 'none' ? 'none' : $value;
+    }
+
+    private function normalizeMaskBorderSliceValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        $fill = false;
+        $offsets = [];
+        foreach ($tokens as $token) {
+            if (strcasecmp($token, 'fill') === 0) {
+                $fill = true;
+                continue;
+            }
+
+            $offsets[] = $token;
+        }
+
+        $slice = $offsets === [] ? '100%' : $this->normalizeMaskBorderRectValue(implode(' ', $offsets));
+
+        return $fill ? $slice . ' fill' : $slice;
+    }
+
+    private function normalizeMaskBorderRectValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if (count($tokens) < 1 || count($tokens) > 4) {
+            return trim($value);
+        }
+
+        return $this->compressBoxShorthand(match (count($tokens)) {
+            1 => [
+                'top' => $tokens[0],
+                'right' => $tokens[0],
+                'bottom' => $tokens[0],
+                'left' => $tokens[0],
+            ],
+            2 => [
+                'top' => $tokens[0],
+                'right' => $tokens[1],
+                'bottom' => $tokens[0],
+                'left' => $tokens[1],
+            ],
+            3 => [
+                'top' => $tokens[0],
+                'right' => $tokens[1],
+                'bottom' => $tokens[2],
+                'left' => $tokens[1],
+            ],
+            default => [
+                'top' => $tokens[0],
+                'right' => $tokens[1],
+                'bottom' => $tokens[2],
+                'left' => $tokens[3],
+            ],
+        });
+    }
+
+    private function normalizeMaskBorderRepeatValue(string $value): string
+    {
+        $tokens = array_map(
+            static fn (string $token): string => strtolower(trim($token)),
+            $this->splitWhitespaceTopLevel($value)
+        );
+        $tokens = array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+        if ($tokens === []) {
+            return 'stretch';
+        }
+        if (count($tokens) === 1 || $tokens[0] === $tokens[1]) {
+            return $tokens[0];
+        }
+
+        return $tokens[0] . ' ' . $tokens[1];
+    }
+
+    /**
+     * @param array{
+     *     mask-border-source:string,
+     *     mask-border-slice:string,
+     *     mask-border-width:string,
+     *     mask-border-outset:string,
+     *     mask-border-repeat:string,
+     *     mask-border-mode:string
+     * } $components
+     */
+    private function composeMaskBorderShorthandValue(array $components): string
+    {
+        $source = $this->normalizeMaskBorderSourceValue($components['mask-border-source']);
+        $slice = $this->normalizeMaskBorderSliceValue($components['mask-border-slice']);
+        $width = $this->normalizeMaskBorderRectValue($components['mask-border-width']);
+        $outset = $this->normalizeMaskBorderRectValue($components['mask-border-outset']);
+        $repeat = $this->normalizeMaskBorderRepeatValue($components['mask-border-repeat']);
+        $mode = strtolower(trim($components['mask-border-mode']));
+        $parts = [];
+
+        if (!$this->isDefaultMaskBorderSource($source)) {
+            $parts[] = $source;
+        }
+        if (!$this->isDefaultMaskBorderSlice($slice) || !$this->isDefaultMaskBorderWidth($width) || !$this->isDefaultMaskBorderOutset($outset)) {
+            $slicePart = $slice;
+            if (!$this->isDefaultMaskBorderWidth($width) || !$this->isDefaultMaskBorderOutset($outset)) {
+                $slicePart .= ' / ';
+                if (!$this->isDefaultMaskBorderWidth($width)) {
+                    $slicePart .= $width;
+                }
+                if (!$this->isDefaultMaskBorderOutset($outset)) {
+                    $slicePart .= ' / ' . $outset;
+                }
+            }
+            $parts[] = trim($slicePart);
+        }
+        if (!$this->isDefaultMaskBorderRepeat($repeat)) {
+            $parts[] = $repeat;
+        }
+        if (!$this->isDefaultMaskBorderMode($mode)) {
+            $parts[] = $mode;
+        }
+
+        return $parts === [] ? 'none' : implode(' ', $parts);
+    }
+
+    private function isMaskBorderProperty(string $property): bool
+    {
+        return $property === 'mask-border' || $this->isMaskBorderLonghand($property);
+    }
+
+    private function isMaskBorderLonghand(string $property): bool
+    {
+        return in_array($property, self::MASK_BORDER_LONGHANDS, true);
+    }
+
+    private function isDefaultMaskBorderSource(string $value): bool
+    {
+        return strcasecmp(trim($value), 'none') === 0;
+    }
+
+    private function isDefaultMaskBorderSlice(string $value): bool
+    {
+        return strcasecmp(trim($value), '100%') === 0;
+    }
+
+    private function isDefaultMaskBorderWidth(string $value): bool
+    {
+        return trim($value) === '1';
+    }
+
+    private function isDefaultMaskBorderOutset(string $value): bool
+    {
+        return trim($value) === '0';
+    }
+
+    private function isDefaultMaskBorderRepeat(string $value): bool
+    {
+        return strcasecmp(trim($value), 'stretch') === 0;
+    }
+
+    private function isDefaultMaskBorderMode(string $value): bool
+    {
+        return strcasecmp(trim($value), 'alpha') === 0;
     }
 
     /**
@@ -2871,6 +3250,10 @@ final class DeclarationBlock
         if ($animationValue !== null) {
             return $this->parseEntries($animationValue);
         }
+        $maskBorderValue = $this->setMaskBorderLonghand($entries, $property, $value, $important);
+        if ($maskBorderValue !== null) {
+            return $this->parseEntries($maskBorderValue);
+        }
         $gridValue = $this->setGridPlacementLonghand($entries, $property, $value, $important);
         if ($gridValue !== null) {
             return $this->parseEntries($gridValue);
@@ -3744,6 +4127,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isMaskBorderLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeMaskBorderLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeMaskBorderLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isGridPlacementProperty($property)) {
             $normalEntries = $this->parseEntries($this->removeGridPlacementProperty($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeGridPlacementProperty($importantEntries, $property));
@@ -3840,6 +4229,10 @@ final class DeclarationBlock
         $gridLonghands = $this->gridShorthandLonghands($property);
         if ($gridLonghands !== null) {
             return $gridLonghands;
+        }
+
+        if ($property === 'mask-border') {
+            return self::MASK_BORDER_LONGHANDS;
         }
 
         if ($property === 'gap') {
@@ -3976,6 +4369,44 @@ final class DeclarationBlock
             }
 
             foreach (self::LIST_STYLE_LONGHANDS as $longhand) {
+                if ($longhand === $property) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
+                    'value' => $components[$longhand],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeMaskBorderLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'mask-border') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->parseMaskBorderComponents($entry['value']);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach (self::MASK_BORDER_LONGHANDS as $longhand) {
                 if ($longhand === $property) {
                     continue;
                 }

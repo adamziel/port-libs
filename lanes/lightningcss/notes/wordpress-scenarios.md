@@ -86,6 +86,8 @@ This isolated CSS Modules micro-slice extends the same build-free block delivery
 
 `examples/wordpress-background-cssom.php` models editor and migration tooling that rewrites block background declarations with theme tokens. Native CSSOM writes now update compatible `background` shorthands when setting supported `background-*` longhands, append a separate longhand when multi-layer counts do not match, and remove the supported background longhand set when `background` is removed. Dependency closure: no new support component is needed; this uses the bounded `DeclarationBlock` parser/serializer, priority buckets, and background layer scanner already in the LightningCSS lane.
 
+`examples/wordpress-custom-at-rules-transformer.php` now also models a build-free block stylesheet that collects custom design tokens through composed visitors only: `token()` replacement is supplied by a composed `Function` visitor, and an unknown `@token --wp-ring #056ef0` at-rule exposes a dashed-ident prelude consumed by a later `Token.at-keyword` visitor for `@--wp-ring`. Dependency closure: no new support component is needed; this uses the bounded `CustomAtRuleTransformer`, declaration parser, minifier, and native scanner helpers already in the LightningCSS lane.
+
 ## Next Task
 
 Continue current-base LightningCSS handoffs for remaining CSSOM shorthand splitting/removal parity, custom at-rule parser/visitor parity, target-prefix browser boundaries, media-query range/layer handling, property-value color/font/grid coverage, and source-map/bundler integration. Reject status-only markers and avoid repeating the accepted CSSOM priority-bucket or this background CSSOM read/write slice.
