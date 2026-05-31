@@ -1344,8 +1344,9 @@ final class SQLiteWindowFunction
         if ($normalized === 'UNBOUNDED PRECEDING' || $normalized === 'UNBOUNDED FOLLOWING' || $normalized === 'CURRENT ROW') {
             return ['type' => $normalized, 'offset' => null];
         }
-        if (preg_match('/^([0-9]+(?:\.[0-9]+)?) (PRECEDING|FOLLOWING)$/', $normalized, $match) === 1) {
-            $number = str_contains($match[1], '.') ? (float) $match[1] : (int) $match[1];
+        if (preg_match('/^([+]?[0-9]+(?:\.[0-9]+)?) (PRECEDING|FOLLOWING)$/', $normalized, $match) === 1) {
+            $numberText = ltrim($match[1], '+');
+            $number = str_contains($numberText, '.') ? (float) $numberText : (int) $numberText;
 
             return ['type' => $match[2], 'offset' => $number];
         }

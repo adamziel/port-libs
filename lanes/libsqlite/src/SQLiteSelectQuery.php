@@ -472,6 +472,19 @@ final class SQLiteSelectQuery
         if ($frame !== null && in_array($function, ['first_value', 'last_value', 'nth_value'], true)) {
             self::assertOrderedRangeOrGroupsFrame($orderBy, $frame);
 
+            if (isset($frame['startBoundary'], $frame['endBoundary'])) {
+                return SQLiteWindowFunction::valueFrameBetweenValues(
+                    $function,
+                    $values,
+                    $peerKeys,
+                    $frame['unit'],
+                    (string) $frame['startBoundary'],
+                    (string) $frame['endBoundary'],
+                    $frame['exclude'],
+                    $function === 'nth_value' ? self::windowIntegerArgument($arguments, $orderedRows, 1, 'nth_value') : null,
+                );
+            }
+
             return SQLiteWindowFunction::valueFrameValues(
                 $function,
                 $values,

@@ -612,6 +612,101 @@ final class SQLiteUpsertReturningDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{upstream:string,source:string,seed:int,schema:string,without_rowid:bool,before:list<array<string,int|string>>,incoming:list<array<string,int|string>>,constraints:list<list<string>>,arms:list<array<string,mixed>>,after:list<array<string,int|string>>,returning:list<array<string,int|string>>,matched:list<string>,changes:int,skipped:int,dependencies:list<string>}>
+     */
+    public static function upsert1TargetFirstReturningDynamicCases(int $caseCount = 1000): array
+    {
+        if ($caseCount < 1) {
+            throw new \InvalidArgumentException('SQLite upstream UPSERT target-first corpus case count must be positive');
+        }
+
+        $schemas = [
+            ['upstream_base' => 700, 'schema' => 'rowid integer primary key with secondary unique indexes', 'without_rowid' => false, 'constraints' => [['a'], ['b'], ['e']]],
+            ['upstream_base' => 730, 'schema' => 'rowid table with explicit unique indexes', 'without_rowid' => false, 'constraints' => [['a'], ['b'], ['e']]],
+            ['upstream_base' => 760, 'schema' => 'without-rowid table with explicit unique indexes', 'without_rowid' => true, 'constraints' => [['a'], ['b'], ['e']]],
+        ];
+        $targets = [
+            'e' => ['upstream_offset' => 0, 'target' => ['e'], 'selected' => 'e'],
+            'a' => ['upstream_offset' => 10, 'target' => ['a'], 'selected' => 'a'],
+            'b' => ['upstream_offset' => 20, 'target' => ['b'], 'selected' => 'b'],
+        ];
+
+        $cases = [];
+        for ($seed = 1; count($cases) < $caseCount; ++$seed) {
+            $base = $seed * 1000;
+            $before = [[
+                'a' => $base + 1,
+                'b' => $base + 2,
+                'c' => $base + 3,
+                'd' => $base + 4,
+                'e' => $base + 5,
+                'setting_key' => 'seed-' . $seed,
+            ]];
+            $incoming = [[
+                'a' => $base + 1,
+                'b' => $base + 2,
+                'c' => $base + 33,
+                'd' => $base + 44,
+                'e' => $base + 5,
+                'setting_key' => 'incoming-' . $seed,
+            ]];
+
+            foreach ($schemas as $schema) {
+                foreach ($targets as $target) {
+                    $arms = [[
+                        'target' => $target['target'],
+                        'action' => 'update',
+                        'assignments' => [
+                            'c' => static fn (array $current, array $row): int => (int) $row['c'],
+                            'setting_key' => static fn (array $current, array $row): string => (string) $row['setting_key'],
+                        ],
+                    ]];
+                    $plan = SQLiteUpsertDoUpdateWherePlan::executeConflictArms($before, $incoming, $arms, $schema['constraints']);
+                    $after = [[
+                        'a' => $base + 1,
+                        'b' => $base + 2,
+                        'c' => $base + 33,
+                        'd' => $base + 4,
+                        'e' => $base + 5,
+                        'setting_key' => 'incoming-' . $seed,
+                    ]];
+
+                    $cases[] = [
+                        'upstream' => 'upsert1-' . ((int) $schema['upstream_base'] + (int) $target['upstream_offset']),
+                        'source' => 'upsert1.test',
+                        'seed' => $seed,
+                        'schema' => $schema['schema'],
+                        'without_rowid' => $schema['without_rowid'],
+                        'before' => $before,
+                        'incoming' => $incoming,
+                        'constraints' => $schema['constraints'],
+                        'arms' => $arms,
+                        'after' => $after,
+                        'returning' => SQLiteUpsertDoUpdateWherePlan::returningRows($plan['returning_rows'], ['a', 'b', 'c', 'd', 'e', 'setting_key']),
+                        'matched' => array_map(
+                            static fn (array $match): string => $match['target'] === null ? '*' : implode(',', $match['target']),
+                            $plan['matched_arms'],
+                        ),
+                        'changes' => $plan['changes'],
+                        'skipped' => count($plan['skipped_rows']),
+                        'dependencies' => [
+                            'upsert1.test-700-through-780',
+                            'returning1.test-4',
+                            'sqlite-upsert-target-constraint-tested-first',
+                        ],
+                    ];
+
+                    if (count($cases) >= $caseCount) {
+                        break 3;
+                    }
+                }
+            }
+        }
+
+        return $cases;
+    }
+
+    /**
      * @param list<string> $order
      * @return list<array<string,mixed>>
      */

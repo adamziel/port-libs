@@ -344,6 +344,92 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{nodeid:int,parent:int|null}> $nodes
+     * @param list<array{id:string,nodeid:int}> $leaves
+     * @return array<string,mixed>
+     */
+    public static function fkey2StatementRollbackCounterReset(array $nodes, array $leaves, bool $repairWithDistinctParents): array
+    {
+        $nodes = array_values($nodes);
+        $leaves = array_values($leaves);
+        $originalNodes = $nodes;
+        $originalLeaves = $leaves;
+
+        $nodes = [];
+        $leaves = [];
+        foreach ($originalLeaves as $leaf) {
+            $leaves[] = $leaf;
+        }
+        $deferredBeforeStatement = count(self::fkey2GraphViolations($nodes, $leaves));
+
+        $statementNodes = $nodes;
+        $insertedNodeIds = [];
+        $seenNodeIds = [];
+        $statementStatus = 'commit-ok';
+        foreach ($leaves as $leaf) {
+            $nodeid = (int) $leaf['nodeid'];
+            if (isset($seenNodeIds[$nodeid])) {
+                $statementStatus = 'rolled-back-on-unique-nodeid';
+                $statementNodes = $nodes;
+                break;
+            }
+            $seenNodeIds[$nodeid] = true;
+            $statementNodes[] = ['nodeid' => $nodeid, 'parent' => 3];
+            $insertedNodeIds[] = $nodeid;
+        }
+        $nodes = $statementNodes;
+        $deferredAfterStatement = count(self::fkey2GraphViolations($nodes, $leaves));
+
+        $firstCommitViolations = self::fkey2GraphViolations($nodes, $leaves);
+        $firstCommitStatus = $firstCommitViolations === [] ? 'commit-ok' : 'commit-blocked';
+
+        if ($repairWithDistinctParents) {
+            $nodeIds = [];
+            foreach ($nodes as $node) {
+                $nodeIds[(int) $node['nodeid']] = true;
+            }
+            foreach ($leaves as $leaf) {
+                $nodeid = (int) $leaf['nodeid'];
+                if (!isset($nodeIds[$nodeid])) {
+                    $nodes[] = ['nodeid' => $nodeid, 'parent' => null];
+                    $nodeIds[$nodeid] = true;
+                }
+            }
+        }
+
+        $finalViolations = self::fkey2GraphViolations($nodes, $leaves);
+
+        $sortedNodes = $nodes;
+        usort($sortedNodes, static fn (array $left, array $right): int => ((int) $left['nodeid']) <=> ((int) $right['nodeid']));
+
+        return [
+            'source' => 'fkey2.test fkey2-2.61..2.75',
+            'operation' => 'deferred-counter-reset-after-statement-rollback',
+            'status' => $finalViolations === [] ? 'commit-ok' : 'commit-blocked',
+            'statement_status' => $statementStatus,
+            'deleted_node_count' => count($originalNodes),
+            'deleted_leaf_count' => 0,
+            'leaf_nodeids' => array_values(array_column($leaves, 'nodeid')),
+            'attempted_insert_nodeids' => $insertedNodeIds,
+            'statement_rolled_back' => $statementStatus !== 'commit-ok',
+            'deferred_before_statement' => $deferredBeforeStatement,
+            'deferred_after_statement' => $deferredAfterStatement,
+            'counter_reset_after_rollback' => $statementStatus !== 'commit-ok' && $deferredAfterStatement === $deferredBeforeStatement,
+            'first_commit_status' => $firstCommitStatus,
+            'first_commit_violation_count' => count($firstCommitViolations),
+            'repair_with_distinct_parent_select' => $repairWithDistinctParents,
+            'final_node_ids' => array_values(array_column($sortedNodes, 'nodeid')),
+            'final_leaf_ids' => array_values(array_column($leaves, 'id')),
+            'final_violation_count' => count($finalViolations),
+            'dependencies' => [
+                'sqlite-fkey2-statement-transaction-restores-deferred-counter',
+                'sqlite-fkey2-insert-select-unique-failure-rolls-back-statement',
+                'sqlite-fkey2-distinct-parent-repair-commits-after-counter-reset',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{c34:string,c35:string,label?:string}> $parents
      * @param list<array{c38:string,c39:string,label?:string}> $children
      * @return array<string,mixed>
