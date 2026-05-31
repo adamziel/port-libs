@@ -48,6 +48,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 03:52 UTC):
+  Batch65 is integrated locally as source
+  `9b5fe94412902e0fec0fd48c423691e21c392f9f` (`libsqlite: add
+  sixty-fifth current corpus sweep`). The batch accepted 16
+  source/test-moving handoffs across VFS short 8.3 names and atomic-batch
+  behavior, SELECT case-insensitive and order-by scalar-subquery behavior,
+  B-tree whereE alter-planner and index19 conflict-policy behavior, expression
+  real-expr2 behavior, pager WAL index-header recovery behavior, PRAGMA
+  freelist-count and legacy-constraint behavior, trigger/FK triggerC
+  constant-loop behavior, windowerr/window1 subquery-filter behavior, UPSERT
+  RETURNING real-yield behavior, JSON101 escape behavior, and date
+  component-validation behavior. One app-WAL candidate was parked as a direct
+  conflict. Verification passed PHP lint for `25` changed/new PHP files, `git
+  diff --check -- lanes/libsqlite`, no newly-added WordPress/wp source text in
+  the batch source diff, focused selected tests `16 files / 278045 assertions /
+  0 failures / 28118 PASS lines`, accepted-base overlap `0 files / 0
+  assertions / 0 failures / 0 PASS lines`, and isolated per-file related guard
+  `783 files / 10137240 assertions / 0 failures / 1635076 PASS lines` with the
+  stable 16 known-red diagnostic files excluded. Honest selected movement is
+  `+28118`, moving libsqlite from `1932390` to `1960508 pass / 0 fail`;
+  mapped coverage remains `1589 / 1589`. Broad release/all-runner parity
+  remains open; gitoxide starts only after libsqlite closure is recorded.
+
 - 2026-05-31 supervisor continuation (integration sample 03:47 UTC):
   Batch64 is integrated locally as source
   `c04eba9fd200ad953a772c1a5686a5e8a9824d2a` (`libsqlite: add
