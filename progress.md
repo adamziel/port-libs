@@ -7611,6 +7611,30 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   regressions, remaining app-WAL/row-value conflicts, and release/all-runner
   parity remain blockers before gitoxide.
 
+## Supervisor Integration 2026-05-31T17:12Z LightningCSS Batch
+
+- Integrated source commit
+  `7b4fa1a7cdc4d8f9aa8574ae8548c3dc6091f065` (`ports: extend lightningcss
+  custom bundle media grid parity`) from five accepted current-base
+  LightningCSS handoffs. One later bundle handoff and one later property-value
+  handoff were skipped for overlap against the accepted source batch.
+- Public LightningCSS evidence moves from `2545` to `2574 pass / 0 fail`.
+  Conservative mapped coverage moves from `1553 / 3532` to `1562 / 3532` for
+  semicolonless EOF import resolution/read diagnostics, post-import `@layer`
+  import-prelude barriers, stylesheet and stylesheet-exit custom visitor
+  composition, and grid-template-areas override compaction. The media-query
+  top-level function guard deepens an already counted validation cluster.
+- Verification passed PHP lint on changed PHP files, `git diff --check --
+  lanes/lightningcss`, no WordPress/WP/wp_ text introduced by the changed
+  source diff, focused gate `5 files / 1740 assertions / 0 failures`, full
+  LightningCSS lane `13 files / 2574 assertions / 0 failures`, and touched
+  examples for bundle imports, custom at-rules, grid values, and media ranges.
+  Full upstream Rust/Node/WASM runners were not executed for this isolated
+  batch.
+- Next supervision step: refresh the public dashboard, archive consumed
+  LightningCSS handoffs, and keep the visible worker pool biased toward
+  LightningCSS while retaining bounded SQLite closure lanes and Gitoxide lanes.
+
 ## Supervisor Integration 2026-05-31T15:15Z SQLite/CSS/Gitoxide Batch
 
 - Integrated source commit
