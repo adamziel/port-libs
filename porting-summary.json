@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 12:54:38 UTC",
-    "sourceCommit": "0a0e1350d0e1a9867a1029e527a87325f564d2a8",
-    "sourceCommitShort": "0a0e1350d0e1",
+    "generated": "2026-05-31 13:01:14 UTC",
+    "sourceCommit": "b0d8a112b0f2a321e0df4cc8a588eb55c8abe338",
+    "sourceCommitShort": "b0d8a112b0f2",
     "sourceBranch": "main",
-    "dashboardCommit": "3656298bcf9c050de50d6d963d0a05f1cdc5c7e8",
-    "dashboardCommitShort": "3656298bcf9c",
+    "dashboardCommit": "8766a9b88d06feada81a3f306066dd7e1984c334",
+    "dashboardCommitShort": "8766a9b88d06",
     "averageProgressPercent": "86.6",
     "lanes": [
         {
@@ -64,16 +64,16 @@
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1574",
-            "coverage": "1574 / 2886",
-            "php": "4599 pass / 0 fail",
+            "mapped": "1576",
+            "coverage": "1576 / 2886",
+            "php": "4630 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
-            "audit": "Accepted source commit 0a0e1350d0e1a9867a...",
-            "currentWork": "Committed Gitoxide config includeIf malformed bracket and unsupported POSIX class behavio...",
+            "audit": "Accepted source commit b0d8a112b0f2a321e0...",
+            "currentWork": "Committed Gitoxide attributes/pathspec POSIX class boundary handling plus loose-object al...",
             "nextTarget": "Keep active Gitoxide workers on current-base handoffs for pack/index, smart HTTP, SSH tra...",
-            "blocker": "No current Gitoxide PHP blocker for the accepted config slice.",
-            "commit": "0a0e135"
+            "blocker": "No current Gitoxide PHP blocker for the accepted attributes/pathspec and...",
+            "commit": "b0d8a11"
         },
         {
             "library": "libsqlite",
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "2922200 pass / 0 fail",
+            "php": "2927535 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, upstream corpus closure, source-neut...",
-            "audit": "Accepted source commit 95a46ca3aa20fe4b86...",
-            "currentWork": "Committed libsqlite expression-affinity blob/text CAST cases, SELECT duplicate-source com...",
-            "nextTarget": "Keep active current-base libsqlite workers on real PASS-delta handoffs, prioritizing full...",
+            "audit": "Accepted source commit b0d8a112b0f2a321e0...",
+            "currentWork": "Committed libsqlite where7 multi-index OR dynamic cases, e_select2 join associativity dyn...",
+            "nextTarget": "Keep active current-base libsqlite workers on real PASS-delta and full-runner closure han...",
             "blocker": "Remaining libsqlite closure items: full-suite/runner confidence beyond fo...",
-            "commit": "95a46ca"
+            "commit": "b0d8a11"
         },
         {
             "library": "LightningCSS",
