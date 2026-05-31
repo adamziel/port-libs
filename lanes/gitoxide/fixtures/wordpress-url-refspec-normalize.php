@@ -25,6 +25,7 @@ return [
         '+refs/heads/release:refs/heads/wp-release',
         '+:refs/heads/stale-preview',
         ':refs/heads/old-preview',
+        'refs/heads/wp-content',
         ':',
     ],
     'expectedFetchInstructions' => [
@@ -49,18 +50,21 @@ return [
         'push-matching',
         'push-delete',
         'push-delete',
+        'push-matching',
         'push-all-matching-branches',
     ],
     'expectedPushNormalized' => [
         '+refs/heads/release:refs/heads/wp-release',
         ':refs/heads/stale-preview',
         ':refs/heads/old-preview',
+        'refs/heads/wp-content:refs/heads/wp-content',
         ':',
     ],
     'expectedPushPrefixes' => [
         'refs/heads/wp-release',
         'refs/heads/stale-preview',
         'refs/heads/old-preview',
+        null,
         null,
     ],
 ];

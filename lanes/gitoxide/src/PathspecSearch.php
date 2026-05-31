@@ -109,6 +109,13 @@ final class PathspecSearch
                 PathspecMatch::KIND_ALWAYS,
             );
         }
+        if ($this->patterns === []) {
+            return new PathspecMatch(
+                new PathspecPattern('', nil: true),
+                0,
+                PathspecMatch::KIND_ALWAYS,
+            );
+        }
 
         if ($this->commonPrefix !== '' && !str_starts_with($relativePath, $this->commonPrefix)) {
             return null;

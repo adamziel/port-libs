@@ -104,6 +104,11 @@ final class SQLiteGroupedAggregate
                 $summary[$column] = $value;
             }
         }
+        foreach (($rows[0] ?? []) as $column => $value) {
+            if (is_string($column) && !array_key_exists($column, $summary)) {
+                $summary[$column] = $value;
+            }
+        }
         foreach ($jsonAggregates as $aggregate) {
             self::applyJsonAggregate($summary, $rows, $aggregate);
         }

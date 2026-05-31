@@ -296,4 +296,38 @@ return [
             'wp-content/themes/twentytwentyfive/style.css',
         ], $walkPaths($records));
     },
+    'empty pathspecs without prefix match and walk every entry' => static function (TestRunner $t) use ($makeTreeStore, $walkPaths): void {
+        [$root, $read] = $makeTreeStore();
+        $search = PathspecSearch::fromSpecs([]);
+
+        $match = $search->match('wp-content/plugins/gutenberg/block.json', false);
+        $t->same(PathspecMatch::KIND_ALWAYS, $match?->kind);
+        $t->same(0, $match?->sequenceNumber);
+        $t->same(true, $search->isIncluded('wp-content/plugins/gutenberg/block.json', false));
+        $t->same(true, $search->canMatch('anything', null));
+        $t->same(true, $search->directoryMatchesPrefix('anything', false));
+
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            $search,
+            $read,
+            includeTrees: false,
+        );
+
+        $t->same([
+            'index.php',
+            'wp-admin/admin.php',
+            'wp-content/index.php',
+            'wp-content/mu-plugins/Loader.PHP',
+            'wp-content/plugins/akismet/akismet.php',
+            'wp-content/plugins/gutenberg/block.json',
+            'wp-content/plugins/gutenberg/readme.txt',
+            'wp-content/themes/acme/theme.json',
+            'wp-content/themes/acme/style.css',
+            'wp-content/themes/twentytwentyfive/style.css',
+            'wp-content/uploads/2026/[hero].jpg',
+            'wp-content/plugins/gutenberg/build/index.js',
+            'wp-content/plugins/gutenberg/src/editor.js',
+        ], $walkPaths($records));
+    },
 ];

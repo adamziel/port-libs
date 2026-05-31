@@ -243,6 +243,10 @@ final class RefSpec
         if ($this->operation === self::OP_PUSH && $this->source === null && $this->destination !== null && $this->mode !== self::MODE_NEGATIVE) {
             return ':' . $this->destination;
         }
+        if ($this->operation === self::OP_PUSH && $this->source !== null && $this->destination === null && $this->mode !== self::MODE_NEGATIVE) {
+            $prefix = $this->mode === self::MODE_FORCE ? '+' : '';
+            return $prefix . $this->source . ':' . $this->source;
+        }
 
         $prefix = match ($this->mode) {
             self::MODE_FORCE => '+',

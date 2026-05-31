@@ -465,6 +465,39 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => RefSpec::parsePush('a/*/c/*:x/*/y/*'));
         $t->throws(InvalidArgumentException::class, static fn () => RefSpec::parsePush(':a/*'));
     },
+    'refspec writer normalizes one sided push instructions with implicit destination' => static function (TestRunner $t): void {
+        $head = RefSpec::parsePush('@');
+        $t->same('HEAD', $head->source());
+        $t->same(null, $head->destination(), 'parse shape keeps source-only push destination absent');
+        $t->same(RefSpec::INSTRUCTION_PUSH_MATCHING, $head->instructionName());
+        $t->same('HEAD:HEAD', $head->toString());
+        $t->same('HEAD:HEAD', $head->toArray()['normalized']);
+
+        $forcedHead = RefSpec::parsePush('+@');
+        $t->same('HEAD', $forcedHead->source());
+        $t->same(null, $forcedHead->destination(), 'forced parse shape keeps source-only push destination absent');
+        $t->same(true, $forcedHead->allowNonFastForward());
+        $t->same('+HEAD:HEAD', $forcedHead->toString());
+        $t->same('+HEAD:HEAD', $forcedHead->toArray()['normalized']);
+
+        $sameNamedBranch = RefSpec::parsePush('refs/heads/wp-content');
+        $t->same('refs/heads/wp-content', $sameNamedBranch->source());
+        $t->same(null, $sameNamedBranch->destination(), 'source-only branch push has implicit same-name destination');
+        $t->same(RefSpec::INSTRUCTION_PUSH_MATCHING, $sameNamedBranch->instructionName());
+        $t->same('refs/heads/wp-content:refs/heads/wp-content', $sameNamedBranch->toString());
+        $t->same('refs/heads/wp-content:refs/heads/wp-content', $sameNamedBranch->toArray()['normalized']);
+
+        $sameNamedPattern = RefSpec::parsePush('+refs/heads/wp-*:refs/heads/wp-*');
+        $t->same('+refs/heads/wp-*:refs/heads/wp-*', $sameNamedPattern->toString());
+        $t->same('refs/heads/wp-', $sameNamedPattern->prefix());
+
+        $oneSidedPattern = RefSpec::parsePush('+refs/heads/wp-*');
+        $t->same('refs/heads/wp-*', $oneSidedPattern->source());
+        $t->same(null, $oneSidedPattern->destination());
+        $t->same('+refs/heads/wp-*:refs/heads/wp-*', $oneSidedPattern->toString());
+        $t->same(null, $oneSidedPattern->prefix(), 'prefix still follows the parsed destination side for pushes');
+        $t->same([], $oneSidedPattern->expandPrefixes());
+    },
     'wordpress fixture normalizes deployment remote and fetch push refspecs without git binary' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-url-refspec-normalize.php';
         $summary = require dirname(__DIR__) . '/examples/wordpress-url-refspec-normalize.php';
@@ -490,5 +523,7 @@ return [
         $t->same('refs/heads/wp-release', $summary['push'][0]['remote']);
         $t->same('refs/heads/stale-preview', $summary['push'][1]['remote']);
         $t->same('refs/heads/old-preview', $summary['push'][2]['remote']);
+        $t->same('refs/heads/wp-content', $summary['push'][3]['local']);
+        $t->same(null, $summary['push'][3]['remote'], 'same-name push keeps destination implicit in parse shape');
     },
 ];

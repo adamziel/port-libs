@@ -64,10 +64,25 @@ $records = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$allRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    PathspecSearch::fromSpecs([]),
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 
 return [
     'matchedContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $records),
     'matchKinds' => array_map(static fn (TreeWalkEntry $entry): string => $entry->matchKind, $records),
+    'noPathspecWalkCount' => count($allRecords),
+    'noPathspecAdminIncluded' => in_array('wp-admin/admin.php', array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $allRecords), true),
+    'noPathspecGeneratedBuildIncluded' => in_array('wp-content/plugins/gutenberg/build/index.js', array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $allRecords), true),
     'gutenbergBuildSkipped' => !$pathspecs->isIncluded('wp-content/plugins/gutenberg/build/index.js', false),
     'literalUploadIncluded' => $pathspecs->isIncluded('wp-content/uploads/2026/[hero].jpg', false),
     'caseFoldedMuPluginIncluded' => $pathspecs->isIncluded('wp-content/mu-plugins/Loader.PHP', false),
