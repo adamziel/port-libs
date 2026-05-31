@@ -42,15 +42,45 @@
 - Composer: unavailable on current PATH; prior bootstrap recorded 2.8.12.
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
-- Memory: current sample reports 27 GiB total and about 17-18 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 372G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.8G available. Preserve dirty work and use bounded cleanup/refill only.
+- Memory: current sample reports 27 GiB total and about 16 GiB available.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 363G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.6G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool includes
-  a dedicated LightningCSS surge target of 10 visible workers plus active
+  a dedicated LightningCSS surge target of 14 visible workers plus active
   libsqlite/Gitoxide workers; the latest refill started LightningCSS workers on
   `gpt-5.5` xhigh with the priority service tier and no long sleeper loop.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (mixed SQLite/Gitoxide/LightningCSS batch
+  12:43 UTC plus LightningCSS surge): source commit
+  `95a46ca3aa20fe4b86175e1e40bedaca2f4ab3f9` (`ports: add transport maps and
+  sqlite corpus slices`) landed nine verified handoffs after excluding stale
+  shared metadata and duplicate/conflicting patches. Libsqlite selected
+  evidence moves from `2918190` to `2922200 pass / 0 fail` with mapped coverage
+  still `1589 / 1589`: +1002 expression-affinity blob/text CAST PASS cases,
+  +1002 SELECT duplicate-source compound PASS cases, +1005 window1 alias/order
+  PASS cases, and +1001 PRAGMA schema/foreign-key catalog PASS cases. Gitoxide
+  full lane evidence moves from `4573` to `4589 pass / 0 fail`, with mapped
+  coverage moving from `1571 / 2886` to `1573 / 2886` for SSH receive-pack
+  alias/home-path parity and smart HTTP proxy credential lifecycle behavior.
+  LightningCSS full lane evidence moves from `1213` to `1257 pass / 0 fail`,
+  with conservative mapped coverage moving from `990 / 3532` to `996 / 3532`
+  for source-map generated offsets/VLQ behavior and bundler import graph
+  edges; the CSS Modules local/global/composes extension is verified but kept
+  inside an already represented cluster. Verification passed PHP lint for
+  changed files, diff checks, Gitoxide focused gate `1 file / 431 assertions /
+  0 failures`, full Gitoxide lane `39 files / 4589 assertions / 0 failures`,
+  two Gitoxide examples, LightningCSS focused gate `3 files / 113 assertions /
+  0 failures`, full LightningCSS lane `13 files / 1257 assertions / 0
+  failures`, three LightningCSS examples, and libsqlite selected gate `7 files
+  / 50163 assertions / 0 failures` including `SQLiteNoDomainSpecificApiTest.php`.
+  Root aggregate and full Gitoxide Cargo/LightningCSS Rust/Node suites were not
+  run for this micro-batch; full libsqlite remains too large for every small
+  publication and needs separate runner closure evidence. The live tmux pool
+  was surged to 14 visible LightningCSS-only workers on `gpt-5.5`, xhigh
+  reasoning, and the priority service tier, with active libsqlite and Gitoxide
+  workers kept visible in the same `main` session.
 
 - 2026-05-31 supervisor continuation (mixed SQLite/Gitoxide/LightningCSS batch
   12:30 UTC plus LightningCSS scale-up): source commit

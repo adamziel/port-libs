@@ -2683,11 +2683,10 @@
             "guardedEvidence": "lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php exercises SQLiteUpstreamSuiteEvidence::upstreamRunnerHydratedScriptMapGapClosure with these real hydrated script paths and accepted-head focused TestRunner output. Release/all parity remains unclaimed."
         },
         "latestNativePhpVerification": {
-            "sourceCommit": "9e52b7aea6ef8f1b75a6d54ac86cd37805503fd8",
-            "phpPass": 2913978,
+            "sourceCommit": "95a46ca3aa20fe4b86175e1e40bedaca2f4ab3f9",
+            "phpPass": 2922200,
             "phpFail": 0,
-            "focused": "new selected libsqlite corpus batch: 6 files / 82393 assertions / 0 failures",
-            "examples": "application-btree-whereg-likelihood-planner.php --self-test exits 0",
+            "focused": "selected libsqlite corpus/guard batch: 7 files / 50163 assertions / 0 failures",
             "mapped": "1589 / 1589 unchanged",
             "fullLane": "not rerun for this micro-batch; too large for per-batch publication and reserved for separate runner-closure evidence"
         },
@@ -2705,15 +2704,29 @@
             ],
             "nativeVerification": "php -l on changed/new PHP files; diff checks; selected libsqlite focused gate 6 files / 82393 assertions / 0 failures; application-btree-whereg-likelihood-planner.php --self-test exits 0; SQLiteNoDomainSpecificApiTest included and green",
             "upstreamEvidence": "hydrated SQLite upstream corpus source sections whereG.test, pragma.test, ext/expert/expert1.test, window1.test, e_select.test, and rowallock.test; full release/all runner not executed for this micro-batch"
+        },
+        "latestFocusedCorpusBatch20260531T1243Z": {
+            "sourceCommit": "95a46ca3aa20fe4b86175e1e40bedaca2f4ab3f9",
+            "selectedPassIncrease": 4010,
+            "selectedPassBefore": 2918190,
+            "selectedPassAfter": 2922200,
+            "acceptedSlices": [
+                "expression affinity blob/text CAST dynamic cases",
+                "SELECT duplicate-source compound dynamic cases",
+                "window1 alias/order dynamic corpus cases",
+                "PRAGMA schema catalog and foreign-key-list attached-schema behavior"
+            ],
+            "nativeVerification": "php -l on changed/new PHP files; diff checks; selected libsqlite gate 7 files / 50163 assertions / 0 failures; SQLiteNoDomainSpecificApiTest included and green",
+            "upstreamEvidence": "hydrated SQLite upstream corpus source sections for expression affinity, SELECT core, window1, and PRAGMA/foreign-key-list behavior; full release/all runner not executed for this micro-batch"
         }
     },
     "nativeImplementation": {
         "language": "PHP",
         "shellOutsAllowedForProgress": false,
-        "currentSlice": "Native SQLite current-source batch228 yield subset covering upstream veryquick suite343, suite379, and suite382-suite398 countability evidence."
+        "currentSlice": "source commit 95a46ca3 adds expression-affinity CAST, duplicate-source SELECT, window1 alias/order, and PRAGMA schema catalog behavior"
     },
     "wordpressScenario": "SQLite fallback/read/write inspection tooling for Application hosts where the SQLite extension is unavailable, now including bounded wp_options row inspection, decoded ORDER BY result windows with LIMIT/OFFSET, option_id rowid range reads with table-interior branch pruning around unrelated damaged branches, large option_value overflow reads, generated overflow-page chain writes for large option fixtures and large replacements, secure-delete clearing for obsolete overflow pages returned as freelist leaves, auto-vacuum pointer-map updates for inserted and replaced large-option overflow chains plus planned table/index b-tree roots and child pages after splits or root growth, UTF-16LE/UTF-16BE record serialization for database images whose header text encoding is not UTF-8, non-contiguous reusable overflow-page fixtures that respect reserved bytes, actual freelist trunk/leaf inspection plus allocation-plan, free-plan, auto-vacuum pointer-map mutation preflight, bounded insert-plan, bounded single-leaf, root-growth, no-split multi-page, same-depth leaf-split, parent-root-split, and non-root parent-split secondary-index insert planning, bounded table-root leaf-growth replacement preflight plus multi-page table replacement preflight for rows stored below interior table pages including larger replacements that split target leaves and update roomy lower parents, grow a full table-interior root into two lower interior pages, or split a full non-root table-interior parent and promote the divider into its root, bounded sqlite_autoindex-backed UNIQUE/PRIMARY KEY option_name and autoload/option_name insert/replacement planning including parent-root split UNIQUE option_name inserts, bounded single-leaf and parent-root split composite autoload/option_name insert planning, multi-page no-rebalance, same-depth leaf-split, parent-root split, two-child root-collapse, multi-sibling source-leaf redistribution, root-parent source-leaf merge/free-listing, non-root-parent source-leaf merge/free-listing when the lower parent remains sufficiently populated, two-child-root collapse after non-root composite-index parent underflow, and multi-child-root adjacent interior-parent merge after non-root composite-index parent underflow during autoload replacement, plus bounded replacement-plan header/trunk/table/index/overflow/pointer-map page-image mutations for repair preflight, explicit and automatic index-backed option lookups, callback-backed custom-collation point/range and equality-prefix recovery paths, expression-index recovery for lower/upper/trim/substr/length/CAST/json_extract/JSON ->>/JSON -> paths, JSON5 and JSONB option-value verification and focused JSONB mutation/preflight helpers, bounded index traversal that avoids unrelated or damaged branches, native varint and record serialization preflight for generated wp_options payloads, table-leaf cell/page assembly and table-leaf rowid deletion plus table-interior, option_name, and composite index-leaf/interior page assembly for minimal fixture generation or repair planning, sqlite_sequence AUTOINCREMENT counter inspection, native next-ID/explicit-import sequence state for Application ID continuity checks, and b-tree page freeblock/free-space inspection for page-local Application database recovery diagnostics. Latest scenario examples/application-core-scalar-option-default.php reports random()/randomblob() token and nonce preview diagnostics for copied wp_options repair workflows. Latest scenario examples/application-autovacuum-index-page-move.php reports copied wp_options autoload-index page-move repair diagnostics.",
-    "nextTask": "Keep active current-base libsqlite workers on real PASS-delta handoffs, prioritizing full-runner closure evidence, default-memory app-WAL/pager pressure, remaining PRAGMA/VFS/JSON/row-value/btree/window/filter behavior, and proof that accepted source stays source-neutral; avoid repeating accepted whereG likelihood, PRAGMA collation, window1 group_concat, e_select aggregate wildcard, and rowallock WAL slices.",
+    "nextTask": "Keep active current-base libsqlite workers on real PASS-delta handoffs, prioritizing full-runner closure evidence, default-memory app-WAL/pager pressure, remaining PRAGMA/VFS/JSON/row-value/btree/window/filter behavior, and proof that accepted source stays source-neutral; avoid repeating accepted expression-affinity CAST, duplicate-source SELECT, window1 alias/order, and PRAGMA schema slices.",
     "wordpressScenarioLatest": "Batch223 current-source subset adds Application-oriented coverage for next261 B-tree vacuum pointer-map/freeblock behavior, next259 encoding/collation/affinity binary LIKE behavior, next258 pager master-journal reader-cache behavior, next261 row-value UPDATE/DELETE RETURNING window behavior, next259/next260 WAL hot-journal savepoint checkpoint behavior, plus suite289, suite292 through suite301, and suite303 through suite305 veryquick-shard countability evidence. JSON-table handoffs remain isolated for compatibility repair.",
     "evidence": {
         "focusedRuns": {
