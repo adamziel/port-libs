@@ -6349,3 +6349,27 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - No apply conflicts in the accepted batch. Pager/WAL default-memory pressure,
   known-red broad clusters, rejected VFS/JSON regressions, remaining app-WAL
   conflicts, and release/all-runner parity remain blockers before gitoxide.
+
+## Supervisor Integration 2026-05-31T06:35Z Libsqlite Eighty-Fourth Sweep
+
+- Integrated 13 current-base libsqlite handoffs as source commit
+  `ca4a69c88 libsqlite: add eighty-fourth current corpus sweep`; one row-value
+  parity handoff remains parked for a real test-file apply conflict. Stale
+  worker `lane-status.json` hunks were excluded and the supervisor owns the
+  public status update.
+- Public selected libsqlite evidence moves from `2495399` to `2512421 pass / 0
+  fail`, a net `+17022` PASS-line increase after subtracting `7100` accepted
+  base-overlap PASS lines. Mapped coverage remains `1589 / 1589`.
+- Verification passed PHP lint for 18 changed/new PHP files, `git diff --check
+  HEAD^ HEAD -- lanes/libsqlite`, no WordPress/wp source text in changed
+  accepted libsqlite source, no new numbered `CurrentNext`/`CurrentSourceNext`
+  class symbols, focused selected tests with `memory_limit=1024M` `12 files /
+  131620 assertions / 0 failures / 24122 PASS lines`, base overlap with
+  `memory_limit=1024M` `2 files / 15263 assertions / 0 failures / 7100 PASS
+  lines`, and a direct related guard with `memory_limit=1024M` `263 files /
+  3596750 assertions / 7 baseline-identical known-red failures / 208236 PASS
+  lines`.
+- A row-value helper table-context regression found by the related guard was
+  fixed before commit. Pager/WAL default-memory pressure, known-red broad
+  clusters, rejected VFS/JSON regressions, remaining app-WAL/row-value
+  conflicts, and release/all-runner parity remain blockers before gitoxide.
