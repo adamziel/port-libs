@@ -357,6 +357,31 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler keeps duplicate supports imports unconditional like upstream' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '.b{color:green}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css"; @import "b.css" supports(color: red); .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '.b{color:green}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" supports(color: red); @import "b.css"; .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '.b{color:green}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" supports(color: red) screen; @import "b.css"; .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+    },
     'css bundler rejects incompatible repeated media and supports imports' => static function (TestRunner $t) use ($bundle): void {
         try {
             $bundle([
@@ -781,6 +806,35 @@ CSS,
             'entry' => $moduleExport('entry_entry', [
                 $moduleLocal('dep_card'),
                 $moduleLocal('dep_token'),
+            ]),
+        ], $result['exports']);
+    },
+    'css bundler keeps css module dependency imports unconditional like upstream' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal): void {
+        $result = $bundleModules([
+            '/entry.css' => <<<'CSS'
+@import "./tokens.css" supports(color: red);
+
+.entry {
+  composes: token from "./tokens.css";
+  color: red;
+}
+CSS,
+            '/tokens.css' => <<<'CSS'
+.token {
+  color: green;
+}
+CSS,
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/tokens.css' => 'tok',
+            ],
+        ]);
+
+        $t->same('.tok_token{color:green}.entry_entry{color:red}', $result['code']);
+        $t->same([
+            'entry' => $moduleExport('entry_entry', [
+                $moduleLocal('tok_token'),
             ]),
         ], $result['exports']);
     },

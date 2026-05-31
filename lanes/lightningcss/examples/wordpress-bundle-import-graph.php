@@ -276,6 +276,7 @@ echo 'filesystem-provider: resolved' . PHP_EOL;
 
 $moduleBundle = (new CssBundler())->bundleCssModules('/modules/card.css', [
     '/modules/card.css' => <<<'CSS'
+@import "../tokens.module.css" supports(color: red);
 @import "../theme.css";
 
 .card {

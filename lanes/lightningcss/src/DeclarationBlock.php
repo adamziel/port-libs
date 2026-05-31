@@ -47,6 +47,9 @@ final class DeclarationBlock
         'background-position-y',
         'background-size',
         'background-repeat',
+        'background-attachment',
+        'background-origin',
+        'background-clip',
     ];
 
     private const BORDER_SIDES = ['top', 'right', 'bottom', 'left'];
@@ -5005,7 +5008,10 @@ final class DeclarationBlock
      *     positionX:?string,
      *     positionY:?string,
      *     size:?string,
-     *     repeat:?string
+     *     repeat:?string,
+     *     attachment:?string,
+     *     origin:?string,
+     *     clip:?string
      * }>
      */
     private function parseBackgroundLayers(string $value): array
@@ -5025,7 +5031,10 @@ final class DeclarationBlock
      *     positionX:?string,
      *     positionY:?string,
      *     size:?string,
-     *     repeat:?string
+     *     repeat:?string,
+     *     attachment:?string,
+     *     origin:?string,
+     *     clip:?string
      * }
      */
     private function parseBackgroundLayer(string $layer): array
@@ -5040,6 +5049,9 @@ final class DeclarationBlock
             'positionY' => null,
             'size' => null,
             'repeat' => null,
+            'attachment' => null,
+            'origin' => null,
+            'clip' => null,
         ];
         $positionTokens = [];
 
@@ -5071,11 +5083,26 @@ final class DeclarationBlock
                 $parsed['image'] = $token;
             } elseif ($this->isBackgroundRepeatToken($lower)) {
                 $parsed['repeat'] = $this->consumeBackgroundRepeat($tokens, $i);
+            } elseif ($this->isBackgroundAttachmentToken($lower)) {
+                $parsed['attachment'] = $lower;
+            } elseif ($this->isBackgroundBoxToken($lower)) {
+                if ($parsed['origin'] === null) {
+                    $parsed['origin'] = $lower;
+                } elseif ($parsed['clip'] === null) {
+                    $parsed['clip'] = $lower;
+                } else {
+                    $positionTokens[] = $token;
+                }
+            } elseif ($this->isBackgroundClipKeyword($lower)) {
+                $parsed['clip'] = $lower;
             } elseif ($this->isBackgroundColorToken($token)) {
                 $parsed['color'] = $token;
             } else {
                 $positionTokens[] = $token;
             }
+        }
+        if ($parsed['clip'] === null && $parsed['origin'] !== null) {
+            $parsed['clip'] = $parsed['origin'];
         }
 
         if ($positionTokens !== []) {
@@ -5088,7 +5115,7 @@ final class DeclarationBlock
     }
 
     /**
-     * @param list<array{raw:string,image:?string,color:?string,position:?string,positionX:?string,positionY:?string,size:?string,repeat:?string}> $layers
+     * @param list<array{raw:string,image:?string,color:?string,position:?string,positionX:?string,positionY:?string,size:?string,repeat:?string,attachment:?string,origin:?string,clip:?string}> $layers
      */
     private function backgroundLonghandFromLayers(array $layers, string $property): ?string
     {
@@ -5111,6 +5138,9 @@ final class DeclarationBlock
                 'background-position-y' => $layer['positionY'],
                 'background-size' => $layer['size'],
                 'background-repeat' => $layer['repeat'],
+                'background-attachment' => $layer['attachment'] ?? 'scroll',
+                'background-origin' => $layer['origin'] ?? 'padding-box',
+                'background-clip' => $layer['clip'] ?? 'border-box',
                 default => null,
             };
             if ($value === null) {
@@ -5164,6 +5194,9 @@ final class DeclarationBlock
         $positionY = $this->componentList($components['background-position-y']['value'] ?? null, $layerCount);
         $sizes = $this->componentList($components['background-size']['value'] ?? null, $layerCount);
         $repeats = $this->componentList($components['background-repeat']['value'] ?? null, $layerCount);
+        $attachments = $this->componentList($components['background-attachment']['value'] ?? null, $layerCount);
+        $origins = $this->componentList($components['background-origin']['value'] ?? null, $layerCount);
+        $clips = $this->componentList($components['background-clip']['value'] ?? null, $layerCount);
         $color = $components['background-color']['value'] ?? null;
         $result = [];
 
@@ -5195,6 +5228,23 @@ final class DeclarationBlock
             if (($repeats[$i] ?? null) !== null) {
                 $layer[] = $this->compressBackgroundRepeat($repeats[$i]);
             }
+            if (($attachments[$i] ?? null) !== null && !$this->isDefaultBackgroundAttachment($attachments[$i])) {
+                $layer[] = strtolower($attachments[$i]);
+            }
+            $origin = $origins[$i] ?? null;
+            $clip = $clips[$i] ?? null;
+            if ($origin !== null || $clip !== null) {
+                $origin = strtolower($origin ?? 'padding-box');
+                $clip = strtolower($clip ?? 'border-box');
+                $outputOrigin = !$this->isDefaultBackgroundOrigin($origin)
+                    || (!$this->isDefaultBackgroundClip($clip) && $this->isBackgroundBoxToken($clip));
+                if ($outputOrigin) {
+                    $layer[] = $origin;
+                }
+                if (($outputOrigin && $clip !== $origin) || !$this->isDefaultBackgroundClip($clip)) {
+                    $layer[] = $clip;
+                }
+            }
             if ($color !== null && $i === $layerCount - 1 && ($images[$i] ?? null) !== null) {
                 array_unshift($layer, $color);
             }
@@ -5216,6 +5266,9 @@ final class DeclarationBlock
             'background-position-y',
             'background-size',
             'background-repeat',
+            'background-attachment',
+            'background-origin',
+            'background-clip',
         ] as $property) {
             if (!isset($components[$property])) {
                 continue;
@@ -5261,12 +5314,27 @@ final class DeclarationBlock
     {
         return preg_match('/^(?:#[0-9a-fA-F]{3,8}|(?:rgb|rgba|hsl|hsla|color)\(|[a-zA-Z]+)$/', $token) === 1
             && !$this->isBackgroundRepeatToken(strtolower($token))
-            && !in_array(strtolower($token), ['left', 'right', 'top', 'bottom', 'center', 'scroll', 'fixed', 'local', 'border-box', 'padding-box', 'content-box', 'cover', 'contain', 'none'], true);
+            && !in_array(strtolower($token), ['left', 'right', 'top', 'bottom', 'center', 'scroll', 'fixed', 'local', 'border-box', 'padding-box', 'content-box', 'border', 'text', 'cover', 'contain', 'none'], true);
     }
 
     private function isBackgroundRepeatToken(string $token): bool
     {
         return in_array($token, ['repeat', 'no-repeat', 'space', 'round', 'repeat-x', 'repeat-y'], true);
+    }
+
+    private function isBackgroundAttachmentToken(string $token): bool
+    {
+        return in_array($token, ['scroll', 'fixed', 'local'], true);
+    }
+
+    private function isBackgroundBoxToken(string $token): bool
+    {
+        return in_array($token, ['border-box', 'padding-box', 'content-box'], true);
+    }
+
+    private function isBackgroundClipKeyword(string $token): bool
+    {
+        return in_array($token, ['border', 'text'], true);
     }
 
     /**
@@ -5300,6 +5368,21 @@ final class DeclarationBlock
     private function isDefaultBackgroundSize(string $size): bool
     {
         return in_array(strtolower(trim($size)), ['auto', 'auto auto'], true);
+    }
+
+    private function isDefaultBackgroundAttachment(string $attachment): bool
+    {
+        return strtolower(trim($attachment)) === 'scroll';
+    }
+
+    private function isDefaultBackgroundOrigin(string $origin): bool
+    {
+        return strtolower(trim($origin)) === 'padding-box';
+    }
+
+    private function isDefaultBackgroundClip(string $clip): bool
+    {
+        return strtolower(trim($clip)) === 'border-box';
     }
 
     /**

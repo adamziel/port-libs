@@ -392,9 +392,9 @@ final class CssBundler
         }
 
         if ($rule['supports'] !== null) {
-            $entry['supports'] = $entry['supports'] === null
-                ? $rule['supports']
-                : $this->combineSupportsOr($entry['supports'], $rule['supports']);
+            if ($entry['supports'] !== null) {
+                $entry['supports'] = $this->combineSupportsOr($entry['supports'], $rule['supports']);
+            }
         } else {
             $entry['supports'] = null;
         }

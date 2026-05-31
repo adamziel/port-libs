@@ -131,6 +131,19 @@ return [
             )
         );
     },
+    'declaration block reads upstream background attachment origin and clip cssom longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $background = 'background: url(hero.jpg) fixed border-box content-box, linear-gradient(red, green) local padding-box';
+
+        $t->same(['value' => 'fixed, local', 'important' => false], $block->getProperty($background, 'background-attachment'));
+        $t->same(['value' => 'border-box, padding-box', 'important' => false], $block->getProperty($background, 'background-origin'));
+        $t->same(['value' => 'content-box, padding-box', 'important' => false], $block->getProperty($background, 'background-clip'));
+        $t->same(['value' => 'scroll', 'important' => false], $block->getProperty('background: url(hero.jpg)', 'background-attachment'));
+        $t->same(['value' => 'padding-box', 'important' => false], $block->getProperty('background: url(hero.jpg)', 'background-origin'));
+        $t->same(['value' => 'border-box', 'important' => false], $block->getProperty('background: url(hero.jpg)', 'background-clip'));
+        $t->same(['value' => 'url(hero.jpg) text', 'important' => false], $block->getProperty('background: url(hero.jpg) text', 'background'));
+        $t->same(['value' => 'text', 'important' => false], $block->getProperty('background: url(hero.jpg) text', 'background-clip'));
+    },
     'declaration block reads upstream mask border source cssom longhand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -943,6 +956,30 @@ return [
             $block->setProperty('background: url(a.png), url(b.png)', 'background-repeat', 'repeat-x')
         );
     },
+    'declaration block sets upstream background attachment origin and clip cssom longhands in shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'background: url(hero.jpg) fixed',
+            $block->setProperty('background: url(hero.jpg)', 'background-attachment', 'fixed')
+        );
+        $t->same(
+            'background: url(hero.jpg) content-box border-box',
+            $block->setProperty('background: url(hero.jpg)', 'background-origin', 'content-box')
+        );
+        $t->same(
+            'background: url(hero.jpg) padding-box content-box',
+            $block->setProperty('background: url(hero.jpg)', 'background-clip', 'content-box')
+        );
+        $t->same(
+            'background: url(a.png) fixed, url(b.png) local',
+            $block->setProperty('background: url(a.png), url(b.png)', 'background-attachment', 'fixed, local')
+        );
+        $t->same(
+            'background: url(a.png), url(b.png); background-clip: text',
+            $block->setProperty('background: url(a.png), url(b.png)', 'background-clip', 'text')
+        );
+    },
     'declaration block sets upstream border side longhands without decomposing' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1481,6 +1518,13 @@ return [
             'padding: 1rem',
             $block->removeProperty(
                 'background: red !important; background-color: blue; padding: 1rem; background-image: url(foo.png) !important',
+                'background'
+            )
+        );
+        $t->same(
+            'padding: 1rem',
+            $block->removeProperty(
+                'background: url(hero.jpg) fixed content-box text; background-attachment: local; background-origin: border-box; background-clip: text; padding: 1rem',
                 'background'
             )
         );
