@@ -7,6 +7,7 @@ use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonCanonical;
 use PortLibs\LibSqlite\SQLiteJsonExtract;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
+use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteSelectExpression;
 
 $tests = [];
@@ -16,12 +17,14 @@ $json102OperatorCanonical = static function (mixed $value): string {
 };
 
 $json102OperatorValue = static function (mixed $json, mixed $right, string $operator) use ($json102OperatorCanonical): mixed {
-    return SQLiteSelectExpression::evaluate([], [
+    $value = SQLiteSelectExpression::evaluate([], [
         'type' => 'binary',
         'operator' => $operator,
         'left' => ['type' => 'literal', 'value' => $json],
         'right' => ['type' => 'literal', 'value' => $right],
     ]);
+
+    return $value instanceof SQLiteJsonSubtypeValue ? $value->json : $value;
 };
 
 $json102OperatorBlob = static function (mixed $value): SQLiteBlobValue {

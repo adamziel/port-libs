@@ -10,7 +10,7 @@ final class SQLiteUpsertReturningSql
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<list<string>>|null $uniqueConstraints
      * @param array<string,mixed>|list<string> $views
-     * @return array{target:string,target_alias:?string,conflict_target:list<string>,conflict_where:?string,columns:list<string>,incoming_rows:list<array<string,mixed>>,before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning:list<array<string,mixed>>,changes:int}
+     * @return array{target:string,target_alias:?string,insert_policy:'default'|'ignore'|'replace',conflict_target:list<string>,conflict_where:?string,columns:list<string>,incoming_rows:list<array<string,mixed>>,before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning:list<array<string,mixed>>,changes:int}
      */
     public static function execute(string $sql, array $tables, ?array $uniqueConstraints = null, array $views = []): array
     {
@@ -33,7 +33,17 @@ final class SQLiteUpsertReturningSql
 
         $incomingRows = self::completeIncomingRowsFromTargetImage($tables[$target], $parsed['incoming_rows']);
 
-        if ($usesChainedConflictArms) {
+        if ($parsed['insert_policy'] === 'replace') {
+            if ($uniqueConstraints === null || $uniqueConstraints === []) {
+                throw new \InvalidArgumentException('SQLite UPSERT OR REPLACE RETURNING requires UNIQUE constraints');
+            }
+            $result = self::executeOrReplace(
+                $tables[$target],
+                $incomingRows,
+                self::conflictArmCallbacks($target, $parsed['target_alias'], $conflictArms),
+                $uniqueConstraints,
+            );
+        } elseif ($usesChainedConflictArms) {
             $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
                 $tables[$target],
                 $incomingRows,
@@ -56,6 +66,7 @@ final class SQLiteUpsertReturningSql
         return [
             'target' => $target,
             'target_alias' => $parsed['target_alias'],
+            'insert_policy' => $parsed['insert_policy'],
             'conflict_target' => $conflictTarget,
             'conflict_where' => $parsed['conflict_where'],
             'columns' => $parsed['columns'],
@@ -134,7 +145,7 @@ final class SQLiteUpsertReturningSql
 
     private static function insertTargetForViewPreflight(string $sql): ?string
     {
-        if (preg_match('/^\s*INSERT(?:\s+OR\s+(?:ABORT|FAIL|IGNORE|REPLACE|ROLLBACK))?\s+INTO\s+/i', $sql, $match) !== 1) {
+        if (preg_match('/^\s*(?:INSERT(?:\s+OR\s+(?:ABORT|FAIL|IGNORE|REPLACE|ROLLBACK))?|REPLACE)\s+INTO\s+/i', $sql, $match) !== 1) {
             return null;
         }
 
@@ -169,7 +180,7 @@ final class SQLiteUpsertReturningSql
     }
 
     /**
-     * @return array{target:string,target_alias:?string,columns:list<string>,incoming_rows:list<array<string,mixed>>,conflict_target:list<string>,conflict_where:?string,action:'update'|'nothing',assignments:array<string,string>,where:?string,returning:string,conflict_arms:list<array{target:list<string>|null,conflict_where:?string,action:'update'|'nothing',assignments:array<string,string>,where:?string}>}
+     * @return array{target:string,target_alias:?string,insert_policy:'default'|'ignore'|'replace',columns:list<string>,incoming_rows:list<array<string,mixed>>,conflict_target:list<string>,conflict_where:?string,action:'update'|'nothing',assignments:array<string,string>,where:?string,returning:string,conflict_arms:list<array{target:list<string>|null,conflict_where:?string,action:'update'|'nothing',assignments:array<string,string>,where:?string}>}
      */
     public static function parse(string $sql): array
     {
@@ -203,8 +214,13 @@ final class SQLiteUpsertReturningSql
             $withRows = self::parseValues(trim(substr($withBody, strlen($valuesMatch[0]))), $withColumns);
             $sql = trim(substr($sql, $offset));
         }
-        if (preg_match('/^INSERT(?:\s+OR\s+IGNORE)?\s+INTO\s+/i', $sql, $match) !== 1) {
-            throw new \InvalidArgumentException('SQLite UPSERT RETURNING SQL must start with INSERT INTO or INSERT OR IGNORE INTO');
+        $insertPolicy = 'default';
+        if (preg_match('/^REPLACE\s+INTO\s+/i', $sql, $match) === 1) {
+            $insertPolicy = 'replace';
+        } elseif (preg_match('/^INSERT(?:\s+OR\s+(IGNORE|REPLACE))?\s+INTO\s+/i', $sql, $match) === 1) {
+            $insertPolicy = isset($match[1]) && $match[1] !== '' ? strtolower($match[1]) : 'default';
+        } else {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING SQL must start with INSERT INTO, INSERT OR IGNORE INTO, INSERT OR REPLACE INTO, or REPLACE INTO');
         }
 
         $offset = strlen($match[0]);
@@ -267,6 +283,7 @@ final class SQLiteUpsertReturningSql
         return [
             'target' => $target,
             'target_alias' => $targetAlias,
+            'insert_policy' => $insertPolicy,
             'columns' => $columns,
             'incoming_rows' => $incomingRows,
             'conflict_target' => $conflictTarget,
@@ -442,6 +459,167 @@ final class SQLiteUpsertReturningSql
             'returning_rows' => $inserted,
             'changes' => count($inserted),
         ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<array<string,mixed>> $incomingRows
+     * @param list<array{target:list<string>|null,action:string,assignments:array<string,callable(array<string,mixed>,array<string,mixed>):mixed>,where:callable(array<string,mixed>,array<string,mixed>):bool|null}> $conflictArms
+     * @param list<list<string>> $uniqueConstraints
+     * @return array{before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning_rows:list<array<string,mixed>>,changes:int}
+     */
+    private static function executeOrReplace(array $rows, array $incomingRows, array $conflictArms, array $uniqueConstraints): array
+    {
+        $uniqueConstraints = self::normalizeUniqueConstraints($uniqueConstraints[0] ?? [], $uniqueConstraints);
+        self::validateConflictArmTargetsForSql($conflictArms, $uniqueConstraints);
+
+        $after = array_values($rows);
+        $inserted = [];
+        $updated = [];
+        $skipped = [];
+        $returning = [];
+        $changes = 0;
+
+        foreach ($incomingRows as $incoming) {
+            $match = self::findMatchingConflictArmForSql($after, $incoming, $uniqueConstraints, $conflictArms);
+            if ($match !== null) {
+                $arm = $match['arm'];
+                $current = $after[$match['index']];
+                if ($arm['action'] === 'nothing') {
+                    $skipped[] = $incoming;
+                    continue;
+                }
+                if ($arm['where'] !== null && !$arm['where']($current, $incoming)) {
+                    $skipped[] = $incoming;
+                    continue;
+                }
+
+                $updatedRow = $current;
+                foreach ($arm['assignments'] as $column => $assignment) {
+                    $updatedRow[$column] = $assignment($current, $incoming);
+                }
+                self::ensureNoUniqueConflictAfterUpdate($after, $updatedRow, $uniqueConstraints, $match['index']);
+
+                $after[$match['index']] = $updatedRow;
+                $updated[] = $updatedRow;
+                $returning[] = $updatedRow;
+                ++$changes;
+                continue;
+            }
+
+            $replaceIndexes = self::replacementConflictIndexes($after, $incoming, $uniqueConstraints);
+            if ($replaceIndexes !== []) {
+                rsort($replaceIndexes);
+                foreach ($replaceIndexes as $index) {
+                    unset($after[$index]);
+                }
+                $after = array_values($after);
+            }
+
+            $after[] = $incoming;
+            $inserted[] = $incoming;
+            $returning[] = $incoming;
+            ++$changes;
+        }
+
+        return [
+            'before' => array_values($rows),
+            'after' => $after,
+            'inserted_rows' => $inserted,
+            'updated_rows' => $updated,
+            'skipped_rows' => $skipped,
+            'returning_rows' => $returning,
+            'changes' => $changes,
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<list<string>> $uniqueConstraints
+     * @param list<array{target:list<string>|null,action:string,assignments:array<string,callable(array<string,mixed>,array<string,mixed>):mixed>,where:callable(array<string,mixed>,array<string,mixed>):bool|null}> $conflictArms
+     * @return array{index:int,arm:array{target:list<string>|null,action:string,assignments:array<string,callable(array<string,mixed>,array<string,mixed>):mixed>,where:callable(array<string,mixed>,array<string,mixed>):bool|null}}|null
+     */
+    private static function findMatchingConflictArmForSql(array $rows, array $incoming, array $uniqueConstraints, array $conflictArms): ?array
+    {
+        foreach ($conflictArms as $arm) {
+            $targets = $arm['target'] === null ? $uniqueConstraints : [$arm['target']];
+            foreach ($targets as $target) {
+                $index = self::findConflictIndex($rows, $incoming, $target);
+                if ($index !== null) {
+                    return ['index' => $index, 'arm' => $arm];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{target:list<string>|null,action:string,assignments:array<string,callable(array<string,mixed>,array<string,mixed>):mixed>,where:callable(array<string,mixed>,array<string,mixed>):bool|null}> $conflictArms
+     * @param list<list<string>> $uniqueConstraints
+     */
+    private static function validateConflictArmTargetsForSql(array $conflictArms, array $uniqueConstraints): void
+    {
+        foreach ($conflictArms as $arm) {
+            if ($arm['target'] === null) {
+                continue;
+            }
+            if (!self::targetMatchesUniqueConstraint($arm['target'], $uniqueConstraints)) {
+                throw new \InvalidArgumentException('SQLite UPSERT ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint');
+            }
+        }
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<list<string>> $uniqueConstraints
+     * @return list<int>
+     */
+    private static function replacementConflictIndexes(array $rows, array $incoming, array $uniqueConstraints): array
+    {
+        $indexes = [];
+        foreach ($uniqueConstraints as $columns) {
+            foreach ($rows as $index => $row) {
+                if (self::rowsConflictForSql($row, $incoming, $columns)) {
+                    $indexes[$index] = $index;
+                }
+            }
+        }
+
+        return array_values($indexes);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<list<string>> $uniqueConstraints
+     */
+    private static function ensureNoUniqueConflictAfterUpdate(array $rows, array $updatedRow, array $uniqueConstraints, int $updatedIndex): void
+    {
+        foreach ($uniqueConstraints as $columns) {
+            foreach ($rows as $index => $row) {
+                if ($index === $updatedIndex) {
+                    continue;
+                }
+                if (self::rowsConflictForSql($row, $updatedRow, $columns)) {
+                    throw new \InvalidArgumentException('SQLite UPSERT update produced a unique constraint conflict');
+                }
+            }
+        }
+    }
+
+    /** @param list<string> $columns */
+    private static function rowsConflictForSql(array $left, array $right, array $columns): bool
+    {
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $left) || !array_key_exists($column, $right)) {
+                throw new \InvalidArgumentException("SQLite UPSERT RETURNING conflict column {$column} is missing");
+            }
+            if ($left[$column] === null || $right[$column] === null || $left[$column] != $right[$column]) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

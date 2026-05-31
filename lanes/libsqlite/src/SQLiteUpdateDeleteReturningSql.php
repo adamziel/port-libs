@@ -2334,6 +2334,11 @@ final class SQLiteUpdateDeleteReturningSql
                 default => false,
             };
         }
+        if (preg_match('/^(.+)\s+IS\s+(NOT\s+)?NULL$/is', $term, $match) === 1) {
+            $isNull = self::evaluateExpression(trim($match[1]), $row) === null;
+
+            return isset($match[2]) && trim($match[2]) !== '' ? !$isNull : $isNull;
+        }
         if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s+IS\s+(NOT\s+)?NULL$/i', $term, $match) === 1) {
             $isNull = self::column($row, $match[1]) === null;
 
@@ -2500,6 +2505,14 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $result ? 1 : 0;
         }
+        if (preg_match('/^(.+)\s+IS\s+(NOT\s+)?NULL$/is', $expression, $match) === 1) {
+            $result = self::evaluateExpression(trim($match[1]), $row) === null;
+            if (isset($match[2]) && trim($match[2]) !== '') {
+                $result = !$result;
+            }
+
+            return $result ? 1 : 0;
+        }
         if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s+IS\s+(NOT\s+)?NULL$/i', $expression, $match) === 1) {
             $result = self::column($row, $match[1]) === null;
             if (isset($match[2]) && trim($match[2]) !== '') {
@@ -2567,6 +2580,21 @@ final class SQLiteUpdateDeleteReturningSql
             }
 
             return $sum;
+        }
+        foreach (['->>', '->'] as $operator) {
+            $operatorParts = self::splitOperator($expression, $operator);
+            if (count($operatorParts) > 1) {
+                $value = self::evaluateExpression(array_shift($operatorParts), $row);
+                foreach ($operatorParts as $part) {
+                    $value = self::evaluateJsonOperatorExpression(
+                        $value,
+                        self::evaluateExpression($part, $row),
+                        $operator,
+                    );
+                }
+
+                return $value;
+            }
         }
         if (
             preg_match("/^'.*'$/s", $expression) === 1
@@ -2641,11 +2669,171 @@ final class SQLiteUpdateDeleteReturningSql
                 ? self::evaluateExpression($match[3], $row)
                 : self::evaluateExpression($match[4], $row);
         }
+        $scalarFunction = self::wholeLimitScalarFunction($expression);
+        if ($scalarFunction !== null && self::isJsonExpressionFunction($scalarFunction['name'])) {
+            return self::evaluateJsonExpressionFunction($scalarFunction['name'], $scalarFunction['arguments'], $row);
+        }
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $expression) === 1) {
             return self::column($row, $expression);
         }
 
         return self::literal($expression);
+    }
+
+    private static function evaluateJsonOperatorExpression(mixed $left, mixed $right, string $operator): mixed
+    {
+        return SQLiteSelectExpression::evaluate([], [
+            'type' => 'binary',
+            'operator' => $operator,
+            'left' => ['type' => 'literal', 'value' => $left],
+            'right' => ['type' => 'literal', 'value' => $right],
+        ]);
+    }
+
+    private static function isJsonExpressionFunction(string $function): bool
+    {
+        return in_array($function, [
+            'json',
+            'jsonb',
+            'json_valid',
+            'json_error_position',
+            'json_quote',
+            'json_extract',
+            'jsonb_extract',
+            'json_type',
+            'json_array_length',
+            'json_insert',
+            'jsonb_insert',
+            'json_set',
+            'jsonb_set',
+            'json_replace',
+            'jsonb_replace',
+            'json_remove',
+            'jsonb_remove',
+            'json_patch',
+            'jsonb_patch',
+            'json_array_insert',
+            'jsonb_array_insert',
+            'json_pretty',
+        ], true);
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function evaluateJsonExpressionFunction(string $function, string $arguments, array $row): mixed
+    {
+        $values = array_map(
+            static fn (string $part): mixed => self::evaluateExpression($part, $row),
+            self::splitComma($arguments),
+        );
+
+        if ($function === 'json' || $function === 'jsonb') {
+            return SQLiteJsonCanonical::jsonSqlFunctionArguments($function, $values);
+        }
+        if ($function === 'json_valid') {
+            $valid = SQLiteJsonValidity::jsonValidSqlFunctionArguments($function, $values);
+
+            return $valid === null ? null : ($valid ? 1 : 0);
+        }
+        if ($function === 'json_error_position') {
+            return SQLiteJsonErrorPosition::jsonErrorPositionSqlFunctionArguments(
+                $function,
+                self::jsonSubtypeArgumentsToText($values, [0]),
+            );
+        }
+        if ($function === 'json_quote') {
+            return SQLiteJsonQuote::jsonQuoteSqlFunctionArguments($function, $values);
+        }
+        if ($function === 'json_extract' || $function === 'jsonb_extract') {
+            return self::evaluateJsonExtractExpressionFunction($function, $values);
+        }
+        if ($function === 'json_type' || $function === 'json_array_length') {
+            return SQLiteJsonInspection::inspectionSqlFunctionArguments($function, $values);
+        }
+        if (
+            $function === 'json_insert'
+            || $function === 'jsonb_insert'
+            || $function === 'json_set'
+            || $function === 'jsonb_set'
+            || $function === 'json_replace'
+            || $function === 'jsonb_replace'
+        ) {
+            return SQLiteJsonMutation::mutateSqlFunctionArguments(
+                $function,
+                self::jsonSubtypeArgumentsToText($values, [0]),
+            );
+        }
+        if ($function === 'json_remove' || $function === 'jsonb_remove') {
+            return SQLiteJsonRemove::removeSqlFunctionArguments(
+                $function,
+                self::jsonSubtypeArgumentsToText($values, [0]),
+            );
+        }
+        if ($function === 'json_patch' || $function === 'jsonb_patch') {
+            return SQLiteJsonPatch::patchSqlFunctionArguments(
+                $function,
+                self::jsonSubtypeArgumentsToText($values, [0, 1]),
+            );
+        }
+        if ($function === 'json_array_insert' || $function === 'jsonb_array_insert') {
+            return SQLiteJsonArrayInsert::arrayInsertSqlFunctionArguments(
+                $function,
+                self::jsonSubtypeArgumentsToText($values, [0]),
+            );
+        }
+        if ($function === 'json_pretty') {
+            return SQLiteJsonPretty::jsonPrettySqlFunctionArguments($function, $values);
+        }
+
+        throw new \InvalidArgumentException("SQLite UPDATE/DELETE JSON function {$function} is not supported");
+    }
+
+    /**
+     * @param list<mixed> $values
+     */
+    private static function evaluateJsonExtractExpressionFunction(string $function, array $values): mixed
+    {
+        if ($values === []) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE json_extract() needs a JSON value and at least one path');
+        }
+
+        $json = array_shift($values);
+        if ($json instanceof SQLiteJsonSubtypeValue) {
+            $json = $json->json;
+        }
+        if ($json !== null && !is_string($json) && !$json instanceof SQLiteBlobValue) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE json_extract() JSON argument must be text, JSONB, JSON subtype, or NULL');
+        }
+
+        $paths = [];
+        foreach ($values as $value) {
+            if ($value === null) {
+                return null;
+            }
+            if (!is_string($value)) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE json_extract() path argument must be text or NULL');
+            }
+            $paths[] = $value;
+        }
+
+        return SQLiteJsonExtract::extractSqlFunction($function, $json, ...$paths);
+    }
+
+    /**
+     * @param list<mixed> $values
+     * @param list<int> $indexes
+     * @return list<mixed>
+     */
+    private static function jsonSubtypeArgumentsToText(array $values, array $indexes): array
+    {
+        foreach ($indexes as $index) {
+            if (($values[$index] ?? null) instanceof SQLiteJsonSubtypeValue) {
+                $values[$index] = $values[$index]->json;
+            }
+        }
+
+        return $values;
     }
 
     private static function sqliteTruthValue(mixed $value): ?bool

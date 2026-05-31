@@ -8,6 +8,7 @@ use PortLibs\LibSqlite\SQLiteJsonExtract;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
 use PortLibs\LibSqlite\SQLiteJsonMutation;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
+use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteJsonTree;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
 use PortLibs\LibSqlite\SQLiteSelectExpression;
@@ -22,6 +23,7 @@ use PortLibs\LibSqlite\SQLiteSelectExpression;
  */
 
 $tests = [];
+$jsonArrowText = static fn (mixed $value): mixed => $value instanceof SQLiteJsonSubtypeValue ? $value->json : $value;
 
 $literal = static fn (mixed $value): array => ['type' => 'literal', 'value' => $value];
 $functionExpression = static fn (string $name, array $arguments): array => [
@@ -79,9 +81,9 @@ for ($case = 1; $case <= 256; $case++) {
         };
 
     $tests['real upstream json107 blob operator matrix arrows and extract ' . $caseName] =
-        static function (TestRunner $t) use ($document, $blob, $binaryExpression, $functionExpression): void {
+        static function (TestRunner $t) use ($document, $blob, $binaryExpression, $functionExpression, $jsonArrowText): void {
             $t->same($document['id'], SQLiteSelectExpression::evaluate([], $binaryExpression($blob, '->>', 'id')));
-            $t->same((string) $document['id'], SQLiteSelectExpression::evaluate([], $binaryExpression($blob, '->', 'id')));
+            $t->same((string) $document['id'], $jsonArrowText(SQLiteSelectExpression::evaluate([], $binaryExpression($blob, '->', 'id'))));
             $t->same($document['name'], SQLiteSelectExpression::evaluate([], $binaryExpression($blob, '->>', '$.name')));
             $t->same($document['items'][1]['k'], SQLiteSelectExpression::evaluate([], $binaryExpression($blob, '->>', '$.items[1].k')));
             $t->same($document['items'][2]['v'], SQLiteJsonExtract::extractSqlFunction('json_extract', $blob, '$.items[#-1].v'));

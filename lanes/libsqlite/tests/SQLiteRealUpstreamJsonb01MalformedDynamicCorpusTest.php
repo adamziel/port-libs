@@ -9,6 +9,7 @@ use PortLibs\LibSqlite\SQLiteJsonErrorPosition;
 use PortLibs\LibSqlite\SQLiteJsonExtract;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
+use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
 use PortLibs\LibSqlite\SQLiteSelectExpression;
 
@@ -25,6 +26,7 @@ $jsonb = static fn (mixed $value): SQLiteBlobValue => new SQLiteBlobValue(SQLite
 $jsonbText = static fn (SQLiteBlobValue $value): string => SQLiteJsonCanonical::encodeDecodedJson(
     SQLiteJsonB::decodeForJsonEncoding($value->bytes),
 );
+$jsonArrowText = static fn (mixed $value): mixed => $value instanceof SQLiteJsonSubtypeValue ? $value->json : $value;
 
 $malformedRows = [];
 $upstreamMalformed = hex2bin('8ce6ffffffff171333');
@@ -106,7 +108,7 @@ for ($i = 1; $i <= 320; $i++) {
     $expectedText = SQLiteJsonCanonical::encodeDecodedJson($document);
 
     $tests['real upstream jsonb01 valid JSONB control remains readable ' . str_pad((string) $i, 4, '0', STR_PAD_LEFT)] =
-        static function (TestRunner $t) use ($blob, $document, $expectedText, $binary, $jsonbText): void {
+        static function (TestRunner $t) use ($blob, $document, $expectedText, $binary, $jsonArrowText, $jsonbText): void {
             $t->same(true, SQLiteJsonB::isJsonB($blob->bytes));
             $t->same(true, SQLiteJsonB::isStrictlyWellFormed($blob->bytes));
             $t->same(true, SQLiteJsonValidity::jsonValid($blob, SQLiteJsonValidity::FLAG_STRICT_JSONB));
@@ -117,7 +119,7 @@ for ($i = 1; $i <= 320; $i++) {
             $t->same('object', SQLiteJsonInspection::jsonType($blob));
             $t->same('array', SQLiteJsonInspection::jsonType($blob, '$.c'));
             $t->same(4, SQLiteJsonInspection::jsonArrayLength($blob, '$.c'));
-            $t->same((string) $document['a'], SQLiteSelectExpression::evaluate([], $binary($blob, '->', '$.a')));
+            $t->same((string) $document['a'], $jsonArrowText(SQLiteSelectExpression::evaluate([], $binary($blob, '->', '$.a'))));
             $t->same($document['a'], SQLiteSelectExpression::evaluate([], $binary($blob, '->>', '$.a')));
             $removed = SQLiteJsonRemove::removeSqlFunction('jsonb_remove', $blob, '$.b.y');
             $t->true($removed instanceof SQLiteBlobValue);

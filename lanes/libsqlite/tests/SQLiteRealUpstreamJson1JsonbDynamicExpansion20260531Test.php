@@ -10,11 +10,13 @@ use PortLibs\LibSqlite\SQLiteJsonExtract;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
 use PortLibs\LibSqlite\SQLiteJsonMutation;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
+use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteJsonTree;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
 use PortLibs\LibSqlite\SQLiteSelectExpression;
 
 $tests = [];
+$jsonArrowText = static fn (mixed $value): mixed => $value instanceof SQLiteJsonSubtypeValue ? $value->json : $value;
 
 $literal = static fn (mixed $value): array => ['type' => 'literal', 'value' => $value];
 $functionExpression = static fn (string $name, array $arguments): array => [
@@ -68,12 +70,12 @@ for ($case = 0; $case < 150; $case++) {
     $blob = new SQLiteBlobValue($json);
 
     $tests['real upstream json107 blob compatibility dynamic text-looking blob ' . $case] =
-        static function (TestRunner $t) use ($blob, $document, $json, $functionExpression, $binaryExpression): void {
+        static function (TestRunner $t) use ($blob, $document, $json, $functionExpression, $binaryExpression, $jsonArrowText): void {
             $t->same(1, SQLiteSelectExpression::evaluate([], $functionExpression('json_valid', [$blob])), 'json107 valid via SELECT function');
             $t->same(1, SQLiteJsonValidity::jsonValidSqlFunctionArguments('json_valid', [$blob, 1]) ? 1 : 0, 'json107 RFC-8259 text BLOB flag');
             $t->same(0, SQLiteJsonValidity::jsonValidSqlFunctionArguments('json_valid', [$blob, 4]) ? 1 : 0, 'json107 JSONB superficial flag rejects text BLOB');
             $t->same($document['a'], SQLiteSelectExpression::evaluate([], $binaryExpression($blob, '->>', 'a')), 'json107 double-arrow scalar');
-            $t->same((string) $document['a'], SQLiteSelectExpression::evaluate([], $binaryExpression($blob, '->', 'a')), 'json107 arrow JSON text scalar');
+            $t->same((string) $document['a'], $jsonArrowText(SQLiteSelectExpression::evaluate([], $binaryExpression($blob, '->', 'a'))), 'json107 arrow JSON text scalar');
             $t->same($document['b'], SQLiteSelectExpression::evaluate([], $functionExpression('json_extract', [$blob, '$.b'])), 'json107 extract scalar through expression');
             $t->same('array', SQLiteSelectExpression::evaluate([], $functionExpression('json_type', [$blob, '$.items'])), 'json107 type through expression');
             $t->same(3, SQLiteSelectExpression::evaluate([], $functionExpression('json_array_length', [$blob, '$.items'])), 'json107 array length through expression');

@@ -8,11 +8,13 @@ use PortLibs\LibSqlite\SQLiteJsonExtract;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
 use PortLibs\LibSqlite\SQLiteJsonMutation;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
+use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteJsonTree;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
 use PortLibs\LibSqlite\SQLiteSelectExpression;
 
 $tests = [];
+$jsonArrowText = static fn (mixed $value): mixed => $value instanceof SQLiteJsonSubtypeValue ? $value->json : $value;
 
 $jsonText = static function (mixed $value): string {
     $json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
@@ -61,10 +63,10 @@ foreach ($documents as $name => $document) {
         };
 
     $tests['real upstream json107 1.2 legacy blob extract and arrow operators ' . $name] =
-        static function (TestRunner $t) use ($blob, $document, $binary): void {
+        static function (TestRunner $t) use ($blob, $document, $binary, $jsonArrowText): void {
             $t->same($document['a'], SQLiteJsonExtract::extract($blob, '$.a'));
             $t->same($document['a'], SQLiteSelectExpression::evaluate([], $binary($blob, '->>', 'a')));
-            $t->same((string) $document['a'], SQLiteSelectExpression::evaluate([], $binary($blob, '->', 'a')));
+            $t->same((string) $document['a'], $jsonArrowText(SQLiteSelectExpression::evaluate([], $binary($blob, '->', 'a'))));
             $t->same($document['nested']['name'], SQLiteJsonExtract::extract($blob, '$.nested.name'));
             $t->same($document['items'][1]['key'], SQLiteJsonExtract::extract($blob, '$.items[1].key'));
         };

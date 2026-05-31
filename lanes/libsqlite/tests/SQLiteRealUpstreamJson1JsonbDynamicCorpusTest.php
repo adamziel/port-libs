@@ -44,6 +44,7 @@ $fn = static fn (string $name, array $arguments): array => ['type' => 'function'
 $lit = static fn (mixed $value): array => ['type' => 'literal', 'value' => $value];
 
 $tests = [];
+$jsonExpressionText = static fn (mixed $value): mixed => $value instanceof SQLiteJsonSubtypeValue ? $value->json : $value;
 
 $constructorCases = [
     'json101-1.1.00' => [
@@ -154,8 +155,8 @@ foreach ($constructorCases as $upstreamId => $case) {
             $t->same(true, $value instanceof SQLiteBlobValue);
             $t->same($case['expected'], $decodeJson($value));
         };
-        $tests["real upstream {$upstreamId} select expression json canonical dispatch"] = static function (TestRunner $t) use ($case, $expectedJson, $fn, $lit): void {
-            $t->same($expectedJson, SQLiteSelectExpression::evaluate([], $fn('json', [$lit($case['args'][0])])));
+        $tests["real upstream {$upstreamId} select expression json canonical dispatch"] = static function (TestRunner $t) use ($case, $expectedJson, $fn, $jsonExpressionText, $lit): void {
+            $t->same($expectedJson, $jsonExpressionText(SQLiteSelectExpression::evaluate([], $fn('json', [$lit($case['args'][0])]))));
         };
         continue;
     }
@@ -176,8 +177,8 @@ foreach ($constructorCases as $upstreamId => $case) {
         $t->same(true, $value instanceof SQLiteBlobValue);
         $t->same($case['expected'], $decodeJson($value));
     };
-    $tests["real upstream {$upstreamId} {$textFunction} select expression dispatch"] = static function (TestRunner $t) use ($textFunction, $arguments, $expectedJson, $fn, $lit): void {
-        $t->same($expectedJson, SQLiteSelectExpression::evaluate([], $fn($textFunction, array_map($lit, $arguments))));
+    $tests["real upstream {$upstreamId} {$textFunction} select expression dispatch"] = static function (TestRunner $t) use ($textFunction, $arguments, $expectedJson, $fn, $jsonExpressionText, $lit): void {
+        $t->same($expectedJson, $jsonExpressionText(SQLiteSelectExpression::evaluate([], $fn($textFunction, array_map($lit, $arguments)))));
     };
     $tests["real upstream {$upstreamId} {$blobFunction} select expression dispatch"] = static function (TestRunner $t) use ($blobFunction, $arguments, $case, $decodeJson, $fn, $lit): void {
         $value = SQLiteSelectExpression::evaluate([], $fn($blobFunction, array_map($lit, $arguments)));
@@ -232,8 +233,8 @@ foreach ($extractCases as $upstreamId => $case) {
         }
         $t->same($expected, $value);
     };
-    $tests["real upstream {$upstreamId} select expression json_extract dispatch"] = static function (TestRunner $t) use ($extractDocument, $paths, $expectedText, $fn, $lit): void {
-        $t->same($expectedText, SQLiteSelectExpression::evaluate([], $fn('json_extract', array_map($lit, array_merge([$extractDocument], $paths)))));
+    $tests["real upstream {$upstreamId} select expression json_extract dispatch"] = static function (TestRunner $t) use ($extractDocument, $paths, $expectedText, $fn, $jsonExpressionText, $lit): void {
+        $t->same($expectedText, $jsonExpressionText(SQLiteSelectExpression::evaluate([], $fn('json_extract', array_map($lit, array_merge([$extractDocument], $paths))))));
     };
     $tests["real upstream {$upstreamId} select expression jsonb_extract dispatch"] = static function (TestRunner $t) use ($extractJsonb, $paths, $expected, $decodeJson, $fn, $lit): void {
         $value = SQLiteSelectExpression::evaluate([], $fn('jsonb_extract', array_map($lit, array_merge([$extractJsonb], $paths))));
@@ -580,9 +581,9 @@ foreach ($mutationCases as $upstreamId => $case) {
         $t->same(true, $value instanceof SQLiteBlobValue);
         $t->same($case['expected'], $decodeJson($value));
     };
-    $tests["real upstream {$upstreamId} select expression {$case['fn']} mutation"] = static function (TestRunner $t) use ($case, $pairs, $expectedText, $fn, $lit): void {
+    $tests["real upstream {$upstreamId} select expression {$case['fn']} mutation"] = static function (TestRunner $t) use ($case, $pairs, $expectedText, $fn, $jsonExpressionText, $lit): void {
         $arguments = [$case['input'], $case['path'], $case['value'], ...$pairs];
-        $t->same($expectedText, SQLiteSelectExpression::evaluate([], $fn($case['fn'], array_map($lit, $arguments))));
+        $t->same($expectedText, $jsonExpressionText(SQLiteSelectExpression::evaluate([], $fn($case['fn'], array_map($lit, $arguments)))));
     };
     if (isset($case['typePath'])) {
         $tests["real upstream {$upstreamId} json_type observes mutation subtype"] = static function (TestRunner $t) use ($case): void {
@@ -629,8 +630,8 @@ foreach ($jsonbRemoveCases as $upstreamId => $case) {
         $t->same(true, $value instanceof SQLiteBlobValue);
         $t->same($case['expected'], $decodeJson($value));
     };
-    $tests["real upstream {$upstreamId}.4 select expression json_remove dispatch"] = static function (TestRunner $t) use ($removeInput, $case, $expectedText, $fn, $lit): void {
-        $t->same($expectedText, SQLiteSelectExpression::evaluate([], $fn('json_remove', [$lit($removeInput), $lit($case['path'])])));
+    $tests["real upstream {$upstreamId}.4 select expression json_remove dispatch"] = static function (TestRunner $t) use ($removeInput, $case, $expectedText, $fn, $jsonExpressionText, $lit): void {
+        $t->same($expectedText, $jsonExpressionText(SQLiteSelectExpression::evaluate([], $fn('json_remove', [$lit($removeInput), $lit($case['path'])]))));
     };
 }
 

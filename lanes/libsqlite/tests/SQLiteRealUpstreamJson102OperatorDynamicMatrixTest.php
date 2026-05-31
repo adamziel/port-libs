@@ -6,6 +6,7 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonCanonical;
 use PortLibs\LibSqlite\SQLiteJsonExtract;
+use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteSelectExpression;
 
 $tests = [];
@@ -21,6 +22,16 @@ $jsonb = static fn (mixed $value): SQLiteBlobValue => new SQLiteBlobValue(SQLite
 $jsonbText = static fn (SQLiteBlobValue $value): string => SQLiteJsonCanonical::encodeDecodedJson(
     SQLiteJsonB::decodeForJsonEncoding($value->bytes),
 );
+$jsonOperatorText = static function (mixed $value) use ($jsonbText): mixed {
+    if ($value instanceof SQLiteJsonSubtypeValue) {
+        return $value->json;
+    }
+    if ($value instanceof SQLiteBlobValue) {
+        return $jsonbText($value);
+    }
+
+    return $value;
+};
 $extractPath = static function (string|int $rhs): string {
     if (is_int($rhs)) {
         return $rhs < 0 ? '$[#' . $rhs . ']' : '$[' . $rhs . ']';
@@ -80,13 +91,14 @@ for ($round = 0; $round < 50; $round++) {
         $blob = $jsonb($document);
         $path = $extractPath($case['rhs']);
 
-        $tests["real upstream {$upstreamId} operator object matrix text source round {$round}"] = static function (TestRunner $t) use ($json, $blob, $case, $binary, $path, $jsonbText): void {
+        $tests["real upstream {$upstreamId} operator object matrix text source round {$round}"] = static function (TestRunner $t) use ($json, $blob, $case, $binary, $path, $jsonOperatorText): void {
+            $arrowText = SQLiteSelectExpression::evaluate([], $binary($json, '->', $case['rhs']));
             $arrowBlob = SQLiteSelectExpression::evaluate([], $binary($blob, '->', $case['rhs']));
 
-            $t->same($case['arrow'], SQLiteSelectExpression::evaluate([], $binary($json, '->', $case['rhs'])));
+            $t->same($case['arrow'], $jsonOperatorText($arrowText));
             $t->same($case['text'], SQLiteSelectExpression::evaluate([], $binary($json, '->>', $case['rhs'])));
             $t->same($case['extract'], SQLiteJsonExtract::extract($json, $path));
-            $t->same($case['arrow'], $arrowBlob instanceof SQLiteBlobValue ? $jsonbText($arrowBlob) : $arrowBlob);
+            $t->same($case['arrow'], $jsonOperatorText($arrowBlob));
             $t->same($case['text'], SQLiteSelectExpression::evaluate([], $binary($blob, '->>', $case['rhs'])));
         };
     }
@@ -97,13 +109,14 @@ for ($round = 0; $round < 50; $round++) {
         $blob = $jsonb($document);
         $path = $extractPath($case['rhs']);
 
-        $tests["real upstream {$upstreamId} operator array matrix text/jsonb source round {$round}"] = static function (TestRunner $t) use ($json, $blob, $case, $binary, $path, $jsonbText): void {
+        $tests["real upstream {$upstreamId} operator array matrix text/jsonb source round {$round}"] = static function (TestRunner $t) use ($json, $blob, $case, $binary, $path, $jsonOperatorText): void {
+            $arrowText = SQLiteSelectExpression::evaluate([], $binary($json, '->', $case['rhs']));
             $arrowBlob = SQLiteSelectExpression::evaluate([], $binary($blob, '->', $case['rhs']));
 
-            $t->same($case['arrow'], SQLiteSelectExpression::evaluate([], $binary($json, '->', $case['rhs'])));
+            $t->same($case['arrow'], $jsonOperatorText($arrowText));
             $t->same($case['text'], SQLiteSelectExpression::evaluate([], $binary($json, '->>', $case['rhs'])));
             $t->same($case['extract'], SQLiteJsonExtract::extract($json, $path));
-            $t->same($case['arrow'], $arrowBlob instanceof SQLiteBlobValue ? $jsonbText($arrowBlob) : $arrowBlob);
+            $t->same($case['arrow'], $jsonOperatorText($arrowBlob));
             $t->same($case['text'], SQLiteSelectExpression::evaluate([], $binary($blob, '->>', $case['rhs'])));
         };
     }
@@ -118,15 +131,12 @@ for ($round = 0; $round < 50; $round++) {
         $json = SQLiteJsonCanonical::encodeDecodedJson($document);
         $blob = $jsonb($document);
 
-        $tests["real upstream {$upstreamId} text/jsonb source round {$round}"] = static function (TestRunner $t) use ($json, $blob, $case, $binary, $jsonbText): void {
+        $tests["real upstream {$upstreamId} text/jsonb source round {$round}"] = static function (TestRunner $t) use ($json, $blob, $case, $binary, $jsonOperatorText): void {
             $textActual = SQLiteSelectExpression::evaluate([], $binary($json, $case['operator'], $case['rhs']));
             $blobActual = SQLiteSelectExpression::evaluate([], $binary($blob, $case['operator'], $case['rhs']));
-            if ($blobActual instanceof SQLiteBlobValue) {
-                $blobActual = $jsonbText($blobActual);
-            }
 
-            $t->same($case['expected'], $textActual);
-            $t->same($case['expected'], $blobActual);
+            $t->same($case['expected'], $jsonOperatorText($textActual));
+            $t->same($case['expected'], $jsonOperatorText($blobActual));
             $t->same(is_int($case['rhs']), is_int($case['rhs']));
             $t->same(is_string($case['rhs']), is_string($case['rhs']));
         };

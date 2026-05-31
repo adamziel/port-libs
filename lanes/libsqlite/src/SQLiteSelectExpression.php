@@ -746,7 +746,7 @@ final class SQLiteSelectExpression
             return SQLiteJsonCanonical::encodeDecodedJson($value);
         }
 
-        return SQLiteJsonCanonical::encodeDecodedJson($located['value']);
+        return new SQLiteJsonSubtypeValue(SQLiteJsonCanonical::encodeDecodedJson($located['value']));
     }
 
     private static function jsonOperatorPath(mixed $operand): string

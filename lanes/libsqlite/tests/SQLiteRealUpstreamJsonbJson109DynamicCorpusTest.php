@@ -9,6 +9,7 @@ use PortLibs\LibSqlite\SQLiteJsonCanonical;
 use PortLibs\LibSqlite\SQLiteJsonExtract;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
+use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteJsonTree;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
 use PortLibs\LibSqlite\SQLiteSelectExpression;
@@ -18,6 +19,7 @@ $tests = [];
 $jsonbText = static fn (SQLiteBlobValue $value): string => SQLiteJsonCanonical::encodeDecodedJson(
     SQLiteJsonB::decodeForJsonEncoding($value->bytes),
 );
+$jsonArrowText = static fn (mixed $value): mixed => $value instanceof SQLiteJsonSubtypeValue ? $value->json : $value;
 
 $jsonbValue = static fn (string $json): SQLiteBlobValue => new SQLiteBlobValue(
     SQLiteJsonB::encode(json_decode($json, true, 1001, JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR)),
@@ -108,7 +110,7 @@ $tests['real upstream json109 path error boundaries'] = static function (TestRun
     }
 };
 
-$tests['real upstream json107 legacy text blob JSON scalar functions'] = static function (TestRunner $t): void {
+$tests['real upstream json107 legacy text blob JSON scalar functions'] = static function (TestRunner $t) use ($jsonArrowText): void {
     $textBlob = new SQLiteBlobValue('{"a":123,"b":456}');
     $pathExpression = static fn (string $operator): array => [
         'type' => 'binary',
@@ -123,7 +125,7 @@ $tests['real upstream json107 legacy text blob JSON scalar functions'] = static 
     $t->same(false, SQLiteJsonValidity::jsonValid($textBlob, 4));
     $t->same(false, SQLiteJsonValidity::jsonValid($textBlob, 8));
     $t->same(123, SQLiteSelectExpression::evaluate([], $pathExpression('->>')));
-    $t->same('123', SQLiteSelectExpression::evaluate([], $pathExpression('->')));
+    $t->same('123', $jsonArrowText(SQLiteSelectExpression::evaluate([], $pathExpression('->'))));
     $t->same(123, SQLiteJsonExtract::extract($textBlob, '$.a'));
     $t->same('{"b":456}', SQLiteJsonRemove::removeSqlFunction('json_remove', $textBlob, '$.a'));
     $t->same('{"a":123,"b":456}', SQLiteJsonCanonical::json($textBlob));

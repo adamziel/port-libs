@@ -477,7 +477,7 @@ foreach ($json107ValidCases as $name => [$input, $flags, $result]) {
 
 $tests['real upstream JSON1/JSONB dynamic json107-1.2.1 text-looking BLOB arrow returns JSON text'] = static fn (TestRunner $t) => $t->same(
     '123',
-    SQLiteSelectExpression::evaluate([], ['type' => 'binary', 'operator' => '->', 'left' => ['type' => 'literal', 'value' => $json107Blob], 'right' => ['type' => 'literal', 'value' => 'a']]),
+    $jsonSqlText(SQLiteSelectExpression::evaluate([], ['type' => 'binary', 'operator' => '->', 'left' => ['type' => 'literal', 'value' => $json107Blob], 'right' => ['type' => 'literal', 'value' => 'a']])),
 );
 $tests['real upstream JSON1/JSONB dynamic json107-1.2.2 text-looking BLOB double-arrow returns SQL scalar'] = static fn (TestRunner $t) => $t->same(
     123,

@@ -7,6 +7,7 @@ use PortLibs\LibSqlite\SQLiteJsonB;
 use PortLibs\LibSqlite\SQLiteJsonCanonical;
 use PortLibs\LibSqlite\SQLiteJsonConstructor;
 use PortLibs\LibSqlite\SQLiteJsonInspection;
+use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteSelectExpression;
 
 $tests = [];
@@ -24,6 +25,7 @@ $binaryExpression = static fn (mixed $left, string $operator, mixed $right): arr
     'right' => $literal($right),
 ];
 $jsonbText = static fn (SQLiteBlobValue $value): string => SQLiteJsonCanonical::json($value);
+$jsonArrowText = static fn (mixed $value): mixed => $value instanceof SQLiteJsonSubtypeValue ? $value->json : $value;
 
 for ($case = 0; $case < 1000; $case++) {
     $positive = INF;
@@ -38,6 +40,7 @@ for ($case = 0; $case < 1000; $case++) {
             $finite,
             $binaryExpression,
             $functionExpression,
+            $jsonArrowText,
             $jsonbText,
         ): void {
             $json = SQLiteJsonConstructor::jsonObjectSqlFunction(
@@ -65,8 +68,8 @@ for ($case = 0; $case < 1000; $case++) {
             $t->same('object', SQLiteJsonInspection::jsonType($json), 'json101-20.1 object type preserved');
             $t->same(INF, SQLiteSelectExpression::evaluate([], $binaryExpression($json, '->>', 'a')), 'json101-20.2 positive infinity double-arrow');
             $t->same(-INF, SQLiteSelectExpression::evaluate([], $binaryExpression($json, '->>', 'b')), 'json101-20.3 negative infinity double-arrow');
-            $t->same('real', SQLiteJsonInspection::jsonType(SQLiteSelectExpression::evaluate([], $binaryExpression($json, '->', 'a'))), 'positive infinity arrow remains JSON real');
-            $t->same('real', SQLiteJsonInspection::jsonType(SQLiteSelectExpression::evaluate([], $binaryExpression($json, '->', 'b'))), 'negative infinity arrow remains JSON real');
+            $t->same('real', SQLiteJsonInspection::jsonType($jsonArrowText(SQLiteSelectExpression::evaluate([], $binaryExpression($json, '->', 'a')))), 'positive infinity arrow remains JSON real');
+            $t->same('real', SQLiteJsonInspection::jsonType($jsonArrowText(SQLiteSelectExpression::evaluate([], $binaryExpression($json, '->', 'b')))), 'negative infinity arrow remains JSON real');
             $t->same($finite, SQLiteSelectExpression::evaluate([], $binaryExpression($json, '->>', 'finite')), 'finite member remains ordinary REAL');
 
             $selectJson = SQLiteSelectExpression::evaluate([], $functionExpression('json_object', ['a', $positive, 'b', $negative]));

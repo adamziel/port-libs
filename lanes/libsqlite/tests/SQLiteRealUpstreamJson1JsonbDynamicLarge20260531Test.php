@@ -10,6 +10,7 @@ use PortLibs\LibSqlite\SQLiteJsonInspection;
 use PortLibs\LibSqlite\SQLiteJsonMutation;
 use PortLibs\LibSqlite\SQLiteJsonPretty;
 use PortLibs\LibSqlite\SQLiteJsonRemove;
+use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteJsonTree;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
 use PortLibs\LibSqlite\SQLiteSelectExpression;
@@ -30,6 +31,7 @@ use PortLibs\LibSqlite\SQLiteSelectExpression;
  */
 
 $tests = [];
+$jsonArrowText = static fn (mixed $value): mixed => $value instanceof SQLiteJsonSubtypeValue ? $value->json : $value;
 
 $canonicalJson = static function (mixed $value): string {
     if (is_string($value)) {
@@ -253,14 +255,14 @@ foreach ($documents as $name => $document) {
     }
 
     $tests['real upstream json107 dynamic legacy blob validity and tree ' . $name] =
-        static function (TestRunner $t) use ($document, $functionExpression, $binaryExpression): void {
+        static function (TestRunner $t) use ($document, $functionExpression, $binaryExpression, $jsonArrowText): void {
             $blob = $document['blob'];
             $t->same(1, SQLiteSelectExpression::evaluate([], $functionExpression('json_valid', $blob)), 'json107 SELECT json_valid text BLOB');
             $t->same(true, SQLiteJsonValidity::jsonValidSqlFunctionArguments('json_valid', [$blob, 1]), 'json107 flag 1 text BLOB valid');
             $t->same(true, SQLiteJsonValidity::jsonValidSqlFunctionArguments('json_valid', [$blob, 2]), 'json107 flag 2 text BLOB valid');
             $t->same(false, SQLiteJsonValidity::jsonValidSqlFunctionArguments('json_valid', [$blob, 4]), 'json107 superficial JSONB flag rejects text BLOB');
             $t->same($document['decoded']['a'], SQLiteSelectExpression::evaluate([], $binaryExpression($blob, '->>', 'a')), 'json107 ->> scalar from text BLOB');
-            $t->same((string) $document['decoded']['a'], SQLiteSelectExpression::evaluate([], $binaryExpression($blob, '->', 'a')), 'json107 -> scalar JSON text from text BLOB');
+            $t->same((string) $document['decoded']['a'], $jsonArrowText(SQLiteSelectExpression::evaluate([], $binaryExpression($blob, '->', 'a'))), 'json107 -> scalar JSON text from text BLOB');
             $t->same('array', SQLiteJsonInspection::jsonType($blob, '$.items'), 'json107 json_type text BLOB');
             $t->same(3, SQLiteJsonInspection::jsonArrayLength($blob, '$.items'), 'json107 json_array_length text BLOB');
             $rows = SQLiteJsonTree::jsonTreeSqlFunctionArguments('json_tree', [$blob]);

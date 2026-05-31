@@ -10684,6 +10684,24 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @param list<array{name:string,for_delete:bool,delete_opcode:bool,role:string}> $opened
+     * @return list<string>
+     */
+    private static function forDeleteFlagSummary(array $opened): array
+    {
+        $summary = [];
+        foreach ($opened as $object) {
+            $summary[] = $object['name']
+                . ($object['for_delete'] ? '*' : '')
+                . ($object['delete_opcode'] ? '+' : '');
+        }
+
+        sort($summary, SORT_STRING);
+
+        return $summary;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,kind:string,sql:string,result_code:int,error:string|null,result_rows:list<array<int,mixed>>,expected:list<mixed>,uses_index:bool,index_name:string|null,catalog_indexes:list<string>,integrity:string,detail:string}>
      */
     public static function indexTestTailSchemaAffinityCases(int $cases = 1000): array
@@ -10730,6 +10748,205 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
             $template['case'] = $case;
             $template['detail'] .= '; dynamic replay ' . (intdiv($case - 1, count($templates)) + 1);
             $out[] = $template;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,sql:string,table_name:string,table_shape:string,predicate_terms:list<string>,driving_object:string|null,opened_objects:list<array{name:string,for_delete:bool,delete_opcode:bool,role:string}>,flag_summary:list<string>,for_delete_count:int,delete_opcode_count:int,uses_rowid:bool,uses_or_optimization:bool,requires_table_payload:bool,integrity:string,detail:string}>
+     */
+    public static function forDeleteOpenWriteFlagCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite fordelete.test OpenWrite flag corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'fordelete-1.1',
+                'primary-key equality delete can mark the table btree FORDELETE while the autoindex drives the seek',
+                'DELETE FROM t1 WHERE a=?',
+                't1',
+                'rowid table with PRIMARY KEY autoindex',
+                ['a=?'],
+                'sqlite_autoindex_t1_1',
+                [
+                    ['name' => 'sqlite_autoindex_t1_1', 'for_delete' => false, 'delete_opcode' => false, 'role' => 'primary-key seek cursor'],
+                    ['name' => 't1', 'for_delete' => true, 'delete_opcode' => true, 'role' => 'table row delete cursor'],
+                ],
+                false,
+                false,
+                false,
+            ],
+            [
+                'fordelete-1.2',
+                'primary-key equality with residual payload term keeps the table btree readable before delete',
+                'DELETE FROM t1 WHERE a=? AND b=?',
+                't1',
+                'rowid table with PRIMARY KEY autoindex',
+                ['a=?', 'b=?'],
+                'sqlite_autoindex_t1_1',
+                [
+                    ['name' => 'sqlite_autoindex_t1_1', 'for_delete' => false, 'delete_opcode' => false, 'role' => 'primary-key seek cursor'],
+                    ['name' => 't1', 'for_delete' => false, 'delete_opcode' => true, 'role' => 'table payload read and delete cursor'],
+                ],
+                false,
+                false,
+                true,
+            ],
+            [
+                'fordelete-1.3',
+                'primary-key range delete keeps the table btree write-only while scanning the autoindex',
+                'DELETE FROM t1 WHERE a>?',
+                't1',
+                'rowid table with PRIMARY KEY autoindex',
+                ['a>?'],
+                'sqlite_autoindex_t1_1',
+                [
+                    ['name' => 'sqlite_autoindex_t1_1', 'for_delete' => false, 'delete_opcode' => false, 'role' => 'primary-key range cursor'],
+                    ['name' => 't1', 'for_delete' => true, 'delete_opcode' => true, 'role' => 'table row delete cursor'],
+                ],
+                false,
+                false,
+                false,
+            ],
+            [
+                'fordelete-1.4',
+                'rowid delete marks the primary-key autoindex FORDELETE while the table rowid cursor remains the source',
+                'DELETE FROM t1 WHERE rowid=?',
+                't1',
+                'rowid table with PRIMARY KEY autoindex',
+                ['rowid=?'],
+                't1',
+                [
+                    ['name' => 'sqlite_autoindex_t1_1', 'for_delete' => true, 'delete_opcode' => false, 'role' => 'secondary primary-key entry delete cursor'],
+                    ['name' => 't1', 'for_delete' => false, 'delete_opcode' => false, 'role' => 'rowid table delete source cursor'],
+                ],
+                true,
+                false,
+                false,
+            ],
+            [
+                'fordelete-2.1',
+                'ordinary indexed equality delete marks non-driving indexes FORDELETE and marks the table delete opcode',
+                'DELETE FROM t2 WHERE a=?',
+                't2',
+                'rowid table with three ordinary indexes',
+                ['a=?'],
+                't2a',
+                [
+                    ['name' => 't2', 'for_delete' => true, 'delete_opcode' => true, 'role' => 'table row delete cursor'],
+                    ['name' => 't2a', 'for_delete' => false, 'delete_opcode' => false, 'role' => 'driving equality index cursor'],
+                    ['name' => 't2b', 'for_delete' => true, 'delete_opcode' => false, 'role' => 'non-driving index delete cursor'],
+                    ['name' => 't2c', 'for_delete' => true, 'delete_opcode' => false, 'role' => 'non-driving index delete cursor'],
+                ],
+                false,
+                false,
+                false,
+            ],
+            [
+                'fordelete-2.2',
+                'unary-plus residual term blocks table FORDELETE but keeps non-driving indexes write-only',
+                'DELETE FROM t2 WHERE a=? AND +b=?',
+                't2',
+                'rowid table with three ordinary indexes',
+                ['a=?', '+b=?'],
+                't2a',
+                [
+                    ['name' => 't2', 'for_delete' => false, 'delete_opcode' => true, 'role' => 'table payload read and delete cursor'],
+                    ['name' => 't2a', 'for_delete' => false, 'delete_opcode' => false, 'role' => 'driving equality index cursor'],
+                    ['name' => 't2b', 'for_delete' => true, 'delete_opcode' => false, 'role' => 'non-driving index delete cursor'],
+                    ['name' => 't2c', 'for_delete' => true, 'delete_opcode' => false, 'role' => 'non-driving index delete cursor'],
+                ],
+                false,
+                false,
+                true,
+            ],
+            [
+                'fordelete-2.3',
+                'OR optimization opens all candidate indexes as FORDELETE while table deletion is rowlist-driven',
+                'DELETE FROM t2 WHERE a=? OR b=?',
+                't2',
+                'rowid table with three ordinary indexes',
+                ['a=?', 'b=?'],
+                'rowlist',
+                [
+                    ['name' => 't2', 'for_delete' => false, 'delete_opcode' => false, 'role' => 'rowlist table delete cursor'],
+                    ['name' => 't2a', 'for_delete' => true, 'delete_opcode' => false, 'role' => 'OR arm index delete cursor'],
+                    ['name' => 't2b', 'for_delete' => true, 'delete_opcode' => false, 'role' => 'OR arm index delete cursor'],
+                    ['name' => 't2c', 'for_delete' => true, 'delete_opcode' => false, 'role' => 'non-driving index delete cursor'],
+                ],
+                false,
+                true,
+                false,
+            ],
+            [
+                'fordelete-2.4',
+                'unary-plus scan delete opens every secondary index FORDELETE and leaves the table scan cursor unflagged',
+                'DELETE FROM t2 WHERE +a=?',
+                't2',
+                'rowid table with three ordinary indexes',
+                ['+a=?'],
+                't2',
+                [
+                    ['name' => 't2', 'for_delete' => false, 'delete_opcode' => false, 'role' => 'table scan delete source cursor'],
+                    ['name' => 't2a', 'for_delete' => true, 'delete_opcode' => false, 'role' => 'secondary index delete cursor'],
+                    ['name' => 't2b', 'for_delete' => true, 'delete_opcode' => false, 'role' => 'secondary index delete cursor'],
+                    ['name' => 't2c', 'for_delete' => true, 'delete_opcode' => false, 'role' => 'secondary index delete cursor'],
+                ],
+                false,
+                false,
+                false,
+            ],
+            [
+                'fordelete-2.5',
+                'rowid delete on a table with ordinary indexes uses unflagged table cursor and FORDELETE index cursors',
+                'DELETE FROM t2 WHERE rowid=?',
+                't2',
+                'rowid table with three ordinary indexes',
+                ['rowid=?'],
+                't2',
+                [
+                    ['name' => 't2', 'for_delete' => false, 'delete_opcode' => false, 'role' => 'rowid table delete source cursor'],
+                    ['name' => 't2a', 'for_delete' => true, 'delete_opcode' => false, 'role' => 'secondary index delete cursor'],
+                    ['name' => 't2b', 'for_delete' => true, 'delete_opcode' => false, 'role' => 'secondary index delete cursor'],
+                    ['name' => 't2c', 'for_delete' => true, 'delete_opcode' => false, 'role' => 'secondary index delete cursor'],
+                ],
+                true,
+                false,
+                false,
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $sql, $table, $shape, $terms, $driving, $opened, $usesRowid, $usesOr, $requiresTablePayload] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $forDeleteCount = count(array_filter($opened, static fn (array $object): bool => $object['for_delete']));
+            $deleteOpcodeCount = count(array_filter($opened, static fn (array $object): bool => $object['delete_opcode']));
+
+            $out[] = [
+                'source' => 'fordelete.test sections fordelete-1.1 through fordelete-2.5',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario . ' dynamic replay ' . $batch,
+                'sql' => $sql,
+                'table_name' => $table,
+                'table_shape' => $shape,
+                'predicate_terms' => $terms,
+                'driving_object' => $driving,
+                'opened_objects' => $opened,
+                'flag_summary' => self::forDeleteFlagSummary($opened),
+                'for_delete_count' => $forDeleteCount,
+                'delete_opcode_count' => $deleteOpcodeCount,
+                'uses_rowid' => $usesRowid,
+                'uses_or_optimization' => $usesOr,
+                'requires_table_payload' => $requiresTablePayload,
+                'integrity' => 'ok',
+                'detail' => $section . ' ' . $scenario . '; dynamic replay ' . $batch,
+            ];
         }
 
         return $out;
@@ -11350,6 +11567,347 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
             $template['batch'] = intdiv($case - 1, count($templates)) + 1;
             $template['detail'] .= '; dynamic replay ' . $template['batch'];
             $out[] = $template;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    public static function where3LeftJoinReorderPlannerCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite where3 left-join planner dynamic corpus requires at least one case');
+        }
+
+        $flatten = static function (array $rows): array {
+            $flat = [];
+            foreach ($rows as $row) {
+                foreach ($row as $value) {
+                    $flat[] = $value;
+                }
+            }
+
+            return $flat;
+        };
+
+        $template = static function (
+            string $section,
+            string $scenario,
+            string $statement,
+            string $joinShape,
+            array $resultRows,
+            array $planOrder,
+            array $chosenIndexes,
+            bool $usesLeftJoin,
+            int $nullExtendedRows,
+            bool $joinReorderedBeforeLeft,
+            bool $naturalOrUsing,
+            ?string $disabledOptimization,
+            bool $usesTempBtree,
+            bool $usesPrimaryKeyLookup,
+            bool $usesCompositeEquality,
+            array $onTerms,
+            array $whereTerms,
+            string $detail,
+        ) use ($flatten): array {
+            return [
+                'source' => 'where3.test selected sections where3-1.1 through where3-8.2',
+                'case' => 0,
+                'upstream_section' => $section,
+                'batch' => 0,
+                'scenario' => $scenario,
+                'statement' => $statement,
+                'join_shape' => $joinShape,
+                'result_rows' => $resultRows,
+                'result_flat' => $flatten($resultRows),
+                'plan_order' => $planOrder,
+                'chosen_indexes' => array_values(array_unique($chosenIndexes)),
+                'uses_left_join' => $usesLeftJoin,
+                'null_extended_rows' => $nullExtendedRows,
+                'join_reordered_before_left' => $joinReorderedBeforeLeft,
+                'natural_or_using' => $naturalOrUsing,
+                'disabled_optimization' => $disabledOptimization,
+                'uses_temp_btree' => $usesTempBtree,
+                'uses_primary_key_lookup' => $usesPrimaryKeyLookup,
+                'uses_composite_equality' => $usesCompositeEquality,
+                'on_terms' => $onTerms,
+                'where_terms' => $whereTerms,
+                'integrity' => 'ok',
+                'detail' => $detail,
+            ];
+        };
+
+        $templates = [
+            $template(
+                'where3-1.1',
+                'comma join before LEFT JOIN may reorder t2 first but keeps t1 before null-extension',
+                'SELECT * FROM t1, t2 LEFT JOIN t3 ON q=x WHERE p=2 AND a=q',
+                'comma-left-join',
+                [[222, 'two', 2, 222, null, null]],
+                ['t2', 't1', 't3'],
+                ['t2i1', 't3i1'],
+                true,
+                1,
+                true,
+                false,
+                null,
+                false,
+                false,
+                false,
+                ['q=x'],
+                ['p=2', 'a=q'],
+                'SEARCH t2 USING INDEX t2i1 (p=?); SCAN t1; SEARCH t3 USING INDEX t3i1 (x=?) LEFT-JOIN',
+            ),
+            $template(
+                'where3-1.2',
+                'LEFT OUTER child lookup followed by INNER child lookup preserves unmatched parent row',
+                'SELECT parent1.parent1key, child1.value, child2.value FROM parent1 LEFT OUTER JOIN child1 ON child1.child1key=parent1.child1key INNER JOIN child2 ON child2.child2key=parent1.child2key',
+                'left-then-inner',
+                [[1, 'Value for C1.1', 'Value for C2.1'], [2, null, 'Value for C2.2'], [3, 'Value for C1.3', 'Value for C2.3']],
+                ['parent1', 'child1', 'child2'],
+                ['PKIDXChild1'],
+                true,
+                1,
+                false,
+                false,
+                null,
+                false,
+                false,
+                false,
+                ['child1.child1key=parent1.child1key', 'child2.child2key=parent1.child2key'],
+                [],
+                'LEFT OUTER JOIN child1 may produce a NULL child1 row before the required child2 inner join',
+            ),
+        ];
+
+        foreach ([
+            ['where3-2.1', 'cpk=bx AND bpk=ax', ['tA', 'tB', 'tC', 'tD']],
+            ['where3-2.1.1', 'cpk=bx AND bpk=ax with commuted ON term', ['tA', 'tB', 'tC', 'tD']],
+            ['where3-2.1.2', 'bx=cpk AND bpk=ax', ['tA', 'tB', 'tC', 'tD']],
+            ['where3-2.1.3', 'bx=cpk AND ax=bpk', ['tA', 'tB', 'tC', 'tD']],
+            ['where3-2.1.4', 'bx=cpk AND ax=bpk with original ON term', ['tA', 'tB', 'tC', 'tD']],
+            ['where3-2.1.5', 'cpk=bx AND ax=bpk', ['tA', 'tB', 'tC', 'tD']],
+            ['where3-2.2', 'cpk=bx AND apk=bx', ['tB', 'tA', 'tC', 'tD']],
+            ['where3-2.3', 'cpk=bx AND apk=bx repeated after planner warmup', ['tB', 'tA', 'tC', 'tD']],
+            ['where3-2.4', 'apk=cx AND bpk=ax', ['tC', 'tA', 'tB', 'tD']],
+            ['where3-2.5', 'cpk=ax AND bpk=cx', ['tA', 'tC', 'tB', 'tD']],
+            ['where3-2.6', 'bpk=cx AND apk=bx', ['tC', 'tB', 'tA', 'tD']],
+            ['where3-2.7', 'cpk=bx AND apk=cx', ['tB', 'tC', 'tA', 'tD']],
+        ] as [$section, $where, $order]) {
+            $templates[] = $template(
+                $section,
+                'tables before the LEFT JOIN may be reordered around equality constraints',
+                'SELECT * FROM tA, tB, tC LEFT JOIN tD ON dpk=cx WHERE ' . $where,
+                'three-way-before-left-join',
+                [],
+                $order,
+                [],
+                true,
+                0,
+                true,
+                false,
+                null,
+                false,
+                false,
+                false,
+                ['dpk=cx'],
+                explode(' AND ', $where),
+                'planner order ' . implode(' -> ', $order) . ' keeps tD as the right side of the LEFT JOIN',
+            );
+        }
+
+        foreach ([
+            ['where3-3.0a', 'SELECT * FROM t302, t301 WHERE t302.x=5 AND t301.a=t302.y', ['t302', 't301'], [[4, 5, 1, 2, 3], [4, 5, 2, 2, 3]], false],
+            ['where3-3.1', 'SELECT * FROM t301, t302 WHERE t302.x=5 AND t301.a=t302.y', ['t302', 't301'], [[4, 5, 1, 2, 3], [4, 5, 2, 2, 3]], false],
+            ['where3-3.2', 'SELECT * FROM t301 WHERE c=3 AND a IS NULL', ['t301'], [], false],
+            ['where3-3.3', 'SELECT * FROM t301 WHERE c=3 AND a IS NOT NULL', ['t301'], [[1, 2, 3], [2, 2, 3]], false],
+        ] as [$section, $sql, $order, $rows, $leftJoin]) {
+            $templates[] = $template(
+                $section,
+                'ANALYZE must not move an indexable primary-key lookup into an unsafe outer-loop position',
+                $sql,
+                'analyze-primary-key-join',
+                $rows,
+                $order,
+                in_array('t301', $order, true) ? ['t301 INTEGER PRIMARY KEY', 't301c'] : [],
+                $leftJoin,
+                0,
+                count($order) > 1,
+                false,
+                null,
+                false,
+                true,
+                false,
+                [],
+                str_contains($sql, 'WHERE ') ? [substr($sql, strpos($sql, 'WHERE ') + 6)] : [],
+                'SEARCH t301 USING INTEGER PRIMARY KEY (rowid=?) remains an inner lookup after ANALYZE',
+            );
+        }
+
+        foreach ([
+            ['where3-5.0a', 'aaa JOIN bbb ON bbb.id = aaa.parent', ['aaa', 'bbb']],
+            ['where3-5.1', 'aaa JOIN aaa AS bbb ON bbb.id = aaa.parent', ['aaa', 'bbb']],
+            ['where3-5.2', 'bbb JOIN aaa ON bbb.id = aaa.parent', ['aaa', 'bbb']],
+            ['where3-5.3', 'aaa AS bbb JOIN aaa ON bbb.id = aaa.parent', ['aaa', 'bbb']],
+        ] as [$section, $from, $order]) {
+            $templates[] = $template(
+                $section,
+                'tag-title join must probe the parent rowid after the fk index and sort explicitly',
+                'SELECT bbb.title AS tag_title FROM ' . $from . " WHERE aaa.fk='constant' AND LENGTH(bbb.title)>0 AND bbb.parent=4 ORDER BY bbb.title COLLATE NOCASE ASC",
+                'performance-regression-join',
+                [],
+                $order,
+                ['aaa_333', 'bbb INTEGER PRIMARY KEY'],
+                false,
+                0,
+                true,
+                false,
+                null,
+                true,
+                true,
+                false,
+                ['bbb.id=aaa.parent'],
+                ["aaa.fk='constant'", 'LENGTH(bbb.title)>0', 'bbb.parent=4'],
+                'SEARCH aaa USING INDEX aaa_333 (fk=?); SEARCH bbb USING INTEGER PRIMARY KEY (rowid=?); USE TEMP B-TREE FOR ORDER BY',
+            );
+        }
+
+        $naturalRows = [
+            [1, 'w-one', 'x-one', 'y-one', 'z-one'],
+            [9, 'w-nine', 'x-nine', 'y-nine', 'z-nine'],
+        ];
+        $predicates = [
+            ['', [], null],
+            ['ORDER BY a', [], 'a'],
+            ['ORDER BY t6w.a', [], 't6w.a'],
+            ['WHERE a>0', ['a>0'], null],
+            ['WHERE t6y.a>0', ['t6y.a>0'], null],
+            ['WHERE a>0 ORDER BY a', ['a>0'], 'a'],
+        ];
+        $joinForms = [
+            ['1', 't6w NATURAL JOIN t6x NATURAL JOIN t6y NATURAL JOIN t6z'],
+            ['2', 't6w JOIN t6x USING(a) JOIN t6y USING(a) JOIN t6z USING(a)'],
+            ['3', 't6w NATURAL JOIN t6x JOIN t6y USING(a) JOIN t6z USING(a)'],
+            ['4', 't6w JOIN t6x USING(a) NATURAL JOIN t6y JOIN t6z USING(a)'],
+            ['5', 't6w JOIN t6x USING(a) JOIN t6y USING(a) NATURAL JOIN t6z'],
+            ['6', 't6w JOIN t6x USING(a) NATURAL JOIN t6y NATURAL JOIN t6z'],
+            ['7', 't6w NATURAL JOIN t6x JOIN t6y USING(a) NATURAL JOIN t6z'],
+            ['8', 't6w NATURAL JOIN t6x NATURAL JOIN t6y JOIN t6z USING(a)'],
+        ];
+        foreach ($predicates as $predicateIndex => [$suffix, $whereTerms, $orderBy]) {
+            foreach ($joinForms as [$form, $from]) {
+                $section = 'where3-6.' . ($predicateIndex + 1) . '.' . $form;
+                $templates[] = $template(
+                    $section,
+                    'NATURAL JOIN and USING(a) resolve the shared a column identically',
+                    trim('SELECT * FROM ' . $from . ' ' . $suffix),
+                    'natural-using-name-resolution',
+                    $naturalRows,
+                    ['t6w', 't6x', 't6y', 't6z'],
+                    [],
+                    false,
+                    0,
+                    false,
+                    true,
+                    null,
+                    $orderBy === null ? false : false,
+                    false,
+                    false,
+                    ['USING(a) or NATURAL shared column a'],
+                    $whereTerms,
+                    'all NATURAL/USING variants return the same two joined rows for the shared a column',
+                );
+            }
+        }
+
+        $leftJoinResults = [
+            ['1', 'SELECT x1 FROM t71 LEFT JOIN t72 ON x2=y1', [[123]], 0, false],
+            ['2', 'SELECT x1 FROM t71 LEFT JOIN t72 ON x2=y1 WHERE y2 IS NULL', [], 0, false],
+            ['3', 'SELECT x1 FROM t71 LEFT JOIN t72 ON x2=y1 WHERE y2 IS NOT NULL', [[123]], 0, false],
+            ['4', 'SELECT x1 FROM t71 LEFT JOIN t72 ON x2=y1 AND y2 IS NULL', [[123]], 1, false],
+            ['5', 'SELECT x1 FROM t71 LEFT JOIN t72 ON x2=y1 AND y2 IS NOT NULL', [[123]], 0, false],
+            ['6', 'SELECT x3 FROM t73 LEFT JOIN t72 ON x2=y3', [[123]], 0, false],
+            ['7', 'SELECT DISTINCT x3 FROM t73 LEFT JOIN t72 ON x2=y3', [[123]], 0, false],
+            ['8', 'SELECT x3 FROM t73 LEFT JOIN t74 ON x4=y3', [[123], [123]], 0, false],
+            ['9', 'SELECT DISTINCT x3 FROM t73 LEFT JOIN t74 ON x4=y3', [[123]], 0, false],
+        ];
+        foreach (['none', 'omit-noop-join', 'all'] as $disabled) {
+            foreach ($leftJoinResults as [$suffix, $sql, $rows, $nullRows, $tempSort]) {
+                $templates[] = $template(
+                    'where3-7.' . $disabled . '.' . $suffix,
+                    'LEFT JOIN result stability while toggling omit-noop-join optimization',
+                    $sql,
+                    'left-join-optimization-toggle',
+                    $rows,
+                    str_contains($sql, 't74') ? ['t73', 't74'] : (str_contains($sql, 't73') ? ['t73', 't72'] : ['t71', 't72']),
+                    str_contains($sql, 't74') ? [] : ['t72 INTEGER PRIMARY KEY'],
+                    true,
+                    $nullRows,
+                    false,
+                    false,
+                    $disabled,
+                    $tempSort,
+                    str_contains($sql, 't72'),
+                    false,
+                    str_contains($sql, ' AND ') ? [substr($sql, strpos($sql, ' ON ') + 4)] : ['x2=y1'],
+                    str_contains($sql, ' WHERE ') ? [substr($sql, strpos($sql, ' WHERE ') + 7)] : [],
+                    'optimization_control ' . $disabled . ' preserves LEFT JOIN result rows and DISTINCT behavior',
+                );
+            }
+        }
+
+        $templates[] = $template(
+            'where3-8.1',
+            'join predicate plus outer WHERE term must constrain both columns of composite index',
+            'SELECT 1 FROM t1 JOIN t2 ON x=c AND y=d WHERE d>0',
+            'composite-index-join',
+            [[1]],
+            ['t1', 't2'],
+            ['t2xy'],
+            false,
+            0,
+            false,
+            false,
+            null,
+            false,
+            false,
+            true,
+            ['x=c', 'y=d'],
+            ['d>0'],
+            'result row is preserved while t2xy is eligible for equality on both x and y',
+        );
+        $templates[] = $template(
+            'where3-8.2',
+            'EXPLAIN QUERY PLAN shows x=? AND y=? rather than weakening y to a range',
+            'EXPLAIN QUERY PLAN SELECT 1 FROM t1 JOIN t2 ON x=c AND y=d WHERE d>0',
+            'composite-index-join-eqp',
+            [],
+            ['t1', 't2'],
+            ['t2xy'],
+            false,
+            0,
+            false,
+            false,
+            null,
+            false,
+            false,
+            true,
+            ['x=c', 'y=d'],
+            ['d>0'],
+            'SEARCH t2 USING COVERING INDEX t2xy (x=? AND y=?)',
+        );
+
+        $out = [];
+        $templateCount = count($templates);
+        for ($case = 1; $case <= $cases; $case++) {
+            $row = $templates[($case - 1) % $templateCount];
+            $row['case'] = $case;
+            $row['batch'] = intdiv($case - 1, $templateCount) + 1;
+            $row['scenario'] .= ' dynamic replay ' . $row['batch'];
+            $row['detail'] .= '; where3 dynamic replay ' . $row['batch'];
+            $out[] = $row;
         }
 
         return $out;

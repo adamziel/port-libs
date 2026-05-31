@@ -1511,6 +1511,128 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function fallocateChunkLifecycleProfile(
+        string $scenario,
+        int $chunkSize,
+        string $journalMode,
+        int $pageSize,
+        int $largePayloadBytes,
+        int $secondLargePayloadBytes,
+        int $smallPayloadBytes = 128,
+        bool $readerPinned = false
+    ): array {
+        $scenario = trim($scenario);
+        $journalMode = strtolower(trim($journalMode));
+        if ($scenario === '' || (!str_starts_with($scenario, 'fallocate-1.') && !str_starts_with($scenario, 'fallocate-2.'))) {
+            throw new \InvalidArgumentException("Unsupported SQLite fallocate.test scenario: {$scenario}");
+        }
+        if (!in_array($journalMode, ['delete', 'wal'], true)) {
+            throw new \InvalidArgumentException('SQLite fallocate.test journal mode must be delete or wal');
+        }
+        if (str_starts_with($scenario, 'fallocate-1.') && $journalMode !== 'delete') {
+            throw new \InvalidArgumentException('SQLite fallocate-1.* scenarios model rollback-journal chunk preallocation');
+        }
+        if (str_starts_with($scenario, 'fallocate-2.') && $journalMode !== 'wal') {
+            throw new \InvalidArgumentException('SQLite fallocate-2.* scenarios model WAL chunk preallocation');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite fallocate.test page size must be a power of two at least 512');
+        }
+        if ($chunkSize < $pageSize || $chunkSize % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite fallocate.test chunk size must be a positive page-size multiple');
+        }
+        foreach ([
+            'large payload bytes' => $largePayloadBytes,
+            'second large payload bytes' => $secondLargePayloadBytes,
+            'small payload bytes' => $smallPayloadBytes,
+        ] as $label => $bytes) {
+            if ($bytes < 1) {
+                throw new \InvalidArgumentException("SQLite fallocate.test {$label} must be positive");
+            }
+        }
+
+        $afterFirstInsert = self::align(max($chunkSize, $largePayloadBytes + (2 * $pageSize)), $chunkSize);
+        $afterSecondInsert = self::align(max($chunkSize, $largePayloadBytes + $secondLargePayloadBytes + (2 * $pageSize)), $chunkSize);
+        $afterDeleteFirst = self::align(max($chunkSize, $secondLargePayloadBytes + (2 * $pageSize)), $chunkSize);
+        $afterMixedWalVacuum = self::align(max($chunkSize, $largePayloadBytes + $smallPayloadBytes + (2 * $pageSize)), $chunkSize);
+        $logicalPageCountAfterCommit = max(2, (int) ceil(($smallPayloadBytes + (2 * $pageSize)) / $pageSize));
+
+        $profile = [
+            'status' => 'ok',
+            'script' => 'fallocate.test',
+            'scenario' => $scenario,
+            'journal_mode' => $journalMode,
+            'chunk_size' => $chunkSize,
+            'page_size' => $pageSize,
+            'large_payload_bytes' => $largePayloadBytes,
+            'second_large_payload_bytes' => $secondLargePayloadBytes,
+            'small_payload_bytes' => $smallPayloadBytes,
+            'initial_file_bytes_after_create' => $chunkSize,
+            'chunk_aligned_files' => true,
+            'dependencies' => [
+                'upstream-fallocate-test',
+                'sqlite-vfs-chunk-size-preallocation',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+
+        if ($journalMode === 'delete') {
+            return $profile + [
+                'upstream' => [
+                    'fallocate.test fallocate-1.1 auto_vacuum create table preallocates one chunk',
+                    'fallocate.test fallocate-1.2 first large row stays in first chunk',
+                    'fallocate.test fallocate-1.3 second large row grows to the next chunk',
+                    'fallocate.test fallocate-1.4 delete of first row truncates to one chunk',
+                    'fallocate.test fallocate-1.5 delete of second row keeps one chunk',
+                    'fallocate.test fallocate-1.6 freelist_count returns zero after auto-vacuum',
+                    'fallocate.test fallocate-1.7 transaction header records logical page count before truncation',
+                    'fallocate.test fallocate-1.8 commit separates logical page_count from file pages',
+                    'fallocate.test fallocate-1.9 max_page_count remains enforceable after chunk preallocation',
+                ],
+                'auto_vacuum' => true,
+                'file_bytes_after_first_insert' => $afterFirstInsert,
+                'file_bytes_after_second_insert' => $afterSecondInsert,
+                'file_bytes_after_delete_first_row' => $afterDeleteFirst,
+                'file_bytes_after_delete_all_rows' => $chunkSize,
+                'freelist_count_after_deletes' => 0,
+                'journal_database_size_pages' => intdiv($chunkSize, $pageSize),
+                'logical_page_count_after_commit' => $logicalPageCountAfterCommit,
+                'file_pages_after_commit' => intdiv($chunkSize, $pageSize),
+                'max_page_count_after_pragma' => 100,
+                'reason' => 'chunk_size_preallocation_tracks_disk_file_size_not_logical_page_count',
+            ];
+        }
+
+        return $profile + [
+            'upstream' => [
+                'fallocate.test fallocate-2.1 WAL create table preallocates one chunk',
+                'fallocate.test fallocate-2.2 large insert checkpoint grows to next WAL chunk',
+                'fallocate.test fallocate-2.3 VACUUM before checkpoint does not shrink while frames remain',
+                'fallocate.test fallocate-2.4 checkpoint truncates back to one chunk',
+                'fallocate.test fallocate-2.5 mixed insert/delete/VACUUM grows back to next chunk',
+                'fallocate.test fallocate-2.6 reader pin prevents checkpoint truncation',
+                'fallocate.test fallocate-2.7 pinned reader still sees original rowset',
+                'fallocate.test fallocate-2.8 reader release allows checkpoint truncation',
+            ],
+            'wal_file_bytes_after_create' => $chunkSize,
+            'file_bytes_after_wal_checkpoint_large_insert' => $afterFirstInsert,
+            'file_bytes_after_wal_delete_vacuum_before_checkpoint' => $afterFirstInsert,
+            'file_bytes_after_wal_checkpoint_truncate' => $chunkSize,
+            'file_bytes_after_wal_mixed_vacuum' => $afterMixedWalVacuum,
+            'reader_pinned' => $readerPinned,
+            'file_bytes_after_reader_pinned_checkpoint' => $readerPinned ? $afterMixedWalVacuum : null,
+            'pinned_reader_visible_rows' => $readerPinned ? 1 : null,
+            'file_bytes_after_reader_release_checkpoint' => $readerPinned ? $chunkSize : null,
+            'checkpoint_sequence' => $readerPinned
+                ? ['checkpoint-large-insert', 'vacuum-before-checkpoint', 'checkpoint-truncate', 'checkpoint-reader-blocked', 'reader-release-checkpoint']
+                : ['checkpoint-large-insert', 'vacuum-before-checkpoint', 'checkpoint-truncate'],
+            'reason' => 'wal_checkpoint_respects_chunk_size_and_reader_pinned_truncation_boundary',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function reserveBytesVacuumHeaderProfile(
         int $initialReserveBytes,
         int $firstRequestedReserveBytes,

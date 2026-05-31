@@ -4648,6 +4648,9 @@ final class SQLiteSelectSql
                 'right' => self::valueExpression($right, $tables),
             ];
         }
+        if (preg_match('/^[+-]?0[xX][0-9A-Fa-f]+$/', $sql) === 1) {
+            return ['type' => 'literal', 'value' => self::hexIntegerLiteralValue($sql)];
+        }
         if (preg_match('/^[+-]?[0-9]+$/', $sql) === 1) {
             return ['type' => 'literal', 'value' => self::integerLiteralValue($sql)];
         }
@@ -4792,6 +4795,9 @@ final class SQLiteSelectSql
                 ],
             ];
         }
+        if (preg_match('/^[+-]?0[xX][0-9A-Fa-f]+$/', $sql) === 1) {
+            return ['type' => 'literal', 'value' => self::hexIntegerLiteralValue($sql)];
+        }
         if (preg_match('/^[+-]?[0-9]+$/', $sql) === 1) {
             return ['type' => 'literal', 'value' => self::integerLiteralValue($sql)];
         }
@@ -4889,6 +4895,70 @@ final class SQLiteSelectSql
         $value = (int) $digits;
 
         return $negative ? -$value : $value;
+    }
+
+    private static function hexIntegerLiteralValue(string $sql): int
+    {
+        if (preg_match('/^([+-]?)0[xX]([0-9A-Fa-f]+)$/', $sql, $match) !== 1) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL expression {$sql} is not a hexadecimal integer literal");
+        }
+
+        $sign = $match[1];
+        $digits = ltrim($match[2], '0');
+        if ($digits === '') {
+            return 0;
+        }
+        if (strlen($digits) > 16) {
+            throw new \InvalidArgumentException("hex literal too big: {$sql}");
+        }
+
+        $value = self::signedHex64Value(strtolower(str_pad($digits, 16, '0', STR_PAD_LEFT)));
+        if ($sign !== '-') {
+            return $value;
+        }
+        if ($value === PHP_INT_MIN) {
+            throw new \InvalidArgumentException("hex literal too big: {$sql}");
+        }
+
+        return -$value;
+    }
+
+    private static function signedHex64Value(string $hex): int
+    {
+        if (strlen($hex) !== 16 || preg_match('/^[0-9a-f]{16}$/', $hex) !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL hexadecimal literal is malformed');
+        }
+        if (strcmp($hex, '8000000000000000') < 0) {
+            return self::hexMagnitudeValue($hex);
+        }
+        if ($hex === '8000000000000000') {
+            return PHP_INT_MIN;
+        }
+
+        $complement = '';
+        for ($i = 0; $i < 16; $i++) {
+            $complement .= dechex(15 - hexdec($hex[$i]));
+        }
+
+        return -(self::hexMagnitudeValue($complement) + 1);
+    }
+
+    private static function hexMagnitudeValue(string $hex): int
+    {
+        $value = 0;
+        $length = strlen($hex);
+        for ($i = 0; $i < $length; $i++) {
+            $digit = hexdec($hex[$i]);
+            if (!is_int($digit)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL hexadecimal literal is malformed');
+            }
+            if ($value > intdiv(PHP_INT_MAX - $digit, 16)) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL hexadecimal literal magnitude is too large');
+            }
+            $value = ($value * 16) + $digit;
+        }
+
+        return $value;
     }
 
     private static function columnIdentifierExpression(string $sql): ?string

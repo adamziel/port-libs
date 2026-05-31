@@ -11,6 +11,7 @@ use PortLibs\LibSqlite\SQLiteJsonMutation;
 use PortLibs\LibSqlite\SQLiteJsonPatch;
 use PortLibs\LibSqlite\SQLiteJsonTree;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
+use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteSelectExpression;
 
 $tests = [];
@@ -27,6 +28,7 @@ $functionExpression = static fn (string $name, array $arguments): array => [
     'name' => $name,
     'arguments' => array_map($literal, $arguments),
 ];
+$jsonArrowText = static fn (mixed $value): mixed => $value instanceof SQLiteJsonSubtypeValue ? $value->json : $value;
 $encode = static function (mixed $value): string {
     $encoded = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
     if (!is_string($encoded)) {
@@ -120,11 +122,11 @@ for ($case = 0; $case < 126; $case++) {
         };
 
     $tests['real upstream json502 escaped operator rhs label ' . $case] =
-        static function (TestRunner $t) use ($json, $blob, $binaryExpression, $escapedBareLabel, $scalar): void {
+        static function (TestRunner $t) use ($json, $blob, $binaryExpression, $escapedBareLabel, $jsonArrowText, $scalar): void {
             $t->same($scalar, SQLiteSelectExpression::evaluate([], $binaryExpression($json, '->>', $escapedBareLabel)), 'json502-3.2 escaped operator RHS extracts text JSON');
-            $t->same((string) $scalar, SQLiteSelectExpression::evaluate([], $binaryExpression($json, '->', $escapedBareLabel)), 'json502-3.2 escaped operator RHS returns JSON text');
+            $t->same((string) $scalar, $jsonArrowText(SQLiteSelectExpression::evaluate([], $binaryExpression($json, '->', $escapedBareLabel))), 'json502-3.2 escaped operator RHS returns JSON text');
             $t->same($scalar, SQLiteSelectExpression::evaluate([], $binaryExpression($blob, '->>', $escapedBareLabel)), 'json502-3.2 escaped operator RHS extracts JSONB');
-            $t->same((string) $scalar, SQLiteSelectExpression::evaluate([], $binaryExpression($blob, '->', $escapedBareLabel)), 'json502-3.2 escaped operator RHS returns JSONB JSON text');
+            $t->same((string) $scalar, $jsonArrowText(SQLiteSelectExpression::evaluate([], $binaryExpression($blob, '->', $escapedBareLabel))), 'json502-3.2 escaped operator RHS returns JSONB JSON text');
         };
 
     $tests['real upstream json502 quoted backslash label extract and tree ' . $case] =

@@ -8,6 +8,7 @@ use PortLibs\LibSqlite\SQLiteJsonCanonical;
 use PortLibs\LibSqlite\SQLiteJsonExtract;
 use PortLibs\LibSqlite\SQLiteJsonMutation;
 use PortLibs\LibSqlite\SQLiteJsonPatch;
+use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteSelectExpression;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
@@ -23,6 +24,7 @@ $jsonText = static function (mixed $value): string {
 };
 $jsonb = static fn (mixed $value): SQLiteBlobValue => new SQLiteBlobValue(SQLiteJsonB::encode($value));
 $jsonbText = static fn (SQLiteBlobValue $value): string => SQLiteJsonCanonical::json($value);
+$jsonArrowText = static fn (mixed $value): mixed => $value instanceof SQLiteJsonSubtypeValue ? $value->json : $value;
 $literal = static fn (mixed $value): array => ['type' => 'literal', 'value' => $value];
 $binary = static fn (mixed $left, mixed $right, string $operator): array => [
     'type' => 'binary',
@@ -79,6 +81,7 @@ foreach ($escapedLabelScenarios as $scenario => $case) {
                 $expectedMutated,
                 $expectedPatched,
                 $expectedArrow,
+                $jsonArrowText,
                 $jsonbText,
                 $mutationPath,
                 $patch,
@@ -93,7 +96,7 @@ foreach ($escapedLabelScenarios as $scenario => $case) {
                 $t->same($value, SQLiteJsonExtract::extract($sourceJsonb, $case['path']), 'jsonb json_extract escaped path');
                 $t->same($value, SQLiteSelectExpression::evaluate([], $binary($source, $case['rhs'], '->>')), 'select expression operator decodes RHS label');
                 $t->same($value, SQLiteSelectExpression::evaluate([], $binary($sourceJsonb, $case['rhs'], '->>')), 'select expression JSONB operator decodes RHS label');
-                $t->same($expectedArrow, SQLiteSelectExpression::evaluate([], $binary($source, $case['rhs'], '->')), 'select expression operator preserves located JSON text result');
+                $t->same($expectedArrow, $jsonArrowText(SQLiteSelectExpression::evaluate([], $binary($source, $case['rhs'], '->'))), 'select expression operator preserves located JSON text result');
 
                 $rows = [
                     ['setting_id' => 1, 'key_value' => $source],
