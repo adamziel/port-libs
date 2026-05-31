@@ -91,4 +91,67 @@ final class SQLiteWalReadonlyShmPlan
             ],
         ];
     }
+
+    /**
+     * @param list<array{0:string, 1:string}> $rowsBeforeCheckpoint
+     * @param list<array{0:string, 1:string}> $rowsAfterCheckpoint
+     * @return array<string, mixed>
+     */
+    public static function concurrentCheckpointReadonlySnapshot(
+        bool $databaseExists,
+        bool $walExists,
+        bool $shmExists,
+        bool $readonlyShm,
+        bool $checkpointInProgress,
+        int $pageSize,
+        int $checkpointFrameCount,
+        int $checkpointBackfilledFrameCount,
+        array $rowsBeforeCheckpoint,
+        array $rowsAfterCheckpoint
+    ): array {
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite readonly WAL checkpoint snapshot planning requires a power-of-two page size of at least 512');
+        }
+        if ($checkpointFrameCount < 0 || $checkpointBackfilledFrameCount < 0) {
+            throw new \InvalidArgumentException('SQLite readonly WAL checkpoint snapshot planning requires non-negative checkpoint frame counts');
+        }
+        if ($checkpointBackfilledFrameCount > $checkpointFrameCount) {
+            throw new \InvalidArgumentException('SQLite readonly WAL checkpoint snapshot planning cannot backfill past the checkpoint frame count');
+        }
+        if ($rowsBeforeCheckpoint === [] || $rowsAfterCheckpoint === []) {
+            throw new \InvalidArgumentException('SQLite readonly WAL checkpoint snapshot planning requires before and after rowsets');
+        }
+
+        $canOpen = $databaseExists && $walExists && $shmExists && $readonlyShm;
+        $usesWalSnapshot = $canOpen && $checkpointInProgress;
+        $rows = $canOpen
+            ? ($usesWalSnapshot ? $rowsBeforeCheckpoint : $rowsAfterCheckpoint)
+            : [];
+
+        return [
+            'status' => $canOpen ? 'readonly-checkpoint-snapshot-open' : 'readonly-checkpoint-snapshot-blocked',
+            'reason' => $canOpen
+                ? ($usesWalSnapshot ? 'readonly_shm_uses_wal_snapshot_during_checkpoint_sync' : 'readonly_shm_uses_checkpointed_database_after_sync')
+                : 'readonly_checkpoint_snapshot_requires_existing_database_wal_and_shm',
+            'checkpoint_in_progress' => $checkpointInProgress,
+            'readonly_shm' => $readonlyShm,
+            'page_size' => $pageSize,
+            'checkpoint_frame_count' => $checkpointFrameCount,
+            'checkpoint_backfilled_frame_count' => $checkpointBackfilledFrameCount,
+            'checkpoint_complete' => $checkpointFrameCount === $checkpointBackfilledFrameCount,
+            'snapshot_source' => $usesWalSnapshot ? 'wal-readonly-snapshot' : 'checkpointed-database',
+            'rows' => $rows,
+            'row_count' => count($rows),
+            'extended_errcode' => $canOpen ? 'SQLITE_OK' : 'SQLITE_CANTOPEN',
+            'write_denials' => $canOpen ? [
+                ['statement' => 'PRAGMA wal_checkpoint', 'error' => 'attempt to write a readonly database'],
+            ] : [],
+            'source' => 'upstream walro.test 2.1.1 through 2.1.4 readonly_shm reader opens during checkpoint xSync hook',
+            'dependencies' => [
+                'sqlite-wal-readonly-shm-open',
+                'sqlite-wal-readonly-checkpoint-snapshot',
+                'sqlite-wal-checkpoint-reader-visibility',
+            ],
+        ];
+    }
 }

@@ -9,6 +9,37 @@ use InvalidArgumentException;
 final class SQLiteUpsertReturningFaultPlan
 {
     /**
+     * @return list<array{source:string,scenario:string,fault:array{kind:string,step:int,checkpoint:string,recovered:bool},before:list<array<string,mixed>>,incoming:array<string,mixed>,after:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,changes:int,error:null,allocations_released:bool,statement_retriable:bool,dependencies:list<string>,expected_conflict_key:list<int>,expected_updated_d:int}>
+     */
+    public static function recoverableUpsertUpdateFaultCorpus(int $caseCount = 1000): array
+    {
+        if ($caseCount < 1) {
+            throw new InvalidArgumentException('SQLite UPSERT fault corpus case count must be positive');
+        }
+
+        $cases = [];
+        for ($seed = 1; $seed <= $caseCount; ++$seed) {
+            $base = $seed * 10;
+            $conflictB = ($seed % 7) + 2;
+            $conflictC = ($seed % 11) + 3;
+            $faultStep = ($seed * 5) + ($seed % 8);
+            $rows = [
+                ['a' => $base + 1, 'b' => 1, 'c' => 1, 'd' => $base + 1],
+                ['a' => $base + 2, 'b' => $conflictB, 'c' => $conflictC, 'd' => $base + 2],
+                ['a' => $base + 3, 'b' => $conflictB + 100, 'c' => $conflictC + 100, 'd' => $base + 3],
+            ];
+            $incoming = ['a' => $base + 4, 'b' => $conflictB, 'c' => $conflictC, 'd' => null];
+            $plan = self::recoverableUpsertUpdateFault($rows, $incoming, $faultStep);
+            $plan['incoming'] = $incoming;
+            $plan['expected_conflict_key'] = [$conflictB, $conflictC];
+            $plan['expected_updated_d'] = $base + 3;
+            $cases[] = $plan;
+        }
+
+        return $cases;
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @param array<string,mixed> $incoming
      * @return array{source:string,scenario:string,fault:array{kind:string,step:int,checkpoint:string,recovered:bool},before:list<array<string,mixed>>,after:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,changes:int,error:null,allocations_released:bool,statement_retriable:bool,dependencies:list<string>}

@@ -4732,6 +4732,139 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,query:string,constraints:list<array{operator:string,column:int,column_name:string,value:mixed>>,limit_constraint:bool,function_constraint:bool,expression_constraint_omitted:bool,cost:int,estimated_rows:int,detail:string,batch:int}>
+     */
+    public static function bestindexAVirtualTableConstraintCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindexA dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'bestindexA-1.1',
+                'column equality parameter is visible to xBestIndex',
+                'SELECT * FROM t1 WHERE a=?',
+                [['eq', 0, '?']],
+                false,
+                false,
+                false,
+            ],
+            [
+                'bestindexA-1.2',
+                'column equality and LIMIT are visible to xBestIndex',
+                'SELECT * FROM t1 WHERE a=? LIMIT 10',
+                [['eq', 0, '?'], ['limit', 0, 10]],
+                true,
+                false,
+                false,
+            ],
+            [
+                'bestindexA-1.3',
+                'non-column expression equality is not passed as a virtual-table constraint',
+                'SELECT * FROM t1 WHERE a=? AND (b+1)=? LIMIT 10',
+                [['eq', 0, '?']],
+                false,
+                false,
+                true,
+            ],
+            [
+                'bestindexA-1.4',
+                'overloaded two-argument function constraint is visible for column a',
+                'SELECT * FROM t1 WHERE even(a, ?)',
+                [['152', 0, '?']],
+                false,
+                true,
+                false,
+            ],
+            [
+                'bestindexA-1.5',
+                'equality and overloaded function constraints are both visible',
+                'SELECT * FROM t1 WHERE b=10 AND even(a, ?)',
+                [['eq', 1, 10], ['152', 0, '?']],
+                false,
+                true,
+                false,
+            ],
+            [
+                'bestindexA-1.6',
+                'column equality and LIMIT are visible for column b',
+                'SELECT * FROM t1 WHERE b=10 LIMIT 10',
+                [['eq', 1, 10], ['limit', 0, 10]],
+                true,
+                false,
+                false,
+            ],
+            [
+                'bestindexA-1.7',
+                'overloaded function and LIMIT constraints are visible for column b',
+                'SELECT * FROM t1 WHERE even(b,?) LIMIT 10',
+                [['152', 1, '?'], ['limit', 0, 10]],
+                true,
+                true,
+                false,
+            ],
+            [
+                'bestindexA-1.8',
+                'not-equal and LIMIT constraints are visible for column b',
+                'SELECT * FROM t1 WHERE b!=? LIMIT 10',
+                [['ne', 1, '?'], ['limit', 0, 10]],
+                true,
+                false,
+                false,
+            ],
+            [
+                'bestindexA-1.9',
+                'commuted equality maps back to column a and keeps LIMIT visible',
+                'SELECT * FROM t1 WHERE ?=a LIMIT 10',
+                [['eq', 0, '?'], ['limit', 0, 10]],
+                true,
+                false,
+                false,
+            ],
+        ];
+
+        $columnNames = ['a', 'b', 'c'];
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $query, $rawConstraints, $hasLimit, $hasFunction, $omitsExpression] = $templates[($case - 1) % count($templates)];
+            $constraints = array_map(
+                static fn (array $constraint): array => [
+                    'operator' => $constraint[0],
+                    'column' => $constraint[1],
+                    'column_name' => $columnNames[$constraint[1]] ?? 'constraint',
+                    'value' => $constraint[2],
+                ],
+                $rawConstraints,
+            );
+
+            $out[] = [
+                'source' => 'bestindexA.test sections bestindexA-1.1 through bestindexA-1.9',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'query' => $query,
+                'constraints' => $constraints,
+                'limit_constraint' => $hasLimit,
+                'function_constraint' => $hasFunction,
+                'expression_constraint_omitted' => $omitsExpression,
+                'cost' => 1000000,
+                'estimated_rows' => 1000000,
+                'detail' => 'xBestIndex constraints: ' . implode(
+                    ', ',
+                    array_map(
+                        static fn (array $constraint): string => $constraint['operator'] . ' ' . $constraint['column'],
+                        $constraints,
+                    ),
+                ),
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,constraints:list<array{column:string,operator:string,value:mixed,omitted:bool}>,idx_string:string,cost:float,result_rows:list<array<int,mixed>>,xfilter_where:string|null,uses_row_value:bool,uses_affinity_residual:bool,integrity:string,batch:int}>
      */
     public static function bestindex5VirtualTableConstraintCases(int $cases = 1000): array

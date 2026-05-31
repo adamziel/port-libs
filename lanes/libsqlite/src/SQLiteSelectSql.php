@@ -4001,6 +4001,18 @@ final class SQLiteSelectSql
                 'right' => self::valueExpression($right, $tables),
             ];
         }
+        if (preg_match('/^(.+?)\s+(?:is\s+)?(not\s+)?null$/is', $sql, $match) === 1) {
+            $leftSql = trim($match[1]);
+            if ($leftSql !== '' && !in_array($leftSql[strlen($leftSql) - 1], ['+', '-', '~', '*', '/', '%', '|', '&', '<', '>', '='], true)) {
+                return [
+                    'type' => 'predicate',
+                    'predicate' => [
+                        'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'IS NOT NULL' : 'IS NULL',
+                        'left' => self::valueExpression($leftSql, $tables),
+                    ],
+                ];
+            }
+        }
         if (preg_match('/^[+-]?[0-9]+$/', $sql) === 1) {
             return ['type' => 'literal', 'value' => self::integerLiteralValue($sql)];
         }

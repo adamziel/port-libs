@@ -1300,6 +1300,62 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function staleRollbackJournalIsolationProfile(
+        int $originalRows,
+        int $journaledDeletes,
+        int $oldDatabasePages,
+        int $newDatabasePages,
+        bool $oldJournalCopiedBack,
+        bool $atomicBatchWrite = false
+    ): array {
+        if ($originalRows < 1 || $journaledDeletes < 1 || $oldDatabasePages < 1 || $newDatabasePages < 1) {
+            throw new \InvalidArgumentException('SQLite stale rollback-journal isolation requires positive row and page counts');
+        }
+        if ($journaledDeletes > $originalRows) {
+            throw new \InvalidArgumentException('SQLite stale rollback-journal isolation cannot delete more rows than exist');
+        }
+
+        $eligible = !$atomicBatchWrite;
+        $staleJournalIgnored = $eligible && $oldJournalCopiedBack;
+        $newSchemaRows = 0;
+
+        return [
+            'status' => 'ok',
+            'script' => 'journal1.test',
+            'upstream' => [
+                'journal1.test journal1-1.1',
+                'journal1.test journal1-1.2',
+            ],
+            'original_rows' => $originalRows,
+            'journaled_deletes' => $journaledDeletes,
+            'old_database_pages' => $oldDatabasePages,
+            'new_database_pages' => $newDatabasePages,
+            'old_database_deleted' => true,
+            'old_journal_copied_back' => $oldJournalCopiedBack,
+            'atomic_batch_write' => $atomicBatchWrite,
+            'upstream_platform_eligible' => $eligible,
+            'new_database_created' => true,
+            'stale_journal_hot_candidate' => $oldJournalCopiedBack && $eligible,
+            'stale_journal_replayed_into_new_database' => false,
+            'stale_journal_ignored' => $staleJournalIgnored,
+            'sqlite_master_result_code' => 0,
+            'sqlite_master_rows' => $newSchemaRows,
+            'new_database_rows_after_open' => $newSchemaRows,
+            'recovered_old_rows' => 0,
+            'reason' => $atomicBatchWrite
+                ? 'journal1_skipped_when_atomic_batch_write_omits_rollback_journal'
+                : 'stale_rollback_journal_is_not_replayed_into_recreated_database',
+            'dependencies' => [
+                'upstream-journal1-stale-rollback-journal',
+                'sqlite-rollback-journal-hotness',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function subjournalMemoryBackupProfile(
         int $tableRows,
         int $cachePages,
