@@ -1012,3 +1012,20 @@ Protocol batch accepted on 2026-05-31:
 - Source commit `e5a23effae900e9187f890104ede8f77a0d81319` adds protocol v2 sideband-all fetch response parsing and send-pack report-status-v2 SHA-256/proc-receive status handling without taking stale worker metadata edits.
 - Native PHP verification in the integration worktree is green: `php -l` over changed Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused protocol/transport tests `4 files / 557 assertions / 0 failures`, full Gitoxide lane tests `32 files / 2989 assertions / 0 failures`, and two touched protocol examples exiting 0.
 - The mapped denominator moves from `1491 / 2886` to `1493 / 2886` for the two distinct protocol slices. Full Cargo workspace tests were not run for this slice.
+
+Pack/config/pathspec/protocol batch accepted on 2026-05-31:
+
+- Source commit `6d9f6effa53c12f844dc454fdad15307fa8e550d` integrates five
+  Gitoxide handoffs without taking their stale shared metadata edits. The
+  accepted source slices cover pack delta declared-size guards, protocol v2
+  `ls-refs` packet advertisements and request bytes, sparse checkout pathspec
+  rules, config `include`/`includeIf` ordering, and attribute-driven pathspec
+  matching.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  batch tests `6 files / 414 assertions / 0 failures`, full Gitoxide lane tests
+  `34 files / 3124 assertions / 0 failures`, and five touched examples exiting
+  0.
+- The mapped denominator moves from `1493 / 2886` to `1498 / 2886` for the five
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.

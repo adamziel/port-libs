@@ -182,6 +182,25 @@ The merge fixture mapping now includes the upstream multiple-merge-bases shape. 
 
 `examples/wordpress-sparse-checkout.php` combines a blobless fetch filter with a cone-mode sparse checkout rooted at `wp-content/plugins/gutenberg`. It filters deterministic WordPress tree entries so root files, ancestor-directory files, and Gutenberg plugin files are materialized while unrelated plugin/admin paths remain skipped.
 
+The sparse-checkout example now also covers bounded Gitoxide pathspec rules, so
+deployment tooling can include, exclude, and case-match WordPress content paths
+without invoking the Git binary.
+
+## WordPress Config Include Example
+
+`examples/wordpress-config-include-conditional.php` resolves branch, gitdir, and
+remote-url dependent deployment configuration from native PHP config parsing.
+It models WordPress deployment code loading preview, conflict-style, HTTP
+header, and transfer safety settings through `include` and `includeIf` rules
+without shelling out to `git config`.
+
+## WordPress Attributes Pathspec Example
+
+`examples/wordpress-attributes-pathspec.php` combines `.gitattributes` parsing
+with pathspec attribute filters to select deployable plugin, theme, and upload
+paths while excluding cache/build artifacts. It records merge/diff/text
+attributes for the selected WordPress content using only lane-local PHP code.
+
 ## WordPress Pack Index Example
 
 `examples/wordpress-pack-index.php` parses a deterministic v2 pack index fixture for a WordPress repository and locates compacted object offsets, including a large 64-bit media object offset. This models a PHP object database finding packed content objects on shared hosting without invoking `git`.
@@ -195,6 +214,10 @@ The pack and MIDX examples now exercise stronger corruption checks for sorted ob
 ## WordPress Pack Data Example
 
 `examples/wordpress-pack-data.php` pairs a deterministic pack index with pack data, then reads a packed commit, blob, and OFS_DELTA-reconstructed blob by object ID. This models a PHP object database reading compacted WordPress content on shared hosting without invoking `git cat-file`.
+
+The pack data example now records strict declared-size guards, so malformed
+packed or delta-compressed WordPress content is rejected before object/delta
+resolution can trust an inflated payload.
 
 ## WordPress Object Database Example
 
@@ -221,6 +244,11 @@ The example now also writes a deployment commit object through the object databa
 ## WordPress Protocol Fetch And Push Examples
 
 `examples/wordpress-protocol-v2-fetch-response.php` now records protocol v2 `sideband-all` responses so deployment tooling can keep progress/error channels separate from pack data before the pack arrives. `examples/wordpress-protocol-v1-push-response.php` now records a proc-receive deployment hook rewriting a review ref with SHA-256 old/new object IDs in report-status-v2 output.
+
+`examples/wordpress-protocol-v2-ls-refs.php` now uses packet-line protocol v2
+capability and `ls-refs` advertisements plus upstream-shaped request bytes, so
+deployment tooling can inspect active branches, unborn refs, peeled tags, and
+symbolic HEADs through native PHP protocol framing.
 
 ## Next Task
 
