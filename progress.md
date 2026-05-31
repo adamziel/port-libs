@@ -48,6 +48,33 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 03:04 UTC):
+  Batch57 is integrated locally as source
+  `7febd661df729b07ddd95766e67d4351731a1c4e` (`libsqlite: add
+  fifty-seventh current corpus sweep`). The batch accepted 14
+  source/test-moving behavior handoffs across date4 real-date and rows
+  11300-12299 behavior, expression collation affinity behavior, JSON102
+  operator RHS behavior, JSON109 array-insert error-matrix behavior, pager WAL
+  file-permission and page-size mapping behavior, PRAGMA prepared schema-expiry
+  behavior, SELECT2 where-expression behavior, trigger/FK affinity deferred
+  behavior, VFS mmap4 dual-client behavior, and window5/window6 plus window
+  pushdown SQL behavior.
+  Verification passed PHP lint for `21` changed/new PHP files, `git diff
+  --check -- lanes/libsqlite`, no newly-added WordPress/wp source text in the
+  batch diff, focused selected tests `14 files / 180918 assertions / 0
+  failures / 29628 PASS lines`, accepted-base overlap `1 file / 570
+  assertions / 0 failures / 570 PASS lines`, and trigger/FK related tests `78
+  files / 555000 assertions / 0 failures / 421364 PASS lines`. Larger JSON,
+  PRAGMA, pager/VFS, and mixed-domain sweeps were diagnostic only: JSON-table
+  current-source and PRAGMA expected-shape known-red clusters still fail,
+  pager/VFS hit an old WAL memory-limit path, and the oversized mixed sweep was
+  stopped after `226481` PASS lines. Honest selected movement is `+29058`,
+  moving libsqlite from `1760993` to `1790051 pass / 0 fail`; mapped coverage
+  remains `1589 / 1589`. Existing source-level WordPress/wp literals remain a
+  source-neutral cleanup track, but this batch added none. Broad
+  release/all-runner parity remains open; gitoxide starts only after libsqlite
+  closure is recorded.
+
 - 2026-05-31 supervisor continuation (integration sample 02:58 UTC):
   Batch56 is integrated locally as source
   `b5ac02a2657ee953fb2646018ec147d3540dc10f` (`libsqlite: add
