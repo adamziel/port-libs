@@ -52,6 +52,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 09:58 UTC):
+  source commit `652a839d40a7f0fe140f7a77e5c45e4f8765e909` (`ports: add
+  sqlite corpus and gitoxide config pack slices`) landed eight handoffs after
+  excluding stale shared metadata. Libsqlite gained JSON1/JSONB
+  tree/search/mutation behavior, UPSERT view-target rejection before
+  RETURNING, VFS diskfull recovery/integrity behavior, date long `strftime`
+  expansion, row-value UPDATE/DELETE LIMIT `func7` math scalar dispatch, and
+  SELECT implicit projection aliases; selected libsqlite evidence moves from
+  `2847028` to `2853307 pass / 0 fail`, mapped coverage stays `1589 / 1589`.
+  Gitoxide gained config `includeIf` double-star zero-or-more path matching and
+  pack delta result-buffer guards; full Gitoxide evidence moves from `3989` to
+  `3998 pass / 0 fail`, mapped coverage moves from `1525 / 2886` to
+  `1527 / 2886`. Verification passed PHP lint, `git diff --check`, libsqlite
+  focused tests `8 files / 100051 assertions / 0 failures`, Gitoxide focused
+  tests `3 files / 280 assertions / 0 failures`, full Gitoxide lane `38 files
+  / 3998 assertions / 0 failures`, two Gitoxide examples, and changed-source
+  guards for no new libsqlite WordPress/wp or numbered CurrentSourceNext
+  source text.
+
 - 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 09:47 UTC):
   source commit `0b6a219b7c763ad377900409213186a796e2aeb4` (`ports: add
   sqlite corpus and gitoxide protocol slices`) landed seventeen handoffs after

@@ -344,6 +344,15 @@ object ids, reflog audit flows cover direct append/reverse iteration, index
 cache-tree checks handle object-backed children, loose-object inspection covers
 headers, and packed-reference lookups return prefixed peeled values.
 
+## WordPress Config And Pack Delta Examples
+
+`examples/wordpress-config-include-conditional.php` now covers `includeIf`
+double-star matching where `**/` can match zero or more path components for
+deployment branch, repository, and remote URL conditions. The pack-data example
+now exposes a result-buffer guard so native pack readers reject delta
+copy/insert overruns and short applications before accepting compacted content
+objects.
+
 ## Next Task
 
 Broaden protocol/transport runner evidence with a controlled focused crate probe, deepen mmap-specific packed-ref race parity beyond metadata/hash invalidation if needed, or map another focused `gix-merge` tree fixture.
