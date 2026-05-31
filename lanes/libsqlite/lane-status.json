@@ -1,17 +1,17 @@
 {
     "schemaVersion": 1,
     "library": "libsqlite",
-    "estimatedProgress": 99.2,
-    "suiteProgress": "Supervisor-integrated libsqlite application WAL rollback JSON dynamic parity plus real upstream date affinity, expression affinity, and e_select ON-truthiness dynamic corpus slices. Focused accepted gate passed 5 files / 76703 assertions / 0 failures including SQLiteNoDomainSpecificApiTest; no WordPress-specific libsqlite source text was introduced. Mapped coverage remains 1589 / 1589.",
-    "phpPass": 4042888,
+    "estimatedProgress": 99.3,
+    "suiteProgress": "Supervisor-integrated libsqlite tableopts PRAGMA/schema behavior, PRAGMA live reload, SELECT cartesian product, numeric parameter affinity, atof1 exponent ranges, row-value LIMIT scalar forms, walslow WAL corruption, and trigger/FK partial-index repair. Focused gate passed 9 files / 172655 assertions / 0 failures including SQLiteNoDomainSpecificApiTest; conservative new accepted assertion/pass-unit delta is +152705. Mapped coverage remains 1589 / 1589.",
+    "phpPass": 4195593,
     "phpFail": 0,
     "wordpressScenarios": "Source-neutral application/self-test coverage now includes WAL rollback JSON tails, FK parent-index diagnostics, row-value UPDATE/DELETE LIMIT execution, master-journal WAL pager behavior, PRAGMA lock_proxy_file and data_store_directory handling, SELECT/window planner behavior, trigger/fkey limits, expression-affinity and hex literal syntax, B-tree left-join/index/delete guards, JSON/JSONB update/subtype/char-built validity behavior, VFS fallocate/shared-lock/batch-atomic lifecycle behavior, pager crash recovery, and app-WAL post-checkpoint tail recovery. No WordPress-specific libsqlite API is accepted.",
     "phase": "focused source integration accepted; full-lane/release parity still requires a broader tracked run before completion",
-    "audit": "2026-05-31 supervisor batch at source 20cc40ca9: focused libsqlite gate passed 5 files / 76703 assertions / 0 failures, including SQLiteApplicationWalRollbackJsonDynamicParityTest.php, date affinity, expression affinity, e_select ON truthiness, and SQLiteNoDomainSpecificApiTest.php. Cached libsqlite source diff added no WordPress/wordpress/WP_/wp_ text. Full libsqlite lane/release runner was not executed for this batch.",
-    "currentWork": "Application WAL rollback JSON dynamic parity and real upstream date/expression/select dynamic corpus coverage integrated without WordPress-specific libsqlite source text.",
+    "audit": "2026-05-31 supervisor batch at source 2c0373f43: focused libsqlite gate passed 9 files / 172655 assertions / 0 failures, including tableopts PRAGMA/schema, PRAGMA live reload, SELECT cartesian product, expression affinity numeric parameter limits, date atof1 exponent ranges, row-value dynamic LIMIT scalar forms, walslow WAL corruption, trigger/FK partial-index repair, and SQLiteNoDomainSpecificApiTest.php. Cached libsqlite source diff added no WordPress/wordpress/WP_/wp_ text and no CurrentSourceNext/numbered Plan suffixes. Full libsqlite lane/release runner was not executed for this batch.",
+    "currentWork": "Source-neutral SQLite real-corpus PRAGMA/schema, SELECT, expression/date affinity, row-value LIMIT, pager/WAL, and trigger/FK behavior integrated without WordPress-specific libsqlite source text.",
     "blocker": "Full libsqlite release/all-runner parity is still unproven after this batch and must be rerun on tracked tests before declaring libsqlite complete.",
     "nextTask": "Run a broader tracked libsqlite full-lane/release parity gate before calling libsqlite complete; keep two SQLite workers on any remaining real-runner failures and source-neutral guard cleanup.",
-    "wordpressScenarioLatest": "No WordPress-specific libsqlite API or source text was introduced in the latest accepted batch. The latest source commit adds generic SQLite WAL rollback JSON, date affinity, expression affinity, and SELECT ON-truthiness corpus behavior.",
-    "latestCommit": "20cc40ca9bdc701723421d5a9c098ec4ff6b3877",
-    "commit": "20cc40ca9bdc701723421d5a9c098ec4ff6b3877"
+    "wordpressScenarioLatest": "No WordPress-specific libsqlite API or source text was introduced in the latest accepted batch. The latest source commit adds generic SQLite PRAGMA/schema, SELECT, expression/date affinity, row-value LIMIT, pager/WAL, and trigger/FK corpus behavior.",
+    "latestCommit": "2c0373f438e45343426119f813ee1a8f3028145f",
+    "commit": "2c0373f438e45343426119f813ee1a8f3028145f"
 }

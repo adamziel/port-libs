@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 90,
-    "suiteProgress": "Supervisor-integrated Gitoxide attrs/pathspec short-magic, config include symlink/gitdir, credential helper cascade, loose-object negative/zero-size integrity, and partial-clone thin-delta hydration slices. Verification passed PHP lint on changed files, full Gitoxide lane 39 files / 6017 assertions / 0 failures, accepted examples, and JSON/diff checks.",
-    "phpPass": 6017,
+    "estimatedProgress": 90.1,
+    "suiteProgress": "Supervisor-integrated Gitoxide URL/refspec canonical file-path parsing and sparse-checkout negative nil/root pathspec parity. Verification passed PHP lint on changed files, full Gitoxide lane 39 files / 6051 assertions / 0 failures, accepted examples, and diff checks.",
+    "phpPass": 6051,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full runner not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source 20cc40ca9: full Gitoxide lane passed 39 files / 6017 assertions / 0 failures. Conservative mapped coverage moves from 1649 / 2886 to 1653 / 2886 for config include symlink/gitdir, loose-object negative/zero-size integrity, partial-clone thin-delta hydration, and credential/query-user boundary behavior. Full upstream Cargo workspace was not executed.",
-    "currentWork": "Attrs/pathspec short magic, config include symlink/gitdir, credential helper cascade, loose-object negative/zero-size integrity, and partial-clone thin-delta hydration integrated on current base.",
-    "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch. Native PHP full-lane evidence is green at 6017 assertions; continue bounded Gitoxide workers while LightningCSS remains the larger capacity target.",
-    "latestCommit": "20cc40ca9bdc701723421d5a9c098ec4ff6b3877",
+    "audit": "2026-05-31 supervisor batch at source 2c0373f43: full Gitoxide lane passed 39 files / 6051 assertions / 0 failures. Conservative mapped coverage moves from 1653 / 2886 to 1655 / 2886 for URL/refspec canonicalized file path behavior and sparse-checkout negative nil/root behavior. Full upstream Cargo workspace was not executed.",
+    "currentWork": "URL/refspec canonical file-path normalization and sparse-checkout negative nil/root pathspec behavior integrated on current base.",
+    "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch. Native PHP full-lane evidence is green at 6051 assertions; continue bounded Gitoxide workers while LightningCSS remains the larger capacity target.",
+    "latestCommit": "2c0373f438e45343426119f813ee1a8f3028145f",
     "nextTask": "Keep three Gitoxide workers on loose-object integrity, sparse-checkout/pathspec, config include, pack/index, receive-pack, smart HTTP, SSH, merge-base, URL/refspec, and partial-clone slices with full-lane PHP gates after each accepted batch.",
-    "commit": "20cc40ca9bdc701723421d5a9c098ec4ff6b3877"
+    "commit": "2c0373f438e45343426119f813ee1a8f3028145f"
 }

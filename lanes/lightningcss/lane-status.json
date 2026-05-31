@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 94.4,
-    "suiteProgress": "Supervisor-integrated LightningCSS bundle import graph, CSS Modules host-context/local-global compose, property-value alpha fallback, and SourceMap VLQ offset slices. Verification passed PHP lint on changed files, full LightningCSS lane 13 files / 4663 assertions / 0 failures, accepted examples/self-tests, and JSON/diff checks.",
-    "phpPass": 4663,
+    "estimatedProgress": 94.5,
+    "suiteProgress": "Supervisor-integrated LightningCSS custom at-rule RuleExit visitor parity, vertical-align minification, and x-resolution media range/layer target fallback slices. Verification passed PHP lint on changed files, full LightningCSS lane 13 files / 4680 assertions / 0 failures, accepted examples/self-tests, and diff checks.",
+    "phpPass": 4680,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full runner not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source 20cc40ca9: full LightningCSS lane passed 13 files / 4663 assertions / 0 failures. Conservative mapped coverage moves from 2167 / 3532 to 2171 / 3532 for bundle import escaped-source behavior, property-value alpha fallbacks, and SourceMap offset coverage; CSS Modules host-context deepens an existing cluster. Full upstream Rust/Node/WASM runners were not executed.",
-    "currentWork": "Bundle import graph, CSS Modules host-context/local-global compose, property-value alpha fallback, and SourceMap VLQ offset behavior integrated on current base.",
-    "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch. Native PHP full-lane evidence is green at 4663 assertions; continue current-base parity slices with examples and manifest-backed mapping.",
-    "latestCommit": "20cc40ca9bdc701723421d5a9c098ec4ff6b3877",
+    "audit": "2026-05-31 supervisor batch at source 2c0373f43: full LightningCSS lane passed 13 files / 4680 assertions / 0 failures. Conservative mapped coverage moves from 2171 / 3532 to 2173 / 3532 for vertical-align property value minification and x-resolution media query target fallback behavior; custom at-rule RuleExit deepens the represented visitor cluster. Full upstream Rust/Node/WASM runners were not executed.",
+    "currentWork": "Custom at-rule RuleExit visitor parity, vertical-align property-value minification, and x-resolution media range/layer target fallbacks integrated on current base.",
+    "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch. Native PHP full-lane evidence is green at 4680 assertions; continue current-base parity slices with examples and manifest-backed mapping.",
+    "latestCommit": "2c0373f438e45343426119f813ee1a8f3028145f",
     "nextTask": "Keep six LightningCSS workers on bundle/import graph, CSS Modules, media queries, target prefixing, source maps, property values, CSSOM, and custom at-rules, with full-lane PHP gates after each accepted batch.",
-    "commit": "20cc40ca9bdc701723421d5a9c098ec4ff6b3877"
+    "commit": "2c0373f438e45343426119f813ee1a8f3028145f"
 }
