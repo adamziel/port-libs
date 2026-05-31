@@ -7077,6 +7077,149 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @param array{child_table?:string,parent_table?:string,child_columns?:list<string>,parent_columns?:list<string>,child_rowid_column?:string|null,parent_collations?:array<string,string>,parent_schema?:string,child_schema?:string,missing_parent_table?:bool,without_rowid?:bool,fkid?:int} $foreignKey
+     * @return array<string,mixed>
+     */
+    public static function foreignKeyCheckRows(array $parents, array $children, array $foreignKey): array
+    {
+        $childTable = self::identifier((string) ($foreignKey['child_table'] ?? 'child_records'), 'child table');
+        $parentTable = self::identifier((string) ($foreignKey['parent_table'] ?? 'parent_records'), 'parent table');
+        $childColumns = self::identifierList($foreignKey['child_columns'] ?? ['parent_id'], 'child columns');
+        $parentColumns = self::identifierList($foreignKey['parent_columns'] ?? ['id'], 'parent columns');
+        if (count($childColumns) !== count($parentColumns)) {
+            throw new \InvalidArgumentException('SQLite fkey5 foreign_key_check column width mismatch');
+        }
+
+        $childSchema = self::identifier((string) ($foreignKey['child_schema'] ?? 'main'), 'child schema');
+        $parentSchema = self::identifier((string) ($foreignKey['parent_schema'] ?? $childSchema), 'parent schema');
+        $rowidColumn = array_key_exists('child_rowid_column', $foreignKey) ? $foreignKey['child_rowid_column'] : 'rowid';
+        $withoutRowid = (bool) ($foreignKey['without_rowid'] ?? false);
+        $missingParentTable = (bool) ($foreignKey['missing_parent_table'] ?? false);
+        $fkid = (int) ($foreignKey['fkid'] ?? 0);
+        $parentCollations = $foreignKey['parent_collations'] ?? [];
+
+        $violations = [];
+        foreach (array_values($children) as $index => $child) {
+            $childKey = [];
+            $hasNull = false;
+            foreach ($childColumns as $column) {
+                $value = $child[$column] ?? null;
+                $childKey[] = $value;
+                $hasNull = $hasNull || $value === null;
+            }
+            if ($hasNull) {
+                continue;
+            }
+
+            $matched = false;
+            if (!$missingParentTable && $parentSchema === $childSchema) {
+                foreach ($parents as $parent) {
+                    $candidate = [];
+                    foreach ($parentColumns as $column) {
+                        $candidate[] = $parent[$column] ?? null;
+                    }
+                    if (self::fkey5ForeignKeyValuesEqual($childKey, $candidate, $parentColumns, $parentCollations)) {
+                        $matched = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!$matched) {
+                $violations[] = [
+                    'table' => $childTable,
+                    'rowid' => $withoutRowid ? null : ($rowidColumn === null ? $index + 1 : ($child[$rowidColumn] ?? $index + 1)),
+                    'parent' => $parentTable,
+                    'fkid' => $fkid,
+                    'child_key' => $childKey,
+                ];
+            }
+        }
+
+        return [
+            'source' => 'fkey5.test fkey5-1.2..13.12',
+            'operation' => 'pragma-foreign-key-check-row-production',
+            'status' => 'ok',
+            'child_schema' => $childSchema,
+            'parent_schema' => $parentSchema,
+            'child_table' => $childTable,
+            'parent_table' => $parentTable,
+            'child_columns' => $childColumns,
+            'parent_columns' => $parentColumns,
+            'parent_collations' => $parentCollations,
+            'missing_parent_table' => $missingParentTable,
+            'without_rowid' => $withoutRowid,
+            'violations' => $violations,
+            'violation_count' => count($violations),
+            'result_rows' => array_map(
+                static fn (array $row): array => [$row['table'], $row['rowid'], $row['parent'], $row['fkid']],
+                $violations,
+            ),
+            'null_child_key_short_circuit_count' => self::fkey5ForeignKeyNullChildKeyCount($children, $childColumns),
+            'dependencies' => [
+                'sqlite-fkey5-foreign-key-check-result-columns',
+                'sqlite-fkey5-parent-collation-controls-child-comparison',
+                'sqlite-fkey5-null-child-key-short-circuits-check',
+                'sqlite-fkey5-without-rowid-child-reports-null-rowid',
+                'sqlite-fkey5-attached-schema-resolves-parent-locally',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<mixed> $left
+     * @param list<mixed> $right
+     * @param list<string> $parentColumns
+     * @param array<string,string> $parentCollations
+     */
+    private static function fkey5ForeignKeyValuesEqual(array $left, array $right, array $parentColumns, array $parentCollations): bool
+    {
+        foreach ($left as $index => $value) {
+            $candidate = $right[$index] ?? null;
+            $column = $parentColumns[$index] ?? '';
+            $collation = strtolower((string) ($parentCollations[$column] ?? 'binary'));
+            if ($collation === 'nocase') {
+                if (strcasecmp((string) $value, (string) $candidate) !== 0) {
+                    return false;
+                }
+                continue;
+            }
+            if ($collation === 'rtrim') {
+                if (rtrim((string) $value) !== rtrim((string) $candidate)) {
+                    return false;
+                }
+                continue;
+            }
+            if ((string) $value !== (string) $candidate) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $children
+     * @param list<string> $childColumns
+     */
+    private static function fkey5ForeignKeyNullChildKeyCount(array $children, array $childColumns): int
+    {
+        $count = 0;
+        foreach ($children as $child) {
+            foreach ($childColumns as $column) {
+                if (($child[$column] ?? null) === null) {
+                    $count++;
+                    break;
+                }
+            }
+        }
+
+        return $count;
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */

@@ -3583,6 +3583,25 @@ final class SQLiteSelectSql
             return $betweenPredicate;
         }
 
+        if (preg_match('/^(.+?)\s+isnull$/i', $sql, $match) === 1) {
+            return [
+                'operator' => 'IS NULL',
+                'left' => self::valueExpression(trim($match[1]), $tables),
+            ];
+        }
+        if (preg_match('/^(.+?)\s+notnull$/i', $sql, $match) === 1) {
+            return [
+                'operator' => 'IS NOT NULL',
+                'left' => self::valueExpression(trim($match[1]), $tables),
+            ];
+        }
+        if (preg_match('/^(like|glob)\s*\(.*\)$/is', $sql) === 1) {
+            return [
+                'operator' => 'TRUTH',
+                'left' => self::valueExpression($sql, $tables),
+            ];
+        }
+
         foreach (['IS NOT DISTINCT FROM', 'IS DISTINCT FROM', 'NOT REGEXP', 'NOT MATCH', 'NOT LIKE', 'LIKE', 'NOT GLOB', 'GLOB', 'REGEXP', 'MATCH', 'IS NOT', 'IS', '>=', '<=', '<>', '!=', '==', '=', '>', '<'] as $operator) {
             $offset = self::operatorOffset($sql, $operator);
             if ($offset === null) {
@@ -4010,6 +4029,19 @@ final class SQLiteSelectSql
             }
         }
 
+        if (preg_match('/^(.+?)\s+isnull$/is', $sql, $match) === 1) {
+            $leftSql = trim($match[1]);
+            if ($leftSql !== '' && !in_array($leftSql[strlen($leftSql) - 1], ['+', '-', '~', '*', '/', '%', '|', '&', '<', '>', '='], true)) {
+                return [
+                    'type' => 'predicate',
+                    'predicate' => [
+                        'operator' => 'IS NULL',
+                        'left' => self::valueExpression($leftSql, $tables),
+                    ],
+                ];
+            }
+        }
+
         if (preg_match('/^(.+?)\s+not\s+null$/is', $sql, $match) === 1) {
             $leftSql = trim($match[1]);
             if ($leftSql !== '' && !in_array($leftSql[strlen($leftSql) - 1], ['+', '-', '~', '*', '/', '%', '|', '&', '<', '>', '='], true)) {
@@ -4021,6 +4053,32 @@ final class SQLiteSelectSql
                     ],
                 ];
             }
+        }
+
+        if (preg_match('/^(.+?)\s+notnull$/is', $sql, $match) === 1) {
+            $leftSql = trim($match[1]);
+            if ($leftSql !== '' && !in_array($leftSql[strlen($leftSql) - 1], ['+', '-', '~', '*', '/', '%', '|', '&', '<', '>', '='], true)) {
+                return [
+                    'type' => 'predicate',
+                    'predicate' => [
+                        'operator' => 'IS NOT NULL',
+                        'left' => self::valueExpression($leftSql, $tables),
+                    ],
+                ];
+            }
+        }
+
+        if (preg_match('/^(like|glob)\s*\((.*)\)$/is', $sql, $match) === 1) {
+            $argumentSql = trim($match[2]);
+            $arguments = $argumentSql === ''
+                ? []
+                : array_map(static fn (string $argument): array => self::valueExpression($argument, $tables), self::splitTopLevel($argumentSql, ','));
+
+            return [
+                'type' => 'function',
+                'name' => $match[1],
+                'arguments' => $arguments,
+            ];
         }
 
         $comparison = self::topLevelComparisonExpressionOperator($sql);

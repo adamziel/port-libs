@@ -284,4 +284,66 @@ foreach ($zeroblobLimitCases as $name => [$callback, $expected]) {
     };
 }
 
+$randomblobLimitCases = [
+    'parse randomblob length limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(randomblob(3))")['limit'], 3],
+    'parse randomblob zero length minimum offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 2 OFFSET length(randomblob(0))")['offset'], 1],
+    'parse randomblob negative length minimum offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 2 OFFSET length(randomblob(-5))")['offset'], 1],
+    'parse randomblob hex byte length arithmetic' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(hex(randomblob(4)))/2")['limit'], 4],
+    'malformed randomblob nonintegral length rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(randomblob(1.5))"), InvalidArgumentException::class],
+    'malformed randomblob arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT randomblob(1, 2)"), InvalidArgumentException::class],
+];
+
+foreach ($randomblobLimitCases as $name => [$callback, $expected]) {
+    $tests['rowvalue dynamic randomblob limit ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            return;
+        }
+
+        $t->same($expected, $callback());
+        $t->true(str_contains('/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test', '/test/func.test'));
+    };
+}
+
+for ($seed = 1; $seed <= 18; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = "length(randomblob({$limitValue}))";
+    $offsetExpr = $offsetValue === 0 ? 'length(randomblob(0))-1' : "length(randomblob({$offsetValue}))";
+    $sql = "UPDATE app_settings SET state = 'randomblob_limited' WHERE state = 'queued' RETURNING setting_id, state ORDER BY value_size ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expectedIds = array_slice([1, 2, 4, 6, 7, 8, 10, 12, 13, 14, 16, 18], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue dynamic update randomblob outer limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($settingTables, $unique, $sql, $expectedIds, $limitValue, $offsetValue): void {
+            $result = SQLiteUpdateDeleteReturningSql::execute($sql, $settingTables(), 'setting_id', $unique);
+
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expectedIds, $result['plan']->selectedIds);
+            $t->same($expectedIds, array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($expectedIds), 'randomblob_limited'), array_column($result['returning'], 'state'));
+            $t->true(str_contains('/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test', '/test/func.test'));
+        };
+}
+
+for ($seed = 1; $seed <= 18; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = "length(randomblob({$limitValue}))";
+    $offsetExpr = $offsetValue === 0 ? 'length(randomblob(-2))-1' : "length(randomblob({$offsetValue}))";
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_batches WHERE batch_name = 'cleanup' ORDER BY priority DESC, key_name ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id";
+    $expectedIds = $expectedSettingIds($tupleWindow('cleanup', $limitValue, $offsetValue));
+
+    $tests[sprintf('rowvalue dynamic delete randomblob tuple limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($settingTables, $unique, $expectedRemainingIds, $sql, $expectedIds): void {
+            $result = SQLiteUpdateDeleteReturningSql::execute($sql, $settingTables(), 'setting_id', $unique);
+
+            $t->same($expectedIds, $result['plan']->selectedIds);
+            $t->same($expectedIds, array_column($result['returning'], 'setting_id'));
+            $t->same($expectedRemainingIds($expectedIds), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->same(count($expectedIds), count($result['returning']));
+            $t->true(str_contains('/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test', '/test/func.test'));
+        };
+}
+
 return $tests;

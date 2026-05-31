@@ -842,7 +842,7 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : self::textLength((string) $value);
         }
-        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|ceil|ceiling|floor|trunc|sqrt|pow|power|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode|octet_length|hex|quote|typeof|printf|format|iif|if|likely|unlikely|likelihood|zeroblob)\s*\((.*)\)$/is', $expression, $match) === 1) {
+        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|ceil|ceiling|floor|trunc|sqrt|pow|power|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode|octet_length|hex|quote|typeof|printf|format|iif|if|likely|unlikely|likelihood|zeroblob|randomblob)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }
         $predicate = self::evaluateLimitPredicateExpression($expression);
@@ -1122,8 +1122,8 @@ final class SQLiteUpdateDeleteReturningSql
         if ($function === 'char' && count($parts) < 1) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT char() needs at least one argument');
         }
-        if ($function === 'zeroblob' && count($parts) !== 1) {
-            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT zeroblob() needs one argument');
+        if (($function === 'zeroblob' || $function === 'randomblob') && count($parts) !== 1) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
         }
         if ($function === 'unicode' && count($parts) !== 1) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT unicode() needs one argument');
@@ -1276,13 +1276,16 @@ final class SQLiteUpdateDeleteReturningSql
 
             return implode('', $characters);
         }
-        if ($function === 'zeroblob') {
+        if ($function === 'zeroblob' || $function === 'randomblob') {
             if ($values[0] === null) {
                 return null;
             }
             $length = self::integerFunctionArgument($values[0], $function, 'length');
             if ($length < 0) {
-                $length = 0;
+                $length = $function === 'randomblob' ? 1 : 0;
+            }
+            if ($function === 'randomblob' && $length === 0) {
+                $length = 1;
             }
 
             return str_repeat("\0", $length);

@@ -18,6 +18,7 @@ $partialWalTailScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPartialWalTai
 $frameHeaderMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFrameHeaderMismatchScenarios(18);
 $frameChecksumMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFrameChecksumMismatchScenarios(18);
 $headerChecksumMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicHeaderChecksumMismatchScenarios(18);
+$successfulMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicSuccessfulMaterializedWalScenarios(24);
 
 $tests = [
     'sqlite application wal rollback json dynamic parity exposes requested scenario count' => static function (TestRunner $t) use ($scenarios): void {
@@ -178,7 +179,118 @@ $tests = [
     'sqlite application wal rollback json dynamic parity header-checksum mismatch covers both checksum fields' => static function (TestRunner $t) use ($headerChecksumMismatchScenarios): void {
         $t->same([28, 24], array_values(array_unique(array_column($headerChecksumMismatchScenarios, 'checksum_offset'))));
     },
+    'sqlite application wal rollback json dynamic parity successful materialized WAL exposes requested scenario count' => static function (TestRunner $t) use ($successfulMaterializedWalScenarios): void {
+        $t->same(24, count($successfulMaterializedWalScenarios));
+    },
+    'sqlite application wal rollback json dynamic parity successful materialized WAL covers clean and prefix streams' => static function (TestRunner $t) use ($successfulMaterializedWalScenarios): void {
+        $prefixCounts = array_values(array_unique(array_column($successfulMaterializedWalScenarios, 'preexisting_frames')));
+        sort($prefixCounts);
+        $t->same([0, 1, 2, 3], $prefixCounts);
+    },
+    'sqlite application wal rollback json dynamic parity successful materialized WAL covers both page sizes' => static function (TestRunner $t) use ($successfulMaterializedWalScenarios): void {
+        $pageSizes = array_values(array_unique(array_column($successfulMaterializedWalScenarios, 'page_size')));
+        sort($pageSizes);
+        $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json dynamic parity successful materialized WAL covers json text and jsonb rows' => static function (TestRunner $t) use ($successfulMaterializedWalScenarios): void {
+        $jsonModes = array_values(array_unique(array_column($successfulMaterializedWalScenarios, 'jsonb_mode')));
+        sort($jsonModes);
+        $t->same([false, true], $jsonModes);
+    },
 ];
+
+foreach ($successfulMaterializedWalScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $plan = $scenario['plan'];
+    $prefix = 'sqlite application wal rollback json dynamic parity successful materialized wal seed ' . $seed . ' ';
+
+    $tests[$prefix . 'commits without rollback'] = static function (TestRunner $t) use ($plan): void {
+        $t->same('ready', $plan['status']);
+        $t->same(false, $plan['rollback_required']);
+    };
+    $tests[$prefix . 'uses success transaction name'] = static function (TestRunner $t) use ($plan, $seed): void {
+        $t->same('application_success_json_import_' . $seed, $plan['transaction']);
+    };
+    $tests[$prefix . 'uses success savepoint name'] = static function (TestRunner $t) use ($plan, $seed): void {
+        $t->same('success_json_batch_' . $seed, $plan['savepoint']);
+    };
+    $tests[$prefix . 'has no failed statements'] = static function (TestRunner $t) use ($plan): void {
+        $t->same([], $plan['failed_statements']);
+        $t->same(0, $plan['failed_statement_count']);
+    };
+    $tests[$prefix . 'applies all successful statements'] = static function (TestRunner $t) use ($plan): void {
+        $t->same(3, $plan['applied_statement_count']);
+    };
+    $tests[$prefix . 'does not restore database to before image'] = static function (TestRunner $t) use ($plan): void {
+        $t->same(false, $plan['database_restored_to_before']);
+        $t->same(true, $plan['database_changed_before_rollback']);
+    };
+    $tests[$prefix . 'preserves WAL prefix and appends current frames'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['wal_bytes'], substr($plan['wal_bytes_after'], 0, strlen($scenario['wal_bytes'])));
+        $t->same($scenario['preexisting_frames'] + 3, $plan['wal_frame_count_after']);
+    };
+    $tests[$prefix . 'materializes exactly three WAL frames'] = static function (TestRunner $t) use ($plan): void {
+        $t->same(3, $plan['materialized_wal_frame_count']);
+        $t->same(false, $plan['wal_truncated']);
+        $t->same(0, $plan['discarded_wal_frame_count']);
+    };
+    $tests[$prefix . 'records expected applied pages'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['expected_applied_pages'], array_column($plan['import_plan']['applied'], 'page_number'));
+    };
+    $tests[$prefix . 'records inserted audit row'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same([false, false, true], array_column($plan['import_plan']['applied'], 'inserted_setting'));
+        $t->same($scenario['expected_inserted_key'], $plan['import_plan']['applied'][2]['key_name']);
+    };
+    $tests[$prefix . 'retains tenant id in all applied rows'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same([$scenario['tenant_id'], $scenario['tenant_id'], $scenario['tenant_id']], array_column($plan['import_plan']['applied'], 'tenant_id'));
+    };
+    $tests[$prefix . 'preserves jsonb mode on catalog row'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['jsonb_mode'], $plan['import_plan']['applied'][1]['key_value'] instanceof SQLiteBlobValue);
+    };
+    $tests[$prefix . 'keeps unapplied savepoint rollback preview'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['expected_applied_pages'], $plan['rollback_to_savepoint']['restored_page_numbers']);
+        $t->same($scenario['expected_applied_pages'], $plan['wal_rollback_to_savepoint']['discarded_page_numbers']);
+    };
+    $tests[$prefix . 'appended frame pages match applied pages'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $pages = [];
+        for ($index = 1; $index <= 3; $index++) {
+            $frameOffset = 32 + (($scenario['preexisting_frames'] + $index - 1) * $frameSize);
+            $frameHeader = unpack('Npage_number', substr($plan['wal_bytes_after'], $frameOffset, 4));
+            $pages[] = (int) $frameHeader['page_number'];
+        }
+        $t->same($scenario['expected_applied_pages'], $pages);
+    };
+    $tests[$prefix . 'appended frame checksums chain from prefix'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($plan['wal_bytes_after'], 0, 24), false);
+        for ($frame = 1; $frame <= $scenario['preexisting_frames']; $frame++) {
+            $frameOffset = 32 + (($frame - 1) * $frameSize);
+            $frameBytes = substr($plan['wal_bytes_after'], $frameOffset, $frameSize);
+            $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($frameBytes, 0, 8) . substr($frameBytes, 24, $pageSize), false, $checksumSeed[0], $checksumSeed[1]);
+        }
+        for ($index = 1; $index <= 3; $index++) {
+            $frameOffset = 32 + (($scenario['preexisting_frames'] + $index - 1) * $frameSize);
+            $frameBytes = substr($plan['wal_bytes_after'], $frameOffset, $frameSize);
+            $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($frameBytes, 0, 8) . substr($frameBytes, 24, $pageSize), false, $checksumSeed[0], $checksumSeed[1]);
+            $frameHeader = unpack('Npage_number/Ncommit/Nsalt_1/Nsalt_2/Nchecksum_1/Nchecksum_2', substr($frameBytes, 0, 24));
+            $t->same([$checksumSeed[0], $checksumSeed[1]], [(int) $frameHeader['checksum_1'], (int) $frameHeader['checksum_2']]);
+        }
+    };
+    $tests[$prefix . 'only final appended frame is a commit frame'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $commits = [];
+        for ($index = 1; $index <= 3; $index++) {
+            $frameOffset = 32 + (($scenario['preexisting_frames'] + $index - 1) * $frameSize);
+            $frameHeader = unpack('Npage_number/Ncommit', substr($plan['wal_bytes_after'], $frameOffset, 8));
+            $commits[] = (int) $frameHeader['commit'];
+        }
+        $t->same([0, 0, intdiv(strlen($plan['database_bytes_after_import']), $pageSize)], $commits);
+    };
+}
 
 foreach ($scenarios as $scenario) {
     $seed = (int) $scenario['seed'];

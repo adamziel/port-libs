@@ -204,6 +204,7 @@ final class SQLitePragmaEncodingPageTempStoreState
         $pendingAutoVacuum = $state['pending_auto_vacuum'] ?? null;
         $pageCount = self::normalizeNonNegativeInt($state['page_count'] ?? 0, 'SQLite page_count must be non-negative');
         $maxPageCount = self::normalizeNonNegativeInt($state['max_page_count'] ?? max($pageCount, 1073741823), 'SQLite max_page_count must be non-negative');
+        $databaseEmpty = array_key_exists('database_empty', $state) ? (bool) $state['database_empty'] : $pageCount === 0;
 
         return [
             'encoding' => self::normalizeEncoding($state['encoding'] ?? 'UTF-8'),
@@ -214,7 +215,7 @@ final class SQLitePragmaEncodingPageTempStoreState
             'temp_store' => self::normalizeTempStore($state['temp_store'] ?? 0),
             'auto_vacuum' => self::normalizeAutoVacuum($state['auto_vacuum'] ?? 0),
             'pending_auto_vacuum' => $pendingAutoVacuum === null ? null : self::normalizeAutoVacuum($pendingAutoVacuum),
-            'database_empty' => (bool) ($state['database_empty'] ?? true),
+            'database_empty' => $databaseEmpty,
             'temporary' => (bool) ($state['temporary'] ?? false),
         ];
     }
@@ -429,7 +430,7 @@ final class SQLitePragmaEncodingPageTempStoreState
         if ($requestedValue !== null) {
             if ($this->schemas[$schema]['temporary']) {
                 $reason = 'temporary_schema_auto_vacuum_is_connection_local';
-            } elseif ($requestedValue === 0 && $before !== 0) {
+            } elseif ($requestedValue === 0 && $before !== 0 && !$this->schemas[$schema]['database_empty']) {
                 $pending = 0;
                 $requiresVacuum = true;
                 $reason = 'auto_vacuum_disable_requires_vacuum';
@@ -490,21 +491,18 @@ final class SQLitePragmaEncodingPageTempStoreState
 
     private static function normalizeTempStore(int|string $value): int
     {
-        $normalized = is_int($value) || ctype_digit((string) $value)
+        $text = self::stripQuotes((string) $value);
+        $normalized = is_int($value) || preg_match('/^[+-]?\d+$/', $text) === 1
             ? (int) $value
-            : match (strtolower(self::stripQuotes((string) $value))) {
+            : match (strtolower($text)) {
                 'default' => 0,
                 'file' => 1,
                 'memory' => 2,
-                default => -1,
+                default => throw new \InvalidArgumentException('Unsupported SQLite temp_store mode'),
             };
 
-        if ($normalized === 3) {
+        if ($normalized < 0 || $normalized > 2) {
             return 0;
-        }
-
-        if (!in_array($normalized, [0, 1, 2], true)) {
-            throw new \InvalidArgumentException('Unsupported SQLite temp_store mode');
         }
 
         return $normalized;
@@ -522,17 +520,18 @@ final class SQLitePragmaEncodingPageTempStoreState
 
     private static function normalizeAutoVacuum(int|string $value): int
     {
-        $normalized = is_int($value) || ctype_digit((string) $value)
+        $text = self::stripQuotes((string) $value);
+        $normalized = is_int($value) || preg_match('/^[+-]?\d+$/', $text) === 1
             ? (int) $value
-            : match (strtolower(str_replace(['-', '_'], '', self::stripQuotes((string) $value)))) {
+            : match (strtolower(str_replace(['-', '_'], '', $text))) {
                 'none', 'off' => 0,
                 'full' => 1,
                 'incremental' => 2,
-                default => -1,
+                default => throw new \InvalidArgumentException('Unsupported SQLite auto_vacuum mode'),
             };
 
-        if (!in_array($normalized, [0, 1, 2], true)) {
-            throw new \InvalidArgumentException('Unsupported SQLite auto_vacuum mode');
+        if ($normalized < 0 || $normalized > 2) {
+            return 0;
         }
 
         return $normalized;

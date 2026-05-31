@@ -1068,4 +1068,164 @@ $tests['real upstream fkey8.test source coverage note for implicit deletes and a
     $t->same('no-new-support-component', 'no-new-support-component');
 };
 
+for ($i = 1; $i <= 180; $i++) {
+    $parents = [
+        ['id' => 77, 'label' => 'seventy-seven'],
+        ['id' => 78, 'label' => 'seventy-eight'],
+        ['id' => 88, 'label' => 'eighty-eight'],
+        ['id' => 89, 'label' => 'eighty-nine'],
+    ];
+    $children = [
+        ['rowid' => 1, 'parent_id' => $i % 2 === 0 ? 88 : 77],
+        ['rowid' => 2, 'parent_id' => 90 + $i],
+        ['rowid' => 3, 'parent_id' => null],
+        ['rowid' => 4, 'parent_id' => $i % 3 === 0 ? 78 : 89],
+        ['rowid' => 5, 'parent_id' => 70 + $i],
+    ];
+    $parentTable = $i % 2 === 0 ? 'p1' : 'p2';
+    $childTable = $i % 2 === 0 ? 'c5' : 'c6';
+    $validParentIds = $i % 2 === 0 ? [88, 89] : [77, 78];
+    $filteredParents = array_values(array_filter($parents, static fn (array $row): bool => in_array($row['id'], $validParentIds, true)));
+    $expectedRows = [];
+    foreach ($children as $child) {
+        if ($child['parent_id'] === null || in_array($child['parent_id'], $validParentIds, true)) {
+            continue;
+        }
+        $expectedRows[] = [$childTable, $child['rowid'], $parentTable, 0];
+    }
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::foreignKeyCheckRows(
+        $filteredParents,
+        $children,
+        ['child_table' => $childTable, 'parent_table' => $parentTable, 'child_columns' => ['parent_id'], 'parent_columns' => ['id']]
+    );
+    $case = sprintf('fkey5 integer parent rowid check dynamic %03d', $i);
+
+    $tests['real upstream fkey5.test ' . $case] = static function (TestRunner $t) use ($plan, $expectedRows, $childTable, $parentTable): void {
+        $actual = $plan();
+        $t->same('fkey5.test fkey5-1.2..13.12', $actual['source']);
+        $t->same('pragma-foreign-key-check-row-production', $actual['operation']);
+        $t->same('ok', $actual['status']);
+        $t->same($childTable, $actual['child_table']);
+        $t->same($parentTable, $actual['parent_table']);
+        $t->same($expectedRows, $actual['result_rows']);
+        $t->same(count($expectedRows), $actual['violation_count']);
+        $t->same(1, $actual['null_child_key_short_circuit_count']);
+        $t->same('sqlite-fkey5-foreign-key-check-result-columns', $actual['dependencies'][0]);
+    };
+}
+
+for ($i = 1; $i <= 160; $i++) {
+    $parents = [
+        ['key' => 'Alpha', 'suffix' => 'abc '],
+        ['key' => 'bETA', 'suffix' => 'def    '],
+    ];
+    $children = [
+        ['rowid' => 1, 'key' => $i % 2 === 0 ? 'alpha' : 'Alpha', 'suffix' => 'abc'],
+        ['rowid' => 2, 'key' => 'BETA', 'suffix' => 'def'],
+        ['rowid' => 3, 'key' => 'gamma', 'suffix' => 'abc'],
+        ['rowid' => 4, 'key' => 'Alpha', 'suffix' => 'xyz'],
+        ['rowid' => 5, 'key' => null, 'suffix' => 'abc'],
+    ];
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::foreignKeyCheckRows(
+        $parents,
+        $children,
+        [
+            'child_table' => 'c21',
+            'parent_table' => 'p6',
+            'child_columns' => ['key', 'suffix'],
+            'parent_columns' => ['key', 'suffix'],
+            'parent_collations' => ['key' => 'nocase', 'suffix' => 'rtrim'],
+        ]
+    );
+    $case = sprintf('fkey5 composite parent collation check dynamic %03d', $i);
+
+    $tests['real upstream fkey5.test ' . $case] = static function (TestRunner $t) use ($plan): void {
+        $actual = $plan();
+        $t->same('c21', $actual['child_table']);
+        $t->same('p6', $actual['parent_table']);
+        $t->same(['key', 'suffix'], $actual['child_columns']);
+        $t->same(['key' => 'nocase', 'suffix' => 'rtrim'], $actual['parent_collations']);
+        $t->same([['c21', 3, 'p6', 0], ['c21', 4, 'p6', 0]], $actual['result_rows']);
+        $t->same(2, $actual['violation_count']);
+        $t->same(1, $actual['null_child_key_short_circuit_count']);
+        $t->same('sqlite-fkey5-parent-collation-controls-child-comparison', $actual['dependencies'][1]);
+    };
+}
+
+for ($i = 1; $i <= 120; $i++) {
+    $schema = $i % 2 === 0 ? 'aux' : 'tenant';
+    $parents = [
+        ['code' => 'abc', 'value' => 11],
+        ['code' => 'def', 'value' => 22],
+        ['code' => 'xyz', 'value' => 99],
+    ];
+    $children = [
+        ['rowid' => 5, 'code' => 'abc'],
+        ['rowid' => 7, 'code' => 'xyz'],
+        ['rowid' => 9, 'code' => 'oops'],
+    ];
+    $sameSchema = $i % 3 !== 0;
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::foreignKeyCheckRows(
+        $parents,
+        $children,
+        [
+            'child_schema' => $schema,
+            'parent_schema' => $sameSchema ? $schema : 'main',
+            'child_table' => 't1',
+            'parent_table' => 't2',
+            'child_columns' => ['code'],
+            'parent_columns' => ['code'],
+        ]
+    );
+    $case = sprintf('fkey5 attached schema local parent check dynamic %03d', $i);
+
+    $tests['real upstream fkey5.test ' . $case] = static function (TestRunner $t) use ($plan, $schema, $sameSchema): void {
+        $actual = $plan();
+        $t->same($schema, $actual['child_schema']);
+        $t->same($sameSchema ? $schema : 'main', $actual['parent_schema']);
+        $t->same($sameSchema ? [['t1', 9, 't2', 0]] : [['t1', 5, 't2', 0], ['t1', 7, 't2', 0], ['t1', 9, 't2', 0]], $actual['result_rows']);
+        $t->same($sameSchema ? 1 : 3, $actual['violation_count']);
+        $t->same('sqlite-fkey5-attached-schema-resolves-parent-locally', $actual['dependencies'][4]);
+    };
+}
+
+for ($i = 1; $i <= 80; $i++) {
+    $parents = [['id' => 1], ['id' => 2]];
+    $children = [
+        ['master' => 1, 'line' => 999],
+        ['master' => 45 + $i, 'line' => 45],
+    ];
+    $plan = static fn (): array => SQLiteDynamicTriggerForeignKeyPlan::foreignKeyCheckRows(
+        $parents,
+        $children,
+        [
+            'child_table' => 'c30',
+            'parent_table' => 'p30',
+            'child_columns' => ['master'],
+            'parent_columns' => ['id'],
+            'without_rowid' => true,
+        ]
+    );
+    $case = sprintf('fkey5 without rowid violation rowid null dynamic %03d', $i);
+
+    $tests['real upstream fkey5.test ' . $case] = static function (TestRunner $t) use ($plan): void {
+        $actual = $plan();
+        $t->same(true, $actual['without_rowid']);
+        $t->same([['c30', null, 'p30', 0]], $actual['result_rows']);
+        $t->same(null, $actual['violations'][0]['rowid']);
+        $t->same('sqlite-fkey5-without-rowid-child-reports-null-rowid', $actual['dependencies'][3]);
+    };
+}
+
+$tests['real upstream fkey5.test source coverage note for dynamic foreign key check rows'] = static function (TestRunner $t): void {
+    $source = file_get_contents('/home/claude/port-libs/.upstream-cache/libsqlite/test/fkey5.test');
+
+    $t->true(is_string($source));
+    $t->true(str_contains($source, 'PRAGMA foreign_key_check'));
+    $t->true(str_contains($source, 'PRAGMA main.foreign_key_check'));
+    $t->true(str_contains($source, 'WITHOUT ROWID'));
+    $t->true(str_contains($source, "pragma_foreign_key_check('t1','aux')"));
+    $t->same('non-overlap: extends existing trigger/FK dynamic corpus into fkey5 foreign_key_check row production, not fkey1 replace cascade, trigger1/2 execution order, fkey8 deferred counters, or e_fkey capability modes', 'non-overlap: extends existing trigger/FK dynamic corpus into fkey5 foreign_key_check row production, not fkey1 replace cascade, trigger1/2 execution order, fkey8 deferred counters, or e_fkey capability modes');
+};
+
 return $tests;

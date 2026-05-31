@@ -1014,6 +1014,59 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     /**
      * @return list<array<string, mixed>>
      */
+    public static function walSetlkSnapshotBusyRows(): array
+    {
+        $rows = [];
+        $timeoutMs = [50, 100, 250, 500, 750, 1000, 1500, 2000];
+        $checkpointModes = ['passive', 'full', 'restart', 'truncate'];
+        $snapshotRows = [
+            [[1, 2], [3, 4], [5, 6]],
+            [[1, 2], [3, 4], [5, 6], [7, 8]],
+            [[1, 2], [3, 4], [5, 6], [9, 10]],
+        ];
+
+        for ($case = 1; $case <= 1000; $case++) {
+            $timeout = $timeoutMs[($case - 1) % count($timeoutMs)];
+            $checkpointMode = $checkpointModes[intdiv($case - 1, count($timeoutMs)) % count($checkpointModes)];
+            $setlkTimeout = ($case % 5) === 0;
+            $xwriteDelayMs = 4000 + (($case % 7) * 250);
+            $rowsBeforeSnapshot = $snapshotRows[0];
+            $rowsAfterCommit = $snapshotRows[1 + ($case % 2)];
+            $openWaitUs = $setlkTimeout ? min(1000, $timeout * 1000) : min(1999000, max(1000, $timeout * 1000));
+
+            $rows[] = [
+                'script' => 'walsetlk_snapshot.test',
+                'upstream' => 'walsetlk_snapshot.test 1.0..1.5 snapshot_open returns SQLITE_BUSY while checkpoint xWrite is stalled',
+                'case' => $case,
+                'journal_mode' => 'wal',
+                'vfs' => 'testvfs-fullshm',
+                'checkpoint_mode' => $checkpointMode,
+                'timeout_ms' => $timeout,
+                'xwrite_delay_ms' => $xwriteDelayMs,
+                'snapshot_rows' => $rowsBeforeSnapshot,
+                'committed_rows' => $rowsAfterCommit,
+                'snapshot_open_result' => 'SQLITE_BUSY',
+                'snapshot_message' => 'SQLITE_BUSY',
+                'snapshot_open_wait_us' => $openWaitUs,
+                'wait_under_two_seconds' => $openWaitUs < 2000000,
+                'sleep_callback_called' => !$setlkTimeout,
+                'setlk_timeout_enabled' => $setlkTimeout,
+                'final_rows' => $rowsAfterCommit,
+                'final_row_count' => count($rowsAfterCommit),
+                'dependencies' => [
+                    'real-upstream-corpus-walsetlk-snapshot',
+                    'sqlite-snapshot-open-busy-during-checkpoint',
+                    'sqlite-vfs-fullshm-checkpoint-write-stall',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
     public static function wal2FilePermissionRows(): array
     {
         $cases = [

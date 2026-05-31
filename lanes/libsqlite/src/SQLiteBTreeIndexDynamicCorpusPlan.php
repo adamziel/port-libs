@@ -10585,6 +10585,205 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
         return ((float) $predicate) === ((float) $query);
     }
 
+    /**
+     * @return list<array{source:string,case:int,batch:int,upstream_section:string,statement:string,target_kind:string,target_name:string|null,rebuilt_indexes:list<string>,main_t1_collA:string,main_t1_collB:string,main_t2_collA:string,main_t2_collB:string,aux_t1_collA:string,aux_t1_collB:string,syntax_only:bool,corrupt_before:list<string>,integrity_after:string,detail:string}>
+     */
+    public static function eReindexCollationScopeCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite e_reindex dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'e_reindex-0.1.1',
+                'REINDEX',
+                'syntax',
+                null,
+                [],
+                ['length', 'value', 'length', 'value', 'length', 'value'],
+                'syntax diagram accepts bare REINDEX statement',
+                true,
+            ],
+            [
+                'e_reindex-0.1.2',
+                'REINDEX nocase',
+                'syntax',
+                'nocase',
+                [],
+                ['length', 'value', 'length', 'value', 'length', 'value'],
+                'syntax diagram accepts collation-name REINDEX statement',
+                true,
+            ],
+            [
+                'e_reindex-1.3/1.4',
+                'REINDEX',
+                'all',
+                null,
+                ['main.i1', 'main.i2'],
+                ['length', 'value', 'length', 'value', 'length', 'value'],
+                'bare REINDEX rebuilds corrupt indexes and restores integrity',
+                false,
+                [
+                    'wrong # of entries in index i2',
+                    'wrong # of entries in index i1',
+                    'row 3 missing from index i2',
+                    'row 3 missing from index i1',
+                    'row 4 missing from index i2',
+                    'row 4 missing from index i1',
+                ],
+            ],
+            [
+                'e_reindex-2.2.1/2.7',
+                'REINDEX',
+                'all',
+                null,
+                ['main.i1_a', 'main.i1_b', 'main.i2_a', 'main.i2_b', 'aux.i1_a', 'aux.i1_b'],
+                ['value', 'length', 'value', 'length', 'value', 'length'],
+                'bare REINDEX rebuilds every index in every attached database',
+                false,
+            ],
+            [
+                'e_reindex-2.3.1/3.7',
+                'REINDEX collA',
+                'collation',
+                'collA',
+                ['main.i1_a', 'main.i2_a', 'aux.i1_a'],
+                ['length', 'length', 'length', 'length', 'length', 'length'],
+                'collation REINDEX rebuilds only indexes using collA',
+                false,
+            ],
+            [
+                'e_reindex-2.3.8/3.14',
+                'REINDEX collB',
+                'collation',
+                'collB',
+                ['main.i1_b', 'main.i2_b', 'aux.i1_b'],
+                ['length', 'value', 'length', 'value', 'length', 'value'],
+                'collation REINDEX rebuilds only indexes using collB',
+                false,
+            ],
+            [
+                'e_reindex-2.4.1/4.7',
+                'REINDEX t1',
+                'table',
+                'main.t1',
+                ['main.i1_a', 'main.i1_b'],
+                ['value', 'length', 'length', 'value', 'length', 'value'],
+                'table REINDEX rebuilds indexes attached to main.t1 only',
+                false,
+            ],
+            [
+                'e_reindex-2.4.8/4.14',
+                'REINDEX aux.t1',
+                'table',
+                'aux.t1',
+                ['aux.i1_a', 'aux.i1_b'],
+                ['value', 'length', 'length', 'value', 'value', 'length'],
+                'qualified table REINDEX rebuilds indexes attached to aux.t1 only',
+                false,
+            ],
+            [
+                'e_reindex-2.4.15/4.21',
+                'REINDEX t2',
+                'table',
+                'main.t2',
+                ['main.i2_a', 'main.i2_b'],
+                ['value', 'length', 'value', 'length', 'value', 'length'],
+                'table REINDEX rebuilds indexes attached to main.t2 only',
+                false,
+            ],
+            [
+                'e_reindex-2.5.1/5.7',
+                'REINDEX i1_a',
+                'index',
+                'main.i1_a',
+                ['main.i1_a'],
+                ['length', 'length', 'value', 'length', 'value', 'length'],
+                'index REINDEX rebuilds only main.i1_a',
+                false,
+            ],
+            [
+                'e_reindex-2.5.8/5.14',
+                'REINDEX i2_b',
+                'index',
+                'main.i2_b',
+                ['main.i2_b'],
+                ['length', 'length', 'value', 'value', 'value', 'length'],
+                'index REINDEX rebuilds only main.i2_b',
+                false,
+            ],
+            [
+                'e_reindex-2.5.15/5.21',
+                'REINDEX aux.i1_b',
+                'index',
+                'aux.i1_b',
+                ['aux.i1_b'],
+                ['length', 'length', 'value', 'value', 'value', 'value'],
+                'qualified index REINDEX rebuilds only aux.i1_b',
+                false,
+            ],
+            [
+                'e_reindex-2.5.22/5.28',
+                'REINDEX i1_b',
+                'index',
+                'main.i1_b',
+                ['main.i1_b'],
+                ['length', 'value', 'value', 'value', 'value', 'value'],
+                'index REINDEX rebuilds only main.i1_b',
+                false,
+            ],
+            [
+                'e_reindex-2.5.29/5.34',
+                'REINDEX i2_a',
+                'index',
+                'main.i2_a',
+                ['main.i2_a'],
+                ['length', 'value', 'length', 'value', 'value', 'value'],
+                'index REINDEX rebuilds only main.i2_a',
+                false,
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            [
+                $section,
+                $statement,
+                $targetKind,
+                $targetName,
+                $rebuiltIndexes,
+                $orders,
+                $detail,
+                $syntaxOnly,
+            ] = array_pad($template, 9, []);
+
+            $out[] = [
+                'source' => 'e_reindex.test sections e_reindex-0.1 through e_reindex-2.5.34',
+                'case' => $case,
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+                'upstream_section' => $section,
+                'statement' => $statement,
+                'target_kind' => $targetKind,
+                'target_name' => $targetName,
+                'rebuilt_indexes' => $rebuiltIndexes,
+                'main_t1_collA' => $orders[0],
+                'main_t1_collB' => $orders[1],
+                'main_t2_collA' => $orders[2],
+                'main_t2_collB' => $orders[3],
+                'aux_t1_collA' => $orders[4],
+                'aux_t1_collB' => $orders[5],
+                'syntax_only' => $syntaxOnly,
+                'corrupt_before' => $template[8] ?? [],
+                'integrity_after' => 'ok',
+                'detail' => $detail,
+            ];
+        }
+
+        return $out;
+    }
+
     private static function sqlitePartialIndexBoundValueMatches(int $predicate, mixed $value): bool
     {
         return is_int($value) && $value === $predicate;

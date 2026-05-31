@@ -1347,6 +1347,115 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicSuccessfulMaterializedWalScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL successful materialization dynamic parity requires at least one scenario');
+        }
+
+        $scenarios = [];
+        for ($seed = 1; $seed <= $scenarioCount; $seed++) {
+            $pageSize = $seed % 2 === 0 ? 1024 : 512;
+            $tenantId = 6100 + $seed;
+            $featurePage = 42 + ($seed % 9);
+            $catalogPage = 520 + $seed;
+            $auditPage = 620 + $seed;
+            $preexistingFrames = $seed % 4;
+            $jsonbMode = $seed % 3 === 2;
+            $preSavepointWalPages = [];
+            for ($frame = 1; $frame <= $preexistingFrames; $frame++) {
+                $preSavepointWalPages[] = 700 + $seed + $frame;
+            }
+
+            $rows = [
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 7000 + 1,
+                    'key_name' => 'success_feature_flags_' . $seed,
+                    'key_value' => json_encode(['enabled' => false, 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'yes',
+                    'page_number' => $featurePage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 7000 + 2,
+                    'key_name' => 'success_catalog_payload_' . $seed,
+                    'key_value' => $jsonbMode
+                        ? new SQLiteBlobValue(SQLiteJsonB::encode(['items' => ['before'], 'seed' => $seed]))
+                        : json_encode(['items' => ['before'], 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'no',
+                    'page_number' => $catalogPage,
+                ],
+            ];
+
+            $mutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'success_enable_feature_' . $seed,
+                    'key_name' => 'success_feature_flags_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => $preexistingFrames + 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'success_append_catalog_' . $seed,
+                    'key_name' => 'success_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.items',
+                    'value' => new SQLiteJsonSubtypeValue(json_encode(['before', 'kept-' . $seed], JSON_THROW_ON_ERROR)),
+                    'wal_frame_index' => $preexistingFrames + 2,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'success_insert_audit_' . $seed,
+                    'key_name' => 'success_audit_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.source',
+                    'value' => 'successful-materialized-' . $seed,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $seed * 7000 + 3,
+                    'insert_load_policy' => 'auto',
+                    'initial_value' => '{}',
+                    'page_number' => $auditPage,
+                    'wal_frame_index' => $preexistingFrames + 3,
+                ],
+            ];
+
+            $databaseBytes = self::scenarioDatabaseBytes($pageSize, max($auditPage, $catalogPage, $featurePage));
+            $walBytes = self::scenarioChecksummedWalBytes($pageSize, $preexistingFrames, 0x9400 + $seed, 0x9500 + $seed);
+            $plan = self::plan($rows, $mutations, [
+                'database_bytes' => $databaseBytes,
+                'page_size' => $pageSize,
+                'wal_bytes' => $walBytes,
+                'transaction' => 'application_success_json_import_' . $seed,
+                'savepoint' => 'success_json_batch_' . $seed,
+                'pre_savepoint_wal_pages' => $preSavepointWalPages,
+                'materialize_success_wal_frames' => true,
+            ]);
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $tenantId,
+                'page_size' => $pageSize,
+                'jsonb_mode' => $jsonbMode,
+                'preexisting_frames' => $preexistingFrames,
+                'pre_savepoint_wal_pages' => $preSavepointWalPages,
+                'expected_applied_pages' => [$featurePage, $catalogPage, $auditPage],
+                'expected_inserted_key' => 'success_audit_payload_' . $seed,
+                'database_bytes' => $databaseBytes,
+                'wal_bytes' => $walBytes,
+                'plan' => $plan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
      * @param array<string,mixed> $importPlan
      */
     private static function assertRollbackFramesExist(array $importPlan, int $walFrameCount): void

@@ -68,6 +68,25 @@ final class SQLiteSelectQuery
         if (array_key_exists('distinct', $plan)) {
             if ($plan['distinct'] === true) {
                 $distinct = $rows === [] ? null : array_keys($rows[0]);
+                if ($distinct !== null && array_key_exists('select', $plan) && is_array($plan['select']) && array_is_list($plan['select'])) {
+                    $hiddenOrderColumns = [];
+                    foreach ($plan['select'] as $expression) {
+                        if (
+                            is_array($expression)
+                            && ($expression['hiddenOrderColumn'] ?? false) === true
+                            && isset($expression['alias'])
+                            && is_string($expression['alias'])
+                        ) {
+                            $hiddenOrderColumns[$expression['alias']] = true;
+                        }
+                    }
+                    if ($hiddenOrderColumns !== []) {
+                        $distinct = array_values(array_filter(
+                            $distinct,
+                            static fn (string $column): bool => !isset($hiddenOrderColumns[$column])
+                        ));
+                    }
+                }
             } elseif (!is_array($plan['distinct']) || !array_is_list($plan['distinct'])) {
                 throw new \InvalidArgumentException('SQLite SELECT query distinct columns must be a list');
             } else {
