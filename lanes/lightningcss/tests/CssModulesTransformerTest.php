@@ -1295,6 +1295,43 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules rewrites upstream nest preludes before lowering local global composes selectors' => static function (TestRunner $t) use ($export, $local): void {
+        $css = <<<'CSS'
+.card {
+  color: red;
+
+  @nest :global(.wp-block-group) & {
+    color: blue;
+  }
+
+  @nest :local(.theme) & {
+    color: yellow;
+  }
+
+  @nest &:where(:global(.is-wide), .featured) {
+    color: green;
+  }
+
+  composes: base;
+}
+
+.base {
+  color: white;
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css);
+
+        $t->same('.EgL3uq_card{color:red}.wp-block-group .EgL3uq_card{color:#00f}.EgL3uq_theme .EgL3uq_card{color:#ff0}.EgL3uq_card:where(.is-wide,.EgL3uq_featured){color:green}.EgL3uq_base{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'theme' => $export('EgL3uq_theme'),
+            'featured' => $export('EgL3uq_featured'),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_card EgL3uq_base', CssModulesTransformer::exportClassList($result['exports'], 'card'));
+    },
     'css modules scopes upstream animation custom idents while preserving composes exports' => static function (TestRunner $t) use ($export, $dependency): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .test {

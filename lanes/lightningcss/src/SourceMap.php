@@ -652,8 +652,6 @@ final class SourceMap
      */
     public static function fromArray(array $data, string $projectRoot = '/'): self
     {
-        self::assertJsonVersion($data['version'] ?? null);
-
         if (!isset($data['mappings']) || !is_string($data['mappings'])) {
             throw new InvalidArgumentException('Source map mappings must be a string.');
         }
@@ -685,8 +683,6 @@ final class SourceMap
         if (!$data instanceof \stdClass) {
             throw new InvalidArgumentException('Source map JSON must decode to an object.');
         }
-
-        self::assertJsonVersion($data->version ?? null);
 
         $mappings = $data->mappings ?? null;
         if (!is_string($mappings)) {
@@ -1441,13 +1437,6 @@ final class SourceMap
 
         if ($value > self::MAX_UNSIGNED_32) {
             throw new InvalidArgumentException(ucfirst($label) . ' must fit in unsigned 32-bit range.');
-        }
-    }
-
-    private static function assertJsonVersion(mixed $version): void
-    {
-        if (!is_int($version) || $version < 0 || $version > 255) {
-            throw new InvalidArgumentException('Source map version must be an unsigned 8-bit integer.');
         }
     }
 

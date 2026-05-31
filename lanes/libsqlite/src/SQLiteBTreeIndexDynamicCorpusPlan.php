@@ -15338,7 +15338,7 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
-     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,table_name:string,declared_type:string,affinity:string,raw_values:list<int>,stored_values:list<mixed>,select_sql:string,predicate_sql:string|null,expression_sql:string|null,projection_mode:bool,uses_rowid_btree:bool,comparison_family:string,detail:string,integrity:string}>
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,table_name:string,declared_type:string,affinity:string,raw_values:list<int>,stored_values:list<mixed>,select_sql:string,predicate_sql:string|null,expression_sql:string|null,projection_mode:bool,uses_rowid_btree:bool,comparison_family:string,expected_rows:list<mixed>,projected_values:list<int|null>|null,matched_row_count:int,null_result_count:int,detail:string,integrity:string}>
      */
     public static function where5NullComparisonCases(int $cases = 1200): array
     {
@@ -15429,6 +15429,8 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
             $selectSql = $projectionMode
                 ? sprintf('SELECT %s FROM %s ORDER BY x', $expression, $tableName)
                 : sprintf('SELECT x FROM %s WHERE %s ORDER BY x', $tableName, $predicateSql);
+            $expectedRows = $projectionMode ? [] : self::where5ExpectedRows($storedValues, $affinity, (string) $predicateSql);
+            $projectedValues = $projectionMode ? self::where5ProjectedValues($storedValues, $affinity, (string) $expression) : null;
 
             $out[] = [
                 'source' => $source,
@@ -15447,12 +15449,93 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
                 'projection_mode' => $projectionMode,
                 'uses_rowid_btree' => $usesRowidBtree,
                 'comparison_family' => $family,
+                'expected_rows' => $expectedRows,
+                'projected_values' => $projectedValues,
+                'matched_row_count' => count($expectedRows),
+                'null_result_count' => $projectedValues === null ? 0 : count(array_filter($projectedValues, static fn (mixed $value): bool => $value === null)),
                 'detail' => $detail,
                 'integrity' => 'ok',
             ];
         }
 
         return $out;
+    }
+
+    /**
+     * @param list<mixed> $storedValues
+     * @return list<mixed>
+     */
+    private static function where5ExpectedRows(array $storedValues, string $affinity, string $predicateSql): array
+    {
+        $rows = [];
+        foreach (self::where5OrderByValues($storedValues) as $value) {
+            if (self::where5EvaluateComparison($value, $affinity, $predicateSql) === true) {
+                $rows[] = $value;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<mixed> $storedValues
+     * @return list<int|null>
+     */
+    private static function where5ProjectedValues(array $storedValues, string $affinity, string $expressionSql): array
+    {
+        $values = [];
+        foreach (self::where5OrderByValues($storedValues) as $value) {
+            $result = self::where5EvaluateComparison($value, $affinity, $expressionSql);
+            $values[] = $result === null ? null : ($result ? 1 : 0);
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<mixed> $storedValues
+     * @return list<mixed>
+     */
+    private static function where5OrderByValues(array $storedValues): array
+    {
+        $ordered = $storedValues;
+        usort(
+            $ordered,
+            static fn (mixed $left, mixed $right): int => SQLiteAffinityComparison::compare($left, $right, 'NONE', 'NONE', 'BINARY') ?? 0,
+        );
+
+        return $ordered;
+    }
+
+    private static function where5EvaluateComparison(mixed $left, string $leftAffinity, string $sql): ?bool
+    {
+        $normalized = strtoupper(trim(preg_replace('/\s+/', ' ', str_replace('==', '=', $sql)) ?? $sql));
+        if ($normalized === 'X IS NULL') {
+            return $left === null;
+        }
+        if ($normalized === 'X IS NOT NULL') {
+            return $left !== null;
+        }
+
+        if (preg_match('/^X\s*(<=|>=|<>|!=|=|<|>)\s*(NULL|[-+]?[0-9]+)$/', $normalized, $matches) !== 1) {
+            throw new \InvalidArgumentException('SQLite where5 comparison expression is unsupported: ' . $sql);
+        }
+
+        $right = $matches[2] === 'NULL' ? null : (int) $matches[2];
+        $comparison = SQLiteAffinityComparison::compare($left, $right, $leftAffinity, 'NONE', 'BINARY');
+        if ($comparison === null) {
+            return null;
+        }
+
+        return match ($matches[1]) {
+            '<' => $comparison < 0,
+            '<=' => $comparison <= 0,
+            '=' => $comparison === 0,
+            '>=' => $comparison >= 0,
+            '>' => $comparison > 0,
+            '<>', '!=' => $comparison !== 0,
+            default => throw new \InvalidArgumentException('SQLite where5 comparison operator is unsupported: ' . $matches[1]),
+        };
     }
 
     /**

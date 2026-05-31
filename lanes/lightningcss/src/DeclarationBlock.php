@@ -12912,17 +12912,15 @@ final class DeclarationBlock
 
     private function normalizeDeclarationValue(string $property, string $value): string
     {
+        if (!str_starts_with($property, '--')) {
+            $keyword = strtolower($value);
+            if (in_array($keyword, self::CSS_WIDE_KEYWORDS, true)) {
+                return $keyword;
+            }
+        }
+
         if ($property === 'border-spacing') {
             return $this->normalizeBorderSpacingValue($value);
-        }
-
-        if ($property !== 'all') {
-            return $value;
-        }
-
-        $keyword = strtolower($value);
-        if (in_array($keyword, self::CSS_WIDE_KEYWORDS, true)) {
-            return $keyword;
         }
 
         return $value;

@@ -200,6 +200,10 @@ final class CssModulesTransformer
             return $this->rewriteScopePrelude($prelude);
         }
 
+        if (preg_match('/^@nest\b/i', $trimmedPrelude) === 1) {
+            return $this->rewriteNestPrelude($prelude);
+        }
+
         if ($this->dashedIdents && preg_match('/^\s*@media\b/i', $trimmedPrelude) === 1) {
             return $this->rewriteDashedIdentReferences($prelude);
         }
@@ -372,6 +376,20 @@ final class CssModulesTransformer
         }
 
         return $this->rewriteSelectorList($selectorList)[0];
+    }
+
+    private function rewriteNestPrelude(string $prelude): string
+    {
+        if (preg_match('/^(\s*@nest\b)(\s*)(.*)$/is', $prelude, $matches) !== 1) {
+            return $prelude;
+        }
+
+        $selectorList = trim($matches[3]);
+        if ($selectorList === '') {
+            return $prelude;
+        }
+
+        return $matches[1] . $matches[2] . $this->rewriteSelectorList($selectorList)[0];
     }
 
     private function startsWithScopeToKeyword(string $value, int $offset): bool

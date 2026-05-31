@@ -357,6 +357,42 @@ return [
         $t->same(true, $allExcluded->isIncluded('wp-content/plugins/gutenberg/block.json', false));
         $t->same(PathspecMatch::KIND_ALWAYS, $allExcluded->match('wp-content/plugins/gutenberg/block.json', false)?->kind);
     },
+    'exclude nil pathspec prunes tree walks like upstream simplified search' => static function (TestRunner $t) use ($makeTreeStore, $walkPaths): void {
+        [$root, $read] = $makeTreeStore();
+        $search = PathspecSearch::fromSpecs([':(exclude)']);
+
+        $match = $search->match('wp-content/plugins/gutenberg/block.json', false);
+        $t->same(true, $match?->isExcluded());
+        $t->same(PathspecMatch::KIND_ALWAYS, $match?->kind);
+        $t->same(false, $search->isIncluded('wp-content/plugins/gutenberg/block.json', false));
+        $t->same(false, $search->canMatch('wp-content', null));
+        $t->same(false, $search->canMatch('wp-content', false));
+        $t->same(false, $search->canMatch('wp-content', true));
+        $t->same(false, $search->directoryMatchesPrefix('wp-content', false));
+        $t->same(false, $search->directoryMatchesPrefix('wp-content', true));
+
+        $readPaths = [];
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            $search,
+            static function (TreeEntry $entry, string $path) use ($read, &$readPaths): GitObject {
+                $readPaths[] = $path;
+
+                return $read($entry, $path);
+            },
+            includeTrees: false,
+        );
+
+        $t->same([], $walkPaths($records));
+        $t->same([], $readPaths);
+
+        $specificExcludes = PathspecSearch::fromSpecs([
+            ':(exclude)wp-content/cache/page.html',
+            ':(exclude)wp-content/uploads/private.php',
+        ]);
+        $t->same(true, $specificExcludes->canMatch('wp-content', true));
+        $t->same(true, $specificExcludes->directoryMatchesPrefix('wp-content', true));
+    },
     'maps upstream can-match and directory-prefix pruning cases' => static function (TestRunner $t): void {
         $search = PathspecSearch::fromSpecs(['dir/*']);
         $t->same(false, $search->canMatch('a', null));
@@ -733,5 +769,8 @@ return [
         $t->same('wp-content/plugins/gutenberg', $example['pluginPruningHintDirectory']);
         $t->same(null, $example['callerPrefixOnlyPruningHint']);
         $t->same('wp-content/plugins/gutenberg', $example['directoryOnlyPruningHint']);
+        $t->same(false, $example['excludeNilCanDescendIntoContent']);
+        $t->same([], $example['excludeNilContentPaths']);
+        $t->same([], $example['excludeNilReadPaths']);
     },
 ];

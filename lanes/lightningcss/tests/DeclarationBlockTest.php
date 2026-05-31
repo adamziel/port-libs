@@ -142,6 +142,43 @@ return [
             $block->removeProperty('all: initial; color: red; all: revert !important', 'all')
         );
     },
+    'declaration block canonicalizes upstream css-wide keywords for normal cssom declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            [
+                'color' => 'inherit',
+                'margin' => 'revert-layer',
+                'border-spacing' => 'revert',
+                '--Block-Reset' => 'InHeRiT',
+            ],
+            $block->parse('color: InHeRiT; margin: REVERT-LAYER; border-spacing: ReVeRt; --Block-Reset: InHeRiT')
+        );
+        $t->same(['value' => 'inherit', 'important' => false], $block->getProperty('color: InHeRiT', 'color'));
+        $t->same(['value' => 'revert-layer', 'important' => true], $block->getProperty('margin: REVERT-LAYER !important', 'margin-top'));
+        $t->same(['value' => 'revert', 'important' => false], $block->getProperty('border-spacing: ReVeRt', 'border-spacing'));
+        $t->same(['value' => 'InHeRiT', 'important' => false], $block->getProperty('--Block-Reset: InHeRiT', '--Block-Reset'));
+        $t->same(
+            'background: white; color: revert-layer',
+            $block->setProperty('color: red !important; background: white', 'color', 'ReVeRt-LaYeR')
+        );
+        $t->same(
+            'color: red; margin: revert !important',
+            $block->setProperty('margin: 1rem; color: red', 'margin', 'ReVeRt', true)
+        );
+        $t->same(
+            'color: red; border-spacing: unset',
+            $block->setProperty('border-spacing: 0px 0px !important; color: red', 'border-spacing', 'UNSET')
+        );
+        $t->same(
+            '--Block-Reset: InHeRiT; color: red',
+            $block->setProperty('--Block-Reset: red; color: red', '--Block-Reset', 'InHeRiT')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('color: red; margin: ReVeRt-LaYeR !important', 'margin')
+        );
+    },
     'declaration block canonicalizes upstream border spacing cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

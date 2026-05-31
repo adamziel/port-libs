@@ -192,26 +192,22 @@ final class PathspecSearch
         if ($this->patterns === [] || $relativePath === '') {
             return true;
         }
-        if ($this->allPatternsAreExcluded) {
-            return true;
-        }
         if ($this->commonPrefix !== '' && !self::pathPrefixesOverlap($relativePath, $this->commonPrefix)) {
             return false;
         }
 
         foreach ($this->patterns as $pattern) {
-            if ($pattern->exclude && $pattern->firstWildcardPosition() !== null) {
+            if ($pattern->firstWildcardPosition() === 0 && !$pattern->exclude) {
                 return true;
             }
-            if ($pattern->exclude || $pattern->alwaysMatches()) {
-                continue;
-            }
-            if ($this->patternCouldMatchPath($pattern, $relativePath, $isDirectory)) {
-                return true;
+            $couldMatch = $pattern->alwaysMatches()
+                || $this->patternCouldMatchPath($pattern, $relativePath, $isDirectory);
+            if ($couldMatch && (!$pattern->exclude || $pattern->alwaysMatches())) {
+                return !$pattern->exclude;
             }
         }
 
-        return false;
+        return $this->allPatternsAreExcluded;
     }
 
     public function directoryMatchesPrefix(string $relativePath, bool $leading = false): bool
@@ -220,9 +216,6 @@ final class PathspecSearch
         if ($this->patterns === [] || $relativePath === '') {
             return true;
         }
-        if ($this->allPatternsAreExcluded) {
-            return false;
-        }
         if ($this->commonPrefix !== '' && !self::pathPrefixesOverlap($relativePath, $this->commonPrefix)) {
             return false;
         }
@@ -230,38 +223,36 @@ final class PathspecSearch
             if ($pattern->exclude && $pattern->firstWildcardPosition() !== null) {
                 return true;
             }
-            if ($pattern->exclude) {
-                continue;
-            }
-            if ($pattern->alwaysMatches()) {
-                return true;
-            }
+            $isMatch = $pattern->alwaysMatches();
             $firstWildcard = $pattern->firstWildcardPosition();
             if ($firstWildcard === 0) {
-                return true;
+                $isMatch = true;
             }
-            $rightmost = $firstWildcard === null
-                ? strlen($pattern->path)
-                : strrpos(substr($pattern->path, 0, $firstWildcard), '/');
-            if ($rightmost === false || $rightmost === null) {
-                $rightmost = $firstWildcard ?? strlen($pattern->path);
-            }
-            if ($leading && $rightmost > strlen($relativePath)) {
-                $before = strrpos(substr($pattern->path, 0, strlen($relativePath)), '/');
-                $after = strpos($pattern->path, '/', strlen($relativePath));
-                if ($before !== false) {
-                    $rightmost = $before;
-                } elseif ($after !== false) {
-                    $rightmost = $after;
+            if (!$isMatch) {
+                $rightmost = $firstWildcard === null
+                    ? strlen($pattern->path)
+                    : strrpos(substr($pattern->path, 0, $firstWildcard), '/');
+                if ($rightmost === false || $rightmost === null) {
+                    $rightmost = $firstWildcard ?? strlen($pattern->path);
                 }
+                if ($leading && $rightmost > strlen($relativePath)) {
+                    $before = strrpos(substr($pattern->path, 0, strlen($relativePath)), '/');
+                    $after = strpos($pattern->path, '/', strlen($relativePath));
+                    if ($before !== false) {
+                        $rightmost = $before;
+                    } elseif ($after !== false) {
+                        $rightmost = $after;
+                    }
+                }
+                $patternPrefix = substr($pattern->path, 0, $rightmost);
+                $isMatch = $this->samePath($pattern, $patternPrefix, substr($relativePath, 0, strlen($patternPrefix)));
             }
-            $patternPrefix = substr($pattern->path, 0, $rightmost);
-            if ($this->samePath($pattern, $patternPrefix, substr($relativePath, 0, strlen($patternPrefix)))) {
-                return true;
+            if ($isMatch && (!$pattern->exclude || $pattern->alwaysMatches())) {
+                return !$pattern->exclude;
             }
         }
 
-        return false;
+        return $this->allPatternsAreExcluded;
     }
 
     private static function normalizePattern(PathspecPattern $pattern, string $prefix): PathspecPattern
@@ -340,7 +331,11 @@ final class PathspecSearch
         if ($pattern->mustBeDirectory && !$isDirectory) {
             return false;
         }
-        $regex = self::globRegex($pattern->path, $pattern->searchMode === PathspecPattern::SEARCH_PATH_AWARE_GLOB);
+        $regex = self::globRegex(
+            $pattern->path,
+            $pattern->searchMode === PathspecPattern::SEARCH_PATH_AWARE_GLOB,
+            $pattern->ignoreCase,
+        );
         $modifiers = $pattern->ignoreCase ? 'i' : '';
 
         return preg_match('#^' . $regex . '$#' . $modifiers, $relativePath) === 1;
@@ -356,7 +351,7 @@ final class PathspecSearch
         $maxPatternLength = $firstWildcard ?? strlen($pattern->path);
         $commonLength = min($maxPatternLength, strlen($relativePath));
         if ($commonLength === 0) {
-            return true;
+            return false;
         }
         $patternPrefix = substr($pattern->path, 0, $commonLength);
         $relativePrefix = substr($relativePath, 0, $commonLength);
@@ -392,7 +387,7 @@ final class PathspecSearch
         return $pattern->ignoreCase ? strcasecmp($left, $right) === 0 : $left === $right;
     }
 
-    private static function globRegex(string $pattern, bool $pathAware): string
+    private static function globRegex(string $pattern, bool $pathAware, bool $ignoreCase = false): string
     {
         $regex = '';
         $length = strlen($pattern);
@@ -431,7 +426,7 @@ final class PathspecSearch
                 $end = self::findCharacterClassEnd($pattern, $i);
                 if ($end !== null) {
                     $regex .= (!$matchSlash ? '(?!/)' : '')
-                        . self::characterClassRegex(substr($pattern, $i + 1, $end - $i - 1));
+                        . self::characterClassRegex(substr($pattern, $i + 1, $end - $i - 1), $ignoreCase);
                     $i = $end;
                     continue;
                 }
@@ -477,7 +472,7 @@ final class PathspecSearch
         return null;
     }
 
-    private static function characterClassRegex(string $class): string
+    private static function characterClassRegex(string $class, bool $ignoreCase): string
     {
         if ($class === '') {
             return preg_quote('[]', '#');
@@ -490,15 +485,32 @@ final class PathspecSearch
         }
 
         $body = '';
+        $previousRangeByte = null;
         $length = strlen($class);
         for ($i = 0; $i < $length; $i++) {
             $char = $class[$i];
             if ($char === '\\') {
                 if ($i + 1 < $length) {
-                    $body .= self::escapeCharacterClassByte($class[++$i]);
+                    $char = $class[++$i];
+                    $body .= self::escapeCharacterClassByte($char);
+                    $previousRangeByte = $char;
                 } else {
                     $body .= '\\\\';
+                    $previousRangeByte = '\\';
                 }
+                continue;
+            }
+            if ($char === '-' && $previousRangeByte !== null && $i + 1 < $length && ($class[$i + 1] ?? '') !== ']') {
+                $rangeEnd = $class[++$i];
+                if ($rangeEnd === '\\') {
+                    if ($i + 1 >= $length) {
+                        $previousRangeByte = null;
+                        continue;
+                    }
+                    $rangeEnd = $class[++$i];
+                }
+                $body .= self::characterClassRangeTail($previousRangeByte, $rangeEnd, $ignoreCase);
+                $previousRangeByte = null;
                 continue;
             }
             if ($char === '[' && ($class[$i + 1] ?? '') === ':') {
@@ -511,10 +523,12 @@ final class PathspecSearch
                     }
                     $body .= $mapped;
                     $i = $end + 1;
+                    $previousRangeByte = null;
                     continue;
                 }
             }
             $body .= self::escapeCharacterClassByte($char);
+            $previousRangeByte = $char;
         }
 
         if ($body === '') {
@@ -522,6 +536,33 @@ final class PathspecSearch
         }
 
         return '[' . ($negated ? '^' : '') . $body . ']';
+    }
+
+    private static function characterClassRangeTail(string $start, string $end, bool $ignoreCase): string
+    {
+        if ($ignoreCase && self::isAsciiAlpha($start) && self::isAsciiAlpha($end)) {
+            $lowerStart = strtolower($start);
+            $lowerEnd = strtolower($end);
+            $rangeStart = min($lowerStart, $lowerEnd);
+            $rangeEnd = max($lowerStart, $lowerEnd);
+
+            return self::escapeCharacterClassByte($rangeStart)
+                . '-'
+                . self::escapeCharacterClassByte($rangeEnd);
+        }
+
+        if (ord($start) <= ord($end)) {
+            return '-' . self::escapeCharacterClassByte($end);
+        }
+
+        return '';
+    }
+
+    private static function isAsciiAlpha(string $char): bool
+    {
+        $ord = ord($char);
+
+        return ($ord >= 65 && $ord <= 90) || ($ord >= 97 && $ord <= 122);
     }
 
     private static function escapeCharacterClassByte(string $char): string

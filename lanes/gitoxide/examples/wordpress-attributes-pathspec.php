@@ -16,6 +16,9 @@ $classAttributes = GitAttributes::fromString(
     "wp-content/uploads/[[:digit:]][[:digit:]]/** dated-upload\n"
     . "\"wp-content/uploads/slot[[:blank:]]/**\" whitespace-upload\n"
     . "\"wp-content/uploads/[[:unknown:]]/**\" invalid-upload\n"
+    . "wp-content/uploads/[z-a]/** reversed-range\n"
+    . "wp-content/uploads/[!z-a]/** not-reversed-range\n"
+    . "wp-content/uploads/[Z-A]/** folded-reversed-range\n"
     . "wp-content/plugins/foo[/]bar.php slash-class\n",
     withBuiltInMacros: false,
 );
@@ -54,6 +57,8 @@ $nestedAttributes = GitAttributes::fromSources([
 ]);
 $datedUploadSearch = PathspecSearch::fromSpecs([':(attr:dated-upload)wp-content/uploads/**']);
 $whitespaceUploadSearch = PathspecSearch::fromSpecs([':(attr:whitespace-upload)wp-content/uploads/**']);
+$reversedRangeSearch = PathspecSearch::fromSpecs([':(attr:reversed-range)wp-content/uploads/[z-a]/**']);
+$foldedReversedRangeSearch = PathspecSearch::fromSpecs([':(icase)wp-content/uploads/[Z-A]/**']);
 $nestedDeploymentSearch = PathspecSearch::fromSpecs([
     ':(attr:deploy=plugin)wp-content/plugins/**',
     ':(attr:deploy=theme)wp-content/themes/**',
@@ -147,6 +152,30 @@ return [
         'wp-content/plugins/foo/bar.php',
         false,
         $classAttributes,
+    ),
+    'reversedRangePathspecMatchesStart' => $reversedRangeSearch->isIncluded(
+        'wp-content/uploads/z/photo.jpg',
+        false,
+        $classAttributes,
+    ),
+    'reversedRangePathspecSkipsMiddle' => !$reversedRangeSearch->isIncluded(
+        'wp-content/uploads/m/photo.jpg',
+        false,
+        $classAttributes,
+    ),
+    'reversedRangeNegationMatchesMiddle' => $classAttributes->attributesForPath(
+        'wp-content/uploads/m/photo.jpg',
+        ['not-reversed-range'],
+    ),
+    'foldedReversedRangeAttributeMatchesMiddle' => $classAttributes->attributesForPath(
+        'wp-content/uploads/m/photo.jpg',
+        ['folded-reversed-range'],
+        false,
+        true,
+    ),
+    'foldedReversedRangePathspecMatchesMiddle' => $foldedReversedRangeSearch->isIncluded(
+        'wp-content/uploads/m/photo.jpg',
+        false,
     ),
     'tabSeparatedStatePathspecMatches' => PathspecMatcher::matchesOne(
         ":(attr:deploy\treview=yes)wp-content/plugins/**",

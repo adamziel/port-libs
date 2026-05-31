@@ -44,7 +44,7 @@ final class CssMinifier
             }
 
             if ($char === '\\' && $i + 1 < $length) {
-                if ($pendingSpace && $this->needsSpaceBefore($output, $char)) {
+                if ($pendingSpace && ($this->needsSpaceBefore($output, $char) || $this->needsSpaceBeforeCssEscape($output, $css, $i))) {
                     $output .= ' ';
                 }
                 $pendingSpace = false;
@@ -725,7 +725,8 @@ final class CssMinifier
             }
 
             if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $this->startsAtKeyword($css, $i, '@charset')) {
-                $end = $this->findNextTopLevel($css, ';', $i + strlen('@charset'));
+                $keywordEnd = $this->atKeywordEndOffset($css, $i, '@charset') ?? $i + strlen('@charset');
+                $end = $this->findNextTopLevel($css, ';', $keywordEnd);
                 if ($end === null) {
                     break;
                 }
@@ -734,7 +735,8 @@ final class CssMinifier
             }
 
             if ($braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0 && $this->startsAtKeyword($css, $i, '@import')) {
-                $end = $this->findNextTopLevel($css, ';', $i + strlen('@import'));
+                $keywordEnd = $this->atKeywordEndOffset($css, $i, '@import') ?? $i + strlen('@import');
+                $end = $this->findNextTopLevel($css, ';', $keywordEnd);
                 if ($end === null) {
                     $output .= substr($css, $i);
                     break;
@@ -1118,6 +1120,50 @@ final class CssMinifier
         return $this->decodeCssStringEscapes($identifier);
     }
 
+    /**
+     * @return array{name: string, raw: string, end: int}|null
+     */
+    private function readCssIdentifierToken(string $value, int $offset): ?array
+    {
+        $length = strlen($value);
+        if ($offset < 0 || $offset >= $length) {
+            return null;
+        }
+
+        $raw = '';
+        $cursor = $offset;
+        while ($cursor < $length) {
+            $char = $value[$cursor];
+            if ($char === '\\') {
+                if (!$this->isValidCssEscape($value, $cursor)) {
+                    break;
+                }
+
+                $end = $this->cssEscapeEndOffset($value, $cursor);
+                $raw .= substr($value, $cursor, $end - $cursor + 1);
+                $cursor = $end + 1;
+                continue;
+            }
+
+            if (!$this->isIdentifierChar($char)) {
+                break;
+            }
+
+            $raw .= $char;
+            $cursor++;
+        }
+
+        if ($raw === '') {
+            return null;
+        }
+
+        return [
+            'name' => $this->decodeCssIdentifier($raw),
+            'raw' => $raw,
+            'end' => $cursor,
+        ];
+    }
+
     private function serializeCssIdentifier(string $identifier): string
     {
         $output = '';
@@ -1151,6 +1197,17 @@ final class CssMinifier
         }
 
         return $output;
+    }
+
+    private function isValidCssEscape(string $value, int $offset): bool
+    {
+        if (($value[$offset] ?? '') !== '\\') {
+            return false;
+        }
+
+        $next = $value[$offset + 1] ?? '';
+
+        return $next !== '' && $next !== "\n" && $next !== "\r" && $next !== "\f";
     }
 
     private function cssEscapeEndOffset(string $value, int $offset): int
@@ -1479,15 +1536,18 @@ final class CssMinifier
 
     private function minifyImportStatement(string $statement): string
     {
-        $rest = trim(substr($statement, strlen('@import')));
+        $keywordEnd = $this->atKeywordEndOffset($statement, 0, '@import') ?? strlen('@import');
+        $rest = trim(substr($statement, $keywordEnd));
         if ($rest === '') {
             return '@import';
         }
 
         $source = null;
         $offset = 0;
-        if ($this->startsUrlFunction($rest, 0)) {
-            [$url, $urlEnd] = $this->readFunctionRaw($rest, 0);
+        $urlOpen = $this->cssFunctionOpenOffset($rest, 0, 'url');
+        if ($urlOpen !== null) {
+            [$url, $urlEnd] = $this->readFunctionRaw($rest, $urlOpen);
+            $url = 'url' . $url;
             $value = $this->cssUrlTokenValue($url);
             if ($value === null) {
                 return '@import ' . $rest;
@@ -1508,10 +1568,25 @@ final class CssMinifier
         $parts = [$source];
         $sawLayerModifier = false;
         while ($tail !== '') {
-            if ($this->startsAtKeyword($tail, 0, 'layer')) {
-                if (($tail[strlen('layer')] ?? '') === '(') {
-                    [$function, $functionEnd] = $this->readFunctionRaw($tail, 0);
-                    $layerName = trim(substr($function, strlen('layer('), -1));
+            $layerOpen = $this->cssFunctionOpenOffset($tail, 0, 'layer');
+            if ($layerOpen !== null) {
+                [$function, $functionEnd] = $this->readFunctionRaw($tail, $layerOpen);
+                $layerName = trim(substr($function, 1, -1));
+                if (count($this->splitLayerNameList($layerName)) > 1) {
+                    throw new \InvalidArgumentException("Invalid @import layer name: {$layerName}");
+                }
+
+                $parts[] = 'layer(' . $this->minifyLayerName($layerName) . ')';
+                $tail = trim(substr($tail, $functionEnd + 1));
+                $sawLayerModifier = true;
+                continue;
+            }
+
+            $layerToken = $this->readCssIdentifierToken($tail, 0);
+            if ($layerToken !== null && strcasecmp($layerToken['name'], 'layer') === 0) {
+                if (($tail[$layerToken['end']] ?? '') === '(') {
+                    [$function, $functionEnd] = $this->readFunctionRaw($tail, $layerToken['end']);
+                    $layerName = trim(substr($function, 1, -1));
                     if (count($this->splitLayerNameList($layerName)) > 1) {
                         throw new \InvalidArgumentException("Invalid @import layer name: {$layerName}");
                     }
@@ -1523,14 +1598,15 @@ final class CssMinifier
                 }
 
                 $parts[] = 'layer';
-                $tail = trim(substr($tail, strlen('layer')));
+                $tail = trim(substr($tail, $layerToken['end']));
                 $sawLayerModifier = true;
                 continue;
             }
 
-            if ($this->startsAtKeyword($tail, 0, 'supports') && ($tail[strlen('supports')] ?? '') === '(') {
-                [$function, $functionEnd] = $this->readFunctionRaw($tail, 0);
-                $condition = substr($function, strlen('supports('), -1);
+            $supportsOpen = $this->cssFunctionOpenOffset($tail, 0, 'supports');
+            if ($supportsOpen !== null) {
+                [$function, $functionEnd] = $this->readFunctionRaw($tail, $supportsOpen);
+                $condition = substr($function, 1, -1);
                 $wrappedCondition = $sawLayerModifier ? $this->unwrapSingleParenthesizedValue($condition) : null;
                 $parts[] = $wrappedCondition === null
                     ? 'supports(' . $this->minifySupportsCondition($condition, false) . ')'
@@ -1810,6 +1886,15 @@ final class CssMinifier
 
         return (ctype_alnum($previous) || $previous === '_' || $previous === '-' || $previous === '%')
             && (ctype_alnum($next) || $next === '_' || $next === '-' || $next === '.' || $next === '#');
+    }
+
+    private function needsSpaceBeforeCssEscape(string $output, string $css, int $offset): bool
+    {
+        if (!$this->isValidCssEscape($css, $offset)) {
+            return false;
+        }
+
+        return $this->needsSpaceBefore($output, 'a');
     }
 
     private function needsSelectorDescendantSpaceAfterAttribute(string $output, string $css, int $offset): bool
@@ -13421,10 +13506,70 @@ final class CssMinifier
 
     private function minifySrgbColorMixParts(string $leftStop, string $rightStop): ?string
     {
+        $missingComponentMix = $this->minifySrgbMissingComponentColorMixParts($leftStop, $rightStop);
+        if ($missingComponentMix !== null) {
+            return $missingComponentMix;
+        }
+
         $left = $this->parseSrgbColorMixStop($leftStop);
         $right = $this->parseSrgbColorMixStop($rightStop);
         if ($left === null || $right === null) {
             return $this->serializeUnresolvedSrgbColorMixFunction($leftStop, $rightStop);
+        }
+
+        [$leftWeight, $rightWeight] = $this->normalizedColorMixWeights($left['weight'], $right['weight']);
+        if ($leftWeight === null || $rightWeight === null) {
+            return null;
+        }
+
+        $leftAlpha = $left['color']['alpha'];
+        $rightAlpha = $right['color']['alpha'];
+        $alpha = ($leftAlpha * $leftWeight) + ($rightAlpha * $rightWeight);
+        if ($alpha <= 0.000000001) {
+            return '#0000';
+        }
+
+        $red = (($left['color']['red'] / 255 * $leftAlpha * $leftWeight) + ($right['color']['red'] / 255 * $rightAlpha * $rightWeight)) / $alpha;
+        $green = (($left['color']['green'] / 255 * $leftAlpha * $leftWeight) + ($right['color']['green'] / 255 * $rightAlpha * $rightWeight)) / $alpha;
+        $blue = (($left['color']['blue'] / 255 * $leftAlpha * $leftWeight) + ($right['color']['blue'] / 255 * $rightAlpha * $rightWeight)) / $alpha;
+
+        return $this->serializeColorBytes(
+            $this->clampColorByte((int) round($red * 255)),
+            $this->clampColorByte((int) round($green * 255)),
+            $this->clampColorByte((int) round($blue * 255)),
+            min(1.0, max(0.0, $alpha)),
+        );
+    }
+
+    private function minifySrgbMissingComponentColorMixParts(string $leftStop, string $rightStop): ?string
+    {
+        $left = $this->parseNullableRgbColorMixStop($leftStop);
+        $right = $this->parseNullableRgbColorMixStop($rightStop);
+        if ($left === null || $right === null) {
+            return null;
+        }
+
+        $channels = ['red', 'green', 'blue'];
+        $hasMissingComponent = false;
+        foreach ($channels as $channel) {
+            if ($left['color'][$channel] === null || $right['color'][$channel] === null) {
+                $hasMissingComponent = true;
+                break;
+            }
+        }
+        if (!$hasMissingComponent) {
+            return null;
+        }
+
+        foreach ($channels as $channel) {
+            if ($left['color'][$channel] === null && $right['color'][$channel] === null) {
+                $left['color'][$channel] = 0;
+                $right['color'][$channel] = 0;
+            } elseif ($left['color'][$channel] === null) {
+                $left['color'][$channel] = $right['color'][$channel];
+            } elseif ($right['color'][$channel] === null) {
+                $right['color'][$channel] = $left['color'][$channel];
+            }
         }
 
         [$leftWeight, $rightWeight] = $this->normalizedColorMixWeights($left['weight'], $right['weight']);
@@ -13754,6 +13899,50 @@ final class CssMinifier
     }
 
     /**
+     * @return array{color:array{red:?int,green:?int,blue:?int,alpha:float},weight:?float}|null
+     */
+    private function parseNullableRgbColorMixStop(string $stop): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($stop));
+        if ($tokens === []) {
+            return null;
+        }
+
+        $weight = null;
+        $firstWeight = $this->parseColorMixPercentage($tokens[0]);
+        if ($firstWeight !== null) {
+            $weight = $firstWeight;
+            array_shift($tokens);
+        }
+
+        if ($tokens !== []) {
+            $lastIndex = count($tokens) - 1;
+            $lastWeight = $this->parseColorMixPercentage($tokens[$lastIndex]);
+            if ($lastWeight !== null) {
+                if ($weight !== null) {
+                    return null;
+                }
+                $weight = $lastWeight;
+                array_pop($tokens);
+            }
+        }
+
+        if (count($tokens) !== 1) {
+            return null;
+        }
+
+        $color = $this->parseNullableRgbColorMixColor($tokens[0]);
+        if ($color === null) {
+            return null;
+        }
+
+        return [
+            'color' => $color,
+            'weight' => $weight,
+        ];
+    }
+
+    /**
      * @return array{color:array{components:list<?float>,alpha:?float},weight:?float}|null
      */
     private function parseRectangularColorMixStop(string $stop, string $space): ?array
@@ -14013,7 +14202,7 @@ final class CssMinifier
     private function parseColorFunctionColorMixColor(string $token, string $space): ?array
     {
         if (preg_match('/^color\((.*)\)$/is', trim($token), $matches) !== 1) {
-            return null;
+            return $this->knownColorFunctionColorMixColor($token, $space);
         }
 
         $parts = $this->parseAdvancedColorFunctionParts($matches[1]);
@@ -14043,6 +14232,30 @@ final class CssMinifier
         return [
             'components' => $components,
             'alpha' => $alpha,
+        ];
+    }
+
+    /**
+     * @return array{components:list<?float>,alpha:?float}|null
+     */
+    private function knownColorFunctionColorMixColor(string $token, string $space): ?array
+    {
+        if ($this->normalizeColorSpaceName($space) !== 'xyz') {
+            return null;
+        }
+
+        $color = match (strtolower(trim($token))) {
+            'transparent' => [[0.0, 0.0, 0.0], 0.0],
+            'green' => [[0.0771883, 0.154377, 0.0257295], 1.0],
+            default => null,
+        };
+        if ($color === null) {
+            return null;
+        }
+
+        return [
+            'components' => $color[0],
+            'alpha' => $color[1],
         ];
     }
 
@@ -14082,8 +14295,25 @@ final class CssMinifier
      */
     private function parseHslColorMixColor(string $token): ?array
     {
-        if (preg_match('/^hsla?\((.*)\)$/is', trim($token), $matches) !== 1) {
-            return null;
+        $token = trim($token);
+        if (preg_match('/^hsla?\((.*)\)$/is', $token, $matches) !== 1) {
+            if (preg_match('/^(?:rgb|rgba|hwb|color)\(.*\bnone\b/is', $token) === 1) {
+                return null;
+            }
+
+            $srgb = $this->parseRelativeSrgbOrigin($token);
+            if ($srgb === null) {
+                return null;
+            }
+
+            $channels = $this->relativeHslChannelsFromSrgbOrigin($srgb);
+
+            return [
+                'hue' => $channels['h'],
+                'saturation' => min(1.0, max(0.0, $channels['s'] / 100)),
+                'lightness' => min(1.0, max(0.0, $channels['l'] / 100)),
+                'alpha' => $channels['alpha'],
+            ];
         }
 
         $parts = $this->parseColorFunctionParts($matches[1]);
@@ -14106,6 +14336,49 @@ final class CssMinifier
             'lightness' => $lightness,
             'alpha' => $alpha,
         ];
+    }
+
+    /**
+     * @return array{red:?int,green:?int,blue:?int,alpha:float}|null
+     */
+    private function parseNullableRgbColorMixColor(string $token): ?array
+    {
+        if (preg_match('/^rgba?\((.*)\)$/is', trim($token), $matches) !== 1) {
+            return null;
+        }
+
+        $parts = $this->parseColorFunctionParts($matches[1]);
+        if ($parts === null || count($parts['components']) !== 3) {
+            return null;
+        }
+
+        $red = $this->parseNullableRgbComponent($parts['components'][0]);
+        $green = $this->parseNullableRgbComponent($parts['components'][1]);
+        $blue = $this->parseNullableRgbComponent($parts['components'][2]);
+        if ($red === false || $green === false || $blue === false) {
+            return null;
+        }
+
+        $alpha = $parts['alpha'] === null ? 1.0 : $this->parseAlphaComponent($parts['alpha']);
+        if ($alpha === null) {
+            return null;
+        }
+
+        return [
+            'red' => $red,
+            'green' => $green,
+            'blue' => $blue,
+            'alpha' => $alpha,
+        ];
+    }
+
+    private function parseNullableRgbComponent(string $token): int|false|null
+    {
+        if (strcasecmp(trim($token), 'none') === 0) {
+            return null;
+        }
+
+        return $this->parseRgbComponent($token) ?? false;
     }
 
     /**
@@ -14420,7 +14693,7 @@ final class CssMinifier
     {
         $serialized = [];
         foreach ($components as $component) {
-            $serialized[] = $component === null ? 'none' : $this->minifyColorNumber($component, 6);
+            $serialized[] = $component === null ? 'none' : $this->minifySignificantColorNumber($component);
         }
 
         return 'color(' . $space . ' ' . implode(' ', $serialized) . $this->serializeRectangularColorMixAlpha($alpha) . ')';
@@ -16762,14 +17035,45 @@ final class CssMinifier
         return $previous === '' || !$this->isIdentifierChar($previous);
     }
 
+    private function cssFunctionOpenOffset(string $value, int $offset, string $functionName): ?int
+    {
+        $token = $this->readCssIdentifierToken($value, $offset);
+        if ($token === null || strcasecmp($token['name'], $functionName) !== 0) {
+            return null;
+        }
+
+        return ($value[$token['end']] ?? '') === '(' ? $token['end'] : null;
+    }
+
+    private function atKeywordEndOffset(string $value, int $offset, string $keyword): ?int
+    {
+        if (($value[$offset] ?? '') !== '@') {
+            return null;
+        }
+
+        $token = $this->readCssIdentifierToken($value, $offset + 1);
+        if ($token === null || strcasecmp($token['name'], ltrim($keyword, '@')) !== 0) {
+            return null;
+        }
+
+        return $token['end'];
+    }
+
     private function startsAtKeyword(string $value, int $offset, string $keyword): bool
     {
-        if (strtolower(substr($value, $offset, strlen($keyword))) !== strtolower($keyword)) {
+        if (str_starts_with($keyword, '@')) {
+            $end = $this->atKeywordEndOffset($value, $offset, $keyword);
+        } else {
+            $token = $this->readCssIdentifierToken($value, $offset);
+            $end = $token !== null && strcasecmp($token['name'], $keyword) === 0 ? $token['end'] : null;
+        }
+
+        if ($end === null) {
             return false;
         }
 
         $previous = $offset > 0 ? $value[$offset - 1] : '';
-        $next = $value[$offset + strlen($keyword)] ?? '';
+        $next = $value[$end] ?? '';
 
         return ($previous === '' || !$this->isIdentifierChar($previous))
             && ($next === '' || !$this->isIdentifierChar($next));

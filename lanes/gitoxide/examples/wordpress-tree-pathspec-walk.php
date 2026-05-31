@@ -105,6 +105,7 @@ $callerPrefixHintPathspecs = PathspecSearch::fromSpecs(
 $directoryOnlyHintPathspecs = PathspecSearch::fromSpecs([
     'wp-content/plugins/gutenberg/',
 ]);
+$excludeNilPathspecs = PathspecSearch::fromSpecs([':(exclude)']);
 $deploymentAttributes = GitAttributes::fromString(
     "wp-content/plugins/gutenberg/** deploy=plugin merge=union\n"
     . "wp-content/plugins/gutenberg/build/** !deploy\n"
@@ -244,6 +245,20 @@ $attrFilteredWithoutProviderRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$excludeNilReadPaths = [];
+$excludeNilRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $excludeNilPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects, &$excludeNilReadPaths): GitObject {
+        $excludeNilReadPaths[] = $path;
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 
 return [
     'matchedContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $records),
@@ -271,6 +286,9 @@ return [
     'pluginPruningHintDirectory' => $pluginPruningHintPathspecs->longestCommonDirectory(),
     'callerPrefixOnlyPruningHint' => $callerPrefixHintPathspecs->longestCommonDirectory(),
     'directoryOnlyPruningHint' => $directoryOnlyHintPathspecs->longestCommonDirectory(),
+    'excludeNilCanDescendIntoContent' => $excludeNilPathspecs->canMatch('wp-content', true),
+    'excludeNilContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $excludeNilRecords),
+    'excludeNilReadPaths' => $excludeNilReadPaths,
     'attrFilteredContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $attrFilteredRecords),
     'attrFilteredWithoutProviderEmpty' => $attrFilteredWithoutProviderRecords === [],
     'rootEscapingPathspecRejected' => $rootEscapingPathspecRejected,

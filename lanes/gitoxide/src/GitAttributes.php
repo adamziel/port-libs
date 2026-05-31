@@ -561,7 +561,7 @@ final class GitAttributes
                 $end = self::findCharacterClassEnd($pattern, $i);
                 if ($end !== null) {
                     $regex .= ($pathAware ? '(?!/)' : '')
-                        . self::characterClassRegex(substr($pattern, $i + 1, $end - $i - 1));
+                        . self::characterClassRegex(substr($pattern, $i + 1, $end - $i - 1), $ignoreCase);
                     $i = $end;
                     continue;
                 }
@@ -607,7 +607,7 @@ final class GitAttributes
         return null;
     }
 
-    private static function characterClassRegex(string $class): string
+    private static function characterClassRegex(string $class, bool $ignoreCase): string
     {
         if ($class === '') {
             return preg_quote('[]', '~');
@@ -620,15 +620,32 @@ final class GitAttributes
         }
 
         $body = '';
+        $previousRangeByte = null;
         $length = strlen($class);
         for ($i = 0; $i < $length; $i++) {
             $char = $class[$i];
             if ($char === '\\') {
                 if ($i + 1 < $length) {
-                    $body .= self::escapeCharacterClassByte($class[++$i]);
+                    $char = $class[++$i];
+                    $body .= self::escapeCharacterClassByte($char);
+                    $previousRangeByte = $char;
                 } else {
                     $body .= '\\\\';
+                    $previousRangeByte = '\\';
                 }
+                continue;
+            }
+            if ($char === '-' && $previousRangeByte !== null && $i + 1 < $length && ($class[$i + 1] ?? '') !== ']') {
+                $rangeEnd = $class[++$i];
+                if ($rangeEnd === '\\') {
+                    if ($i + 1 >= $length) {
+                        $previousRangeByte = null;
+                        continue;
+                    }
+                    $rangeEnd = $class[++$i];
+                }
+                $body .= self::characterClassRangeTail($previousRangeByte, $rangeEnd, $ignoreCase);
+                $previousRangeByte = null;
                 continue;
             }
             if ($char === '[' && ($class[$i + 1] ?? '') === ':') {
@@ -641,10 +658,12 @@ final class GitAttributes
                     }
                     $body .= $mapped;
                     $i = $end + 1;
+                    $previousRangeByte = null;
                     continue;
                 }
             }
             $body .= self::escapeCharacterClassByte($char);
+            $previousRangeByte = $char;
         }
 
         if ($body === '') {
@@ -652,6 +671,33 @@ final class GitAttributes
         }
 
         return '[' . ($negated ? '^' : '') . $body . ']';
+    }
+
+    private static function characterClassRangeTail(string $start, string $end, bool $ignoreCase): string
+    {
+        if ($ignoreCase && self::isAsciiAlpha($start) && self::isAsciiAlpha($end)) {
+            $lowerStart = strtolower($start);
+            $lowerEnd = strtolower($end);
+            $rangeStart = min($lowerStart, $lowerEnd);
+            $rangeEnd = max($lowerStart, $lowerEnd);
+
+            return self::escapeCharacterClassByte($rangeStart)
+                . '-'
+                . self::escapeCharacterClassByte($rangeEnd);
+        }
+
+        if (ord($start) <= ord($end)) {
+            return '-' . self::escapeCharacterClassByte($end);
+        }
+
+        return '';
+    }
+
+    private static function isAsciiAlpha(string $char): bool
+    {
+        $ord = ord($char);
+
+        return ($ord >= 65 && $ord <= 90) || ($ord >= 97 && $ord <= 122);
     }
 
     private static function escapeCharacterClassByte(string $char): string

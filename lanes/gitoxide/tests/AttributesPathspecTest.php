@@ -103,6 +103,49 @@ return [
             $attributes,
         ));
     },
+    'attribute pathspec filters follow gix reversed character range boundaries' => static function (TestRunner $t): void {
+        $warnings = [];
+        set_error_handler(static function (int $errno, string $message) use (&$warnings): bool {
+            if (str_contains($message, 'preg_match()')) {
+                $warnings[] = $message;
+
+                return true;
+            }
+
+            return false;
+        });
+        try {
+            $attributes = GitAttributes::fromString("wp-content/uploads/[z-a]/** reversed-range\n"
+                . "wp-content/uploads/[!z-a]/** not-reversed-range\n"
+                . "wp-content/uploads/[Z-A]/** folded-reversed-range\n", withBuiltInMacros: false);
+
+            $t->same(['reversed-range' => true], $attributes->attributesForPath('wp-content/uploads/z/photo.jpg', ['reversed-range']));
+            $t->same(['reversed-range' => null], $attributes->attributesForPath('wp-content/uploads/a/photo.jpg', ['reversed-range']));
+            $t->same(['reversed-range' => null], $attributes->attributesForPath('wp-content/uploads/m/photo.jpg', ['reversed-range']));
+            $t->same(['not-reversed-range' => null], $attributes->attributesForPath('wp-content/uploads/z/photo.jpg', ['not-reversed-range']));
+            $t->same(['not-reversed-range' => true], $attributes->attributesForPath('wp-content/uploads/a/photo.jpg', ['not-reversed-range']));
+            $t->same(['not-reversed-range' => true], $attributes->attributesForPath('wp-content/uploads/m/photo.jpg', ['not-reversed-range']));
+            $t->same(['folded-reversed-range' => true], $attributes->attributesForPath('wp-content/uploads/Z/photo.jpg', ['folded-reversed-range']));
+            $t->same(['folded-reversed-range' => null], $attributes->attributesForPath('wp-content/uploads/m/photo.jpg', ['folded-reversed-range']));
+            $t->same(['folded-reversed-range' => true], $attributes->attributesForPath('wp-content/uploads/m/photo.jpg', ['folded-reversed-range'], false, true));
+            $t->same(['folded-reversed-range' => true], $attributes->attributesForPath('wp-content/uploads/a/photo.jpg', ['folded-reversed-range'], false, true));
+
+            $reversedSearch = PathspecSearch::fromSpecs([':(attr:reversed-range)wp-content/uploads/[z-a]/**']);
+            $t->same(true, $reversedSearch->isIncluded('wp-content/uploads/z/photo.jpg', false, $attributes));
+            $t->same(false, $reversedSearch->isIncluded('wp-content/uploads/a/photo.jpg', false, $attributes));
+            $t->same(false, $reversedSearch->isIncluded('wp-content/uploads/m/photo.jpg', false, $attributes));
+
+            $foldedSearch = PathspecSearch::fromSpecs([':(icase)wp-content/uploads/[Z-A]/**']);
+            $t->same(true, $foldedSearch->isIncluded('wp-content/uploads/m/photo.jpg', false));
+            $t->same(true, PathspecMatcher::matchesOne(':(icase)wp-content/uploads/[Z-A]/**', 'wp-content/uploads/m/photo.jpg', false));
+            $t->same(true, PathspecMatcher::matchesOne('wp-content/uploads/[z-a]/**', 'wp-content/uploads/z/photo.jpg', false));
+            $t->same(false, PathspecMatcher::matchesOne('wp-content/uploads/[z-a]/**', 'wp-content/uploads/m/photo.jpg', false));
+        } finally {
+            restore_error_handler();
+        }
+
+        $t->same([], $warnings);
+    },
     'pathspec parser accepts upstream attribute magic and escaped values' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/plugins/** deploy=plugin kind=one,two\n"
             . "wp-content/themes/** deploy=theme kind=one-two\n"
@@ -417,6 +460,11 @@ return [
         $t->same(['dated-upload' => true], $example['datedUploadAttributes']);
         $t->same(true, $example['datedUploadPathspecMatches']);
         $t->same(true, $example['slashClassDoesNotCrossDirectory']);
+        $t->same(true, $example['reversedRangePathspecMatchesStart']);
+        $t->same(true, $example['reversedRangePathspecSkipsMiddle']);
+        $t->same(['not-reversed-range' => true], $example['reversedRangeNegationMatchesMiddle']);
+        $t->same(['folded-reversed-range' => true], $example['foldedReversedRangeAttributeMatchesMiddle']);
+        $t->same(true, $example['foldedReversedRangePathspecMatchesMiddle']);
         $t->same(true, $example['tabSeparatedStatePathspecMatches']);
         $t->same(true, $example['valueTabRequirementRejected']);
         $t->same(true, $example['emptyLongMagicComponentRejected']);

@@ -707,6 +707,9 @@ CSS
 
         $t->same('.foo{color:#8080ff}', $minifier->minify('.foo { color: color-mix(in srgb, white, blue); }'));
         $t->same('.foo{color:#8080ff}', $minifier->minify('.foo { color: color-mix(in srgb, blue, white); }'));
+        $t->same('.foo{color:gray}', $minifier->minify('.foo { color: color-mix(in srgb, rgb(128 128 none), rgb(none none 128)); }'));
+        $t->same('.foo{color:gray}', $minifier->minify('.foo { color: color-mix(in srgb, rgb(50% 50% none), rgb(none none 50%)); }'));
+        $t->same('.foo{color:gray}', $minifier->minify('.foo { color: color-mix(in srgb, rgb(none 50% none), rgb(50% none 50%)); }'));
         $t->same(
             '.foo{color:#89760053}',
             $minifier->minify('.foo { color: color-mix(in srgb, rgb(100% 0% 0% / 0.7) 25%, rgb(0% 100% 0% / 0.2)); }')
@@ -842,6 +845,15 @@ CSS
             'color-mix(in hsl, hsl(120deg 10% 20% / .4) 30%, hsl(30deg 30% 40% / .8) 90%)' => '#797245b3',
             'color-mix(in hsl, hsl(120deg 10% 20% / .4) 12.5%, hsl(30deg 30% 40% / .8) 37.5%)' => '#79724559',
             'color-mix(in hsl, hsl(120deg 10% 20% / .4) 0%, hsl(30deg 30% 40% / .8))' => '#856647cc',
+            'color-mix(in hsl, color(display-p3 0 1 0) 100%, rgb(0, 0, 0) 0%)' => '#00f942',
+            'color-mix(in hsl, lab(100% 104.3 -50.9) 100%, rgb(0, 0, 0) 0%)' => '#fff',
+            'color-mix(in hsl, lab(0% 104.3 -50.9) 100%, rgb(0, 0, 0) 0%)' => '#2a0022',
+            'color-mix(in hsl, lch(100% 116 334) 100%, rgb(0, 0, 0) 0%)' => '#fff',
+            'color-mix(in hsl, lch(0% 116 334) 100%, rgb(0, 0, 0) 0%)' => '#2a0022',
+            'color-mix(in hsl, oklab(100% 0.365 -0.16) 100%, rgb(0, 0, 0) 0%)' => '#fff',
+            'color-mix(in hsl, oklab(0% 0.365 -0.16) 100%, rgb(0, 0, 0) 0%)' => '#000',
+            'color-mix(in hsl, oklch(100% 0.399 336.3) 100%, rgb(0, 0, 0) 0%)' => '#fff',
+            'color-mix(in hsl, oklch(0% 0.399 336.3) 100%, rgb(0, 0, 0) 0%)' => '#000',
         ];
 
         foreach ($cases as $input => $expected) {
@@ -914,6 +926,11 @@ CSS
                 $t->same('.foo{color:' . $expected . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
             }
         }
+
+        $t->same(
+            '.foo{color:color(xyz .0771883 .154377 .0257295/.65)}',
+            $minifier->minify('.foo { color: color-mix(in xyz, transparent, green 65%); }')
+        );
     },
     'css minifier maps upstream color-scheme value ordering' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -1790,6 +1807,14 @@ CSS
         $t->same(
             '@import "foo.css" supports(display:flex) print;',
             $minifier->minify('@import url(foo.css) supports(display: flex) print;')
+        );
+        $t->same(
+            '@import "foo.css" layer(theme.blocks) supports(display:grid) screen;',
+            $minifier->minify('@import u\72l(foo.css) l\61yer(theme.blocks) s\75pports(display: grid) screen;')
+        );
+        $t->same(
+            '@import "foo.css" supports(display:flex) print;',
+            $minifier->minify('@import \75 rl(foo.css) s\75pports(display: flex) print;')
         );
         $t->same(
             '@import "foo.css" supports(not (display:flex));',
