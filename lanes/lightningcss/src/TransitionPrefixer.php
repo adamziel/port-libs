@@ -248,6 +248,7 @@ final class TransitionPrefixer
         $overflowShorthandChanged = $this->rewriteOverflowShorthandFallbackEntries($entries, $targetOptions);
         $transformPrefixChanged = $this->rewriteTransformPrefixEntries($entries, $targetOptions);
         $positionStickyChanged = $this->rewritePositionStickyPrefixEntries($entries, $targetOptions);
+        $backgroundSizeOriginChanged = $this->rewriteBackgroundSizeOriginPrefixEntries($entries, $targetOptions);
         $backgroundClipChanged = $this->rewriteBackgroundClipPrefixEntries($entries, $targetOptions);
         $clipPathChanged = $this->rewriteClipPathPrefixEntries($entries, $targetOptions);
         $maskChanged = $this->rewriteMaskPrefixEntries($entries, $targetOptions, $selectors, $supportRules);
@@ -301,7 +302,7 @@ final class TransitionPrefixer
         if ($logicalTextAlignFallback !== null) {
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -1025,6 +1026,9 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'samsung', [4], [24]),
             'stickyNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [6], [12, 2])
                 || $this->targetInRange($normalized, 'safari', [6, 1], [12, 1]),
+            'backgroundSizeOriginNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [2, 3]),
+            'backgroundSizeOriginNeedsMoz' => $this->targetInRange($normalized, 'firefox', [0], [3, 6]),
+            'backgroundSizeOriginNeedsO' => $this->targetInRange($normalized, 'opera', [0], [10]),
             'backgroundClipNeedsWebkit' => $this->targetInRange($normalized, 'android', [4], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [119])
                 || $this->targetInRange($normalized, 'edge', [79], [119])
@@ -4267,6 +4271,24 @@ final class TransitionPrefixer
         }
 
         $entries = $rewritten;
+
+        return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteBackgroundSizeOriginPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $changed = false;
+        foreach (['background-size', 'background-origin'] as $property) {
+            $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, $property, [
+                '-webkit-' => $targetOptions['backgroundSizeOriginNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['backgroundSizeOriginNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['backgroundSizeOriginNeedsO'] ?? false,
+            ]) || $changed;
+        }
 
         return $changed;
     }

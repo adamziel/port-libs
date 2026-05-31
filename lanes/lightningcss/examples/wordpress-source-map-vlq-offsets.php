@@ -144,6 +144,14 @@ try {
     $negativeLinePastSpanGuard = true;
 }
 
+$farLineOffsetMap = new SourceMap();
+$farLineOffsetSource = $farLineOffsetMap->addSource('wp-content/themes/example/far-line-offset.css');
+$farLineOffsetMap->setSourceContent($farLineOffsetSource, ".wp-block-far-line-offset {}\n");
+$farLineOffsetMap->addMapping(0, 0, $farLineOffsetSource, 0, 0);
+$farLineOffsetMap->offsetLines(4, 2);
+$farLineOffsetMap->addMapping(6, 2, $farLineOffsetSource, 6, 0);
+$farLineOffsetMap->offsetLines(5, -2);
+
 $generatedOnlyOffsetMap = new SourceMap();
 $generatedOnlyOffsetSource = $generatedOnlyOffsetMap->addSource('wp-content/themes/example/generated-offset.css');
 $generatedOnlyOffsetMap->setSourceContent($generatedOnlyOffsetSource, ".wp-block-generated-offset{display:block}\n");
@@ -417,6 +425,7 @@ $actual = [
     'emptyLineColumnOffsetGuard' => $emptyLineColumnOffsetGuard && $emptyLineOffsetBeforeColumnNoop === $emptyLineOffsetMap->toJson(null, false),
     'bufferRoundTripMap' => $bufferRoundTripMap->toJson(null, false),
     'negativeLinePastSpanGuard' => $negativeLinePastSpanGuard && $negativeLinePastSpanBeforeGuard === $negativeLinePastSpanMap->toJson(null, false),
+    'farLineOffsetMap' => $farLineOffsetMap->toJson(null, false),
     'generatedOnlyOffsetMap' => $generatedOnlyOffsetMap->toJson(null, false),
     'extendedInputMap' => $generatedThemeJsonMap->toJson(null, false),
     'projectRootMap' => $projectRootMap->toJson(null, false),
@@ -458,6 +467,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'emptyLineColumnOffsetGuard' => true,
         'bufferRoundTripMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/empty-line-offset.css"],"sourcesContent":[".wp-block-empty-line-offset {}\n"],"names":[]}',
         'negativeLinePastSpanGuard' => true,
+        'farLineOffsetMap' => '{"version":3,"mappings":"AAAA;;;;EAMA","sources":["wp-content/themes/example/far-line-offset.css"],"sourcesContent":[".wp-block-far-line-offset {}\n"],"names":[]}',
         'generatedOnlyOffsetMap' => '{"version":3,"mappings":";;Y,MAAAA;E","sources":["wp-content/themes/example/generated-offset.css"],"sourcesContent":[".wp-block-generated-offset{display:block}\n"],"names":["generated-offset-rule"]}',
         'extendedInputMap' => '{"version":3,"mappings":"ACMQE,wDAMFC","sources":["wp-content/cache/theme-json.generated.css","wp-content/themes/example/theme.json"],"sourcesContent":[".wp-block-cover{color:var(--wp--preset--color--primary)}.wp-block-spacer{margin-top:1rem}","{\n  \"version\": 3,\n  \"settings\": {\n    \"color\": {\n      \"palette\": [\n        { \"slug\": \"primary\", \"color\": \"#06c\" }\n      ]\n    }\n  },\n  \"styles\": {\n    \"blocks\": {\n      \"core/spacer\": { \"spacing\": { \"margin\": { \"top\": \"1rem\" } } }\n    }\n  }\n}"],"names":["coverRule","spacerRule","settings.color.primary","styles.blocks.core/spacer.spacing.margin.top"]}',
         'projectRootMap' => '{"version":3,"mappings":"AACAA,0BCIAC;ACLAC","sources":["wp-content/themes/example/style.css","wp-content/themes/example/blocks.css","theme://generated/editor.css"],"sourcesContent":["@import \"blocks.css\";\n.theme-footer {\n  color: green;\n}","/*! Theme package license */\n/*!\n * Block editor stylesheet generated from theme.json\n * Keep comments for distribution compliance.\n */\n.wp-block-cover {\n  color: yellow;\n}\n.wp-block-cover .wp-block-button {\n  margin: 1rem;\n}",".wp-block-cover{outline:2px solid currentColor}"],"names":["theme-footer","block-cover","virtual-editor-rule"]}',

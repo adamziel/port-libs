@@ -73,6 +73,17 @@ return [
         $t->same('oauth-token', $result->oauthRefreshToken);
         $t->same(null, $result->context->passwordExpiryUtc);
     },
+    'credential cascade ignores overflowing password expiry fields' => static function (TestRunner $t): void {
+        $cascade = new CredentialCascade([
+            static fn (): string => "username=user\npassword=pass\npassword_expiry_utc=-9223372036854775809\n",
+        ], nowUtc: 200);
+
+        $result = $cascade->get(new CredentialContext(url: 'https://host.test/repo.git'));
+
+        $t->same('user', $result->username);
+        $t->same('pass', $result->password);
+        $t->same(null, $result->context->passwordExpiryUtc);
+    },
     'credential cascade helper root urls clear stale http paths' => static function (TestRunner $t): void {
         $cascade = new CredentialCascade([
             static fn (): string => "path=stale/repository/path\nurl=https://example.com/\n",

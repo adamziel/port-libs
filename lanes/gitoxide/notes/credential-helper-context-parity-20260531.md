@@ -172,3 +172,70 @@ No new support component is needed. This slice reuses the existing native
 `GitUrl` parser and credential cascade/context model; no live credential
 store, provider config, SSH process, Git binary, or shared support-library
 activation gate is required.
+
+---
+
+Slice: `gitoxide-credential-helper-context-parity-20260531T205538Z`
+Base accepted HEAD: `7a6ad881ab7ec5dade7133aeca014b7a5e54577c`
+
+## Source Truth
+
+- Upstream `gix-credentials/src/protocol/context/serde.rs` parses
+  `password_expiry_utc` with Rust `i64::from_str()` through
+  `gix_date::SecondsSinceUnixEpoch`, so overflow or underflow values become
+  absent instead of clamped.
+- Upstream `gix-config-value/src/boolean.rs` parses numeric boolean values
+  with `i64::from_str()` before `quit` is converted into the credential
+  context, so overflowing numeric `quit` values are invalid and decode as
+  absent.
+- Upstream `gix-credentials/src/helper/cascade.rs` only clears secrets for an
+  expired helper response when a parsed `password_expiry_utc` is present and
+  older than `now`.
+
+## PHP Delta
+
+- `CredentialContext::fromBytes()` now parses signed numeric helper fields
+  through an explicit i64 bound check before converting to PHP integers.
+- Overflowing `password_expiry_utc` values now decode as `null` instead of
+  clamping to `PHP_INT_MAX` or `PHP_INT_MIN`.
+- Overflowing numeric `quit` values now decode as `null` instead of `true`.
+- `CredentialCascadeTest` covers an underflowed expiry helper response that
+  must keep otherwise complete credentials instead of clearing them as expired.
+- The WordPress credential-context fixture/example records overflow expiry and
+  quit values being ignored without invoking `git credential` or reading any
+  credential store.
+
+## Verification
+
+- Red-first probe before the patch:
+  `php <<'PHP' ... CredentialContext::fromBytes("password_expiry_utc=9223372036854775808\n")->passwordExpiryUtc ... PHP`
+  returned `9223372036854775807`; the underflow probe returned
+  `-9223372036854775808`.
+- Red-first probe before the patch:
+  `CredentialContext::fromBytes("quit=9223372036854775808\n")->quit`
+  returned `true`.
+- `php -l lanes/gitoxide/src/CredentialContext.php`:
+  no syntax errors.
+- `php -l lanes/gitoxide/tests/CredentialContextTest.php`:
+  no syntax errors.
+- `php -l lanes/gitoxide/tests/CredentialCascadeTest.php`:
+  no syntax errors.
+- `php -l lanes/gitoxide/fixtures/wordpress-credential-context.php`:
+  no syntax errors.
+- `php -l lanes/gitoxide/examples/wordpress-credential-context.php`:
+  no syntax errors.
+- `php tools/run-tests.php lanes/gitoxide/tests/CredentialContextTest.php lanes/gitoxide/tests/CredentialCascadeTest.php lanes/gitoxide/tests/CredentialProgramTest.php`:
+  `3 test files, 220 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests`:
+  `39 test files, 5703 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-credential-context.php`: exited `0`.
+- `php -r` JSON validation passed for `lanes/gitoxide/lane-status.json` and
+  `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`.
+- `git diff --check -- lanes/gitoxide`: exited `0`.
+
+## Dependency Closure
+
+No new support component is needed. This slice reuses native PHP string and
+integer-bound checks inside the existing `gix-credentials` context/cascade
+model; no live credential store, provider config, Git binary, shell helper, or
+shared support-library activation gate is required.

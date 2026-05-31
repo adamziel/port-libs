@@ -2635,7 +2635,103 @@ final class CssMinifier
             $value = $this->minifyLightDarkFunctions($value);
         }
 
-        return $value;
+        return $this->minifyAttrFunctions($value);
+    }
+
+    private function minifyAttrFunctions(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if (!$this->isIdentifierStart($char)) {
+                $output .= $char;
+                continue;
+            }
+
+            $identifier = $this->readIdentifier($value, $i);
+            $next = $i + strlen($identifier);
+            $previous = $i > 0 ? $value[$i - 1] : '';
+            if (strtolower($identifier) !== 'attr'
+                || ($value[$next] ?? '') !== '('
+                || ($previous !== '' && $this->isIdentifierChar($previous))
+            ) {
+                $output .= $identifier;
+                $i = $next - 1;
+                continue;
+            }
+
+            [$function, $offset] = $this->readFunctionRaw($value, $i);
+            $output .= $this->minifyAttrFunction($function);
+            $i = $offset;
+        }
+
+        return $output;
+    }
+
+    private function minifyAttrFunction(string $function): string
+    {
+        if (preg_match('/^attr\((.*)\)$/is', trim($function), $matches) !== 1) {
+            return $function;
+        }
+
+        $parts = $this->splitTopLevel($matches[1], ',');
+        if ($parts === []) {
+            return 'attr()';
+        }
+
+        $attribute = $this->minifyAttrAttributeArgument(array_shift($parts));
+        if ($parts === []) {
+            return 'attr(' . $attribute . ')';
+        }
+
+        $fallback = implode(',', $parts);
+        if (trim($fallback) === '') {
+            return 'attr(' . $attribute . ',)';
+        }
+
+        return 'attr(' . $attribute . ', ' . $this->minifyAttrFallbackArgument($fallback) . ')';
+    }
+
+    private function minifyAttrAttributeArgument(string $argument): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($argument));
+        if ($tokens === []) {
+            return '';
+        }
+
+        if (count($tokens) === 1
+            && preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*|--[_a-zA-Z0-9-]+)%$/', $tokens[0], $matches) === 1
+        ) {
+            return $matches[1] . ' %';
+        }
+
+        return implode(' ', $tokens);
+    }
+
+    private function minifyAttrFallbackArgument(string $argument): string
+    {
+        return $this->minifyAttrFunctions(trim($argument));
     }
 
     private function containsColorFunctionCalc(string $value): bool

@@ -204,6 +204,47 @@ CSS, [
             'card' => $export('EgL3uq_card'),
         ], $pureSelectorFunction['exports']);
     },
+    'css modules leaves upstream host-context arguments public while preserving local composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+:host-context(.public-theme) .card {
+  color: red;
+}
+
+:host(.editor-theme) .cardHost {
+  color: yellow;
+}
+
+::slotted(.media) {
+  color: blue;
+}
+
+.card {
+  composes: base;
+  color: green;
+}
+
+.base {
+  color: white;
+}
+CSS);
+
+        $t->same(':host-context(.public-theme) .EgL3uq_card{color:red}:host(.EgL3uq_editor-theme) .EgL3uq_cardHost{color:#ff0}::slotted(.EgL3uq_media){color:#00f}.EgL3uq_card{color:green}.EgL3uq_base{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'editor-theme' => $export('EgL3uq_editor-theme'),
+            'cardHost' => $export('EgL3uq_cardHost'),
+            'media' => $export('EgL3uq_media'),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $pure = (new CssModulesTransformer())->transform(':host-context(.public-theme) .card { color: red }', ['pure' => true]);
+        $t->same(':host-context(.public-theme) .EgL3uq_card{color:red}', $pure['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+        ], $pure['exports']);
+        $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform(':host-context(.public-theme) { color: red }', ['pure' => true]));
+    },
     'css modules scopes upstream pseudo replacement classes while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card:hover {

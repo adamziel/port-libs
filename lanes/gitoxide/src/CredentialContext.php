@@ -204,11 +204,11 @@ final class CredentialContext
      */
     private static function integerField(array $fields, string $key): ?int
     {
-        if (!array_key_exists($key, $fields) || preg_match('/^[+-]?\d+$/', $fields[$key]) !== 1) {
+        if (!array_key_exists($key, $fields)) {
             return null;
         }
 
-        return (int) $fields[$key];
+        return self::parseSignedI64($fields[$key]);
     }
 
     /**
@@ -230,11 +230,33 @@ final class CredentialContext
         if (in_array($value, ['false', 'off', 'no'], true)) {
             return false;
         }
-        if (preg_match('/^[+-]?\d+$/', $value) === 1) {
-            return (int) $value !== 0;
+        $integer = self::parseSignedI64($value);
+        if ($integer !== null) {
+            return $integer !== 0;
         }
 
         return null;
+    }
+
+    private static function parseSignedI64(string $value): ?int
+    {
+        if (preg_match('/^[+-]?\d+$/', $value) !== 1) {
+            return null;
+        }
+
+        $negative = str_starts_with($value, '-');
+        $digits = $negative || str_starts_with($value, '+') ? substr($value, 1) : $value;
+        $digits = ltrim($digits, '0');
+        if ($digits === '') {
+            return 0;
+        }
+
+        $limit = $negative ? '9223372036854775808' : '9223372036854775807';
+        if (strlen($digits) > strlen($limit) || (strlen($digits) === strlen($limit) && strcmp($digits, $limit) > 0)) {
+            return null;
+        }
+
+        return (int) ($negative ? '-' . $digits : $digits);
     }
 
     private static function validateField(string $key, string $value, bool $valueMustBeUtf8 = false): void

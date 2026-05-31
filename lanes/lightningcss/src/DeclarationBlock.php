@@ -8686,6 +8686,9 @@ final class DeclarationBlock
         if ($value === '') {
             throw new \InvalidArgumentException('CSS declaration value cannot be empty');
         }
+        if (!str_starts_with($property, '--') && $this->hasTopLevelCurlyBlock($value)) {
+            throw new \InvalidArgumentException("Invalid CSS declaration: {$property}: {$value}");
+        }
 
         [$normalEntries, $importantEntries] = $this->partitionEntriesByImportance($this->parseEntries($block));
         if ($important) {

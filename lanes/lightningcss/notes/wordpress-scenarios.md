@@ -100,6 +100,8 @@ This isolated bundle/import graph run extends `examples/wordpress-bundle-import-
 
 This isolated bundle/import graph run extends the same build-free block-theme delivery path to quoted `url(...)` import source token boundaries: generated CSS may include whitespace and comments around a quoted import URL, but additional tokens inside the `url()` function are rejected before resolver/read traversal. `examples/wordpress-bundle-import-graph.php` now verifies both the valid quoted URL import and a bad trailing-token import diagnostic without Node. No new support component is needed; it reuses `CssBundler`'s bounded import prelude parser, string-token decoder, resolver, reader, and import graph model.
 
+This isolated property-values run adds `examples/wordpress-attr-typed-value-minifier.php` for block CSS that reads typed color and length values from data attributes without Node/WASM. Native minification now preserves upstream `attr()` comma spacing, `%` type spacing, and bare-comma empty fallback serialization for typed custom data-driven styles. No new support component is needed; it reuses `CssMinifier` declaration scanning, function parsing, list splitting, and token helpers.
+
 ## Next Task
 
 Continue current-base LightningCSS handoffs for remaining CSSOM shorthand splitting/removal parity, custom at-rule parser/visitor parity, target-prefix browser boundaries, media-query range/layer handling, non-overlapping property-value color/font/grid coverage, and source-map/bundler integration. Reject status-only markers and avoid repeating accepted CSSOM priority-bucket, background CSSOM read/write, linear/radial/conic gradient minifier, or bundle supports-condition grouping slices.

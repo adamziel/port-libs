@@ -194,7 +194,7 @@ The merge fixture mapping now includes the upstream multiple-merge-bases shape. 
 
 ## WordPress Lazy Promisor Fetch Example
 
-`examples/wordpress-lazy-promisor-fetch.php` starts with a blobless promisor pack and an omitted media object, then resolves that object through a native `PromisorObjectResolver`. The object database verifies the returned object ID, persists the blob into loose storage, and reports the media object as present for a fresh database instance.
+`examples/wordpress-lazy-promisor-fetch.php` starts with a blobless promisor pack and an omitted media object, then resolves that object through a native `PromisorObjectResolver`. The object database verifies the returned object ID, persists the blob into loose storage, reports the media object as present for a fresh database instance, and refreshes object iteration/count state after an external template promisor pack is written to disk.
 
 ## WordPress Sparse Checkout Example
 

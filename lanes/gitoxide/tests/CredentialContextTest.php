@@ -59,6 +59,12 @@ return [
 
         $t->same(10, CredentialContext::fromBytes("password_expiry_utc=+10\n")->passwordExpiryUtc);
         $t->same(null, CredentialContext::fromBytes("password_expiry_utc=never\n")->passwordExpiryUtc);
+        $t->same(9223372036854775807, CredentialContext::fromBytes("password_expiry_utc=9223372036854775807\n")->passwordExpiryUtc);
+        $t->same(PHP_INT_MIN, CredentialContext::fromBytes("password_expiry_utc=-9223372036854775808\n")->passwordExpiryUtc);
+        $t->same(null, CredentialContext::fromBytes("password_expiry_utc=9223372036854775808\n")->passwordExpiryUtc);
+        $t->same(null, CredentialContext::fromBytes("password_expiry_utc=-9223372036854775809\n")->passwordExpiryUtc);
+        $t->same(null, CredentialContext::fromBytes("quit=9223372036854775808\n")->quit);
+        $t->same(null, CredentialContext::fromBytes("quit=-9223372036854775809\n")->quit);
     },
     'credential context validates helper protocol bytes' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => CredentialContext::fromBytes("url=https://foo\0\n"));
@@ -210,6 +216,8 @@ return [
         $t->same(null, $fixture['clearedPassword']);
         $t->same(false, $fixture['emptyQuitFalse']);
         $t->same(1711398853, $fixture['passwordExpiryUtc']);
+        $t->same(true, $fixture['overflowExpiryIgnored']);
+        $t->same(true, $fixture['overflowQuitIgnored']);
         $t->contains('password=<redacted>', $fixture['redactedBytes']);
         $t->same(true, $fixture['rootHttpPathCleared']);
         $t->same($fixture['credentialUrl'], $summary['credentialUrl']);
@@ -217,6 +225,8 @@ return [
         $t->same(true, $summary['fileUrlClearedHost']);
         $t->same(true, $summary['rootHttpPathCleared']);
         $t->same(false, $summary['emptyQuitFalse']);
+        $t->same(true, $summary['overflowExpiryIgnored']);
+        $t->same(true, $summary['overflowQuitIgnored']);
         $t->same(false, $summary['secretsInCleartextLog']);
     },
 ];

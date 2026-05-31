@@ -22,6 +22,8 @@ $helperResponse = CredentialContext::fromBytes(
     . "password_expiry_utc=+1711398853\n"
 );
 $emptyQuit = CredentialContext::fromBytes("quit=\n");
+$overflowExpiry = CredentialContext::fromBytes("password_expiry_utc=-9223372036854775809\n");
+$overflowQuit = CredentialContext::fromBytes("quit=9223372036854775808\n");
 $redacted = $helperResponse->redacted();
 $cleared = $helperResponse->clearSecrets();
 $encodedContext = (new CredentialContext(
@@ -47,6 +49,8 @@ return [
     ],
     'passwordExpiryUtc' => $helperResponse->passwordExpiryUtc,
     'emptyQuitFalse' => $emptyQuit->quit,
+    'overflowExpiryIgnored' => $overflowExpiry->passwordExpiryUtc === null,
+    'overflowQuitIgnored' => $overflowQuit->quit === null,
     'rootHttpPathCleared' => $rootHttpContext->path === null,
     'fileUrlClearedHost' => $fileUrlContext->host === null,
     'fileUrlClearedUsername' => $fileUrlContext->username === null,

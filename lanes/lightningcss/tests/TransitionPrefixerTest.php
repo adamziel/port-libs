@@ -983,6 +983,34 @@ return [
             $prefixer->prefixForTargets('.foo { background: url(img.png); background-clip: text; }', ['edge' => 13])
         );
     },
+    'transition prefixer maps upstream background size and origin browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '.foo { background-size: cover; background-origin: content-box; }';
+        $modern = '.foo{background-size:cover;background-origin:content-box}';
+        $webkit = '.foo{-webkit-background-size:cover;background-size:cover;-webkit-background-origin:content-box;background-origin:content-box}';
+        $moz = '.foo{-moz-background-size:cover;background-size:cover;-moz-background-origin:content-box;background-origin:content-box}';
+        $opera = '.foo{-o-background-size:cover;background-size:cover;-o-background-origin:content-box;background-origin:content-box}';
+
+        $t->same(
+            '.foo{-webkit-background-size:cover;-moz-background-size:cover;-o-background-size:cover;background-size:cover;-webkit-background-origin:content-box;-moz-background-origin:content-box;-o-background-origin:content-box;background-origin:content-box}',
+            $prefixer->prefixForTargets($css, ['android' => '2.3', 'firefox' => '3.6', 'opera' => 10])
+        );
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['android' => '2.1']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['android' => '2.3']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['android' => 3]));
+        $t->same($moz, $prefixer->prefixForTargets($css, ['firefox' => '3.6']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['firefox' => 4]));
+        $t->same($opera, $prefixer->prefixForTargets($css, ['opera' => 10]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['opera' => '10.1']));
+        $t->same(
+            $modern,
+            $prefixer->prefixForTargets('.foo { -webkit-background-size: cover; -moz-background-size: cover; -o-background-size: cover; background-size: cover; -webkit-background-origin: content-box; -moz-background-origin: content-box; -o-background-origin: content-box; background-origin: content-box; }', ['firefox' => 4, 'opera' => '10.1', 'android' => 3])
+        );
+        $t->same(
+            $moz,
+            $prefixer->prefixForTargets('.foo { -webkit-background-size: cover; -moz-background-size: cover; -o-background-size: cover; background-size: cover; -webkit-background-origin: content-box; -moz-background-origin: content-box; -o-background-origin: content-box; background-origin: content-box; }', ['firefox' => '3.6'])
+        );
+    },
     'transition prefixer maps upstream clip-path WebKit target boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $prefixed = '.foo{-webkit-clip-path:circle(50px);clip-path:circle(50px)}';

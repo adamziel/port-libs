@@ -2492,12 +2492,32 @@ return [
             ],
             $expanded,
         ));
+
+        $oursResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS);
+        $oursResolvedTree = Tree::fromObject($read($oursResolved->tree->entryNamed('a-renamed', true)?->oid ?? ''));
+        $oursResolvedSub = Tree::fromObject($read($oursResolvedTree->entryNamed('sub', true)?->oid ?? ''));
+
+        $t->true($oursResolved->isClean());
+        $t->same(['a-renamed'], $names($oursResolved->tree));
+        $t->same(['sub', 'w', 'x.f'], $names($oursResolvedTree));
+        $t->same($mergedContent = "1\n2\n3\n4\n5\n6\n", $read($oursResolvedSub->entryNamed('y.f')?->oid ?? '')->body);
+        $t->same($mergedContent, $read($oursResolvedTree->entryNamed('x.f')?->oid ?? '')->body);
+        $t->same([], $oursResolved->indexEntries());
+
+        $reverse = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write);
+        $reverseResolved = $reverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS);
+        $reverseResolvedTree = Tree::fromObject($read($reverseResolved->tree->entryNamed('a-different', true)?->oid ?? ''));
+
+        $t->true($reverseResolved->isClean());
+        $t->same(['a-different'], $names($reverseResolved->tree));
+        $t->same($mergedContent, $read($reverseResolvedTree->entryNamed('x.f')?->oid ?? '')->body);
     },
     'maps upstream gix-merge tree-baseline conflicting-rename-2 fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $baseContent = "original\n1\n2\n3\n4\n5\n";
         $ourContent = "1\n2\n3\n4\n5\n";
         $theirContent = "original\n1\n2\n3\n4\n5\n6\n";
+        $mergedContent = "1\n2\n3\n4\n5\n6\n";
         $base = new Tree([
             $treeEntry('a', new Tree([
                 $treeEntry('sub', new Tree([
@@ -2581,6 +2601,27 @@ return [
             ],
             $expanded,
         ));
+
+        $oursResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS);
+        $oursResolvedTree = Tree::fromObject($read($oursResolved->tree->entryNamed('a', true)?->oid ?? ''));
+        $oursResolvedSub = Tree::fromObject($read($oursResolvedTree->entryNamed('sub-renamed', true)?->oid ?? ''));
+
+        $t->true($oursResolved->isClean());
+        $t->same(['a'], $names($oursResolved->tree));
+        $t->same(['sub-renamed', 'w', 'x.f'], $names($oursResolvedTree));
+        $t->same(['y.f', 'z'], $names($oursResolvedSub));
+        $t->same($mergedContent, $read($oursResolvedSub->entryNamed('y.f')?->oid ?? '')->body);
+        $t->same($mergedContent, $read($oursResolvedTree->entryNamed('x.f')?->oid ?? '')->body);
+
+        $reverse = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write);
+        $reverseResolved = $reverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS, TreeMergeResult::RESOLVE_OURS);
+        $reverseResolvedTree = Tree::fromObject($read($reverseResolved->tree->entryNamed('a', true)?->oid ?? ''));
+        $reverseResolvedSub = Tree::fromObject($read($reverseResolvedTree->entryNamed('sub-different', true)?->oid ?? ''));
+
+        $t->true($reverseResolved->isClean());
+        $t->same(['sub-different', 'w', 'x.f'], $names($reverseResolvedTree));
+        $t->same($mergedContent, $read($reverseResolvedSub->entryNamed('y.f')?->oid ?? '')->body);
+        $t->same($mergedContent, $read($reverseResolvedTree->entryNamed('x.f')?->oid ?? '')->body);
     },
     'maps upstream gix-merge tree-baseline conflicting-rename-complex fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();

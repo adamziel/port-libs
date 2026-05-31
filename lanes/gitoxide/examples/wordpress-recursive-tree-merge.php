@@ -282,6 +282,44 @@ $targetAddOursResolved = $targetAddResult->resolveTreeConflicts($read, $write, T
 $targetAddAncestorMuPlugins = $treeAtPathOrEmpty($targetAddAncestorResolved->tree, 'wp-content/mu-plugins');
 $targetAddOursMuPlugins = $treeAtPathOrEmpty($targetAddOursResolved->tree, 'wp-content/mu-plugins');
 $targetAddOursEntry = $targetAddOursMuPlugins->entryNamed('active-loader.php');
+$directoryRenameConflictBase = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('plugins', new Tree([
+            $tree('acme', $pluginTree('includes', $nestedBaseRoutes)),
+        ])),
+    ])),
+]);
+$directoryRenameConflictOurs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('plugins', new Tree([
+            $tree('acme-pro', $pluginTree('includes', $nestedOursRoutes)),
+        ])),
+    ])),
+]);
+$directoryRenameConflictTheirs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('plugins', new Tree([
+            $tree('acme-live', $pluginTree('includes', $nestedTheirsRoutes)),
+        ])),
+    ])),
+]);
+$directoryRenameConflictResult = TreeMerge::mergeRecursive(
+    $directoryRenameConflictBase,
+    $directoryRenameConflictOurs,
+    $directoryRenameConflictTheirs,
+    $read,
+    $write,
+);
+$directoryRenameConflictResolved = $directoryRenameConflictResult->resolveTreeConflicts(
+    $read,
+    $write,
+    TreeMergeResult::RESOLVE_OURS,
+    TreeMergeResult::RESOLVE_OURS,
+);
+$directoryRenameResolvedPlugins = $treeAtPath($directoryRenameConflictResolved->tree, 'wp-content/plugins');
+$directoryRenameResolvedPlugin = $treeAtPath($directoryRenameConflictResolved->tree, 'wp-content/plugins/acme-pro');
+$directoryRenameResolvedIncludes = $treeAtPath($directoryRenameConflictResolved->tree, 'wp-content/plugins/acme-pro/includes');
+$directoryRenameResolvedRoute = $read($directoryRenameResolvedIncludes->entryNamed('rest.php')?->oid ?? '')->body;
 $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
 $metadata = $read($contentTree->entryNamed('post.meta')?->oid ?? '');
 $demoRoot = sys_get_temp_dir() . '/port-libs-recursive-merge-' . bin2hex(random_bytes(4));
@@ -432,5 +470,18 @@ echo json_encode([
         'oursActiveTarget' => $targetAddOursEntry === null ? null : $read($targetAddOursEntry->oid)->body,
         'indexStagesAfterAncestorResolution' => count($targetAddAncestorResolved->indexEntries()),
         'indexStagesAfterOursResolution' => count($targetAddOursResolved->indexEntries()),
+    ],
+    'directoryRenameConflictResolution' => [
+        'cleanBeforeResolution' => $directoryRenameConflictResult->isClean(),
+        'conflicts' => array_map(
+            static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
+            $directoryRenameConflictResult->conflicts,
+        ),
+        'oursResolvedClean' => $directoryRenameConflictResolved->isClean(),
+        'pluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $directoryRenameResolvedPlugins->entries),
+        'resolvedPluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $directoryRenameResolvedPlugin->entries),
+        'routeIncludesOtherSidePermissionCallback' => str_contains($directoryRenameResolvedRoute, 'permission_callback'),
+        'routeContent' => $directoryRenameResolvedRoute,
+        'indexStagesAfterResolution' => count($directoryRenameConflictResolved->indexEntries()),
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

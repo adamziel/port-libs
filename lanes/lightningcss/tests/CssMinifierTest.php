@@ -1887,6 +1887,38 @@ CSS;
             $minifier->minify('.foo { content: "image-set(url(foo.png) 2x)"; background: url(image-set.png); }')
         );
     },
+    'css minifier maps upstream typed attr property values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{background-color:attr(data-color type(<color>))}',
+            $minifier->minify('.foo { background-color: attr(data-color type(<color>)); }')
+        );
+        $t->same(
+            '.foo{width:attr(data-width type(<length>), 100px)}',
+            $minifier->minify('.foo { width: attr(data-width type(<length>), 100px); }')
+        );
+        $t->same(
+            '.foo{width:attr(data-foo %)}',
+            $minifier->minify('.foo { width: attr( data-foo    % ); }')
+        );
+        $t->same(
+            '.foo{width:attr(data-foo %,)}',
+            $minifier->minify('.foo { width: attr( data-foo    %, ); }')
+        );
+        $t->same(
+            '.foo{width:attr(data-foo px)}',
+            $minifier->minify('.foo { width: attr( data-foo    px ); }')
+        );
+        $t->same(
+            '.foo{width:attr(data-foo number)}',
+            $minifier->minify('.foo { width: attr(data-foo    number ); }')
+        );
+        $t->same(
+            '.foo{width:attr(data-foo raw-string)}',
+            $minifier->minify('.foo { width: attr(data-foo    raw-string); }')
+        );
+    },
     'css minifier preserves strings urls custom properties and calc operator spacing' => static function (TestRunner $t): void {
         $css = '.asset { background: url("/yellow/blue.svg"); content: "yellow"; --brand-color: yellow; color: var(--yellow); width: calc(100% + 8px); }';
         $t->same('.asset{background:url("/yellow/blue.svg");content:"yellow";--brand-color:yellow;color:var(--yellow);width:calc(100% + 8px)}', (new CssMinifier())->minify($css));

@@ -12,6 +12,8 @@ return [
     'encodedPath' => $fixture['encodedContext']['path'],
     'requestBytes' => $fixture['requestBytes'],
     'emptyQuitFalse' => $fixture['emptyQuitFalse'],
+    'overflowExpiryIgnored' => $fixture['overflowExpiryIgnored'],
+    'overflowQuitIgnored' => $fixture['overflowQuitIgnored'],
     'rootHttpPathCleared' => $fixture['rootHttpPathCleared'],
     'fileUrlClearedHost' => $fixture['fileUrlClearedHost'],
     'fileUrlPath' => $fixture['fileUrlPath'],

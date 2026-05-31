@@ -251,6 +251,30 @@ return [
             static fn () => $block->parse('color: { color: red; }; background: blue')
         );
     },
+    'declaration block rejects non custom top level blocks during cssom writes' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $block->setProperty('color: red', 'color', '{ color: blue; }')
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $block->setProperty('background: red', 'background', 'url(hero.jpg) { color: blue; }')
+        );
+        $t->same(
+            '--theme-rule: { color: blue; background: url("/a;b.css") }; color: red',
+            $block->setProperty(
+                '--theme-rule: { color: red; background: url("/a;b.css") }; color: red',
+                '--theme-rule',
+                '{ color: blue; background: url("/a;b.css") }'
+            )
+        );
+        $t->same(
+            'color: var(--theme-rule, { color: blue; })',
+            $block->setProperty('color: red', 'color', 'var(--theme-rule, { color: blue; })')
+        );
+    },
     'declaration block reads upstream background cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

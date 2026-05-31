@@ -177,6 +177,8 @@ final class ObjectDatabase
 
     public function packedObjectCount(): int
     {
+        $this->refreshObjectStorage();
+
         $count = 0;
         foreach ($this->multiPackIndexes() as $multiPack) {
             $count += $multiPack['index']->count();
@@ -295,6 +297,8 @@ final class ObjectDatabase
         ], true)) {
             throw new \InvalidArgumentException("Unsupported object iteration ordering: {$ordering}");
         }
+
+        $this->refreshObjectStorage();
 
         $ids = [];
         foreach ($this->multiPackIndexes() as $multiPack) {

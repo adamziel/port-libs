@@ -344,6 +344,26 @@ return [
         $t->same('promisor-present', $database->objectState($hydratedTemplateOid)['status']);
         $t->same($hydratedTemplateBlob->body, $database->read($hydratedTemplateOid)->body);
     },
+    'object database iterates refreshed promisor packs after external hydration' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackForObject): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $hydratedPatternBlob = new GitObject('blob', 'Externally hydrated block pattern bytes');
+        $hydratedPatternOid = $hydratedPatternBlob->oid();
+        $database = new ObjectDatabase($gitDir);
+        $beforeIds = $database->objectIds();
+        $beforeCount = $database->packedObjectCount();
+
+        $t->same(false, in_array($hydratedPatternOid, $beforeIds, true));
+
+        $hydrationPack = $writePromisorPackForObject($gitDir, $hydratedPatternBlob, "external iteration hydration\n");
+        $afterIds = $database->objectIds();
+
+        $t->same(true, in_array($hydratedPatternOid, $afterIds, true));
+        $t->same(count($beforeIds) + 1, count($afterIds));
+        $t->same($beforeCount + 1, $database->packedObjectCount());
+        $t->same(true, in_array($hydrationPack, $database->promisorPackNames(), true));
+        $t->same('promisor-present', $database->objectState($hydratedPatternOid)['status']);
+        $t->same($hydratedPatternBlob->body, $database->read($hydratedPatternOid)->body);
+    },
     'object database rejects promisor resolver object id mismatches' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir] = $writePromisorPackFixture();
         $requestedOid = str_repeat('f', 40);
@@ -392,6 +412,8 @@ return [
         $t->same('found', $summary['prefixAfterExternalHydration']['status']);
         $t->same($summary['externalHydratedObject'], $summary['prefixAfterExternalHydration']['oid']);
         $t->same('promisor-present', $summary['afterExternalHydration']['status']);
+        $t->same(true, in_array($summary['externalHydratedObject'], $summary['objectIdsAfterExternalHydration'], true));
+        $t->same($summary['packedObjectCountBeforeExternalHydration'] + 1, $summary['packedObjectCountAfterExternalHydration']);
         $t->same(true, in_array($summary['externalHydrationPack'], $summary['promisorPacksAfterExternalHydration'], true));
     },
 ];

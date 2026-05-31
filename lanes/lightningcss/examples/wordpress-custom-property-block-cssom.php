@@ -20,6 +20,13 @@ $actual = [
     'removedHoverRule' => $block->removeProperty($declarations, '--wp--custom--button-hover'),
 ];
 
+try {
+    $block->setProperty('color: var(--wp--preset--color--contrast)', 'color', '{ color: red; }');
+    $actual['invalidColorBlockRejected'] = false;
+} catch (InvalidArgumentException) {
+    $actual['invalidColorBlockRejected'] = true;
+}
+
 $expected = [
     'hoverRule' => [
         'value' => '{ color: var(--wp--preset--color--base); background: url("/wp-content/uploads/a;b.svg") }',
@@ -31,6 +38,7 @@ $expected = [
     ],
     'updatedHoverRule' => '--wp--custom--button-hover: { color: var(--wp--preset--color--contrast); background: url("/wp-content/uploads/cta.svg") }; color: var(--wp--preset--color--contrast); --wp--custom--editor-list: [--focus: 1; --hover: 2] !important',
     'removedHoverRule' => 'color: var(--wp--preset--color--contrast); --wp--custom--editor-list: [--focus: 1; --hover: 2] !important',
+    'invalidColorBlockRejected' => true,
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

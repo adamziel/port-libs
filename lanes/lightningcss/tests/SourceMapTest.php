@@ -796,6 +796,42 @@ return [
         });
         $t->same($beforeOutOfRangeRemoval, $map->writeVlq());
     },
+    'source map preserves upstream line spans when offsetting past eof' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('far-lines.css');
+        $map->addMapping(0, 0, $sourceIndex, 0, 0);
+
+        $map->offsetLines(4, 2);
+        $t->same('AAAA;;;;;;', $map->writeVlq());
+        $t->same([0], array_column(SourceMap::decodeVlq($map->writeVlq()), 'generatedLine'));
+
+        $map->addMapping(6, 2, $sourceIndex, 6, 0);
+        $t->same('AAAA;;;;;;EAMA', $map->writeVlq());
+
+        $map->offsetLines(5, -2);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+
+        $t->same('AAAA;;;;EAMA', $map->writeVlq());
+        $t->same([0, 4], array_column($decoded, 'generatedLine'));
+        $t->same([0, 2], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 6], array_column($decoded, 'originalLine'));
+    },
+    'source map preserves empty generated-line spans from upstream line offsets' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('theme.css');
+        $map->addMapping(0, 0, $sourceIndex, 0, 0);
+
+        $map->offsetLines(1, 2);
+
+        $t->same('AAAA;;', $map->writeVlq());
+        $t->same([0], array_column(SourceMap::decodeVlq($map->writeVlq()), 'generatedLine'));
+        $beforeColumnNoop = $map->writeVlq();
+        $map->offsetColumns(1, 3, 2);
+        $t->same($beforeColumnNoop, $map->writeVlq());
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->offsetColumns(1, 3, -4);
+        });
+    },
     'source map preserves empty generated-line spans from upstream line offsets' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $sourceIndex = $map->addSource('theme.css');

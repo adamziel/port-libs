@@ -111,7 +111,16 @@ final class TreeMergeResult
                 continue;
             }
 
-            $entry = self::entryForResolution($conflict, $resolutionForConflict);
+            $resolvedTree = !$isContentConflict
+                ? self::mergedTreeEntryForResolvedConflict(
+                    $conflict,
+                    $resolutionForConflict,
+                    $contentResolution,
+                    $readObject,
+                    $writeObject,
+                )
+                : null;
+            $entry = $resolvedTree['entry'] ?? self::entryForResolution($conflict, $resolutionForConflict);
             $tree = self::removeEntryAtPath($tree, $conflict->path, $readObject, $writeObject);
             if ($entry !== null) {
                 $targetPath = self::resolvedEntryPath($conflict, $entry);
@@ -120,9 +129,102 @@ final class TreeMergeResult
                 }
                 $tree = self::setEntryAtPath($tree, $targetPath, $entry, $readObject, $writeObject);
             }
+            if ($resolvedTree !== null) {
+                array_push($remaining, ...$resolvedTree['conflicts']);
+            }
         }
 
         return new self($tree, $remaining);
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     * @return null|array{entry:TreeEntry,conflicts:list<TreeMergeConflict>}
+     */
+    private static function mergedTreeEntryForResolvedConflict(
+        TreeMergeConflict $conflict,
+        string $resolution,
+        ?string $contentResolution,
+        callable $readObject,
+        callable $writeObject,
+    ): ?array {
+        if (!in_array($conflict->reason, ['rename-rename', 'nested-directory-rename'], true)) {
+            return null;
+        }
+        if ($resolution === self::RESOLVE_ANCESTOR || $contentResolution === self::RESOLVE_ANCESTOR) {
+            return null;
+        }
+
+        $selected = self::entryForResolution($conflict, $resolution);
+        if (
+            $conflict->base === null
+            || $conflict->ours === null
+            || $conflict->theirs === null
+            || $selected === null
+            || !$conflict->base->isTree()
+            || !$conflict->ours->isTree()
+            || !$conflict->theirs->isTree()
+            || !$selected->isTree()
+        ) {
+            return null;
+        }
+
+        $merge = TreeMerge::mergeRecursive(
+            Tree::fromObject(self::readTypedObject($readObject, $conflict->base->oid, 'tree')),
+            Tree::fromObject(self::readTypedObject($readObject, $conflict->ours->oid, 'tree')),
+            Tree::fromObject(self::readTypedObject($readObject, $conflict->theirs->oid, 'tree')),
+            $readObject,
+            $writeObject,
+            self::blobMergeStyleForContentResolution($contentResolution),
+        );
+        $targetPath = self::resolvedEntryPath($conflict, $selected);
+
+        return [
+            'entry' => new TreeEntry($selected->mode, $selected->filename, $writeObject($merge->tree->toObject())),
+            'conflicts' => self::rebaseConflicts($merge->conflicts, $targetPath),
+        ];
+    }
+
+    private static function blobMergeStyleForContentResolution(?string $contentResolution): string
+    {
+        return match ($contentResolution) {
+            self::RESOLVE_OURS => BlobMerge::STYLE_OURS,
+            self::RESOLVE_THEIRS => BlobMerge::STYLE_THEIRS,
+            default => BlobMerge::STYLE_MERGE,
+        };
+    }
+
+    /**
+     * @param list<TreeMergeConflict> $conflicts
+     * @return list<TreeMergeConflict>
+     */
+    private static function rebaseConflicts(array $conflicts, string $prefix): array
+    {
+        $rebased = [];
+        foreach ($conflicts as $conflict) {
+            $rebased[] = new TreeMergeConflict(
+                self::joinPath($prefix, $conflict->path),
+                $conflict->reason,
+                $conflict->base,
+                $conflict->ours,
+                $conflict->theirs,
+            );
+        }
+
+        return $rebased;
+    }
+
+    private static function joinPath(string $prefix, string $path): string
+    {
+        if ($prefix === '') {
+            return $path;
+        }
+        if ($path === '') {
+            return $prefix;
+        }
+
+        return $prefix . '/' . $path;
     }
 
     /**

@@ -65,11 +65,15 @@ $after = $database->objectState($mediaBlob->oid());
 $templateBlob = new GitObject('blob', 'Externally hydrated WordPress block template bytes');
 $templateOid = $templateBlob->oid();
 $beforeExternalHydration = $database->objectState($templateOid);
+$objectIdsBeforeExternalHydration = $database->objectIds();
+$packedObjectCountBeforeExternalHydration = $database->packedObjectCount();
 $templatePack = PackBuilder::build([$templateBlob]);
 $templatePackBase = 'pack-' . $templatePack->packChecksum();
 file_put_contents($packDir . '/' . $templatePackBase . '.pack', $templatePack->packBytes());
 file_put_contents($packDir . '/' . $templatePackBase . '.idx', $templatePack->indexBytes());
 file_put_contents($packDir . '/' . $templatePackBase . '.promisor', "WordPress template external hydration\n");
+$objectIdsAfterExternalHydration = $database->objectIds();
+$packedObjectCountAfterExternalHydration = $database->packedObjectCount();
 $containsAfterExternalHydration = $database->contains($templateOid);
 $prefixAfterExternalHydration = $database->lookupPrefix(strtoupper(substr($templateOid, 0, 12)));
 $afterExternalHydration = $database->objectState($templateOid);
@@ -88,7 +92,11 @@ return [
     'persistedInPackStore' => (new ObjectDatabase($gitDir))->read($mediaBlob->oid())->body === $mediaBlob->body,
     'externalHydratedObject' => $templateOid,
     'beforeExternalHydration' => $beforeExternalHydration,
+    'objectIdsBeforeExternalHydration' => $objectIdsBeforeExternalHydration,
+    'packedObjectCountBeforeExternalHydration' => $packedObjectCountBeforeExternalHydration,
     'externalHydrationPack' => $templatePackBase . '.promisor',
+    'objectIdsAfterExternalHydration' => $objectIdsAfterExternalHydration,
+    'packedObjectCountAfterExternalHydration' => $packedObjectCountAfterExternalHydration,
     'containsAfterExternalHydration' => $containsAfterExternalHydration,
     'prefixAfterExternalHydration' => $prefixAfterExternalHydration,
     'afterExternalHydration' => $afterExternalHydration,

@@ -2501,7 +2501,6 @@ final class CssModulesTransformer
             'global',
             'has',
             'host',
-            'host-context',
             'is',
             'local',
             'not',
