@@ -52,6 +52,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS/Gitoxide integration 13:48
+  UTC): source commit `e0d5eca0c9fba672ca865172f6c0396119cdbb51`
+  (`ports: add css source maps and gitoxide object parity`) landed six
+  verified handoffs after excluding stale shared status/manifest/progress
+  metadata. LightningCSS full lane evidence moves from `1525` to `1556 pass /
+  0 fail`, with conservative mapped coverage moving from `1130 / 3532` to
+  `1133 / 3532`: +3 SourceMap offset and empty-map checks; CSSOM grid
+  placement set/remove behavior is verified but counted inside the existing
+  DeclarationBlock CSSOM cluster. Gitoxide full lane evidence moves from
+  `4630` to `4696 pass / 0 fail`, with mapped coverage moving from `1576 /
+  2886` to `1580 / 2886`: credential helper context byte/expiry/quit
+  boundaries, rename-within-rename tree merge fixture parity, pack-index and
+  MIDX prefix candidate-range disambiguation, and partial-clone promisor
+  hydration refresh after resolver-written packs. Verification passed PHP lint
+  on changed/new PHP files, diff checks, LightningCSS focused gate `2 files /
+  223 assertions / 0 failures`, full LightningCSS lane `13 files / 1556
+  assertions / 0 failures`, Gitoxide focused gate `5 files / 704 assertions /
+  0 failures`, full Gitoxide lane `39 files / 4696 assertions / 0 failures`,
+  two LightningCSS examples, and five Gitoxide examples. Root aggregate,
+  full upstream LightningCSS Rust/Node runners, and full upstream Gitoxide
+  Cargo workspace runners were not run for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS integration 13:35 UTC):
   source commit `b5247e480ceb7571155a19a973b177b62823e612`
   (`ports: add lightningcss prefix visitor cssom parity`) landed seven
