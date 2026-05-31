@@ -8,6 +8,7 @@ use PortLibs\LibSqlite\SQLiteWal;
 
 $tailFailureScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailFailureScenarios(18);
 $tailRecoveryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryScenariosFromTailFailureScenarios($tailFailureScenarios);
+$tailRecoveryCheckpointScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryCheckpointScenariosFromTailRecoveryScenarios($tailRecoveryScenarios);
 
 $tests = [
     'sqlite application wal rollback json post checkpoint tail dynamic failure exposes requested scenario count' => static function (TestRunner $t) use ($tailFailureScenarios): void {
@@ -46,6 +47,24 @@ $tests = [
     },
     'sqlite application wal rollback json post checkpoint tail dynamic recovery covers json text and jsonb rows' => static function (TestRunner $t) use ($tailRecoveryScenarios): void {
         $jsonModes = array_values(array_unique(array_column($tailRecoveryScenarios, 'jsonb_mode')));
+        sort($jsonModes);
+        $t->same([false, true], $jsonModes);
+    },
+    'sqlite application wal rollback json post checkpoint tail recovery checkpoint exposes requested scenario count' => static function (TestRunner $t) use ($tailRecoveryCheckpointScenarios): void {
+        $t->same(18, count($tailRecoveryCheckpointScenarios));
+    },
+    'sqlite application wal rollback json post checkpoint tail recovery checkpoint covers checkpoint reset modes' => static function (TestRunner $t) use ($tailRecoveryCheckpointScenarios): void {
+        $modes = array_values(array_unique(array_column($tailRecoveryCheckpointScenarios, 'checkpoint_mode')));
+        sort($modes);
+        $t->same(['restart', 'truncate'], $modes);
+    },
+    'sqlite application wal rollback json post checkpoint tail recovery checkpoint covers both page sizes' => static function (TestRunner $t) use ($tailRecoveryCheckpointScenarios): void {
+        $pageSizes = array_values(array_unique(array_column($tailRecoveryCheckpointScenarios, 'page_size')));
+        sort($pageSizes);
+        $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json post checkpoint tail recovery checkpoint covers json text and jsonb rows' => static function (TestRunner $t) use ($tailRecoveryCheckpointScenarios): void {
+        $jsonModes = array_values(array_unique(array_column($tailRecoveryCheckpointScenarios, 'jsonb_mode')));
         sort($jsonModes);
         $t->same([false, true], $jsonModes);
     },
@@ -89,6 +108,26 @@ $tests = [
 
         $t->same('rejected', 'accepted');
     },
+    'sqlite application wal rollback json post checkpoint tail dynamic rejects zero recovery checkpoint scenarios' => static function (TestRunner $t): void {
+        try {
+            SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryCheckpointScenarios(0);
+        } catch (InvalidArgumentException) {
+            $t->same('rejected', 'rejected');
+            return;
+        }
+
+        $t->same('rejected', 'accepted');
+    },
+    'sqlite application wal rollback json post checkpoint tail dynamic rejects empty recovery checkpoint base scenarios' => static function (TestRunner $t): void {
+        try {
+            SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryCheckpointScenariosFromTailRecoveryScenarios([]);
+        } catch (InvalidArgumentException) {
+            $t->same('rejected', 'rejected');
+            return;
+        }
+
+        $t->same('rejected', 'accepted');
+    },
     'sqlite application wal rollback json post checkpoint tail dynamic small failure batch remains deterministic' => static function (TestRunner $t): void {
         $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailFailureScenarios(4);
         $t->same([8101, 8102, 8103, 8104], array_column($smallBatch, 'tenant_id'));
@@ -103,6 +142,14 @@ $tests = [
         $t->same(['restart', 'truncate', 'restart', 'truncate'], array_column($smallBatch, 'checkpoint_mode'));
         $t->same([[1321, 1941, 2021], [1322, 1942, 2022], [1323, 1943, 2023], [1324, 1944, 2024]], array_column($smallBatch, 'expected_post_checkpoint_recovery_pages'));
         $t->same([5, 5, 5, 5], array_map(static fn (array $scenario): int => $scenario['post_checkpoint_tail_recovery_plan']['wal_frame_count_after'], $smallBatch));
+    },
+    'sqlite application wal rollback json post checkpoint tail dynamic small recovery checkpoint batch remains deterministic' => static function (TestRunner $t): void {
+        $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryCheckpointScenarios(4);
+        $t->same([8101, 8102, 8103, 8104], array_column($smallBatch, 'tenant_id'));
+        $t->same(['restart', 'truncate', 'restart', 'truncate'], array_column($smallBatch, 'checkpoint_mode'));
+        $t->same([[3, 4, 5], [3, 4, 5], [3, 4, 5], [3, 4, 5]], array_column($smallBatch, 'tail_recovery_applied_frame_indexes'));
+        $t->same([[1321, 1941, 2021], [1322, 1942, 2022], [1323, 1943, 2023], [1324, 1944, 2024]], array_column($smallBatch, 'tail_recovery_applied_page_numbers'));
+        $t->same(['restart_wal', 'truncate_wal', 'restart_wal', 'truncate_wal'], array_column($smallBatch, 'expected_tail_recovery_checkpoint_action'));
     },
 ];
 
@@ -345,6 +392,92 @@ foreach ($tailRecoveryScenarios as $scenario) {
     $tests[$prefix . 'has no failed statements after recovery commit'] = static function (TestRunner $t) use ($recoveryPlan): void {
         $t->same([], $recoveryPlan['failed_statements']);
         $t->same([], $recoveryPlan['import_plan']['failed']);
+    };
+}
+
+foreach ($tailRecoveryCheckpointScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $recoveryPlan = $scenario['post_checkpoint_tail_recovery_plan'];
+    $checkpointPlan = $scenario['tail_recovery_checkpoint_plan'];
+    $releasedCheckpoint = $scenario['tail_recovery_released_checkpoint'];
+    $pinnedCheckpoint = $scenario['tail_recovery_pinned_checkpoint'];
+    $prefix = 'sqlite application wal rollback json post checkpoint tail recovery checkpoint seed ' . $seed . ' ';
+
+    $tests[$prefix . 'starts from committed tail recovery wal bytes'] = static function (TestRunner $t) use ($scenario, $recoveryPlan): void {
+        $t->same('ready', $recoveryPlan['status']);
+        $t->same(5, $recoveryPlan['wal_frame_count_after']);
+        $t->same($scenario['tail_recovery_checkpoint_database_bytes_before_hash'], hash('sha256', (string) $recoveryPlan['database_bytes_before']));
+    };
+    $tests[$prefix . 'has one committed recovery transaction after the followup prefix'] = static function (TestRunner $t) use ($checkpointPlan): void {
+        $t->same(5, $checkpointPlan['last_commit_frame']);
+        $t->same([1, 2, 3, 4, 5], array_column($checkpointPlan['frames'], 'frame_index'));
+        $t->same(['superseded_by_later_committed_frame', 'superseded_by_later_committed_frame', 'checkpointed_to_database', 'checkpointed_to_database', 'checkpointed_to_database'], array_column($checkpointPlan['frames'], 'reason'));
+    };
+    $tests[$prefix . 'checkpoint applies only latest recovery frame images'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same([3, 4, 5], $scenario['tail_recovery_applied_frame_indexes']);
+        $t->same($scenario['expected_post_checkpoint_recovery_pages'], $scenario['tail_recovery_applied_page_numbers']);
+        $t->same([1, 2], $scenario['tail_recovery_superseded_frame_indexes']);
+        $t->same($scenario['committed_prefix_pages'], $scenario['tail_recovery_superseded_page_numbers']);
+    };
+    $tests[$prefix . 'released checkpoint materializes corrected recovery pages'] = static function (TestRunner $t) use ($scenario, $releasedCheckpoint): void {
+        $t->same(true, $scenario['tail_recovery_checkpointed_pages_match']);
+        $t->same(3, $releasedCheckpoint['checkpointed_frame_count']);
+        $t->same(0, $releasedCheckpoint['remaining_committed_frame_count']);
+        $t->same(0, $releasedCheckpoint['uncommitted_frame_count']);
+    };
+    $tests[$prefix . 'released checkpoint resets or truncates wal generation'] = static function (TestRunner $t) use ($scenario, $releasedCheckpoint): void {
+        $t->same(false, $releasedCheckpoint['busy']);
+        $t->same($scenario['checkpoint_mode'], $releasedCheckpoint['mode']);
+        $t->same($scenario['expected_tail_recovery_checkpoint_action'], $releasedCheckpoint['wal_action']);
+        $t->same($scenario['expected_tail_recovery_released_wal_bytes_length'], $releasedCheckpoint['wal_bytes_length']);
+        $t->same($scenario['checkpoint_mode'] === 'truncate' ? null : 'array', is_array($releasedCheckpoint['wal_header']) ? 'array' : null);
+    };
+    $tests[$prefix . 'pinned reader preserves final recovery frame'] = static function (TestRunner $t) use ($scenario, $pinnedCheckpoint): void {
+        $t->same(true, $pinnedCheckpoint['busy']);
+        $t->same('reader_blocks_checkpoint_completion', $pinnedCheckpoint['reason']);
+        $t->same('preserve_wal', $pinnedCheckpoint['wal_action']);
+        $t->same($scenario['tail_recovery_checkpoint_reader_end_frame'], $pinnedCheckpoint['reader_end_frame']);
+        $t->same(2, $pinnedCheckpoint['checkpointed_frame_count']);
+        $t->same(1, $pinnedCheckpoint['remaining_committed_frame_count']);
+    };
+    $tests[$prefix . 'pinned reader applies catalog and inserted recovery pages only'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same(true, $scenario['tail_recovery_pinned_catalog_matches_recovery']);
+        $t->same(true, $scenario['tail_recovery_pinned_insert_page_matches_recovery']);
+        $t->same(false, $scenario['tail_recovery_pinned_followup_page_matches_final_recovery']);
+    };
+    $tests[$prefix . 'released database contains corrected inserted recovery row page'] = static function (TestRunner $t) use ($releasedCheckpoint, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $insertPage = (int) $scenario['expected_post_checkpoint_recovery_pages'][1];
+        $offset = ($insertPage - 1) * $pageSize;
+        $page = substr((string) $releasedCheckpoint['database_bytes'], $offset, $pageSize);
+        $t->contains('post_checkpoint_recovery_payload_' . $scenario['seed'], $page);
+    };
+    $tests[$prefix . 'released database materializes final followup page image'] = static function (TestRunner $t) use ($releasedCheckpoint, $pinnedCheckpoint, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $followupPage = (int) $scenario['expected_post_checkpoint_recovery_pages'][2];
+        $offset = ($followupPage - 1) * $pageSize;
+        $releasedPage = substr((string) $releasedCheckpoint['database_bytes'], $offset, $pageSize);
+        $pinnedPage = substr((string) $pinnedCheckpoint['database_bytes'], $offset, $pageSize);
+        $t->contains($scenario['expected_followup_inserted_key'], $releasedPage);
+        $t->same(false, $releasedPage === $pinnedPage);
+    };
+    $tests[$prefix . 'pinned database has not materialized final followup frame'] = static function (TestRunner $t) use ($releasedCheckpoint, $pinnedCheckpoint, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $followupPage = (int) $scenario['expected_post_checkpoint_recovery_pages'][2];
+        $offset = ($followupPage - 1) * $pageSize;
+        $releasedPage = substr((string) $releasedCheckpoint['database_bytes'], $offset, $pageSize);
+        $pinnedPage = substr((string) $pinnedCheckpoint['database_bytes'], $offset, $pageSize);
+        $t->contains($scenario['expected_followup_inserted_key'], $pinnedPage);
+        $t->same(false, $pinnedPage === $releasedPage);
+    };
+    $tests[$prefix . 'keeps corrected row keys and excludes rejected tail key'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same(true, $scenario['tail_recovery_inserted_key_retained_after_checkpoint']);
+        $t->same(false, $scenario['tail_recovery_rejected_tail_key_retained_after_checkpoint']);
+        $t->same(true, $scenario['post_checkpoint_followup_inserted_key_retained_after_recovery']);
+    };
+    $tests[$prefix . 'records durable checkpoint dependencies'] = static function (TestRunner $t) use ($releasedCheckpoint): void {
+        $t->same(true, in_array('sqlite-wal-checkpoint', $releasedCheckpoint['dependencies'], true));
+        $t->same(true, in_array('durable-sidecar-write', $releasedCheckpoint['dependencies'], true));
     };
 }
 

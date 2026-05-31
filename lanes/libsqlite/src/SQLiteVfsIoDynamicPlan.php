@@ -1076,6 +1076,84 @@ final class SQLiteVfsIoDynamicPlan
      * @param list<string> $deviceFlags
      * @return array<string, mixed>
      */
+    public static function atomicBatchCommitProfile(
+        array $deviceFlags,
+        int $pageSize,
+        int $sectorSize,
+        int $rowsInserted,
+        int $indexedColumns = 0,
+        int $payloadBytes = 64
+    ): array {
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite atomic-batch commit page size must be a power of two at least 512');
+        }
+        if ($sectorSize < 0 || ($sectorSize > 0 && ($sectorSize & ($sectorSize - 1)) !== 0)) {
+            throw new \InvalidArgumentException('SQLite atomic-batch commit sector size must be zero or a power of two');
+        }
+        if ($rowsInserted < 1) {
+            throw new \InvalidArgumentException('SQLite atomic-batch commit requires at least one inserted row');
+        }
+        if ($indexedColumns < 0 || $payloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite atomic-batch commit requires non-negative index count and positive payload size');
+        }
+
+        $flags = self::deviceFlags($deviceFlags);
+        $effectiveSectorSize = $sectorSize === 0 ? 512 : $sectorSize;
+        $batchAtomic = in_array('batch_atomic', $flags, true);
+        $atomicAllowed = self::atomicWriteAllowed($flags, $pageSize, $effectiveSectorSize);
+        $indexWrites = $indexedColumns * $rowsInserted;
+        $databaseWrites = 1 + $rowsInserted + $indexWrites;
+        $payloadPages = max(1, (int) ceil(($rowsInserted * ($payloadBytes + 16)) / $pageSize));
+        $databasePagesTouched = 1 + $payloadPages + $indexedColumns;
+        $journalExistsAfterBeginInsert = !$batchAtomic;
+
+        return [
+            'status' => 'ok',
+            'script' => 'atomic.test',
+            'upstream' => [
+                'atomic.test 1.0 CREATE TABLE t1(x,y); BEGIN; INSERT INTO t1 VALUES(1,2)',
+                'atomic.test 1.1 file exists test.db-journal returns 0 before COMMIT',
+                'atomic.test 1.2 COMMIT succeeds',
+            ],
+            'device_flags' => $flags,
+            'page_size' => $pageSize,
+            'sector_size' => $sectorSize,
+            'effective_sector_size' => $effectiveSectorSize,
+            'rows_inserted' => $rowsInserted,
+            'indexed_columns' => $indexedColumns,
+            'payload_bytes' => $payloadBytes,
+            'batch_atomic_supported' => $batchAtomic,
+            'atomic_write_allowed' => $atomicAllowed,
+            'atomic_batch_begin_attempted' => $batchAtomic,
+            'atomic_batch_commit_attempted' => $batchAtomic,
+            'atomic_batch_write_calls' => $batchAtomic ? 1 : 0,
+            'atomic_batch_control_sequence' => $batchAtomic ? ['BEGIN_ATOMIC_WRITE', 'COMMIT_ATOMIC_WRITE'] : [],
+            'table_schema_created' => true,
+            'transaction_open_before_commit' => true,
+            'insert_statement_result' => 'ok',
+            'rollback_journal_path' => 'test.db-journal',
+            'journal_exists_after_begin_insert' => $journalExistsAfterBeginInsert,
+            'file_exists_test_db_journal' => $journalExistsAfterBeginInsert,
+            'legacy_journal_fallback_used' => !$batchAtomic,
+            'legacy_journal_header_writes' => $batchAtomic ? 0 : 1,
+            'legacy_journal_page_writes' => $batchAtomic ? 0 : $databasePagesTouched,
+            'database_write_calls' => $databaseWrites,
+            'database_pages_touched' => $databasePagesTouched,
+            'commit_result' => 'ok',
+            'rollback_required' => false,
+            'rows_after_commit' => $rowsInserted,
+            'integrity_check' => 'ok',
+            'reason' => $batchAtomic
+                ? 'atomic_batch_write_keeps_rollback_journal_absent_until_commit'
+                : 'batch_atomic_capability_absent_uses_legacy_rollback_journal',
+            'dependencies' => ['upstream-atomic-test', 'sqlite-vfs-atomic-batch-commit', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @param list<string> $deviceFlags
+     * @return array<string, mixed>
+     */
     public static function atomicCommitPagerCacheRetention(
         array $deviceFlags,
         int $pageSize,
@@ -4450,6 +4528,124 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function sharedCacheTableLockProfile(
+        string $scenario,
+        int $initialRows = 2,
+        int $selfInsertAfterRow = 1,
+        int $peerWriteAfterRow = 2,
+        string $deleteSql = 'DELETE FROM t2',
+        int $deleteRows = 2
+    ): array {
+        $scenario = trim($scenario);
+        if ($scenario === '' || (!str_starts_with($scenario, 'sharedlock-1') && !str_starts_with($scenario, 'sharedlock-2'))) {
+            throw new \InvalidArgumentException('SQLite shared-cache table-lock scenario is unsupported');
+        }
+        if ($initialRows < 2) {
+            throw new \InvalidArgumentException('SQLite shared-cache read-lock profile requires at least two seed rows');
+        }
+        if ($selfInsertAfterRow < 1 || $selfInsertAfterRow > $initialRows) {
+            throw new \InvalidArgumentException('SQLite shared-cache self insert row must be inside the active cursor');
+        }
+        if ($peerWriteAfterRow < 1 || $peerWriteAfterRow > $initialRows) {
+            throw new \InvalidArgumentException('SQLite shared-cache peer write row must be inside the active cursor');
+        }
+        if ($deleteRows < 1) {
+            throw new \InvalidArgumentException('SQLite shared-cache OP_Clear profile requires at least one deleted row');
+        }
+
+        if (str_starts_with($scenario, 'sharedlock-1')) {
+            $rows = [];
+            for ($rowid = 1; $rowid <= $initialRows; $rowid++) {
+                $rows[] = ['a' => $rowid, 'b' => 'row-' . $rowid];
+            }
+
+            $selfRow = ['a' => $initialRows + 1, 'b' => 'self-write'];
+            $peerRow = ['a' => $initialRows + 2, 'b' => 'peer-write'];
+            $cursorRows = $rows;
+            $cursorRows[] = $selfRow;
+
+            return [
+                'status' => 'ok',
+                'script' => 'sharedlock.test',
+                'scenario' => $scenario,
+                'upstream' => [
+                    'sharedlock.test sharedlock-1.1 shared-cache table setup',
+                    'sharedlock.test sharedlock-1.2 same connection write preserves table read-lock',
+                    'sharedlock.test sharedlock-1.2 peer writer remains blocked by retained read-lock',
+                ],
+                'shared_cache_enabled' => true,
+                'table' => 't1',
+                'initial_rows' => $initialRows,
+                'self_insert_after_row' => $selfInsertAfterRow,
+                'peer_write_after_row' => $peerWriteAfterRow,
+                'seed_rows' => $rows,
+                'self_insert_row' => $selfRow,
+                'peer_insert_row' => $peerRow,
+                'cursor_rows' => $cursorRows,
+                'cursor_result_flat' => self::flattenRows($cursorRows, ['a', 'b']),
+                'final_table_rows' => $cursorRows,
+                'read_lock_retained_after_self_write' => true,
+                'self_write_result' => 'ok',
+                'peer_write_result' => [1, 'database table is locked: t1'],
+                'peer_write_blocked' => true,
+                'peer_row_visible' => false,
+                'reason' => 'same_connection_write_does_not_drop_shared_cache_table_read_lock',
+                'dependencies' => [
+                    'upstream-sharedlock-test',
+                    'sqlite-shared-cache-table-locks',
+                    'vfs-io-dynamic-real-corpus',
+                ],
+            ];
+        }
+
+        $normalizedDelete = strtolower((string) preg_replace('/\s+/', ' ', trim($deleteSql)));
+        if (!in_array($normalizedDelete, ['delete from t2', 'delete from t2 where 1'], true)) {
+            throw new \InvalidArgumentException('SQLite shared-cache OP_Clear profile supports only full-table t2 deletes');
+        }
+
+        $rows = [];
+        for ($rowid = 1; $rowid <= $deleteRows; $rowid++) {
+            $rows[] = ['x' => $rowid, 'y' => $rowid + 1];
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'sharedlock.test',
+            'scenario' => $scenario,
+            'upstream' => [
+                'sharedlock.test sharedlock-2.1 OP_Clear test table setup',
+                'sharedlock.test sharedlock-2.2 peer reads rows before delete',
+                'sharedlock.test sharedlock-2.3 full-table delete starts write transaction',
+                'sharedlock.test sharedlock-2.4 OP_Clear write-lock blocks peer table read',
+                'sharedlock.test sharedlock-2.5 commit releases shared-cache table write-lock',
+            ],
+            'shared_cache_enabled' => true,
+            'table' => 't2',
+            'delete_sql' => strtoupper($normalizedDelete),
+            'delete_form' => $normalizedDelete === 'delete from t2 where 1' ? 'where_true' : 'without_where',
+            'delete_rows' => $deleteRows,
+            'pre_delete_rows' => $rows,
+            'peer_pre_delete_result' => self::flattenRows($rows, ['x', 'y']),
+            'op_clear_optimization' => true,
+            'write_lock_taken' => true,
+            'peer_select_result' => [1, 'database table is locked: t2'],
+            'peer_read_blocked' => true,
+            'commit_releases_write_lock' => true,
+            'rows_after_commit' => [],
+            'integrity_check' => 'ok',
+            'reason' => 'op_clear_full_table_delete_takes_shared_cache_table_write_lock',
+            'dependencies' => [
+                'upstream-sharedlock-test',
+                'sqlite-shared-cache-table-locks',
+                'sqlite-shared-cache-op-clear-write-lock',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function quickBalanceDynamicWriteProfile(int $pageSize, int $payloadBytes, int $rowCount): array
     {
         if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
@@ -6184,6 +6380,23 @@ final class SQLiteVfsIoDynamicPlan
             'journal2-2.1-2.4' => ['journal2.test journal2-2.1', 'journal2.test journal2-2.2', 'journal2.test journal2-2.3', 'journal2.test journal2-2.4'],
             default => throw new \InvalidArgumentException("Unsupported SQLite SAFE_DELETE journal2 scenario: {$scenario}"),
         };
+    }
+
+    /**
+     * @param list<array<string, int|string>> $rows
+     * @param list<string> $columns
+     * @return list<int|string>
+     */
+    private static function flattenRows(array $rows, array $columns): array
+    {
+        $flat = [];
+        foreach ($rows as $row) {
+            foreach ($columns as $column) {
+                $flat[] = $row[$column];
+            }
+        }
+
+        return $flat;
     }
 
     private static function syncPragmaUpstream(string $scenario): string

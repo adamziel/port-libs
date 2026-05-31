@@ -3674,7 +3674,12 @@ final class SQLiteSelectSql
                 if ($leftValue === null || $rightValue === null) {
                     return false;
                 }
-                if (!self::joinValuesEqual($leftValue, $rightValue)) {
+                if (!self::joinValuesEqual(
+                    $leftValue,
+                    $rightValue,
+                    self::coalescedJoinColumnAffinity($left, $leftColumn),
+                    self::coalescedJoinColumnAffinity($right, $rightColumn),
+                )) {
                     return false;
                 }
             }
@@ -3701,6 +3706,73 @@ final class SQLiteSelectSql
         }
         if (!$sawColumn) {
             throw new \InvalidArgumentException('SQLite SELECT SQL JOIN USING row is missing a comparison column');
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $columns
+     */
+    private static function coalescedJoinColumnAffinity(array $row, array $columns): string
+    {
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $row)) {
+                continue;
+            }
+            $affinity = self::joinColumnAffinity($row, $column);
+            if ($affinity !== null) {
+                return $affinity;
+            }
+            if ($row[$column] !== null) {
+                return 'NONE';
+            }
+        }
+
+        foreach ($columns as $column) {
+            $affinity = self::joinColumnAffinity($row, $column);
+            if ($affinity !== null) {
+                return $affinity;
+            }
+        }
+
+        return 'NONE';
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function joinColumnAffinity(array $row, string $column): ?string
+    {
+        $candidates = [$column];
+        if (str_contains($column, '.')) {
+            $candidates[] = self::unqualifiedColumn($column);
+        }
+
+        $metadataKeys = [];
+        if (str_contains($column, '.')) {
+            $metadataKeys[] = substr($column, 0, strrpos($column, '.')) . '.__sqlite_column_affinities';
+        }
+        $metadataKeys[] = '__sqlite_column_affinities';
+
+        foreach ($row as $key => $value) {
+            if (is_string($key) && str_ends_with($key, '.__sqlite_column_affinities') && !in_array($key, $metadataKeys, true)) {
+                $metadataKeys[] = $key;
+            }
+        }
+
+        foreach ($metadataKeys as $metadataKey) {
+            $metadata = $row[$metadataKey] ?? null;
+            if (!is_array($metadata)) {
+                continue;
+            }
+            foreach ($candidates as $candidate) {
+                $affinity = $metadata[$candidate] ?? null;
+                if (is_string($affinity) && $affinity !== '') {
+                    return $affinity;
+                }
+            }
         }
 
         return null;
@@ -3779,20 +3851,17 @@ final class SQLiteSelectSql
         throw new \InvalidArgumentException('SQLite SELECT SQL JOIN USING values must be scalar, BLOB, or NULL');
     }
 
-    private static function joinValuesEqual(mixed $leftValue, mixed $rightValue): bool
+    private static function joinValuesEqual(
+        mixed $leftValue,
+        mixed $rightValue,
+        string $leftAffinity = 'NONE',
+        string $rightAffinity = 'NONE'
+    ): bool
     {
         self::joinValueKey($leftValue);
         self::joinValueKey($rightValue);
 
-        if ($leftValue instanceof SQLiteBlobValue || $rightValue instanceof SQLiteBlobValue) {
-            return self::joinValueKey($leftValue) === self::joinValueKey($rightValue);
-        }
-
-        if (is_numeric($leftValue) && is_numeric($rightValue)) {
-            return (float) $leftValue == (float) $rightValue;
-        }
-
-        return self::joinValueKey($leftValue) === self::joinValueKey($rightValue);
+        return SQLiteAffinityComparison::compare($leftValue, $rightValue, $leftAffinity, $rightAffinity, 'BINARY') === 0;
     }
 
     /**
@@ -6010,6 +6079,13 @@ final class SQLiteSelectSql
             ];
         }
 
+        if ($name === 'count' && $arguments === []) {
+            if (($term['distinct'] ?? false) === true) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL count(DISTINCT) is not supported');
+            }
+
+            return ['summaryColumn' => 'countAll', 'valueColumn' => null];
+        }
         if ($name === 'count' && count($arguments) === 1 && (($arguments[0]['type'] ?? null) === 'wildcard')) {
             if (($term['distinct'] ?? false) === true) {
                 throw new \InvalidArgumentException('SQLite SELECT SQL count(DISTINCT *) is not supported');
@@ -6326,7 +6402,7 @@ final class SQLiteSelectSql
         return [
             'summaryColumn' => self::filteredAggregateSummaryColumn($term),
             'function' => $name,
-            'argument' => $arguments[0],
+            'argument' => $arguments[0] ?? ['type' => 'wildcard'],
             'filter' => $term['filter'],
             ...($term['distinct'] ?? false) === true ? ['distinct' => true] : [],
         ];
@@ -6345,6 +6421,13 @@ final class SQLiteSelectSql
     {
         if (($term['distinct'] ?? false) === true && $name !== 'count') {
             throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name}(DISTINCT ...) is not supported");
+        }
+        if ($name === 'count' && $arguments === []) {
+            if (($term['distinct'] ?? false) === true) {
+                throw new \InvalidArgumentException('SQLite SELECT SQL count(DISTINCT) is not supported');
+            }
+
+            return;
         }
         if ($arguments === [] || count($arguments) !== 1 || !is_array($arguments[0])) {
             throw new \InvalidArgumentException("SQLite SELECT SQL aggregate {$name} FILTER needs one argument");

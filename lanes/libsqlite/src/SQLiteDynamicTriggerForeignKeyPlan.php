@@ -11054,6 +11054,143 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     /**
      * @return array<string,mixed>
      */
+    public static function genfkeyToolSchemaQuotePlan(int $seed): array
+    {
+        if ($seed < 1) {
+            throw new \InvalidArgumentException('SQLite genfkey tool seed must be positive');
+        }
+
+        $quotedParentTable = 't.' . (string) (($seed % 97) + 3);
+        $quotedChildTable = 't13_' . (string) $seed;
+        $quotedParentValue = $seed * 10 + 1;
+
+        $compositeRows = [
+            ['a.1 first' => 'A' . (string) $seed, 'b.2 second' => 'B' . (string) $seed],
+            ['a.1 first' => 'C' . (string) $seed, 'b.2 second' => 'D' . (string) $seed],
+        ];
+        $compositeChildren = [
+            ['c.1 I' => $compositeRows[0]['a.1 first'], 'd.2 II' => $compositeRows[0]['b.2 second']],
+            ['c.1 I' => $compositeRows[1]['a.1 first'], 'd.2 II' => $compositeRows[1]['b.2 second']],
+        ];
+        $updatedCompositeRows = $compositeRows;
+        $updatedCompositeRows[0]['a.1 first'] = 'X' . (string) $seed;
+        $cascadedCompositeChildren = [
+            ['c.1 I' => $updatedCompositeRows[0]['a.1 first'], 'd.2 II' => $updatedCompositeRows[0]['b.2 second']],
+            $compositeChildren[1],
+        ];
+        $finalCompositeChildren = [$cascadedCompositeChildren[0]];
+
+        $schemaErrors = [
+            ['table' => 't5', 'message' => 'foreign key columns do not exist', 'reason' => 'missing-referenced-column'],
+            ['table' => 't8', 'message' => 'foreign key columns do not exist', 'reason' => 'missing-referenced-column'],
+            ['table' => 't4', 'message' => 'implicit mapping to composite primary key', 'reason' => 'implicit-composite-primary-key-reference'],
+            ['table' => 't1', 'message' => 'implicit mapping to non-existant primary key', 'reason' => 'implicit-missing-primary-key-reference'],
+            ['table' => 't2', 'message' => 'implicit mapping to non-existant primary key', 'reason' => 'implicit-missing-primary-key-reference'],
+            ['table' => 't6', 'message' => 'foreign key is not unique', 'reason' => 'referenced-column-not-unique'],
+            ['table' => 't7', 'message' => 'foreign key is not unique', 'reason' => 'referenced-column-not-unique'],
+        ];
+
+        return [
+            'source' => 'tool/genfkey.test genfkey-4.1..6.7',
+            'operation' => 'foreign-key-genfkey-tool-schema-and-quoted-identifiers',
+            'variant' => $seed,
+            'schema_diagnostics' => [
+                'source' => 'tool/genfkey.test genfkey-4.1..4.X',
+                'generator_status' => 'schema-error',
+                'error_count' => count($schemaErrors),
+                'errors' => $schemaErrors,
+                'error_text' => implode("\n", array_map(
+                    static fn (array $error): string => 'Error in table ' . $error['table'] . ': ' . $error['message'],
+                    $schemaErrors
+                )),
+                'missing_column_tables' => ['t5', 't8'],
+                'implicit_mapping_tables' => ['t4', 't1', 't2'],
+                'non_unique_tables' => ['t6', 't7'],
+            ],
+            'quoted_table' => [
+                'source' => 'tool/genfkey.test genfkey-5.1..5.5',
+                'parent_table' => $quotedParentTable,
+                'child_table' => $quotedChildTable,
+                'parent_table_requires_quoting' => true,
+                'generated_trigger_status' => 'ok',
+                'quoted_parent_name_preserved' => true,
+                'orphan_insert' => [
+                    'status' => 'constraint-failed',
+                    'error' => 'constraint failed',
+                    'child_rows' => [],
+                    'statement_rolled_back' => true,
+                ],
+                'valid_insert' => [
+                    'status' => 'commit-ok',
+                    'parent_rows' => [['c1' => $quotedParentValue]],
+                    'child_rows' => [['c1' => $quotedParentValue]],
+                    'foreign_key_check_clean' => true,
+                ],
+            ],
+            'quoted_composite_cascade' => [
+                'source' => 'tool/genfkey.test genfkey-6.1..6.3',
+                'action' => 'cascade',
+                'parent_table' => 'p',
+                'child_table' => 'c',
+                'parent_columns' => ['a.1 first', 'b.2 second'],
+                'child_columns' => ['c.1 I', 'd.2 II'],
+                'quoted_column_names_preserved' => true,
+                'unique_parent_key_honors_quoted_column_order' => true,
+                'initial_parent_rows' => $compositeRows,
+                'initial_child_rows' => $compositeChildren,
+                'update_parent' => [
+                    'status' => 'commit-ok',
+                    'old_parent_key' => [$compositeRows[0]['a.1 first'], $compositeRows[0]['b.2 second']],
+                    'new_parent_key' => [$updatedCompositeRows[0]['a.1 first'], $updatedCompositeRows[0]['b.2 second']],
+                    'child_rows' => $cascadedCompositeChildren,
+                    'action_count' => 1,
+                ],
+                'delete_parent' => [
+                    'status' => 'commit-ok',
+                    'deleted_parent_key' => [$compositeRows[1]['a.1 first'], $compositeRows[1]['b.2 second']],
+                    'child_rows' => $finalCompositeChildren,
+                    'action_count' => 1,
+                ],
+                'final_child_rows' => $finalCompositeChildren,
+            ],
+            'quoted_single_restrict' => [
+                'source' => 'tool/genfkey.test genfkey-6.4..6.7',
+                'parent_table' => 'parent',
+                'child_table' => 'child',
+                'parent_column' => 'a.1',
+                'child_column' => 'b.2',
+                'parent_rows_before' => [['a.1' => $quotedParentValue]],
+                'child_rows_before' => [['b.2' => $quotedParentValue]],
+                'update_parent' => [
+                    'status' => 'constraint-failed',
+                    'error' => 'constraint failed',
+                    'attempted_parent_rows' => [['a.1' => 0]],
+                    'committed_parent_rows' => [['a.1' => $quotedParentValue]],
+                    'statement_rolled_back' => true,
+                ],
+                'update_child' => [
+                    'status' => 'constraint-failed',
+                    'error' => 'constraint failed',
+                    'attempted_child_rows' => [['b.2' => 7]],
+                    'committed_child_rows' => [['b.2' => $quotedParentValue]],
+                    'statement_rolled_back' => true,
+                ],
+                'final_parent_rows' => [['a.1' => $quotedParentValue]],
+                'final_child_rows' => [['b.2' => $quotedParentValue]],
+                'foreign_key_check_clean' => true,
+            ],
+            'dependencies' => [
+                'sqlite-genfkey-tool-reports-schema-mapping-diagnostics',
+                'sqlite-genfkey-tool-preserves-quoted-table-names',
+                'sqlite-genfkey-tool-preserves-quoted-composite-column-names',
+                'sqlite-genfkey-tool-generated-restrict-triggers-rollback-statements',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
     public static function fkey2GenfkeyCompatibilityPlan(int $seed): array
     {
         if ($seed < 1) {

@@ -592,6 +592,9 @@ final class SQLiteGroupedAggregate
         $selected = null;
         $selectedValue = null;
         foreach ($rows as $row) {
+            if (isset($aggregate['filter']) && is_array($aggregate['filter']) && SQLiteSelectPredicate::filter([$row], $aggregate['filter']) === []) {
+                continue;
+            }
             $value = SQLiteSelectExpression::evaluate($row, $arguments[0]);
             if ($value === null) {
                 continue;

@@ -346,6 +346,22 @@ final class SQLiteSelectPredicate
         if ($left === null || $right === null || $escape === null && array_key_exists('escape', $predicate) && $predicate['escape'] !== null) {
             return null;
         }
+
+        $callback = $predicate['callback'] ?? null;
+        if ($callback !== null) {
+            if (!is_callable($callback)) {
+                throw new \InvalidArgumentException('SQLite SELECT LIKE predicate callback must be callable');
+            }
+
+            $arguments = [$right, $left];
+            if ($escape !== null) {
+                $arguments[] = $escape;
+            }
+            $matched = self::truthValue($callback(...$arguments));
+
+            return $matched === null ? null : ($negate ? !$matched : $matched);
+        }
+
         $left = self::likeGlobTextOperand($left, 'LIKE left');
         $right = self::likeGlobTextOperand($right, 'LIKE pattern');
         if ($escape !== null) {
@@ -368,6 +384,18 @@ final class SQLiteSelectPredicate
         if ($left === null || $right === null) {
             return null;
         }
+
+        $callback = $predicate['callback'] ?? null;
+        if ($callback !== null) {
+            if (!is_callable($callback)) {
+                throw new \InvalidArgumentException('SQLite SELECT GLOB predicate callback must be callable');
+            }
+
+            $matched = self::truthValue($callback($right, $left));
+
+            return $matched === null ? null : ($negate ? !$matched : $matched);
+        }
+
         $left = self::likeGlobTextOperand($left, 'GLOB left');
         $right = self::likeGlobTextOperand($right, 'GLOB pattern');
 
