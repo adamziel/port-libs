@@ -48,6 +48,34 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 02:47 UTC):
+  Batch55 is integrated locally as source
+  `a3e6a5096217ed7f28f7e5759f3135be327b19ee` (`libsqlite: add
+  fifty-fifth current corpus sweep`). The batch accepted 9 source/test-moving
+  behavior handoffs across B-tree bestindexB RETURNING side-effect behavior,
+  date4 rows 10300-11299 behavior, expression scalar-subquery affinity
+  behavior, JSON107 blob/operator behavior, pager WAL readonly-SHM cache-spill
+  behavior, PRAGMA schema remainder behavior, SELECT B nested compound tail
+  behavior, UPSERT RETURNING row-value SET assignment behavior, and window4
+  ntile/value behavior. Verification passed PHP lint for `13` changed/new PHP
+  files, `git diff --check -- lanes/libsqlite`, no newly-added WordPress/wp
+  source text in the batch diff, focused selected tests `9 files / 137990
+  assertions / 0 failures / 16073 PASS lines`, accepted-base overlap `0 files
+  / 0 assertions / 0 failures / 0 PASS lines`, B-tree related tests `46 files
+  / 863023 assertions / 0 failures / 50670 PASS lines`, trigger/upsert related
+  tests `147 files / 961863 assertions / 0 failures / 555533 PASS lines`,
+  pager/VFS related tests `128 files / 2362515 assertions / 0 failures /
+  162056 PASS lines`, and curated mixed-domain tests `52 files / 606752
+  assertions / 0 failures / 80208 PASS lines`. Larger diagnostics exposed
+  known-red JSON-table bestindex, expression IS semantics, JSON102 JSONB
+  operator, and SELECT compound-collation clusters; those were not counted as
+  accepted movement. Honest selected movement is `+16073`, moving libsqlite
+  from `1726669` to `1742742 pass / 0 fail`; mapped coverage remains `1589 /
+  1589`. Existing source-level WordPress/wp literals remain a source-neutral
+  cleanup track, but this batch added none. App-WAL parity remains parked;
+  broad release/all-runner parity remains open; gitoxide starts only after
+  libsqlite closure is recorded.
+
 - 2026-05-31 supervisor continuation (integration sample 03:22 UTC):
   Batch54 is integrated locally as source
   `ac8b86e1bd0d35b5d679a18e5fbe9447a45b61ed` (`libsqlite: add
