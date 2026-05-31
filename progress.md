@@ -52,6 +52,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS bundle/prefix/media/grid
+  integration 17:05 UTC): source commit
+  `72be03b700d5ba4c1da72af9062533356c4ff88d` (`ports: extend lightningcss
+  bundle prefix media grid maps`) landed six verified LightningCSS handoffs
+  after excluding stale shared metadata. LightningCSS full lane evidence moves
+  from `2489` to `2545 pass / 0 fail`, with conservative mapped coverage
+  moving from `1539 / 3532` to `1553 / 3532`: escaped `@import` specifier
+  decoding before bundle graph resolution, transform-family target-prefix
+  browser boundaries, negated media-range normalization inside layers,
+  grid/grid-template area shorthand composition, SourceMap empty generated-line
+  offset guards, and CSS Modules composes priority handling. Gates passed: PHP
+  lint on changed PHP files, `git diff --check -- lanes/lightningcss`, no
+  WordPress/WP/wp_ text introduced by the changed source diff, focused gate
+  `6 files / 1931 assertions / 0 failures`, full LightningCSS lane `13 files /
+  2545 assertions / 0 failures`, and five touched examples exiting 0. Full
+  upstream Rust/Node/WASM runners were not executed for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS modules/colors/CSSOM
   integration 17:00 UTC): source commit
   `412b44687747aab22852c1d28fa85bc7ee934844` (`ports: extend lightningcss
