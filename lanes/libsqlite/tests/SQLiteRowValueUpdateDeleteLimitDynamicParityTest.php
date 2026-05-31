@@ -3233,4 +3233,86 @@ foreach ($mathLimitCases as $name => [$callback, $expected]) {
     };
 }
 
+$likeGlobLimitExpr = static function (int $value, int $seed): string {
+    return match ($seed % 8) {
+        0 => "('abcde' LIKE 'abc%') + {$value} - 1",
+        1 => "('abXde' LIKE 'ab_de') + {$value} - 1",
+        2 => "('abc%' LIKE 'abcX%' ESCAPE 'X') + {$value} - 1",
+        3 => "('abc_' LIKE 'abcX_' ESCAPE 'X') + {$value} - 1",
+        4 => "('abcxyz' GLOB 'abc*') + {$value} - 1",
+        5 => "('abcxyz' GLOB 'abc???') + {$value} - 1",
+        6 => "('abcxyz' NOT GLOB 'ABC*') + {$value} - 1",
+        default => "('abdxyz' NOT LIKE 'abc%') + {$value} - 1",
+    };
+};
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = $likeGlobLimitExpr($limitValue, $seed);
+    $offsetExpr = $likeGlobLimitExpr($offsetValue, $seed + 4);
+    $sql = "UPDATE app_settings SET state = 'like_glob_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update like glob predicate limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($result['returning']), 'like_glob_limit'), array_column($result['returning'], 'state'));
+            $t->contains('e_expr.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/e_expr.test');
+            $t->contains('like.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/like.test');
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = $likeGlobLimitExpr($limitValue, $seed + 2);
+    $offsetExpr = $likeGlobLimitExpr($offsetValue, $seed + 6);
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue like glob predicate subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+            $t->contains('e_expr.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/e_expr.test');
+            $t->contains('like.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/like.test');
+        };
+}
+
+$likeGlobLimitCases = [
+    'parse LIKE true limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 'abcde' LIKE 'abc%'")['limit'], 1],
+    'parse LIKE false limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 'abc%' LIKE 'abcde'")['limit'], 0],
+    'parse LIKE escaped percent limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 'abc%' LIKE 'abcX%' ESCAPE 'X'")['limit'], 1],
+    'parse LIKE escaped underscore offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET 'abc_' LIKE 'abcX_' ESCAPE 'X'")['offset'], 1],
+    'parse GLOB star limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 'abcxyz' GLOB 'abc*'")['limit'], 1],
+    'parse GLOB question offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET 'abcxyz' GLOB 'abc???'")['offset'], 1],
+    'parse NOT GLOB unmatched limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 'abcxyz' NOT GLOB 'ABC*'")['limit'], 1],
+    'parse NOT LIKE unmatched limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 'abdxyz' NOT LIKE 'abc%'")['limit'], 1],
+    'malformed LIKE null pattern rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 'abc' LIKE NULL"), InvalidArgumentException::class],
+    'malformed LIKE empty escape rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 'abc' LIKE 'abc%' ESCAPE ''"), InvalidArgumentException::class],
+    'malformed LIKE wide escape rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 'abc' LIKE 'abc%' ESCAPE 'XX'"), InvalidArgumentException::class],
+    'malformed GLOB escape rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 'abc' GLOB 'abc*' ESCAPE 'x'"), InvalidArgumentException::class],
+];
+
+foreach ($likeGlobLimitCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity like glob predicate ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            $t->contains('e_expr.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/e_expr.test');
+            return;
+        }
+        $t->same($expected, $callback());
+        $t->contains('e_expr.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/e_expr.test');
+    };
+}
+
 return $tests;

@@ -145,6 +145,9 @@ return [
     'expectedTokenExtraHeaders' => ['gpgsig', 'mergetag'],
     'expectedStorageSha1' => '0e4e540a8e8df5ad417aa01f23446ff1499375dc',
     'expectedObjectSha1' => 'b67d8527fb3f0ba50e607772acfd618c9a13cd89',
+    'expectedObjectSignatureMatchesParsed' => true,
+    'expectedStorageSignatureMatchesParsed' => true,
+    'expectedStorageSignatureSignedDataSha1' => '459e425669626a5f7731783146f2ce78f0ec5235',
     'expectedSize' => 925,
     'expectedMixedHashGuard' => true,
     'expectedSignatureLineGuard' => true,
@@ -156,5 +159,5 @@ return [
     'expectedMergeTagTagger' => 'WordPress Release Bot',
     'expectedMergeTagMessage' => "Release tag embedded for deployment provenance\n",
     'expectedLateParentExtraHeader' => '1111111111111111111111111111111111111111',
-    'wordpressUse' => 'A WordPress import or deployment tool can inspect commit actors, raw timestamp offsets, encoding, signed payload bytes, merge-tag provenance, and attribution trailers without invoking git log.',
+    'wordpressUse' => 'A WordPress import or deployment tool can inspect commit actors, raw timestamp offsets, encoding, loose-object signed payload bytes, merge-tag provenance, and attribution trailers without invoking git log.',
 ];

@@ -69,6 +69,38 @@ $release = $store->update(
     new ObjectDatabase($dir),
 );
 
+$staleSidecarDir = sys_get_temp_dir() . '/port-libs-wp-packed-ref-stale-sidecar-' . bin2hex(random_bytes(4));
+mkdir($staleSidecarDir, 0777, true);
+file_put_contents(
+    $staleSidecarDir . '/packed-refs',
+    "# pack-refs with: peeled fully-peeled sorted \n"
+    . "{$releaseTagId} {$fixture['releaseRef']}\n"
+    . "^{$fixture['oldProductionCommit']}\n",
+);
+$staleSidecarObjects = new LooseObjectStore($staleSidecarDir);
+$staleSidecarObjects->write(new GitObject('commit', $fixture['releaseCommitBody']));
+$staleSidecarObjects->write($releaseTag->object());
+$staleSidecarStore = ReferenceStore::at($staleSidecarDir);
+$staleSidecarBefore = PackedReferences::open($staleSidecarDir . '/packed-refs')
+    ->find($fixture['releaseRef'])
+    ->objectId();
+$staleSidecarUpdate = $staleSidecarStore->update(
+    $fixture['releaseRef'],
+    ReferenceTarget::object($releaseTagId),
+    ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+    ReferenceTarget::object($releaseTagId),
+    false,
+    'sha1',
+    null,
+    '',
+    false,
+    ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE,
+    new ObjectDatabase($staleSidecarDir),
+);
+$staleSidecarAfter = PackedReferences::open($staleSidecarDir . '/packed-refs')
+    ->find($fixture['releaseRef'])
+    ->objectId();
+
 $store->looseStore()->writeSymbolic('refs/heads/release-candidate', $fixture['releaseRef']);
 $releaseCandidateTagObject = $store->followToObjectId('refs/heads/release-candidate');
 $releaseCandidatePeeledCommit = $store->peelToObjectId('refs/heads/release-candidate');
@@ -137,6 +169,9 @@ return [
     'releaseRef' => $release->name,
     'releaseTagObject' => $release->targetObjectId(),
     'releasePeeledCommit' => $release->objectId(),
+    'staleSidecarBefore' => $staleSidecarBefore,
+    'staleSidecarAfter' => $staleSidecarAfter,
+    'staleSidecarUpdatePeeledCommit' => $staleSidecarUpdate->objectId(),
     'releaseCandidateTagObject' => $releaseCandidateTagObject,
     'releaseCandidatePeeledCommit' => $releaseCandidatePeeledCommit,
     'packedNames' => $packed->names(),

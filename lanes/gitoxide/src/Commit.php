@@ -440,6 +440,33 @@ final class Commit
     }
 
     /**
+     * Return a commit object's first gpgsig value and exact signed bytes.
+     *
+     * This mirrors gix::object::Commit::signature(): callers that already
+     * decoded a loose object do not have to manually split the commit body.
+     *
+     * @return array{signature: string, signedData: string}|null
+     */
+    public static function signatureForVerificationFromObject(GitObject $object, string $algorithm = 'sha1'): ?array
+    {
+        if ($object->type !== 'commit') {
+            throw new \InvalidArgumentException('Git object signature verification requires a commit object');
+        }
+
+        return self::signatureForVerificationFromBytes($object->body, $algorithm);
+    }
+
+    /**
+     * Decode loose-object storage bytes and return commit gpgsig verification data.
+     *
+     * @return array{signature: string, signedData: string}|null
+     */
+    public static function signatureForVerificationFromStorageBytes(string $bytes, string $algorithm = 'sha1'): ?array
+    {
+        return self::signatureForVerificationFromObject(GitObject::fromStorageBytes($bytes), $algorithm);
+    }
+
+    /**
      * Return the first gpgsig value with the exact commit bytes that were signed.
      *
      * @return array{signature: string, signedData: string}|null

@@ -10571,6 +10571,123 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{id:int|string,label?:string}> $parents
+     * @param list<array{id:int|string,parent_id:int|string|null,label?:string}> $children
+     * @param array{
+     *     operation:string,
+     *     conflict?:string,
+     *     row?:array{id:int|string,parent_id:int|string|null,label?:string},
+     *     parent_from?:int|string,
+     *     parent_to?:int|string,
+     *     child_id?:int|string,
+     *     child_parent_to?:int|string|null,
+     *     transaction_parent_rows?:list<array{id:int|string,label?:string}>,
+     *     transaction_child_rows?:list<array{id:int|string,parent_id:int|string|null,label?:string}>
+     * } $statement
+     * @return array<string,mixed>
+     */
+    public static function fkey2ConflictPolicyForeignKeyPlan(array $parents, array $children, array $statement): array
+    {
+        $operation = strtolower(trim((string) ($statement['operation'] ?? '')));
+        if (!in_array($operation, ['insert-child', 'update-parent-key', 'update-child-key'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2-20 conflict-policy statement operation is unsupported');
+        }
+
+        $conflict = self::fkey2ConflictPolicyName($statement['conflict'] ?? 'default');
+        $parents = self::fkey2ConflictPolicyParentRows($parents);
+        $children = self::fkey2ConflictPolicyChildRows($children);
+
+        $transactionParents = self::fkey2ConflictPolicyParentRows($statement['transaction_parent_rows'] ?? []);
+        $transactionChildren = self::fkey2ConflictPolicyChildRows($statement['transaction_child_rows'] ?? []);
+        $transactionOpen = $transactionParents !== [] || $transactionChildren !== [];
+
+        $beforeAttemptParents = array_values(array_merge($parents, $transactionParents));
+        $beforeAttemptChildren = array_values(array_merge($children, $transactionChildren));
+        $preExistingViolations = self::fkey2ConflictPolicyViolations($beforeAttemptParents, $beforeAttemptChildren);
+        if ($preExistingViolations !== []) {
+            throw new \InvalidArgumentException('SQLite fkey2-20 transaction seed contains an existing foreign-key violation');
+        }
+
+        $attemptedParents = $beforeAttemptParents;
+        $attemptedChildren = $beforeAttemptChildren;
+        if ($operation === 'insert-child') {
+            $row = $statement['row'] ?? null;
+            if (!is_array($row)) {
+                throw new \InvalidArgumentException('SQLite fkey2-20 insert row is required');
+            }
+            $attemptedChildren[] = self::fkey2ConflictPolicyChildRow($row);
+        } elseif ($operation === 'update-parent-key') {
+            $from = self::fkey2ConflictPolicyKey($statement['parent_from'] ?? null, 'parent_from', false);
+            $to = self::fkey2ConflictPolicyKey($statement['parent_to'] ?? null, 'parent_to', false);
+            $matched = false;
+            foreach ($attemptedParents as &$parent) {
+                if ($parent['id'] !== $from) {
+                    continue;
+                }
+
+                $parent['id'] = $to;
+                $matched = true;
+            }
+            unset($parent);
+            if (!$matched) {
+                throw new \InvalidArgumentException('SQLite fkey2-20 parent update target is missing');
+            }
+        } else {
+            $childId = self::fkey2ConflictPolicyKey($statement['child_id'] ?? null, 'child_id', false);
+            $to = self::fkey2ConflictPolicyKey($statement['child_parent_to'] ?? null, 'child_parent_to', true);
+            $matched = false;
+            foreach ($attemptedChildren as &$child) {
+                if ($child['id'] !== $childId) {
+                    continue;
+                }
+
+                $child['parent_id'] = $to;
+                $matched = true;
+            }
+            unset($child);
+            if (!$matched) {
+                throw new \InvalidArgumentException('SQLite fkey2-20 child update target is missing');
+            }
+        }
+
+        $violations = self::fkey2ConflictPolicyViolations($attemptedParents, $attemptedChildren);
+        $failed = $violations !== [];
+        $afterParents = $failed ? $beforeAttemptParents : $attemptedParents;
+        $afterChildren = $failed ? $beforeAttemptChildren : $attemptedChildren;
+
+        return [
+            'source' => 'fkey2.test fkey2-20.2.1..20.3.10',
+            'operation' => 'foreign-key-conflict-policy-statement',
+            'statement_operation' => $operation,
+            'conflict_policy' => $conflict,
+            'status' => $failed ? 'constraint-failed' : 'commit-ok',
+            'error' => $failed ? 'FOREIGN KEY constraint failed' : null,
+            'foreign_key_violation_phase' => $failed ? 'immediate-statement' : null,
+            'conflict_policy_ignored_for_foreign_key' => $failed,
+            'statement_rolled_back' => $failed,
+            'transaction_rolled_back' => false,
+            'transaction_open_after_failure' => $failed && $transactionOpen,
+            'commit_after_failure_status' => $transactionOpen ? 'commit-ok' : 'not-open',
+            'transaction_parent_preserved' => $transactionParents !== [],
+            'transaction_child_preserved' => $transactionChildren !== [],
+            'parent_keys_before' => self::fkey2ConflictPolicyParentKeys($parents),
+            'child_pairs_before' => self::fkey2ConflictPolicyChildPairs($children),
+            'attempted_parent_keys' => self::fkey2ConflictPolicyParentKeys($attemptedParents),
+            'attempted_child_pairs' => self::fkey2ConflictPolicyChildPairs($attemptedChildren),
+            'parent_keys_after_failure' => self::fkey2ConflictPolicyParentKeys($afterParents),
+            'child_pairs_after_failure' => self::fkey2ConflictPolicyChildPairs($afterChildren),
+            'violation_count' => count($violations),
+            'violations' => $violations,
+            'upstream_cases' => self::fkey2ConflictPolicyUpstreamCases($operation, $transactionOpen),
+            'dependencies' => [
+                'sqlite-fkey2-conflict-policy-does-not-apply-to-foreign-key-errors',
+                'sqlite-fkey2-failed-fk-statement-preserves-table-images',
+                'sqlite-fkey2-fk-error-inside-transaction-keeps-prior-changes-committable',
+            ],
+        ];
+    }
+
+    /**
      * @return array<string,mixed>
      */
     public static function fkey2GenfkeyCompatibilityPlan(int $seed): array
@@ -11067,6 +11184,129 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return $indexes;
+    }
+
+    private static function fkey2ConflictPolicyName(mixed $value): string
+    {
+        $policy = strtolower(trim((string) $value));
+        if ($policy === '' || $policy === 'none') {
+            $policy = 'default';
+        }
+
+        if (!in_array($policy, ['default', 'ignore', 'abort', 'rollback', 'replace', 'fail'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2-20 conflict policy is unsupported');
+        }
+
+        return $policy;
+    }
+
+    /**
+     * @param list<array{id:int|string,label?:string}> $rows
+     * @return list<array{id:int|string,label:string}>
+     */
+    private static function fkey2ConflictPolicyParentRows(array $rows): array
+    {
+        return array_values(array_map(static fn (array $row): array => [
+            'id' => self::fkey2ConflictPolicyKey($row['id'] ?? null, 'parent id', false),
+            'label' => is_scalar($row['label'] ?? null) ? (string) $row['label'] : '',
+        ], $rows));
+    }
+
+    /**
+     * @param list<array{id:int|string,parent_id:int|string|null,label?:string}> $rows
+     * @return list<array{id:int|string,parent_id:int|string|null,label:string}>
+     */
+    private static function fkey2ConflictPolicyChildRows(array $rows): array
+    {
+        return array_values(array_map(static fn (array $row): array => self::fkey2ConflictPolicyChildRow($row), $rows));
+    }
+
+    /**
+     * @param array{id?:int|string,parent_id?:int|string|null,label?:string} $row
+     * @return array{id:int|string,parent_id:int|string|null,label:string}
+     */
+    private static function fkey2ConflictPolicyChildRow(array $row): array
+    {
+        return [
+            'id' => self::fkey2ConflictPolicyKey($row['id'] ?? null, 'child id', false),
+            'parent_id' => self::fkey2ConflictPolicyKey($row['parent_id'] ?? null, 'child parent id', true),
+            'label' => is_scalar($row['label'] ?? null) ? (string) $row['label'] : '',
+        ];
+    }
+
+    private static function fkey2ConflictPolicyKey(mixed $value, string $label, bool $nullable): int|string|null
+    {
+        if ($value === null && $nullable) {
+            return null;
+        }
+
+        if (is_int($value) || is_string($value)) {
+            return $value;
+        }
+
+        throw new \InvalidArgumentException("SQLite fkey2-20 {$label} is malformed");
+    }
+
+    /** @param list<array{id:int|string,label:string}> $parents */
+    private static function fkey2ConflictPolicyParentMap(array $parents): array
+    {
+        $map = [];
+        foreach ($parents as $parent) {
+            $map[(string) $parent['id']] = true;
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param list<array{id:int|string,label:string}> $parents
+     * @param list<array{id:int|string,parent_id:int|string|null,label:string}> $children
+     * @return list<array{child_id:int|string,child_key:int|string,reason:string}>
+     */
+    private static function fkey2ConflictPolicyViolations(array $parents, array $children): array
+    {
+        $parentMap = self::fkey2ConflictPolicyParentMap($parents);
+        $violations = [];
+        foreach ($children as $child) {
+            $childKey = $child['parent_id'];
+            if ($childKey === null || isset($parentMap[(string) $childKey])) {
+                continue;
+            }
+
+            $violations[] = [
+                'child_id' => $child['id'],
+                'child_key' => $childKey,
+                'reason' => 'missing-parent',
+            ];
+        }
+
+        return $violations;
+    }
+
+    /** @param list<array{id:int|string,label:string}> $parents */
+    private static function fkey2ConflictPolicyParentKeys(array $parents): array
+    {
+        return array_values(array_map(static fn (array $parent): int|string => $parent['id'], $parents));
+    }
+
+    /** @param list<array{id:int|string,parent_id:int|string|null,label:string}> $children */
+    private static function fkey2ConflictPolicyChildPairs(array $children): array
+    {
+        return array_values(array_map(static fn (array $child): array => [$child['id'], $child['parent_id']], $children));
+    }
+
+    /** @return list<string> */
+    private static function fkey2ConflictPolicyUpstreamCases(string $operation, bool $transactionOpen): array
+    {
+        if ($operation === 'insert-child') {
+            return $transactionOpen ? ['fkey2-20.2.3', 'fkey2-20.2.4'] : ['fkey2-20.2.1', 'fkey2-20.2.2'];
+        }
+
+        if ($operation === 'update-parent-key') {
+            return $transactionOpen ? ['fkey2-20.3.6', 'fkey2-20.3.7'] : ['fkey2-20.3.2', 'fkey2-20.3.3'];
+        }
+
+        return $transactionOpen ? ['fkey2-20.3.8', 'fkey2-20.3.9'] : ['fkey2-20.3.4', 'fkey2-20.3.5'];
     }
 
     /**

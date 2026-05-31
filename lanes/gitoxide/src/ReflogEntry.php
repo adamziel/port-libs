@@ -124,6 +124,57 @@ final class ReflogEntry
         return self::iterateLines($reversed, true, $algorithm);
     }
 
+    /**
+     * @return list<array{ok: bool, line: int, fromEnd: bool, raw: string, entry?: self, error?: string, bufferTooSmall?: bool}>
+     */
+    public static function iterateReverseBounded(string $bytes, int $bufferSize, string $algorithm = 'any'): array
+    {
+        if ($bufferSize <= 0) {
+            throw new \InvalidArgumentException('Zero sized buffers are not allowed, use 256 bytes or more for typical logs');
+        }
+
+        $lines = self::splitLines($bytes);
+        $results = [];
+        $fromEnd = 0;
+        for ($index = count($lines) - 1; $index >= 0; $index--) {
+            $line = $lines[$index];
+            $lineNumber = $fromEnd + 1;
+            if (strlen($line) > $bufferSize) {
+                $raw = substr($line, -$bufferSize);
+                $results[] = [
+                    'ok' => false,
+                    'line' => $lineNumber,
+                    'fromEnd' => true,
+                    'raw' => $raw,
+                    'error' => 'In line ' . $lineNumber . ' from the end: buffer too small for line size, got until "' . self::formatErrorBytes($raw) . '"',
+                    'bufferTooSmall' => true,
+                ];
+                break;
+            }
+
+            try {
+                $results[] = [
+                    'ok' => true,
+                    'line' => $lineNumber,
+                    'fromEnd' => true,
+                    'raw' => $line,
+                    'entry' => self::parse($line, $algorithm),
+                ];
+            } catch (\InvalidArgumentException $exception) {
+                $results[] = [
+                    'ok' => false,
+                    'line' => $lineNumber,
+                    'fromEnd' => true,
+                    'raw' => $line,
+                    'error' => "In line {$lineNumber} from the end: {$exception->getMessage()}",
+                ];
+            }
+            $fromEnd++;
+        }
+
+        return $results;
+    }
+
     public static function appendLine(
         ?ReferenceTarget $previous,
         ReferenceTarget $new,
@@ -199,6 +250,11 @@ final class ReflogEntry
         }
 
         throw new \InvalidArgumentException('Reflog object ids must be SHA-1 or SHA-256 hex ids');
+    }
+
+    private static function formatErrorBytes(string $bytes): string
+    {
+        return addcslashes($bytes, "\0..\37\"\\");
     }
 
     /**

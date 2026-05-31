@@ -29,6 +29,8 @@ return [
         $rolledBack,
         $published,
     ],
+    'boundedReverseBuffer' => 4096,
+    'smallReverseBuffer' => 96,
     'corruptLine' => 'not-a-valid-reflog-entry',
     'wordpressUse' => 'A WordPress deployment tool can append and parse native reflog audit entries for a site content branch, then show the newest deployment or rollback first without invoking git reflog.',
 ];

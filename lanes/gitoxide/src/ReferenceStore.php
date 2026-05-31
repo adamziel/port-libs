@@ -266,7 +266,10 @@ final class ReferenceStore
 
         try {
             if ($existing !== null && self::targetsEqual($existing->target, $physicalTarget)) {
-                if ($writesObjectToPackedRefs && !$this->packedTargetEquals($physicalName, $physicalTarget, $algorithm)) {
+                if (
+                    $writesObjectToPackedRefs
+                    && !$this->packedReferenceMatchesUpdate($physicalName, $physicalTarget, $algorithm, $objectDatabase)
+                ) {
                     $packedReference = $this->packedReferenceForUpdate(
                         $physicalName,
                         $physicalTarget,
@@ -284,6 +287,13 @@ final class ReferenceStore
                     if ($packedRefsMode === self::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE) {
                         $this->loose->delete($physicalName);
 
+                        return new ReferenceUpdateResult(
+                            $this->storeRelativeReference(ResolvedReference::fromPacked($packedReference)),
+                            $edits,
+                        );
+                    }
+
+                    if ($existing->source === 'packed') {
                         return new ReferenceUpdateResult(
                             $this->storeRelativeReference(ResolvedReference::fromPacked($packedReference)),
                             $edits,
@@ -635,6 +645,19 @@ final class ReferenceStore
         }
 
         return ReflogEntry::iterateReverse($contents, $algorithm);
+    }
+
+    /**
+     * @return list<array{ok: bool, line: int, fromEnd: bool, raw: string, entry?: ReflogEntry, error?: string, bufferTooSmall?: bool}>|null
+     */
+    public function reflogEntryResultsReverseBounded(string $name, int $bufferSize = 4096, string $algorithm = 'any'): ?array
+    {
+        $contents = $this->reflogContents($name);
+        if ($contents === null) {
+            return null;
+        }
+
+        return ReflogEntry::iterateReverseBounded($contents, $bufferSize, $algorithm);
     }
 
     public function appendReflog(
@@ -1327,13 +1350,26 @@ final class ReferenceStore
         return $this->packed?->tryFind($physicalName) !== null;
     }
 
-    private function packedTargetEquals(string $physicalName, ReferenceTarget $target, string $algorithm): bool
+    private function packedReferenceMatchesUpdate(
+        string $physicalName,
+        ReferenceTarget $target,
+        string $algorithm,
+        ?ObjectDatabase $objectDatabase,
+    ): bool
     {
         $this->refreshPackedReferencesIfChanged($algorithm);
 
         $packed = $this->packed?->tryFind($physicalName);
 
-        return $packed !== null && self::targetsEqual($packed->target, $target);
+        if ($packed === null || !self::targetsEqual($packed->target, $target)) {
+            return false;
+        }
+
+        if ($objectDatabase === null) {
+            return true;
+        }
+
+        return $packed->peeledObjectId === $this->resolvePeeledObjectId($target, $algorithm, $objectDatabase);
     }
 
     private function packedRefsPath(): string

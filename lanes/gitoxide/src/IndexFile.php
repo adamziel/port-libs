@@ -112,8 +112,12 @@ final class IndexFile
     /**
      * @param callable(string): GitObject $readObject
      */
-    public static function verifyCheckoutCacheTree(string $bytes, Tree $tree, callable $readObject): IndexCacheTree
-    {
+    public static function verifyCheckoutCacheTree(
+        string $bytes,
+        Tree $tree,
+        callable $readObject,
+        ?SparseCheckoutSpec $sparseCheckout = null,
+    ): IndexCacheTree {
         $parsed = self::parseIndex($bytes);
         $cacheTree = null;
         foreach (self::extensionPayloadsFromParsed($bytes, $parsed) as $signature => $payloads) {
@@ -129,6 +133,10 @@ final class IndexFile
 
         $cacheTree->verifyEntryCounts(count($parsed['entries']));
         $cacheTree->verifyCheckoutTree($tree, $readObject);
+        self::verifyCheckoutEntriesMatch(
+            $parsed['entries'],
+            self::entriesForCheckout($tree, $readObject, $sparseCheckout),
+        );
 
         return $cacheTree;
     }
@@ -243,6 +251,65 @@ final class IndexFile
                 $sparseCheckout?->skipWorktree($path, false) ?? false,
             );
         }
+    }
+
+    /**
+     * @param list<IndexEntry> $actual
+     * @param list<IndexEntry> $expected
+     */
+    private static function verifyCheckoutEntriesMatch(array $actual, array $expected): void
+    {
+        if (count($actual) !== count($expected)) {
+            throw new \RuntimeException(
+                'Index entry count ' . count($actual) . ' does not match checkout tree leaf count ' . count($expected),
+            );
+        }
+
+        foreach ($expected as $index => $expectedEntry) {
+            $actualEntry = $actual[$index];
+            $expectedFields = self::checkoutEntryFields($expectedEntry);
+            $actualFields = self::checkoutEntryFields($actualEntry);
+            foreach ($expectedFields as $field => $expectedValue) {
+                $actualValue = $actualFields[$field];
+                if ($actualValue === $expectedValue) {
+                    continue;
+                }
+
+                $pathLabel = $expectedEntry->path === $actualEntry->path
+                    ? $expectedEntry->path
+                    : "expected '{$expectedEntry->path}', found '{$actualEntry->path}'";
+                throw new \RuntimeException(
+                    "Index checkout entry {$index} for {$pathLabel} has {$field} "
+                    . self::formatCheckoutEntryValue($actualValue)
+                    . '; expected '
+                    . self::formatCheckoutEntryValue($expectedValue),
+                );
+            }
+        }
+    }
+
+    /**
+     * @return array{path:string,stage:int,mode:string,oid:string,skip-worktree:bool,assume-valid:bool}
+     */
+    private static function checkoutEntryFields(IndexEntry $entry): array
+    {
+        return [
+            'path' => $entry->path,
+            'stage' => $entry->stage,
+            'mode' => $entry->mode,
+            'oid' => $entry->oid,
+            'skip-worktree' => $entry->skipWorktree,
+            'assume-valid' => $entry->assumeValid,
+        ];
+    }
+
+    private static function formatCheckoutEntryValue(string|int|bool $value): string
+    {
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        return "'" . (string) $value . "'";
     }
 
     /**

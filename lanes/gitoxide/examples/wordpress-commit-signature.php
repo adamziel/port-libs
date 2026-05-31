@@ -18,6 +18,9 @@ $signedData = $commit->signedDataForSignature();
 $mergeTags = $commit->mergeTags();
 $tokenResults = Commit::iterateTokens($fixture['commitBody']);
 $storageBytes = $commit->storageBytes();
+$commitObject = $commit->object();
+$objectSignature = Commit::signatureForVerificationFromObject($commitObject);
+$storageSignature = Commit::signatureForVerificationFromStorageBytes($commitObject->storageBytes());
 $lateStandardHeaderCommit = Commit::parse($fixture['lateStandardHeaderCommitBody']);
 $oddTimestampCommit = Commit::parse($fixture['oddTimestampCommitBody']);
 $oddTimestampAuthor = $oddTimestampCommit->authorSignature();
@@ -130,6 +133,9 @@ return [
     'signedDataHasSignatureHeader' => $signedData !== null && str_contains($signedData, 'gpgsig '),
     'storageSha1' => sha1($storageBytes),
     'objectSha1' => $commit->object()->oid(),
+    'objectSignatureMatchesParsed' => $objectSignature === $commit->signatureForVerification(),
+    'storageSignatureMatchesParsed' => $storageSignature === $commit->signatureForVerification(),
+    'storageSignatureSignedDataSha1' => $storageSignature === null ? null : sha1($storageSignature['signedData']),
     'size' => $commit->size(),
     'roundTripMatches' => Commit::parse($storageBytes)->storageBytes() === $storageBytes,
     'lateStandardHeaderParentCount' => count($lateStandardHeaderCommit->parents),

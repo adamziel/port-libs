@@ -773,6 +773,9 @@ return [
         $t->same($fixture['expectedTokenExtraHeaders'], $summary['tokenExtraHeaderNames']);
         $t->same($fixture['expectedStorageSha1'], $summary['storageSha1']);
         $t->same($fixture['expectedObjectSha1'], $summary['objectSha1']);
+        $t->same($fixture['expectedObjectSignatureMatchesParsed'], $summary['objectSignatureMatchesParsed']);
+        $t->same($fixture['expectedStorageSignatureMatchesParsed'], $summary['storageSignatureMatchesParsed']);
+        $t->same($fixture['expectedStorageSignatureSignedDataSha1'], $summary['storageSignatureSignedDataSha1']);
         $t->same($fixture['expectedSize'], $summary['size']);
         $t->same(true, $summary['roundTripMatches']);
         $t->same(0, $summary['lateStandardHeaderParentCount']);

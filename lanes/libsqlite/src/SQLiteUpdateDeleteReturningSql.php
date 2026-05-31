@@ -792,6 +792,10 @@ final class SQLiteUpdateDeleteReturningSql
         if ($logical['matched']) {
             return $logical['value'] === null ? null : ($logical['value'] ? 1 : 0);
         }
+        $predicate = self::evaluateLimitPredicateExpression($expression);
+        if ($predicate['matched']) {
+            return $predicate['value'] === null ? null : ($predicate['value'] ? 1 : 0);
+        }
         $concatParts = self::splitOperator($expression, '||');
         if (count($concatParts) > 1) {
             $pieces = [];
@@ -852,10 +856,6 @@ final class SQLiteUpdateDeleteReturningSql
             && in_array($scalarFunction['name'], ['coalesce', 'ifnull', 'nullif', 'min', 'max', 'round', 'sign', 'ceil', 'ceiling', 'floor', 'trunc', 'sqrt', 'pow', 'power', 'exp', 'ln', 'log', 'log10', 'log2', 'mod', 'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'pi', 'upper', 'lower', 'trim', 'ltrim', 'rtrim', 'substr', 'substring', 'instr', 'replace', 'char', 'unicode', 'octet_length', 'hex', 'quote', 'typeof', 'printf', 'format', 'iif', 'if', 'likely', 'unlikely', 'likelihood', 'zeroblob', 'randomblob', 'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime'], true)
         ) {
             return self::evaluateLimitScalarFunction($scalarFunction['name'], $scalarFunction['arguments']);
-        }
-        $predicate = self::evaluateLimitPredicateExpression($expression);
-        if ($predicate['matched']) {
-            return $predicate['value'] === null ? null : ($predicate['value'] ? 1 : 0);
         }
         if (preg_match('/^-?\d+$/', $expression) === 1) {
             return (int) $expression;
@@ -1035,6 +1035,25 @@ final class SQLiteUpdateDeleteReturningSql
             }
 
             return ['matched' => true, 'value' => $in['not'] ? self::negateNullable($result) : $result];
+        }
+
+        $likeGlob = self::splitLimitLikeGlobPredicate($expression);
+        if ($likeGlob !== null) {
+            $left = self::limitExpressionValue($likeGlob['value']);
+            $pattern = self::limitExpressionValue($likeGlob['pattern']);
+            $escape = null;
+            if ($likeGlob['escape'] !== null) {
+                $escape = self::limitExpressionValue($likeGlob['escape']);
+            }
+            if ($left === null || $pattern === null || ($likeGlob['escape'] !== null && $escape === null)) {
+                $result = null;
+            } elseif ($likeGlob['operator'] === 'LIKE') {
+                $result = SQLiteDatabase::likeMatches((string) $left, (string) $pattern, $escape === null ? null : (string) $escape);
+            } else {
+                $result = SQLiteDatabase::globMatches((string) $left, (string) $pattern);
+            }
+
+            return ['matched' => true, 'value' => $likeGlob['not'] ? self::negateNullable($result) : $result];
         }
 
         foreach (['IS NOT', 'IS', '<>', '!=', '>=', '<=', '=', '>', '<'] as $operator) {
@@ -1793,6 +1812,53 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return ['value' => $value, 'list' => $stripped, 'not' => $not];
+    }
+
+    /**
+     * @return array{value:string,pattern:string,operator:string,not:bool,escape:?string}|null
+     */
+    private static function splitLimitLikeGlobPredicate(string $sql): ?array
+    {
+        foreach ([
+            ['keyword' => 'NOT LIKE', 'operator' => 'LIKE', 'not' => true],
+            ['keyword' => 'NOT GLOB', 'operator' => 'GLOB', 'not' => true],
+            ['keyword' => 'LIKE', 'operator' => 'LIKE', 'not' => false],
+            ['keyword' => 'GLOB', 'operator' => 'GLOB', 'not' => false],
+        ] as $candidate) {
+            $position = self::topLevelKeywordPosition($sql, $candidate['keyword']);
+            if ($position === null) {
+                continue;
+            }
+
+            $value = trim(substr($sql, 0, $position));
+            $tail = trim(substr($sql, $position + strlen($candidate['keyword'])));
+            if ($value === '' || $tail === '') {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT LIKE/GLOB needs both operands');
+            }
+
+            $escape = null;
+            $escapePosition = self::topLevelKeywordPosition($tail, 'ESCAPE');
+            if ($escapePosition !== null) {
+                if ($candidate['operator'] === 'GLOB') {
+                    throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT GLOB does not accept ESCAPE');
+                }
+                $escape = trim(substr($tail, $escapePosition + strlen('ESCAPE')));
+                $tail = trim(substr($tail, 0, $escapePosition));
+                if ($tail === '' || $escape === '') {
+                    throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT LIKE ESCAPE needs a pattern and escape expression');
+                }
+            }
+
+            return [
+                'value' => $value,
+                'pattern' => $tail,
+                'operator' => $candidate['operator'],
+                'not' => $candidate['not'],
+                'escape' => $escape,
+            ];
+        }
+
+        return null;
     }
 
     private static function topLevelKeywordPosition(string $sql, string $keyword): ?int

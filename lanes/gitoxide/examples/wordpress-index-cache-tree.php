@@ -65,7 +65,7 @@ $indexBytes = IndexFile::bytesForCheckout($root, $read, $sparse);
 $entries = IndexFile::entriesFromBytes($indexBytes);
 $cacheTree = IndexFile::cacheTreeFromBytes($indexBytes);
 $cacheTree?->verifyEntryCounts(count($entries));
-$verifiedCacheTree = IndexFile::verifyCheckoutCacheTree($indexBytes, $root, $read);
+$verifiedCacheTree = IndexFile::verifyCheckoutCacheTree($indexBytes, $root, $read, $sparse);
 
 return [
     'indexVersion' => IndexFile::versionFromBytes($indexBytes),

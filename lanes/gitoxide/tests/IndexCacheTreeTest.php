@@ -210,6 +210,65 @@ return [
             static fn () => $badEntryCount->verifyCheckoutTree($tree, $read),
         );
     },
+    'verifies checkout index entries against source tree leaves and sparse flags' => static function (TestRunner $t) use ($wordpressCheckoutTree, $throwsMessage, $oid, $paths): void {
+        [$tree, $read] = $wordpressCheckoutTree();
+        $entries = IndexFile::entriesForCheckout($tree, $read);
+        $cacheTree = IndexCacheTree::fromTree($tree, $read);
+        $targetPath = 'wp-content/plugins/gutenberg/block.json';
+        $targetIndex = array_search($targetPath, $paths($entries), true);
+        if ($targetIndex === false) {
+            throw new RuntimeException('Expected checkout entry fixture was not built');
+        }
+
+        $t->same($cacheTree->bodyBytes(), IndexFile::verifyCheckoutCacheTree(IndexFile::bytesFor($entries, $cacheTree), $tree, $read)->bodyBytes());
+
+        $staleOid = $entries;
+        $staleOid[$targetIndex] = new IndexEntry(
+            $targetPath,
+            IndexEntry::STAGE_NORMAL,
+            $entries[$targetIndex]->mode,
+            $oid('e'),
+        );
+        $throwsMessage(
+            $t,
+            RuntimeException::class,
+            'has oid',
+            static fn () => IndexFile::verifyCheckoutCacheTree(IndexFile::bytesFor($staleOid, $cacheTree), $tree, $read),
+        );
+
+        $unmergedStage = $entries;
+        $unmergedStage[$targetIndex] = new IndexEntry(
+            $targetPath,
+            IndexEntry::STAGE_OURS,
+            $entries[$targetIndex]->mode,
+            $entries[$targetIndex]->oid,
+        );
+        $throwsMessage(
+            $t,
+            RuntimeException::class,
+            'has stage',
+            static fn () => IndexFile::verifyCheckoutCacheTree(IndexFile::bytesFor($unmergedStage, $cacheTree), $tree, $read),
+        );
+
+        $extraEntry = $entries;
+        $extraEntry[] = new IndexEntry('zz-extra.php', IndexEntry::STAGE_NORMAL, '100644', $oid('f'));
+        $throwsMessage(
+            $t,
+            RuntimeException::class,
+            'does not match checkout tree leaf count',
+            static fn () => IndexFile::verifyCheckoutCacheTree(IndexFile::bytesFor($extraEntry, $cacheTree), $tree, $read),
+        );
+
+        $sparse = SparseCheckoutSpec::cone(['wp-content/plugins/gutenberg']);
+        $sparseBytes = IndexFile::bytesForCheckout($tree, $read, $sparse);
+        $t->same(6, IndexFile::verifyCheckoutCacheTree($sparseBytes, $tree, $read, $sparse)->numEntries);
+        $throwsMessage(
+            $t,
+            RuntimeException::class,
+            'has skip-worktree',
+            static fn () => IndexFile::verifyCheckoutCacheTree($sparseBytes, $tree, $read),
+        );
+    },
     'sparse checkout index uses v3 skip-worktree flags while cache tree keeps full counts' => static function (TestRunner $t) use ($wordpressCheckoutTree, $paths): void {
         [$tree, $read] = $wordpressCheckoutTree();
         $spec = SparseCheckoutSpec::cone(['wp-content/plugins/gutenberg']);

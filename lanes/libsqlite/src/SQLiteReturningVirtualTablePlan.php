@@ -87,6 +87,44 @@ final class SQLiteReturningVirtualTablePlan
         ];
     }
 
+    /**
+     * @param list<array<string,string>> $ftsRows
+     * @param list<array<string,mixed>> $peerRows
+     * @param array<string,mixed> $incoming
+     * @return array{source:string,scenario:string,virtual_table:string,peer_table:string,peer_rows:list<array<string,mixed>>,inserted:array<string,string>,after:list<array<string,string>>,returning_rows:list<array<string,string>>,returning_evaluated:bool,changes:int,peer_write_visible:bool,dependencies:list<string>}
+     */
+    public static function insertFts5ReturningAfterPeerWrite(array $ftsRows, array $peerRows, array $incoming, string $column = 'c', string $peerTable = 't2'): array
+    {
+        $contentColumn = self::identifier($column, 'FTS5 content column');
+        $peerTableName = self::identifier($peerTable, 'peer table');
+        $inserted = self::normalizeFts5Row($incoming, $contentColumn);
+
+        $after = [];
+        foreach ($ftsRows as $row) {
+            $after[] = self::normalizeFts5Row($row, $contentColumn);
+        }
+        $after[] = $inserted;
+
+        return [
+            'source' => 'returning1.test',
+            'scenario' => 'returning1-24.3 fts5 INSERT RETURNING emits inserted row after peer write',
+            'virtual_table' => 'fts5',
+            'peer_table' => $peerTableName,
+            'peer_rows' => $peerRows,
+            'inserted' => $inserted,
+            'after' => $after,
+            'returning_rows' => [$inserted],
+            'returning_evaluated' => true,
+            'changes' => 1,
+            'peer_write_visible' => $peerRows !== [],
+            'dependencies' => [
+                'sqlite-returning-fts5-virtual-table',
+                'sqlite-returning-peer-schema-refresh',
+                'returning1.test-24.3',
+            ],
+        ];
+    }
+
     private static function normalizePragmaTable(string $pragmaTable): string
     {
         $table = strtolower(trim($pragmaTable));
@@ -115,6 +153,19 @@ final class SQLiteReturningVirtualTablePlan
             'b' => $row['b'],
             'c' => $row['c'],
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @return array<string,string>
+     */
+    private static function normalizeFts5Row(array $row, string $column): array
+    {
+        if (!array_key_exists($column, $row) || !is_string($row[$column])) {
+            throw new InvalidArgumentException("SQLite FTS5 RETURNING row requires text {$column}");
+        }
+
+        return [$column => $row[$column]];
     }
 
     private static function identifier(string $value, string $label): string

@@ -45,6 +45,8 @@ file_put_contents(
 
 $forward = $store->reflogEntries($fixture['siteRef']);
 $reverse = $store->reflogEntriesReverse($fixture['siteRef']);
+$boundedReverse = $store->reflogEntryResultsReverseBounded($fixture['siteRef'], $fixture['boundedReverseBuffer']) ?? [];
+$smallBufferDiagnostics = $store->reflogEntryResultsReverseBounded($fixture['siteRef'], $fixture['smallReverseBuffer']) ?? [];
 $diagnostics = $store->reflogEntryResults($fixture['corruptSiteRef']) ?? [];
 
 return [
@@ -52,10 +54,21 @@ return [
     'lineCount' => count($forward ?? []),
     'forwardMessages' => array_map(static fn ($entry): string => $entry->message, $forward ?? []),
     'reverseNewOids' => array_map(static fn ($entry): string => $entry->newOid, $reverse ?? []),
+    'boundedReverseMessages' => array_map(static fn (array $result): ?string => $result['entry']->message ?? null, $boundedReverse),
     'oldestPreviousOid' => $forward[0]->previousOid ?? null,
     'latestNewOid' => $reverse[0]->newOid ?? null,
     'trimmedCommitter' => ($forward[0]->signature->name ?? '') . ' <' . ($forward[0]->signature->email ?? '') . '>',
     'rawReflog' => $store->reflogContents($fixture['siteRef']),
+    'smallBufferReverseDiagnostics' => array_map(
+        static fn (array $result): array => [
+            'ok' => $result['ok'],
+            'line' => $result['line'],
+            'fromEnd' => $result['fromEnd'],
+            'bufferTooSmall' => $result['bufferTooSmall'] ?? false,
+            'error' => $result['error'] ?? null,
+        ],
+        $smallBufferDiagnostics,
+    ),
     'corruptLineDiagnostics' => array_map(
         static fn (array $result): array => [
             'ok' => $result['ok'],

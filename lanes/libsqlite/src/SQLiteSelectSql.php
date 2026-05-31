@@ -2535,6 +2535,19 @@ final class SQLiteSelectSql
 
     private static function jsonTableErrorBoundaryColumn(array $predicate): ?string
     {
+        if (
+            ($predicate['operator'] ?? null) === 'TRUTH'
+            && isset($predicate['left'])
+            && is_array($predicate['left'])
+            && ($predicate['left']['type'] ?? null) === 'function'
+            && strtolower((string) ($predicate['left']['name'] ?? '')) === 'json_valid'
+        ) {
+            $arguments = $predicate['left']['arguments'] ?? null;
+            if (is_array($arguments) && count($arguments) === 1 && is_array($arguments[0]) && ($arguments[0]['type'] ?? null) === 'column') {
+                return strtolower((string) $arguments[0]['name']);
+            }
+        }
+
         if (!isset($predicate['operator'], $predicate['left'], $predicate['right']) || !is_array($predicate['left']) || !is_array($predicate['right'])) {
             return null;
         }

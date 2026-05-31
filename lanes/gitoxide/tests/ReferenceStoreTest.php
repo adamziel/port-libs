@@ -559,6 +559,61 @@ return [
         $t->contains("^{$commitId}\n", (string) file_get_contents($dir . '/packed-refs'));
         $t->same(false, is_file($dir . '/refs/tags/wp-release-v2026.05'));
     },
+    'reference store packed same-target update refreshes peeled tag sidecar like upstream gix ref' => static function (TestRunner $t): void {
+        foreach (['missing' => null, 'stale' => str_repeat('f', 40)] as $case => $stalePeeled) {
+            $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-tag-sidecar-' . $case . '-' . bin2hex(random_bytes(4));
+            mkdir($dir, 0777, true);
+
+            $objects = new LooseObjectStore($dir);
+            $commitId = $objects->write(new GitObject(
+                'commit',
+                'tree ' . str_repeat('0', 40) . "\n"
+                . "author Release Bot <release@example.com> 1770000000 +0000\n"
+                . "committer Release Bot <release@example.com> 1770000000 +0000\n\n"
+                . "Publish WordPress release package\n",
+            ));
+            $tagId = $objects->write((new GitTag(
+                $commitId,
+                'commit',
+                'wp-release-v2026.05',
+                'Release Bot <release@example.com> 1770000000 +0000',
+                "WordPress release package\n",
+            ))->object());
+
+            $packedBefore = "# pack-refs with: peeled fully-peeled sorted \n"
+                . "{$tagId} refs/tags/wp-release-v2026.05\n"
+                . ($stalePeeled === null ? '' : "^{$stalePeeled}\n");
+            file_put_contents($dir . '/packed-refs', $packedBefore);
+
+            $store = ReferenceStore::at($dir);
+            $updated = $store->update(
+                'refs/tags/wp-release-v2026.05',
+                ReferenceTarget::object($tagId),
+                ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+                ReferenceTarget::object($tagId),
+                false,
+                'sha1',
+                null,
+                '',
+                false,
+                ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE,
+                new ObjectDatabase($dir),
+            );
+            $packed = PackedReferences::open($dir . '/packed-refs');
+            $release = $packed->find('refs/tags/wp-release-v2026.05');
+
+            $t->same('packed', $updated->source);
+            $t->same($tagId, $updated->targetObjectId());
+            $t->same($commitId, $updated->objectId(), "same-target {$case} sidecar update returns the refreshed peeled object");
+            $t->same($tagId, $release->targetObjectId());
+            $t->same($commitId, $release->objectId(), "same-target {$case} sidecar update rewrites packed peeled data");
+            $t->contains("^{$commitId}\n", (string) file_get_contents($dir . '/packed-refs'));
+            $t->same(false, is_file($dir . '/refs/tags/wp-release-v2026.05'));
+            if ($stalePeeled !== null) {
+                $t->same(false, str_contains((string) file_get_contents($dir . '/packed-refs'), "^{$stalePeeled}\n"));
+            }
+        }
+    },
     'reference store peel uses packed peeled ids through symbolic refs without object lookup' => static function (TestRunner $t) use ($old, $tag): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-peel-symbolic-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);
@@ -1270,6 +1325,9 @@ return [
         $t->same($fixture['releaseRef'], $summary['releaseRef']);
         $t->same($summary['releaseTagObject'], $summary['packedReleaseTagObject']);
         $t->same($summary['releasePeeledCommit'], $summary['packedReleasePeeledCommit']);
+        $t->same($fixture['oldProductionCommit'], $summary['staleSidecarBefore']);
+        $t->same($summary['releasePeeledCommit'], $summary['staleSidecarAfter']);
+        $t->same($summary['releasePeeledCommit'], $summary['staleSidecarUpdatePeeledCommit']);
         $t->same($summary['releaseTagObject'], $summary['releaseCandidateTagObject']);
         $t->same($summary['releasePeeledCommit'], $summary['releaseCandidatePeeledCommit']);
         $t->same($fixture['expectedPackedNames'], $summary['packedNames']);

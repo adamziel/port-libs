@@ -95,3 +95,48 @@ No new support component is needed. The slice reuses existing native file, refer
 Non-overlap:
 
 This follow-up does not repeat the accepted reflog line parser, SHA-256 object-id support, prepared transaction reflog creation/deletion, packed-ref transactions, URL/refspec parsing, merge-base graph walking, protocol v2 fetch sideband progress parsing, or send-pack status packet bounds. It adds direct append empty-directory recovery and tolerant iterator diagnostics over existing reflog files.
+
+## Follow-up: Bounded Reverse Iterator Diagnostics
+
+Slice: `gitoxide-reflog-append-parse-parity-20260531T101839Z`
+
+Base accepted HEAD: `334e4120b9e72c6876e51705851ef70fc2462655`
+
+Additional upstream source truth:
+
+- Read `gix-ref/src/store/file/log/iter.rs`.
+- Read `gix-ref/tests/refs/file/log.rs`.
+- Mapped `iter::backward::with_zero_sized_buffer::any_line`,
+  `iter::backward::with_buffer_too_small_for_single_line::single_line`,
+  and `iter::backward::with_buffer_big_enough_for_largest_line::{single_line,two_lines}`.
+
+Mapped behavior:
+
+- Reverse reflog iteration rejects a zero-sized buffer before scanning.
+- A reverse scan whose fixed buffer cannot hold the newest complete line reports a buffer-too-small diagnostic and stops, matching upstream's iterator error boundary.
+- A large enough reverse scan returns newest-to-oldest entries for logs with or without a trailing newline.
+- The WordPress reflog audit example now exposes a bounded reverse scan and a too-small-buffer diagnostic without invoking `git reflog`.
+
+Native changes:
+
+- Added `ReflogEntry::iterateReverseBounded()` for fixed-buffer reverse reflog diagnostics.
+- Added `ReferenceStore::reflogEntryResultsReverseBounded()` for store-backed bounded reverse iteration.
+- Extended `wordpress-reflog-audit.php` fixture/example coverage with bounded reverse messages and small-buffer diagnostics.
+
+Verification:
+
+- `php -l lanes/gitoxide/src/ReflogEntry.php`: pass.
+- `php -l lanes/gitoxide/src/ReferenceStore.php`: pass.
+- `php -l lanes/gitoxide/tests/ReflogTest.php`: pass.
+- `php -l lanes/gitoxide/examples/wordpress-reflog-audit.php`: pass.
+- `php -l lanes/gitoxide/fixtures/wordpress-reflog-audit.php`: pass.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReflogTest.php`: `1 test files, 107 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-reflog-audit.php`: exit `0`.
+
+Dependency closure:
+
+No new support component is needed. The slice reuses existing native reflog parsing, reference-store file reads, and commit-signature helpers; no shell-out, live provider, credential, or external Git process is required.
+
+Non-overlap:
+
+This does not repeat the accepted reflog line parser, direct append, empty-directory recovery, tolerant parse diagnostics, prepared-reference reflog transactions, packed-ref transactions, send-pack status parsing, sparse-checkout, or commit-signature slices. It adds the remaining fixed-buffer reverse scan boundary from upstream `gix-ref` reflog iteration.

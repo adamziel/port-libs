@@ -226,6 +226,52 @@ return [
         $t->same('created', $reverse[3]['entry']->message ?? null);
         $t->contains('In line 3 from the end:', $reverse[2]['error'] ?? '');
     },
+    'reflog bounded reverse iterator reports fixed-buffer boundaries like upstream' => static function (TestRunner $t) use ($old, $new, $zeros): void {
+        $first = "1000000000000000000000000000000000000000 234385f6d781b7e97062102c6a483440bfda2a03 committer <committer@example.com> 946771200 +0000\tcommit (initial): c2";
+        $second = "{$zeros} {$old} committer <committer@example.com> 946771200 +0000\tcommit (initial): c1";
+
+        foreach ([$first . "\n" . $second, $first . "\n" . $second . "\n"] as $bytes) {
+            $results = ReflogEntry::iterateReverseBounded($bytes, 256);
+            $t->same([true, true], array_map(static fn (array $result): bool => $result['ok'], $results));
+            $t->same([1, 2], array_map(static fn (array $result): int => $result['line'], $results));
+            $t->same(['commit (initial): c1', 'commit (initial): c2'], array_map(static fn (array $result): ?string => $result['entry']->message ?? null, $results));
+            $t->same([$old, '234385f6d781b7e97062102c6a483440bfda2a03'], array_map(static fn (array $result): ?string => $result['entry']->newOid ?? null, $results));
+        }
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => ReflogEntry::iterateReverseBounded($second, 0),
+        );
+
+        $tooSmall = ReflogEntry::iterateReverseBounded($second, 128);
+        $t->same(1, count($tooSmall));
+        $t->same(false, $tooSmall[0]['ok']);
+        $t->same(true, $tooSmall[0]['fromEnd']);
+        $t->same(true, $tooSmall[0]['bufferTooSmall'] ?? false);
+        $t->same(1, $tooSmall[0]['line']);
+        $t->same(true, strlen($tooSmall[0]['raw']) <= 128);
+        $t->contains('buffer too small for line size', $tooSmall[0]['error'] ?? '');
+        $t->contains('\tcommit (initial): c1', $tooSmall[0]['error'] ?? '');
+
+        $dir = sys_get_temp_dir() . '/port-libs-git-reflog-bounded-reverse-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $store->appendReflog(
+            'refs/heads/main',
+            ReferenceTarget::object($old),
+            ReferenceTarget::object($new),
+            $committer,
+            str_repeat('x', 96),
+        );
+
+        $storeResults = $store->reflogEntryResultsReverseBounded('refs/heads/main', 4096);
+        $t->same(true, $storeResults[0]['ok'] ?? false);
+        $t->same(str_repeat('x', 96), $storeResults[0]['entry']->message ?? null);
+
+        $storeTooSmall = $store->reflogEntryResultsReverseBounded('refs/heads/main', 80);
+        $t->same(false, $storeTooSmall[0]['ok'] ?? true);
+        $t->same(true, $storeTooSmall[0]['bufferTooSmall'] ?? false);
+    },
     'reflog entries preserve sha256 object ids like report-status-v2 refs' => static function (TestRunner $t): void {
         $old = str_repeat('1', 64);
         $new = str_repeat('2', 64);
@@ -261,11 +307,16 @@ return [
         $t->same(2, $summary['lineCount']);
         $t->same($fixture['expectedForwardMessages'], $summary['forwardMessages']);
         $t->same($fixture['expectedReverseNewOids'], $summary['reverseNewOids']);
+        $t->same(array_reverse($fixture['expectedForwardMessages']), $summary['boundedReverseMessages']);
         $t->same($fixture['previousCommit'], $summary['oldestPreviousOid']);
         $t->same($fixture['rolledBackCommit'], $summary['latestNewOid']);
         $t->same('WordPress Deploy Bot <deploy@example.com>', $summary['trimmedCommitter']);
         $t->contains($fixture['messages'][0], (string) $summary['rawReflog']);
         $t->contains($fixture['messages'][1], (string) $summary['rawReflog']);
+        $t->same(false, $summary['smallBufferReverseDiagnostics'][0]['ok'] ?? true);
+        $t->same(true, $summary['smallBufferReverseDiagnostics'][0]['fromEnd'] ?? false);
+        $t->same(true, $summary['smallBufferReverseDiagnostics'][0]['bufferTooSmall'] ?? false);
+        $t->contains('buffer too small for line size', $summary['smallBufferReverseDiagnostics'][0]['error'] ?? '');
         $t->same([false, true, true], array_map(static fn (array $result): bool => $result['ok'], $summary['corruptLineDiagnostics']));
         $t->contains('In line 1:', $summary['corruptLineDiagnostics'][0]['error'] ?? '');
         $t->contains($fixture['corruptLine'], $summary['corruptLineDiagnostics'][0]['error'] ?? '');

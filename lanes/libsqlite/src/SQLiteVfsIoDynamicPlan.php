@@ -561,6 +561,114 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function powersafeOverwriteJournalProfile(
+        bool $powersafeOverwrite,
+        string $journalMode,
+        int $pageSize = 1024,
+        int $sectorSize = 8192,
+        int $changedPages = 1,
+        int $cacheSize = 5,
+        int $rowCount = 400,
+        int $payloadBytes = 50,
+        bool $atomicBatchWrite = false
+    ): array {
+        $journalMode = strtolower(trim($journalMode));
+        if (!in_array($journalMode, ['delete', 'wal'], true)) {
+            throw new \InvalidArgumentException('SQLite zerodamage profile journal mode must be delete or wal');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite zerodamage profile page size must be a power of two at least 512');
+        }
+        if ($sectorSize < 512 || ($sectorSize & ($sectorSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite zerodamage profile sector size must be a power of two at least 512');
+        }
+        if ($changedPages < 1 || $cacheSize < 1 || $rowCount < 1 || $payloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite zerodamage profile requires positive changed/cache/row/payload counts');
+        }
+
+        $scenario = match ([$journalMode, $powersafeOverwrite]) {
+            ['delete', true] => 'zerodamage-2.0',
+            ['delete', false] => 'zerodamage-2.1',
+            ['wal', true] => 'zerodamage-3.0',
+            default => 'zerodamage-3.1',
+        };
+
+        $pageRecordBytes = $pageSize + 8;
+        $rollbackBaseBytes = 512 + ($pageRecordBytes * $changedPages);
+        $rollbackBytes = null;
+        $walFrameBytes = $pageSize + 24;
+        $walBaseBytes = 32 + ($walFrameBytes * $changedPages);
+        $walBytes = null;
+
+        if ($journalMode === 'delete') {
+            if ($atomicBatchWrite) {
+                $rollbackBytes = 0;
+            } elseif ($powersafeOverwrite) {
+                $rollbackBytes = $rollbackBaseBytes;
+            } else {
+                $rollbackBytes = self::align($rollbackBaseBytes, $sectorSize)
+                    + ($sectorSize * $changedPages)
+                    + intdiv($pageSize, 8);
+            }
+        } elseif ($powersafeOverwrite) {
+            $walBytes = $walBaseBytes;
+        } else {
+            $walBytes = self::align($walBaseBytes, $sectorSize)
+                + ($sectorSize * $changedPages)
+                + intdiv($pageSize, 4)
+                + 160;
+        }
+
+        $observedBytes = $journalMode === 'delete' ? $rollbackBytes : $walBytes;
+        $baseBytes = $journalMode === 'delete' ? $rollbackBaseBytes : $walBaseBytes;
+        $paddingBytes = $observedBytes === null ? 0 : max(0, $observedBytes - $baseBytes);
+
+        return [
+            'status' => 'ok',
+            'script' => 'zerodamage.test',
+            'scenario' => $scenario,
+            'upstream' => [
+                'zerodamage.test zerodamage-1.0 file_control_powersafe_overwrite default',
+                'zerodamage.test zerodamage-1.1 turn POWERSAFE_OVERWRITE off',
+                'zerodamage.test zerodamage-1.2 turn POWERSAFE_OVERWRITE on',
+                'zerodamage.test ' . $scenario,
+            ],
+            'powersafe_overwrite' => $powersafeOverwrite,
+            'file_control_default' => ['rc' => 0, 'value' => 1],
+            'file_control_after_set' => ['rc' => 0, 'value' => $powersafeOverwrite ? 1 : 0],
+            'uri_psow' => $powersafeOverwrite,
+            'journal_mode' => $journalMode,
+            'page_size' => $pageSize,
+            'sector_size' => $sectorSize,
+            'changed_pages' => $changedPages,
+            'cache_size' => $cacheSize,
+            'row_count' => $rowCount,
+            'payload_bytes' => $payloadBytes,
+            'atomic_batch_write' => $atomicBatchWrite,
+            'rollback_journal_base_bytes' => $rollbackBaseBytes,
+            'rollback_journal_bytes' => $rollbackBytes,
+            'wal_frame_bytes' => $walFrameBytes,
+            'wal_base_bytes' => $walBaseBytes,
+            'wal_file_bytes' => $walBytes,
+            'observed_file_bytes' => $observedBytes,
+            'padding_bytes' => $paddingBytes,
+            'padded_to_sector' => $journalMode === 'delete'
+                ? (!$powersafeOverwrite && !$atomicBatchWrite)
+                : !$powersafeOverwrite,
+            'xdelete_observed_max_journal_size' => $journalMode === 'delete' ? $rollbackBytes : null,
+            'sync_sequence' => $journalMode === 'delete'
+                ? ($atomicBatchWrite ? ['database-atomic'] : ($powersafeOverwrite ? ['journal-pages', 'database'] : ['journal-pages', 'journal-sector-padding', 'database']))
+                : ($powersafeOverwrite ? ['wal-frame'] : ['wal-frame', 'wal-sector-padding']),
+            'reason' => $powersafeOverwrite
+                ? 'powersafe_overwrite_avoids_sector_padding'
+                : 'powersafe_overwrite_disabled_pads_journal_or_wal_to_sector_boundary',
+            'dependencies' => ['upstream-zerodamage-powersafe-overwrite', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function pagerCacheNoSpillAfterWarmReadProfile(
         int $pageSize,
         int $cachePages,
