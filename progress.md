@@ -53,6 +53,30 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS modules/media/visitor plus
+  Gitoxide config/credential integration 18:36 UTC): source commit
+  `2c09cc8b66e395e45e8f6b32e1f731fb52ba7f05` (`ports: extend lightningcss
+  modules media visitors and gitoxide config credentials`) landed five clean
+  LightningCSS handoffs plus two Gitoxide handoffs after excluding stale shared
+  metadata. LightningCSS full lane evidence moves from `3060` to `3108 pass /
+  0 fail`, with conservative mapped coverage moving from `1684 / 3532` to
+  `1689 / 3532`: three CSS Modules grid local/global/composes helper cases and
+  two custom at-rule DashedIdent/CustomIdent visitor behaviors. Media-query
+  vendor pixel-ratio/range-layer parsing and bundled CSS Modules dependency
+  diagnostic locations deepen already represented clusters. Gitoxide full lane
+  evidence moves from `5047` to `5079 pass / 0 fail`, with conservative mapped
+  coverage moving from `1605 / 2886` to `1607 / 2886`: config include/includeIf
+  `:(optional)` path-prefix interpolation and credential helper context native
+  GitUrl destructuring with UTF-8 storage guards. Gates passed: PHP lint on
+  changed/new PHP files, `git diff --check -- lanes/lightningcss lanes/gitoxide`,
+  no WordPress/WP/wp_ source symbols under changed lane `src` trees, focused
+  gate `7 files / 1300 assertions / 0 failures`, full LightningCSS lane
+  `13 files / 3108 assertions / 0 failures`, full Gitoxide lane `39 files /
+  5079 assertions / 0 failures`, and touched example smoke/self-test runs. The
+  overlapping LightningCSS media-query 18:14 handoff remains parked for a later
+  conflict-aware rebase. Full upstream Rust/Node/WASM/Cargo runners were not
+  executed for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS gradients/CSSOM/modules
   integration 18:26 UTC): source commit
   `59b0a249159ec021decfa94c7d85175943a3bf88` (`ports: extend lightningcss
