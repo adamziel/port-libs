@@ -48,6 +48,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 01:54 UTC):
+  Latest libsqlite source is integrated as `f16e917b`
+  (`libsqlite: add forty-second current corpus sweep`). The batch accepted 12
+  non-app-WAL handoffs: rowvalue UPDATE/DELETE LIMIT parity, B-tree bestindex4
+  behavior, date4 rows 4300-5299 behavior, expression CASE affinity behavior,
+  JSON102 JSONB mutation behavior, pager WAL dynamic corpus behavior, PRAGMA
+  schema version behavior, SELECTE compound ORDER error behavior, trigger/FK
+  count_changes behavior, UPSERT/RETURNING partial-index behavior, VFS IO
+  quick-balance behavior, and window3 rank/range behavior. Verification passed
+  PHP lint for `20` changed/new PHP files, `git diff --check --
+  lanes/libsqlite`, focused selected tests `12 files / 142234 assertions / 0
+  failures / 24585 PASS lines`, accepted-base overlap `2 files / 41252
+  assertions / 0 failures / 4014 PASS lines`, B-tree related tests `31 files /
+  575662 assertions / 0 failures / 35431 PASS lines`, trigger/upsert related
+  tests `134 files / 725684 assertions / 0 failures / 468187 PASS lines`,
+  pager/VFS targeted tests `4 files / 96359 assertions / 0 failures / 6395 PASS
+  lines`, and mixed/domain tests `7 files / 30967 assertions / 0 failures /
+  7991 PASS lines`. Honest selected movement is `+20571`, so the public row
+  should move to `1493978 pass / 0 fail` with coverage still `1589 / 1589`.
+  One duplicate date handoff and app-WAL handoffs remain parked; libsqlite
+  remains active until full functional/release/all-runner gates are done before
+  moving the team to gitoxide.
+
 - 2026-05-31 supervisor continuation (integration sample 01:46 UTC):
   Latest libsqlite source is integrated as `e224442a`
   (`libsqlite: add forty-first current corpus sweep`). The batch accepted 6
