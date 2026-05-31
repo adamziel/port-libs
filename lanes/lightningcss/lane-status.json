@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 87.3,
-    "suiteProgress": "Supervisor-integrated LightningCSS modules/media/bundler/custom-at-rule batch adds CSS Modules local/global/composes grid scoping, bundled CSS Modules dependency diagnostic source locations, vendor pixel-ratio and negated media range/layer parsing, and DashedIdent/CustomIdent visitor rewriting. Verification passed PHP lint on changed/new PHP files, git diff --check -- lanes/lightningcss, source WordPress-symbol scan, focused gate 7 files / 1300 assertions / 0 failures with Gitoxide, full LightningCSS lane 13 files / 3108 assertions / 0 failures, and touched example smoke/self-test runs.",
-    "phpPass": 3108,
+    "estimatedProgress": 87.5,
+    "suiteProgress": "Supervisor-integrated LightningCSS source-map/property/grid/CSS Modules/media/prefix/bundle batch adds duplicate generated-column source-map lookup/extension parity, dynamic grid-auto-flow minification, CSS Modules media env dashed-ident compose handling, double-negated media range parsing in layers, text-decoration-thickness target fallbacks, and bundled inline input-map unused-source pruning. Verification passed PHP lint on 23 changed/new PHP files, git diff --check -- lanes/lightningcss lanes/gitoxide, no WordPress/WP/wp_ source symbols under changed lane src trees, focused gate 8 files / 2935 assertions / 0 failures, full LightningCSS lane 13 files / 3141 assertions / 0 failures, and touched example smoke/self-test runs.",
+    "phpPass": 3141,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full runner not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source 2c09cc8b: full LightningCSS lane passed 13 files / 3108 assertions / 0 failures after focused integration and example checks. Mapped coverage conservatively moves to 1689 / 3532 from explicit CSS Modules grid local/global/compose and custom at-rule DashedIdent/CustomIdent visitor rows; media-query and bundler diagnostic work deepens already represented clusters.",
-    "currentWork": "CSS Modules local/global selector and composes metadata parity, bundler CSS Modules dependency diagnostic locations, media-query vendor pixel-ratio/range-layer parsing, and custom at-rule identifier visitor rewrites are integrated from current-base worker handoffs.",
+    "audit": "2026-05-31 supervisor batch at source 8ffc08f4: full LightningCSS lane passed 13 files / 3141 assertions / 0 failures after focused integration and example checks. Mapped coverage conservatively moves to 1696 / 3532: +1 source-map duplicate generated-column lookup, +1 grid auto-flow ordering, +1 CSS Modules media env dashed-ident helper, and +4 text-decoration-thickness prefix/browser boundary checks; media double-negation and bundle unused-source pruning deepen existing clusters.",
+    "currentWork": "Source-map duplicate generated-column lookup/extension, dynamic grid-auto-flow minification, CSS Modules media env dashed-ident compose handling, double-negated media range parsing in layers, text-decoration-thickness target fallbacks, and bundle unused input-map source pruning are integrated from current-base handoffs.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch; next acceptance should continue current-base source-only slices with focused PHP, examples, manifest-backed mapping, and periodic full-lane PHP gates.",
-    "latestCommit": "2c09cc8b66e395e45e8f6b32e1f731fb52ba7f05",
-    "nextTask": "Continue non-overlapping LightningCSS source-only slices from active workers: source maps, property values, target prefixes, CSSOM, CSS Modules, bundler import graph, media queries, and custom at-rule visitor/parser parity. Rebase or manually consolidate the skipped overlapping media-query 20260531T181417Z handoff later.",
+    "latestCommit": "8ffc08f44c5db8beadd19ff8debfb5fc990230ea",
+    "nextTask": "Continue non-overlapping LightningCSS source-only slices from active workers. Rebase stale media-query/CSSOM/property-value conflicts only when they add unique mapped coverage beyond the accepted clusters.",
     "commit": "59b0a249159ec021decfa94c7d85175943a3bf88"
 }

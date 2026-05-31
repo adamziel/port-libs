@@ -54,6 +54,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS source-map/prefix/modules
+  plus Gitoxide merge/url-refspec integration 18:43 UTC): source commit
+  `8ffc08f44c5db8beadd19ff8debfb5fc990230ea` (`ports: extend lightningcss
+  maps prefixes modules and gitoxide refs`) landed six LightningCSS handoffs
+  plus two Gitoxide handoffs after excluding stale shared metadata.
+  LightningCSS full lane evidence moves from `3108` to `3141 pass / 0 fail`,
+  with conservative mapped coverage moving from `1689 / 3532` to `1696 /
+  3532`: duplicate generated-column source-map lookup/extension behavior,
+  dynamic grid-auto-flow ordering, CSS Modules media `env()` dashed-ident
+  handling, and four text-decoration-thickness prefix/browser-boundary cases.
+  Double-negated media range parsing in layers and bundled inline input-map
+  unused-source pruning deepen already represented clusters. Gitoxide full
+  lane evidence moves from `5079` to `5100 pass / 0 fail`, with conservative
+  mapped coverage moving from `1607 / 2886` to `1609 / 2886`: generated
+  merge-base timestamp-skew baselines and scp-like bracket-boundary
+  URL/refspec rejection. Gates passed: PHP lint on 23 changed/new PHP files,
+  `git diff --check -- lanes/lightningcss lanes/gitoxide`, no WordPress/WP/wp_
+  source symbols under changed lane `src` trees, focused gate `8 files / 2935
+  assertions / 0 failures`, full LightningCSS lane `13 files / 3141 assertions
+  / 0 failures`, full Gitoxide lane `39 files / 5100 assertions / 0 failures`,
+  and touched example smoke/self-test runs. Full upstream Rust/Node/WASM/Cargo
+  runners were not executed for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS modules/media/visitor plus
   Gitoxide config/credential integration 18:36 UTC): source commit
   `2c09cc8b66e395e45e8f6b32e1f731fb52ba7f05` (`ports: extend lightningcss
