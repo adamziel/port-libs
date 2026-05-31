@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 10:12:28 UTC",
-    "sourceCommit": "e97166a7f62f8b380688e16da83baf2271f246d5",
-    "sourceCommitShort": "e97166a7f62f",
+    "generated": "2026-05-31 10:20:38 UTC",
+    "sourceCommit": "0d5385bf389d0db83bc44bd9e6369eded628c4ef",
+    "sourceCommitShort": "0d5385bf389d",
     "sourceBranch": "main",
-    "dashboardCommit": "f4b0feb2e2f5788db268dc8381b75112e67e3505",
-    "dashboardCommitShort": "f4b0feb2e2f5",
+    "dashboardCommit": "84b3fe9ddc69527a08a885a536932328313be9d3",
+    "dashboardCommitShort": "84b3fe9ddc69",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -64,16 +64,16 @@
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1532",
-            "coverage": "1532 / 2886",
-            "php": "4085 pass / 0 fail",
+            "mapped": "1535",
+            "coverage": "1535 / 2886",
+            "php": "4132 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
-            "audit": "Accepted source commit e97166a7f62f8b3806...",
-            "currentWork": "Committed Gitoxide commit gpgsig writer parity, send-pack proc-receive fall-through statu...",
+            "audit": "Accepted source commit 0d5385bf389d0db83b...",
+            "currentWork": "Committed Gitoxide protocol v2 fetch section sideband fixture parity, merge-base priority...",
             "nextTarget": "Keep roughly half the worker pool on current-base Gitoxide handoffs for protocol, send-pa...",
             "blocker": "No current Gitoxide PHP blocker for the accepted batch.",
-            "commit": "e97166a"
+            "commit": "0d5385b"
         },
         {
             "library": "libsqlite",
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "2864736 pass / 0 fail",
+            "php": "2869693 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, upstream corpus closure, source-neut...",
-            "audit": "Accepted source commit e97166a7f62f8b3806...",
-            "currentWork": "Committed five focused libsqlite corpus/parity slices for pager WAL boundary behavior, tr...",
+            "audit": "Accepted source commit 0d5385bf389d0db83b...",
+            "currentWork": "Committed five focused libsqlite corpus/parity slices for application WAL rollback-disabl...",
             "nextTarget": "Keep roughly half the worker pool on current-base libsqlite source/test-moving handoffs w...",
             "blocker": "Remaining libsqlite closure items: full-suite/runner confidence beyond th...",
-            "commit": "e97166a"
+            "commit": "0d5385b"
         },
         {
             "library": "LightningCSS",
