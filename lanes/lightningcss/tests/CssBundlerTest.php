@@ -295,6 +295,18 @@ CSS,
             ], $resolved);
         });
     },
+    'css bundler preserves upstream filesystem lexical import identities' => static function (TestRunner $t) use ($withTempFiles): void {
+        $withTempFiles([
+            'theme/entry.css' => '@import "blocks/card.css"; @import "base.css"; .entry { color: red }',
+            'theme/blocks/card.css' => '@import "../base.css"; .card { color: green }',
+            'theme/base.css' => '.base { color: blue }',
+        ], static function (string $root) use ($t): void {
+            $t->same(
+                '.base{color:#00f}.card{color:green}.base{color:#00f}.entry{color:red}',
+                (new CssBundler())->bundleFile($root . '/theme/entry.css')
+            );
+        });
+    },
     'css bundler maps upstream import prelude ordering diagnostics' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             "/*! bundle */\n@layer reset;.b{color:green}.a{color:red}",
@@ -624,7 +636,7 @@ CSS,
         );
 
         $t->same(
-            '@media print and (color),print and (orientation:landscape){.c{color:green}}.a{color:red}',
+            '@media print and (color) and (orientation:landscape){.c{color:green}}.a{color:red}',
             $bundle([
                 '/a.css' => '@import "b.css" print; .a { color: red }',
                 '/b.css' => '@import "c.css" (color), (orientation: landscape);',
@@ -711,6 +723,15 @@ CSS,
             $bundle([
                 '/a.css' => '@import "b.css" layer(theme.blocks) not all; .a { color: red }',
                 '/b.css' => '@import "c.css" (min-width: 250px); .b { color: blue }',
+                '/c.css' => '.c { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@media print and (width>=250px) and (hover),screen and (width>=250px) and (hover){@layer theme.blocks{.c{color:green}}}@media print,screen{@layer theme.blocks{.b{color:#00f}}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(theme.blocks) print, screen; .a { color: red }',
+                '/b.css' => '@import "c.css" (min-width: 250px), (hover); .b { color: blue }',
                 '/c.css' => '.c { color: green }',
             ], '/a.css')
         );
@@ -1044,6 +1065,56 @@ CSS,
             ['quote-remote.css', '/a.css'],
             ['b.css', '/a.css'],
         ], $resolved);
+    },
+    'css bundler preserves nested external imports outside parent wrappers like upstream' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
+        $code = $bundle([
+            '/entry.css' => '@import "card.css" layer(theme.blocks) screen; .entry { color: red }',
+            '/card.css' => '@import "cdn:card-reset.css" print; @import "button.css"; .card { color: green }',
+            '/button.css' => '.button { color: blue }',
+        ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): array|string {
+            $resolved[] = [$specifier, $originatingFile];
+
+            if ($specifier === 'cdn:card-reset.css') {
+                return ['external' => 'https://cdn.example/card-reset.css'];
+            }
+
+            return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+        });
+
+        $t->same(
+            '@import "https://cdn.example/card-reset.css" print;@media screen{@layer theme.blocks{.button{color:#00f}}@layer theme.blocks{.card{color:green}}}.entry{color:red}',
+            $code
+        );
+        $t->same([
+            ['card.css', '/entry.css'],
+            ['cdn:card-reset.css', '/card.css'],
+            ['button.css', '/card.css'],
+        ], $resolved);
+
+        try {
+            $bundle([
+                '/entry.css' => '@import "card.css"; .entry { color: red }',
+                '/card.css' => "@import \"button.css\";\n@import \"cdn:late-reset.css\";\n.card { color: green }",
+                '/button.css' => '.button { color: blue }',
+            ], '/entry.css', static function (string $specifier, string $originatingFile): array|string {
+                if ($specifier === 'cdn:late-reset.css') {
+                    return ['external' => 'https://cdn.example/late-reset.css'];
+                }
+
+                return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('external-import-after-bundled-import', $exception->kind);
+            $t->same('An external `@import` was found after a bundled `@import`. This may result in unintended selector order.', $exception->getMessage());
+            $t->same('/card.css', $exception->sourceFile);
+            $t->same(2, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected nested external import after bundled dependency exception');
     },
     'css bundler reports upstream resolver and layer errors with import locations' => static function (TestRunner $t) use ($bundle): void {
         try {

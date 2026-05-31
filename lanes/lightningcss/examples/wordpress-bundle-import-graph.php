@@ -451,6 +451,36 @@ if ($externalResolverBundle !== '@import "https://cdn.example/wp\"blocks\\\\edit
 
 echo 'resolver-external-string: serialized' . PHP_EOL;
 
+$nestedExternalBundle = (new CssBundler())->bundle('/nested-external-entry.css', [
+    '/nested-external-entry.css' => <<<'CSS'
+@import "blocks/card.css" layer(theme.blocks) screen;
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/blocks/card.css' => <<<'CSS'
+@import "cdn:card-reset.css" print;
+@import "button.css";
+.wp-block-card {
+  color: green;
+}
+CSS,
+    '/blocks/button.css' => '.wp-block-button__link { color: blue; }',
+], static function (string $specifier, string $originatingFile): array|string {
+    if ($specifier === 'cdn:card-reset.css') {
+        return ['external' => 'https://cdn.example/wp-card-reset.css'];
+    }
+
+    return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+});
+
+if ($nestedExternalBundle !== '@import "https://cdn.example/wp-card-reset.css" print;@media screen{@layer theme.blocks{.wp-block-button__link{color:#00f}}@layer theme.blocks{.wp-block-card{color:green}}}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected nested external import to stay outside parent wrappers\n");
+    exit(1);
+}
+
+echo 'nested-external-import: preserved' . PHP_EOL;
+
 $readerFiles = [
     '/reader-theme.css' => <<<'CSS'
 @import "pkg:tokens.css";
@@ -626,6 +656,32 @@ CSS,
 });
 
 echo 'filesystem-provider: resolved' . PHP_EOL;
+
+$withTempFiles([
+    'theme/entry.css' => <<<'CSS'
+@import "blocks/card.css";
+@import "base.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    'theme/blocks/card.css' => <<<'CSS'
+@import "../base.css";
+.wp-block-card {
+  color: green;
+}
+CSS,
+    'theme/base.css' => '.wp-block-base { color: blue; }',
+], static function (string $root): void {
+    $filesystemBundle = (new CssBundler())->bundleFile($root . '/theme/entry.css');
+
+    if ($filesystemBundle !== '.wp-block-base{color:#00f}.wp-block-card{color:green}.wp-block-base{color:#00f}.wp-site-blocks{color:red}') {
+        fwrite(STDERR, "Expected filesystem lexical import identities to stay distinct\n");
+        exit(1);
+    }
+});
+
+echo 'filesystem-lexical-import-identities: preserved' . PHP_EOL;
 
 $withTempFiles([
     'theme.css' => <<<'CSS'

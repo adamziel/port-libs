@@ -892,6 +892,7 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'ios_saf', [6], [15])
                 || $this->targetAtLeast($normalized, 'opera', [15])
                 || $this->targetInRange($normalized, 'safari', [6], [15]),
+            'printColorAdjustNeedsMoz' => $this->targetInRange($normalized, 'firefox', [48], [96]),
             'columnsNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [49])
                 || $this->targetInRange($normalized, 'ios_saf', [3, 2], [8, 1])
@@ -3455,19 +3456,25 @@ final class TransitionPrefixer
      */
     private function rewritePrintColorAdjustPrefixEntries(array &$entries, array $targetOptions): bool
     {
-        if (!($targetOptions['printColorAdjustNeedsWebkit'] ?? false)) {
+        $needsWebkit = $targetOptions['printColorAdjustNeedsWebkit'] ?? false;
+        $needsMoz = $targetOptions['printColorAdjustNeedsMoz'] ?? false;
+        if (!$needsWebkit && !$needsMoz) {
             return false;
         }
 
         $hasWebkit = false;
+        $hasMoz = false;
         foreach ($entries as $entry) {
             if ($entry['property'] === '-webkit-print-color-adjust' && !$entry['important']) {
                 $hasWebkit = true;
-                break;
+                continue;
+            }
+            if ($entry['property'] === '-moz-print-color-adjust' && !$entry['important']) {
+                $hasMoz = true;
             }
         }
 
-        if ($hasWebkit) {
+        if (($hasWebkit || !$needsWebkit) && ($hasMoz || !$needsMoz)) {
             return false;
         }
 
@@ -3475,8 +3482,14 @@ final class TransitionPrefixer
         $changed = false;
         foreach ($entries as $entry) {
             if ($entry['property'] === 'print-color-adjust' && !$entry['important']) {
-                $rewritten[] = $this->declarationEntry('-webkit-print-color-adjust', $entry['value']);
-                $changed = true;
+                if ($needsWebkit && !$hasWebkit) {
+                    $rewritten[] = $this->declarationEntry('-webkit-print-color-adjust', $entry['value']);
+                    $changed = true;
+                }
+                if ($needsMoz && !$hasMoz) {
+                    $rewritten[] = $this->declarationEntry('-moz-print-color-adjust', $entry['value']);
+                    $changed = true;
+                }
             }
 
             $rewritten[] = $entry;

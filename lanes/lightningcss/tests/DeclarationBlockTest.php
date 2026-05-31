@@ -193,6 +193,50 @@ return [
             static fn () => $block->getProperty('color: red /* unterminated', 'color')
         );
     },
+    'declaration block preserves custom-property simple blocks while tokenizing cssom declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = '--theme-rule: { color: red; background: url("/a;b.css") }; color: blue; --theme-list: [--a: 1; --b: 2] !important';
+
+        $t->same(
+            [
+                '--theme-rule' => '{ color: red; background: url("/a;b.css") }',
+                'color' => 'blue',
+                '--theme-list' => '[--a: 1; --b: 2] !important',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(
+            ['value' => '{ color: red; background: url("/a;b.css") }', 'important' => false],
+            $block->getProperty($declarations, '--theme-rule')
+        );
+        $t->same(
+            ['value' => '[--a: 1; --b: 2]', 'important' => true],
+            $block->getProperty($declarations, '--theme-list')
+        );
+        $t->same(
+            ['value' => '{ color: red !important; }', 'important' => false],
+            $block->getProperty('--theme-rule: { color: red !important; }', '--theme-rule')
+        );
+        $t->same(
+            '--theme-rule: { color: green; --nested: "a;b" }; color: blue; --theme-list: [--a: 1; --b: 2] !important',
+            $block->setProperty($declarations, '--theme-rule', '{ color: green; --nested: "a;b" }')
+        );
+        $t->same(
+            'color: blue; --theme-list: [--a: 1; --b: 2] !important',
+            $block->removeProperty($declarations, '--theme-rule')
+        );
+        $t->same(
+            [
+                'key' => ['start' => ['line' => 4, 'column' => 3], 'end' => ['line' => 4, 'column' => 15]],
+                'value' => ['start' => ['line' => 4, 'column' => 17], 'end' => ['line' => 4, 'column' => 60]],
+            ],
+            $block->propertyLocation($declarations, 0, 4, 3)
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $block->parse('color: { color: red; }; background: blue')
+        );
+    },
     'declaration block reads upstream background cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

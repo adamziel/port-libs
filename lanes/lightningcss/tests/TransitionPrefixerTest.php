@@ -420,6 +420,22 @@ return [
         );
         $t->same(
             '.foo{print-color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['chrome' => 136])
+        );
+        $t->same(
+            '.foo{-moz-print-color-adjust:exact;print-color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['firefox' => 96])
+        );
+        $t->same(
+            '.foo{print-color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['firefox' => 97])
+        );
+        $t->same(
+            '.foo{-webkit-print-color-adjust:exact;-moz-print-color-adjust:exact;print-color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['chrome' => 135, 'firefox' => 96])
+        );
+        $t->same(
+            '.foo{print-color-adjust:exact}',
             $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['chrome' => 137])
         );
     },

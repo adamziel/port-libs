@@ -28,6 +28,9 @@ final class CssModulesTransformer
     /** @var array<string, string> */
     private array $pseudoClasses = [];
 
+    /** @var list<string> */
+    private array $unusedSymbols = [];
+
     /**
      * @var array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
      */
@@ -45,7 +48,7 @@ final class CssModulesTransformer
      *   references:array<string, array{type:string, name:string, specifier:string}>
      * }
      *
-     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, grid?:bool, container?:bool, customIdents?:bool, custom_idents?:bool, pure?:bool, pseudoClasses?:array<string, string>, pseudo_classes?:array<string, string>, preserveDependencyComposesDuplicates?:bool} $options
+     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, grid?:bool, container?:bool, customIdents?:bool, custom_idents?:bool, pure?:bool, unusedSymbols?:list<string>, unused_symbols?:list<string>, pseudoClasses?:array<string, string>, pseudo_classes?:array<string, string>, preserveDependencyComposesDuplicates?:bool} $options
      */
     public function transform(string $css, array $options = []): array
     {
@@ -70,6 +73,7 @@ final class CssModulesTransformer
         $this->preserveEmptyComposesRules = $minify;
         $this->preserveDependencyComposesDuplicates = ($options['preserveDependencyComposesDuplicates'] ?? false) === true;
         $this->pseudoClasses = $this->normalizePseudoClasses($options['pseudoClasses'] ?? $options['pseudo_classes'] ?? []);
+        $this->unusedSymbols = $this->normalizeUnusedSymbols($options['unusedSymbols'] ?? $options['unused_symbols'] ?? []);
         $this->exports = [];
         $this->references = [];
 
@@ -78,6 +82,12 @@ final class CssModulesTransformer
         if ($minify) {
             $code = (new NestingTransformer())->lower($code);
             $code = $this->restorePreservedEmptyComposesRules($code);
+        }
+
+        if ($minify && $this->unusedSymbols !== []) {
+            $code = $this->pruneUnusedSymbolsFromCss($code, $this->scopedUnusedSymbols());
+            $this->pruneUnusedExports($code);
+            $this->pruneUnusedReferences($code);
         }
 
         $code = $this->prependLicenseComments($code, $licenseComments);
@@ -1860,6 +1870,376 @@ final class CssModulesTransformer
         }
 
         return $normalized;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function normalizeUnusedSymbols(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $symbols = [];
+        foreach ($value as $symbol) {
+            $symbol = trim((string) $symbol);
+            if ($symbol !== '' && !in_array($symbol, $symbols, true)) {
+                $symbols[] = $symbol;
+            }
+        }
+
+        return $symbols;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function scopedUnusedSymbols(): array
+    {
+        $symbols = [];
+        foreach ($this->unusedSymbols as $symbol) {
+            $symbols[$symbol] = true;
+            if (str_starts_with($symbol, '--')) {
+                $symbols[$this->scopedDashedName($symbol)] = true;
+                continue;
+            }
+
+            $symbols[$this->scopedName($symbol)] = true;
+        }
+
+        return $symbols;
+    }
+
+    /**
+     * @param array<string, true> $unusedSymbols
+     */
+    private function pruneUnusedSymbolsFromCss(string $css, array $unusedSymbols): string
+    {
+        $output = '';
+        $cursor = 0;
+
+        while (true) {
+            $nextBlock = $this->findNextTopLevel($css, '{', $cursor);
+            $nextStatement = $this->findNextTopLevel($css, ';', $cursor);
+
+            if ($nextStatement !== null && ($nextBlock === null || $nextStatement < $nextBlock)) {
+                $output .= substr($css, $cursor, $nextStatement - $cursor + 1);
+                $cursor = $nextStatement + 1;
+                continue;
+            }
+
+            if ($nextBlock === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $prelude = substr($css, $cursor, $nextBlock - $cursor);
+            $close = $this->findMatchingBrace($css, $nextBlock);
+            $body = substr($css, $nextBlock + 1, $close - $nextBlock - 1);
+            $trimmedPrelude = trim($prelude);
+
+            if ($trimmedPrelude !== '' && $trimmedPrelude[0] === '@') {
+                if ($this->unusedAtRuleName($trimmedPrelude, $unusedSymbols) !== null) {
+                    $cursor = $close + 1;
+                    continue;
+                }
+
+                if ($this->atRuleContainsNestedRules($trimmedPrelude)) {
+                    $body = $this->pruneUnusedSymbolsFromCss($body, $unusedSymbols);
+                    if (trim($body) === '') {
+                        $cursor = $close + 1;
+                        continue;
+                    }
+                }
+
+                $output .= $prelude . '{' . $body . '}';
+                $cursor = $close + 1;
+                continue;
+            }
+
+            if ($this->selectorListIsUnused($prelude, $unusedSymbols)) {
+                $cursor = $close + 1;
+                continue;
+            }
+
+            $output .= $prelude . '{' . $this->pruneUnusedDeclarations($body, $unusedSymbols) . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param array<string, true> $unusedSymbols
+     */
+    private function unusedAtRuleName(string $prelude, array $unusedSymbols): ?string
+    {
+        foreach ([
+            '@keyframes',
+            '@-webkit-keyframes',
+            '@-moz-keyframes',
+            '@counter-style',
+            '@font-palette-values',
+            '@property',
+            '@position-try',
+        ] as $keyword) {
+            if (strncasecmp($prelude, $keyword, strlen($keyword)) !== 0) {
+                continue;
+            }
+
+            $offset = $this->skipCssWhitespace($prelude, strlen($keyword));
+            $token = $this->readAtRuleNameToken($prelude, $offset);
+            if ($token !== null && isset($unusedSymbols[$token])) {
+                return $token;
+            }
+
+            return null;
+        }
+
+        return null;
+    }
+
+    private function readAtRuleNameToken(string $prelude, int $offset): ?string
+    {
+        $token = $this->readCssIdentifierToken($prelude, $offset);
+        if ($token !== null) {
+            return $token['decoded'];
+        }
+
+        $quote = $prelude[$offset] ?? '';
+        if ($quote !== '"' && $quote !== "'") {
+            return null;
+        }
+
+        $cursor = $offset + 1;
+        $value = '';
+        $length = strlen($prelude);
+        while ($cursor < $length) {
+            $char = $prelude[$cursor];
+            if ($char === '\\' && $cursor + 1 < $length) {
+                $value .= $prelude[$cursor + 1];
+                $cursor += 2;
+                continue;
+            }
+
+            if ($char === $quote) {
+                return $value;
+            }
+
+            $value .= $char;
+            $cursor++;
+        }
+
+        return null;
+    }
+
+    private function atRuleContainsNestedRules(string $prelude): bool
+    {
+        return preg_match('/^@(?:media|supports|container|layer|scope|starting-style)\b/i', $prelude) === 1;
+    }
+
+    /**
+     * @param array<string, true> $unusedSymbols
+     */
+    private function pruneUnusedDeclarations(string $body, array $unusedSymbols): string
+    {
+        $output = '';
+        $cursor = 0;
+
+        while (($semicolon = $this->findNextTopLevel($body, ';', $cursor)) !== null) {
+            $statement = substr($body, $cursor, $semicolon - $cursor + 1);
+            if (!$this->declarationIsUnused($statement, $unusedSymbols)) {
+                $output .= $statement;
+            }
+            $cursor = $semicolon + 1;
+        }
+
+        $tail = substr($body, $cursor);
+        if (trim($tail) === '' || !$this->declarationIsUnused($tail, $unusedSymbols)) {
+            $output .= $tail;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param array<string, true> $unusedSymbols
+     */
+    private function declarationIsUnused(string $statement, array $unusedSymbols): bool
+    {
+        $trimmed = trim($statement);
+        if ($trimmed === '') {
+            return false;
+        }
+
+        $withoutSemicolon = rtrim($trimmed, ';');
+        $colon = $this->findNextTopLevel($withoutSemicolon, ':', 0);
+        if ($colon === null) {
+            return false;
+        }
+
+        $property = trim(substr($withoutSemicolon, 0, $colon));
+
+        return str_starts_with($property, '--') && isset($unusedSymbols[$property]);
+    }
+
+    /**
+     * @param array<string, true> $unusedSymbols
+     */
+    private function selectorListIsUnused(string $selectorList, array $unusedSymbols): bool
+    {
+        $selectors = $this->splitTopLevel($selectorList, ',');
+        if ($selectors === []) {
+            return false;
+        }
+
+        foreach ($selectors as $selector) {
+            if (!$this->selectorContainsUnusedSymbol($selector, $unusedSymbols)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, true> $unusedSymbols
+     */
+    private function selectorContainsUnusedSymbol(string $selector, array $unusedSymbols): bool
+    {
+        foreach ($this->selectorSymbolNames($selector) as $symbol) {
+            if (isset($unusedSymbols[$symbol])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function selectorSymbolNames(string $selector): array
+    {
+        $symbols = [];
+        $quote = null;
+        $bracketDepth = 0;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($bracketDepth === 0 && ($char === '.' || $char === '#')) {
+                $token = $this->readCssIdentifierToken($selector, $i + 1);
+                if ($token !== null) {
+                    $symbols[] = $token['decoded'];
+                    $i = $token['end'] - 1;
+                    continue;
+                }
+            }
+
+            $pseudoFunction = $bracketDepth === 0 && $char === ':'
+                ? $this->selectorPseudoFunctionNameAt($selector, $i)
+                : null;
+            if ($pseudoFunction !== null) {
+                $inner = substr($selector, $pseudoFunction['open'] + 1, $pseudoFunction['close'] - $pseudoFunction['open'] - 1);
+                if (in_array($pseudoFunction['name'], ['is', 'where', '-webkit-any', '-moz-any'], true)) {
+                    foreach ($this->selectorSymbolNames($inner) as $symbol) {
+                        $symbols[] = $symbol;
+                    }
+                }
+
+                $i = $pseudoFunction['close'];
+                continue;
+            }
+
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($selector, $i);
+                if ($escapeEnd !== null) {
+                    $i = $escapeEnd;
+                    continue;
+                }
+            }
+        }
+
+        return $symbols;
+    }
+
+    /**
+     * @return array{name:string,open:int,close:int}|null
+     */
+    private function selectorPseudoFunctionNameAt(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset] ?? '') !== ':') {
+            return null;
+        }
+
+        $nameStart = ($selector[$offset + 1] ?? '') === ':' ? $offset + 2 : $offset + 1;
+        $token = $this->readCssIdentifierToken($selector, $nameStart);
+        if ($token === null || ($selector[$token['end']] ?? '') !== '(') {
+            return null;
+        }
+
+        return [
+            'name' => strtolower($token['decoded']),
+            'open' => $token['end'],
+            'close' => $this->findMatchingParen($selector, $token['end']),
+        ];
+    }
+
+    private function pruneUnusedExports(string $code): void
+    {
+        $unusedSymbols = $this->scopedUnusedSymbols();
+        foreach ($this->exports as $key => $export) {
+            $name = $export['name'];
+            if (
+                (in_array($key, $this->unusedSymbols, true) || isset($unusedSymbols[$name]))
+                && !$this->cssContainsIdentifier($code, $name)
+            ) {
+                unset($this->exports[$key]);
+            }
+        }
+    }
+
+    private function pruneUnusedReferences(string $code): void
+    {
+        foreach (array_keys($this->references) as $placeholder) {
+            if (!$this->cssContainsIdentifier($code, (string) $placeholder)) {
+                unset($this->references[$placeholder]);
+            }
+        }
+    }
+
+    private function cssContainsIdentifier(string $css, string $identifier): bool
+    {
+        return str_contains($css, $identifier) || str_contains($css, $this->escapeCssIdentifier($identifier));
     }
 
     /**

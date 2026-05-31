@@ -1425,6 +1425,78 @@ CSS;
             'foo' => $export('EgL3uq_foo', [$dependency('base', 'tokens.css')]),
         ], $disabled['exports']);
     },
+    'css modules prunes upstream unused symbols while preserving surviving composes exports' => static function (TestRunner $t) use ($export, $local, $dependency): void {
+        $css = <<<'CSS'
+@property --unused-accent {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: yellow;
+}
+
+@font-palette-values --unused-palette {
+  font-family: Bixa;
+  base-palette: 1;
+  override-colors: 1 #7EB7E4;
+}
+
+.keep {
+  --unused-accent: red;
+  composes: base;
+  color: red;
+}
+
+.base {
+  color: blue;
+}
+
+.drop {
+  composes: utility from global;
+  color: green;
+}
+
+#drop-id {
+  color: yellow;
+}
+
+@keyframes fade {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}
+
+@media (min-width: 1px) {
+  .drop {
+    color: purple;
+  }
+
+  .keepMedia {
+    composes: token from "tokens.css";
+    color: yellow;
+  }
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css, [
+            'dashedIdents' => true,
+            'unusedSymbols' => ['drop', 'drop-id', 'fade', '--unused-accent', '--unused-palette'],
+        ]);
+
+        $t->same('.EgL3uq_keep{color:red}.EgL3uq_base{color:#00f}@media (width>=1px){.EgL3uq_keepMedia{color:#ff0}}', $result['code']);
+        $t->same([
+            'keep' => $export('EgL3uq_keep', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+            'keepMedia' => $export('EgL3uq_keepMedia', [$dependency('token', 'tokens.css')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $snakeCaseOption = (new CssModulesTransformer())->transform('.kept { color: red } .gone { color: blue }', [
+            'unused_symbols' => ['gone'],
+        ]);
+
+        $t->same('.EgL3uq_kept{color:red}', $snakeCaseOption['code']);
+        $t->same([
+            'kept' => $export('EgL3uq_kept'),
+        ], $snakeCaseOption['exports']);
+    },
     'css modules scopes upstream view transition declaration idents' => static function (TestRunner $t) use ($export): void {
         $css = <<<'CSS'
 .card {

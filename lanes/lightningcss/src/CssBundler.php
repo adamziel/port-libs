@@ -1113,13 +1113,28 @@ final class CssBundler
         }
 
         if (str_starts_with($specifier, '/')) {
-            return ['file' => $this->normalizePath($specifier)];
+            return $this->defaultResolvedFileResult($specifier);
         }
 
         $directory = dirname($originatingFile);
         $path = ($directory === '.' || $directory === '') ? $specifier : rtrim($directory, '/') . '/' . $specifier;
 
-        return ['file' => $this->normalizePath($path)];
+        return $this->defaultResolvedFileResult($path);
+    }
+
+    /**
+     * @return array{file:string,preservePath?:bool}
+     */
+    private function defaultResolvedFileResult(string $file): array
+    {
+        if ($this->filesystemReads) {
+            return [
+                'file' => $file,
+                'preservePath' => true,
+            ];
+        }
+
+        return ['file' => $this->normalizePath($file)];
     }
 
     /**
@@ -1192,10 +1207,20 @@ final class CssBundler
             return $parent;
         }
 
-        $queries = [];
-        foreach ($this->splitTopLevel($parent, ',') as $parentQuery) {
-            foreach ($this->splitTopLevel($child, ',') as $childQuery) {
-                $queries[] = $this->andMediaQuery($parentQuery, $childQuery, $file, $loc);
+        $parser = new MediaQueryParser();
+        $queries = array_map(
+            static fn (string $query): string => $parser->minifyList($query, true),
+            $this->splitTopLevel($parent, ',')
+        );
+
+        foreach ($this->splitTopLevel($child, ',') as $childQuery) {
+            $childQuery = $parser->minifyList($childQuery, true);
+            if (in_array($childQuery, $queries, true)) {
+                continue;
+            }
+
+            foreach ($queries as $index => $parentQuery) {
+                $queries[$index] = $this->andMediaQuery($parentQuery, $childQuery, $file, $loc);
             }
         }
 

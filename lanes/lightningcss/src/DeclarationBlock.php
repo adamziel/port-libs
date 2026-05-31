@@ -359,6 +359,9 @@ final class DeclarationBlock
             if ($property === '' || $value === '') {
                 throw new \InvalidArgumentException("Invalid CSS declaration: {$part}");
             }
+            if (!str_starts_with($property, '--') && $this->hasTopLevelCurlyBlock($value)) {
+                throw new \InvalidArgumentException("Invalid CSS declaration: {$part}");
+            }
             [$value, $important] = $this->splitImportantFlag($value);
             if ($value === '') {
                 throw new \InvalidArgumentException("Invalid CSS declaration: {$part}");
@@ -12135,7 +12138,9 @@ final class DeclarationBlock
         $value = $this->replaceCssCommentsWithWhitespace($value);
         $parts = [''];
         $quote = null;
-        $depth = 0;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $braceDepth = 0;
         $length = strlen($value);
         for ($i = 0; $i < $length; $i++) {
             $char = $value[$i];
@@ -12153,10 +12158,23 @@ final class DeclarationBlock
             if ($char === '"' || $char === "'") {
                 $quote = $char;
             } elseif ($char === '(') {
-                $depth++;
+                $parenDepth++;
             } elseif ($char === ')') {
-                $depth = max(0, $depth - 1);
-            } elseif ($char === $delimiter && $depth === 0) {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === '{') {
+                $braceDepth++;
+            } elseif ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+            } elseif (
+                $char === $delimiter
+                && $parenDepth === 0
+                && $bracketDepth === 0
+                && $braceDepth === 0
+            ) {
                 $parts[] = '';
                 continue;
             }
@@ -12216,7 +12234,9 @@ final class DeclarationBlock
     private function findTopLevelColon(string $value): ?int
     {
         $quote = null;
-        $depth = 0;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $braceDepth = 0;
         $length = strlen($value);
         for ($i = 0; $i < $length; $i++) {
             $char = $value[$i];
@@ -12233,10 +12253,18 @@ final class DeclarationBlock
             if ($char === '"' || $char === "'") {
                 $quote = $char;
             } elseif ($char === '(') {
-                $depth++;
+                $parenDepth++;
             } elseif ($char === ')') {
-                $depth = max(0, $depth - 1);
-            } elseif ($char === ':' && $depth === 0) {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === '{') {
+                $braceDepth++;
+            } elseif ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+            } elseif ($char === ':' && $parenDepth === 0 && $bracketDepth === 0 && $braceDepth === 0) {
                 return $i;
             }
         }
@@ -12244,10 +12272,49 @@ final class DeclarationBlock
         return null;
     }
 
+    private function hasTopLevelCurlyBlock(string $value): bool
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === '{' && $parenDepth === 0 && $bracketDepth === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function isTopLevelOffset(string $value, int $target): bool
     {
         $quote = null;
-        $depth = 0;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $braceDepth = 0;
         for ($i = 0; $i < $target; $i++) {
             $char = $value[$i];
             if ($quote !== null) {
@@ -12263,12 +12330,20 @@ final class DeclarationBlock
             if ($char === '"' || $char === "'") {
                 $quote = $char;
             } elseif ($char === '(') {
-                $depth++;
+                $parenDepth++;
             } elseif ($char === ')') {
-                $depth = max(0, $depth - 1);
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === '{') {
+                $braceDepth++;
+            } elseif ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
             }
         }
 
-        return $quote === null && $depth === 0;
+        return $quote === null && $parenDepth === 0 && $bracketDepth === 0 && $braceDepth === 0;
     }
 }
