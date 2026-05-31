@@ -62,6 +62,10 @@ final class RefSpec
             $spec = substr($spec, 1);
         }
 
+        if ($operation === self::OP_FETCH && $mode !== self::MODE_NEGATIVE && $spec === '') {
+            return new self($operation, $mode, 'HEAD', null);
+        }
+
         [$source, $destination] = self::splitSides($spec, $operation, $mode);
         if ($source === '@') {
             $source = 'HEAD';
@@ -232,6 +236,14 @@ final class RefSpec
 
     public function toString(): string
     {
+        if ($this->operation === self::OP_FETCH && $this->destination === null && $this->mode !== self::MODE_NEGATIVE && $this->source !== null) {
+            return $this->source;
+        }
+
+        if ($this->operation === self::OP_PUSH && $this->source === null && $this->destination !== null && $this->mode !== self::MODE_NEGATIVE) {
+            return ':' . $this->destination;
+        }
+
         $prefix = match ($this->mode) {
             self::MODE_FORCE => '+',
             self::MODE_NEGATIVE => '^',

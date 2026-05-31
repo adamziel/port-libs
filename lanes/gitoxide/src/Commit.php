@@ -50,11 +50,11 @@ final class Commit
         }
 
         $author = self::readRequiredTokenHeader($body, $offset, 'author');
-        CommitSignature::parse($author);
+        self::parseCompleteSignature($author, 'author');
         $appendHeader('author', $author);
 
         $committer = self::readRequiredTokenHeader($body, $offset, 'committer');
-        CommitSignature::parse($committer);
+        self::parseCompleteSignature($committer, 'committer');
         $appendHeader('committer', $committer);
 
         $encoding = null;
@@ -113,11 +113,11 @@ final class Commit
             }
 
             $author = self::readRequiredTokenHeader($body, $offset, 'author');
-            CommitSignature::parse($author);
+            self::parseCompleteSignature($author, 'author');
             $tokens[] = self::okToken(['type' => 'author', 'signature' => $author]);
 
             $committer = self::readRequiredTokenHeader($body, $offset, 'committer');
-            CommitSignature::parse($committer);
+            self::parseCompleteSignature($committer, 'committer');
             $tokens[] = self::okToken(['type' => 'committer', 'signature' => $committer]);
 
             if (substr($body, $offset, 9) === 'encoding ') {
@@ -374,6 +374,28 @@ final class Commit
     }
 
     /**
+     * Return the first gpgsig value and signed bytes from raw commit data.
+     *
+     * This mirrors gix_object::CommitRefIter::signature(): headers before the
+     * first signature are validated, but bytes after that signature are not
+     * decoded before the signed-data range is returned.
+     *
+     * @return array{signature: string, signedData: string}|null
+     */
+    public static function signatureForVerificationFromBytes(string $body, string $algorithm = 'sha1'): ?array
+    {
+        $header = self::signatureHeaderWithRangeFromCommitBytes($body, $algorithm);
+        if ($header === null) {
+            return null;
+        }
+
+        return [
+            'signature' => $header['signature'],
+            'signedData' => substr($body, 0, $header['start']) . substr($body, $header['end']),
+        ];
+    }
+
+    /**
      * Return the first gpgsig value with the exact commit bytes that were signed.
      *
      * @return array{signature: string, signedData: string}|null
@@ -403,44 +425,65 @@ final class Commit
         $offset = 0;
         $length = strlen($this->rawBody);
         while ($offset < $length) {
-            $start = $offset;
-            [, $line, $nextOffset] = self::lineWithTerminatorAt($this->rawBody, $offset);
-            if ($line === '') {
+            if (($this->rawBody[$offset] ?? '') === "\n") {
                 break;
             }
-            if ($line[0] === ' ') {
+
+            if (($this->rawBody[$offset] ?? '') === ' ') {
+                [, , $nextOffset] = self::lineWithTerminatorAt($this->rawBody, $offset);
                 $offset = $nextOffset;
                 continue;
             }
 
-            $space = strpos($line, ' ');
-            if ($space === false) {
-                $offset = $nextOffset;
-                continue;
+            try {
+                $header = self::readAnyTokenHeaderWithRange($this->rawBody, $offset, true);
+            } catch (\InvalidArgumentException) {
+                break;
             }
 
-            $name = substr($line, 0, $space);
-            $value = substr($line, $space + 1);
-            $end = $nextOffset;
-            $peek = $nextOffset;
-            while ($peek < $length) {
-                [, $nextLine, $afterNext] = self::lineWithTerminatorAt($this->rawBody, $peek);
-                if ($nextLine === '' || $nextLine[0] !== ' ') {
-                    break;
-                }
-                $value .= "\n" . substr($nextLine, 1);
-                $end = $afterNext;
-                $peek = $afterNext;
+            if ($header['name'] === 'gpgsig') {
+                return ['signature' => $header['value'], 'start' => $header['start'], 'end' => $header['end']];
             }
-
-            if ($name === 'gpgsig') {
-                return ['signature' => $value, 'start' => $start, 'end' => $end];
-            }
-
-            $offset = $end;
         }
 
         return null;
+    }
+
+    /**
+     * @return array{signature: string, start: int, end: int}|null
+     */
+    private static function signatureHeaderWithRangeFromCommitBytes(string $body, string $algorithm): ?array
+    {
+        $offset = 0;
+        $hashLength = ReferenceTarget::hashHexLength($algorithm);
+
+        $tree = self::readRequiredTokenHeader($body, $offset, 'tree');
+        self::validateTokenObjectId($tree, $hashLength, $algorithm, 'tree');
+
+        while (substr($body, $offset, 7) === 'parent ') {
+            $parent = self::readRequiredTokenHeader($body, $offset, 'parent');
+            self::validateTokenObjectId($parent, $hashLength, $algorithm, 'parent');
+        }
+
+        self::parseCompleteSignature(self::readRequiredTokenHeader($body, $offset, 'author'), 'author');
+        self::parseCompleteSignature(self::readRequiredTokenHeader($body, $offset, 'committer'), 'committer');
+
+        if (substr($body, $offset, 9) === 'encoding ') {
+            self::readRequiredTokenHeader($body, $offset, 'encoding');
+        }
+
+        while ($offset < strlen($body)) {
+            if (($body[$offset] ?? '') === "\n") {
+                return null;
+            }
+
+            $header = self::readAnyTokenHeaderWithRange($body, $offset, true);
+            if ($header['name'] === 'gpgsig') {
+                return ['signature' => $header['value'], 'start' => $header['start'], 'end' => $header['end']];
+            }
+        }
+
+        throw new \InvalidArgumentException('Commit message is missing header separator');
     }
 
     /**
@@ -473,11 +516,21 @@ final class Commit
      */
     private static function readAnyTokenHeader(string $input, int &$offset): array
     {
+        $header = self::readAnyTokenHeaderWithRange($input, $offset, true);
+        return [$header['name'], $header['value']];
+    }
+
+    /**
+     * @return array{name: string, value: string, start: int, end: int}
+     */
+    private static function readAnyTokenHeaderWithRange(string $input, int &$offset, bool $preserveMultiLineTerminators): array
+    {
         if (strpos($input, "\n", $offset) === false) {
             throw new \InvalidArgumentException('Commit extra header is not newline terminated');
         }
 
-        [, $line, $nextOffset] = self::lineWithTerminatorAt($input, $offset);
+        $start = $offset;
+        [$rawLine, $line, $nextOffset] = self::lineWithTerminatorAt($input, $offset);
         if ($line === '' || $line[0] === ' ') {
             throw new \InvalidArgumentException('Commit extra header has no field name');
         }
@@ -490,16 +543,25 @@ final class Commit
         $name = substr($line, 0, $space);
         $value = substr($line, $space + 1);
         $offset = $nextOffset;
+        $hasContinuation = false;
         while ($offset < strlen($input) && ($input[$offset] ?? '') === ' ') {
             if (strpos($input, "\n", $offset) === false) {
                 throw new \InvalidArgumentException('Commit extra header continuation is not newline terminated');
             }
-            [, $continuation, $nextOffset] = self::lineWithTerminatorAt($input, $offset);
-            $value .= "\n" . substr($continuation, 1);
+            [$rawContinuation, $continuation, $nextOffset] = self::lineWithTerminatorAt($input, $offset);
+            if ($preserveMultiLineTerminators) {
+                if (!$hasContinuation) {
+                    $value = substr($rawLine, $space + 1);
+                }
+                $value .= substr($rawContinuation, 1);
+            } else {
+                $value .= "\n" . substr($continuation, 1);
+            }
             $offset = $nextOffset;
+            $hasContinuation = true;
         }
 
-        return [$name, $value];
+        return ['name' => $name, 'value' => $value, 'start' => $start, 'end' => $offset];
     }
 
     private static function validateTokenObjectId(string $id, int $hashLength, string $algorithm, string $field): void
@@ -522,11 +584,17 @@ final class Commit
             throw new \InvalidArgumentException("Commit {$field} signature cannot contain line break bytes");
         }
 
+        self::parseCompleteSignature($signature, $field)->storageBytes();
+    }
+
+    private static function parseCompleteSignature(string $signature, string $field): CommitSignature
+    {
         $parsed = CommitSignature::parseConsuming($signature);
-        $parsed['signature']->storageBytes();
         if ($parsed['rest'] !== '') {
             throw new \InvalidArgumentException("Commit {$field} signature has unconsumed bytes after the timestamp");
         }
+
+        return $parsed['signature'];
     }
 
     private static function validateSingleLineHeaderValue(string $name, string $value): void

@@ -147,7 +147,7 @@ return [
         $t->same('Grace Hopper', $commit->committerSignature()->name);
         $t->same(-9000, $commit->committerSignature()->offsetSeconds());
         $t->same(
-            "-----BEGIN SSH SIGNATURE-----\nU1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgZXhhbXBsZS1zaGEyNTY=\n-----END SSH SIGNATURE-----",
+            "-----BEGIN SSH SIGNATURE-----\nU1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgZXhhbXBsZS1zaGEyNTY=\n-----END SSH SIGNATURE-----\n",
             $commit->extraHeaders['gpgsig'][0],
         );
         $t->same("sha256 subject\n\nsha256 body\n", $commit->message);
@@ -190,7 +190,7 @@ return [
         $t->same('ISO-8859-1', $tokens[5]['token']['encoding']);
         $t->same('gpgsig', $tokens[6]['token']['name']);
         $t->same(
-            "-----BEGIN SSH SIGNATURE-----\nU1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgZXhhbXBsZS1zaGEyNTY=\n-----END SSH SIGNATURE-----",
+            "-----BEGIN SSH SIGNATURE-----\nU1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAgZXhhbXBsZS1zaGEyNTY=\n-----END SSH SIGNATURE-----\n",
             $tokens[6]['token']['value'],
         );
         $t->same('mergetag', $tokens[7]['token']['name']);
@@ -340,7 +340,7 @@ return [
                     . "tag wp-release-2026.05\n"
                     . "tagger Release Bot <release@example.test> 1710007200 +0000\n"
                     . "\n"
-                    . "WordPress release tag provenance",
+                    . "WordPress release tag provenance\n",
             ],
             ['name' => 'gpgsig', 'value' => 'iHUEABYIAB0WIQSuZwcGWSQItmusNgR5URpSUCnw'],
             ['name' => 'gpgsig', 'value' => '-----END PGP SIGNATURE-----'],
@@ -351,7 +351,7 @@ return [
         $t->same('commit', $mergeTags[0]->targetKind);
         $t->same('wp-release-2026.05', $mergeTags[0]->name);
         $t->same('Release Bot', $mergeTags[0]->taggerSignature()?->name);
-        $t->same('WordPress release tag provenance', $mergeTags[0]->message);
+        $t->same("WordPress release tag provenance\n", $mergeTags[0]->message);
     },
     'parses gitoxide commit message summaries body trailers and attribution filters' => static function (TestRunner $t): void {
         $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
@@ -539,7 +539,7 @@ return [
 
         $commit = Commit::parse($body);
 
-        $t->same("-----BEGIN PGP SIGNATURE-----\n\ncGF5bG9hZA==\n-----END PGP SIGNATURE-----", $commit->pgpSignature());
+        $t->same("-----BEGIN PGP SIGNATURE-----\n\ncGF5bG9hZA==\n-----END PGP SIGNATURE-----\n", $commit->pgpSignature());
         $t->same("tree 0123456789abcdef0123456789abcdef01234567\n"
             . "author A <a@example.test> 1700000000 +0000\n"
             . "committer C <c@example.test> 1700000000 +0000\n"
@@ -551,6 +551,55 @@ return [
             . "committer C <c@example.test> 1700000000 +0000\n\nUnsigned\n");
         $t->same(null, $unsigned->pgpSignature());
         $t->same(null, $unsigned->signedDataForSignature());
+    },
+    'raw commit gpgsig extraction follows upstream CommitRefIter signature access' => static function (TestRunner $t): void {
+        $singleLine = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author A <a@example.test> 1700000000 +0000\n"
+            . "committer C <c@example.test> 1700000000 +0000\n"
+            . "gpgsig magic:signature\n"
+            . "truncated-extra-without-newline";
+
+        $single = Commit::signatureForVerificationFromBytes($singleLine);
+        $t->same('magic:signature', $single['signature'] ?? null);
+        $t->same("tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author A <a@example.test> 1700000000 +0000\n"
+            . "committer C <c@example.test> 1700000000 +0000\n"
+            . "truncated-extra-without-newline", $single['signedData'] ?? null);
+
+        $multiLine = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "parent 1111111111111111111111111111111111111111\n"
+            . "author A <a@example.test> 1700000000 +0000\n"
+            . "committer C <c@example.test> 1700000000 +0000\n"
+            . "encoding UTF-8\n"
+            . "x-prior kept-before-signature\n"
+            . "gpgsig -----BEGIN PGP SIGNATURE-----\n"
+            . " cGF5bG9hZA==\n"
+            . " -----END PGP SIGNATURE-----\n"
+            . "later-bytes-without-header-separator";
+
+        $multi = Commit::signatureForVerificationFromBytes($multiLine);
+        $t->same("-----BEGIN PGP SIGNATURE-----\ncGF5bG9hZA==\n-----END PGP SIGNATURE-----\n", $multi['signature'] ?? null);
+        $t->same("tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "parent 1111111111111111111111111111111111111111\n"
+            . "author A <a@example.test> 1700000000 +0000\n"
+            . "committer C <c@example.test> 1700000000 +0000\n"
+            . "encoding UTF-8\n"
+            . "x-prior kept-before-signature\n"
+            . "later-bytes-without-header-separator", $multi['signedData'] ?? null);
+
+        $unsigned = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author A <a@example.test> 1700000000 +0000\n"
+            . "committer C <c@example.test> 1700000000 +0000\n"
+            . "\n"
+            . "Unsigned\n";
+        $t->same(null, Commit::signatureForVerificationFromBytes($unsigned));
+
+        $badActor = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "author A <a@example.test> 1700000000 +0000 trailing\n"
+            . "committer C <c@example.test> 1700000000 +0000\n"
+            . "gpgsig magic:signature\n";
+        $t->throws(InvalidArgumentException::class, static fn () => Commit::parse($badActor . "\nmsg\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => Commit::signatureForVerificationFromBytes($badActor));
     },
     'commit signature verification helper follows gitoxide gpgsig range stripping' => static function (TestRunner $t): void {
         $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
@@ -574,7 +623,7 @@ return [
             . "\n"
             . "Whitespace signature commit\n";
 
-        $t->same("-----BEGIN PGP SIGNATURE-----\n\nc2lnbmVkLXdoaXRlc3BhY2U=\n-----END PGP SIGNATURE-----\n", $signature['signature'] ?? null);
+        $t->same("-----BEGIN PGP SIGNATURE-----\n\nc2lnbmVkLXdoaXRlc3BhY2U=\n-----END PGP SIGNATURE-----\n\n", $signature['signature'] ?? null);
         $t->same($expectedSignedData, $signature['signedData'] ?? null);
         $t->same($expectedSignedData, $commit->signedDataForSignature());
         $t->same(false, str_contains($signature['signedData'] ?? '', 'gpgsig '));
@@ -677,5 +726,8 @@ return [
         $t->same($fixture['expectedMultiGpgsigSignedDataSha1'], $summary['multiGpgsigSignedDataSha1']);
         $t->same(true, $summary['multiGpgsigSignedDataKeepsLaterGpgsigLines']);
         $t->same(true, $summary['multiGpgsigRoundTripMatches']);
+        $t->same($fixture['expectedRawGpgsigSignature'], $summary['rawGpgsigSignature']);
+        $t->same($fixture['expectedRawGpgsigSignedDataSha1'], $summary['rawGpgsigSignedDataSha1']);
+        $t->same(true, $summary['rawGpgsigSignedDataKeepsTail']);
     },
 ];

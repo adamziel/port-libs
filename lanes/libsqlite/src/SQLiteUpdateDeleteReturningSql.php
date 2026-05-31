@@ -846,8 +846,12 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : self::textLength((string) $value);
         }
-        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|ceil|ceiling|floor|trunc|sqrt|pow|power|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode|octet_length|hex|quote|typeof|printf|format|iif|if|likely|unlikely|likelihood|zeroblob|randomblob)\s*\((.*)\)$/is', $expression, $match) === 1) {
-            return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
+        $scalarFunction = self::wholeLimitScalarFunction($expression);
+        if (
+            $scalarFunction !== null
+            && in_array($scalarFunction['name'], ['coalesce', 'ifnull', 'nullif', 'min', 'max', 'round', 'sign', 'ceil', 'ceiling', 'floor', 'trunc', 'sqrt', 'pow', 'power', 'upper', 'lower', 'trim', 'ltrim', 'rtrim', 'substr', 'substring', 'instr', 'replace', 'char', 'unicode', 'octet_length', 'hex', 'quote', 'typeof', 'printf', 'format', 'iif', 'if', 'likely', 'unlikely', 'likelihood', 'zeroblob', 'randomblob', 'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime'], true)
+        ) {
+            return self::evaluateLimitScalarFunction($scalarFunction['name'], $scalarFunction['arguments']);
         }
         $predicate = self::evaluateLimitPredicateExpression($expression);
         if ($predicate['matched']) {
@@ -1094,6 +1098,13 @@ final class SQLiteUpdateDeleteReturningSql
     private static function limitNumericValue(string $expression): int|float
     {
         $value = self::limitExpressionValue($expression);
+        if (is_string($value)) {
+            if (preg_match('/^-?\d+$/', $value) === 1) {
+                $value = (int) $value;
+            } elseif (preg_match('/^-?(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?$/', $value) === 1) {
+                $value = (float) $value;
+            }
+        }
         if (!is_int($value) && !is_float($value)) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT arithmetic terms must be numeric');
         }
@@ -1201,6 +1212,15 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (($function === 'substr' || $function === 'substring') && count($parts) !== 2 && count($parts) !== 3) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs two or three arguments");
+        }
+        if (in_array($function, ['date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime'], true)) {
+            $values = array_map(static fn (string $part): int|float|string|null => self::limitExpressionValue($part), $parts);
+            $value = SQLiteCoreScalarFunction::sqlFunctionArguments($function, $values);
+            if (!is_int($value) && !is_float($value) && !is_string($value) && $value !== null) {
+                throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() returned an unsupported value");
+            }
+
+            return $value;
         }
 
         if ($function === 'iif' || $function === 'if') {
@@ -2392,6 +2412,57 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return $inner;
+    }
+
+    /**
+     * @return array{name:string,arguments:string}|null
+     */
+    private static function wholeLimitScalarFunction(string $expression): ?array
+    {
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*\(/', $expression, $match) !== 1) {
+            return null;
+        }
+
+        $open = strlen($match[0]) - 1;
+        $inString = false;
+        $depth = 0;
+        $last = strlen($expression) - 1;
+        for ($i = $open; $i <= $last; $i++) {
+            $char = $expression[$i];
+            if ($char === "'") {
+                if ($inString && ($expression[$i + 1] ?? null) === "'") {
+                    $i++;
+                    continue;
+                }
+                $inString = !$inString;
+                continue;
+            }
+            if ($inString) {
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    if (trim(substr($expression, $i + 1)) !== '') {
+                        return null;
+                    }
+
+                    return [
+                        'name' => strtolower($match[1]),
+                        'arguments' => substr($expression, $open + 1, $i - $open - 1),
+                    ];
+                }
+                if ($depth < 0) {
+                    return null;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static function stripEnclosingParentheses(string $expression): ?string

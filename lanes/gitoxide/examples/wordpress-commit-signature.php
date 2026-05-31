@@ -26,6 +26,7 @@ $whitespaceSignatureCommit = Commit::parse($fixture['whitespaceSignatureCommitBo
 $whitespaceSignature = $whitespaceSignatureCommit->signatureForVerification();
 $multiGpgsigCommit = Commit::parse($fixture['multiGpgsigCommitBody']);
 $multiGpgsigSignature = $multiGpgsigCommit->signatureForVerification();
+$rawGpgsigSignature = Commit::signatureForVerificationFromBytes($fixture['rawGpgsigCommitBody']);
 $standaloneTrailerMessage = CommitMessage::fromBytes("Review imported plugin metadata\n\n" . $fixture['standaloneTrailerBody']);
 $standaloneTrailerBody = $standaloneTrailerMessage->body ?? '';
 $misorderedHeaderRejected = false;
@@ -155,6 +156,10 @@ return [
         && str_contains($multiGpgsigSignature['signedData'], 'gpgsig Version: GnuPG v1.4.10 (GNU/Linux)')
         && str_contains($multiGpgsigSignature['signedData'], 'gpgsig -----END PGP SIGNATURE-----'),
     'multiGpgsigRoundTripMatches' => $multiGpgsigCommit->storageBytes() === $fixture['multiGpgsigCommitBody'],
+    'rawGpgsigSignature' => $rawGpgsigSignature['signature'] ?? null,
+    'rawGpgsigSignedDataSha1' => $rawGpgsigSignature === null ? null : sha1($rawGpgsigSignature['signedData']),
+    'rawGpgsigSignedDataKeepsTail' => $rawGpgsigSignature !== null
+        && str_ends_with($rawGpgsigSignature['signedData'], 'partial-import-tail-without-final-newline'),
     'tokenTypes' => array_map(static fn (array $result): string => $result['token']['type'] ?? 'error', $tokenResults),
     'tokenExtraHeaderNames' => array_values(array_map(
         static fn (array $result): string => $result['token']['name'],

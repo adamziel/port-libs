@@ -203,6 +203,9 @@ final class GitUrl
         if ($host === null || $port !== null) {
             throw new \InvalidArgumentException('SCP-like Git URL requires a host without a port');
         }
+        if ($user !== null && str_starts_with($host, '[')) {
+            throw new \InvalidArgumentException('SCP-like Git URL does not support bracketed IPv6 hosts with a user');
+        }
 
         if (str_starts_with($path, '/~')) {
             $path = substr($path, 1);
@@ -219,9 +222,11 @@ final class GitUrl
             throw new \InvalidArgumentException('File Git URL does not specify a repository path');
         }
 
-        $host = $firstSlash === 0 ? null : substr($afterScheme, 0, $firstSlash);
+        $authority = $firstSlash === 0 ? '' : substr($afterScheme, 0, $firstSlash);
         $path = substr($afterScheme, $firstSlash);
-        return new self(self::SCHEME_FILE, null, null, $host, null, $path, false);
+        [$user, $password, $host, $port] = self::parseAuthority($authority);
+
+        return new self(self::SCHEME_FILE, $user, $password, $host, $port, $path, false);
     }
 
     /**

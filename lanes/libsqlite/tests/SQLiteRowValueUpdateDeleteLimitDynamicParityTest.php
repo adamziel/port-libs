@@ -3044,4 +3044,92 @@ for ($seed = 1; $seed <= 48; $seed++) {
         };
 }
 
+$dateTimeLimitExpr = static function (int $value, int $seed): string {
+    return match ($seed % 6) {
+        0 => "unixepoch('1970-01-01 00:00:0{$value}')",
+        1 => "strftime('%S','1970-01-01 00:00:0{$value}')",
+        2 => "julianday('1970-01-0" . ($value + 1) . "') - julianday('1970-01-01')",
+        3 => "strftime('%d','2000-01-0{$value}')",
+        4 => "length(date('2000-01-0{$value}')) - 10 + {$value}",
+        default => "length(time('12:34:0{$value}')) - 8 + {$value}",
+    };
+};
+
+$dateTimeOffsetExpr = static function (int $value, int $seed): string {
+    return match ($seed % 6) {
+        0 => "unixepoch('1970-01-01 00:00:0{$value}')",
+        1 => "strftime('%S','1970-01-01 00:00:0{$value}')",
+        2 => "julianday('1970-01-0" . ($value + 1) . "') - julianday('1970-01-01')",
+        3 => "strftime('%d','2000-01-0" . ($value + 1) . "') - 1",
+        4 => "length(datetime('2000-01-01 00:00:00')) - 19 + {$value}",
+        default => "length(date('2000-01-01','+{$value} day')) - 10 + {$value}",
+    };
+};
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = $dateTimeLimitExpr($limitValue, $seed);
+    $offsetExpr = $dateTimeOffsetExpr($offsetValue, $seed + 2);
+    $sql = "UPDATE app_settings SET state = 'datetime_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update datetime scalar limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($result['returning']), 'datetime_limit'), array_column($result['returning'], 'state'));
+            $t->contains('date.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/date.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = $dateTimeLimitExpr($limitValue, $seed + 3);
+    $offsetExpr = $dateTimeOffsetExpr($offsetValue, $seed + 5);
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue datetime scalar subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+            $t->contains('date3.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/date3.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+$dateTimeLimitCases = [
+    'parse unixepoch limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT unixepoch('1970-01-01 00:00:03')")['limit'], 3],
+    'parse strftime offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET strftime('%S','1970-01-01 00:00:04')")['offset'], 4],
+    'parse julianday arithmetic limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT julianday('1970-01-03') - julianday('1970-01-01')")['limit'], 2],
+    'parse date length offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET length(date('2000-01-01'))")['offset'], 10],
+    'malformed direct date text limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT date('2000-01-01')"), InvalidArgumentException::class],
+    'malformed direct time text offset rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET time('12:34:56')"), InvalidArgumentException::class],
+    'malformed fractional julianday limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT julianday('1970-01-01')"), InvalidArgumentException::class],
+    'malformed invalid unixepoch limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT unixepoch('bogus')"), InvalidArgumentException::class],
+    'malformed strftime arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT strftime('%s')"), InvalidArgumentException::class],
+    'malformed null date modifier rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(date('2000-01-01', NULL))"), InvalidArgumentException::class],
+];
+
+foreach ($dateTimeLimitCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity datetime scalar ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            return;
+        }
+        $t->same($expected, $callback());
+        $t->contains('date.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/date.test');
+    };
+}
+
 return $tests;

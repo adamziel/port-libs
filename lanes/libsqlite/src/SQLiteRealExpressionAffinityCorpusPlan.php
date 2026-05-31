@@ -21,7 +21,7 @@ final class SQLiteRealExpressionAffinityCorpusPlan
                 $next[$column] = match ($affinity) {
                     'INTEGER' => self::applyIntegerColumnAffinity($value),
                     'REAL' => self::applyRealColumnAffinity($value),
-                    'NUMERIC' => SQLiteAffinityComparison::applyAffinity($value, 'NUMERIC'),
+                    'NUMERIC' => self::applyNumericColumnAffinity($value),
                     'TEXT' => SQLiteAffinityComparison::applyAffinity($value, 'TEXT'),
                     default => $value,
                 };
@@ -479,9 +479,22 @@ final class SQLiteRealExpressionAffinityCorpusPlan
 
     private static function applyIntegerColumnAffinity(mixed $value): mixed
     {
-        $numeric = SQLiteAffinityComparison::applyAffinity($value, 'NUMERIC');
-        if (($value instanceof SQLiteBlobValue || is_string($value)) && $numeric === $value) {
+        return self::applyNumericColumnAffinity($value);
+    }
+
+    private static function applyNumericColumnAffinity(mixed $value): mixed
+    {
+        if ($value instanceof SQLiteBlobValue) {
             return $value;
+        }
+
+        if (is_float($value)) {
+            return self::integerValuedFloatForStorage($value);
+        }
+
+        $numeric = SQLiteAffinityComparison::applyAffinity($value, 'NUMERIC');
+        if (is_float($numeric)) {
+            return self::integerValuedFloatForStorage($numeric);
         }
 
         return $numeric;
@@ -495,6 +508,19 @@ final class SQLiteRealExpressionAffinityCorpusPlan
         }
 
         return self::castReal($numeric);
+    }
+
+    private static function integerValuedFloatForStorage(float $value): int|float
+    {
+        if (
+            is_finite($value)
+            && floor($value) === $value
+            && abs($value) <= 2251799813685247.0
+        ) {
+            return (int) $value;
+        }
+
+        return $value;
     }
 
     private static function applyTextColumnAffinity(mixed $value): mixed

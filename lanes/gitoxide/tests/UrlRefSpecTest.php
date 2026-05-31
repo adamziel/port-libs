@@ -185,6 +185,19 @@ return [
         $t->same(2222, $sshIpv6->port());
         $t->same('ssh://user@[2001:db8::1]:2222/repo', $sshIpv6->toBytes());
 
+        $scpIpv6 = GitUrl::parse('[::1]:repo');
+        $t->same(GitUrl::SCHEME_SSH, $scpIpv6->scheme());
+        $t->same('::1', $scpIpv6->host());
+        $t->same('repo', $scpIpv6->path());
+        $t->same('[::1]:repo', $scpIpv6->toBytes());
+
+        $fileIpv6User = GitUrl::parse('file://User@[::1]/repo');
+        $t->same(GitUrl::SCHEME_FILE, $fileIpv6User->scheme());
+        $t->same('User', $fileIpv6User->user());
+        $t->same('[::1]', $fileIpv6User->host());
+        $t->same('/repo', $fileIpv6User->path());
+        $t->same('file://User@[::1]/repo', $fileIpv6User->toBytes());
+
         $legacyScheme = GitUrl::parse('ssh+git://host.xz/repo');
         $t->same(GitUrl::SCHEME_SSH, $legacyScheme->scheme());
         $t->same('ssh://host.xz/repo', $legacyScheme->toBytes());
@@ -205,6 +218,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('ssh://host.xz:0/path'));
         $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('ssh://host.xz:65536/path'));
         $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('http://has a space/path'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('user@[::1]:repo'));
 
         $invalidPortFormat = GitUrl::parse('ssh://host.xz:abc/path');
         $t->same('host.xz:abc', $invalidPortFormat->host());
@@ -307,6 +321,48 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => RefSpec::parseFetch('^a*'));
         $t->throws(InvalidArgumentException::class, static fn () => RefSpec::parseFetch('refs/*/foo/*:refs/remotes/origin/*'));
         $t->throws(InvalidArgumentException::class, static fn () => RefSpec::parseFetch('a:b/*'));
+    },
+    'refspec parser normalizes forced fetch-only instructions like gix-refspec writer' => static function (TestRunner $t): void {
+        $empty = RefSpec::parseFetch('+');
+        $t->same(RefSpec::INSTRUCTION_FETCH_ONLY, $empty->instructionName());
+        $t->same('HEAD', $empty->source());
+        $t->same(null, $empty->destination());
+        $t->same(true, $empty->allowNonFastForward());
+        $t->same('HEAD', $empty->prefix());
+        $t->same(['HEAD'], $empty->expandPrefixes());
+        $t->same('HEAD', $empty->toString());
+        $t->same('HEAD', $empty->toArray()['normalized']);
+
+        $leftOnly = RefSpec::parseFetch('+refs/heads/main:');
+        $t->same(RefSpec::INSTRUCTION_FETCH_ONLY, $leftOnly->instructionName());
+        $t->same('refs/heads/main', $leftOnly->source());
+        $t->same(null, $leftOnly->destination());
+        $t->same(true, $leftOnly->allowNonFastForward());
+        $t->same('refs/heads/main', $leftOnly->prefix());
+        $t->same(['refs/heads/main'], $leftOnly->expandPrefixes());
+        $t->same('refs/heads/main', $leftOnly->toString());
+
+        $complexPattern = RefSpec::parseFetch('+refs/heads/*/release/*');
+        $t->same(RefSpec::INSTRUCTION_FETCH_ONLY, $complexPattern->instructionName());
+        $t->same('refs/heads/*/release/*', $complexPattern->source());
+        $t->same(null, $complexPattern->destination());
+        $t->same(true, $complexPattern->allowNonFastForward());
+        $t->same(null, $complexPattern->prefix());
+        $t->same([], $complexPattern->expandPrefixes());
+        $t->same('refs/heads/*/release/*', $complexPattern->toString());
+
+        $negativeHead = RefSpec::parseFetch('^@');
+        $t->same(RefSpec::INSTRUCTION_FETCH_EXCLUDE, $negativeHead->instructionName());
+        $t->same('HEAD', $negativeHead->source());
+        $t->same(null, $negativeHead->destination());
+        $t->same('^HEAD', $negativeHead->toString());
+
+        $forcedDelete = RefSpec::parsePush('+:refs/heads/old');
+        $t->same(RefSpec::INSTRUCTION_PUSH_DELETE, $forcedDelete->instructionName());
+        $t->same(null, $forcedDelete->source());
+        $t->same('refs/heads/old', $forcedDelete->destination());
+        $t->same(true, $forcedDelete->allowNonFastForward());
+        $t->same(':refs/heads/old', $forcedDelete->toString());
     },
     'refspec parser maps upstream push instruction and prefix behavior' => static function (TestRunner $t): void {
         $cases = [
@@ -418,13 +474,21 @@ return [
         $t->same($fixture['expectedRemoteHost'], $summary['remote']['host']);
         $t->same($fixture['expectedRemotePath'], $summary['remote']['path']);
         $t->same($fixture['expectedRemoteUrl'], $summary['remote']['normalized']);
+        $t->same($fixture['expectedLocalMirrorScheme'], $summary['localMirror']['scheme']);
+        $t->same($fixture['expectedLocalMirrorUser'], $summary['localMirror']['user']);
+        $t->same($fixture['expectedLocalMirrorHost'], $summary['localMirror']['host']);
+        $t->same($fixture['expectedLocalMirrorPath'], $summary['localMirror']['path']);
+        $t->same($fixture['expectedLocalMirrorUrl'], $summary['localMirror']['normalized']);
         $t->same(true, $summary['deploymentRemoteSafe']);
         $t->same($fixture['expectedFetchInstructions'], array_column($summary['fetch'], 'instruction'));
         $t->same($fixture['expectedPushInstructions'], array_column($summary['push'], 'instruction'));
+        $t->same($fixture['expectedFetchNormalized'], array_column($summary['fetch'], 'normalized'));
+        $t->same($fixture['expectedPushNormalized'], array_column($summary['push'], 'normalized'));
         $t->same($fixture['expectedFetchPrefixes'], array_column($summary['fetch'], 'prefix'));
         $t->same($fixture['expectedPushPrefixes'], array_column($summary['push'], 'prefix'));
         $t->same('refs/remotes/origin/*', $summary['fetch'][0]['local']);
         $t->same('refs/heads/wp-release', $summary['push'][0]['remote']);
-        $t->same('refs/heads/old-preview', $summary['push'][1]['remote']);
+        $t->same('refs/heads/stale-preview', $summary['push'][1]['remote']);
+        $t->same('refs/heads/old-preview', $summary['push'][2]['remote']);
     },
 ];

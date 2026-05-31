@@ -68,6 +68,14 @@ $multiGpgsigBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
     . "\n"
     . "pretty: %G[?GS] placeholders\n";
 
+$rawGpgsigBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
+    . "author WordPress Importer <importer@example.test> 1710000000 -0230\n"
+    . "committer WordPress Deploy Bot <deploy@example.test> 1710003600 +0000\n"
+    . "gpgsig -----BEGIN PGP SIGNATURE-----\n"
+    . " c3RyZWFtaW5nLXdvcmRwcmVzcy1wcm92ZW5hbmNl\n"
+    . " -----END PGP SIGNATURE-----\n"
+    . "partial-import-tail-without-final-newline";
+
 $standaloneTrailerBody = "Reviewed-by: Migration Reviewer <reviewer@example.test>\n"
     . " dry-run approved\n"
     . "(cherry picked from commit 0123456789abcdef0123456789abcdef01234567)\n";
@@ -79,6 +87,7 @@ return [
     'oddTimestampCommitBody' => $oddTimestampBody,
     'whitespaceSignatureCommitBody' => $whitespaceSignatureBody,
     'multiGpgsigCommitBody' => $multiGpgsigBody,
+    'rawGpgsigCommitBody' => $rawGpgsigBody,
     'standaloneTrailerBody' => $standaloneTrailerBody,
     'expectedTree' => '0123456789abcdef0123456789abcdef01234567',
     'expectedAuthorName' => 'WordPress Importer',
@@ -89,12 +98,14 @@ return [
     'expectedOddTimestampAuthorTime' => ['seconds' => 1312735823, 'offset' => 19080],
     'expectedOddTimestampCommitterTime' => ['seconds' => 1288373970, 'offset' => 0],
     'expectedOddTimestampCommitterRawTime' => '1288373970 --700',
-    'expectedWhitespaceSignature' => "-----BEGIN PGP SIGNATURE-----\n\nc2lnbmVkLXdoaXRlc3BhY2Utd29yZHByZXNz\n-----END PGP SIGNATURE-----\n",
+    'expectedWhitespaceSignature' => "-----BEGIN PGP SIGNATURE-----\n\nc2lnbmVkLXdoaXRlc3BhY2Utd29yZHByZXNz\n-----END PGP SIGNATURE-----\n\n",
     'expectedWhitespaceSignedDataSha1' => 'de69a99d082679afe290ae6278e2df565f85fc40',
     'expectedWhitespaceTokenTypes' => ['tree', 'author', 'committer', 'extraHeader', 'message'],
     'expectedMultiGpgsigHeaderCount' => 5,
     'expectedMultiGpgsigFirstSignature' => '-----BEGIN PGP SIGNATURE-----',
     'expectedMultiGpgsigSignedDataSha1' => '95434dd7365f2260ed87ef549f84a8bdb9bf335a',
+    'expectedRawGpgsigSignature' => "-----BEGIN PGP SIGNATURE-----\nc3RyZWFtaW5nLXdvcmRwcmVzcy1wcm92ZW5hbmNl\n-----END PGP SIGNATURE-----\n",
+    'expectedRawGpgsigSignedDataSha1' => 'ba0fcfd4676620e752ff251e288020bb2cd53521',
     'expectedSummary' => 'Import WordPress export',
     'expectedWriterObjectIdGuard' => true,
     'expectedBodyWithoutTrailers' => 'Source: wp-content/uploads/export.wxr',
@@ -120,7 +131,7 @@ return [
     'expectedMergeTagTarget' => '3333333333333333333333333333333333333333',
     'expectedMergeTagKind' => 'commit',
     'expectedMergeTagTagger' => 'WordPress Release Bot',
-    'expectedMergeTagMessage' => 'Release tag embedded for deployment provenance',
+    'expectedMergeTagMessage' => "Release tag embedded for deployment provenance\n",
     'expectedLateParentExtraHeader' => '1111111111111111111111111111111111111111',
     'wordpressUse' => 'A WordPress import or deployment tool can inspect commit actors, raw timestamp offsets, encoding, signed payload bytes, merge-tag provenance, and attribution trailers without invoking git log.',
 ];
