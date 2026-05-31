@@ -52,6 +52,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS integration 16:10 UTC):
+  source commit `4b52aac232d0a3602ebf70bc6a0ed62949c621c7` (`ports: extend
+  lightningcss source cssom modules media maps`) landed six verified
+  LightningCSS handoffs after excluding stale shared metadata. LightningCSS
+  full lane evidence moves from `2025` to `2092 pass / 0 fail`, with
+  conservative mapped coverage moving from `1340 / 3532` to `1349 / 3532`:
+  reader-backed bundle SourceProvider behavior, escaped CSS Modules identifiers
+  and composes metadata, env()/var() custom at-rule visitor substitution,
+  text-decoration CSSOM shorthand/longhand parity, unknown/custom media feature
+  ranges in `@layer` target fallbacks, and SourceMap project-root source
+  normalization. Gates passed: PHP lint on changed/new PHP files, `git diff
+  --check -- lanes/lightningcss`, focused LightningCSS gate `7 files / 1083
+  assertions / 0 failures`, full LightningCSS lane `13 files / 2092 assertions
+  / 0 failures`, six touched examples exiting 0, and no WordPress/WP/wp_ text
+  in `lanes/lightningcss/src`. Full upstream Rust/Node/WASM runners were not
+  executed for this isolated batch. The visible LightningCSS surge was refilled
+  back to `36` windows and Gitoxide back to `5` during verification.
+
 - 2026-05-31 supervisor continuation (libsqlite WAL/FK/row-value/pager
   integration plus LightningCSS surge 16:00 UTC): source commit
   `c8e01c478bd73f16bb789f7c43f383a71a42a518` (`ports: add sqlite wal fkey
