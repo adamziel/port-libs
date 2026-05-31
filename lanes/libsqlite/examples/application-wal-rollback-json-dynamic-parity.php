@@ -54,6 +54,14 @@ $summary = [
     'deferredWalFramesAfter' => array_map(static fn (array $scenario): int => $scenario['plan']['wal_frame_count_after'], $deferredScenarios),
     'preexistingRetryFailedWalFramesAfter' => array_map(static fn (array $scenario): int => $scenario['failed_plan']['wal_frame_count_after'], $preexistingRetryScenarios),
     'preexistingRetryWalFramesAfter' => array_map(static fn (array $scenario): int => $scenario['retry_plan']['wal_frame_count_after'], $preexistingRetryScenarios),
+    'preexistingRetryMaterializedChecksumPairs' => array_map(static function (array $scenario): array {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $frameOffset = 32 + ((int) $scenario['preexisting_frames'] * $frameSize);
+        $frameHeader = unpack('Npage_number/Ncommit/Nsalt_1/Nsalt_2/Nchecksum_1/Nchecksum_2', substr((string) $scenario['materialized_retry_plan']['wal_bytes_after'], $frameOffset, 24));
+
+        return [(int) $frameHeader['checksum_1'], (int) $frameHeader['checksum_2']];
+    }, $preexistingRetryScenarios),
     'missingWalTailMessages' => array_map(static fn (array $scenario): ?string => $scenario['exception_message'], $missingWalTailScenarios),
     'missingWalTailShortFrameCounts' => array_map(static fn (array $scenario): int => $scenario['short_frame_count'], $missingWalTailScenarios),
     'partialWalTailMessages' => array_map(static fn (array $scenario): ?string => $scenario['exception_message'], $partialWalTailScenarios),
@@ -104,6 +112,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['deferredWalFramesAfter'] === [5, 6, 7, 8]);
     assert($summary['preexistingRetryFailedWalFramesAfter'] === [2, 3, 4, 5]);
     assert($summary['preexistingRetryWalFramesAfter'] === [2, 3, 4, 5]);
+    assert($summary['preexistingRetryMaterializedChecksumPairs'][0] !== [0, 0]);
     assert($summary['missingWalTailShortFrameCounts'] === [4, 6, 6, 4]);
     assert($summary['missingWalTailMessages'][0] === 'SQLite Application JSON import rollback WAL bytes are missing current batch frame(s): 5, 6');
     assert($summary['partialWalTailMessages'] === array_fill(0, 4, 'SQLite Application JSON import rollback WAL bytes have a partial frame tail'));

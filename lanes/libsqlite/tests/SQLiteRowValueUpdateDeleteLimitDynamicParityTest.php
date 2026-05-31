@@ -1516,6 +1516,66 @@ foreach ($unicodeLimitCases as $name => [$callback, $expected]) {
     };
 }
 
+$octetHexLimitCases = [
+    'parse octet length ascii limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT octet_length('abc')")['limit'], 3],
+    'parse octet length utf8 byte limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT octet_length('€')")['limit'], 3],
+    'parse hex control byte integer limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT hex(char(2))")['limit'], 2],
+    'parse hex null is zero length text' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(hex(NULL))")['limit'], 0],
+    'malformed octet length arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT octet_length('1','2')"), InvalidArgumentException::class],
+    'malformed octet length null rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT octet_length(NULL)"), InvalidArgumentException::class],
+    'malformed hex arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT hex('1','2')"), InvalidArgumentException::class],
+    'malformed hex noninteger text rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT hex(char(255))"), InvalidArgumentException::class],
+];
+
+foreach ($octetHexLimitCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity func octet hex ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            return;
+        }
+        $t->same($expected, $callback());
+        $t->contains('func.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test');
+    };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitText = str_repeat('x', $limitValue);
+    $offsetText = str_repeat('z', $offsetValue);
+    $sql = "UPDATE app_settings SET state = 'octet_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT octet_length('{$limitText}') OFFSET octet_length('{$offsetText}')";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update octet length limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->contains('func.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test');
+        };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 2) % 4;
+    $limitCodepoint = $limitValue;
+    $offsetText = str_repeat('o', $offsetValue);
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT hex(char({$limitCodepoint})) OFFSET octet_length('{$offsetText}')) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue hex octet subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+            $t->contains('func.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test');
+        };
+}
+
 for ($seed = 1; $seed <= 48; $seed++) {
     $limitValue = ($seed % 4) + 1;
     $offsetValue = $seed % 3;

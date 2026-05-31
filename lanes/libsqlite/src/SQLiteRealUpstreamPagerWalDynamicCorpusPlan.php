@@ -514,6 +514,84 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     /**
      * @return list<array<string, mixed>>
      */
+    public static function walModeTransitionRows(): array
+    {
+        $sourceSections = [
+            ['walmode.test walmode-1.1..1.7', 'file-backed wal entry creates transient wal sidecar', 'main', 'delete', 'wal', 'delete'],
+            ['walmode.test walmode-2.1..2.3', 'database header read/write version reopens into wal mode', 'main', 'wal', 'wal', 'wal'],
+            ['walmode.test walmode-3.1..3.2', 'first pragma journal_mode wal opens log without database rewrite', 'main', 'wal', 'wal', 'wal'],
+            ['walmode.test walmode-4.1..4.5', 'wal to persist rollback-mode transition keeps committed rows', 'main', 'wal', 'persist', 'persist'],
+            ['walmode.test walmode-4.6..4.18', 'second connection blocks wal/delete mode transition until release', 'main', 'wal', 'delete', 'wal'],
+            ['walmode.test walmode-5.1.*', 'memory database refuses wal journal mode', 'main', 'memory', 'wal', 'memory'],
+            ['walmode.test walmode-5.2.*', 'temporary database refuses wal journal mode', 'main', 'delete', 'wal', 'delete'],
+            ['walmode.test walmode-5.3.*', 'temp schema refuses wal journal mode', 'temp', 'delete', 'wal', 'delete'],
+            ['walmode.test walmode-6.1..6.5', 'rollback modes can transition into wal', 'main', 'off', 'wal', 'wal'],
+            ['walmode.test walmode-7.1..7.16', 'first statement journal_mode toggles before schema load', 'main', 'wal', 'delete', 'delete'],
+            ['walmode.test walmode-8.1..8.12', 'attached database keeps independent rollback mode while main is wal', 'two', 'delete', 'delete', 'delete'],
+            ['walmode.test walmode-8.13..8.22', 'attached database wal mode persists across reopen and main toggles', 'two', 'wal', 'wal', 'wal'],
+        ];
+        $rollbackInputs = ['off', 'memory', 'persist', 'delete', 'truncate'];
+        $rows = [];
+
+        for ($case = 1; $case <= 1200; $case++) {
+            [$upstream, $behavior, $schema, $beforeMode, $requestedMode, $afterMode] = $sourceSections[($case - 1) % count($sourceSections)];
+            $pageSize = [1024, 2048, 4096, 8192][($case - 1) % 4];
+            $connectionCount = (($case % 5) === 0 || str_contains($upstream, 'walmode-4.6')) ? 2 : 1;
+            $blocksTransition = $connectionCount > 1 && str_contains($upstream, 'walmode-4.6');
+            $refusesWal = str_contains($upstream, 'walmode-5.');
+            $startsFromRollback = str_contains($upstream, 'walmode-6.');
+            $rollbackInput = $rollbackInputs[($case - 1) % count($rollbackInputs)];
+
+            if ($startsFromRollback) {
+                $beforeMode = $rollbackInput;
+                $afterMode = 'wal';
+            }
+
+            $walSidecarAfterPragma = $afterMode === 'wal' && !$blocksTransition;
+            $journalSidecarAfterPragma = in_array($afterMode, ['persist', 'delete', 'truncate'], true);
+            $committedRows = [
+                ['setting_id' => 1, 'key_name' => 'alpha-' . $case, 'key_value' => (string) (100 + $case)],
+                ['setting_id' => 2, 'key_name' => 'beta-' . $case, 'key_value' => (string) (200 + $case)],
+            ];
+
+            $rows[] = [
+                'upstream' => $upstream . ' dynamic transition ' . $case,
+                'source_file' => 'walmode.test',
+                'behavior' => $behavior,
+                'schema' => $schema,
+                'case' => $case,
+                'page_size' => $pageSize,
+                'before_mode' => $beforeMode,
+                'requested_mode' => $requestedMode,
+                'after_mode' => $afterMode,
+                'reported_mode' => $blocksTransition ? $beforeMode : $afterMode,
+                'rollback_input_mode' => $rollbackInput,
+                'connection_count' => $connectionCount,
+                'blocks_transition' => $blocksTransition,
+                'refuses_wal' => $refusesWal,
+                'starts_from_rollback' => $startsFromRollback,
+                'wal_sidecar_after_pragma' => $walSidecarAfterPragma,
+                'journal_sidecar_after_pragma' => $journalSidecarAfterPragma,
+                'committed_rows' => $committedRows,
+                'committed_row_count' => count($committedRows),
+                'committed_value_sum' => 300 + ($case * 2),
+                'database_size_after_mode_change' => $pageSize,
+                'requires_file_backed_database' => !$refusesWal,
+                'schema_independent_mode' => $schema === 'two',
+                'dependencies' => [
+                    'real-upstream-corpus-walmode',
+                    'sqlite-pager-journal-mode-transition',
+                    'sqlite-wal-sidecar-lifecycle',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
     public static function wal3ReadmarkRaceRows(): array
     {
         $rows = [];

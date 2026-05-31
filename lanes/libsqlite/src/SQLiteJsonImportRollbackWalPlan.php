@@ -1401,6 +1401,18 @@ final class SQLiteJsonImportRollbackWalPlan
             throw new \InvalidArgumentException('SQLite Application JSON import rollback WAL bytes require a valid WAL header');
         }
 
+        $checksumSeed = SQLiteWal::checksumPair(substr($walBytes, 0, 24), false);
+        for ($frame = 1; $frame <= $walState['frame_count']; $frame++) {
+            $frameOffset = 32 + (($frame - 1) * $walState['frame_size']);
+            $pageBytes = substr($walBytes, $frameOffset + 24, $pageSize);
+            $checksumSeed = SQLiteWal::checksumPair(
+                substr($walBytes, $frameOffset, 8) . $pageBytes,
+                false,
+                $checksumSeed[0],
+                $checksumSeed[1]
+            );
+        }
+
         $pendingFrames = [];
         foreach ($appliedStatements as $statement) {
             $frameIndex = (int) ($statement['wal_frame_index'] ?? 0);
@@ -1431,8 +1443,14 @@ final class SQLiteJsonImportRollbackWalPlan
                     'SQLite Application JSON import rollback success WAL frame indexes must be contiguous after rollback'
                 );
             }
-            $walBytes .= pack('N*', $frame['page_number'], 0, (int) $header['salt_1'], (int) $header['salt_2'], 0, 0)
-                . $frame['page_bytes'];
+            $framePrefix = pack('N*', $frame['page_number'], 0, (int) $header['salt_1'], (int) $header['salt_2']);
+            $checksumSeed = SQLiteWal::checksumPair(
+                substr($framePrefix, 0, 8) . $frame['page_bytes'],
+                false,
+                $checksumSeed[0],
+                $checksumSeed[1]
+            );
+            $walBytes .= $framePrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]) . $frame['page_bytes'];
             $nextFrame++;
         }
 
@@ -1507,6 +1525,7 @@ final class SQLiteJsonImportRollbackWalPlan
             throw new \InvalidArgumentException('SQLite Application JSON import rollback WAL bytes have a partial frame tail');
         }
         $frameCount = intdiv($frameBytes, $frameSize);
+        $seed = SQLiteWal::checksumPair(substr($walBytes, 0, 24), false);
         for ($frame = 1; $frame <= $frameCount; $frame++) {
             $offset = 32 + (($frame - 1) * $frameSize);
             $frameHeader = unpack(
@@ -1526,18 +1545,14 @@ final class SQLiteJsonImportRollbackWalPlan
                     'SQLite Application JSON import rollback WAL frame ' . $frame . ' salt does not match the WAL header'
                 );
             }
+            $page = substr($walBytes, $offset + 24, $pageSize);
+            $seed = SQLiteWal::checksumPair(substr($walBytes, $offset, 8) . $page, false, $seed[0], $seed[1]);
             if ((int) $frameHeader['checksum_1'] !== 0 || (int) $frameHeader['checksum_2'] !== 0) {
-                $seed = $seed ?? SQLiteWal::checksumPair(substr($walBytes, 0, 24), false);
-                $page = substr($walBytes, $offset + 24, $pageSize);
-                $seed = SQLiteWal::checksumPair(substr($walBytes, $offset, 8) . $page, false, $seed[0], $seed[1]);
                 if ((int) $frameHeader['checksum_1'] !== $seed[0] || (int) $frameHeader['checksum_2'] !== $seed[1]) {
                     throw new \InvalidArgumentException(
                         'SQLite Application JSON import rollback WAL frame ' . $frame . ' checksum does not match the frame payload'
                     );
                 }
-            } elseif (isset($seed)) {
-                $page = substr($walBytes, $offset + 24, $pageSize);
-                $seed = SQLiteWal::checksumPair(substr($walBytes, $offset, 8) . $page, false, $seed[0], $seed[1]);
             }
         }
 

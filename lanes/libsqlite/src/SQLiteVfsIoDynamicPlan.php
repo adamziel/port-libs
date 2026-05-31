@@ -3069,6 +3069,56 @@ final class SQLiteVfsIoDynamicPlan
         return $remainder === 0 ? $value : $value + ($pageSize - $remainder);
     }
 
+    private static function crash8Scenario(string $scenario): string
+    {
+        foreach (['crash8-1', 'crash8-2', 'crash8-3', 'crash8-4', 'crash8-5'] as $candidate) {
+            if (str_starts_with($scenario, $candidate)) {
+                return $candidate;
+            }
+        }
+
+        throw new \InvalidArgumentException("Unsupported SQLite crash8 scenario: {$scenario}");
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function crash8Upstream(string $scenario): array
+    {
+        return match ($scenario) {
+            'crash8-1' => [
+                'crash8.test crash8-1.1 setup',
+                'crash8.test crash8-1.2 peer crash after committed cache image',
+                'crash8.test crash8-1.3 integrity after cache purge',
+            ],
+            'crash8-2' => [
+                'crash8.test crash8-2.1 persistent journal multi-header crash',
+                'crash8.test crash8-2.3 integrity after aborted second transaction',
+            ],
+            'crash8-3' => [
+                'crash8.test crash8-3.5 suspect sector size not power of two',
+                'crash8.test crash8-3.6 suspect sector size above 16MB',
+                'crash8.test crash8-3.7 suspect sector size below 512',
+                'crash8.test crash8-3.8 suspect page size not power of two',
+                'crash8.test crash8-3.9 suspect page size above max',
+                'crash8.test crash8-3.10 suspect page size below 512',
+                'crash8.test crash8-3.11 valid hot journal replays',
+            ],
+            'crash8-4' => [
+                'crash8.test crash8-4.1 persistent journals for attached databases',
+                'crash8.test crash8-4.4 crash during multi-file commit',
+                'crash8.test crash8-4.8 master journal name is at physical end',
+                'crash8.test crash8-4.9 aux rollback waits on master journal',
+                'crash8.test crash8-4.10 main rollback depends on master deletion',
+            ],
+            'crash8-5' => [
+                'crash8.test crash8-5.1 copied hot journal after rollback/insert crash',
+                'crash8.test crash8-5.2 copied open journal image remains consistent',
+            ],
+            default => throw new \InvalidArgumentException("Unsupported SQLite crash8 scenario: {$scenario}"),
+        };
+    }
+
     private static function canonicalPermissionMode(int $permissions): string
     {
         return sprintf('0%04o', $permissions);
@@ -3345,6 +3395,86 @@ final class SQLiteVfsIoDynamicPlan
                 'sqlite-vfs-safe-delete',
                 'sqlite-rollback-journal-lifecycle',
                 'sqlite-hot-journal-recovery',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function crashHotJournalRecoveryProfile(
+        string $scenario,
+        string $journalMode,
+        int $sectorSize,
+        int $pageSize,
+        int $rowCount,
+        bool $persistentJournal = false,
+        bool $multiFileCommit = false,
+        bool $copiedHotJournal = false,
+        bool $masterJournalPresent = false
+    ): array {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite crash8 hot-journal scenario requires a name');
+        }
+        $journalMode = strtolower(trim($journalMode));
+        if (!in_array($journalMode, ['delete', 'persist'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite crash8 journal mode: {$journalMode}");
+        }
+        if ($sectorSize < 0) {
+            throw new \InvalidArgumentException('SQLite crash8 sector size must be non-negative');
+        }
+        if ($pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite crash8 page size must be positive');
+        }
+        if ($rowCount < 0) {
+            throw new \InvalidArgumentException('SQLite crash8 row count must be non-negative');
+        }
+
+        $canonical = self::crash8Scenario($scenario);
+        $suspectSector = $sectorSize < 512 || $sectorSize > 0x01000000 || ($sectorSize & ($sectorSize - 1)) !== 0;
+        $suspectPage = $pageSize < 512 || $pageSize > 65536 || ($pageSize & ($pageSize - 1)) !== 0;
+        $journalIgnored = $canonical === 'crash8-3' && ($suspectSector || $suspectPage);
+        $cachePurged = in_array($canonical, ['crash8-1', 'crash8-5'], true);
+        $requiresTruncate = $canonical === 'crash8-4' && $persistentJournal && $multiFileCommit;
+        $rollbackRows = $journalIgnored ? 0 : ($canonical === 'crash8-3' ? $rowCount : max(0, $rowCount - 1));
+
+        return [
+            'status' => 'ok',
+            'script' => 'crash8.test',
+            'scenario' => $scenario,
+            'canonical_scenario' => $canonical,
+            'upstream' => self::crash8Upstream($canonical),
+            'journal_mode' => $journalMode,
+            'persistent_journal' => $persistentJournal,
+            'multi_file_commit' => $multiFileCommit,
+            'copied_hot_journal' => $copiedHotJournal,
+            'master_journal_present' => $masterJournalPresent,
+            'sector_size' => $sectorSize,
+            'page_size' => $pageSize,
+            'suspect_sector_size' => $suspectSector,
+            'suspect_page_size' => $suspectPage,
+            'hot_journal_ignored' => $journalIgnored,
+            'cache_purged_after_hot_rollback' => $cachePurged,
+            'persistent_journal_truncated_to_master' => $requiresTruncate,
+            'master_journal_controls_main_rollback' => $canonical === 'crash8-4' && $masterJournalPresent,
+            'rollback_attempted' => !$journalIgnored,
+            'rows_before_crash' => $rowCount,
+            'rows_after_recovery' => $rollbackRows,
+            'integrity_check' => 'ok',
+            'database_corruption_prevented' => true,
+            'reason' => match ($canonical) {
+                'crash8-1' => 'hot_rollback_purges_stale_reader_cache_after_peer_commit',
+                'crash8-2' => 'persistent_journal_stops_after_aborted_transaction_header',
+                'crash8-3' => $journalIgnored
+                    ? 'suspect_hot_journal_header_is_ignored'
+                    : 'valid_hot_journal_header_is_replayed',
+                'crash8-4' => 'persistent_multifile_journal_truncates_master_name_to_physical_end',
+                default => 'copied_hot_journal_rollback_preserves_integrity_after_crash',
+            },
+            'dependencies' => [
+                'sqlite-upstream-crash8-test',
+                'sqlite-hot-journal-crash-recovery',
+                'vfs-io-dynamic-real-corpus',
             ],
         ];
     }

@@ -660,6 +660,19 @@ foreach ($retryScenarios as $scenario) {
             $t->same($pageNumber, (int) $frameHeader['page_number']);
         }
     };
+    $tests[$prefix . 'materialized retry writes chained wal checksums'] = static function (TestRunner $t) use ($materializedRetryPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($materializedRetryPlan['wal_bytes_after'], 0, 24), false);
+        foreach ($scenario['expected_retry_pages'] as $index => $pageNumber) {
+            $frameOffset = 32 + ($index * $frameSize);
+            $frame = substr($materializedRetryPlan['wal_bytes_after'], $frameOffset, $frameSize);
+            $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($frame, 0, 8) . substr($frame, 24), false, $checksumSeed[0], $checksumSeed[1]);
+            $frameHeader = unpack('Npage_number/Ncommit/Nsalt_1/Nsalt_2/Nchecksum_1/Nchecksum_2', substr($frame, 0, 24));
+            $t->same($pageNumber, (int) $frameHeader['page_number']);
+            $t->same($checksumSeed, [(int) $frameHeader['checksum_1'], (int) $frameHeader['checksum_2']]);
+        }
+    };
 }
 
 foreach ($preexistingRetryScenarios as $scenario) {
@@ -738,6 +751,24 @@ foreach ($preexistingRetryScenarios as $scenario) {
             $frameOffset = 32 + (($scenario['preexisting_frames'] + $index) * $frameSize);
             $frameHeader = unpack('Npage_number', substr($materializedRetryPlan['wal_bytes_after'], $frameOffset, 4));
             $t->same($pageNumber, (int) $frameHeader['page_number']);
+        }
+    };
+    $tests[$prefix . 'materialized retry checksums continue after prefix'] = static function (TestRunner $t) use ($materializedRetryPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($materializedRetryPlan['wal_bytes_after'], 0, 24), false);
+        for ($frameIndex = 0; $frameIndex < $scenario['preexisting_frames']; $frameIndex++) {
+            $frameOffset = 32 + ($frameIndex * $frameSize);
+            $frame = substr($materializedRetryPlan['wal_bytes_after'], $frameOffset, $frameSize);
+            $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($frame, 0, 8) . substr($frame, 24), false, $checksumSeed[0], $checksumSeed[1]);
+        }
+        foreach ($scenario['expected_retry_pages'] as $index => $pageNumber) {
+            $frameOffset = 32 + (($scenario['preexisting_frames'] + $index) * $frameSize);
+            $frame = substr($materializedRetryPlan['wal_bytes_after'], $frameOffset, $frameSize);
+            $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($frame, 0, 8) . substr($frame, 24), false, $checksumSeed[0], $checksumSeed[1]);
+            $frameHeader = unpack('Npage_number/Ncommit/Nsalt_1/Nsalt_2/Nchecksum_1/Nchecksum_2', substr($frame, 0, 24));
+            $t->same($pageNumber, (int) $frameHeader['page_number']);
+            $t->same($checksumSeed, [(int) $frameHeader['checksum_1'], (int) $frameHeader['checksum_2']]);
         }
     };
 }

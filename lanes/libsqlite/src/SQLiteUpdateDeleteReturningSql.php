@@ -842,7 +842,7 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : self::textLength((string) $value);
         }
-        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|ceil|ceiling|floor|trunc|sqrt|pow|power|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode|quote|typeof|printf|format|iif|if|likely|unlikely|likelihood)\s*\((.*)\)$/is', $expression, $match) === 1) {
+        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|ceil|ceiling|floor|trunc|sqrt|pow|power|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode|octet_length|hex|quote|typeof|printf|format|iif|if|likely|unlikely|likelihood)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }
         $predicate = self::evaluateLimitPredicateExpression($expression);
@@ -1125,6 +1125,12 @@ final class SQLiteUpdateDeleteReturningSql
         if ($function === 'unicode' && count($parts) !== 1) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT unicode() needs one argument');
         }
+        if ($function === 'octet_length' && count($parts) !== 1) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT octet_length() needs one argument');
+        }
+        if ($function === 'hex' && count($parts) !== 1) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT hex() needs one argument');
+        }
         if (($function === 'quote' || $function === 'typeof') && count($parts) !== 1) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
         }
@@ -1269,6 +1275,20 @@ final class SQLiteUpdateDeleteReturningSql
             }
 
             return self::sqliteUnicodeCodepoint((string) $values[0]);
+        }
+        if ($function === 'octet_length') {
+            if ($values[0] === null) {
+                return null;
+            }
+
+            return strlen((string) $values[0]);
+        }
+        if ($function === 'hex') {
+            if ($values[0] === null) {
+                return '';
+            }
+
+            return strtoupper(bin2hex((string) $values[0]));
         }
         if ($function === 'quote') {
             return self::quoteLimitValue($values[0]);

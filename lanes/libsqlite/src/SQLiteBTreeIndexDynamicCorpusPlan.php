@@ -61,6 +61,88 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,initial_row_count:int,cross_join_rows:int,commit_count:int,insert_count:int,delete_count:int,final_row_count:int,inserted_keys:list<string>,deleted_keys:list<string>,surviving_original_keys:list<string>,surviving_inserted_keys:list<string>,t2_rows:int,first_t2_row:array{x:int,y:int},last_t2_row:array{x:int,y:int},uses_without_rowid:bool,primary_key:list<string>,secondary_index:string,integrity:string,detail:string}>
+     */
+    public static function btree02CursorSkipNextMutationCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite btree02 dynamic corpus requires at least one case');
+        }
+
+        $initial = [];
+        for ($i = 1; $i <= 10; $i++) {
+            $initial[] = [
+                'a' => sprintf('%02x', $i + 160),
+                'ax' => 100000 + $i,
+                'b' => $i,
+            ];
+        }
+
+        $t2 = [];
+        $inserted = [];
+        $deleted = [];
+        $commits = 0;
+        $scanRows = [];
+        foreach ($initial as $row) {
+            foreach ([1, 2] as $cnt) {
+                $scanRows[] = $row + ['cnt' => $cnt];
+            }
+        }
+
+        foreach ($scanRows as $offset => $row) {
+            $t2[] = ['x' => $row['b'], 'y' => $row['cnt']];
+
+            if (($offset + 1) % 2 === 1) {
+                $key = '(' . $row['a'] . ')';
+                $inserted[] = $key;
+            } else {
+                $deleted[] = $row['a'];
+            }
+
+            $commits++;
+        }
+
+        $survivingOriginal = [];
+        $survivingInserted = array_values(array_unique($inserted));
+
+        $templates = [
+            ['btree02-100', 'WITHOUT ROWID table is populated before cursor mutation scan'],
+            ['btree02-110', 'CROSS JOIN scan preserves cursor position across alternating insert/delete commits'],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $detail] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'btree02.test sections btree02-100 and btree02-110',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+                'initial_row_count' => count($initial),
+                'cross_join_rows' => count($scanRows),
+                'commit_count' => $commits,
+                'insert_count' => count($inserted),
+                'delete_count' => count(array_unique($deleted)),
+                'final_row_count' => count($survivingInserted),
+                'inserted_keys' => array_values(array_unique($inserted)),
+                'deleted_keys' => array_values(array_unique($deleted)),
+                'surviving_original_keys' => $survivingOriginal,
+                'surviving_inserted_keys' => $survivingInserted,
+                't2_rows' => count($t2),
+                'first_t2_row' => $t2[0],
+                'last_t2_row' => $t2[count($t2) - 1],
+                'uses_without_rowid' => true,
+                'primary_key' => ['a', 'ax'],
+                'secondary_index' => 't1a',
+                'integrity' => 'ok',
+                'detail' => $detail,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{upstream:string,operation:string,active_indexes:list<string>,lookup_column:string,lookup_value:int,result_column:string,result_value:int,integrity:string}>
      */
     public static function indexTestDynamicLookupCases(): array
