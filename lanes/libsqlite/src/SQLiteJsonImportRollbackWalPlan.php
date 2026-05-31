@@ -1765,6 +1765,127 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicCommittedPrefixFailureScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL committed-prefix failure dynamic parity requires at least one scenario');
+        }
+
+        $baseScenarios = self::dynamicFullRunMaterializedWalScenarios($scenarioCount);
+        $scenarios = [];
+        foreach ($baseScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $tenantId = (int) $base['tenant_id'];
+            $pageSize = (int) $base['page_size'];
+            $preexistingFrames = (int) $base['preexisting_frames'];
+            $retryPlan = $base['retry_plan'];
+            $retryFrameCount = (int) $retryPlan['wal_frame_count_after'];
+            $catalogPage = (int) $base['expected_retry_pages'][1];
+            $brokenPage = (int) $base['expected_retry_pages'][2];
+            $auditPage = 1220 + $seed;
+            $jsonbMode = (bool) $base['jsonb_mode'];
+            $committedPrefixPages = array_merge(
+                $base['pre_savepoint_wal_pages'],
+                $base['expected_retry_pages']
+            );
+
+            $rows = [
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 9000 + 1,
+                    'key_name' => 'committed_prefix_catalog_payload_' . $seed,
+                    'key_value' => $jsonbMode
+                        ? new SQLiteBlobValue(SQLiteJsonB::encode(['items' => ['before', 'kept-' . $seed], 'seed' => $seed]))
+                        : json_encode(['items' => ['before', 'kept-' . $seed], 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'no',
+                    'page_number' => $catalogPage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 9000 + 2,
+                    'key_name' => 'committed_prefix_broken_payload_' . $seed,
+                    'key_value' => json_encode(['fixed' => true, 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'no',
+                    'page_number' => $brokenPage,
+                ],
+            ];
+
+            $tailMutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'committed_prefix_catalog_tail_' . $seed,
+                    'key_name' => 'committed_prefix_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.tail',
+                    'value' => 'discarded-tail-' . $seed,
+                    'wal_frame_index' => $retryFrameCount + 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'committed_prefix_insert_audit_' . $seed,
+                    'key_name' => 'committed_prefix_audit_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.audit',
+                    'value' => true,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $seed * 9000 + 3,
+                    'insert_load_policy' => 'auto',
+                    'initial_value' => '{}',
+                    'page_number' => $auditPage,
+                    'wal_frame_index' => $retryFrameCount + 2,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'committed_prefix_malformed_tail_' . $seed,
+                    'key_name' => 'committed_prefix_broken_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.broken',
+                    'value' => new SQLiteJsonSubtypeValue('{"unterminated":'),
+                    'wal_frame_index' => $retryFrameCount + 3,
+                ],
+            ];
+
+            $tailWalBytes = self::appendScenarioWalFrames(
+                (string) $retryPlan['wal_bytes_after'],
+                $pageSize,
+                [
+                    $retryFrameCount + 1 => $catalogPage,
+                    $retryFrameCount + 2 => $auditPage,
+                    $retryFrameCount + 3 => $brokenPage,
+                ],
+                'app-json-dynamic-committed-prefix-tail:' . $seed . ':'
+            );
+            $tailPlan = self::plan($rows, $tailMutations, [
+                'database_bytes' => (string) $retryPlan['database_bytes_after_import'],
+                'page_size' => $pageSize,
+                'wal_bytes' => $tailWalBytes,
+                'transaction' => 'application_committed_prefix_json_import_' . $seed,
+                'savepoint' => 'committed_prefix_json_batch_' . $seed,
+                'pre_savepoint_wal_pages' => $committedPrefixPages,
+            ]);
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $tenantId,
+                'page_size' => $pageSize,
+                'jsonb_mode' => $jsonbMode,
+                'preexisting_frames' => $preexistingFrames,
+                'committed_prefix_frame_count' => $retryFrameCount,
+                'committed_prefix_pages' => $committedPrefixPages,
+                'expected_tail_pages' => [$catalogPage, $auditPage],
+                'expected_failed_statement' => 'committed_prefix_malformed_tail_' . $seed,
+                'tail_wal_bytes' => $tailWalBytes,
+                'tail_plan' => $tailPlan,
+                'retry_plan' => $retryPlan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
      * @param array<string,mixed> $importPlan
      */
     private static function assertRollbackFramesExist(array $importPlan, int $walFrameCount): void
@@ -1918,6 +2039,59 @@ final class SQLiteJsonImportRollbackWalPlan
         }
 
         return $bytes;
+    }
+
+    /**
+     * @param array<int,int> $framePages
+     */
+    private static function appendScenarioWalFrames(string $walBytes, int $pageSize, array $framePages, string $labelPrefix): string
+    {
+        if ($framePages === []) {
+            return $walBytes;
+        }
+
+        $walState = self::walState($walBytes, $pageSize);
+        $header = unpack('Nmagic/Nversion/Npage_size/Ncheckpoint/Nsalt_1/Nsalt_2/Nchecksum_1/Nchecksum_2', substr($walBytes, 0, 32));
+        if (!is_array($header)) {
+            throw new \InvalidArgumentException('SQLite Application JSON import rollback WAL bytes require a valid WAL header');
+        }
+
+        $checksumSeed = SQLiteWal::checksumPair(substr($walBytes, 0, 24), false);
+        for ($frame = 1; $frame <= $walState['frame_count']; $frame++) {
+            $frameOffset = 32 + (($frame - 1) * $walState['frame_size']);
+            $pageBytes = substr($walBytes, $frameOffset + 24, $pageSize);
+            $checksumSeed = SQLiteWal::checksumPair(
+                substr($walBytes, $frameOffset, 8) . $pageBytes,
+                false,
+                $checksumSeed[0],
+                $checksumSeed[1]
+            );
+        }
+
+        ksort($framePages);
+        $nextFrame = $walState['frame_count'] + 1;
+        foreach ($framePages as $frameIndex => $pageNumber) {
+            if ((int) $frameIndex !== $nextFrame) {
+                throw new \InvalidArgumentException(
+                    'SQLite Application JSON import rollback scenario WAL frame indexes must be contiguous'
+                );
+            }
+            if (!is_int($pageNumber) || $pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite Application JSON import rollback scenario WAL pages must be one-based integers');
+            }
+            $page = str_pad($labelPrefix . $frameIndex, $pageSize, "\0");
+            $framePrefix = pack('N*', $pageNumber, 0, (int) $header['salt_1'], (int) $header['salt_2']);
+            $checksumSeed = SQLiteWal::checksumPair(
+                substr($framePrefix, 0, 8) . $page,
+                false,
+                $checksumSeed[0],
+                $checksumSeed[1]
+            );
+            $walBytes .= $framePrefix . pack('N*', $checksumSeed[0], $checksumSeed[1]) . $page;
+            $nextFrame++;
+        }
+
+        return $walBytes;
     }
 
     /**

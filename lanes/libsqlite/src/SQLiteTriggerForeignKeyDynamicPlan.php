@@ -198,6 +198,81 @@ final class SQLiteTriggerForeignKeyDynamicPlan
     }
 
     /**
+     * @return array<string,mixed>
+     */
+    public static function cascadeIgnoresRecursiveTriggerPragmaScenario(bool $recursiveTriggers): array
+    {
+        $foreignKeyRows = [
+            ['node' => 1, 'parent' => null],
+            ['node' => 2, 'parent' => 1],
+            ['node' => 3, 'parent' => 1],
+            ['node' => 4, 'parent' => 2],
+            ['node' => 5, 'parent' => 2],
+            ['node' => 6, 'parent' => 3],
+            ['node' => 7, 'parent' => 3],
+        ];
+        $triggerRows = $foreignKeyRows;
+        $events = [];
+
+        $foreignKeyRows = self::deleteCascadeTree($foreignKeyRows, 1, $events, 'foreign-key-cascade', true);
+        $triggerRows = self::deleteCascadeTree($triggerRows, 1, $events, 'after-delete-trigger', $recursiveTriggers);
+
+        return [
+            'recursive_triggers' => $recursiveTriggers,
+            'foreign_key_remaining_nodes' => array_column($foreignKeyRows, 'node'),
+            'trigger_remaining_nodes' => array_column($triggerRows, 'node'),
+            'foreign_key_delete_count' => 7 - count($foreignKeyRows),
+            'trigger_delete_count' => 7 - count($triggerRows),
+            'events' => $events,
+            'upstream' => 'fkey2.test fkey2-4.1..4.4',
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    public static function deleteTriggerRepairRestrictScenario(string $foreignKeyAction = 'no action'): array
+    {
+        $parents = [['x' => 'A'], ['x' => 'B']];
+        $children = [['y' => 'a'], ['y' => 'b']];
+        $events = [];
+        $action = strtolower(trim($foreignKeyAction));
+
+        if (!in_array($action, ['no action', 'restrict'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger foreign key dynamic delete action is unsupported');
+        }
+
+        if ($action === 'restrict' && self::matchingChildRows($children, 'y', $parents) !== []) {
+            return [
+                'status' => 'constraint-failed',
+                'parents' => $parents,
+                'children' => $children,
+                'events' => [['step' => 'delete-blocked-before-trigger', 'action' => 'restrict']],
+                'violations' => self::matchingChildRows($children, 'y', $parents),
+                'upstream' => 'fkey2.test fkey2-12.2.1..12.2.4',
+            ];
+        }
+
+        $deleted = $parents;
+        $parents = [];
+        foreach ($deleted as $old) {
+            if (self::hasNocaseChild($children, 'y', (string) $old['x'])) {
+                $parents[] = $old;
+                $events[] = ['step' => 'after-delete-trigger-reinsert', 'value' => $old['x']];
+            }
+        }
+
+        return [
+            'status' => 'statement-ok',
+            'parents' => $parents,
+            'children' => $children,
+            'events' => $events,
+            'violations' => self::nocaseChildViolations($children, $parents, 'y', 'x'),
+            'upstream' => 'fkey2.test fkey2-12.2.1..12.2.4',
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $children
      * @param list<array<string,mixed>> $parents
      * @return list<array<string,mixed>>
@@ -233,6 +308,30 @@ final class SQLiteTriggerForeignKeyDynamicPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $children
+     * @param list<array<string,mixed>> $parents
+     * @return list<array<string,mixed>>
+     */
+    private static function nocaseChildViolations(array $children, array $parents, string $childKey, string $parentKey): array
+    {
+        $violations = [];
+        foreach ($children as $rowid => $child) {
+            $value = $child[$childKey] ?? null;
+            if ($value === null) {
+                continue;
+            }
+            foreach ($parents as $parent) {
+                if (self::sqliteNocaseEquals((string) $value, (string) ($parent[$parentKey] ?? ''))) {
+                    continue 2;
+                }
+            }
+            $violations[] = ['rowid' => $rowid + 1, 'child_key' => $value, 'parent_key' => $value];
+        }
+
+        return $violations;
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      */
     private static function containsKey(array $rows, string $column, mixed $value): bool
@@ -244,6 +343,82 @@ final class SQLiteTriggerForeignKeyDynamicPlan
         }
 
         return false;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<array<string,mixed>> $events
+     * @return list<array<string,mixed>>
+     */
+    private static function deleteCascadeTree(array $rows, int $node, array &$events, string $source, bool $recursive): array
+    {
+        $children = [];
+        foreach ($rows as $row) {
+            if (($row['parent'] ?? null) === $node) {
+                $children[] = (int) $row['node'];
+            }
+        }
+
+        $rows = array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => (int) $row['node'] !== $node
+        ));
+        $events[] = ['step' => 'delete-row', 'source' => $source, 'node' => $node];
+
+        if ($recursive) {
+            foreach ($children as $child) {
+                $rows = self::deleteCascadeTree($rows, $child, $events, $source, true);
+            }
+        } elseif ($source === 'after-delete-trigger') {
+            foreach ($children as $child) {
+                $rows = array_values(array_filter(
+                    $rows,
+                    static fn (array $row): bool => (int) $row['node'] !== $child
+                ));
+                $events[] = ['step' => 'delete-row', 'source' => $source, 'node' => $child];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $children
+     * @param list<array<string,mixed>> $parents
+     * @return list<array<string,mixed>>
+     */
+    private static function matchingChildRows(array $children, string $childKey, array $parents): array
+    {
+        $matches = [];
+        foreach ($children as $rowid => $child) {
+            foreach ($parents as $parent) {
+                if (self::sqliteNocaseEquals((string) ($child[$childKey] ?? ''), (string) ($parent['x'] ?? ''))) {
+                    $matches[] = ['rowid' => $rowid + 1, 'child_key' => $child[$childKey], 'parent_key' => $parent['x']];
+                    break;
+                }
+            }
+        }
+
+        return $matches;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $children
+     */
+    private static function hasNocaseChild(array $children, string $childKey, string $parentValue): bool
+    {
+        foreach ($children as $child) {
+            if (self::sqliteNocaseEquals((string) ($child[$childKey] ?? ''), $parentValue)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function sqliteNocaseEquals(string $left, string $right): bool
+    {
+        return strcasecmp($left, $right) === 0;
     }
 
     /**

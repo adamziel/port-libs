@@ -1745,6 +1745,63 @@ foreach ($likelihoodMalformed as $name => $sql) {
     };
 }
 
+$repeatedCharacterFormatCases = [
+    'parse printf repeated char precision limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(printf('%.*c', 3, 'm'))")['limit'], 3],
+    'parse format fixed repeated char precision offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 4 OFFSET length(format('%.2c', 'z'))")['offset'], 2],
+    'parse printf repeated char length mirrors func9' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(printf('abc%.*cxyz', 5, 'm'))-6")['limit'], 5],
+    'malformed printf repeated char precision missing rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(printf('%.*c', 'm'))"), InvalidArgumentException::class],
+    'malformed printf repeated char precision noninteger rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(printf('%.*c', 1.5, 'm'))"), InvalidArgumentException::class],
+];
+
+foreach ($repeatedCharacterFormatCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity func9 repeated char ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            return;
+        }
+        $t->same($expected, $callback());
+        $t->contains('func-9.14', 'func-9.14 printf repeated %.*c replacement length parity');
+    };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = "length(printf('%.*c', {$limitValue}, 'm'))";
+    $offsetExpr = "length(format('%.{$offsetValue}c', 'z'))";
+    $sql = "UPDATE app_settings SET state = 'printf_repeat_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update printf repeated char window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->contains('/test/func.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test');
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = "length(printf('abc%.*cxyz', {$limitValue}, 'm'))-6";
+    $offsetExpr = "length(printf('%.*c', {$offsetValue}, 'o'))";
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue printf repeated char subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+            $t->contains('func-9.14', 'func-9.14 printf repeated %.*c replacement length parity');
+        };
+}
+
 for ($limit = 1; $limit <= 5; $limit++) {
     for ($offset = 0; $offset <= 4; $offset++) {
         $sql = "UPDATE app_settings SET state = 'rowvalue4_window' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limit} OFFSET {$offset}) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
@@ -2840,6 +2897,100 @@ foreach ($logicalLimitMalformed as $name => $sql) {
     $tests['rowvalue update delete limit dynamic parity logical scalar ' . $name] = static function (TestRunner $t) use ($sql): void {
         $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
         $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+    };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = match ($seed % 8) {
+        0 => "printf('%d', {$limitValue})",
+        1 => "format('%d', {$limitValue})",
+        2 => "replace('x{$limitValue}x', 'x', '')",
+        3 => "substr('01234', " . ($limitValue + 1) . ', 1)',
+        4 => "instr('abcd', '" . substr('abcd', $limitValue - 1, 1) . "')",
+        5 => "hex(char({$limitValue}))",
+        6 => "upper('{$limitValue}')",
+        default => "octet_length(zeroblob({$limitValue}))",
+    };
+    $offsetExpr = match ($seed % 8) {
+        0 => "printf('%d', {$offsetValue})",
+        1 => "format('%d', {$offsetValue})",
+        2 => "replace('x{$offsetValue}x', 'x', '')",
+        3 => "substr('0123', " . ($offsetValue + 1) . ', 1)',
+        4 => $offsetValue === 0 ? "instr('abc', 'z')" : "instr('abc', '" . substr('abc', $offsetValue - 1, 1) . "')",
+        5 => "lower('{$offsetValue}')",
+        6 => "octet_length(zeroblob({$offsetValue}))",
+        default => "hex(char({$offsetValue}))",
+    };
+    $sql = "UPDATE app_settings SET state = 'string_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update string scalar limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->contains('func.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 2) % 4;
+    $limitExpr = match ($seed % 8) {
+        0 => "printf('%d', {$limitValue})",
+        1 => "format('%d', {$limitValue})",
+        2 => "replace('q{$limitValue}q', 'q', '')",
+        3 => "substr('0123', " . ($limitValue + 1) . ', 1)',
+        4 => "instr('abc', '" . substr('abc', $limitValue - 1, 1) . "')",
+        5 => "hex(char({$limitValue}))",
+        6 => "unicode(char(" . (48 + $limitValue) . '))-48',
+        default => "octet_length(randomblob({$limitValue}))",
+    };
+    $offsetExpr = match ($seed % 8) {
+        0 => "printf('%d', {$offsetValue})",
+        1 => "format('%d', {$offsetValue})",
+        2 => "replace('q{$offsetValue}q', 'q', '')",
+        3 => "substr('01234', " . ($offsetValue + 1) . ', 1)',
+        4 => $offsetValue === 0 ? "instr('abc', 'z')" : "instr('abc', '" . substr('abc', $offsetValue - 1, 1) . "')",
+        5 => "lower('{$offsetValue}')",
+        6 => "unicode(char(" . (48 + $offsetValue) . '))-48',
+        default => "octet_length(zeroblob({$offsetValue}))",
+    };
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue string scalar subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('func.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+$stringLimitMalformed = [
+    'malformed printf nonintegral limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT printf('%0.1f', 2.5)",
+    'malformed format missing argument rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT format('%d')",
+    'malformed replace null limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT replace('123', '2', NULL)",
+    'malformed substr null offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET substr(NULL, 1, 1)",
+    'malformed instr missing needle rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT instr('abc')",
+    'malformed unicode empty limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT unicode('')",
+    'malformed randomblob nonintegral rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT randomblob(1.5)",
+    'malformed zeroblob null offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET zeroblob(NULL)",
+];
+
+foreach ($stringLimitMalformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity string scalar ' . $name] = static function (TestRunner $t) use ($sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
+        $t->contains('func.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test');
     };
 }
 

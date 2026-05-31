@@ -14,6 +14,10 @@ $outer = static fn (): array => SQLiteTriggerForeignKeyDynamicPlan::transactionS
 $outerRollback = static fn (): array => SQLiteTriggerForeignKeyDynamicPlan::transactionSavepointScenario(true);
 $update22 = static fn (): array => SQLiteTriggerForeignKeyDynamicPlan::parentUpdateOrderScenario(22);
 $updateText = static fn (): array => SQLiteTriggerForeignKeyDynamicPlan::parentUpdateOrderScenario('22');
+$cascadeRecursiveOff = static fn (): array => SQLiteTriggerForeignKeyDynamicPlan::cascadeIgnoresRecursiveTriggerPragmaScenario(false);
+$cascadeRecursiveOn = static fn (): array => SQLiteTriggerForeignKeyDynamicPlan::cascadeIgnoresRecursiveTriggerPragmaScenario(true);
+$deleteRepair = static fn (): array => SQLiteTriggerForeignKeyDynamicPlan::deleteTriggerRepairRestrictScenario();
+$deleteRestrict = static fn (): array => SQLiteTriggerForeignKeyDynamicPlan::deleteTriggerRepairRestrictScenario('restrict');
 
 $cases = [
     'immediate repair status' => [static fn (): mixed => $repair()['status'], 'statement-ok'],
@@ -71,6 +75,25 @@ $cases = [
     'parent update text arithmetic before trigger' => [static fn (): mixed => $updateText()['events'][0]['inserted_parent'], 21],
     'parent update text arithmetic after trigger' => [static fn (): mixed => $updateText()['events'][3]['inserted_parent'], 23],
     'parent update upstream source' => [static fn (): mixed => $update22()['upstream'], 'e_fkey.test e_fkey-51.1..51.3'],
+
+    'cascade recursive pragma off removes fk tree' => [static fn (): mixed => $cascadeRecursiveOff()['foreign_key_remaining_nodes'], []],
+    'cascade recursive pragma off preserves trigger grandchildren' => [static fn (): mixed => $cascadeRecursiveOff()['trigger_remaining_nodes'], [4, 5, 6, 7]],
+    'cascade recursive pragma off delete counts' => [static fn (): mixed => [$cascadeRecursiveOff()['foreign_key_delete_count'], $cascadeRecursiveOff()['trigger_delete_count']], [7, 3]],
+    'cascade recursive pragma off source split' => [static fn (): mixed => array_column($cascadeRecursiveOff()['events'], 'source'), ['foreign-key-cascade', 'foreign-key-cascade', 'foreign-key-cascade', 'foreign-key-cascade', 'foreign-key-cascade', 'foreign-key-cascade', 'foreign-key-cascade', 'after-delete-trigger', 'after-delete-trigger', 'after-delete-trigger']],
+    'cascade recursive pragma on removes both trees' => [static fn (): mixed => [$cascadeRecursiveOn()['foreign_key_remaining_nodes'], $cascadeRecursiveOn()['trigger_remaining_nodes']], [[], []]],
+    'cascade recursive pragma on delete counts' => [static fn (): mixed => [$cascadeRecursiveOn()['foreign_key_delete_count'], $cascadeRecursiveOn()['trigger_delete_count']], [7, 7]],
+    'cascade recursive pragma upstream source' => [static fn (): mixed => $cascadeRecursiveOff()['upstream'], 'fkey2.test fkey2-4.1..4.4'],
+
+    'delete trigger repair no-action status' => [static fn (): mixed => $deleteRepair()['status'], 'statement-ok'],
+    'delete trigger repair reinserts nocase parents' => [static fn (): mixed => $deleteRepair()['parents'], [['x' => 'A'], ['x' => 'B']]],
+    'delete trigger repair keeps children' => [static fn (): mixed => $deleteRepair()['children'], [['y' => 'a'], ['y' => 'b']]],
+    'delete trigger repair event values' => [static fn (): mixed => array_column($deleteRepair()['events'], 'value'), ['A', 'B']],
+    'delete trigger repair final violations empty' => [static fn (): mixed => $deleteRepair()['violations'], []],
+    'delete trigger restrict status' => [static fn (): mixed => $deleteRestrict()['status'], 'constraint-failed'],
+    'delete trigger restrict unchanged parents' => [static fn (): mixed => $deleteRestrict()['parents'], [['x' => 'A'], ['x' => 'B']]],
+    'delete trigger restrict violation keys' => [static fn (): mixed => array_column($deleteRestrict()['violations'], 'child_key'), ['a', 'b']],
+    'delete trigger restrict blocks before trigger' => [static fn (): mixed => $deleteRestrict()['events'][0], ['step' => 'delete-blocked-before-trigger', 'action' => 'restrict']],
+    'delete trigger repair upstream source' => [static fn (): mixed => $deleteRepair()['upstream'], 'fkey2.test fkey2-12.2.1..12.2.4'],
 ];
 
 $tests = [];

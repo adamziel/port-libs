@@ -206,6 +206,82 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
     }
 
     /** @return array<string,mixed> */
+    public static function fkey5ForeignKeyCheckMatrix(): array
+    {
+        $scenarios = [
+            'fkey5-1.2' => ['scope' => 'database', 'child' => 'c1', 'parent' => 'p1', 'violations' => [['table' => 'c1', 'rowid' => 87, 'parent' => 'p1', 'fkid' => 0], ['table' => 'c1', 'rowid' => 90, 'parent' => 'p1', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-2.0' => ['scope' => 'database', 'child' => 'c5', 'parent' => 'p1', 'violations' => [['table' => 'c5', 'rowid' => 1, 'parent' => 'p1', 'fkid' => 0], ['table' => 'c5', 'rowid' => 3, 'parent' => 'p1', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-3.0' => ['scope' => 'database', 'child' => 'c9', 'parent' => 'p1', 'violations' => [['table' => 'c9', 'rowid' => 1, 'parent' => 'p1', 'fkid' => 0], ['table' => 'c9', 'rowid' => 3, 'parent' => 'p1', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-4.0' => ['scope' => 'database', 'child' => 'c2', 'parent' => 'p2', 'violations' => [['table' => 'c2', 'rowid' => 76, 'parent' => 'p2', 'fkid' => 0], ['table' => 'c2', 'rowid' => 79, 'parent' => 'p2', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-4.2' => ['scope' => 'database', 'child' => 'c6', 'parent' => 'p2', 'violations' => [['table' => 'c6', 'rowid' => 1, 'parent' => 'p2', 'fkid' => 0], ['table' => 'c6', 'rowid' => 3, 'parent' => 'p2', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-4.4' => ['scope' => 'database', 'child' => 'c10', 'parent' => 'p2', 'violations' => [['table' => 'c10', 'rowid' => 1, 'parent' => 'p2', 'fkid' => 0], ['table' => 'c10', 'rowid' => 3, 'parent' => 'p2', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-5.0' => ['scope' => 'database', 'child' => 'c3', 'parent' => 'p3', 'violations' => [['table' => 'c3', 'rowid' => 65, 'parent' => 'p3', 'fkid' => 0], ['table' => 'c3', 'rowid' => 68, 'parent' => 'p3', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-5.2' => ['scope' => 'database', 'child' => 'c7', 'parent' => 'p3', 'violations' => [['table' => 'c7', 'rowid' => 1, 'parent' => 'p3', 'fkid' => 0], ['table' => 'c7', 'rowid' => 3, 'parent' => 'p3', 'fkid' => 0], ['table' => 'c7', 'rowid' => 4, 'parent' => 'p3', 'fkid' => 0], ['table' => 'c7', 'rowid' => 6, 'parent' => 'p3', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-5.4' => ['scope' => 'database', 'child' => 'c11', 'parent' => 'p3', 'violations' => [['table' => 'c11', 'rowid' => 1, 'parent' => 'p3', 'fkid' => 0], ['table' => 'c11', 'rowid' => 3, 'parent' => 'p3', 'fkid' => 0], ['table' => 'c11', 'rowid' => 4, 'parent' => 'p3', 'fkid' => 0], ['table' => 'c11', 'rowid' => 6, 'parent' => 'p3', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-6.0' => ['scope' => 'database', 'child' => 'c4', 'parent' => 'p4', 'violations' => [['table' => 'c4', 'rowid' => 54, 'parent' => 'p4', 'fkid' => 0], ['table' => 'c4', 'rowid' => 56, 'parent' => 'p4', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-6.2' => ['scope' => 'database', 'child' => 'c8', 'parent' => 'p4', 'violations' => [['table' => 'c8', 'rowid' => 1, 'parent' => 'p4', 'fkid' => 0], ['table' => 'c8', 'rowid' => 3, 'parent' => 'p4', 'fkid' => 0], ['table' => 'c8', 'rowid' => 6, 'parent' => 'p4', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-6.4' => ['scope' => 'database', 'child' => 'c12', 'parent' => 'p4', 'violations' => [['table' => 'c12', 'rowid' => 1, 'parent' => 'p4', 'fkid' => 0], ['table' => 'c12', 'rowid' => 3, 'parent' => 'p4', 'fkid' => 0], ['table' => 'c12', 'rowid' => 6, 'parent' => 'p4', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-7.1' => ['scope' => 'database', 'child' => 'c13/c14', 'parent' => 'p3/p4', 'violations' => [['table' => 'c13', 'rowid' => 1, 'parent' => 'p3', 'fkid' => 0], ['table' => 'c13', 'rowid' => 2, 'parent' => 'p3', 'fkid' => 0], ['table' => 'c13', 'rowid' => 3, 'parent' => 'p3', 'fkid' => 0], ['table' => 'c13', 'rowid' => 4, 'parent' => 'p3', 'fkid' => 0], ['table' => 'c13', 'rowid' => 5, 'parent' => 'p3', 'fkid' => 0], ['table' => 'c13', 'rowid' => 6, 'parent' => 'p3', 'fkid' => 0], ['table' => 'c14', 'rowid' => 1, 'parent' => 'p4', 'fkid' => 0], ['table' => 'c14', 'rowid' => 3, 'parent' => 'p4', 'fkid' => 0], ['table' => 'c14', 'rowid' => 6, 'parent' => 'p4', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-8.0' => ['scope' => 'table', 'child' => 'c19', 'parent' => 'p5', 'violations' => [['table' => 'c19', 'rowid' => 1, 'parent' => 'p5', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-8.2' => ['scope' => 'table', 'child' => 'c20', 'parent' => 'p5', 'violations' => [['table' => 'c20', 'rowid' => 1, 'parent' => 'p5', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-8.6' => ['scope' => 'table', 'child' => 'c22', 'parent' => 'p6', 'violations' => [['table' => 'c22', 'rowid' => 1, 'parent' => 'p6', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4],
+            'fkey5-9.1.3' => ['scope' => 'table', 'child' => 'k1', 'parent' => 's1', 'violations' => [['table' => 'k1', 'rowid' => 2, 'parent' => 's1', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4, 'missing_parent_table_allowed' => true],
+            'fkey5-9.4' => ['scope' => 'table', 'child' => 'k2', 'parent' => 's1', 'violations' => [['table' => 'k2', 'rowid' => 3, 'parent' => 's1', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4, 'composite_child_null_short_circuits' => true],
+            'fkey5-10.3' => ['scope' => 'database', 'child' => 'c30', 'parent' => 'p30', 'violations' => [['table' => 'c30', 'rowid' => null, 'parent' => 'p30', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 4, 'without_rowid_child_reports_null_rowid' => true],
+            'fkey5-11.1' => ['scope' => 'database', 'child' => 'c11', 'parent' => 'tt', 'violations' => [], 'schema' => 'main', 'result_columns' => 0, 'ok' => false, 'error' => 'foreign key mismatch - "c11" referencing "tt"'],
+            'fkey5-12.0' => ['scope' => 'schema-table', 'child' => 't1', 'parent' => 't2', 'violations' => [['table' => 't1', 'rowid' => 5, 'parent' => 't2', 'fkid' => 0], ['table' => 't1', 'rowid' => 7, 'parent' => 't2', 'fkid' => 0], ['table' => 't1', 'rowid' => 9, 'parent' => 't2', 'fkid' => 0]], 'schema' => 'aux', 'result_columns' => 4],
+            'fkey5-12.1' => ['scope' => 'schema-table', 'child' => 't1', 'parent' => 't2', 'violations' => [['table' => 't1', 'rowid' => 9, 'parent' => 't2', 'fkid' => 0]], 'schema' => 'aux', 'result_columns' => 4],
+            'fkey5-13.11' => ['scope' => 'virtual-table', 'child' => 't1/t3', 'parent' => 't2/t1', 'violations' => [['table' => 't1', 'rowid' => 9, 'parent' => 't2', 'fkid' => 0], ['table' => 't3', 'rowid' => 2, 'parent' => 't1', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 5, 'orders_by_table' => true],
+            'fkey5-13.12' => ['scope' => 'virtual-table', 'child' => 't1/t3', 'parent' => 't2/t1', 'violations' => [['table' => 't1', 'rowid' => 9, 'parent' => 't2', 'fkid' => 0], ['table' => 't3', 'rowid' => 2, 'parent' => 't1', 'fkid' => 0]], 'schema' => 'main', 'result_columns' => 5, 'orders_by_table' => true],
+        ];
+
+        $cases = [];
+        foreach (range(1, 30) as $variant) {
+            foreach ($scenarios as $case => $config) {
+                $violations = $config['violations'];
+                $cases[] = [
+                    'case' => $case,
+                    'variant' => $variant,
+                    'source' => 'fkey5.test',
+                    'pragma' => self::fkey5PragmaSql($config),
+                    'scope' => $config['scope'],
+                    'schema' => $config['schema'],
+                    'child' => $config['child'],
+                    'parent' => $config['parent'],
+                    'ok' => $config['ok'] ?? true,
+                    'error' => $config['error'] ?? null,
+                    'result_columns' => $config['result_columns'],
+                    'violations' => $violations,
+                    'violation_count' => count($violations),
+                    'first_violation' => $violations[0] ?? null,
+                    'last_violation' => $violations === [] ? null : $violations[count($violations) - 1],
+                    'tables' => array_values(array_unique(array_column($violations, 'table'))),
+                    'parents' => array_values(array_unique(array_column($violations, 'parent'))),
+                    'rowids' => array_column($violations, 'rowid'),
+                    'all_fkids_zero' => self::fkey5AllFkIdsZero($violations),
+                    'without_rowid_child_reports_null_rowid' => $config['without_rowid_child_reports_null_rowid'] ?? false,
+                    'missing_parent_table_allowed' => $config['missing_parent_table_allowed'] ?? false,
+                    'composite_child_null_short_circuits' => $config['composite_child_null_short_circuits'] ?? false,
+                    'orders_by_table' => $config['orders_by_table'] ?? false,
+                ];
+            }
+        }
+
+        return [
+            'source' => 'fkey5.test',
+            'scenarios' => array_keys($scenarios),
+            'cases' => $cases,
+            'dependencies' => [
+                'sqlite-upstream-fkey5-foreign-key-check-result-shape',
+                'sqlite-upstream-fkey5-foreign-key-check-collation-and-affinity',
+                'sqlite-upstream-fkey5-foreign-key-check-without-rowid-null-rowid',
+                'sqlite-upstream-fkey5-foreign-key-check-schema-table-argument',
+                'sqlite-upstream-fkey5-foreign-key-check-virtual-table-arguments',
+            ],
+        ];
+    }
+
+    /** @return array<string,mixed> */
     public static function trigger2RowTiming(): array
     {
         $definitions = [
@@ -998,6 +1074,36 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
             'transaction_rolled_back' => $config['outer_conflict'] === 'rollback',
             'replace_changed_trigger_target' => $config['outer_conflict'] === 'replace',
         ];
+    }
+
+    /** @param array<string,mixed> $config */
+    private static function fkey5PragmaSql(array $config): string
+    {
+        if ($config['scope'] === 'table') {
+            return sprintf('PRAGMA foreign_key_check(%s)', $config['child']);
+        }
+
+        if ($config['scope'] === 'schema-table') {
+            return sprintf('PRAGMA foreign_key_check=%s', $config['child']);
+        }
+
+        if ($config['scope'] === 'virtual-table') {
+            return 'SELECT * FROM pragma_foreign_key_check';
+        }
+
+        return 'PRAGMA foreign_key_check';
+    }
+
+    /** @param list<array{table:string,rowid:int|null,parent:string,fkid:int}> $violations */
+    private static function fkey5AllFkIdsZero(array $violations): bool
+    {
+        foreach ($violations as $violation) {
+            if ($violation['fkid'] !== 0) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

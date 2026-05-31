@@ -600,7 +600,7 @@ final class SQLiteCoreScalarFunction
             throw new \InvalidArgumentException("SQLite {$functionName}() first argument must be scalar, BLOB, or NULL");
         }
 
-        $units = self::splitTextUnits((string) $arguments[0]);
+        $units = self::splitTextUnits(self::coerceText($functionName, $arguments[0], 'first'));
         [$offset, $byteLength] = self::substringWindow($start, $length, count($units));
 
         return implode('', $byteLength === null
@@ -2104,6 +2104,9 @@ final class SQLiteCoreScalarFunction
         if ($value instanceof SQLiteBlobValue) {
             return $value->bytes;
         }
+        if (is_float($value)) {
+            return self::formatFloat($value);
+        }
         if (is_scalar($value)) {
             return (string) $value;
         }
@@ -2181,7 +2184,10 @@ final class SQLiteCoreScalarFunction
 
         if (floor($value) === $value && abs($value) >= 1.0e16) {
             $digits = sprintf('%.0F', abs($value));
-            $mantissa = $digits[0] . '.' . substr($digits, 1);
+            $mantissa = rtrim($digits[0] . '.' . substr($digits, 1), '0');
+            if (str_ends_with($mantissa, '.')) {
+                $mantissa .= '0';
+            }
             $exponent = strlen($digits) - 1;
 
             return ($value < 0 ? '-' : '') . $mantissa . 'e+' . $exponent;

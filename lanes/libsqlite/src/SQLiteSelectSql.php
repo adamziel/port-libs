@@ -3986,6 +3986,19 @@ final class SQLiteSelectSql
             ];
         }
 
+        if (preg_match('/^(.+\s+is\s+(?:not\s+)?(?:true|false))\s+COLLATE\s+([A-Za-z_][A-Za-z0-9_]*)$/is', $sql, $match) === 1) {
+            $collation = strtoupper($match[2]);
+            if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
+                throw new \InvalidArgumentException("Unsupported SQLite SELECT SQL collation: {$match[2]}");
+            }
+
+            return [
+                'type' => 'collate',
+                'operand' => self::valueExpression($match[1], $tables),
+                'collation' => $collation,
+            ];
+        }
+
         if (preg_match('/^(.+?)\s+is\s+(not\s+)?(true|false)$/is', $sql, $match) === 1) {
             $expected = strtoupper($match[3]);
 

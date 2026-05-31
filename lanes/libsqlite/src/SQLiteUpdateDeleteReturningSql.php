@@ -1454,7 +1454,8 @@ final class SQLiteUpdateDeleteReturningSql
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() format must be scalar");
         }
 
-        $phpFormat = str_replace(['%i', '%q', '%Q'], ['%d', '%s', '%s'], (string) $format);
+        [$sqliteFormat, $values] = self::expandSqliteRepeatedCharacterFormats((string) $format, $values, $function);
+        $phpFormat = str_replace(['%i', '%q', '%Q'], ['%d', '%s', '%s'], $sqliteFormat);
         try {
             return sprintf($phpFormat, ...array_map(
                 static fn (int|float|string|null $value): int|float|string => $value ?? 0,
@@ -1463,6 +1464,118 @@ final class SQLiteUpdateDeleteReturningSql
         } catch (\ArgumentCountError|\ValueError $exception) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() format is malformed", 0, $exception);
         }
+    }
+
+    /**
+     * SQLite's printf()/format() treats precision on %c as a repeat count.
+     *
+     * @param list<int|float|string|null> $values
+     * @return array{0:string,1:list<int|float|string|null>}
+     */
+    private static function expandSqliteRepeatedCharacterFormats(string $format, array $values, string $function): array
+    {
+        $expanded = '';
+        $expandedValues = [];
+        $argumentIndex = 0;
+        $length = strlen($format);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $format[$i];
+            if ($char !== '%' || ($format[$i + 1] ?? null) === '%') {
+                $expanded .= $char;
+                if ($char === '%' && ($format[$i + 1] ?? null) === '%') {
+                    $expanded .= '%';
+                    $i++;
+                }
+                continue;
+            }
+
+            $start = $i;
+            $i++;
+            while ($i < $length && str_contains('-+ #0,', $format[$i])) {
+                $i++;
+            }
+            while ($i < $length && ctype_digit($format[$i])) {
+                $i++;
+            }
+
+            $precision = null;
+            $precisionFromArgument = false;
+            if (($format[$i] ?? null) === '.') {
+                $i++;
+                if (($format[$i] ?? null) === '*') {
+                    $precisionFromArgument = true;
+                    $i++;
+                } else {
+                    $digitsStart = $i;
+                    while ($i < $length && ctype_digit($format[$i])) {
+                        $i++;
+                    }
+                    $precision = $digitsStart === $i ? 0 : (int) substr($format, $digitsStart, $i - $digitsStart);
+                }
+            }
+
+            while ($i < $length && str_contains('hlLzjt', $format[$i])) {
+                $i++;
+            }
+            $type = $format[$i] ?? '';
+            $specifier = substr($format, $start, $i - $start + 1);
+
+            if ($type === 'c' && ($precisionFromArgument || $precision !== null)) {
+                $repeat = $precision ?? 0;
+                if ($precisionFromArgument) {
+                    if (!array_key_exists($argumentIndex, $values)) {
+                        throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() missing %c precision argument");
+                    }
+                    $repeat = self::integerFunctionArgument($values[$argumentIndex] ?? 0, $function, 'precision');
+                    $argumentIndex++;
+                }
+                if (!array_key_exists($argumentIndex, $values)) {
+                    throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() missing %c argument");
+                }
+                $value = $values[$argumentIndex];
+                $argumentIndex++;
+
+                $expanded .= '%s';
+                $expandedValues[] = str_repeat(self::formatCharacterValue($value), max(0, $repeat));
+                continue;
+            }
+
+            $expanded .= $specifier;
+            if (!in_array($type, ['%', ''], true)) {
+                if (!array_key_exists($argumentIndex, $values)) {
+                    throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() missing format argument");
+                }
+                $expandedValues[] = $values[$argumentIndex];
+                $argumentIndex++;
+            }
+        }
+
+        while (array_key_exists($argumentIndex, $values)) {
+            $expandedValues[] = $values[$argumentIndex];
+            $argumentIndex++;
+        }
+
+        return [$expanded, $expandedValues];
+    }
+
+    private static function formatCharacterValue(int|float|string|null $value): string
+    {
+        if ($value === null) {
+            return "\0";
+        }
+
+        $text = (string) $value;
+        if ($text === '') {
+            return "\0";
+        }
+
+        $characters = preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY);
+        if ($characters !== false && $characters !== []) {
+            return $characters[0];
+        }
+
+        return $text[0];
     }
 
     private static function integerFunctionArgument(int|float|string $value, string $function, string $name): int

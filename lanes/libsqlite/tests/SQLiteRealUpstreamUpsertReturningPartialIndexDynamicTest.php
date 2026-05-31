@@ -50,6 +50,17 @@ foreach ($cases as $case) {
         $t->same('insert', $case['returning'][0]['_upsert_action']);
     };
 
+    $tests[$prefix . ' RETURNING statement metadata is emitted only for changed rows'] = static function (TestRunner $t) use ($case): void {
+        if ($case['changes'] === 0) {
+            $t->same([], $case['returning']);
+            $t->same(['skip'], $case['decisions']);
+            return;
+        }
+
+        $t->same(1, $case['returning'][0]['_statement_sequence']);
+        $t->same($case['decisions'], [$case['returning'][0]['_upsert_action']]);
+    };
+
     $tests[$prefix . ' conflict target and partial predicate are retained'] = static function (TestRunner $t) use ($case): void {
         $t->true($case['conflict_target'] === ['x'] || $case['conflict_target'] === ['y']);
         $t->true(in_array($case['partial_index'], ['y>0', "x='xyz' COLLATE nocase", "x='xyz' COLLATE binary"], true));

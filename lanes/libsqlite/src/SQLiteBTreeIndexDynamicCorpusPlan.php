@@ -1283,6 +1283,54 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,table_name:string,index_name:string,row_count:int,estimated_payload_bytes:int,cache_size:int|null,soft_heap_limit:int|null,unique_index:bool,result_code:int,error:string|null,duplicate_key:int|null,integrity:string,detail:string}>
+     */
+    public static function index4LargeMixedPayloadBuildCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index4 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            ['index4-1.1', 'transactionally doubles 102-byte blob rows to a large table before CREATE INDEX', 'BEGIN; CREATE TABLE t1(x); INSERT randomblob(102) by repeated INSERT SELECT; COMMIT', 't1', 'i1', 65536, 65536 * 102, null, null, false, 0, null, null, 'ok', 'large table build reaches 65536 rows before index creation'],
+            ['index4-1.2/1.3', 'CREATE INDEX over the large blob table leaves integrity_check ok', 'CREATE INDEX i1 ON t1(x); PRAGMA integrity_check', 't1', 'i1', 65536, 65536 * 102, null, null, false, 0, null, null, 'ok', 'index i1 contains one entry per row and the B-tree remains valid'],
+            ['index4-1.4/1.5', 'limited-memory CREATE INDEX with cache_size 10 and soft heap limit preserves integrity', 'PRAGMA cache_size=10; CREATE INDEX i2 ON t1(x); PRAGMA integrity_check', 't1', 'i2', 65536, 65536 * 102, 10, 50000, false, 0, null, null, 'ok', 'memory-pressure sorter writes a valid index while honoring small cache settings'],
+            ['index4-1.6', 'mixed text NULL and large blob payloads can be indexed after repeated growth', 'DROP TABLE t1; CREATE TABLE t1(x); INSERT text, NULL, and randomblob payloads; CREATE INDEX i1 ON t1(x)', 't1', 'i1', 256, (8 * 1) + (8 * 1202) + (16 * 2202) + (32 * 3202) + (64 * 4202) + (128 * 5202), null, null, false, 0, null, null, 'ok', 'index build accepts NULL, short text, and overflow-sized blob keys in one table'],
+            ['index4-1.7', 'single-row table index build leaves integrity_check ok', 'DROP TABLE t1; CREATE TABLE t1(x); INSERT INTO t1 VALUES(\'a\'); CREATE INDEX i1 ON t1(x)', 't1', 'i1', 1, 1, null, null, false, 0, null, null, 'ok', 'one-entry index build uses the same B-tree path as larger builds'],
+            ['index4-1.8', 'empty table index build creates a valid empty index root', 'DROP TABLE t1; CREATE TABLE t1(x); CREATE INDEX i1 ON t1(x); PRAGMA integrity_check', 't1', 'i1', 0, 0, null, null, false, 0, null, null, 'ok', 'empty CREATE INDEX still creates a valid index B-tree root'],
+            ['index4-2.1/2.2', 'CREATE UNIQUE INDEX rejects duplicate keys without accepting a partial unique index', 'CREATE TABLE t2(x); INSERT 14,35,15,35,16; CREATE UNIQUE INDEX i3 ON t2(x)', 't2', 'i3', 5, 5, null, null, true, 1, 'UNIQUE constraint failed: t2.x', 35, 'expected-error-preserves-table', 'duplicate key 35 aborts unique index creation and preserves source rows'],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $table, $index, $rowCount, $payloadBytes, $cacheSize, $softLimit, $unique, $resultCode, $error, $duplicateKey, $integrity, $detail] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $rows[] = [
+                'source' => 'index4.test sections index4-1.1 through index4-2.2',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario . ' dynamic batch ' . $batch,
+                'statement' => $statement,
+                'table_name' => $table,
+                'index_name' => $index,
+                'row_count' => $rowCount,
+                'estimated_payload_bytes' => $payloadBytes,
+                'cache_size' => $cacheSize,
+                'soft_heap_limit' => $softLimit,
+                'unique_index' => $unique,
+                'result_code' => $resultCode,
+                'error' => $error,
+                'duplicate_key' => $duplicateKey,
+                'integrity' => $integrity,
+                'detail' => $detail,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<array{upstream:string,index_name:string,where_column:string,where_value:int,order_by:list<string>,limit:int,result_rows:list<list<int>>,detail:string,uses_index:bool}>
      */
     public static function index8OrderByLimitPlannerCases(): array
