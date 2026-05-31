@@ -17,6 +17,7 @@ return [
     'recursiveGitdirPolicy' => $fixture['recursiveGitdirPolicy'],
     'slashClassRejectedPolicy' => $fixture['slashClassRejectedPolicy'],
     'bracketUrlPolicy' => $fixture['bracketUrlPolicy'],
+    'posixUrlPolicy' => $fixture['posixUrlPolicy'],
     'legacyBytePolicy' => $fixture['legacyBytePolicy'],
     'sectionsLoaded' => $fixture['sectionsLoaded'],
 ];

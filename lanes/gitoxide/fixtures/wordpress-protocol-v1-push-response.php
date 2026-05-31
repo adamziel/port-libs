@@ -50,4 +50,5 @@ return [
     'carriageReturnStatusResponse' => $packet("unpack ok\n")
         . $packet("ok refs/heads/main\r\n")
         . $flush,
+    'emptyPacketLineResponse' => '0004' . $flush,
 ];

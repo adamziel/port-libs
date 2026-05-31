@@ -221,6 +221,82 @@ return [
         $t->same('good', $config->value('user', null, 'dash'));
     },
 
+    'conditional include POSIX bracket classes match gix wildmatch classes' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
+        $t->same('override-value', $loadConditionalValue('onbranch:deploy/[[:alpha:]]ite', ['branchName' => 'refs/heads/deploy/site']));
+        $t->same('base-value', $loadConditionalValue('onbranch:deploy/[[:digit:]]ite', ['branchName' => 'refs/heads/deploy/site']));
+        $t->same('override-value', $loadConditionalValue('onbranch:deploy/[![:digit:]]ite', ['branchName' => 'refs/heads/deploy/site']));
+        $t->same('base-value', $loadConditionalValue('onbranch:deploy/[![:alpha:]]ite', ['branchName' => 'refs/heads/deploy/site']));
+
+        $root = $tmpDir();
+        $worktree = $root . '/wp-content/plugins';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/include.config', "[section]\nvalue = posix-gitdir\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:wp-content/[[:alpha:]]lugins/"]
+        path = ../include.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('posix-gitdir', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $worktree = $root . '/wp-content/plugins';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/include.config', "[section]\nvalue = posix-gitdir\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:wp-content/[[:digit:]]lugins/"]
+        path = ../include.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('base', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $worktree = $root . '/wp-content/plugins';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/include.config', "[section]\nvalue = posix-gitdir-icase\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir/i:WP-CONTENT/[[:upper:]]LUGINS/"]
+        path = ../include.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('posix-gitdir-icase', $config->value('section', null, 'value'));
+
+        $root = $tmpDir();
+        $write($root . '/digit-url', "[user]\ndigit = matched\n");
+        $write($root . '/letter-url', "[user]\nletter = matched\n");
+        $write($root . '/upper-url', "[user]\nupper = no\n");
+        $write($root . '/slash-url', "[user]\nslash = no\n");
+        $write($root . '/config', <<<CFG
+        [remote "digit"]
+        url = https://git.example.test/wp-content/site-7.git
+        [remote "letter"]
+        url = https://git.example.test/wp-content/site-a.git
+        [remote "slash"]
+        url = https://git.example.test/wp-content.git
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[[:digit:]].git"]
+        path = "digit-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[![:digit:]].git"]
+        path = "letter-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[[:upper:]].git"]
+        path = "upper-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test[/[:alpha:]]wp-content.git"]
+        path = "slash-url"
+        CFG);
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same('matched', $config->value('user', null, 'digit'));
+        $t->same('matched', $config->value('user', null, 'letter'));
+        $t->same(null, $config->value('user', null, 'upper'));
+        $t->same(null, $config->value('user', null, 'slash'));
+    },
+
     'conditional include wildmatch stays byte safe for malformed utf8 names' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $legacyByte = "\xFF";
 
@@ -380,6 +456,7 @@ return [
         $t->same('matched', $fixture['recursiveGitdirPolicy']);
         $t->same(null, $fixture['slashClassRejectedPolicy']);
         $t->same('matched', $fixture['bracketUrlPolicy']);
+        $t->same('matched', $fixture['posixUrlPolicy']);
         $t->same('matched', $fixture['legacyBytePolicy']);
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
@@ -387,6 +464,7 @@ return [
         $t->same($fixture['recursiveGitdirPolicy'], $summary['recursiveGitdirPolicy']);
         $t->same($fixture['slashClassRejectedPolicy'], $summary['slashClassRejectedPolicy']);
         $t->same($fixture['bracketUrlPolicy'], $summary['bracketUrlPolicy']);
+        $t->same($fixture['posixUrlPolicy'], $summary['posixUrlPolicy']);
         $t->same($fixture['legacyBytePolicy'], $summary['legacyBytePolicy']);
         $t->same($fixture['sectionsLoaded'], $summary['sectionsLoaded']);
     },

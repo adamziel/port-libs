@@ -8,6 +8,9 @@ final class SparseCheckoutSpec
 {
     public const MODE_CONE = 'cone';
     public const MODE_NON_CONE = 'non-cone';
+    public const PATHSPEC_SEARCH_SHELL_GLOB = 'shell-glob';
+    public const PATHSPEC_SEARCH_PATH_AWARE_GLOB = 'path-aware-glob';
+    public const PATHSPEC_SEARCH_LITERAL = 'literal';
 
     /**
      * @param list<string> $recursiveDirectories
@@ -135,8 +138,15 @@ final class SparseCheckoutSpec
      *
      * @param list<string> $pathspecs
      */
-    public static function fromPathspecs(array $pathspecs, bool $ignoreCase = false, string $prefix = '', string $root = ''): self
-    {
+    public static function fromPathspecs(
+        array $pathspecs,
+        bool $ignoreCase = false,
+        string $prefix = '',
+        string $root = '',
+        string $defaultSearchMode = self::PATHSPEC_SEARCH_SHELL_GLOB,
+        bool $literalDefault = false,
+    ): self {
+        self::validatePathspecSearchMode($defaultSearchMode);
         $prefix = self::normalizePath($prefix);
         $root = self::normalizeAbsoluteRoot($root);
         if ($pathspecs === []) {
@@ -169,7 +179,14 @@ final class SparseCheckoutSpec
 
         $patterns = [];
         foreach ($pathspecs as $pathspec) {
-            $patterns[] = self::parsePathspec($pathspec, $ignoreCase, $prefix, $root);
+            $patterns[] = self::parsePathspec(
+                $pathspec,
+                $ignoreCase,
+                $prefix,
+                $root,
+                $defaultSearchMode,
+                $literalDefault,
+            );
         }
 
         $allExcluded = $patterns !== [] && array_reduce(
@@ -225,7 +242,7 @@ final class SparseCheckoutSpec
     public function includesPath(string $path, ?bool $isDirectory = null): bool
     {
         $path = self::normalizePath($path);
-        if ($this->ignoreCase) {
+        if ($this->ignoreCase && $this->mode !== self::MODE_NON_CONE) {
             $path = strtolower($path);
         }
 
@@ -623,7 +640,14 @@ final class SparseCheckoutSpec
     /**
      * @return array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal:bool,matchSlash:bool,ignoreCase:bool,pathspec:bool,always:bool,caseSensitivePrefix:string}
      */
-    private static function parsePathspec(string $pathspec, bool $defaultIgnoreCase, string $prefix, string $root): array
+    private static function parsePathspec(
+        string $pathspec,
+        bool $defaultIgnoreCase,
+        string $prefix,
+        string $root,
+        string $defaultSearchMode,
+        bool $literalDefault,
+    ): array
     {
         if ($pathspec === '') {
             throw new \InvalidArgumentException('An empty string is not a valid pathspec');
@@ -632,9 +656,32 @@ final class SparseCheckoutSpec
         $negative = false;
         $anchored = false;
         $ignoreCase = $defaultIgnoreCase;
-        $literal = false;
-        $matchSlash = true;
+        $literal = $defaultSearchMode === self::PATHSPEC_SEARCH_LITERAL;
+        $matchSlash = $defaultSearchMode !== self::PATHSPEC_SEARCH_PATH_AWARE_GLOB;
         $cursor = 0;
+        $explicitSearchMode = null;
+
+        if ($literalDefault) {
+            [$pattern, $caseSensitivePrefix] = self::normalizePathspecPath(
+                $pathspec,
+                $prefix,
+                $root,
+                false,
+                true,
+            );
+
+            return self::pathspecRule(
+                $pattern,
+                false,
+                false,
+                false,
+                true,
+                true,
+                $ignoreCase,
+                $pattern === '',
+                $caseSensitivePrefix,
+            );
+        }
 
         if ($pathspec === ':') {
             return self::pathspecRule('', false, false, true, true, $matchSlash, $ignoreCase, true, '');
@@ -685,17 +732,21 @@ final class SparseCheckoutSpec
                         continue;
                     }
                     if ($keyword === 'literal') {
-                        if (!$matchSlash) {
+                        if ($explicitSearchMode === self::PATHSPEC_SEARCH_PATH_AWARE_GLOB) {
                             throw new \InvalidArgumentException('literal and glob pathspec magic cannot be combined');
                         }
                         $literal = true;
+                        $matchSlash = true;
+                        $explicitSearchMode = self::PATHSPEC_SEARCH_LITERAL;
                         continue;
                     }
                     if ($keyword === 'glob') {
-                        if ($literal) {
+                        if ($explicitSearchMode === self::PATHSPEC_SEARCH_LITERAL) {
                             throw new \InvalidArgumentException('literal and glob pathspec magic cannot be combined');
                         }
+                        $literal = false;
                         $matchSlash = false;
+                        $explicitSearchMode = self::PATHSPEC_SEARCH_PATH_AWARE_GLOB;
                         continue;
                     }
                     if ($keyword === 'attr') {
@@ -720,6 +771,7 @@ final class SparseCheckoutSpec
             $anchored ? '' : $prefix,
             $root,
             $directoryOnly,
+            $literal,
         );
         $always = $pattern === '';
 
@@ -789,6 +841,7 @@ final class SparseCheckoutSpec
         string $prefix = '',
         string $root = '',
         bool $directoryOnly = false,
+        bool $literal = false,
     ): array
     {
         if (str_contains($path, "\0") || str_contains($prefix, "\0")) {
@@ -834,7 +887,7 @@ final class SparseCheckoutSpec
         $normalized = implode('/', array_map(static fn (array $part): string => $part['part'], $parts));
 
         if ($absolute) {
-            $caseSensitivePrefix = self::absoluteCaseSensitivePrefix($normalized, $directoryOnly);
+            $caseSensitivePrefix = self::absoluteCaseSensitivePrefix($normalized, $directoryOnly, $literal);
         }
 
         return [$normalized, implode('/', $caseSensitivePrefix)];
@@ -884,21 +937,32 @@ final class SparseCheckoutSpec
     /**
      * @return list<string>
      */
-    private static function absoluteCaseSensitivePrefix(string $path, bool $directoryOnly): array
+    private static function absoluteCaseSensitivePrefix(string $path, bool $directoryOnly, bool $literal): array
     {
         if ($path === '') {
             return [];
         }
         if ($directoryOnly) {
-            return self::patternHasWildcard($path) ? [] : explode('/', $path);
+            return !$literal && self::patternHasWildcard($path) ? [] : explode('/', $path);
         }
 
         $directory = self::dirname($path);
-        if ($directory === '' || self::patternHasWildcard($directory)) {
+        if ($directory === '' || (!$literal && self::patternHasWildcard($directory))) {
             return [];
         }
 
         return explode('/', $directory);
+    }
+
+    private static function validatePathspecSearchMode(string $searchMode): void
+    {
+        if (!in_array($searchMode, [
+            self::PATHSPEC_SEARCH_SHELL_GLOB,
+            self::PATHSPEC_SEARCH_PATH_AWARE_GLOB,
+            self::PATHSPEC_SEARCH_LITERAL,
+        ], true)) {
+            throw new \InvalidArgumentException("Unsupported pathspec search mode: {$searchMode}");
+        }
     }
 
     private function comparisonPath(string $path): string

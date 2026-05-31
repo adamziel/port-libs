@@ -38,6 +38,18 @@ $absolutePathspec = SparseCheckoutSpec::fromPathspecs([
     ':(icase)' . $deploymentRoot . '/wp-content/plugins/gutenberg/readme.md',
     ':(exclude)' . $deploymentRoot . '/wp-content/plugins/gutenberg/build/',
 ], root: $deploymentRoot);
+$pathAwareDefaultPathspec = SparseCheckoutSpec::fromPathspecs(
+    ['wp-content/plugins/*'],
+    defaultSearchMode: SparseCheckoutSpec::PATHSPEC_SEARCH_PATH_AWARE_GLOB,
+);
+$noGlobDefaultPathspec = SparseCheckoutSpec::fromPathspecs(
+    ['wp-content/plugins/*.php', ':(glob)wp-content/mu-plugins/*.php'],
+    defaultSearchMode: SparseCheckoutSpec::PATHSPEC_SEARCH_LITERAL,
+);
+$literalDefaultPathspec = SparseCheckoutSpec::fromPathspecs(
+    [':(glob)wp-content/plugins/*.php', ':'],
+    literalDefault: true,
+);
 $filter = FetchFilterSpec::blobNone();
 
 $root = new Tree([
@@ -94,4 +106,12 @@ return [
     'absoluteRootPathspecIcaseReadmeIncluded' => $absolutePathspec->includesPath('wp-content/plugins/gutenberg/README.md', false),
     'absoluteRootPathspecUpperPrefixSkipped' => $absolutePathspec->skipWorktree('WP-CONTENT/plugins/gutenberg/README.md', false),
     'absoluteRootPathspecBuildSkipped' => $absolutePathspec->skipWorktree('wp-content/plugins/gutenberg/build/index.js', false),
+    'pathAwareDefaultNestedPluginSkipped' => $pathAwareDefaultPathspec->skipWorktree('wp-content/plugins/gutenberg/block.json', false),
+    'pathAwareDefaultPluginDirectoryIncluded' => $pathAwareDefaultPathspec->includesPath('wp-content/plugins/gutenberg', true),
+    'noGlobDefaultLiteralPluginIncluded' => $noGlobDefaultPathspec->includesPath('wp-content/plugins/*.php', false),
+    'noGlobDefaultWildcardPluginSkipped' => $noGlobDefaultPathspec->skipWorktree('wp-content/plugins/gutenberg.php', false),
+    'noGlobDefaultMagicGlobOverrideIncluded' => $noGlobDefaultPathspec->includesPath('wp-content/mu-plugins/loader.php', false),
+    'literalDefaultMagicTextIncluded' => $literalDefaultPathspec->includesPath(':(glob)wp-content/plugins/*.php', false),
+    'literalDefaultColonIsLiteral' => $literalDefaultPathspec->includesPath(':', false),
+    'literalDefaultAdminSkipped' => $literalDefaultPathspec->skipWorktree('wp-admin/admin.php', false),
 ];

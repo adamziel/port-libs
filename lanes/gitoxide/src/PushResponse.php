@@ -262,6 +262,9 @@ final class PushResponse
         if ($length < 4) {
             throw new \InvalidArgumentException("push response: invalid packet line length {$header}");
         }
+        if ($length === 4) {
+            throw new \InvalidArgumentException('push response: invalid empty packet line');
+        }
         if ($length > self::MAX_PACKET_LINE_LENGTH) {
             throw new \InvalidArgumentException("push response: packet line exceeds maximum length {$header}");
         }

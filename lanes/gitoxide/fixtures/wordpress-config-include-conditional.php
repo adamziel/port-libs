@@ -52,6 +52,11 @@ $write($repo . '/bracket-url.config', <<<CFG
 bracketUrl = matched
 CFG);
 
+$write($repo . '/posix-url.config', <<<CFG
+[wordpress]
+posixUrl = matched
+CFG);
+
 $write($repo . '/legacy-byte.config', <<<CFG
 [wordpress]
 legacyByte = matched
@@ -64,6 +69,8 @@ repositoryformatversion = 0
 conflictStyle = diff3
 [remote "origin"]
 url = https://git.example.test/wp-content.git
+[remote "site-seven"]
+url = https://git.example.test/wp-content/site-7.git
 [remote "legacy-byte"]
 url = https://git.example.test/wp-content/legacy-{$legacyByte}.git
 [includeIf "onbranch:deploy/"]
@@ -78,6 +85,8 @@ path = ../recursive-gitdir.config
 path = ../slash-class-rejected.config
 [includeIf "hasconfig:remote.*.url:https://git.example[.]test/**"]
 path = ../bracket-url.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[[:digit:]].git"]
+path = ../posix-url.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/legacy-?.git"]
 path = ../legacy-byte.config
 CFG);
@@ -99,6 +108,7 @@ return [
     'recursiveGitdirPolicy' => $config->value('wordpress', null, 'recursiveGitdir'),
     'slashClassRejectedPolicy' => $config->value('wordpress', null, 'slashClassRejected'),
     'bracketUrlPolicy' => $config->value('wordpress', null, 'bracketUrl'),
+    'posixUrlPolicy' => $config->value('wordpress', null, 'posixUrl'),
     'legacyBytePolicy' => $config->value('wordpress', null, 'legacyByte'),
     'sectionsLoaded' => array_map(
         static fn (array $section): string => $section['subsection'] === null

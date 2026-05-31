@@ -29,6 +29,12 @@ try {
 } catch (InvalidArgumentException $error) {
     $carriageReturnStatusRejected = str_contains($error->getMessage(), 'Reference name contains an invalid byte');
 }
+$emptyPacketLineRejected = false;
+try {
+    PushResponse::fromReportStatusPacketLines($fixture['emptyPacketLineResponse']);
+} catch (InvalidArgumentException $error) {
+    $emptyPacketLineRejected = str_contains($error->getMessage(), 'invalid empty packet line');
+}
 
 return [
     'unpackOk' => $response->unpackOk(),
@@ -67,4 +73,5 @@ return [
     'fatalSidebandRejected' => $fatalSidebandRejected,
     'fallThroughAccepted' => $fallThroughResponse->refStatuses()[0]->fallThrough,
     'carriageReturnStatusRejected' => $carriageReturnStatusRejected,
+    'emptyPacketLineRejected' => $emptyPacketLineRejected,
 ];

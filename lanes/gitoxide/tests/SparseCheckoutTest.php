@@ -149,6 +149,66 @@ return [
         $t->same(true, $nil->includesPath('wp-admin/admin.php', false));
         $t->same(true, $none->includesPath('wp-admin/admin.php', false));
     },
+    'pathspec sparse checkout honors gitoxide default search modes' => static function (TestRunner $t): void {
+        $shellDefault = SparseCheckoutSpec::fromPathspecs(['wp-content/plugins/*']);
+        $pathAwareDefault = SparseCheckoutSpec::fromPathspecs(
+            ['wp-content/plugins/*'],
+            defaultSearchMode: SparseCheckoutSpec::PATHSPEC_SEARCH_PATH_AWARE_GLOB,
+        );
+        $noGlobDefault = SparseCheckoutSpec::fromPathspecs(
+            ['wp-content/plugins/*.php', ':(glob)wp-content/mu-plugins/*.php'],
+            defaultSearchMode: SparseCheckoutSpec::PATHSPEC_SEARCH_LITERAL,
+        );
+        $literalDefault = SparseCheckoutSpec::fromPathspecs(
+            [':(glob)wp-content/plugins/*.php', ':'],
+            literalDefault: true,
+        );
+
+        $t->same(true, $shellDefault->includesPath('wp-content/plugins/gutenberg/block.json', false));
+        $t->same(true, $pathAwareDefault->includesPath('wp-content/plugins/gutenberg', true));
+        $t->same(false, $pathAwareDefault->includesPath('wp-content/plugins/gutenberg/block.json', false));
+        $t->same(true, $pathAwareDefault->includesPath('wp-content/plugins', true));
+
+        $t->same(true, $noGlobDefault->includesPath('wp-content/plugins/*.php', false));
+        $t->same(false, $noGlobDefault->includesPath('wp-content/plugins/gutenberg.php', false));
+        $t->same(true, $noGlobDefault->includesPath('wp-content/mu-plugins/loader.php', false));
+        $t->same(false, $noGlobDefault->includesPath('wp-content/mu-plugins/nested/loader.php', false));
+
+        $t->same(true, $literalDefault->includesPath(':(glob)wp-content/plugins/*.php', false));
+        $t->same(true, $literalDefault->includesPath(':', false));
+        $t->same(false, $literalDefault->includesPath('wp-content/plugins/gutenberg.php', false));
+        $t->same(false, $literalDefault->includesPath('wp-admin/admin.php', false));
+
+        $literalDirectory = SparseCheckoutSpec::fromPathspecs(
+            ['wp-content/cache/'],
+            literalDefault: true,
+        );
+        $parsedDirectory = SparseCheckoutSpec::fromPathspecs(
+            ['wp-content/cache/'],
+            defaultSearchMode: SparseCheckoutSpec::PATHSPEC_SEARCH_LITERAL,
+        );
+        $t->same(true, $literalDirectory->includesPath('wp-content/cache', false));
+        $t->same(false, $parsedDirectory->includesPath('wp-content/cache', false));
+        $t->same(true, $parsedDirectory->includesPath('wp-content/cache', true));
+
+        $root = '/srv/www/example.com/current';
+        $absoluteLiteral = SparseCheckoutSpec::fromPathspecs(
+            [$root . '/wp-content/*/readme.md'],
+            ignoreCase: true,
+            root: $root,
+            defaultSearchMode: SparseCheckoutSpec::PATHSPEC_SEARCH_LITERAL,
+        );
+        $t->same(true, $absoluteLiteral->includesPath('wp-content/*/README.md', false));
+        $t->same(false, $absoluteLiteral->includesPath('WP-CONTENT/*/README.md', false));
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => SparseCheckoutSpec::fromPathspecs(
+                ['wp-content/**'],
+                defaultSearchMode: 'unsupported',
+            ),
+        );
+    },
     'pathspec sparse checkout keeps excludes authoritative independent of input order' => static function (TestRunner $t): void {
         $positiveThenExclude = SparseCheckoutSpec::fromPathspecs([
             'wp-content/**',

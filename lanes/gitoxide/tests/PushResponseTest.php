@@ -148,6 +148,14 @@ return [
             'ffff' . "\x02" . str_repeat('x', 0xffff - 5)
             . $flush
         )));
+        $t->contains('invalid empty packet line', $invalidArgumentMessage(static fn () => PushResponse::fromReportStatusPacketLines(
+            '0004'
+            . $flush
+        )));
+        $t->contains('invalid empty packet line', $invalidArgumentMessage(static fn () => PushResponse::fromSidebandPacketLines(
+            $packet("\x01" . '0004')
+            . $flush
+        )));
     },
     'preserves upstream line-feed-only receive-status text trimming' => static function (TestRunner $t) use ($packet, $flush, $runtimeMessage): void {
         $rejected = PushResponse::fromReportStatusPacketLines(
@@ -247,5 +255,6 @@ return [
         $t->same(true, $summary['fatalSidebandRejected']);
         $t->same(true, $summary['fallThroughAccepted']);
         $t->same(true, $summary['carriageReturnStatusRejected']);
+        $t->same(true, $summary['emptyPacketLineRejected']);
     },
 ];

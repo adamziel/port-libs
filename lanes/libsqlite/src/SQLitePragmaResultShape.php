@@ -34,6 +34,7 @@ final class SQLitePragmaResultShape
         'short_column_names',
         'synchronous',
         'temp_store',
+        'trusted_schema',
         'user_version',
         'writable_schema',
     ];

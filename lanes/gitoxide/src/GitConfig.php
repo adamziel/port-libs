@@ -610,19 +610,11 @@ final class GitConfig
             }
 
             if ($byte === '[') {
-                $end = strpos($pattern, ']', $index + 1);
-                if ($end !== false) {
-                    $class = substr($pattern, $index + 1, $end - $index - 1);
-                    if ($class !== '') {
-                        $negated = $class[0] === '!' || $class[0] === '^';
-                        if ($negated) {
-                            $class = substr($class, 1);
-                        }
-                        $class = str_replace(['\\', '~', ']'], ['\\\\', '\\~', '\\]'], $class);
-                        $regex .= '(?!/)[' . ($negated ? '^' : '') . $class . ']';
-                        $index = $end;
-                        continue;
-                    }
+                $end = self::findCharacterClassEnd($pattern, $index);
+                if ($end !== null) {
+                    $regex .= '(?!/)' . self::characterClassRegex(substr($pattern, $index + 1, $end - $index - 1));
+                    $index = $end;
+                    continue;
                 }
             }
 
@@ -631,5 +623,118 @@ final class GitConfig
 
         // Gitoxide's wildmatch works on BStr bytes, including malformed UTF-8.
         return preg_match('~\A' . $regex . '\z~' . ($ignoreCase ? 'i' : ''), $text) === 1;
+    }
+
+    private static function findCharacterClassEnd(string $pattern, int $start): ?int
+    {
+        $length = strlen($pattern);
+        $cursor = $start + 1;
+        if ($cursor >= $length) {
+            return null;
+        }
+        if (($pattern[$cursor] ?? '') === '!' || ($pattern[$cursor] ?? '') === '^') {
+            $cursor++;
+        }
+        if (($pattern[$cursor] ?? '') === ']') {
+            $cursor++;
+        }
+
+        for (; $cursor < $length; $cursor++) {
+            $char = $pattern[$cursor];
+            if ($char === '\\') {
+                $cursor++;
+                continue;
+            }
+            if ($char === '[' && ($pattern[$cursor + 1] ?? '') === ':') {
+                $classEnd = strpos($pattern, ':]', $cursor + 2);
+                if ($classEnd !== false) {
+                    $cursor = $classEnd + 1;
+                    continue;
+                }
+            }
+            if ($char === ']') {
+                return $cursor;
+            }
+        }
+
+        return null;
+    }
+
+    private static function characterClassRegex(string $class): string
+    {
+        if ($class === '') {
+            return preg_quote('[]', '~');
+        }
+
+        $negated = false;
+        if ($class[0] === '!' || $class[0] === '^') {
+            $negated = true;
+            $class = substr($class, 1);
+        }
+
+        $body = '';
+        $length = strlen($class);
+        for ($index = 0; $index < $length; $index++) {
+            $byte = $class[$index];
+            if ($byte === '\\') {
+                if ($index + 1 < $length) {
+                    $body .= self::escapeCharacterClassByte($class[++$index]);
+                } else {
+                    $body .= '\\\\';
+                }
+                continue;
+            }
+            if ($byte === '[' && ($class[$index + 1] ?? '') === ':') {
+                $end = strpos($class, ':]', $index + 2);
+                if ($end !== false) {
+                    $name = substr($class, $index + 2, $end - $index - 2);
+                    $mapped = self::posixCharacterClassRegex($name);
+                    if ($mapped === null) {
+                        return preg_quote('[' . ($negated ? '!' : '') . $class . ']', '~');
+                    }
+                    $body .= $mapped;
+                    $index = $end + 1;
+                    continue;
+                }
+            }
+
+            $body .= self::escapeCharacterClassByte($byte);
+        }
+
+        if ($body === '') {
+            return preg_quote('[]', '~');
+        }
+
+        return '[' . ($negated ? '^' : '') . $body . ']';
+    }
+
+    private static function escapeCharacterClassByte(string $byte): string
+    {
+        return match ($byte) {
+            '\\' => '\\\\',
+            ']' => '\\]',
+            '^' => '\\^',
+            '~' => '\\~',
+            default => $byte,
+        };
+    }
+
+    private static function posixCharacterClassRegex(string $class): ?string
+    {
+        return match ($class) {
+            'alnum' => 'A-Za-z0-9',
+            'alpha' => 'A-Za-z',
+            'blank' => '\x09-\x0D ',
+            'cntrl' => '\x00-\x1F\x7F',
+            'digit' => '0-9',
+            'graph' => '\x21-\x7E',
+            'lower' => 'a-z',
+            'print' => '\x20-\x7E',
+            'punct' => '\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E',
+            'space' => ' ',
+            'upper' => 'A-Z',
+            'xdigit' => 'A-Fa-f0-9',
+            default => null,
+        };
     }
 }

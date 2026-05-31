@@ -1237,7 +1237,7 @@ final class SQLiteCoreScalarFunction
                 $floorCandidate = null;
                 continue;
             }
-            if (preg_match('/\A([+-])(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?\z/', $modifierText, $matches) === 1) {
+            if (preg_match('/\A([+-])(\d{4,})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?\z/', $modifierText, $matches) === 1) {
                 if ((int) $matches[3] > 11 || (int) $matches[4] > 30) {
                     return null;
                 }
@@ -1250,10 +1250,13 @@ final class SQLiteCoreScalarFunction
                 );
                 if (isset($matches[5]) && $matches[5] !== '') {
                     $seconds = ((int) $matches[5] * 3600) + ((int) $matches[6] * 60) + (isset($matches[7]) && $matches[7] !== '' ? (int) $matches[7] : 0);
+                    if (isset($matches[8]) && $matches[8] !== '') {
+                        $seconds += (float) ('0.' . $matches[8]);
+                    }
                     if ($matches[1] === '-') {
                         $seconds *= -1;
                     }
-                    $instant = self::modifyBySeconds($instant, (float) $seconds);
+                    $instant = self::modifyBySeconds($instant, $seconds);
                     $floorCandidate = null;
                 }
                 continue;
