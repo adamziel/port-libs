@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 88.8,
-    "suiteProgress": "Supervisor-integrated Gitoxide pack-index/smart-HTTP batch maps multi-pack-index referenced pack-offset validation and smart HTTP noProxy CIDR bypass plus origin Set-Cookie preservation. Verification passed Gitoxide full lane 39 files / 5714 assertions / 0 failures, focused accepted tests, example smokes, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/gitoxide/src.",
-    "phpPass": 5714,
+    "estimatedProgress": 88.9,
+    "suiteProgress": "Supervisor-integrated Gitoxide partial-clone/credential/tree-merge batch maps conflicting-rename resolve-tree behavior while deepening promisor pack inventory refresh and credential numeric overflow parsing. Verification passed focused gate, Gitoxide full lane 39 files / 5755 assertions / 0 failures, example smokes, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/gitoxide/src.",
+    "phpPass": 5755,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full Cargo workspace not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source d9be9987: full Gitoxide lane passed 39 files / 5714 assertions / 0 failures. Conservative mapped coverage moves from 1636 / 2886 to 1638 / 2886: +1 multi-pack-index referenced pack-offset validation and +1 smart HTTP noProxy CIDR/cookie-preservation behavior.",
-    "currentWork": "Pack-index/smart-HTTP batch integrated: ObjectDatabase validates multi-pack-index object offsets against referenced pack indexes and smart HTTP receive-pack handles CIDR noProxy bypass while preserving origin cookies.",
+    "audit": "2026-05-31 supervisor batch at source b6583f69: full Gitoxide lane passed 39 files / 5755 assertions / 0 failures. Conservative mapped coverage moves from 1638 / 2886 to 1639 / 2886: +1 conflicting-rename resolve-tree fixture behavior; partial-clone promisor inventory refresh and credential numeric overflow handling deepen represented clusters.",
+    "currentWork": "Partial-clone/credential/tree-merge batch integrated: promisor pack inventory/count refresh, credential helper numeric overflow parsing, and conflicting-rename resolve-tree behavior.",
     "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch due workspace breadth. Native PHP focused/full-lane evidence is green; keep Gitoxide at a bounded secondary pool while LightningCSS remains the main capacity target.",
-    "latestCommit": "d9be99873a2b39aa98ecab3ce34cbf4cc0992868",
+    "latestCommit": "b6583f699e38b471c4eb277988ef304304c0b6cc",
     "nextTask": "Keep bounded Gitoxide workers on current-base protocol, transport, pack/index, partial clone, tree merge, reference, credential, URL/refspec, and pathspec slices; prioritize handoffs with fresh mapped coverage and full-lane PHP evidence.",
-    "commit": "d9be99873a2b39aa98ecab3ce34cbf4cc0992868"
+    "commit": "b6583f699e38b471c4eb277988ef304304c0b6cc"
 }

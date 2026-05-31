@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 93,
-    "suiteProgress": "Supervisor-integrated LightningCSS custom-at-rule/source-map/modules/import/CSSOM batch maps raw Function visitor replacement and SourceMap all-skipped raw VLQ offset table preservation while deepening CSS Modules pseudo-element boundaries, quoted url() import source parsing, and DeclarationBlock enumeration. Verification passed LightningCSS full lane 13 files / 4356 assertions / 0 failures, focused accepted tests, example smokes, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/lightningcss/src.",
-    "phpPass": 4356,
+    "estimatedProgress": 93.3,
+    "suiteProgress": "Supervisor-integrated LightningCSS property-values/target-prefix/source-map/modules/CSSOM batch maps typed attr() property-value minifier helpers, background-size/background-origin target-prefix browser boundaries, and SourceMap past-EOF line-span offsets while deepening host-context CSS Modules and DeclarationBlock block-write guards. Verification passed focused gate, full LightningCSS lane 13 files / 4390 assertions / 0 failures, example smokes, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/lightningcss/src.",
+    "phpPass": 4390,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source d9be9987: full LightningCSS lane passed 13 files / 4356 assertions / 0 failures. Conservative mapped coverage moves from 2100 / 3532 to 2103 / 3532: +2 custom at-rule raw Function visitor replacement checks and +1 SourceMap all-skipped raw VLQ offset table-preservation behavior; CSS Modules, import parser, and CSSOM work deepen represented clusters.",
-    "currentWork": "Custom-at-rule/source-map/modules/import/CSSOM batch integrated: raw Function visitor values are revisited, raw VLQ imports preserve tables when offsets skip mappings, CSS Modules pseudo-element boundaries are pinned, quoted url() import sources are stricter, and DeclarationBlock enumeration is covered.",
+    "audit": "2026-05-31 supervisor batch at source b6583f69: full LightningCSS lane passed 13 files / 4390 assertions / 0 failures. Conservative mapped coverage moves from 2103 / 3532 to 2117 / 3532: +7 typed attr() minifier helpers, +6 background-size/background-origin target-prefix checks, and +1 SourceMap past-EOF line-span behavior; CSS Modules host-context and CSSOM block-write guard work deepen represented clusters.",
+    "currentWork": "Property-values/target-prefix/source-map/modules/CSSOM batch integrated: typed attr() minification, background-size/background-origin prefixing, SourceMap past-EOF line spans, host-context CSS Modules, and DeclarationBlock block-write guards.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch; continue current-base PHP parity slices with focused tests, examples, manifest-backed mapping, and periodic full-lane PHP gates.",
-    "latestCommit": "d9be99873a2b39aa98ecab3ce34cbf4cc0992868",
+    "latestCommit": "b6583f699e38b471c4eb277988ef304304c0b6cc",
     "nextTask": "Keep LightningCSS dominant and prioritize current-base handoffs that add fresh mapped target-prefix, property-value, parser/CSSOM/source-map/bundler/CSS Modules coverage; reject duplicate status-only or already-covered clusters.",
-    "commit": "d9be99873a2b39aa98ecab3ce34cbf4cc0992868"
+    "commit": "b6583f699e38b471c4eb277988ef304304c0b6cc"
 }

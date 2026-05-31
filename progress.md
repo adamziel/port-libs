@@ -55,6 +55,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (Gitoxide partial-clone/credential/tree
+  merge and LightningCSS target/property/source-map batch 21:09 UTC): source
+  commit `b6583f699e38b471c4eb277988ef304304c0b6cc` (`ports: extend
+  gitoxide hydration and lightningcss targets`) landed eight screened handoffs
+  after resolving SourceMap, scenario-note, and target-prefix replay conflicts.
+  Gitoxide now reports `5755 pass / 0 fail`, with conservative mapped coverage
+  moving from `1638 / 2886` to `1639 / 2886`: conflicting-rename resolve-tree
+  fixture behavior; partial-clone promisor inventory refresh and credential
+  numeric overflow parsing deepen represented clusters. LightningCSS now
+  reports `4390 pass / 0 fail`, with conservative mapped coverage moving from
+  `2103 / 3532` to `2117 / 3532`: seven typed `attr()` minifier helpers, six
+  background-size/background-origin target-prefix checks, and one SourceMap
+  past-EOF line-span behavior; host-context CSS Modules and CSSOM block-write
+  guard behavior deepen represented clusters. Verification passed focused gate
+  `9 files / 4362 assertions / 0 failures`, Gitoxide full lane `39 files /
+  5755 assertions / 0 failures`, LightningCSS full lane `13 files / 4390
+  assertions / 0 failures`, eight touched example self-tests, `git diff
+  --check`, and no WordPress/WP/wp_ source symbols under `lanes/gitoxide/src`
+  or `lanes/lightningcss/src`.
+
 - 2026-05-31 supervisor continuation (Gitoxide pack-index/smart-HTTP and
   LightningCSS parser/source-map batch 21:08 UTC): source commit
   `d9be99873a2b39aa98ecab3ce34cbf4cc0992868` (`ports: extend gitoxide
