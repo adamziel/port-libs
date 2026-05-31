@@ -1,7 +1,7 @@
 {
-    "generated": "2026-05-31 07:48:44 UTC",
-    "sourceCommit": "df4b88a34f0edc616ba8ef077dc8a5172d60f37e",
-    "sourceCommitShort": "df4b88a34f0e",
+    "generated": "2026-05-31 07:54:47 UTC",
+    "sourceCommit": "6297d463dbac65e44e37ba771c9465c4de34c2b8",
+    "sourceCommitShort": "6297d463dbac",
     "sourceBranch": "main",
     "dashboardCommit": "df4b88a34f0edc616ba8ef077dc8a5172d60f37e",
     "dashboardCommitShort": "df4b88a34f0e",
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "2752670 pass / 0 fail",
+            "php": "2789614 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, upstream corpus closure, source-neut...",
-            "audit": "Accepted source commit f5afe3b93 after ba...",
-            "currentWork": "Committed batch93 with 24 current-base handoffs covering SELECT/date/expression affinity,...",
-            "nextTarget": "Continue integrating fresh current-base high-yield libsqlite handoffs from the live 10-11...",
+            "audit": "Accepted source commit 6297d463d after ba...",
+            "currentWork": "Committed batch94 with 15 source/test-moving current-base handoffs across window, SELECT,...",
+            "nextTarget": "Continue integrating fresh current-base high-yield libsqlite handoffs and dedicate closur...",
             "blocker": "Remaining blockers before gitoxide: baseline PRAGMA/SELECT known-red clus...",
-            "commit": "f5afe3b"
+            "commit": "6297d46"
         },
         {
             "library": "LightningCSS",
