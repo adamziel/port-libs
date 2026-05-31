@@ -19,13 +19,26 @@ final class SQLiteUpsertReturningSql
             throw new \InvalidArgumentException("SQLite UPSERT RETURNING target table {$target} is missing");
         }
 
+        $conflictArms = $parsed['conflict_arms'];
+        $usesChainedConflictArms = count($conflictArms) > 1;
         $omittedConflictTarget = $parsed['conflict_target'] === [];
         $conflictTarget = self::effectiveConflictTarget($parsed['conflict_target'], $uniqueConstraints);
-        self::validateConflictTarget($conflictTarget, $uniqueConstraints);
+        if (!$usesChainedConflictArms) {
+            self::validateConflictTarget($conflictTarget, $uniqueConstraints);
+        } elseif ($uniqueConstraints === null || $uniqueConstraints === []) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING chained ON CONFLICT arms require UNIQUE constraints');
+        }
 
         $incomingRows = self::completeIncomingRowsFromTargetImage($tables[$target], $parsed['incoming_rows']);
 
-        if ($parsed['action'] === 'nothing') {
+        if ($usesChainedConflictArms) {
+            $result = SQLiteUpsertDoUpdateWherePlan::executeConflictArms(
+                $tables[$target],
+                $incomingRows,
+                self::conflictArmCallbacks($target, $parsed['target_alias'], $conflictArms),
+                $uniqueConstraints,
+            );
+        } elseif ($parsed['action'] === 'nothing') {
             $result = self::executeDoNothing($tables[$target], $incomingRows, $conflictTarget, $uniqueConstraints, $omittedConflictTarget);
         } else {
             $result = SQLiteUpsertDoUpdateWherePlan::execute(
@@ -100,7 +113,7 @@ final class SQLiteUpsertReturningSql
     }
 
     /**
-     * @return array{target:string,target_alias:?string,columns:list<string>,incoming_rows:list<array<string,mixed>>,conflict_target:list<string>,conflict_where:?string,action:'update'|'nothing',assignments:array<string,string>,where:?string,returning:string}
+     * @return array{target:string,target_alias:?string,columns:list<string>,incoming_rows:list<array<string,mixed>>,conflict_target:list<string>,conflict_where:?string,action:'update'|'nothing',assignments:array<string,string>,where:?string,returning:string,conflict_arms:list<array{target:list<string>|null,conflict_where:?string,action:'update'|'nothing',assignments:array<string,string>,where:?string}>}
      */
     public static function parse(string $sql): array
     {
@@ -183,66 +196,12 @@ final class SQLiteUpsertReturningSql
             throw new \InvalidArgumentException('SQLite UPSERT RETURNING requires VALUES or SELECT input');
         }
 
-        $offset = $conflictOffset + strlen('ON CONFLICT');
-        $offset = self::skipWhitespace($sql, $offset);
-        $conflictTarget = [];
-        if (($sql[$offset] ?? null) === '(') {
-            [$conflictSql, $offset] = self::consumeParenthesized($sql, $offset);
-            $conflictTarget = self::identifierList($conflictSql, 'SQLite UPSERT RETURNING conflict target');
-        }
-
-        $offset = self::skipWhitespace($sql, $offset);
-        $conflictWhere = null;
-        if (preg_match('/\GWHERE\b/i', $sql, $whereMatch, 0, $offset) === 1) {
-            $whereStart = $offset + strlen($whereMatch[0]);
-            $actionOffset = self::keywordOffset($sql, 'DO UPDATE', $whereStart);
-            $doNothingOffset = self::keywordOffset($sql, 'DO NOTHING', $whereStart);
-            if ($actionOffset === null || ($doNothingOffset !== null && $doNothingOffset < $actionOffset)) {
-                $actionOffset = $doNothingOffset;
-            }
-            if ($actionOffset === null) {
-                throw new \InvalidArgumentException('SQLite UPSERT conflict target WHERE must be followed by DO UPDATE SET or DO NOTHING');
-            }
-            $conflictWhere = trim(substr($sql, $whereStart, $actionOffset - $whereStart));
-            if ($conflictWhere === '') {
-                throw new \InvalidArgumentException('SQLite UPSERT conflict target WHERE clause must not be empty');
-            }
-            self::validateConflictTargetWhere($conflictWhere, $columns);
-            $offset = self::skipWhitespace($sql, $actionOffset);
-        }
-
-        $action = 'update';
-        $assignmentSql = '';
-        $whereSql = null;
-        if (preg_match('/\GDO\s+NOTHING\b/i', $sql, $doNothingMatch, 0, $offset) === 1) {
-            $action = 'nothing';
-            $offset += strlen($doNothingMatch[0]);
-            $returningOffset = self::keywordOffset($sql, 'RETURNING', $offset);
-            if ($returningOffset === null) {
-                throw new \InvalidArgumentException('SQLite UPSERT RETURNING requires RETURNING');
-            }
-            if (trim(substr($sql, $offset, $returningOffset - $offset)) !== '') {
-                throw new \InvalidArgumentException('SQLite UPSERT DO NOTHING RETURNING cannot include assignments or WHERE');
-            }
-        } else {
-            if (preg_match('/\GDO\s+UPDATE\s+SET\b/i', $sql, $doMatch, 0, $offset) !== 1) {
-                throw new \InvalidArgumentException('SQLite UPSERT RETURNING only supports DO UPDATE SET or DO NOTHING');
-            }
-            $offset += strlen($doMatch[0]);
-
-            $returningOffset = self::keywordOffset($sql, 'RETURNING', $offset);
-            if ($returningOffset === null) {
-                throw new \InvalidArgumentException('SQLite UPSERT RETURNING requires RETURNING');
-            }
-
-            $beforeReturning = trim(substr($sql, $offset, $returningOffset - $offset));
-            $whereOffset = self::keywordOffset($beforeReturning, 'WHERE', 0);
-            $assignmentSql = $whereOffset === null ? $beforeReturning : trim(substr($beforeReturning, 0, $whereOffset));
-            $whereSql = $whereOffset === null ? null : trim(substr($beforeReturning, $whereOffset + strlen('WHERE')));
-            if ($whereSql === '') {
-                throw new \InvalidArgumentException('SQLite UPSERT RETURNING WHERE clause must not be empty');
-            }
-        }
+        [$conflictArms, $returningOffset] = self::parseConflictArms($sql, $conflictOffset, $columns);
+        $firstArm = $conflictArms[0];
+        $conflictTarget = $firstArm['target'] ?? [];
+        $conflictWhere = $firstArm['conflict_where'];
+        $action = $firstArm['action'];
+        $whereSql = $firstArm['where'];
 
         $returning = trim(substr($sql, $returningOffset + strlen('RETURNING')));
         if ($returning === '') {
@@ -257,10 +216,117 @@ final class SQLiteUpsertReturningSql
             'conflict_target' => $conflictTarget,
             'conflict_where' => $conflictWhere,
             'action' => $action,
-            'assignments' => $action === 'update' ? self::parseAssignments($assignmentSql) : [],
+            'assignments' => $firstArm['assignments'],
             'where' => $whereSql,
             'returning' => $returning,
+            'conflict_arms' => $conflictArms,
         ];
+    }
+
+    /**
+     * @param list<string> $columns
+     * @return array{0:list<array{target:list<string>|null,conflict_where:?string,action:'update'|'nothing',assignments:array<string,string>,where:?string}>,1:int}
+     */
+    private static function parseConflictArms(string $sql, int $offset, array $columns): array
+    {
+        $arms = [];
+
+        while (true) {
+            $offset = self::skipWhitespace($sql, $offset);
+            if (preg_match('/\GON\s+CONFLICT\b/i', $sql, $conflictMatch, 0, $offset) !== 1) {
+                throw new \InvalidArgumentException('SQLite UPSERT RETURNING requires ON CONFLICT');
+            }
+            $offset += strlen($conflictMatch[0]);
+            $offset = self::skipWhitespace($sql, $offset);
+
+            $conflictTarget = null;
+            if (($sql[$offset] ?? null) === '(') {
+                [$conflictSql, $offset] = self::consumeParenthesized($sql, $offset);
+                $conflictTarget = self::identifierList($conflictSql, 'SQLite UPSERT RETURNING conflict target');
+            }
+
+            $offset = self::skipWhitespace($sql, $offset);
+            $conflictWhere = null;
+            if (preg_match('/\GWHERE\b/i', $sql, $whereMatch, 0, $offset) === 1) {
+                $whereStart = $offset + strlen($whereMatch[0]);
+                $actionOffset = self::keywordOffset($sql, 'DO UPDATE', $whereStart);
+                $doNothingOffset = self::keywordOffset($sql, 'DO NOTHING', $whereStart);
+                if ($actionOffset === null || ($doNothingOffset !== null && $doNothingOffset < $actionOffset)) {
+                    $actionOffset = $doNothingOffset;
+                }
+                if ($actionOffset === null) {
+                    throw new \InvalidArgumentException('SQLite UPSERT conflict target WHERE must be followed by DO UPDATE SET or DO NOTHING');
+                }
+                $conflictWhere = trim(substr($sql, $whereStart, $actionOffset - $whereStart));
+                if ($conflictWhere === '') {
+                    throw new \InvalidArgumentException('SQLite UPSERT conflict target WHERE clause must not be empty');
+                }
+                self::validateConflictTargetWhere($conflictWhere, $columns);
+                $offset = self::skipWhitespace($sql, $actionOffset);
+            }
+
+            $action = 'update';
+            $assignments = [];
+            $whereSql = null;
+            if (preg_match('/\GDO\s+NOTHING\b/i', $sql, $doNothingMatch, 0, $offset) === 1) {
+                $action = 'nothing';
+                $offset += strlen($doNothingMatch[0]);
+                [$nextKeyword, $nextOffset] = self::nextConflictArmOrReturningOffset($sql, $offset);
+                if (trim(substr($sql, $offset, $nextOffset - $offset)) !== '') {
+                    throw new \InvalidArgumentException('SQLite UPSERT DO NOTHING RETURNING cannot include assignments or WHERE');
+                }
+            } else {
+                if (preg_match('/\GDO\s+UPDATE\s+SET\b/i', $sql, $doMatch, 0, $offset) !== 1) {
+                    throw new \InvalidArgumentException('SQLite UPSERT RETURNING only supports DO UPDATE SET or DO NOTHING');
+                }
+                $offset += strlen($doMatch[0]);
+                [$nextKeyword, $nextOffset] = self::nextConflictArmOrReturningOffset($sql, $offset);
+
+                $beforeNext = trim(substr($sql, $offset, $nextOffset - $offset));
+                $whereOffset = self::keywordOffset($beforeNext, 'WHERE', 0);
+                $assignmentSql = $whereOffset === null ? $beforeNext : trim(substr($beforeNext, 0, $whereOffset));
+                $whereSql = $whereOffset === null ? null : trim(substr($beforeNext, $whereOffset + strlen('WHERE')));
+                if ($whereSql === '') {
+                    throw new \InvalidArgumentException('SQLite UPSERT RETURNING WHERE clause must not be empty');
+                }
+                $assignments = self::parseAssignments($assignmentSql);
+            }
+
+            if ($conflictTarget === null && $nextKeyword === 'ON CONFLICT') {
+                throw new \InvalidArgumentException('SQLite UPSERT catchall ON CONFLICT arm must be last');
+            }
+
+            $arms[] = [
+                'target' => $conflictTarget,
+                'conflict_where' => $conflictWhere,
+                'action' => $action,
+                'assignments' => $assignments,
+                'where' => $whereSql,
+            ];
+
+            if ($nextKeyword === 'RETURNING') {
+                return [$arms, $nextOffset];
+            }
+            $offset = $nextOffset;
+        }
+    }
+
+    /**
+     * @return array{0:'ON CONFLICT'|'RETURNING',1:int}
+     */
+    private static function nextConflictArmOrReturningOffset(string $sql, int $offset): array
+    {
+        $returningOffset = self::keywordOffset($sql, 'RETURNING', $offset);
+        if ($returningOffset === null) {
+            throw new \InvalidArgumentException('SQLite UPSERT RETURNING requires RETURNING');
+        }
+
+        $conflictOffset = self::keywordOffset($sql, 'ON CONFLICT', $offset);
+        if ($conflictOffset !== null && $conflictOffset < $returningOffset) {
+            return ['ON CONFLICT', $conflictOffset];
+        }
+
+        return ['RETURNING', $returningOffset];
     }
 
     /**
@@ -640,6 +706,25 @@ final class SQLiteUpsertReturningSql
         }
 
         return self::splitComma($sql);
+    }
+
+    /**
+     * @param list<array{target:list<string>|null,conflict_where:?string,action:'update'|'nothing',assignments:array<string,string>,where:?string}> $arms
+     * @return list<array{target:list<string>|null,action:string,assignments:array<string,callable(array<string,mixed>,array<string,mixed>):mixed>,where:callable(array<string,mixed>,array<string,mixed>):bool|null}>
+     */
+    private static function conflictArmCallbacks(string $target, ?string $targetAlias, array $arms): array
+    {
+        $callbacks = [];
+        foreach ($arms as $arm) {
+            $callbacks[] = [
+                'target' => $arm['target'],
+                'action' => $arm['action'],
+                'assignments' => $arm['action'] === 'update' ? self::assignmentCallbacks($target, $targetAlias, $arm['assignments']) : [],
+                'where' => self::wherePredicate($target, $targetAlias, $arm['where']),
+            ];
+        }
+
+        return $callbacks;
     }
 
     /**

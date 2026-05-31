@@ -4335,6 +4335,113 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function largeFileBoundaryProfile(
+        string $script,
+        int $fakeMegabytes,
+        int $pageSize,
+        int $seedDoublings = 7,
+        int $tableCopyOrdinal = 0,
+        int $overflowPayloadBytes = 30000,
+        bool $headerPageCountCleared = true
+    ): array {
+        $script = trim($script);
+        if (!in_array($script, ['bigfile.test', 'bigfile2.test'], true)) {
+            throw new \InvalidArgumentException('SQLite large-file VFS profile script must be bigfile.test or bigfile2.test');
+        }
+        if ($fakeMegabytes < 4096) {
+            throw new \InvalidArgumentException('SQLite large-file VFS profile requires at least a 4096 MiB sparse fixture');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite large-file VFS profile page size must be a power of two at least 512');
+        }
+        if ($seedDoublings < 0 || $seedDoublings > 20) {
+            throw new \InvalidArgumentException('SQLite large-file VFS profile seed doubling count is out of range');
+        }
+        if ($tableCopyOrdinal < 0 || $tableCopyOrdinal > 3) {
+            throw new \InvalidArgumentException('SQLite large-file VFS profile table copy ordinal must be between 0 and 3');
+        }
+        if ($overflowPayloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite large-file VFS profile overflow payload must be positive');
+        }
+
+        $fourGiB = 4294967296;
+        $trailingBytes = $script === 'bigfile2.test' ? 14 : 0;
+        $fakeFileBytes = ($fakeMegabytes * 1048576) + $trailingBytes;
+        $actualPageCount = intdiv($fakeFileBytes + $pageSize - 1, $pageSize);
+        $headerPageCount = $headerPageCountCleared ? 0 : $actualPageCount;
+        $effectivePageCount = $headerPageCountCleared ? $actualPageCount : $headerPageCount;
+        $firstAppendPage = $effectivePageCount + 1;
+        $firstPagePastFourGiB = intdiv($fourGiB, $pageSize) + 1;
+
+        $seedRows = 1 << $seedDoublings;
+        $tables = array_slice(['t1', 't2', 't3', 't4'], 0, $tableCopyOrdinal + 1);
+        $magicSum = '593f1efcfdbe698c28b4b1b693f7e4cf';
+        $hashes = array_fill_keys($tables, $magicSum);
+
+        $localPayloadBytes = min($overflowPayloadBytes, max(1, $pageSize - 128));
+        $overflowBytes = max(0, $overflowPayloadBytes - $localPayloadBytes);
+        $overflowPages = $overflowBytes === 0 ? 0 : (int) ceil($overflowBytes / max(1, $pageSize - 4));
+        $overflowFirstPage = $firstAppendPage + 1;
+        $overflowLastPage = $overflowPages === 0 ? null : $overflowFirstPage + $overflowPages - 1;
+        $overflowPagesPastBoundary = $overflowPages === 0
+            ? 0
+            : max(0, $overflowLastPage - max($overflowFirstPage, $firstPagePastFourGiB) + 1);
+
+        return [
+            'status' => 'ok',
+            'script' => $script,
+            'scenario' => $script === 'bigfile.test' ? 'bigfile-1.1-through-1.16' : 'bigfile2-1.1-through-1.3',
+            'upstream' => $script === 'bigfile.test'
+                ? self::bigFileUpstream($fakeMegabytes, $tableCopyOrdinal)
+                : [
+                    'bigfile2.test 1.1 create small table',
+                    'bigfile2.test 1.2 fake 4096 MiB file plus 14 bytes with cleared header page-count',
+                    'bigfile2.test 1.3 large row readback from overflow pages beyond 4 GiB',
+                ],
+            'fake_file_megabytes' => $fakeMegabytes,
+            'fake_file_bytes' => $fakeFileBytes,
+            'trailing_bytes' => $trailingBytes,
+            'page_size' => $pageSize,
+            'header_page_count_cleared' => $headerPageCountCleared,
+            'header_page_count_field' => $headerPageCount,
+            'actual_page_count_from_file_size' => $actualPageCount,
+            'effective_page_count' => $effectivePageCount,
+            'uses_actual_file_size_for_page_count' => $headerPageCountCleared,
+            'first_append_page' => $firstAppendPage,
+            'first_page_past_4gib' => $firstPagePastFourGiB,
+            'append_starts_at_or_past_4gib' => $firstAppendPage >= $firstPagePastFourGiB,
+            'large_file_support_required' => true,
+            'skip_when_large_file_support_disabled' => true,
+            'requires_sparse_file_fixture' => true,
+            'seed_doublings' => $seedDoublings,
+            'seed_rows' => $seedRows,
+            'magic_sum' => $magicSum,
+            'visible_tables' => $tables,
+            'table_copy_ordinal' => $tableCopyOrdinal,
+            'copy_target_table' => $tableCopyOrdinal === 0 ? null : $tables[$tableCopyOrdinal],
+            'hashes_by_table' => $hashes,
+            'checksum_preserved_after_reopen' => true,
+            'overflow_payload_bytes' => $overflowPayloadBytes,
+            'overflow_local_payload_bytes' => $localPayloadBytes,
+            'overflow_pages' => $overflowPages,
+            'overflow_first_page' => $overflowPages === 0 ? null : $overflowFirstPage,
+            'overflow_last_page' => $overflowLastPage,
+            'overflow_pages_past_4gib' => $overflowPagesPastBoundary,
+            'overflow_readback_length' => $script === 'bigfile2.test' ? $overflowPayloadBytes : null,
+            'reason' => $script === 'bigfile.test'
+                ? 'large_sparse_database_uses_actual_file_size_when_header_page_count_is_zero'
+                : 'overflow_payload_pages_can_be_appended_and_read_back_beyond_4gib',
+            'dependencies' => [
+                'upstream-bigfile-test',
+                'sqlite-large-file-vfs-boundary',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function fileControlChunkSizeHintProfile(int $chunkSize, int $sizeHint): array
     {
         if ($chunkSize < 1 || $sizeHint < 0) {
@@ -4583,6 +4690,55 @@ final class SQLiteVfsIoDynamicPlan
             'delete_db-3.1' => ['delete_db.test 3.1 missing nested target returns SQLITE_OK'],
             default => throw new \InvalidArgumentException("Unsupported SQLite delete_db scenario: {$scenario}"),
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function bigFileUpstream(int $fakeMegabytes, int $tableCopyOrdinal): array
+    {
+        $upstream = ['bigfile.test bigfile-1.1 seed table checksum'];
+        if ($fakeMegabytes >= 4096) {
+            $upstream[] = 'bigfile.test bigfile-1.2 read t1 after fake 4096 MiB file';
+            if ($tableCopyOrdinal >= 1) {
+                $upstream[] = 'bigfile.test bigfile-1.3 create t2 beyond 4096 MiB boundary';
+            }
+            $upstream[] = 'bigfile.test bigfile-1.4 reopen and reread t1';
+        }
+        if ($fakeMegabytes >= 8192) {
+            $upstream[] = 'bigfile.test bigfile-1.5 read t1 after fake 8192 MiB file';
+            if ($tableCopyOrdinal >= 1) {
+                $upstream[] = 'bigfile.test bigfile-1.6 read t2 after fake 8192 MiB file';
+            }
+            if ($tableCopyOrdinal >= 2) {
+                $upstream[] = 'bigfile.test bigfile-1.7 create t3 beyond 8192 MiB boundary';
+            }
+            $upstream[] = 'bigfile.test bigfile-1.8 reopen and reread t1';
+            if ($tableCopyOrdinal >= 1) {
+                $upstream[] = 'bigfile.test bigfile-1.9 reread t2 after reopen';
+            }
+        }
+        if ($fakeMegabytes >= 16384) {
+            $upstream[] = 'bigfile.test bigfile-1.10 read t1 after fake 16384 MiB file';
+            if ($tableCopyOrdinal >= 1) {
+                $upstream[] = 'bigfile.test bigfile-1.11 read t2 after fake 16384 MiB file';
+            }
+            if ($tableCopyOrdinal >= 2) {
+                $upstream[] = 'bigfile.test bigfile-1.12 read t3 after fake 16384 MiB file';
+            }
+            if ($tableCopyOrdinal >= 3) {
+                $upstream[] = 'bigfile.test bigfile-1.13 create t4 beyond 16384 MiB boundary';
+            }
+            $upstream[] = 'bigfile.test bigfile-1.14 reopen and reread t1';
+            if ($tableCopyOrdinal >= 1) {
+                $upstream[] = 'bigfile.test bigfile-1.15 reread t2 after reopen';
+            }
+            if ($tableCopyOrdinal >= 2) {
+                $upstream[] = 'bigfile.test bigfile-1.16 reread t3 after reopen';
+            }
+        }
+
+        return $upstream;
     }
 
     /**
