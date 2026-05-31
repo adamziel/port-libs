@@ -48,6 +48,32 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 04:08 UTC):
+  Batch67 is integrated locally as source
+  `b9b7909e450d43061d2b0b29580eaf3f97b659eb` (`libsqlite: add
+  sixty-seventh current corpus sweep`). The batch accepted 14
+  source/test-moving handoffs across B-tree index sort-order behavior,
+  date localtime-chain behavior, expression real-truth and LIKE/GLOB exact
+  behavior, JSONB remove behavior, pager WAL full-sync behavior, PRAGMA schema
+  join-xinfo behavior, trigger/FK definition diagnostic, fkey6 lifecycle, and
+  triggerB view-name behavior, UPSERT4 conflict-target behavior, VFS IO atomic
+  admission and quick-balance behavior, and window4 navigation behavior. Six
+  candidates were parked: two direct app-WAL/rowvalue conflicts, two notes-only
+  markers, and two SELECT handoffs that caused adjacent SELECT guard
+  regressions and were removed from the accepted diff. Verification passed PHP
+  lint for `19` changed/new PHP files, `git diff --check -- lanes/libsqlite`,
+  no newly-added WordPress/wp source text in the batch source diff, no
+  newly-added numeric `CurrentNext`/`CurrentSourceNext` class suffixes in the
+  batch diff, focused selected tests `14 files / 121426 assertions / 0
+  failures / 27133 PASS lines`, accepted-base overlap `2 files / 23010
+  assertions / 0 failures / 2002 PASS lines`, and isolated per-file related
+  guard `812 files / 10428565 assertions / 0 failures / 1684631 PASS lines`
+  with the stable 16 known-red diagnostic files excluded. Honest selected
+  movement is `+25131`, moving libsqlite from `1981165` to `2006296 pass / 0
+  fail`; mapped coverage remains `1589 / 1589`. Broad release/all-runner
+  parity remains open; gitoxide starts only after libsqlite closure is
+  recorded.
+
 - 2026-05-31 supervisor continuation (integration sample 04:00 UTC):
   Batch66 is integrated locally as source
   `4ae0dd32388d1f1d541f54ceaae913914afd9b86` (`libsqlite: add
