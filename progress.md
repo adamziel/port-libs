@@ -6396,6 +6396,28 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   regressions, remaining app-WAL/row-value conflicts, and release/all-runner
   parity remain blockers before gitoxide.
 
+## Supervisor Integration 2026-05-31T07:07Z Libsqlite Eighty-Ninth Sweep
+
+- Integrated 16 current-base libsqlite handoffs as source commit
+  `36d9d6b99 libsqlite: add eighty-ninth current corpus sweep`.
+- Parked eight candidates: one row-value handoff for a 3-way conflict, one
+  older app-WAL handoff for duplicate method overlap, and six note-only blocked
+  handoffs with no source/test movement.
+- Public selected libsqlite evidence moves from `2607931` to `2628093 pass / 0
+  fail`, a net `+20162` PASS-line increase after subtracting `13395` accepted
+  base-overlap PASS lines. Mapped coverage remains `1589 / 1589`.
+- Verification passed PHP lint for 25 changed/new PHP files, `git diff --check
+  -- lanes/libsqlite`, no WordPress/wp source text in changed accepted
+  libsqlite source, no new numbered `CurrentNext`/`CurrentSourceNext` class
+  symbols, focused selected tests with `memory_limit=1024M` `17 files /
+  204448 assertions / 0 failures / 33557 PASS lines`, base overlap with
+  `memory_limit=1024M` `4 files / 27756 assertions / 1 existing PRAGMA failure
+  / 13395 PASS lines`, and a direct related guard with `memory_limit=1024M`
+  `123 files / 2773555 assertions / 0 failures / 217933 PASS lines`.
+- Pager/WAL default-memory pressure, known-red broad clusters, rejected
+  VFS/JSON/WAL regressions, remaining app-WAL/row-value conflicts, and
+  release/all-runner parity remain blockers before gitoxide.
+
 ## Supervisor Integration 2026-05-31T06:55Z Libsqlite Eighty-Eighth Sweep
 
 - Integrated 14 current-base libsqlite handoffs as source commit
