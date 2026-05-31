@@ -42,15 +42,34 @@
 - Composer: unavailable on current PATH; prior bootstrap recorded 2.8.12.
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
-- Memory: current sample reports 27 GiB total and about 16 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 361G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.6G available. Preserve dirty work and use bounded cleanup/refill only.
+- Memory: current supervisor sample reports 27 GiB total and about 14 GiB available.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 351G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.0G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool includes
-  a LightningCSS surge currently targeted at 32 visible workers plus active
+  a LightningCSS surge currently targeted at 40 visible workers plus active
   libsqlite/Gitoxide workers; the latest refill started LightningCSS workers on
   `gpt-5.5` xhigh with the priority service tier and no long sleeper loop.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (Gitoxide integration plus LightningCSS
+  refill 16:20 UTC): source commit
+  `db90c9ab60d38142735b1aac59a6f5519b1d474f` (`ports: extend gitoxide tree
+  config sparse push parity`) landed six verified Gitoxide handoffs after
+  excluding stale shared metadata. Gitoxide full lane evidence moves from
+  `4936` to `5018 pass / 0 fail`, with mapped coverage moving from `1596 /
+  2886` to `1602 / 2886`: conflicting rename/tree-merge fixture parity,
+  nested loose-object iterator integrity, config includeIf path interpolation
+  boundaries, recursive attribute macro/pathspec lookup parity,
+  sparse-checkout negative wildcard directory traversal, and send-pack
+  receive-status requested-ref filtering. Gates passed: PHP lint on changed PHP
+  files, `git diff --check -- lanes/gitoxide scripts/refill-lightningcss-workers.sh`,
+  focused Gitoxide gate `8 files / 1752 assertions / 0 failures`, full
+  Gitoxide lane `39 files / 5018 assertions / 0 failures`, and six touched
+  examples exiting 0. Full upstream Cargo workspace tests were not run for this
+  isolated batch. The visible LightningCSS refill default was raised from `36`
+  to `40` workers and the pool was refilled with `gpt-5.5` xhigh priority
+  workers; no long sleeper processes were present during verification.
 
 - 2026-05-31 supervisor continuation (LightningCSS integration 16:10 UTC):
   source commit `4b52aac232d0a3602ebf70bc6a0ed62949c621c7` (`ports: extend
