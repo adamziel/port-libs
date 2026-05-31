@@ -266,15 +266,20 @@ final class CssBundler
         $cssModuleExports = $cssModuleResult['exports'] ?? [];
         $cssModuleReferences = $cssModuleResult['references'] ?? [];
         foreach ($this->cssModuleDependencySpecifiers($cssModuleExports, $cssModuleReferences) as $specifier) {
-            $dependencyLoc = $cssModuleDependencyLocations[$specifier] ?? ['line' => 1, 'column' => 1];
-            $resolved = $this->resolveImport($specifier, $file, $dependencyLoc);
+            $dependencyLocations = $cssModuleDependencyLocations[$specifier] ?? [
+                'read' => ['line' => 1, 'column' => 1],
+                'resolve' => ['line' => 1, 'column' => 1],
+            ];
+            $dependencyLoc = $dependencyLocations['read'];
+            $resolveLoc = $dependencyLocations['resolve'];
+            $resolved = $this->resolveImport($specifier, $file, $resolveLoc);
             if (isset($resolved['external'])) {
                 throw new CssBundleException(
                     'referenced-external-module-with-css-module-from',
                     'Referenced external module with CSS module "from" clause',
                     $file,
-                    1,
-                    1,
+                    $resolveLoc['line'],
+                    $resolveLoc['column'],
                 );
             }
 
@@ -1627,7 +1632,7 @@ final class CssBundler
     }
 
     /**
-     * @return array<string, array{line:int,column:int}>
+     * @return array<string, array{read:array{line:int,column:int},resolve:array{line:int,column:int}}>
      */
     private function cssModuleDependencyLocations(string $source): array
     {
@@ -1654,9 +1659,13 @@ final class CssBundler
                 ?? $this->findNextTopLevel($source, '}', $valueStart)
                 ?? strlen($source);
             $value = substr($source, $valueStart, $valueEnd - $valueStart);
-            $location = $this->sourceLocation($source, $valueStart);
+            $readLocation = $this->sourceLocation($source, $valueStart);
+            $resolveLocation = $this->cssStyleRuleLocationForOffset($source, $propertyOffset);
             foreach ($this->cssModuleDependencySpecifiersInValue($value) as $specifier) {
-                $locations[$specifier] ??= $location;
+                $locations[$specifier] ??= [
+                    'read' => $readLocation,
+                    'resolve' => $resolveLocation,
+                ];
             }
 
             $offset = $valueEnd + 1;
@@ -1677,15 +1686,165 @@ final class CssBundler
                 continue;
             }
             $value = substr($source, $open + 1, $close - $open - 1);
-            $location = $this->sourceLocation($source, $functionOffset);
+            $location = $this->cssStyleRuleLocationForOffset($source, $functionOffset);
             foreach ($this->cssModuleDependencySpecifiersInValue($value) as $specifier) {
-                $locations[$specifier] ??= $location;
+                $locations[$specifier] ??= [
+                    'read' => $location,
+                    'resolve' => $location,
+                ];
             }
 
             $offset = $close + 1;
         }
 
         return $locations;
+    }
+
+    /**
+     * @return array{line:int,column:int}
+     */
+    private function cssStyleRuleLocationForOffset(string $source, int $offset): array
+    {
+        $stack = $this->cssBlockOpenStackBeforeOffset($source, $offset);
+        if ($stack === []) {
+            return $this->sourceLocation($source, $offset);
+        }
+
+        $blockOpen = $stack[array_key_last($stack)];
+        $parentOpen = count($stack) > 1 ? $stack[count($stack) - 2] : -1;
+        $start = $this->cssPreludeStartInParent($source, $parentOpen + 1, $blockOpen);
+
+        return $this->sourceLocation($source, $start);
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function cssBlockOpenStackBeforeOffset(string $source, int $offset): array
+    {
+        $stack = [];
+        $quote = null;
+        $length = min($offset, strlen($source));
+        for ($i = 0; $i < $length; $i++) {
+            $char = $source[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '/' && ($source[$i + 1] ?? '') === '*') {
+                $end = strpos($source, '*/', $i + 2);
+                if ($end === false) {
+                    break;
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $i = $this->cssEscapeEndOffset($source, $i);
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '{') {
+                $stack[] = $i;
+                continue;
+            }
+
+            if ($char === '}') {
+                array_pop($stack);
+            }
+        }
+
+        return $stack;
+    }
+
+    private function cssPreludeStartInParent(string $source, int $start, int $blockOpen): int
+    {
+        $boundary = $start;
+        $quote = null;
+        $braceDepth = 0;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        for ($i = $start; $i < $blockOpen; $i++) {
+            $char = $source[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '/' && ($source[$i + 1] ?? '') === '*') {
+                $end = strpos($source, '*/', $i + 2);
+                if ($end === false) {
+                    break;
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $i = $this->cssEscapeEndOffset($source, $i);
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($char === '{') {
+                $braceDepth++;
+                continue;
+            }
+
+            if ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+                if ($braceDepth === 0) {
+                    $boundary = $i + 1;
+                }
+                continue;
+            }
+
+            if ($char === ';' && $braceDepth === 0 && $parenDepth === 0 && $bracketDepth === 0) {
+                $boundary = $i + 1;
+            }
+        }
+
+        return $this->skipWhitespaceAndComments($source, $boundary);
     }
 
     /**

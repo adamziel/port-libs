@@ -36,8 +36,8 @@ return [
         $t->same('screen and (width>=240px)', $parser->minifyList('screen and not (width < 240px)'));
         $t->same('(width>=240px)', $parser->minifyList('(not (width < 240px))'));
         $t->same('screen and (width>=240px)', $parser->minifyList('screen and (not (width < 240px))'));
-        $t->same('(hover) and ((width>=240px))', $parser->minifyList('(hover) and (not (width < 240px))'));
-        $t->same('(hover) and ((width<240px))', $parser->minifyList('(hover) and (not (not (width < 240px)))'));
+        $t->same('(hover) and (width>=240px)', $parser->minifyList('(hover) and (not (width < 240px))'));
+        $t->same('(hover) and (width<240px)', $parser->minifyList('(hover) and (not (not (width < 240px)))'));
         $t->same('not (100px<=width<=200px)', $parser->minifyList('not (100px <= width <= 200px)'));
     },
     'media query parser maps upstream typed range feature families' => static function (TestRunner $t): void {
@@ -160,6 +160,9 @@ return [
         $t->same('(hover) or ((min-width:100px) and (max-width:200px))', $parser->lowerRangeSyntaxList('(hover) or (100px <= width <= 200px)'));
         $t->same('(not (max-width:100px)) and (not (min-width:200px))', $parser->lowerRangeSyntaxList('(100px < width < 200px)'));
         $t->same('not ((not (max-width:100px)) and (not (min-width:200px)))', $parser->lowerRangeSyntaxList('not (100px < width < 200px)'));
+        $t->same('screen and not ((min-width:200px) and (not (min-width:500px)))', $parser->lowerRangeSyntaxList('screen and not (200px <= width < 500px)'));
+        $t->same('(hover) and (not ((min-width:200px) and (not (min-width:500px))))', $parser->lowerRangeSyntaxList('(hover) and (not (200px <= width < 500px))'));
+        $t->same('(hover) and (min-width:240px)', $parser->lowerRangeSyntaxList('(hover) and (not (width < 240px))'));
         $t->same('not ((not (min-width:240px)) or (hover))', $parser->lowerRangeSyntaxList('not ((width < 240px) or (hover))'));
         $t->same('not (((min-width:100px) and (max-width:200px)) or (hover))', $parser->lowerRangeSyntaxList('not ((100px <= width <= 200px) or (hover))'));
         $t->same('(max-width:200px) and (min-width:100px)', $parser->lowerRangeSyntaxList('(200px >= width >= 100px)'));
@@ -225,6 +228,7 @@ return [
         $t->same('@layer blocks{@media (width>=960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (not (width < 960px)) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (width<960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media not (not (width < 960px)) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media screen and (width>=960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media screen and (not (width < 960px)) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media (hover) and (width>=960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (hover) and (not (width < 960px)) { .foo { color: chartreuse } } }'));
         $t->same('@media (width>=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media all and (width >= 240px) { .foo { color: chartreuse } }'));
         $t->same('@layer blocks{@media (width>=600px) and (hover){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media all and (min-width: 600px) and (hover) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (color) or (hover){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media all and ((color) or (hover)) { .foo { color: chartreuse } } }'));

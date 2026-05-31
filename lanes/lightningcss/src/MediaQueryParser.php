@@ -819,6 +819,12 @@ final class MediaQueryParser
             $inner = substr($query, $after + 1, $close - $after - 1);
             $doubleNegated = $this->normalizeDoubleNegatedCondition(trim($inner));
             if ($doubleNegated !== null) {
+                $skipOuterWrapper = str_ends_with($output, '(') && ($query[$close + 1] ?? '') === ')';
+                if ($skipOuterWrapper) {
+                    $output = substr($output, 0, -1);
+                    $close++;
+                }
+
                 $output .= $doubleNegated;
                 $i = $close;
                 continue;
@@ -829,6 +835,12 @@ final class MediaQueryParser
                 $output .= substr($query, $i, $close - $i + 1);
                 $i = $close;
                 continue;
+            }
+
+            $skipOuterWrapper = str_ends_with($output, '(') && ($query[$close + 1] ?? '') === ')';
+            if ($skipOuterWrapper) {
+                $output = substr($output, 0, -1);
+                $close++;
             }
 
             $output .= '(' . $inverted . ')';
@@ -1145,12 +1157,7 @@ final class MediaQueryParser
 
             $lowered = $this->lowerRangeSyntaxCondition($unwrapped, $lowerSimpleRanges, $lowerIntervalRanges);
             if ($lowered['changed']) {
-                return [
-                    'css' => '(' . $lowered['css'] . ')',
-                    'changed' => true,
-                    'root' => null,
-                    'bareNot' => false,
-                ];
+                return $lowered;
             }
         }
 
@@ -1257,6 +1264,10 @@ final class MediaQueryParser
     private function lowerRangeFeature(string $feature, bool $negated, bool $lowerSimpleRanges, bool $lowerIntervalRanges): ?array
     {
         $feature = trim($feature);
+        if ($this->startsKeywordAt($feature, 0, 'not')) {
+            return null;
+        }
+
         if ($this->splitTopLevelLogical($feature, 'and') !== null || $this->splitTopLevelLogical($feature, 'or') !== null) {
             return null;
         }

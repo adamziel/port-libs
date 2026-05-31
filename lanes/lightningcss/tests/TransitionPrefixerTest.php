@@ -1516,6 +1516,43 @@ CSS;
         $t->same($prefixed, $prefixer->prefixForTargets('.foo { filter: blur(5px); }', ['samsung' => '6.2']));
         $t->same($modern, $prefixer->prefixForTargets('.foo { -webkit-filter: blur(5px); filter: blur(5px); }', ['samsung' => '6.3']));
     },
+    'transition prefixer maps upstream backdrop-filter transition browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $encoded = static fn (int $major, int $minor = 0, int $patch = 0): int => ($major << 16) | ($minor << 8) | $patch;
+
+        $t->same(
+            '.foo{transition-property:-webkit-backdrop-filter,backdrop-filter}',
+            $prefixer->prefixForTargets('.foo { transition-property: backdrop-filter; }', ['safari' => $encoded(17, 6)])
+        );
+        $t->same(
+            '.foo{transition-property:backdrop-filter}',
+            $prefixer->prefixForTargets('.foo { transition-property: backdrop-filter; }', ['safari' => 18])
+        );
+        $t->same(
+            '.foo{transition-property:backdrop-filter}',
+            $prefixer->prefixForTargets('.foo { transition-property: -webkit-backdrop-filter, backdrop-filter; }', ['safari' => 18])
+        );
+        $t->same(
+            '.foo{transition-property:-webkit-backdrop-filter}',
+            $prefixer->prefixForTargets('.foo { transition-property: -webkit-backdrop-filter; }', ['safari' => $encoded(17, 6)])
+        );
+        $t->same(
+            '.foo{transition:-webkit-backdrop-filter,backdrop-filter}',
+            $prefixer->prefixForTargets('.foo { transition: backdrop-filter; }', ['safari' => $encoded(17, 6)])
+        );
+        $t->same(
+            '.foo{transition:backdrop-filter}',
+            $prefixer->prefixForTargets('.foo { transition: backdrop-filter; }', ['safari' => 18])
+        );
+        $t->same(
+            '.foo{transition:backdrop-filter}',
+            $prefixer->prefixForTargets('.foo { transition: -webkit-backdrop-filter, backdrop-filter; }', ['safari' => 18])
+        );
+        $t->same(
+            '.foo{transition:-webkit-backdrop-filter}',
+            $prefixer->prefixForTargets('.foo { transition: -webkit-backdrop-filter; }', ['safari' => $encoded(17, 6)])
+        );
+    },
     'transition prefixer maps upstream backdrop-filter supports conditions' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -1977,8 +2014,12 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media only screen and (not (width < 240px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
-            '@layer blocks{@media (hover) and ((min-width:240px)){.wp-block-query{color:#ff0}}}',
+            '@layer blocks{@media (hover) and (min-width:240px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (hover) and (not (width < 240px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (hover) and (not ((min-width:200px) and (not (min-width:500px)))){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (hover) and (not (200px <= width < 500px)) { .wp-block-query { color: yellow; } } }', ['chrome' => 95])
         );
         $t->same(
             '@layer blocks{@media screen and not (max-width:max(10px,1rem)){.wp-block-query{color:#ff0}}}',

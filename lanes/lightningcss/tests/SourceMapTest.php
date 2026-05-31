@@ -378,6 +378,28 @@ return [
             SourceMap::fromJson('{"version":3,"mappings":"A","sources":[7],"names":[]}');
         });
     },
+    'source map rejects non-list vlq import vectors like upstream' => static function (TestRunner $t): void {
+        foreach ([
+            '{"version":3,"mappings":"AAAA","sources":{"0":"file.css"},"names":[]}',
+            '{"version":3,"mappings":"AAAA","sources":["file.css"],"sourcesContent":{"0":".file{}"},"names":[]}',
+            '{"version":3,"mappings":"AAAAA","sources":["file.css"],"sourcesContent":[".file{}"],"names":{"0":"rule"}}',
+        ] as $json) {
+            $t->throws(InvalidArgumentException::class, static function () use ($json): void {
+                SourceMap::fromJson($json);
+            });
+        }
+
+        foreach ([
+            [['source' => 'file.css'], ['.file{}'], []],
+            [['file.css'], ['content' => '.file{}'], []],
+            [['file.css'], ['.file{}'], ['name' => 'rule']],
+        ] as [$sources, $sourcesContent, $names]) {
+            $map = new SourceMap();
+            $t->throws(InvalidArgumentException::class, static function () use ($map, $sources, $sourcesContent, $names): void {
+                $map->addVlqMap('AAAAA', $sources, $sourcesContent, $names);
+            });
+        }
+    },
     'source map rejects upstream invalid relative vlq decode offsets' => static function (TestRunner $t): void {
         $t->same(4294967295, SourceMap::decodeVlq('+/////H')[0]['generatedColumn']);
 

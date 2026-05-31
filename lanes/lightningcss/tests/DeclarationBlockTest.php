@@ -950,6 +950,38 @@ return [
             )
         );
     },
+    'declaration block reads and writes upstream logical size cssom properties after physical fallbacks' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => '5px', 'important' => false],
+            $block->getProperty('block-size: 5px; width: 10px', 'block-size')
+        );
+        $t->same(
+            'block-size: 5px; width: 10px; block-size: 8px',
+            $block->setProperty('block-size: 5px; width: 10px', 'block-size', '8px')
+        );
+        $t->same(
+            'width: 10px; block-size: 8px',
+            $block->setProperty('width: 10px; block-size: 5px', 'block-size', '8px')
+        );
+        $t->same(
+            'inline-size: 50%; height: auto; inline-size: 75%',
+            $block->setProperty('inline-size: 50%; height: auto', 'inline-size', '75%')
+        );
+        $t->same(
+            'min-inline-size: 20rem; min-width: 10rem; min-inline-size: 24rem',
+            $block->setProperty('min-inline-size: 20rem; min-width: 10rem', 'min-inline-size', '24rem')
+        );
+        $t->same(
+            'max-height: 80vh; max-block-size: 90vh; max-height: 70vh',
+            $block->setProperty('max-height: 80vh; max-block-size: 90vh', 'max-height', '70vh')
+        );
+        $t->same(
+            'width: 10px; block-size: 8px !important',
+            $block->setProperty('block-size: 5px; width: 10px', 'block-size', '8px', true)
+        );
+    },
     'declaration block reads upstream logical axis cssom shorthands and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

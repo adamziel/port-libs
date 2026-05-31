@@ -1591,6 +1591,129 @@ CSS;
         $t->same('.wp-block-cover{height:100vh}@supports (-webkit-touch-callout:none){.wp-block-cover{height:-webkit-fill-available}}', $result);
         $t->same('style', $seenBodyRuleType);
     },
+    'custom at-rules compose upstream MediaQuery visitors for native and returned rules' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'MediaQuery' => static function (array $query) use (&$seen): array {
+                    $seen[] = [
+                        'phase' => 'enter',
+                        'mediaType' => $query['mediaType'] ?? ($query['raw'] ?? null),
+                        'feature' => $query['condition']['value']['name'] ?? null,
+                    ];
+
+                    return ['raw' => '(min-width: 500px)'];
+                },
+            ],
+            [
+                'MediaQueryExit' => static function (array $query) use (&$seen): array {
+                    $seen[] = [
+                        'phase' => 'exit',
+                        'raw' => $query['raw'] ?? null,
+                    ];
+
+                    return ['raw' => str_replace('500px', '640px', (string) ($query['raw'] ?? ''))];
+                },
+            ],
+        ]);
+
+        $native = (new CustomAtRuleTransformer())->transform('@media (hover) { .card { color: red; } }', [], $visitor);
+        $returned = (new CustomAtRuleTransformer())->transform('@breakpoints { .card { color: yellow; } }', [
+            'breakpoints' => [
+                'prelude' => null,
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'breakpoints' => static fn (array $rule): array => [
+                        'type' => 'media',
+                        'value' => [
+                            'query' => [
+                                'mediaQueries' => [
+                                    ['raw' => '(min-width: 480px)'],
+                                ],
+                            ],
+                            'rules' => $rule['bodyRules'],
+                        ],
+                    ],
+                ],
+            ],
+            'MediaQuery' => $visitor['MediaQuery'],
+            'MediaQueryExit' => $visitor['MediaQueryExit'],
+        ]);
+
+        $t->same('@media (width>=640px){.card{color:red}}', $native);
+        $t->same('@media (width>=640px){.card{color:#ff0}}', $returned);
+        $t->same([
+            ['phase' => 'enter', 'mediaType' => 'all', 'feature' => 'hover'],
+            ['phase' => 'exit', 'raw' => '(min-width: 500px)'],
+            ['phase' => 'enter', 'mediaType' => '(min-width: 480px)', 'feature' => null],
+            ['phase' => 'exit', 'raw' => '(min-width: 500px)'],
+        ], $seen);
+    },
+    'custom at-rules compose upstream SupportsCondition visitors for native and returned rules' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'SupportsCondition' => static function (array $condition) use (&$seen): array {
+                    $seen[] = 'enter:' . ($condition['type'] ?? 'unknown') . ':' . ($condition['propertyId']['property'] ?? '');
+                    if (($condition['type'] ?? null) === 'declaration' && ($condition['propertyId']['property'] ?? null) === 'display') {
+                        $condition['value'] = 'flex';
+                    }
+
+                    return $condition;
+                },
+            ],
+            [
+                'SupportsConditionExit' => static function (array $condition) use (&$seen): array {
+                    $seen[] = 'exit:' . ($condition['type'] ?? 'unknown') . ':' . ($condition['value'] ?? '');
+
+                    return $condition;
+                },
+            ],
+        ]);
+
+        $native = (new CustomAtRuleTransformer())->transform('@supports (display: grid) { .card { display: grid; } }', [], $visitor);
+        $returned = (new CustomAtRuleTransformer())->transform('@viewport-fix { .card { height: 100vh; } }', [
+            'viewport-fix' => [
+                'prelude' => null,
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'viewport-fix' => static function (array $rule): array {
+                        return [
+                            ...$rule['bodyRules'],
+                            [
+                                'type' => 'supports',
+                                'value' => [
+                                    'condition' => [
+                                        'type' => 'declaration',
+                                        'propertyId' => ['property' => 'display'],
+                                        'value' => 'grid',
+                                    ],
+                                    'rules' => $rule['bodyRules'],
+                                ],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            'SupportsCondition' => $visitor['SupportsCondition'],
+            'SupportsConditionExit' => $visitor['SupportsConditionExit'],
+        ]);
+
+        $t->same('@supports (display:flex){.card{display:grid}}', $native);
+        $t->same('.card{height:100vh}@supports (display:flex){.card{height:100vh}}', $returned);
+        $t->same([
+            'enter:declaration:display',
+            'exit:declaration:flex',
+            'enter:declaration:display',
+            'exit:declaration:flex',
+        ], $seen);
+    },
     'custom at-rules compose upstream Selector prefix visitors' => static function (TestRunner $t): void {
         $seenSelectorTypes = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([
@@ -1752,5 +1875,56 @@ CSS;
         ], $visitor);
 
         $t->same(':root{--wp-accent:var(--wp-accent)}', $result);
+    },
+    'custom at-rules map upstream style attribute Length visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $result = (new CustomAtRuleTransformer())->transformStyleAttribute('height: calc(100vh - 64px)', [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                $seen[] = [
+                    'unit' => $length['unit'],
+                    'value' => $length['value'],
+                ];
+
+                return $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null;
+            },
+        ]);
+
+        $t->same('height:calc(100vh - 4rem)', $result);
+        $t->same([
+            ['unit' => 'vh', 'value' => 100.0],
+            ['unit' => 'px', 'value' => 64.0],
+        ], $seen);
+    },
+    'custom at-rules collect upstream visitor factory dependencies from style attributes' => static function (TestRunner $t): void {
+        $seen = [];
+        $result = (new CustomAtRuleTransformer())->transformStyleAttributeWithDependencies(
+            'height: 12px',
+            static function (array $context) use (&$seen): array {
+                $addDependency = $context['addDependency'];
+
+                return [
+                    'Length' => static function (array $length) use (&$seen, $addDependency): void {
+                        $seen[] = [
+                            'unit' => $length['unit'],
+                            'value' => $length['value'],
+                        ];
+                        $addDependency([
+                            'type' => 'file',
+                            'filePath' => 'test.json',
+                        ]);
+                    },
+                ];
+            }
+        );
+
+        $t->same('height:12px', $result['code']);
+        $t->same([
+            ['type' => 'file', 'filePath' => 'test.json'],
+        ], $result['dependencies']);
+        $t->same([
+            ['unit' => 'px', 'value' => 12.0],
+        ], $seen);
     },
 ];

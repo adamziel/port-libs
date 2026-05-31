@@ -6915,6 +6915,7 @@ final class TransitionPrefixer
     {
         $trimmed = trim($property);
         $needsMaskWebkit = $targetOptions['maskNeedsWebkit'] ?? false;
+        $needsBackdropFilterWebkit = $targetOptions['backdropFilterNeedsWebkit'] ?? false;
 
         $maskProperties = [
             'mask' => '-webkit-mask',
@@ -6936,6 +6937,20 @@ final class TransitionPrefixer
                     'needsPrefixedTransition' => false,
                 ];
             }
+        }
+
+        if ($lower === 'backdrop-filter') {
+            return [
+                'properties' => $needsBackdropFilterWebkit ? ['-webkit-backdrop-filter', 'backdrop-filter'] : ['backdrop-filter'],
+                'needsPrefixedTransition' => false,
+            ];
+        }
+
+        if ($lower === '-webkit-backdrop-filter') {
+            return [
+                'properties' => $needsBackdropFilterWebkit ? ['-webkit-backdrop-filter'] : ['backdrop-filter'],
+                'needsPrefixedTransition' => false,
+            ];
         }
 
         return match ($lower) {

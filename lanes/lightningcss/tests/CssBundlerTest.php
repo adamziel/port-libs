@@ -1395,6 +1395,58 @@ CSS,
 
         throw new RuntimeException('Expected missing CSS Modules dependency read diagnostic');
     },
+    'css bundler maps upstream css module dependency resolver diagnostics to style locations' => static function (TestRunner $t) use ($bundleModules): void {
+        $resolverRejected = false;
+        try {
+            $bundleModules([
+                '/entry.css' => <<<'CSS'
+.intro { color: red; }
+@media screen {
+  .card {
+    composes: token from "pkg:tokens.css";
+    color: blue;
+  }
+}
+CSS,
+            ], '/entry.css', static function (string $specifier, string $originatingFile): string {
+                throw new RuntimeException("Cannot resolve {$specifier} from {$originatingFile}");
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Cannot resolve pkg:tokens.css from /entry.css', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(3, $exception->sourceLine);
+            $t->same(3, $exception->sourceColumn);
+            $resolverRejected = true;
+        }
+
+        if (!$resolverRejected) {
+            throw new RuntimeException('Expected CSS Modules resolver diagnostic');
+        }
+
+        try {
+            $bundleModules([
+                '/entry.css' => <<<'CSS'
+.intro { color: red; }
+
+.card {
+  composes: remote from "https://cdn.example/remote.css";
+  color: blue;
+}
+CSS,
+            ], '/entry.css');
+        } catch (CssBundleException $exception) {
+            $t->same('referenced-external-module-with-css-module-from', $exception->kind);
+            $t->same('Referenced external module with CSS module "from" clause', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(3, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected external CSS Modules dependency diagnostic');
+    },
     'css bundler rejects external css module from references like upstream' => static function (TestRunner $t) use ($bundleModules): void {
         try {
             $bundleModules([

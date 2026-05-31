@@ -485,6 +485,35 @@ CSS,
 
 echo 'css-modules-missing-dependency-location: rejected' . PHP_EOL;
 
+try {
+    (new CssBundler())->bundleCssModules('/modules/remote-card.css', [
+        '/modules/remote-card.css' => <<<'CSS'
+.wp-block-intro { color: red; }
+
+.wp-block-card {
+  composes: remote from "https://cdn.example/remote-card.css";
+  color: blue;
+}
+CSS,
+    ]);
+
+    fwrite(STDERR, "Expected external CSS Modules dependency diagnostic\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'referenced-external-module-with-css-module-from'
+        || $exception->getMessage() !== 'Referenced external module with CSS module "from" clause'
+        || $exception->sourceFile !== '/modules/remote-card.css'
+        || $exception->sourceLine !== 3
+        || $exception->sourceColumn !== 1
+    ) {
+        fwrite(STDERR, 'Unexpected external CSS Modules dependency diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+}
+
+echo 'css-modules-external-style-location: rejected' . PHP_EOL;
+
 $withTempFiles([
     'modules/card.css' => <<<'CSS'
 @import "../base.css" layer(theme.blocks);

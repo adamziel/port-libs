@@ -530,6 +530,10 @@ final class SourceMap
         int $lineOffset = 0,
         int $columnOffset = 0
     ): void {
+        self::assertListArray($sources, 'sources');
+        self::assertListArray($sourcesContent, 'sourcesContent');
+        self::assertListArray($names, 'names');
+
         $sourceIndexes = [];
         foreach ($sources as $source) {
             if (!is_string($source)) {
@@ -650,12 +654,32 @@ final class SourceMap
 
     public static function fromJson(string $json, string $projectRoot = '/'): self
     {
-        $data = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
-        if (!is_array($data)) {
+        $data = json_decode($json, false, 512, JSON_THROW_ON_ERROR);
+        if (!$data instanceof \stdClass) {
             throw new InvalidArgumentException('Source map JSON must decode to an object.');
         }
 
-        return self::fromArray($data, $projectRoot);
+        $mappings = $data->mappings ?? null;
+        if (!is_string($mappings)) {
+            throw new InvalidArgumentException('Source map mappings must be a string.');
+        }
+
+        $sources = self::listOfStrings($data->sources ?? [], 'sources');
+        $rawSourcesContent = self::listOfNullableStrings($data->sourcesContent ?? [], 'sourcesContent');
+        $sourcesContent = [];
+        foreach ($sources as $index => $_source) {
+            $sourcesContent[] = $rawSourcesContent[$index] ?? '';
+            if ($sourcesContent[$index] === null) {
+                $sourcesContent[$index] = '';
+            }
+        }
+
+        $names = self::listOfStrings($data->names ?? [], 'names');
+
+        $map = new self($projectRoot);
+        $map->addVlqMap($mappings, $sources, $sourcesContent, $names);
+
+        return $map;
     }
 
     public static function fromDataUrl(string $dataUrl, string $projectRoot = '/'): self
@@ -1268,6 +1292,7 @@ final class SourceMap
         if (!is_array($value)) {
             throw new InvalidArgumentException('Source map ' . $label . ' must be a list.');
         }
+        self::assertListArray($value, $label);
 
         $strings = [];
         foreach (array_values($value) as $entry) {
@@ -1290,6 +1315,7 @@ final class SourceMap
         if (!is_array($value)) {
             throw new InvalidArgumentException('Source map ' . $label . ' must be a list.');
         }
+        self::assertListArray($value, $label);
 
         $strings = [];
         foreach (array_values($value) as $entry) {
@@ -1312,6 +1338,7 @@ final class SourceMap
         if (!is_array($value)) {
             throw new InvalidArgumentException('Source map buffer mappings must be a list.');
         }
+        self::assertListArray($value, 'buffer mappings');
 
         $mappings = [];
         foreach (array_values($value) as $entry) {
@@ -1364,6 +1391,13 @@ final class SourceMap
         }
 
         return $mappings;
+    }
+
+    private static function assertListArray(array $value, string $label): void
+    {
+        if (!array_is_list($value)) {
+            throw new InvalidArgumentException('Source map ' . $label . ' must be a list.');
+        }
     }
 
     private static function assertUnsigned32Value(int $value, string $label): void

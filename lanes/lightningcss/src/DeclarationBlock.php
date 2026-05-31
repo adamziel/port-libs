@@ -39,6 +39,21 @@ final class DeclarationBlock
         ],
     ];
 
+    private const SIZE_LOGICAL_GROUPS = [
+        'width' => ['group' => 'size', 'category' => 'physical'],
+        'height' => ['group' => 'size', 'category' => 'physical'],
+        'block-size' => ['group' => 'size', 'category' => 'logical'],
+        'inline-size' => ['group' => 'size', 'category' => 'logical'],
+        'min-width' => ['group' => 'min-size', 'category' => 'physical'],
+        'min-height' => ['group' => 'min-size', 'category' => 'physical'],
+        'min-block-size' => ['group' => 'min-size', 'category' => 'logical'],
+        'min-inline-size' => ['group' => 'min-size', 'category' => 'logical'],
+        'max-width' => ['group' => 'max-size', 'category' => 'physical'],
+        'max-height' => ['group' => 'max-size', 'category' => 'physical'],
+        'max-block-size' => ['group' => 'max-size', 'category' => 'logical'],
+        'max-inline-size' => ['group' => 'max-size', 'category' => 'logical'],
+    ];
+
     private const BACKGROUND_LONGHANDS = [
         'background-color',
         'background-image',
@@ -8149,6 +8164,10 @@ final class DeclarationBlock
         if ($logicalBorderValue !== null) {
             return $this->parseEntries($logicalBorderValue);
         }
+        $logicalSizeValue = $this->setLogicalSizeProperty($entries, $property, $value, $important);
+        if ($logicalSizeValue !== null) {
+            return $this->parseEntries($logicalSizeValue);
+        }
 
         $lastMatch = null;
         foreach ($entries as $index => $entry) {
@@ -8170,6 +8189,46 @@ final class DeclarationBlock
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setLogicalSizeProperty(array $entries, string $property, string $value, bool $important): ?string
+    {
+        $target = self::SIZE_LOGICAL_GROUPS[$property] ?? null;
+        if ($target === null) {
+            return null;
+        }
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            $entryGroup = self::SIZE_LOGICAL_GROUPS[$entries[$index]['property']] ?? null;
+            if (
+                $entryGroup !== null
+                && $entryGroup['group'] === $target['group']
+                && $entryGroup['category'] !== $target['category']
+            ) {
+                break;
+            }
+
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+        }
+
+        $entries[] = [
+            'property' => $property,
+            'value' => $value,
+            'important' => $important,
+        ];
+
+        return $this->serializeEntries($entries);
     }
 
     /**

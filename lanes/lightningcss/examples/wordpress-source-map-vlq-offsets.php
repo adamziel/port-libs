@@ -227,6 +227,39 @@ foreach (['D', 'ADAA', 'AADA', 'AAAD', 'AAAAD', 'ggggggI', '//////////////D'] as
     }
 }
 
+$invalidVlqVectorGuard = true;
+foreach ([
+    static fn (): SourceMap => SourceMap::fromJson('{"version":3,"mappings":"AAAA","sources":{"source":"wp-content/themes/example/style.css"},"names":[]}'),
+    static fn (): SourceMap => SourceMap::fromJson('{"version":3,"mappings":"AAAA","sources":["wp-content/themes/example/style.css"],"sourcesContent":{"content":".theme{}"},"names":[]}'),
+    static fn (): SourceMap => SourceMap::fromJson('{"version":3,"mappings":"AAAAA","sources":["wp-content/themes/example/style.css"],"sourcesContent":[".theme{}"],"names":{"name":"theme-rule"}}'),
+    static function (): SourceMap {
+        $map = new SourceMap();
+        $map->addVlqMap('AAAAA', ['source' => 'wp-content/themes/example/style.css'], ['.theme{}'], []);
+
+        return $map;
+    },
+    static function (): SourceMap {
+        $map = new SourceMap();
+        $map->addVlqMap('AAAAA', ['wp-content/themes/example/style.css'], ['content' => '.theme{}'], []);
+
+        return $map;
+    },
+    static function (): SourceMap {
+        $map = new SourceMap();
+        $map->addVlqMap('AAAAA', ['wp-content/themes/example/style.css'], ['.theme{}'], ['name' => 'theme-rule']);
+
+        return $map;
+    },
+] as $invalidVlqVector) {
+    try {
+        $invalidVlqVector();
+        $invalidVlqVectorGuard = false;
+        break;
+    } catch (InvalidArgumentException) {
+        continue;
+    }
+}
+
 $lookup = [
     'sourceIndexes' => $projectRootMap->addSources([
         '/srv/www/example/wp-content/themes/example/style.css',
@@ -267,6 +300,7 @@ $actual = [
     'duplicateLookupExtendedMap' => $duplicateLookupExtendedMap->toJson(null, false),
     'maxUnsignedVlqDecode' => $maxUnsignedVlqDecode,
     'invalidRelativeVlqGuard' => $invalidRelativeVlqGuard,
+    'invalidVlqVectorGuard' => $invalidVlqVectorGuard,
     'lookup' => $lookup,
 ];
 
@@ -295,6 +329,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'duplicateLookupExtendedMap' => '{"version":3,"mappings":"A","sources":["wp-content/cache/duplicate-lookup.css","wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{color:red}",".wp-block-duplicate-lookup{}"],"names":["compiled-duplicate-lookup","duplicate-lookup-rule"]}',
         'maxUnsignedVlqDecode' => 4294967295,
         'invalidRelativeVlqGuard' => true,
+        'invalidVlqVectorGuard' => true,
         'lookup' => [
             'sourceIndexes' => [0, 1, 2],
             'blockIndex' => 1,
