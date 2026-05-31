@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 08:27:02 UTC",
-    "sourceCommit": "ac468c29fbc15270b3521495abfb078f30270ac4",
-    "sourceCommitShort": "ac468c29fbc1",
+    "generated": "2026-05-31 08:33:41 UTC",
+    "sourceCommit": "e5a23effae900e9187f890104ede8f77a0d81319",
+    "sourceCommitShort": "e5a23effae90",
     "sourceBranch": "main",
-    "dashboardCommit": "ef554882012300976e8fe72030964f95b3d9a0a2",
-    "dashboardCommitShort": "ef5548820123",
+    "dashboardCommit": "1cb72a408b0aa6fcfa57e4b60f14f8349041c504",
+    "dashboardCommitShort": "1cb72a408b0a",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -64,16 +64,16 @@
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1491",
-            "coverage": "1491 / 2886",
-            "php": "2963 pass / 0 fail",
+            "mapped": "1493",
+            "coverage": "1493 / 2886",
+            "php": "2989 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
-            "audit": "combined Gitoxide batch accepted 2026-05-...",
-            "currentWork": "ObjectDatabase writes commit objects through the loose store with Gitoxide object-size se...",
-            "nextTarget": "Integrate the next ready Gitoxide handoffs while six libsqlite workers continue closure;...",
+            "audit": "Accepted source commit e5a23eff after rep...",
+            "currentWork": "FetchResponse parses protocol v2 sideband-all response sections before pack data and reje...",
+            "nextTarget": "Integrate the next current-base Gitoxide handoffs that add native tests and behavior for...",
             "blocker": "No current Gitoxide PHP blocker for the accepted batch.",
-            "commit": "ac468c2"
+            "commit": "e5a23ef"
         },
         {
             "library": "libsqlite",
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "2831909 pass / 0 fail",
+            "php": "2832911 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "blocker burn-down, upstream corpus closure, source-neut...",
-            "audit": "Accepted source commit d25443ab5 after ba...",
-            "currentWork": "Committed batch95 with 19 accepted source/test-moving current-base handoffs across app-WA...",
-            "nextTarget": "Keep the 6 libsqlite / 6 gitoxide split active. Continue integrating fresh current-base l...",
+            "audit": "Accepted source commit e5a23eff after the...",
+            "currentWork": "Committed batch96 subset with real upstream trigger/FK parent-key distinctness behavior....",
+            "nextTarget": "Continue integrating fresh current-base libsqlite handoffs with accepted-base PASS deltas...",
             "blocker": "Remaining libsqlite blockers: pre-existing default-memory app-WAL/pager p...",
-            "commit": "d25443a"
+            "commit": "e5a23ef"
         },
         {
             "library": "LightningCSS",
