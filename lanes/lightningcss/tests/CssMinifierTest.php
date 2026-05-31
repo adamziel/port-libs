@@ -462,6 +462,47 @@ CSS
             '.foo{grid-template:[header-top]"a a a"[header-bottom main-top]"b b b"1fr[main-bottom]/auto 1fr auto}',
             $minifier->minify('.foo { grid-template: [header-top] "a   a   a" [header-bottom] [main-top] "b   b   b" 1fr [main-bottom] / auto 1fr auto; }')
         );
+        $t->same(
+            '.foo{grid-template:"head head""nav main"1fr"foot."}',
+            $minifier->minify('.foo { grid-template: "head head" "nav  main" 1fr "foot ...."; }')
+        );
+        $t->same(
+            '.foo{grid-template:[header-top]"a a a"[header-bottom main-top]"b b b"1fr[main-bottom]}',
+            $minifier->minify('.foo { grid-template: [header-top] "a   a   a" [header-bottom] [main-top] "b   b   b" 1fr [main-bottom]; }')
+        );
+        $t->same(
+            '.foo{grid:"a"100px"b"1fr}',
+            $minifier->minify('.foo { grid: "a" 100px "b" 1fr; }')
+        );
+        $t->same(
+            '.foo{grid:[linename1]"a"100px[linename2]}',
+            $minifier->minify('.foo { grid: [linename1] "a" 100px [linename2]; }')
+        );
+        $t->same(
+            '.foo{grid:"a"200px"b"min-content}',
+            $minifier->minify('.foo { grid: "a" 200px "b" min-content; }')
+        );
+        $t->same(
+            '.foo{grid:"a"minmax(100px,max-content)"b"20%}',
+            $minifier->minify('.foo { grid: "a" minmax(100px, max-content) "b" 20%; }')
+        );
+        $t->same('.foo{grid:100px/200px}', $minifier->minify('.foo { grid: 100px / 200px; }'));
+        $t->same(
+            '.foo{grid:minmax(400px,min-content)/repeat(auto-fill,50px)}',
+            $minifier->minify('.foo { grid: minmax(400px, min-content) / repeat(auto-fill, 50px); }')
+        );
+        $t->same('.foo{grid:200px/auto-flow}', $minifier->minify('.foo { grid: 200px / auto-flow; }'));
+        $t->same('.foo{grid:30%/auto-flow dense}', $minifier->minify('.foo { grid: 30% / dense auto-flow; }'));
+        $t->same('.foo{grid:none/auto-flow 1fr}', $minifier->minify('.foo { grid: none / auto-flow 1fr; }'));
+        $t->same('.foo{grid:none/200px}', $minifier->minify('.foo { grid: auto-flow / 200px; }'));
+        $t->same(
+            '.foo{grid:auto-flow 300px/repeat(3,[line1 line2 line3]200px)}',
+            $minifier->minify('.foo { grid: auto-flow 300px / repeat(3, [line1 line2 line3] 200px); }')
+        );
+        $t->same(
+            '.foo{grid:auto-flow dense 40%/[line1]minmax(20em,max-content)}',
+            $minifier->minify('.foo { grid: auto-flow dense 40% / [line1] minmax(20em, max-content); }')
+        );
         $t->same('.foo{grid-auto-flow:dense}', $minifier->minify('.foo { grid-auto-flow: row dense; }'));
         $t->same('.foo{grid-auto-flow:dense}', $minifier->minify('.foo { grid-auto-flow: dense row; }'));
         $t->same('.foo{grid-auto-flow:column dense}', $minifier->minify('.foo { grid-auto-flow: dense column; }'));

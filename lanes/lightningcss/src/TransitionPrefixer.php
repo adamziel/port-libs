@@ -235,6 +235,7 @@ final class TransitionPrefixer
 
         $transitionChanged = $this->rewritePrefixedTransitionEntries($entries);
         $supportRules = [];
+        $displayFlexChanged = $this->rewriteDisplayFlexPrefixEntries($entries, $targetOptions);
         $colorSchemeChanged = $this->rewriteColorSchemeFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $printColorAdjustChanged = $this->rewritePrintColorAdjustPrefixEntries($entries, $targetOptions);
         $uiPrefixChanged = $this->rewriteUiPrefixEntries($entries, $targetOptions);
@@ -266,7 +267,7 @@ final class TransitionPrefixer
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
         $lightDarkChanged = $this->rewriteLightDarkFallbackEntries($entries, $targetOptions);
         $lightDarkSerializationChanged = $this->rewriteLightDarkAdvancedColorSerializationEntries($entries, $targetOptions);
-        if ($transitionChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
+        if ($transitionChanged || $displayFlexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -734,6 +735,14 @@ final class TransitionPrefixer
             ? $targets['browsers']
             : $targets;
         $lightDarkExcluded = $this->featureListContains($targets['exclude'] ?? [], 'light-dark');
+        $mediaRangeIncluded = $this->featureListContains($targets['include'] ?? [], 'media-range-syntax')
+            || $this->featureListContains($targets['include'] ?? [], 'media-queries');
+        $mediaRangeExcluded = $this->featureListContains($targets['exclude'] ?? [], 'media-range-syntax')
+            || $this->featureListContains($targets['exclude'] ?? [], 'media-queries');
+        $mediaIntervalIncluded = $this->featureListContains($targets['include'] ?? [], 'media-interval-syntax')
+            || $this->featureListContains($targets['include'] ?? [], 'media-queries');
+        $mediaIntervalExcluded = $this->featureListContains($targets['exclude'] ?? [], 'media-interval-syntax')
+            || $this->featureListContains($targets['exclude'] ?? [], 'media-queries');
         $normalized = [];
         foreach ($browserTargets as $browser => $version) {
             if (!is_scalar($version)) {
@@ -783,6 +792,17 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'ios_saf', [6], [15])
                 || $this->targetAtLeast($normalized, 'opera', [15])
                 || $this->targetInRange($normalized, 'safari', [6], [15]),
+            'displayFlexNeedsOldWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 2])
+                || $this->targetInRange($normalized, 'chrome', [4], [20])
+                || $this->targetInRange($normalized, 'ios_saf', [3, 2], [6])
+                || $this->targetInRange($normalized, 'safari', [3, 1], [6]),
+            'displayFlexNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 2])
+                || $this->targetInRange($normalized, 'chrome', [4], [28])
+                || $this->targetInRange($normalized, 'ios_saf', [3, 2], [8, 1])
+                || $this->targetInRange($normalized, 'opera', [15], [16])
+                || $this->targetInRange($normalized, 'safari', [3, 1], [8]),
+            'displayFlexNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [21]),
+            'displayFlexNeedsMs' => $this->targetInRange($normalized, 'ie', [10], [10]),
             'userSelectNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [53])
                 || $this->targetAtLeast($normalized, 'ios_saf', [3])
@@ -869,22 +889,26 @@ final class TransitionPrefixer
                 || isset($normalized['ie'])
             ),
             'lightDarkNormalizeAdvancedColor' => !$lightDarkExcluded && $firefox !== null,
-            'mediaRangeSimpleNeedsFallback' => $this->targetInRange($normalized, 'chrome', [0], [103])
+            'mediaRangeSimpleNeedsFallback' => $mediaRangeIncluded || (!$mediaRangeExcluded && (
+                $this->targetInRange($normalized, 'chrome', [0], [103])
                 || $this->targetInRange($normalized, 'edge', [0], [103])
                 || $this->targetInRange($normalized, 'firefox', [0], [60])
                 || $this->targetInRange($normalized, 'safari', [0], [15, 3])
                 || $this->targetInRange($normalized, 'ios_saf', [0], [15, 3])
                 || $this->targetInRange($normalized, 'android', [0], [103])
                 || $this->targetInRange($normalized, 'opera', [0], [89])
-                || $this->targetInRange($normalized, 'samsung', [0], [19]),
-            'mediaRangeIntervalNeedsFallback' => $this->targetInRange($normalized, 'chrome', [0], [103])
+                || $this->targetInRange($normalized, 'samsung', [0], [19])
+            )),
+            'mediaRangeIntervalNeedsFallback' => $mediaIntervalIncluded || (!$mediaIntervalExcluded && (
+                $this->targetInRange($normalized, 'chrome', [0], [103])
                 || $this->targetInRange($normalized, 'edge', [0], [103])
                 || $this->targetInRange($normalized, 'firefox', [0], [85])
                 || $this->targetInRange($normalized, 'safari', [0], [15, 3])
                 || $this->targetInRange($normalized, 'ios_saf', [0], [15, 3])
                 || $this->targetInRange($normalized, 'android', [0], [103])
                 || $this->targetInRange($normalized, 'opera', [0], [89])
-                || $this->targetInRange($normalized, 'samsung', [0], [19]),
+                || $this->targetInRange($normalized, 'samsung', [0], [19])
+            )),
             'mediaResolutionNeedsWebkitPrefix' => $this->targetInRange($normalized, 'safari', [0], [15])
                 || $this->targetInRange($normalized, 'ios_saf', [0], [15]),
             'mediaResolutionNeedsMozPrefix' => $this->targetInRange($normalized, 'firefox', [0], [15]),
@@ -1240,6 +1264,121 @@ final class TransitionPrefixer
         $entries = $rewritten;
 
         return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteDisplayFlexPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $unprefixedKinds = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] !== 'display' || $entry['important']) {
+                continue;
+            }
+
+            $kind = $this->displayFlexKind($entry['value']);
+            if ($kind !== null && $this->displayFlexCanonicalValue($entry['value']) === $kind) {
+                $unprefixedKinds[$kind] = true;
+            }
+        }
+
+        if ($unprefixedKinds === []) {
+            return false;
+        }
+
+        $changed = false;
+        $rewritten = [];
+        $seen = [
+            'flex' => [],
+            'inline-flex' => [],
+        ];
+
+        foreach ($entries as $entry) {
+            if ($entry['property'] !== 'display' || $entry['important']) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $kind = $this->displayFlexKind($entry['value']);
+            if ($kind === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $canonical = $this->displayFlexCanonicalValue($entry['value']);
+            $needed = $this->neededDisplayFlexValues($kind, $targetOptions);
+            if ($canonical !== $kind && isset($unprefixedKinds[$kind]) && !in_array($canonical, $needed, true)) {
+                $changed = true;
+                continue;
+            }
+
+            if ($canonical === $kind) {
+                foreach ($needed as $displayValue) {
+                    if ($displayValue === $kind || isset($seen[$kind][$displayValue])) {
+                        continue;
+                    }
+
+                    $rewritten[] = $this->declarationEntry('display', $displayValue);
+                    $seen[$kind][$displayValue] = true;
+                    $changed = true;
+                }
+            }
+
+            if (isset($seen[$kind][$canonical])) {
+                $changed = true;
+                continue;
+            }
+
+            $seen[$kind][$canonical] = true;
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+        return true;
+    }
+
+    private function displayFlexKind(string $value): ?string
+    {
+        return match (strtolower(trim($value))) {
+            'flex', '-webkit-box', '-moz-box', '-webkit-flex', '-ms-flexbox' => 'flex',
+            'inline-flex', '-webkit-inline-box', '-moz-inline-box', '-webkit-inline-flex', '-ms-inline-flexbox' => 'inline-flex',
+            default => null,
+        };
+    }
+
+    private function displayFlexCanonicalValue(string $value): string
+    {
+        return strtolower(trim($value));
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<string>
+     */
+    private function neededDisplayFlexValues(string $kind, array $targetOptions): array
+    {
+        $values = [];
+        if ($targetOptions['displayFlexNeedsOldWebkit'] ?? false) {
+            $values[] = $kind === 'inline-flex' ? '-webkit-inline-box' : '-webkit-box';
+        }
+        if ($targetOptions['displayFlexNeedsMoz'] ?? false) {
+            $values[] = $kind === 'inline-flex' ? '-moz-inline-box' : '-moz-box';
+        }
+        if ($targetOptions['displayFlexNeedsWebkit'] ?? false) {
+            $values[] = $kind === 'inline-flex' ? '-webkit-inline-flex' : '-webkit-flex';
+        }
+        if ($targetOptions['displayFlexNeedsMs'] ?? false) {
+            $values[] = $kind === 'inline-flex' ? '-ms-inline-flexbox' : '-ms-flexbox';
+        }
+        $values[] = $kind;
+
+        return $values;
     }
 
     /**

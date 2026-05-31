@@ -73,3 +73,36 @@ try {
 
     echo 'late-import: rejected' . PHP_EOL;
 }
+
+$moduleBundle = (new CssBundler())->bundleCssModules('/modules/card.css', [
+    '/modules/card.css' => <<<'CSS'
+@import "../theme.css";
+
+.card {
+  composes: token from "../tokens.module.css";
+  color: red;
+}
+CSS,
+    '/tokens.module.css' => <<<'CSS'
+.token {
+  border-color: blue;
+}
+CSS,
+    '/theme.css' => '.theme { color: yellow }',
+], null, [
+    'hashes' => [
+        '/modules/card.css' => 'card',
+        '/tokens.module.css' => 'tok',
+        '/theme.css' => 'theme',
+    ],
+]);
+
+if (
+    $moduleBundle['code'] !== '.tok_token{border-color:#00f}.theme_theme{color:#ff0}.card_card{color:red}'
+    || ($moduleBundle['exports']['card']['composes'][0]['name'] ?? null) !== 'tok_token'
+) {
+    fwrite(STDERR, "Unexpected CSS Modules bundle graph output\n");
+    exit(1);
+}
+
+echo 'css-modules: dependency graph resolved' . PHP_EOL;

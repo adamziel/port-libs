@@ -34,6 +34,9 @@ $actual = [
     'firefox60' => $prefixer->prefixForTargets($css, ['firefox' => 60]),
     'firefox64' => $prefixer->prefixForTargets($css, ['firefox' => 64]),
     'firefox85' => $prefixer->prefixForTargets($css, ['firefox' => 85]),
+    'forcedRangeFallback' => $prefixer->prefixForTargets($css, [
+        'include' => ['MediaRangeSyntax', 'MediaIntervalSyntax'],
+    ]),
 ];
 
 $expected = [
@@ -41,6 +44,7 @@ $expected = [
     'firefox60' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query{color:#7fff00}}@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query.is-style-featured{color:#ff0}}@media (color) and (min-resolution:2dppx){.wp-block-query.is-density-aware{color:#ff0}}}',
     'firefox64' => '@layer theme.blocks{@media (width>=240px){.wp-block-query{color:#7fff00}}@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query.is-style-featured{color:#ff0}}@media (color) and (resolution>=2dppx){.wp-block-query.is-density-aware{color:#ff0}}}',
     'firefox85' => '@layer theme.blocks{@media (width>=240px){.wp-block-query{color:#7fff00}}@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query.is-style-featured{color:#ff0}}@media (color) and (resolution>=2dppx){.wp-block-query.is-density-aware{color:#ff0}}}',
+    'forcedRangeFallback' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query{color:#7fff00}}@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query.is-style-featured{color:#ff0}}@media (color) and (min-resolution:2dppx){.wp-block-query.is-density-aware{color:#ff0}}}',
 ];
 
 if ($actual !== $expected) {

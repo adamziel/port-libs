@@ -6,6 +6,13 @@ use PortLibs\LightningCSS\CssBundleException;
 use PortLibs\LightningCSS\CssBundler;
 
 $bundle = static fn (array $files, string $entry, ?callable $resolver = null): string => (new CssBundler())->bundle($entry, $files, $resolver);
+$bundleModules = static fn (array $files, string $entry, ?callable $resolver = null, array $options = []): array => (new CssBundler())->bundleCssModules($entry, $files, $resolver, $options);
+$moduleExport = static fn (string $name, array $composes = []): array => [
+    'name' => $name,
+    'composes' => $composes,
+    'isReferenced' => false,
+];
+$moduleLocal = static fn (string $name): array => ['type' => 'local', 'name' => $name];
 
 return [
     'css bundler maps upstream resolver import graph order' => static function (TestRunner $t) use ($bundle): void {
@@ -400,5 +407,68 @@ CSS,
 CSS,
             ], '/theme.css')
         );
+    },
+    'css bundler hoists upstream css module dependency graph before imports' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal): void {
+        $resolved = [];
+        $result = $bundleModules([
+            'entry.css' => <<<'CSS'
+@import "root:theme.css";
+
+.entry {
+  composes: card from "root:card.css";
+  color: red;
+}
+CSS,
+            'card.css' => <<<'CSS'
+.card {
+  composes: token;
+  background: green;
+}
+
+.token {
+  color: blue;
+}
+CSS,
+            'theme.css' => '.theme { color: yellow; }',
+        ], 'entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+            $resolved[] = [$specifier, $originatingFile];
+
+            return substr($specifier, strlen('root:'));
+        }, [
+            'hashes' => [
+                'entry.css' => 'entry',
+                'card.css' => 'dep',
+                'theme.css' => 'theme',
+            ],
+        ]);
+
+        $t->same('.dep_card{background:green}.dep_token{color:#00f}.theme_theme{color:#ff0}.entry_entry{color:red}', $result['code']);
+        $t->same([
+            ['root:card.css', 'entry.css'],
+            ['root:theme.css', 'entry.css'],
+        ], $resolved);
+        $t->same([
+            'entry' => $moduleExport('entry_entry', [
+                $moduleLocal('dep_card'),
+                $moduleLocal('dep_token'),
+            ]),
+        ], $result['exports']);
+    },
+    'css bundler rejects external css module from references like upstream' => static function (TestRunner $t) use ($bundleModules): void {
+        try {
+            $bundleModules([
+                '/entry.css' => '.entry { composes: remote from "https://cdn.example/remote.css"; color: red }',
+            ], '/entry.css');
+        } catch (CssBundleException $exception) {
+            $t->same('referenced-external-module-with-css-module-from', $exception->kind);
+            $t->same('Referenced external module with CSS module "from" clause', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected external CSS module from exception');
     },
 ];

@@ -421,6 +421,94 @@ return [
             $prefixer->prefixForTargets('.foo { position: sticky; }', ['safari' => 13])
         );
     },
+    'transition prefixer maps upstream display flex target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $legacyTargets = [
+            'safari' => 4,
+            'firefox' => 14,
+            'ie' => 10,
+        ];
+
+        $t->same(
+            '.foo{display:-webkit-box;display:-moz-box;display:-webkit-flex;display:-ms-flexbox;display:flex}',
+            $prefixer->prefixForTargets('.foo{ display: flex }', $legacyTargets)
+        );
+        $t->same(
+            '.foo{display:-webkit-inline-box;display:-moz-inline-box;display:-webkit-inline-flex;display:-ms-inline-flexbox;display:inline-flex}',
+            $prefixer->prefixForTargets('.foo{ display: inline-flex }', $legacyTargets)
+        );
+        $t->same(
+            '.foo{display:-webkit-box;display:-moz-box;display:-webkit-flex;display:-ms-flexbox;display:flex}',
+            $prefixer->prefixForTargets('.foo{ display: -webkit-box; display: flex; }', $legacyTargets)
+        );
+        $t->same(
+            '.foo{display:flex}',
+            $prefixer->prefixForTargets(
+                '.foo { display: -webkit-box; display: -moz-box; display: -webkit-flex; display: -ms-flexbox; display: flex; }',
+                ['safari' => 14]
+            )
+        );
+        $t->same(
+            '.foo{display:inline-flex}',
+            $prefixer->prefixForTargets(
+                '.foo { display: -webkit-inline-box; display: -moz-inline-box; display: -webkit-inline-flex; display: -ms-inline-flexbox; display: inline-flex; }',
+                ['safari' => 14]
+            )
+        );
+    },
+    'transition prefixer maps upstream display flex browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{display:-webkit-box;display:-webkit-flex;display:flex}',
+            $prefixer->prefixForTargets('.foo{ display: flex }', ['chrome' => 20])
+        );
+        $t->same(
+            '.foo{display:-webkit-flex;display:flex}',
+            $prefixer->prefixForTargets('.foo{ display: flex }', ['chrome' => 21])
+        );
+        $t->same(
+            '.foo{display:-webkit-flex;display:flex}',
+            $prefixer->prefixForTargets('.foo{ display: flex }', ['chrome' => 28])
+        );
+        $t->same(
+            '.foo{display:flex}',
+            $prefixer->prefixForTargets('.foo{ display: flex }', ['chrome' => 29])
+        );
+        $t->same(
+            '.foo{display:-webkit-box;display:-webkit-flex;display:flex}',
+            $prefixer->prefixForTargets('.foo{ display: flex }', ['safari' => 6])
+        );
+        $t->same(
+            '.foo{display:-webkit-flex;display:flex}',
+            $prefixer->prefixForTargets('.foo{ display: flex }', ['safari' => 7])
+        );
+        $t->same(
+            '.foo{display:-webkit-flex;display:flex}',
+            $prefixer->prefixForTargets('.foo{ display: flex }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{display:flex}',
+            $prefixer->prefixForTargets('.foo{ display: flex }', ['safari' => 9])
+        );
+        $t->same(
+            '.foo{display:-moz-box;display:flex}',
+            $prefixer->prefixForTargets('.foo{ display: flex }', ['firefox' => 21])
+        );
+        $t->same(
+            '.foo{display:flex}',
+            $prefixer->prefixForTargets('.foo{ display: flex }', ['firefox' => 22])
+        );
+        $t->same(
+            '.foo{display:-ms-flexbox;display:flex}',
+            $prefixer->prefixForTargets('.foo{ display: flex }', ['ie' => 10])
+        );
+        $t->same(
+            '.foo{display:flex}',
+            $prefixer->prefixForTargets('.foo{ display: flex }', ['ie' => 11])
+        );
+    },
     'transition prefixer maps upstream border-radius target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -1091,6 +1179,36 @@ CSS;
         $t->same(
             '@layer blocks{@media not (max-width:0){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width > 0) { .wp-block-query { color: yellow; } } }', ['chrome' => 85])
+        );
+    },
+    'transition prefixer maps upstream media range include and exclude flags inside layers' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@layer blocks{@media (not (min-width:256px)) or (hover:none){.wp-block-query{color:#fff}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width < 256px) or (hover: none) { .wp-block-query { color: #fff; } } }', [
+                'include' => ['MediaRangeSyntax'],
+            ])
+        );
+        $t->same(
+            '@layer blocks{@media (width<256px) or (hover:none){.wp-block-query{color:#fff}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width < 256px) or (hover: none) { .wp-block-query { color: #fff; } } }', [
+                'firefox' => 60,
+                'exclude' => ['MediaRangeSyntax'],
+            ])
+        );
+        $t->same(
+            '@layer blocks{@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (hover) or (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', [
+                'include' => ['MediaIntervalSyntax'],
+            ])
+        );
+        $t->same(
+            '@layer blocks{@media (hover) or (100px<=width<=200px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (hover) or (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', [
+                'firefox' => 85,
+                'exclude' => ['MediaIntervalSyntax'],
+            ])
         );
     },
     'transition prefixer maps upstream resolution media prefixes inside layers' => static function (TestRunner $t): void {

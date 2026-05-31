@@ -15,12 +15,20 @@ final class CssBundler
     /** @var array<string, int> */
     private array $sourceIndexes = [];
 
+    private bool $cssModules = false;
+
+    /** @var array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool} */
+    private array $cssModuleOptions = [];
+
     /**
      * @var list<array{
      *     file:string,
      *     items:list<array<string, mixed>>,
      *     licenseComments:list<string>,
      *     dependencies:list<array<string, mixed>>,
+     *     cssModuleDependencies:list<array{sourceIndex:int}>,
+     *     cssModuleDependencySources:array<string,int>,
+     *     cssModuleExports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>,
      *     layer:?string,
      *     supports:?string,
      *     media:string,
@@ -37,6 +45,36 @@ final class CssBundler
      */
     public function bundle(string $entry, array $files, ?callable $resolver = null): string
     {
+        return $this->bundleInternal($entry, $files, $resolver, false)['code'];
+    }
+
+    /**
+     * @return array{
+     *   code:string,
+     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
+     * }
+     *
+     * @param array<string, string> $files
+     * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool} $options
+     */
+    public function bundleCssModules(string $entry, array $files, ?callable $resolver = null, array $options = []): array
+    {
+        return $this->bundleInternal($entry, $files, $resolver, true, $options);
+    }
+
+    /**
+     * @return array{
+     *   code:string,
+     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
+     * }
+     *
+     * @param array<string, string> $files
+     * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool} $cssModuleOptions
+     */
+    private function bundleInternal(string $entry, array $files, ?callable $resolver, bool $cssModules, array $cssModuleOptions = []): array
+    {
         $this->files = [];
         foreach ($files as $path => $css) {
             $this->files[$this->normalizePath((string) $path)] = $css;
@@ -45,6 +83,8 @@ final class CssBundler
         $this->resolver = $resolver;
         $this->sourceIndexes = [];
         $this->stylesheets = [];
+        $this->cssModules = $cssModules;
+        $this->cssModuleOptions = $cssModuleOptions;
 
         $entry = $this->normalizePath($entry);
         $this->loadFile($entry, [
@@ -59,7 +99,13 @@ final class CssBundler
         $raw = $this->licenseCommentPrefix() . $this->inline(0, []);
         $raw = (new CustomMediaTransformer())->transform($raw);
 
-        return (new CssMinifier())->minify($raw);
+        $code = (new CssMinifier())->minify($raw);
+        $exports = $cssModules ? $this->resolvedCssModuleExports(0) : [];
+
+        return [
+            'code' => $code,
+            'exports' => $exports,
+        ];
     }
 
     /**
@@ -82,6 +128,9 @@ final class CssBundler
             'items' => [],
             'licenseComments' => [],
             'dependencies' => [],
+            'cssModuleDependencies' => [],
+            'cssModuleDependencySources' => [],
+            'cssModuleExports' => [],
             'layer' => $rule['layer'],
             'supports' => $rule['supports'],
             'media' => $rule['media'],
@@ -100,7 +149,18 @@ final class CssBundler
             );
         }
 
-        $items = $this->topLevelItems($this->files[$file], $file);
+        $source = $this->files[$file];
+        $cssModuleResult = null;
+        if ($this->cssModules) {
+            $cssModuleResult = (new CssModulesTransformer())->transform($source, [
+                'hash' => $this->cssModuleHashForFile($file),
+                'pattern' => $this->cssModuleOptions['pattern'] ?? '[hash]_[local]',
+                'minify' => $this->cssModuleOptions['minify'] ?? true,
+            ]);
+            $source = $cssModuleResult['code'];
+        }
+
+        $items = $this->topLevelItems($source, $file);
         $licenseComments = [];
         $contentItems = [];
         foreach ($items as $item) {
@@ -110,6 +170,33 @@ final class CssBundler
             }
 
             $contentItems[] = $item;
+        }
+
+        $cssModuleDependencies = [];
+        $cssModuleDependencySources = [];
+        $cssModuleExports = $cssModuleResult['exports'] ?? [];
+        foreach ($this->cssModuleDependencySpecifiers($cssModuleExports) as $specifier) {
+            $resolved = $this->resolveImport($specifier, $file, ['line' => 1, 'column' => 1]);
+            if (isset($resolved['external'])) {
+                throw new CssBundleException(
+                    'referenced-external-module-with-css-module-from',
+                    'Referenced external module with CSS module "from" clause',
+                    $file,
+                    1,
+                    1,
+                );
+            }
+
+            $dependencyRule = [
+                'layer' => $rule['layer'],
+                'supports' => $rule['supports'],
+                'media' => $rule['media'],
+                'loc' => ['line' => 1, 'column' => 1],
+                'file' => $file,
+            ];
+            $depSourceIndex = $this->loadFile($resolved['file'], $dependencyRule);
+            $cssModuleDependencies[] = ['sourceIndex' => $depSourceIndex];
+            $cssModuleDependencySources[$specifier] = $depSourceIndex;
         }
 
         $dependencies = [];
@@ -149,6 +236,9 @@ final class CssBundler
         $this->stylesheets[$sourceIndex]['items'] = $contentItems;
         $this->stylesheets[$sourceIndex]['licenseComments'] = $licenseComments;
         $this->stylesheets[$sourceIndex]['dependencies'] = $dependencies;
+        $this->stylesheets[$sourceIndex]['cssModuleDependencies'] = $cssModuleDependencies;
+        $this->stylesheets[$sourceIndex]['cssModuleDependencySources'] = $cssModuleDependencySources;
+        $this->stylesheets[$sourceIndex]['cssModuleExports'] = $cssModuleExports;
 
         return $sourceIndex;
     }
@@ -227,6 +317,16 @@ final class CssBundler
 
         $visited[$sourceIndex] = true;
         $depIndex = 0;
+        foreach ($this->stylesheets[$sourceIndex]['cssModuleDependencies'] as $dependency) {
+            $depSourceIndex = (int) $dependency['sourceIndex'];
+            if (!isset($visited[$depSourceIndex])) {
+                $this->stylesheets[$depSourceIndex]['parentSourceIndex'] = $sourceIndex;
+                $this->stylesheets[$depSourceIndex]['parentDepIndex'] = $depIndex;
+                $this->orderStylesheet($depSourceIndex, $visited);
+            }
+            $depIndex++;
+        }
+
         foreach ($this->stylesheets[$sourceIndex]['dependencies'] as $dependency) {
             if (($dependency['type'] ?? null) !== 'file') {
                 continue;
@@ -256,6 +356,15 @@ final class CssBundler
         $importIndex = 0;
         $depIndex = 0;
         $hasBundledImport = false;
+
+        foreach ($stylesheet['cssModuleDependencies'] as $dependency) {
+            $depSourceIndex = (int) $dependency['sourceIndex'];
+            $resolved = $this->stylesheets[$depSourceIndex];
+            if ($resolved['parentSourceIndex'] === $sourceIndex && $resolved['parentDepIndex'] === $depIndex) {
+                $output .= $this->inline($depSourceIndex, $stack);
+            }
+            $depIndex++;
+        }
 
         foreach ($stylesheet['items'] as $item) {
             if (($item['type'] ?? null) === 'import') {
@@ -306,6 +415,100 @@ final class CssBundler
         $output .= $this->wrapRules($body, $stylesheet['layer'], $stylesheet['media'], $stylesheet['supports']);
 
         return $output;
+    }
+
+    /**
+     * @param array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}> $exports
+     * @return list<string>
+     */
+    private function cssModuleDependencySpecifiers(array $exports): array
+    {
+        $specifiers = [];
+        foreach ($exports as $export) {
+            foreach ($export['composes'] as $reference) {
+                if (($reference['type'] ?? '') !== 'dependency') {
+                    continue;
+                }
+
+                $specifier = (string) ($reference['specifier'] ?? '');
+                if ($specifier !== '' && !in_array($specifier, $specifiers, true)) {
+                    $specifiers[] = $specifier;
+                }
+            }
+        }
+
+        return $specifiers;
+    }
+
+    /**
+     * @return array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
+     */
+    private function resolvedCssModuleExports(int $sourceIndex): array
+    {
+        $exports = $this->stylesheets[$sourceIndex]['cssModuleExports'];
+        foreach ($exports as $name => $export) {
+            $exports[$name]['composes'] = $this->resolveCssModuleReferences($sourceIndex, $export['composes'], []);
+        }
+
+        return $exports;
+    }
+
+    /**
+     * @param list<array{type:string, name:string, specifier?:string}> $references
+     * @param array<string, true> $stack
+     * @return list<array{type:string, name:string, specifier?:string}>
+     */
+    private function resolveCssModuleReferences(int $sourceIndex, array $references, array $stack): array
+    {
+        $resolved = [];
+        foreach ($references as $reference) {
+            if (($reference['type'] ?? '') !== 'dependency') {
+                $this->appendCssModuleReference($resolved, $reference);
+                continue;
+            }
+
+            $specifier = (string) ($reference['specifier'] ?? '');
+            $depSourceIndex = $this->stylesheets[$sourceIndex]['cssModuleDependencySources'][$specifier] ?? null;
+            if ($depSourceIndex === null) {
+                $this->appendCssModuleReference($resolved, $reference);
+                continue;
+            }
+
+            $depExport = $this->stylesheets[$depSourceIndex]['cssModuleExports'][$reference['name']] ?? null;
+            if ($depExport === null) {
+                $this->appendCssModuleReference($resolved, $reference);
+                continue;
+            }
+
+            $key = $depSourceIndex . ':' . $reference['name'];
+            if (isset($stack[$key])) {
+                continue;
+            }
+
+            $this->appendCssModuleReference($resolved, [
+                'type' => 'local',
+                'name' => $depExport['name'],
+            ]);
+            $stack[$key] = true;
+            foreach ($this->resolveCssModuleReferences($depSourceIndex, $depExport['composes'], $stack) as $depReference) {
+                $this->appendCssModuleReference($resolved, $depReference);
+            }
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * @param list<array{type:string, name:string, specifier?:string}> $references
+     * @param array{type:string, name:string, specifier?:string} $reference
+     */
+    private function appendCssModuleReference(array &$references, array $reference): void
+    {
+        if (in_array($reference, $references, true)) {
+            return;
+        }
+
+        $references[] = $reference;
     }
 
     /**
@@ -733,6 +936,23 @@ final class CssBundler
         }
 
         return '@layer ' . implode(', ', $prefixed) . ';';
+    }
+
+    private function cssModuleHashForFile(string $file): string
+    {
+        $hashes = $this->cssModuleOptions['hashes'] ?? null;
+        if (is_array($hashes) && isset($hashes[$file])) {
+            return $hashes[$file];
+        }
+
+        if (is_callable($hashes)) {
+            return (string) $hashes($file);
+        }
+
+        $hash = rtrim(strtr(base64_encode(hash('sha1', $file, true)), '+/', '_-'), '=');
+        $hash = substr($hash, 0, 6);
+
+        return preg_match('/^[A-Za-z_]/', $hash) === 1 ? $hash : '_' . substr($hash, 0, 5);
     }
 
     private function normalizePath(string $path): string
