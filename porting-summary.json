@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-31 19:34:53 UTC",
-    "sourceCommit": "f0935a5090aca2b325dcf9c7061212b30d29143b",
-    "sourceCommitShort": "f0935a5090ac",
+    "generated": "2026-05-31 19:43:47 UTC",
+    "sourceCommit": "32f1c69b6a8613b2110ec218c562f03f484c08be",
+    "sourceCommitShort": "32f1c69b6a86",
     "sourceBranch": "unknown",
-    "dashboardCommit": "f0935a5090aca2b325dcf9c7061212b30d29143b",
-    "dashboardCommitShort": "f0935a5090ac",
-    "averageProgressPercent": "87.2",
+    "dashboardCommit": "32f1c69b6802d0cd28a24a6becfff9f9382be834",
+    "dashboardCommitShort": "32f1c69b6802",
+    "averageProgressPercent": "87.3",
     "lanes": [
         {
             "library": "difftastic",
@@ -60,20 +60,20 @@
         },
         {
             "library": "gitoxide",
-            "progressPercent": "88.2",
+            "progressPercent": "88.3",
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1623",
-            "coverage": "1623 / 2886",
-            "php": "5294 pass / 0 fail",
+            "mapped": "1627",
+            "coverage": "1627 / 2886",
+            "php": "5351 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
-            "audit": "2026-05-31 supervisor batch at source f09...",
-            "currentWork": "Smart HTTP receive-pack proxy credential/header behavior and SSH protocol-v2 receive-pack...",
+            "audit": "2026-05-31 supervisor batch at source 32f...",
+            "currentWork": "Reference transaction packed-lock/reflog-only behavior, dynamic object database prefix di...",
             "nextTarget": "Keep a bounded secondary Gitoxide pool on protocol, transport, object database, partial c...",
             "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch...",
-            "commit": "f0935a5"
+            "commit": "32f1c69"
         },
         {
             "library": "libsqlite",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "91.5",
+            "progressPercent": "91.8",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1965",
-            "coverage": "1965 / 3532",
-            "php": "3764 pass / 0 fail",
+            "mapped": "2047",
+            "coverage": "2047 / 3532",
+            "php": "3949 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
-            "audit": "2026-05-31 supervisor batch at source f09...",
-            "currentWork": "CSS Modules composes-only behavior, transition CSSOM prefix reads/writes, SourceMap gener...",
+            "audit": "2026-05-31 supervisor batch at source 32f...",
+            "currentWork": "Same-space lch()/oklch() relative color minification, logical border target fallbacks, pa...",
             "nextTarget": "Keep LightningCSS as the main worker pool and prioritize fresh current-base handoffs that...",
             "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for t...",
-            "commit": "f0935a5"
+            "commit": "32f1c69"
         },
         {
             "library": "markerPDF",

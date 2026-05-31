@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 88.2,
-    "suiteProgress": "Supervisor-integrated Gitoxide smart HTTP and SSH receive-pack transport batch adds proxy credential/header scoping parity and SSH protocol-v2 auth-boundary context behavior. Verification passed PHP lint on changed PHP files, touched example smoke runs, git diff --check, no WordPress/WP/wp_ source symbols under lanes/gitoxide/src, and full Gitoxide lane 39 files / 5294 assertions / 0 failures.",
-    "phpPass": 5294,
+    "estimatedProgress": 88.3,
+    "suiteProgress": "Supervisor-integrated Gitoxide object/ref/tree/partial-clone batch adds prepared-reference packed-lock/reflog-only parity, dynamic object prefix disambiguation across pack/MIDX/alternates/loose stores, rename-add-symlink resolve-tree parity, and promisor hydration refresh behavior. Verification passed PHP lint on 34 changed PHP files, git diff --check, no WordPress/WP/wp_ source symbols under lanes/gitoxide/src or lanes/lightningcss/src, nine changed example smoke runs, full Gitoxide lane 39 files / 5351 assertions / 0 failures, and full LightningCSS lane 13 files / 3949 assertions / 0 failures.",
+    "phpPass": 5351,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
-    "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full runner not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source f0935a50: full Gitoxide lane passed 39 files / 5294 assertions / 0 failures. Conservative mapped coverage moves from 1621 / 2886 to 1623 / 2886 for smart HTTP proxy credential/header scoping parity and SSH receive-pack protocol-v2 auth-boundary context behavior.",
-    "currentWork": "Smart HTTP receive-pack proxy credential/header behavior and SSH protocol-v2 receive-pack auth-boundary context are integrated from screened worker handoffs while LightningCSS remains the main worker pool.",
+    "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full Cargo workspace not executed for isolated batch",
+    "audit": "2026-05-31 supervisor batch at source 32f1c69b: full Gitoxide lane passed 39 files / 5351 assertions / 0 failures. Conservative mapped coverage moves from 1623 / 2886 to 1627 / 2886: +2 reference transaction packed-lock/reflog-only behaviors, +1 dynamic pack/MIDX/alternate/loose prefix disambiguation behavior, and +1 rename-add-symlink resolve-tree fixture. Partial-clone promisor hydration refresh is verified but counted inside an already represented cluster.",
+    "currentWork": "Reference transaction packed-lock/reflog-only behavior, dynamic object database prefix disambiguation, rename-add-symlink recursive tree merge parity, and partial-clone promisor hydration refresh are integrated from screened worker handoffs while LightningCSS remains the main worker pool.",
     "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch due workspace breadth. Native PHP focused/full-lane evidence is green; keep Gitoxide at a bounded secondary pool while LightningCSS remains the main capacity target.",
-    "latestCommit": "f0935a5090aca2b325dcf9c7061212b30d29143b",
+    "latestCommit": "32f1c69b6a8613b2110ec218c562f03f484c08be",
     "nextTask": "Keep a bounded secondary Gitoxide pool on protocol, transport, object database, partial clone, tree merge, reference, credential, URL/refspec, and pathspec slices; prioritize handoffs with new mapped coverage and full-lane PHP evidence.",
-    "commit": "f0935a5090aca2b325dcf9c7061212b30d29143b"
+    "commit": "32f1c69b6a8613b2110ec218c562f03f484c08be"
 }
