@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 18:37:05 UTC",
-    "sourceCommit": "fe49094afb401c1c858360292dc2f32ee912afca",
-    "sourceCommitShort": "fe49094afb40",
+    "generated": "2026-05-31 18:44:09 UTC",
+    "sourceCommit": "1aeb4a8ab9cb06749b8052e4f6f4aef700c3c69d",
+    "sourceCommitShort": "1aeb4a8ab9cb",
     "sourceBranch": "unknown",
-    "dashboardCommit": "fe49094afb401c1c858360292dc2f32ee912afca",
-    "dashboardCommitShort": "fe49094afb40",
+    "dashboardCommit": "1aeb4a8ab9cb06749b8052e4f6f4aef700c3c69d",
+    "dashboardCommitShort": "1aeb4a8ab9cb",
     "averageProgressPercent": "86.8",
     "lanes": [
         {
@@ -60,20 +60,20 @@
         },
         {
             "library": "gitoxide",
-            "progressPercent": "87.3",
+            "progressPercent": "87.4",
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1607",
-            "coverage": "1607 / 2886",
-            "php": "5079 pass / 0 fail",
+            "mapped": "1609",
+            "coverage": "1609 / 2886",
+            "php": "5100 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
-            "audit": "2026-05-31 supervisor batch at source 2c0...",
-            "currentWork": "Config include/includeIf optional path-prefix interpolation and credential helper context...",
-            "nextTarget": "Continue bounded Gitoxide workers on merge-base/tree-pathspec/url-refspec/protocol/transp...",
+            "audit": "2026-05-31 supervisor batch at source 8ff...",
+            "currentWork": "Merge-base generated timestamp-skew baseline behavior and URL/refspec scp-like bracket-bo...",
+            "nextTarget": "Continue bounded Gitoxide workers on protocol/transport/object/ref/merge-base/url-refspec...",
             "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch...",
-            "commit": "2c09cc8"
+            "commit": "8ffc08f"
         },
         {
             "library": "libsqlite",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "87.3",
+            "progressPercent": "87.5",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1689",
-            "coverage": "1689 / 3532",
-            "php": "3108 pass / 0 fail",
+            "mapped": "1696",
+            "coverage": "1696 / 3532",
+            "php": "3141 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
-            "audit": "2026-05-31 supervisor batch at source 2c0...",
-            "currentWork": "CSS Modules local/global selector and composes metadata parity, bundler CSS Modules depen...",
-            "nextTarget": "Continue non-overlapping LightningCSS source-only slices from active workers: source maps...",
+            "audit": "2026-05-31 supervisor batch at source 8ff...",
+            "currentWork": "Source-map duplicate generated-column lookup/extension, dynamic grid-auto-flow minificati...",
+            "nextTarget": "Continue non-overlapping LightningCSS source-only slices from active workers. Rebase stal...",
             "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for t...",
-            "commit": "2c09cc8"
+            "commit": "8ffc08f"
         },
         {
             "library": "markerPDF",
