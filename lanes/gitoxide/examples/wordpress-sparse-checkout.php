@@ -28,6 +28,12 @@ $prefixedPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(top)wp-config.php',
     ':(exclude,glob)build/**',
 ], prefix: 'wp-content/plugins/gutenberg');
+$deploymentRoot = '/srv/www/example.com/current';
+$absolutePathspec = SparseCheckoutSpec::fromPathspecs([
+    $deploymentRoot . '/wp-content/plugins/gutenberg/block.json',
+    ':(icase)' . $deploymentRoot . '/wp-content/plugins/gutenberg/readme.md',
+    ':(exclude)' . $deploymentRoot . '/wp-content/plugins/gutenberg/build/',
+], root: $deploymentRoot);
 $filter = FetchFilterSpec::blobNone();
 
 $root = new Tree([
@@ -73,4 +79,8 @@ return [
     'prefixedPathspecIcaseFileIncluded' => $prefixedPathspec->includesPath('wp-content/plugins/gutenberg/block.json', false),
     'prefixedPathspecUpperPrefixSkipped' => $prefixedPathspec->skipWorktree('WP-CONTENT/plugins/gutenberg/block.json', false),
     'prefixedTopConfigIncluded' => $prefixedPathspec->includesPath('wp-config.php', false),
+    'absoluteRootPathspecBlockIncluded' => $absolutePathspec->includesPath('wp-content/plugins/gutenberg/block.json', false),
+    'absoluteRootPathspecIcaseReadmeIncluded' => $absolutePathspec->includesPath('wp-content/plugins/gutenberg/README.md', false),
+    'absoluteRootPathspecUpperPrefixSkipped' => $absolutePathspec->skipWorktree('WP-CONTENT/plugins/gutenberg/README.md', false),
+    'absoluteRootPathspecBuildSkipped' => $absolutePathspec->skipWorktree('wp-content/plugins/gutenberg/build/index.js', false),
 ];

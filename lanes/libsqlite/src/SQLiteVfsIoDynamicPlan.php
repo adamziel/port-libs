@@ -4204,6 +4204,95 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function osErrorLogProfile(
+        string $scenario,
+        string $syscall,
+        string $path,
+        int $osErrorCode,
+        int $sourceLine,
+        bool $operationSucceeded = false
+    ): array {
+        $scenario = strtolower(trim($scenario));
+        $syscall = strtolower(trim($syscall));
+        $path = trim($path);
+
+        $allowed = match ($scenario) {
+            'oserror-1.1' => ['open', 'getcwd'],
+            'oserror-1.2' => ['open'],
+            'oserror-1.3' => ['open'],
+            'oserror-1.4' => ['open', 'readlink', 'lstat'],
+            'oserror-2.1' => ['unlink'],
+            default => throw new \InvalidArgumentException('SQLite OS-error log profile scenario is unsupported'),
+        };
+        if (!in_array($syscall, $allowed, true)) {
+            throw new \InvalidArgumentException('SQLite OS-error log profile syscall does not match scenario');
+        }
+        if ($path === '') {
+            throw new \InvalidArgumentException('SQLite OS-error log profile path must not be empty');
+        }
+        if ($osErrorCode < 1 || $sourceLine < 1) {
+            throw new \InvalidArgumentException('SQLite OS-error log profile error code and source line must be positive');
+        }
+        if ($operationSucceeded && $scenario !== 'oserror-1.1') {
+            throw new \InvalidArgumentException('Only oserror-1.1 may model an OS that does not exhaust file descriptors');
+        }
+
+        $pathSuffix = match ($scenario) {
+            'oserror-1.2' => 'dir.db',
+            'oserror-2.1' => 'test.db-wal',
+            default => 'test.db',
+        };
+        if (!str_ends_with($path, $pathSuffix)) {
+            throw new \InvalidArgumentException('SQLite OS-error log profile path does not match upstream scenario suffix');
+        }
+
+        $logRegex = match ($scenario) {
+            'oserror-1.1' => '^os_unix\.c:\d+: \(\d+\) (open|getcwd)\(.*test\.db\) - ',
+            'oserror-1.2' => '^os_unix\.c:\d+: \(\d+\) open\(.*dir\.db\) - ',
+            'oserror-1.3' => '^os_unix\.c:\d+: \(\d+\) open\(.*test\.db\) - ',
+            'oserror-1.4' => '^os_unix\.c:\d+: \(\d+\) (open|readlink|lstat)\(.*test\.db\) - ',
+            'oserror-2.1' => '^os_unix\.c:\d+: \(\d+\) unlink\(.*test\.db-wal\) - ',
+        };
+        $logMessage = sprintf('os_unix.c:%d: (%d) %s(%s) - simulated OS error', $sourceLine, $osErrorCode, $syscall, $path);
+        $logRequired = !$operationSucceeded;
+
+        return [
+            'status' => $operationSucceeded ? 'ok' : 'error',
+            'script' => 'oserror.test',
+            'scenario' => $scenario,
+            'upstream' => self::osErrorUpstream($scenario),
+            'default_vfs' => 'unix',
+            'log_channel' => 'sqlite3_log',
+            'allowed_syscalls' => $allowed,
+            'syscall' => $syscall,
+            'path' => $path,
+            'path_suffix' => $pathSuffix,
+            'os_error_code' => $osErrorCode,
+            'source_line' => $sourceLine,
+            'log_required' => $logRequired,
+            'log_message' => $logRequired ? $logMessage : null,
+            'log_regex' => $logRegex,
+            'log_matches_upstream_regex' => $logRequired ? (preg_match('/' . $logRegex . '/', $logMessage) === 1) : true,
+            'sqlite_result_code' => $operationSucceeded ? 'SQLITE_OK' : ($scenario === 'oserror-2.1' ? 'SQLITE_IOERR_DELETE' : 'SQLITE_CANTOPEN'),
+            'result_message' => $operationSucceeded ? 'ok' : ($scenario === 'oserror-2.1' ? 'disk I/O error' : 'unable to open database file'),
+            'too_many_file_descriptors_probe' => $scenario === 'oserror-1.1',
+            'path_is_directory' => $scenario === 'oserror-1.2',
+            'missing_parent_path' => $scenario === 'oserror-1.3',
+            'restricted_root_path_probe' => $scenario === 'oserror-1.4',
+            'wal_sidecar_unlink_failure' => $scenario === 'oserror-2.1',
+            'cleanup_required' => $scenario === 'oserror-2.1' || $scenario === 'oserror-1.2',
+            'database_reusable_after_cleanup' => true,
+            'dependencies' => [
+                'sqlite-upstream-oserror-test',
+                'sqlite-vfs-os-error-logging',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function sysfaultTransientEintrProfile(
         string $syscall,
         int $faultPosition,
@@ -4862,6 +4951,37 @@ final class SQLiteVfsIoDynamicPlan
         }
 
         return $upstream;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function osErrorUpstream(string $scenario): array
+    {
+        return match ($scenario) {
+            'oserror-1.1' => [
+                'oserror.test 1.1.1 open/getcwd failure may report unable to open database file',
+                'oserror.test 1.1.3 sqlite3_log matches open|getcwd test.db OS diagnostic',
+            ],
+            'oserror-1.2' => [
+                'oserror.test 1.2.1 opening directory path returns unable to open database file',
+                'oserror.test 1.2.2 sqlite3_log matches open dir.db OS diagnostic',
+            ],
+            'oserror-1.3' => [
+                'oserror.test 1.3.1 missing parent path returns unable to open database file',
+                'oserror.test 1.3.2 sqlite3_log matches open test.db OS diagnostic',
+            ],
+            'oserror-1.4' => [
+                'oserror.test 1.4.1 restricted root path returns unable to open database file',
+                'oserror.test 1.4.2 sqlite3_log matches open|readlink|lstat test.db OS diagnostic',
+            ],
+            'oserror-2.1' => [
+                'oserror.test 2.1.1 WAL sidecar directory causes disk I/O error',
+                'oserror.test 2.1.2 sqlite3_log matches unlink test.db-wal OS diagnostic',
+                'oserror.test 2.1.3 closes connection and removes WAL sidecar directory',
+            ],
+            default => throw new \InvalidArgumentException("Unsupported SQLite OS-error scenario: {$scenario}"),
+        };
     }
 
     /**

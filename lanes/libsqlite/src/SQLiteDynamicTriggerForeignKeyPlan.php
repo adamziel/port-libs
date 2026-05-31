@@ -662,6 +662,220 @@ final class SQLiteDynamicTriggerForeignKeyPlan
 
     /**
      * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $childTables
+     * @param array{schema?:string,parent_table?:string,parent_columns?:list<string>,foreign_keys?:bool,ordinary_delete_trigger_count?:int,repair_parent_rows?:list<array<string,mixed>>} $options
+     * @return array<string,mixed>
+     */
+    public static function eForeignKeyDropTableImplicitDeletePlan(array $parents, array $childTables, array $options = []): array
+    {
+        $schema = self::identifier((string) ($options['schema'] ?? 'main'), 'e_fkey drop schema');
+        $parentTable = self::identifier((string) ($options['parent_table'] ?? 'app_parent'), 'e_fkey drop parent table');
+        $parentColumns = self::identifierList(
+            array_values(array_map(static fn (mixed $value): string => (string) $value, $options['parent_columns'] ?? ['a', 'b'])),
+            'e_fkey drop parent columns'
+        );
+        $foreignKeys = (bool) ($options['foreign_keys'] ?? true);
+        $ordinaryDeleteTriggerCount = max(0, (int) ($options['ordinary_delete_trigger_count'] ?? 0));
+        $parents = array_values($parents);
+        $repairParents = array_values($options['repair_parent_rows'] ?? []);
+        $normalizedChildren = self::eForeignKeyDropChildTables($childTables);
+
+        if (!$foreignKeys) {
+            return [
+                'source' => 'e_fkey.test e_fkey-57.1..61.3.3',
+                'operation' => 'drop-table-implicit-foreign-key-delete',
+                'status' => 'commit-ok',
+                'drop_status' => 'drop-ok',
+                'commit_status' => 'commit-ok',
+                'schema' => $schema,
+                'parent_table' => $parentTable,
+                'parent_key_columns' => $parentColumns,
+                'foreign_keys' => false,
+                'implicit_delete_ran' => false,
+                'parent_table_dropped' => true,
+                'table_visible_after_drop' => false,
+                'parent_table_recreated_for_commit' => false,
+                'deleted_parent_count' => count($parents),
+                'repair_parent_count' => 0,
+                'parent_keys_after_commit' => [],
+                'child_tables' => self::eForeignKeyDropChildSummaries($normalizedChildren, []),
+                'foreign_key_actions' => [],
+                'fk_action_count' => 0,
+                'immediate_violations' => [],
+                'immediate_violation_count' => 0,
+                'deferred_violations' => [],
+                'deferred_violation_count' => 0,
+                'ignored_mismatch_count' => 0,
+                'sql_trigger_fire_count' => 0,
+                'suppressed_sql_trigger_count' => $ordinaryDeleteTriggerCount,
+                'implicit_delete_rolled_back' => false,
+                'rolled_back_fk_action_count' => 0,
+                'dependencies' => [
+                    'sqlite-efkey-drop-table-special-behavior-requires-foreign-keys-on',
+                    'sqlite-efkey-drop-table-skips-implicit-delete-when-foreign-keys-off',
+                    'sqlite-efkey-drop-table-does-not-fire-sql-triggers',
+                ],
+            ];
+        }
+
+        $nextChildren = [];
+        $actions = [];
+        $immediateViolations = [];
+        $deferredViolations = [];
+        $ignoredMismatchCount = 0;
+        $actionCounts = [];
+
+        foreach ($normalizedChildren as $index => $childTable) {
+            $actionCounts[$index] = 0;
+            if ($childTable['parent_mismatch']) {
+                $ignoredMismatchCount++;
+                $nextChildren[$index] = $childTable;
+                continue;
+            }
+
+            $rows = [];
+            foreach ($childTable['rows'] as $rowIndex => $row) {
+                if (!self::eForeignKeyDropChildReferencesParent($row, $parents, $childTable['child_columns'], $childTable['parent_columns'])) {
+                    $rows[] = $row;
+                    continue;
+                }
+
+                $mode = $childTable['action'];
+                if ($mode === 'cascade') {
+                    $actions[] = self::eForeignKeyDropAction($childTable, $row, $rowIndex, 'cascade-delete', null);
+                    $actionCounts[$index]++;
+                    continue;
+                }
+
+                if ($mode === 'set null') {
+                    $next = $row;
+                    foreach ($childTable['child_columns'] as $column) {
+                        $next[$column] = null;
+                    }
+                    $rows[] = $next;
+                    $actions[] = self::eForeignKeyDropAction($childTable, $row, $rowIndex, 'set-null', self::eForeignKeyDropChildKey($next, $childTable['child_columns']));
+                    $actionCounts[$index]++;
+                    continue;
+                }
+
+                if ($mode === 'set default') {
+                    $next = $row;
+                    foreach ($childTable['child_columns'] as $column) {
+                        $next[$column] = $childTable['defaults'][$column] ?? null;
+                    }
+                    $rows[] = $next;
+                    $actions[] = self::eForeignKeyDropAction($childTable, $row, $rowIndex, 'set-default', self::eForeignKeyDropChildKey($next, $childTable['child_columns']));
+                    $actionCounts[$index]++;
+                    continue;
+                }
+
+                $rows[] = $row;
+                $actions[] = self::eForeignKeyDropAction($childTable, $row, $rowIndex, $mode, self::eForeignKeyDropChildKey($row, $childTable['child_columns']));
+                $actionCounts[$index]++;
+            }
+
+            $childTable['rows'] = array_values($rows);
+            $nextChildren[$index] = $childTable;
+        }
+
+        $nextChildren = array_values($nextChildren);
+        foreach ($nextChildren as $childTable) {
+            if ($childTable['parent_mismatch']) {
+                continue;
+            }
+
+            foreach (self::eForeignKeyDropViolations($childTable, $repairParents) as $violation) {
+                if ($childTable['action'] === 'restrict' || !$childTable['deferred']) {
+                    $immediateViolations[] = $violation + ['phase' => 'drop-table'];
+                    continue;
+                }
+
+                $deferredViolations[] = $violation + ['phase' => 'commit'];
+            }
+        }
+
+        if ($immediateViolations !== []) {
+            return [
+                'source' => 'e_fkey.test e_fkey-57.1..61.3.3',
+                'operation' => 'drop-table-implicit-foreign-key-delete',
+                'status' => 'constraint-failed',
+                'drop_status' => 'drop-blocked',
+                'commit_status' => 'not-started',
+                'schema' => $schema,
+                'parent_table' => $parentTable,
+                'parent_key_columns' => $parentColumns,
+                'foreign_keys' => true,
+                'implicit_delete_ran' => true,
+                'parent_table_dropped' => false,
+                'table_visible_after_drop' => true,
+                'parent_table_recreated_for_commit' => false,
+                'deleted_parent_count' => 0,
+                'repair_parent_count' => 0,
+                'parent_keys_after_commit' => self::eForeignKeyDropParentKeys($parents, $parentColumns),
+                'child_tables' => self::eForeignKeyDropChildSummaries($normalizedChildren, []),
+                'foreign_key_actions' => [],
+                'fk_action_count' => 0,
+                'immediate_violations' => $immediateViolations,
+                'immediate_violation_count' => count($immediateViolations),
+                'deferred_violations' => [],
+                'deferred_violation_count' => 0,
+                'ignored_mismatch_count' => $ignoredMismatchCount,
+                'sql_trigger_fire_count' => 0,
+                'suppressed_sql_trigger_count' => $ordinaryDeleteTriggerCount,
+                'implicit_delete_rolled_back' => true,
+                'rolled_back_fk_action_count' => count($actions),
+                'dependencies' => [
+                    'sqlite-efkey-drop-table-runs-implicit-delete-with-foreign-keys-on',
+                    'sqlite-efkey-immediate-drop-table-fk-violation-rolls-back-drop',
+                    'sqlite-efkey-drop-table-does-not-fire-sql-triggers',
+                    'sqlite-efkey-drop-table-ignores-mismatch-errors-during-implicit-delete',
+                ],
+            ];
+        }
+
+        $commitStatus = $deferredViolations === [] ? 'commit-ok' : 'deferred-commit-failed';
+
+        return [
+            'source' => 'e_fkey.test e_fkey-57.1..61.3.3',
+            'operation' => 'drop-table-implicit-foreign-key-delete',
+            'status' => $commitStatus,
+            'drop_status' => 'drop-ok',
+            'commit_status' => $commitStatus,
+            'schema' => $schema,
+            'parent_table' => $parentTable,
+            'parent_key_columns' => $parentColumns,
+            'foreign_keys' => true,
+            'implicit_delete_ran' => true,
+            'parent_table_dropped' => true,
+            'table_visible_after_drop' => false,
+            'parent_table_recreated_for_commit' => $repairParents !== [],
+            'deleted_parent_count' => count($parents),
+            'repair_parent_count' => count($repairParents),
+            'parent_keys_after_commit' => self::eForeignKeyDropParentKeys($repairParents, $parentColumns),
+            'child_tables' => self::eForeignKeyDropChildSummaries($nextChildren, $actionCounts),
+            'foreign_key_actions' => $actions,
+            'fk_action_count' => count($actions),
+            'immediate_violations' => [],
+            'immediate_violation_count' => 0,
+            'deferred_violations' => $deferredViolations,
+            'deferred_violation_count' => count($deferredViolations),
+            'ignored_mismatch_count' => $ignoredMismatchCount,
+            'sql_trigger_fire_count' => 0,
+            'suppressed_sql_trigger_count' => $ordinaryDeleteTriggerCount,
+            'implicit_delete_rolled_back' => false,
+            'rolled_back_fk_action_count' => 0,
+            'dependencies' => [
+                'sqlite-efkey-drop-table-runs-implicit-delete-with-foreign-keys-on',
+                'sqlite-efkey-drop-table-implicit-delete-fires-fk-actions',
+                'sqlite-efkey-drop-table-does-not-fire-sql-triggers',
+                'sqlite-efkey-deferred-drop-table-fk-violation-fails-at-commit',
+                'sqlite-efkey-drop-table-ignores-mismatch-errors-during-implicit-delete',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
      * @param list<array<string,mixed>> $children
      * @param list<array{case:string,operation:string,row?:array<string,mixed>,where?:array<string,mixed>,deferred_violation?:bool,rollback?:bool}> $operations
      * @return array<string,mixed>
@@ -9914,6 +10128,221 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return $count;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $childTables
+     * @return list<array{name:string,action:string,deferred:bool,parent_mismatch:bool,child_columns:list<string>,parent_columns:list<string>,defaults:array<string,mixed>,rows:list<array<string,mixed>>}>
+     */
+    private static function eForeignKeyDropChildTables(array $childTables): array
+    {
+        if ($childTables === []) {
+            throw new \InvalidArgumentException('SQLite e_fkey drop table child tables cannot be empty');
+        }
+
+        $normalized = [];
+        foreach ($childTables as $table) {
+            $action = match (strtolower(trim((string) ($table['action'] ?? '')))) {
+                'cascade' => 'cascade',
+                'set null', 'set-null' => 'set null',
+                'set default', 'set-default' => 'set default',
+                'restrict' => 'restrict',
+                'no action', 'no-action' => 'no action',
+                default => throw new \InvalidArgumentException('SQLite e_fkey drop table action is unsupported'),
+            };
+            $childColumns = self::identifierList(
+                array_values(array_map(static fn (mixed $value): string => (string) $value, $table['child_columns'] ?? [])),
+                'e_fkey drop child columns'
+            );
+            $parentColumns = self::identifierList(
+                array_values(array_map(static fn (mixed $value): string => (string) $value, $table['parent_columns'] ?? [])),
+                'e_fkey drop referenced parent columns'
+            );
+            if (count($childColumns) !== count($parentColumns)) {
+                throw new \InvalidArgumentException('SQLite e_fkey drop table key width mismatch');
+            }
+
+            $rows = $table['rows'] ?? null;
+            if (!is_array($rows)) {
+                throw new \InvalidArgumentException('SQLite e_fkey drop table child rows are malformed');
+            }
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    throw new \InvalidArgumentException('SQLite e_fkey drop table child row is malformed');
+                }
+                foreach ($childColumns as $column) {
+                    if (!array_key_exists($column, $row)) {
+                        throw new \InvalidArgumentException("SQLite e_fkey drop table child row is missing {$column}");
+                    }
+                }
+            }
+
+            $defaults = [];
+            foreach ((array) ($table['defaults'] ?? []) as $column => $value) {
+                $defaults[self::identifier((string) $column, 'e_fkey drop default column')] = $value;
+            }
+
+            $normalized[] = [
+                'name' => self::identifier((string) ($table['name'] ?? ''), 'e_fkey drop child table'),
+                'action' => $action,
+                'deferred' => (bool) ($table['deferred'] ?? false),
+                'parent_mismatch' => (bool) ($table['parent_mismatch'] ?? false),
+                'child_columns' => $childColumns,
+                'parent_columns' => $parentColumns,
+                'defaults' => $defaults,
+                'rows' => array_values($rows),
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<string> $childColumns
+     * @param list<string> $parentColumns
+     */
+    private static function eForeignKeyDropChildReferencesParent(array $child, array $parents, array $childColumns, array $parentColumns): bool
+    {
+        if (self::eForeignKeyDropChildKeyHasNull($child, $childColumns)) {
+            return false;
+        }
+
+        foreach ($parents as $parent) {
+            $match = true;
+            foreach ($childColumns as $index => $childColumn) {
+                $parentColumn = $parentColumns[$index];
+                if (!array_key_exists($parentColumn, $parent)) {
+                    throw new \InvalidArgumentException("SQLite e_fkey drop parent row is missing {$parentColumn}");
+                }
+                if (($child[$childColumn] ?? null) !== $parent[$parentColumn]) {
+                    $match = false;
+                    break;
+                }
+            }
+            if ($match) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{name:string,action:string,child_columns:list<string>} $childTable
+     * @param array<string,mixed> $row
+     * @param array<string,mixed>|null $newKey
+     * @return array<string,mixed>
+     */
+    private static function eForeignKeyDropAction(array $childTable, array $row, int $rowIndex, string $action, ?array $newKey): array
+    {
+        return [
+            'child_table' => $childTable['name'],
+            'action' => $action,
+            'row_index' => $rowIndex,
+            'old_key' => self::eForeignKeyDropChildKey($row, $childTable['child_columns']),
+            'new_key' => $newKey,
+        ];
+    }
+
+    /**
+     * @param array{name:string,action:string,deferred:bool,parent_mismatch:bool,child_columns:list<string>,parent_columns:list<string>,defaults:array<string,mixed>,rows:list<array<string,mixed>>} $childTable
+     * @param list<array<string,mixed>> $parents
+     * @return list<array<string,mixed>>
+     */
+    private static function eForeignKeyDropViolations(array $childTable, array $parents): array
+    {
+        $violations = [];
+        foreach ($childTable['rows'] as $rowIndex => $row) {
+            if (self::eForeignKeyDropChildKeyHasNull($row, $childTable['child_columns'])) {
+                continue;
+            }
+            if (self::eForeignKeyDropChildReferencesParent($row, $parents, $childTable['child_columns'], $childTable['parent_columns'])) {
+                continue;
+            }
+            $violations[] = [
+                'child_table' => $childTable['name'],
+                'child_row_index' => $rowIndex,
+                'child_key' => self::eForeignKeyDropChildKey($row, $childTable['child_columns']),
+                'action' => $childTable['action'],
+                'deferred' => $childTable['deferred'],
+                'reason' => 'missing-parent-after-drop-table-implicit-delete',
+            ];
+        }
+
+        return $violations;
+    }
+
+    /**
+     * @param list<array{name:string,action:string,deferred:bool,parent_mismatch:bool,child_columns:list<string>,parent_columns:list<string>,defaults:array<string,mixed>,rows:list<array<string,mixed>>}> $childTables
+     * @param array<int,int> $actionCounts
+     * @return list<array<string,mixed>>
+     */
+    private static function eForeignKeyDropChildSummaries(array $childTables, array $actionCounts): array
+    {
+        $summaries = [];
+        foreach ($childTables as $index => $childTable) {
+            $summaries[] = [
+                'name' => $childTable['name'],
+                'action' => $childTable['action'],
+                'deferred' => $childTable['deferred'],
+                'parent_mismatch_ignored' => $childTable['parent_mismatch'],
+                'row_count' => count($childTable['rows']),
+                'action_count' => (int) ($actionCounts[$index] ?? 0),
+                'child_keys' => array_values(array_map(
+                    static fn (array $row): array => self::eForeignKeyDropChildKey($row, $childTable['child_columns']),
+                    $childTable['rows']
+                )),
+                'rows' => $childTable['rows'],
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<string> $childColumns
+     * @return array<string,mixed>
+     */
+    private static function eForeignKeyDropChildKey(array $row, array $childColumns): array
+    {
+        $key = [];
+        foreach ($childColumns as $column) {
+            $key[$column] = $row[$column] ?? null;
+        }
+
+        return $key;
+    }
+
+    /**
+     * @param list<string> $childColumns
+     */
+    private static function eForeignKeyDropChildKeyHasNull(array $row, array $childColumns): bool
+    {
+        foreach ($childColumns as $column) {
+            if (($row[$column] ?? null) === null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<string> $parentColumns
+     * @return list<array<string,mixed>>
+     */
+    private static function eForeignKeyDropParentKeys(array $parents, array $parentColumns): array
+    {
+        return array_values(array_map(static function (array $row) use ($parentColumns): array {
+            $key = [];
+            foreach ($parentColumns as $column) {
+                $key[$column] = $row[$column] ?? null;
+            }
+
+            return $key;
+        }, $parents));
     }
 
     /**

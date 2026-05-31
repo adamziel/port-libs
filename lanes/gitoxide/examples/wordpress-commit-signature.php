@@ -27,6 +27,8 @@ $whitespaceSignature = $whitespaceSignatureCommit->signatureForVerification();
 $multiGpgsigCommit = Commit::parse($fixture['multiGpgsigCommitBody']);
 $multiGpgsigSignature = $multiGpgsigCommit->signatureForVerification();
 $rawGpgsigSignature = Commit::signatureForVerificationFromBytes($fixture['rawGpgsigCommitBody']);
+$unsignedSignableCommit = Commit::parse($fixture['unsignedSignableCommitBody']);
+$signedSignableCommit = $unsignedSignableCommit->withGpgSignature($fixture['detachedGpgSignature']);
 $standaloneTrailerMessage = CommitMessage::fromBytes("Review imported plugin metadata\n\n" . $fixture['standaloneTrailerBody']);
 $standaloneTrailerBody = $standaloneTrailerMessage->body ?? '';
 $misorderedHeaderRejected = false;
@@ -160,6 +162,15 @@ return [
     'rawGpgsigSignedDataSha1' => $rawGpgsigSignature === null ? null : sha1($rawGpgsigSignature['signedData']),
     'rawGpgsigSignedDataKeepsTail' => $rawGpgsigSignature !== null
         && str_ends_with($rawGpgsigSignature['signedData'], 'partial-import-tail-without-final-newline'),
+    'generatedGpgsigSignature' => $signedSignableCommit->pgpSignature(),
+    'generatedGpgsigHeaderPosition' => $signedSignableCommit->extraHeaderPosition('gpgsig'),
+    'generatedGpgsigHeaderCount' => count($signedSignableCommit->extraHeaderValues('gpgsig')),
+    'generatedGpgsigSignedDataMatchesUnsigned' => $signedSignableCommit->signedDataForSignature() === $unsignedSignableCommit->storageBytes(),
+    'generatedGpgsigRoundTripMatches' => Commit::parse($signedSignableCommit->storageBytes())->storageBytes() === $signedSignableCommit->storageBytes(),
+    'generatedGpgsigAlreadySignedStable' => $signedSignableCommit
+        ->withGpgSignature("-----BEGIN PGP SIGNATURE-----\nignored\n-----END PGP SIGNATURE-----\n")
+        ->storageBytes() === $signedSignableCommit->storageBytes(),
+    'generatedGpgsigObjectChanged' => $signedSignableCommit->object()->oid() !== $unsignedSignableCommit->object()->oid(),
     'tokenTypes' => array_map(static fn (array $result): string => $result['token']['type'] ?? 'error', $tokenResults),
     'tokenExtraHeaderNames' => array_values(array_map(
         static fn (array $result): string => $result['token']['name'],

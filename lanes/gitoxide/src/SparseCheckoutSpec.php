@@ -130,13 +130,15 @@ final class SparseCheckoutSpec
      *
      * This intentionally supports the pathspec subset that can be evaluated from
      * paths alone. Attribute pathspecs are rejected because sparse checkout
-     * matching has no attribute provider at this layer.
+     * matching has no attribute provider at this layer. When `$root` is
+     * provided, absolute pathspecs are normalized relative to that worktree root.
      *
      * @param list<string> $pathspecs
      */
-    public static function fromPathspecs(array $pathspecs, bool $ignoreCase = false, string $prefix = ''): self
+    public static function fromPathspecs(array $pathspecs, bool $ignoreCase = false, string $prefix = '', string $root = ''): self
     {
         $prefix = self::normalizePath($prefix);
+        $root = self::normalizeAbsoluteRoot($root);
         if ($pathspecs === []) {
             if ($prefix !== '') {
                 return new self(self::MODE_NON_CONE, [], [[
@@ -167,7 +169,7 @@ final class SparseCheckoutSpec
 
         $patterns = [];
         foreach ($pathspecs as $pathspec) {
-            $patterns[] = self::parsePathspec($pathspec, $ignoreCase, $prefix);
+            $patterns[] = self::parsePathspec($pathspec, $ignoreCase, $prefix, $root);
         }
 
         $allExcluded = $patterns !== [] && array_reduce(
@@ -613,7 +615,7 @@ final class SparseCheckoutSpec
     /**
      * @return array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal:bool,matchSlash:bool,ignoreCase:bool,pathspec:bool,always:bool,caseSensitivePrefix:string}
      */
-    private static function parsePathspec(string $pathspec, bool $defaultIgnoreCase, string $prefix): array
+    private static function parsePathspec(string $pathspec, bool $defaultIgnoreCase, string $prefix, string $root): array
     {
         if ($pathspec === '') {
             throw new \InvalidArgumentException('An empty string is not a valid pathspec');
@@ -705,7 +707,12 @@ final class SparseCheckoutSpec
         if ($directoryOnly) {
             $pattern = substr($pattern, 0, -1);
         }
-        [$pattern, $caseSensitivePrefix] = self::normalizePathspecPath($pattern, $anchored ? '' : $prefix);
+        [$pattern, $caseSensitivePrefix] = self::normalizePathspecPath(
+            $pattern,
+            $anchored ? '' : $prefix,
+            $root,
+            $directoryOnly,
+        );
         $always = $pattern === '';
 
         return self::pathspecRule(
@@ -769,10 +776,21 @@ final class SparseCheckoutSpec
     /**
      * @return array{0:string,1:string}
      */
-    private static function normalizePathspecPath(string $path, string $prefix = ''): array
+    private static function normalizePathspecPath(
+        string $path,
+        string $prefix = '',
+        string $root = '',
+        bool $directoryOnly = false,
+    ): array
     {
         if (str_contains($path, "\0") || str_contains($prefix, "\0")) {
             throw new \InvalidArgumentException('Sparse checkout path cannot contain NUL bytes');
+        }
+
+        $absolute = $root !== '' && str_starts_with($path, '/');
+        if ($absolute) {
+            $path = self::pathRelativeToRoot($path, $root);
+            $prefix = '';
         }
 
         $parts = [];
@@ -805,10 +823,74 @@ final class SparseCheckoutSpec
             $caseSensitivePrefix[] = $part['part'];
         }
 
-        return [
-            implode('/', array_map(static fn (array $part): string => $part['part'], $parts)),
-            implode('/', $caseSensitivePrefix),
-        ];
+        $normalized = implode('/', array_map(static fn (array $part): string => $part['part'], $parts));
+
+        if ($absolute) {
+            $caseSensitivePrefix = self::absoluteCaseSensitivePrefix($normalized, $directoryOnly);
+        }
+
+        return [$normalized, implode('/', $caseSensitivePrefix)];
+    }
+
+    private static function normalizeAbsoluteRoot(string $root): string
+    {
+        if ($root === '') {
+            return '';
+        }
+        $root = str_replace('\\', '/', $root);
+        if (str_contains($root, "\0")) {
+            throw new \InvalidArgumentException('Sparse checkout root cannot contain NUL bytes');
+        }
+        if (!str_starts_with($root, '/')) {
+            throw new \InvalidArgumentException("Sparse checkout root must be absolute: {$root}");
+        }
+
+        $parts = [];
+        foreach (explode('/', trim($root, '/')) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                array_pop($parts);
+                continue;
+            }
+            $parts[] = $part;
+        }
+
+        return '/' . implode('/', $parts);
+    }
+
+    private static function pathRelativeToRoot(string $path, string $root): string
+    {
+        $path = str_replace('\\', '/', $path);
+        if ($root === '/') {
+            return ltrim($path, '/');
+        }
+        if ($path !== $root && !str_starts_with($path, $root . '/')) {
+            throw new \InvalidArgumentException("Absolute pathspec is outside the sparse checkout root: {$path}");
+        }
+
+        return ltrim(substr($path, strlen($root)), '/');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function absoluteCaseSensitivePrefix(string $path, bool $directoryOnly): array
+    {
+        if ($path === '') {
+            return [];
+        }
+        if ($directoryOnly) {
+            return self::patternHasWildcard($path) ? [] : explode('/', $path);
+        }
+
+        $directory = self::dirname($path);
+        if ($directory === '' || self::patternHasWildcard($directory)) {
+            return [];
+        }
+
+        return explode('/', $directory);
     }
 
     private function comparisonPath(string $path): string

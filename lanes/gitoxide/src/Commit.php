@@ -282,6 +282,36 @@ final class Commit
         return new GitObject('commit', $this->storageBytes());
     }
 
+    public function withGpgSignature(string $signature): self
+    {
+        if ($this->pgpSignature() !== null) {
+            return $this;
+        }
+
+        $extraHeaderList = $this->allExtraHeaders();
+        $extraHeaderList[] = ['name' => 'gpgsig', 'value' => $signature];
+
+        $headers = $this->headers;
+        $headers['gpgsig'][] = $signature;
+
+        $signed = new self(
+            $this->tree,
+            $this->parents,
+            $this->author,
+            $this->committer,
+            $this->message,
+            $headers,
+            $this->encoding,
+            self::groupExtraHeaders($extraHeaderList),
+            null,
+            $extraHeaderList,
+        );
+
+        $algorithm = strlen($this->tree) === ReferenceTarget::hashHexLength('sha256') ? 'sha256' : 'sha1';
+
+        return self::parse($signed->storageBytes(), $algorithm);
+    }
+
     /**
      * @return list<array{name: string, value: string}>
      */
@@ -299,6 +329,20 @@ final class Commit
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array{name: string, value: string}> $entries
+     * @return array<string, list<string>>
+     */
+    private static function groupExtraHeaders(array $entries): array
+    {
+        $headers = [];
+        foreach ($entries as $entry) {
+            $headers[$entry['name']][] = $entry['value'];
+        }
+
+        return $headers;
     }
 
     public function extraHeader(string $name): ?string

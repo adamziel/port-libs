@@ -10,6 +10,7 @@ use PortLibs\Gitoxide\PushResponse;
 $fixture = require __DIR__ . '/../fixtures/wordpress-protocol-v1-push-response.php';
 $response = PushResponse::fromSidebandPacketLines($fixture['response']);
 $rewrittenResponse = PushResponse::fromReportStatusPacketLines($fixture['rewrittenResponse']);
+$fallThroughResponse = PushResponse::fromReportStatusPacketLines($fixture['fallThroughResponse']);
 $oversizedReportStatusRejected = false;
 try {
     PushResponse::fromReportStatusPacketLines($fixture['oversizedReportStatus']);
@@ -42,11 +43,21 @@ return [
             'oldObject' => $status->oldObject,
             'newObject' => $status->newObject,
             'forcedUpdate' => $status->forcedUpdate,
+            'fallThrough' => $status->fallThrough,
         ],
         $rewrittenResponse->refStatuses()
+    ),
+    'fallThroughRefs' => array_map(
+        static fn (PushRefStatus $status): array => [
+            'requestedRef' => $status->refName,
+            'effectiveRef' => $status->effectiveRefName(),
+            'fallThrough' => $status->fallThrough,
+        ],
+        $fallThroughResponse->refStatuses()
     ),
     'progressMessages' => $response->progressMessages(),
     'errorMessages' => $response->errorMessages(),
     'oversizedReportStatusRejected' => $oversizedReportStatusRejected,
     'fatalSidebandRejected' => $fatalSidebandRejected,
+    'fallThroughAccepted' => $fallThroughResponse->refStatuses()[0]->fallThrough,
 ];

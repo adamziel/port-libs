@@ -659,6 +659,76 @@ return [
         $t->same($body, Commit::parse($commit->storageBytes())->storageBytes());
         $t->same('pretty: %G[?GS] placeholders' . "\n", $commit->message);
     },
+    'commit gpgsig write helper appends detached signatures like gitoxide sign' => static function (TestRunner $t): void {
+        $unsignedBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "parent 1111111111111111111111111111111111111111\n"
+            . "author WordPress Importer <importer@example.test> 1710000000 -0230\n"
+            . "committer WordPress Deploy Bot <deploy@example.test> 1710003600 +0000\n"
+            . "encoding UTF-8\n"
+            . "mergetag object 3333333333333333333333333333333333333333\n"
+            . " type commit\n"
+            . " tag wp-release-2026.05\n"
+            . " tagger WordPress Release Bot <release@example.test> 1710007200 +0000\n"
+            . " \n"
+            . " Release tag embedded for deployment provenance\n"
+            . "\n"
+            . "Unsigned WordPress import\n";
+        $signature = "-----BEGIN PGP SIGNATURE-----\n"
+            . "\n"
+            . "c2lnbmVkLXdvcmRwcmVzcy1kZXBsb3ltZW50\n"
+            . "=wp\n"
+            . "-----END PGP SIGNATURE-----\n";
+        $expectedSignedBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "parent 1111111111111111111111111111111111111111\n"
+            . "author WordPress Importer <importer@example.test> 1710000000 -0230\n"
+            . "committer WordPress Deploy Bot <deploy@example.test> 1710003600 +0000\n"
+            . "encoding UTF-8\n"
+            . "mergetag object 3333333333333333333333333333333333333333\n"
+            . " type commit\n"
+            . " tag wp-release-2026.05\n"
+            . " tagger WordPress Release Bot <release@example.test> 1710007200 +0000\n"
+            . " \n"
+            . " Release tag embedded for deployment provenance\n"
+            . "gpgsig -----BEGIN PGP SIGNATURE-----\n"
+            . " \n"
+            . " c2lnbmVkLXdvcmRwcmVzcy1kZXBsb3ltZW50\n"
+            . " =wp\n"
+            . " -----END PGP SIGNATURE-----\n"
+            . "\n"
+            . "Unsigned WordPress import\n";
+
+        $unsigned = Commit::parse($unsignedBody);
+        $signed = $unsigned->withGpgSignature($signature);
+
+        $t->same(null, $unsigned->pgpSignature());
+        $t->same($signature, $signed->pgpSignature());
+        $t->same(1, $signed->extraHeaderPosition('gpgsig'));
+        $t->same(['mergetag', 'gpgsig'], array_map(static fn (array $entry): string => $entry['name'], $signed->allExtraHeaders()));
+        $t->same($expectedSignedBody, $signed->storageBytes());
+        $t->same($expectedSignedBody, Commit::parse($expectedSignedBody)->storageBytes());
+        $t->same($unsigned->storageBytes(), $signed->signedDataForSignature());
+        $t->same(hash('sha1', 'commit ' . strlen($expectedSignedBody) . "\0" . $expectedSignedBody), $signed->object()->oid());
+
+        $alreadySigned = $signed->withGpgSignature("-----BEGIN PGP SIGNATURE-----\nsecond\n-----END PGP SIGNATURE-----\n");
+        $t->same($signed->storageBytes(), $alreadySigned->storageBytes());
+        $t->same(1, count($alreadySigned->extraHeaderValues('gpgsig')));
+
+        $singleLineSigned = $unsigned->withGpgSignature('ssh-signature-line');
+        $t->same('ssh-signature-line', $singleLineSigned->pgpSignature());
+        $t->contains("gpgsig ssh-signature-line\n\nUnsigned WordPress import\n", $singleLineSigned->storageBytes());
+        $t->same($unsigned->storageBytes(), $singleLineSigned->signedDataForSignature());
+
+        $sha256Unsigned = Commit::parse("tree 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\n"
+            . "author WordPress Importer <importer@example.test> 1710000000 -0230\n"
+            . "committer WordPress Deploy Bot <deploy@example.test> 1710003600 +0000\n"
+            . "\n"
+            . "sha256 signed import\n", 'sha256');
+        $sha256Signed = $sha256Unsigned->withGpgSignature('ssh-sha256-signature');
+        $t->same(64, strlen($sha256Signed->tree));
+        $t->same('ssh-sha256-signature', $sha256Signed->pgpSignature());
+        $t->contains("gpgsig ssh-sha256-signature\n\nsha256 signed import\n", $sha256Signed->storageBytes());
+        $t->same($sha256Unsigned->storageBytes(), $sha256Signed->signedDataForSignature());
+    },
     'commit body can be read from a native git object' => static function (TestRunner $t): void {
         $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
             . "author A <a@example.test> 1700000000 +0000\n"
@@ -729,5 +799,12 @@ return [
         $t->same($fixture['expectedRawGpgsigSignature'], $summary['rawGpgsigSignature']);
         $t->same($fixture['expectedRawGpgsigSignedDataSha1'], $summary['rawGpgsigSignedDataSha1']);
         $t->same(true, $summary['rawGpgsigSignedDataKeepsTail']);
+        $t->same($fixture['expectedDetachedGpgSignature'], $summary['generatedGpgsigSignature']);
+        $t->same(1, $summary['generatedGpgsigHeaderPosition']);
+        $t->same(1, $summary['generatedGpgsigHeaderCount']);
+        $t->same(true, $summary['generatedGpgsigSignedDataMatchesUnsigned']);
+        $t->same(true, $summary['generatedGpgsigRoundTripMatches']);
+        $t->same(true, $summary['generatedGpgsigAlreadySignedStable']);
+        $t->same(true, $summary['generatedGpgsigObjectChanged']);
     },
 ];

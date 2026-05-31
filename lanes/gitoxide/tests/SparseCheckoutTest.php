@@ -257,4 +257,49 @@ return [
             static fn () => SparseCheckoutSpec::fromPathspecs(['../../../outside.php'], prefix: 'wp-content/plugins'),
         );
     },
+    'pathspec sparse checkout normalizes absolute worktree paths under root' => static function (TestRunner $t): void {
+        $root = '/srv/www/example.com/current';
+        $spec = SparseCheckoutSpec::fromPathspecs([
+            $root . '/wp-content/plugins/gutenberg/block.json',
+            ':(icase)' . $root . '/wp-content/plugins/gutenberg/readme.md',
+            ':(exclude)' . $root . '/wp-content/plugins/gutenberg/build/',
+        ], root: $root);
+
+        $t->same(true, $spec->includesPath('wp-content/plugins/gutenberg/block.json', false));
+        $t->same(true, $spec->includesPath('wp-content/plugins/gutenberg/README.md', false));
+        $t->same(false, $spec->includesPath('WP-CONTENT/plugins/gutenberg/README.md', false));
+        $t->same(false, $spec->includesPath('wp-content/plugins/gutenberg/build', true));
+        $t->same(false, $spec->includesPath('wp-content/plugins/gutenberg/build/index.js', false));
+        $t->same(true, $spec->skipWorktree('wp-content/plugins/gutenberg/build/index.js', false));
+        $t->same(true, $spec->includesPath('wp-content', true));
+        $t->same(true, $spec->includesPath('wp-content/plugins', true));
+        $t->same(true, $spec->includesPath('wp-content/plugins/gutenberg', true));
+        $t->same(false, $spec->includesPath('wp-content/plugins/akismet/akismet.php', false));
+
+        $directory = SparseCheckoutSpec::fromPathspecs([
+            $root . '/wp-content/uploads/',
+        ], root: $root);
+        $t->same(true, $directory->includesPath('wp-content/uploads', true));
+        $t->same(true, $directory->includesPath('wp-content/uploads/2026/hero.jpg', false));
+        $t->same(false, $directory->includesPath('wp-content/uploaded/hero.jpg', false));
+
+        $topAbsolute = SparseCheckoutSpec::fromPathspecs([
+            ':(top)' . $root . '/wp-config.php',
+        ], prefix: 'wp-content/plugins/gutenberg', root: $root);
+        $t->same(true, $topAbsolute->includesPath('wp-config.php', false));
+        $t->same(false, $topAbsolute->includesPath('wp-content/plugins/gutenberg/wp-config.php', false));
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => SparseCheckoutSpec::fromPathspecs([$root . '/../outside.php'], root: $root),
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => SparseCheckoutSpec::fromPathspecs(['/var/www/other/wp-config.php'], root: $root),
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => SparseCheckoutSpec::fromPathspecs([$root . '/wp-config.php'], root: 'relative/root'),
+        );
+    },
 ];

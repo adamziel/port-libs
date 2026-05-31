@@ -76,6 +76,26 @@ $rawGpgsigBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
     . " -----END PGP SIGNATURE-----\n"
     . "partial-import-tail-without-final-newline";
 
+$unsignedSignableBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
+    . "parent 1111111111111111111111111111111111111111\n"
+    . "author WordPress Importer <importer@example.test> 1710000000 -0230\n"
+    . "committer WordPress Deploy Bot <deploy@example.test> 1710003600 +0000\n"
+    . "encoding UTF-8\n"
+    . "mergetag object 3333333333333333333333333333333333333333\n"
+    . " type commit\n"
+    . " tag wp-release-2026.05\n"
+    . " tagger WordPress Release Bot <release@example.test> 1710007200 +0000\n"
+    . " \n"
+    . " Release tag embedded for deployment provenance\n"
+    . "\n"
+    . "Unsigned WordPress import ready for detached signing\n";
+
+$detachedGpgSignature = "-----BEGIN PGP SIGNATURE-----\n"
+    . "\n"
+    . "c2lnbmVkLXdvcmRwcmVzcy1kZXBsb3ltZW50\n"
+    . "=wp\n"
+    . "-----END PGP SIGNATURE-----\n";
+
 $standaloneTrailerBody = "Reviewed-by: Migration Reviewer <reviewer@example.test>\n"
     . " dry-run approved\n"
     . "(cherry picked from commit 0123456789abcdef0123456789abcdef01234567)\n";
@@ -88,6 +108,8 @@ return [
     'whitespaceSignatureCommitBody' => $whitespaceSignatureBody,
     'multiGpgsigCommitBody' => $multiGpgsigBody,
     'rawGpgsigCommitBody' => $rawGpgsigBody,
+    'unsignedSignableCommitBody' => $unsignedSignableBody,
+    'detachedGpgSignature' => $detachedGpgSignature,
     'standaloneTrailerBody' => $standaloneTrailerBody,
     'expectedTree' => '0123456789abcdef0123456789abcdef01234567',
     'expectedAuthorName' => 'WordPress Importer',
@@ -106,6 +128,7 @@ return [
     'expectedMultiGpgsigSignedDataSha1' => '95434dd7365f2260ed87ef549f84a8bdb9bf335a',
     'expectedRawGpgsigSignature' => "-----BEGIN PGP SIGNATURE-----\nc3RyZWFtaW5nLXdvcmRwcmVzcy1wcm92ZW5hbmNl\n-----END PGP SIGNATURE-----\n",
     'expectedRawGpgsigSignedDataSha1' => 'ba0fcfd4676620e752ff251e288020bb2cd53521',
+    'expectedDetachedGpgSignature' => $detachedGpgSignature,
     'expectedSummary' => 'Import WordPress export',
     'expectedWriterObjectIdGuard' => true,
     'expectedBodyWithoutTrailers' => 'Source: wp-content/uploads/export.wxr',

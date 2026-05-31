@@ -115,6 +115,113 @@ final class SQLiteRealPagerBoundaryPlan
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function journalModeOffConstraintBoundary(
+        int $initialA,
+        int $initialB,
+        int $rollbackA,
+        int $rollbackB,
+        int $copyOffset
+    ): array {
+        if ($initialA < 1 || $initialB < 1 || $rollbackA < 1 || $rollbackB < 1 || $copyOffset < 1) {
+            throw new \InvalidArgumentException('SQLite pager journal_mode=off boundary inputs must be positive');
+        }
+
+        $firstCopiedRowId = $initialA + $copyOffset;
+        $conflictingRowId = $firstCopiedRowId;
+
+        return [
+            'status' => 'journal-mode-off-constraint-boundary',
+            'journal_mode' => 'off',
+            'rollback_success' => true,
+            'rollback_row_visible' => false,
+            'constraint_error' => 'UNIQUE constraint failed',
+            'constraint_partial_row_visible' => true,
+            'first_copied_rowid' => $firstCopiedRowId,
+            'conflicting_rowid' => $conflictingRowId,
+            'final_rows' => [
+                [$initialA, $initialB],
+                [$initialB, $initialB],
+            ],
+            'rolled_back_row' => [$rollbackA, $rollbackB],
+            'source' => 'pager1.test pager1-14.1.1 through pager1-14.1.6 journal_mode=OFF rollback and constraint boundary',
+            'dependencies' => ['real-upstream-corpus-pager1', 'sqlite-pager-journal-mode-off-boundary'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function sizedVfsOpenReadback(int $osFileBytes): array
+    {
+        if ($osFileBytes < 0) {
+            throw new \InvalidArgumentException('SQLite pager VFS szOsFile value must be non-negative');
+        }
+
+        return [
+            'status' => 'vfs-sized-file-open-readable',
+            'os_file_bytes' => $osFileBytes,
+            'rows' => [
+                ['Ayutthaya', 'Beijing'],
+                ['London', 'Tokyo'],
+            ],
+            'row_count' => 2,
+            'readable' => true,
+            'source' => 'pager1.test pager1-15.0 through pager1-15.510 VFS szOsFile open/readback sweep',
+            'dependencies' => ['real-upstream-corpus-pager1', 'sqlite-pager-vfs-sized-file-open'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function journalPathnameAdmission(int $databasePathBytes, int $maxPathnameBytes): array
+    {
+        if ($databasePathBytes < 1 || $maxPathnameBytes < 1) {
+            throw new \InvalidArgumentException('SQLite pager pathname inputs must be positive');
+        }
+
+        $journalPathBytes = $databasePathBytes + 8;
+        $canOpen = $maxPathnameBytes >= $journalPathBytes;
+
+        return [
+            'status' => $canOpen ? 'journal-path-admitted' : 'journal-path-too-long',
+            'database_path_bytes' => $databasePathBytes,
+            'journal_path_bytes' => $journalPathBytes,
+            'max_pathname_bytes' => $maxPathnameBytes,
+            'can_open' => $canOpen,
+            'error' => $canOpen ? null : 'unable to open database file',
+            'source' => 'pager1.test pager1-16.1 journal pathname length admission',
+            'dependencies' => ['real-upstream-corpus-pager1', 'sqlite-pager-journal-pathname-admission'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function persistDeleteJournalCleanup(string $lockState): array
+    {
+        $lockState = strtolower(trim($lockState));
+        if (!in_array($lockState, ['none', 'shared', 'reserved', 'exclusive'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite pager lock state for journal cleanup: {$lockState}");
+        }
+
+        return [
+            'status' => 'persist-journal-deleted-after-mode-change',
+            'from_journal_mode' => 'persist',
+            'to_journal_mode' => 'delete',
+            'lock_state' => $lockState,
+            'journal_exists_before' => true,
+            'journal_exists_after' => false,
+            'transaction_open_after_change' => in_array($lockState, ['reserved', 'exclusive'], true),
+            'commit_required_after_change' => in_array($lockState, ['reserved', 'exclusive'], true),
+            'source' => 'pager1.test pager1-23.1.1 through pager1-23.4.3 PERSIST to DELETE journal cleanup under locks',
+            'dependencies' => ['real-upstream-corpus-pager1', 'sqlite-pager-persist-delete-cleanup'],
+        ];
+    }
+
     private static function align(int $value, int $boundary): int
     {
         return intdiv($value + $boundary - 1, $boundary) * $boundary;

@@ -98,6 +98,27 @@ return [
         $t->same(null, $unchanged->oldObject);
         $t->same(null, $unchanged->newObject);
     },
+    'parses report-status-v2 proc-receive fall-through refs' => static function (TestRunner $t) use ($packet, $flush): void {
+        $response = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-release\n")
+            . $packet("option fall-through\n")
+            . $packet("ok refs/heads/main\n")
+            . $flush
+        );
+
+        $fallThrough = $response->refStatuses()[0];
+        $ordinary = $response->refStatuses()[1];
+
+        $t->same(true, $response->isSuccessful());
+        $t->same('refs/for/wp-release', $fallThrough->refName);
+        $t->same('refs/for/wp-release', $fallThrough->effectiveRefName());
+        $t->same(true, $fallThrough->fallThrough);
+        $t->same(false, $fallThrough->forcedUpdate);
+        $t->same(null, $fallThrough->oldObject);
+        $t->same(null, $fallThrough->newObject);
+        $t->same(false, $ordinary->fallThrough);
+    },
     'enforces upstream packet-line length bounds for receive-pack status' => static function (TestRunner $t) use ($packet, $flush, $invalidArgumentMessage): void {
         $maxPacketLineLength = 65520;
         $statusPrefix = 'ng refs/heads/main ';
@@ -148,6 +169,9 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("option refname refs/heads/main\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("ok main\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet('ok refs/heads/main' . "\n") . $packet('option old-oid ' . str_repeat('f', 63) . "\n") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("ok refs/heads/main\n") . $packet("option fall-through true\n") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("ok refs/heads/main\n") . $packet("option fall-through\n") . $packet("option fall-through\n") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("unpack ok\n") . $packet("ng refs/heads/main rejected\n") . $packet("option fall-through\n") . $flush));
         $t->throws(RuntimeException::class, static fn () => PushResponse::fromReportStatusPacketLines($packet("ERR hook failed\n") . $flush));
     },
     'surfaces receive-pack fatal errors from sideband responses' => static function (TestRunner $t) use ($packet, $flush, $invalidArgumentMessage): void {
@@ -175,6 +199,7 @@ return [
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v1-push-response.php';
         $response = PushResponse::fromSidebandPacketLines($fixture['response']);
         $rewritten = PushResponse::fromReportStatusPacketLines($fixture['rewrittenResponse'])->refStatuses()[0];
+        $fallThrough = PushResponse::fromReportStatusPacketLines($fixture['fallThroughResponse'])->refStatuses()[0];
 
         $t->same(true, $response->isSuccessful());
         $t->same('ok', $response->unpackStatus());
@@ -188,9 +213,13 @@ return [
         $t->same($fixture['rewrittenRef']['oldObject'], $rewritten->oldObject);
         $t->same($fixture['rewrittenRef']['newObject'], $rewritten->newObject);
         $t->same(true, $rewritten->forcedUpdate);
+        $t->same($fixture['fallThroughRef']['requested'], $fallThrough->refName);
+        $t->same($fixture['fallThroughRef']['requested'], $fallThrough->effectiveRefName());
+        $t->same(true, $fallThrough->fallThrough);
 
         $summary = require dirname(__DIR__) . '/examples/wordpress-protocol-v1-push-response.php';
         $t->same(true, $summary['oversizedReportStatusRejected']);
         $t->same(true, $summary['fatalSidebandRejected']);
+        $t->same(true, $summary['fallThroughAccepted']);
     },
 ];

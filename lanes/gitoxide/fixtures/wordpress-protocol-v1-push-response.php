@@ -38,6 +38,13 @@ return [
         . $packet("option new-oid {$newSha256}\n")
         . $packet("option forced-update\n")
         . $flush,
+    'fallThroughRef' => [
+        'requested' => 'refs/for/wp-maintenance',
+    ],
+    'fallThroughResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/for/wp-maintenance\n")
+        . $packet("option fall-through\n")
+        . $flush,
     'oversizedReportStatus' => 'ffff' . str_repeat('x', 0xffff - 4),
     'fatalSidebandResponse' => $packet("\x03pre-receive hook declined deployment\n") . $flush,
 ];

@@ -1735,8 +1735,9 @@ final class SQLiteSelectSql
         }
 
         if ($joins === [] && isset($base['dynamicRows']) && is_callable($base['dynamicRows'])) {
+            $dynamicRow = $outerRow === null ? [] : self::qualifyOuterRowForCorrelation($outerRow, $tables);
             $source = [
-                'from' => self::unqualifiedRows($base['dynamicRows']([]), $base['alias']),
+                'from' => self::unqualifiedRows($base['dynamicRows']($dynamicRow), $base['alias']),
                 'joins' => [],
             ];
             if ($outerRow !== null || ($base['name'] ?? null) === 'subquery') {
