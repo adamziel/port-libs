@@ -80,6 +80,43 @@ $virtualResult = TreeMerge::mergeRecursiveWithVirtualBase(
     $write,
 );
 $virtualIndexEntries = $virtualResult->indexEntries();
+$pluginTree = static fn (string $directoryName, string $routeContent): Tree => new Tree([
+    $blob('acme.php', "<?php\n// Plugin bootstrap.\n"),
+    $tree($directoryName, new Tree([
+        $blob('rest.php', $routeContent),
+        $blob('index.php', "<?php\n// Silence is golden.\n"),
+    ])),
+]);
+$nestedBaseRoutes = "original\nregister_rest_route\nsanitize_callback\n";
+$nestedOursRoutes = "register_rest_route\nsanitize_callback\n";
+$nestedTheirsRoutes = "original\nregister_rest_route\nsanitize_callback\npermission_callback\n";
+$nestedBase = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('plugins', new Tree([
+            $tree('acme', $pluginTree('includes', $nestedBaseRoutes)),
+        ])),
+    ])),
+]);
+$nestedOurs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('plugins', new Tree([
+            $tree('acme-pro', $pluginTree('includes', $nestedOursRoutes)),
+        ])),
+    ])),
+]);
+$nestedTheirs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('plugins', new Tree([
+            $tree('acme', $pluginTree('src', $nestedTheirsRoutes)),
+        ])),
+    ])),
+]);
+$nestedResult = TreeMerge::mergeRecursive($nestedBase, $nestedOurs, $nestedTheirs, $read, $write);
+$nestedContent = Tree::fromObject($read($nestedResult->tree->entryNamed('wp-content', true)?->oid ?? ''));
+$nestedPlugins = Tree::fromObject($read($nestedContent->entryNamed('plugins', true)?->oid ?? ''));
+$nestedPlugin = Tree::fromObject($read($nestedPlugins->entryNamed('acme-pro', true)?->oid ?? ''));
+$nestedIncludes = Tree::fromObject($read($nestedPlugin->entryNamed('includes', true)?->oid ?? ''));
+$nestedSrc = Tree::fromObject($read($nestedPlugin->entryNamed('src', true)?->oid ?? ''));
 $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
 $metadata = $read($contentTree->entryNamed('post.meta')?->oid ?? '');
 $demoRoot = sys_get_temp_dir() . '/port-libs-recursive-merge-' . bin2hex(random_bytes(4));
@@ -138,5 +175,25 @@ echo json_encode([
         'ancestorStageContainsBothBaseEdits' => isset($virtualIndexEntries[0])
             && str_contains($read($virtualIndexEntries[0]->oid)->body, 'Requires PHP: 8.1')
             && str_contains($read($virtualIndexEntries[0]->oid)->body, 'Text Domain: acme'),
+    ],
+    'nestedDirectoryRename' => [
+        'clean' => $nestedResult->isClean(),
+        'conflicts' => array_map(
+            static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
+            $nestedResult->conflicts,
+        ),
+        'pluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $nestedPlugin->entries),
+        'expandedIndexStages' => array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'path' => $entry->path,
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+            ],
+            MergeIndexFile::entriesForResult($nestedResult, $read),
+        ),
+        'restRouteCopies' => [
+            'includes' => $read($nestedIncludes->entryNamed('rest.php')?->oid ?? '')->body,
+            'src' => $read($nestedSrc->entryNamed('rest.php')?->oid ?? '')->body,
+        ],
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

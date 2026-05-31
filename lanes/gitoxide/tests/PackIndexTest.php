@@ -134,6 +134,35 @@ return [
         $t->same('ambiguous', $prefix['status']);
         $t->same([0, 1], $prefix['matches']);
     },
+    'reports upstream-style pack index prefix candidate ranges and disambiguates by nibble' => static function (TestRunner $t) use ($buildIndex, $packChecksum): void {
+        $first = '3b18a11111111111111111111111111111111111';
+        $second = '3b18b22222222222222222222222222222222222';
+        $third = '3b19c33333333333333333333333333333333333';
+        $index = PackIndex::fromBytes($buildIndex([
+            ['oid' => $second, 'offset' => 24, 'crc32' => 2],
+            ['oid' => $third, 'offset' => 36, 'crc32' => 3],
+            ['oid' => $first, 'offset' => 12, 'crc32' => 1],
+        ], $packChecksum));
+
+        $ambiguous = $index->lookupPrefix('3B18');
+        $t->same('ambiguous', $ambiguous['status']);
+        $t->same([0, 1], $ambiguous['matches']);
+        $t->same(['start' => 0, 'end' => 2], $ambiguous['candidateRange']);
+
+        $found = $index->lookupPrefix('3b18a');
+        $t->same('found', $found['status']);
+        $t->same($first, $found['entry']->oid);
+        $t->same(['start' => 0, 'end' => 1], $found['candidateRange']);
+
+        $missing = $index->lookupPrefix('ffff');
+        $t->same('missing', $missing['status']);
+        $t->same(['start' => 0, 'end' => 0], $missing['candidateRange']);
+
+        $t->same('3b18a', $index->disambiguatePrefix(strtoupper($first), 4));
+        $t->same($first, $index->disambiguatePrefix($first, 40));
+        $t->same(null, $index->disambiguatePrefix('ffffffffffffffffffffffffffffffffffffffff', 4));
+        $t->throws(InvalidArgumentException::class, static fn () => $index->disambiguatePrefix($first, 3));
+    },
     'rejects corrupt pack index headers fanout sizes and checksums' => static function (TestRunner $t) use ($buildIndex, $entries, $packChecksum): void {
         $valid = $buildIndex($entries, $packChecksum);
         $t->throws(InvalidArgumentException::class, static fn () => PackIndex::fromBytes('not an index'));

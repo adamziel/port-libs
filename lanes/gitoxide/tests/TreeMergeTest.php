@@ -2206,6 +2206,74 @@ return [
         ));
         $t->same([], $result->worktreeConflictFiles($read));
     },
+    'maps upstream gix-merge tree-baseline rename-within-rename fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $baseContent = "original\n1\n2\n3\n4\n5\n";
+        $ourContent = "1\n2\n3\n4\n5\n";
+        $theirContent = "original\n1\n2\n3\n4\n5\n6\n";
+        $directory = static fn (string $content): Tree => new Tree([
+            $treeEntry('sub', new Tree([
+                $blobEntry('y.f', $content),
+                $blobEntry('z', ''),
+            ])),
+            $blobEntry('w', ''),
+            $blobEntry('x.f', $content),
+        ]);
+        $base = new Tree([$treeEntry('a', $directory($baseContent))]);
+        $ours = new Tree([$treeEntry('a-renamed', $directory($ourContent))]);
+        $theirs = new Tree([$treeEntry('a', new Tree([
+            $treeEntry('sub-renamed', new Tree([
+                $blobEntry('y.f', $theirContent),
+                $blobEntry('z', ''),
+            ])),
+            $blobEntry('w', ''),
+            $blobEntry('x.f', $theirContent),
+        ]))]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $renamed = Tree::fromObject($read($result->tree->entryNamed('a-renamed', true)?->oid ?? ''));
+        $sourceSub = Tree::fromObject($read($renamed->entryNamed('sub', true)?->oid ?? ''));
+        $targetSub = Tree::fromObject($read($renamed->entryNamed('sub-renamed', true)?->oid ?? ''));
+        $expanded = MergeIndexFile::entriesForResult($result, $read);
+
+        $t->same(false, $result->isClean());
+        $t->same(['a-renamed'], $names($result->tree));
+        $t->same(['sub', 'sub-renamed', 'w', 'x.f'], $names($renamed));
+        $t->same(['y.f', 'z'], $names($sourceSub));
+        $t->same(['y.f', 'z'], $names($targetSub));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($sourceSub->entryNamed('y.f')?->oid ?? '')->body);
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($targetSub->entryNamed('y.f')?->oid ?? '')->body);
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($renamed->entryNamed('x.f')?->oid ?? '')->body);
+        $t->same([
+            ['path' => 'a-renamed/sub', 'reason' => 'nested-directory-rename', 'base' => 'sub', 'ours' => 'sub', 'theirs' => 'sub-renamed'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['path' => 'a-renamed/sub-renamed/y.f', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'body' => $theirContent],
+            ['path' => 'a-renamed/sub-renamed/z', 'stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'body' => ''],
+            ['path' => 'a-renamed/sub/y.f', 'stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'body' => $baseContent],
+            ['path' => 'a-renamed/sub/y.f', 'stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'body' => $ourContent],
+            ['path' => 'a-renamed/sub/z', 'stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'body' => ''],
+            ['path' => 'a-renamed/sub/z', 'stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'body' => ''],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'path' => $entry->path,
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'body' => $read($entry->oid)->body,
+            ],
+            $expanded,
+        ));
+        $t->same([], $result->worktreeConflictFiles($read));
+    },
     'maps upstream gix-merge tree-baseline conflicting-rename fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $baseContent = "original\n1\n2\n3\n4\n5\n";

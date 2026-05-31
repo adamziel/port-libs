@@ -7,6 +7,7 @@ use PortLibs\Gitoxide\FetchFilterSpec;
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\LooseObjectStore;
 use PortLibs\Gitoxide\ObjectDatabase;
+use PortLibs\Gitoxide\PackBuilder;
 use PortLibs\Gitoxide\PromisorObjectResolver;
 use PortLibs\Gitoxide\ProtocolCapabilities;
 use PortLibs\Gitoxide\Tree;
@@ -110,6 +111,84 @@ return [
         $t->same([$missingMediaOid], $resolver->requests);
         $t->same('present', $database->objectState($missingMediaOid)['status']);
         $t->same($missingMediaBlob->body, (new ObjectDatabase($gitDir))->read($missingMediaOid)->body);
+    },
+    'object database refreshes pack indexes after promisor resolver hydrates on disk' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $missingMediaBlob = new GitObject('blob', 'Hydrated into a fresh promisor pack after lazy fetch');
+        $missingMediaOid = $missingMediaBlob->oid();
+        $resolver = new class($missingMediaBlob, $gitDir) implements PromisorObjectResolver {
+            public array $requests = [];
+            public ?string $packName = null;
+
+            public function __construct(
+                private readonly GitObject $object,
+                private readonly string $gitDir,
+            ) {
+            }
+
+            public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+            {
+                $this->requests[] = $oid;
+                $pack = PackBuilder::build([$this->object]);
+                $packDir = $this->gitDir . '/objects/pack';
+                $basename = 'pack-' . $pack->packChecksum();
+                $this->packName = $basename . '.promisor';
+
+                file_put_contents($packDir . '/' . $basename . '.pack', $pack->packBytes());
+                file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
+                file_put_contents($packDir . '/' . $basename . '.promisor', "lazy media hydration\n");
+
+                return null;
+            }
+        };
+        $database = (new ObjectDatabase($gitDir))->withPromisorResolver($resolver);
+
+        $t->same('promised-missing', $database->objectState($missingMediaOid)['status']);
+        $t->same($missingMediaBlob->body, $database->read($missingMediaOid)->body);
+        $t->same([$missingMediaOid], $resolver->requests);
+        $t->same('promisor-present', $database->objectState($missingMediaOid)['status']);
+        $t->same('pack', $database->readHeader($missingMediaOid)['source']);
+        $t->same(true, in_array($resolver->packName, $database->promisorPackNames(), true));
+        $t->same($missingMediaBlob->body, (new ObjectDatabase($gitDir))->read($missingMediaOid)->body);
+    },
+    'object database refreshes headers after promisor resolver hydrates a pack' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $missingConfigBlob = new GitObject('blob', 'Hydrated theme config bytes');
+        $missingConfigOid = $missingConfigBlob->oid();
+        $resolver = new class($missingConfigBlob, $gitDir) implements PromisorObjectResolver {
+            public array $requests = [];
+
+            public function __construct(
+                private readonly GitObject $object,
+                private readonly string $gitDir,
+            ) {
+            }
+
+            public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+            {
+                $this->requests[] = $oid;
+                $pack = PackBuilder::build([$this->object]);
+                $packDir = $this->gitDir . '/objects/pack';
+                $basename = 'pack-' . $pack->packChecksum();
+
+                file_put_contents($packDir . '/' . $basename . '.pack', $pack->packBytes());
+                file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
+                file_put_contents($packDir . '/' . $basename . '.promisor', "lazy config hydration\n");
+
+                return null;
+            }
+        };
+        $database = (new ObjectDatabase($gitDir))->withPromisorResolver($resolver);
+
+        $t->same([
+            'type' => 'blob',
+            'size' => strlen($missingConfigBlob->body),
+            'source' => 'pack',
+        ], $database->readHeader($missingConfigOid));
+        $t->same([$missingConfigOid], $resolver->requests);
+        $t->same('promisor-present', $database->objectState($missingConfigOid)['status']);
+        $t->same($missingConfigBlob->body, $database->read($missingConfigOid)->body);
+        $t->same([$missingConfigOid], $resolver->requests);
     },
     'object database rejects promisor resolver object id mismatches' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir] = $writePromisorPackFixture();

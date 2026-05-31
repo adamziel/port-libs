@@ -2113,7 +2113,7 @@ final class TreeMerge
             return null;
         }
 
-        return self::tryMergeChangedEntry(
+        $merge = self::tryMergeChangedEntry(
             $targetPath,
             self::joinPath($pathPrefix, $targetPath),
             $baseEntry,
@@ -2125,6 +2125,101 @@ final class TreeMerge
             [],
             $bigFileThreshold,
         );
+        if ($merge === null || $merge['entry'] === null) {
+            return $merge;
+        }
+
+        $nested = self::nestedDirectoryRenameConflicts(
+            $pathPrefix,
+            $targetPath,
+            $baseEntry,
+            $ourEntry,
+            $theirEntry,
+            $merge['entry'],
+            $readObject,
+            $writeObject,
+        );
+
+        return [
+            'entry' => $nested['entry'],
+            'conflicts' => [...$merge['conflicts'], ...$nested['conflicts']],
+        ];
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     * @return array{entry:TreeEntry,conflicts:list<TreeMergeConflict>}
+     */
+    private static function nestedDirectoryRenameConflicts(
+        string $pathPrefix,
+        string $targetPath,
+        TreeEntry $baseEntry,
+        TreeEntry $ourEntry,
+        TreeEntry $theirEntry,
+        TreeEntry $mergedEntry,
+        callable $readObject,
+        callable $writeObject,
+    ): array {
+        $baseEntries = self::entriesByName(Tree::fromObject(self::readTypedObject($readObject, $baseEntry->oid, 'tree')));
+        $ourEntries = self::entriesByName(Tree::fromObject(self::readTypedObject($readObject, $ourEntry->oid, 'tree')));
+        $theirEntries = self::entriesByName(Tree::fromObject(self::readTypedObject($readObject, $theirEntry->oid, 'tree')));
+        $mergedEntries = self::entriesByName(Tree::fromObject(self::readTypedObject($readObject, $mergedEntry->oid, 'tree')));
+
+        $conflicts = [];
+        $record = static function (
+            array $renamedSideEntries,
+            array $keptSideEntries,
+            array $renames,
+            bool $renamedByOurs,
+        ) use (&$mergedEntries, &$conflicts, $baseEntries, $pathPrefix, $targetPath): void {
+            foreach ($renames as $sourcePath => $rename) {
+                $targetName = $rename['path'];
+                $baseSource = $baseEntries[$sourcePath] ?? null;
+                $keptSource = $keptSideEntries[$sourcePath] ?? null;
+                $renamedTarget = $renamedSideEntries[$targetName] ?? null;
+                $mergedTarget = $mergedEntries[$targetName] ?? null;
+                if (
+                    $baseSource === null
+                    || $keptSource === null
+                    || $renamedTarget === null
+                    || $mergedTarget === null
+                    || isset($mergedEntries[$sourcePath])
+                    || isset($keptSideEntries[$targetName])
+                    || !$baseSource->isTree()
+                    || !$keptSource->isTree()
+                    || !$renamedTarget->isTree()
+                    || !$mergedTarget->isTree()
+                    || self::sameEntry($baseSource, $keptSource)
+                ) {
+                    continue;
+                }
+
+                $mergedEntries[$sourcePath] = new TreeEntry($mergedTarget->mode, $sourcePath, $mergedTarget->oid);
+                $conflicts[] = new TreeMergeConflict(
+                    self::joinPath($pathPrefix, self::joinPath($targetPath, $sourcePath)),
+                    'nested-directory-rename',
+                    $baseSource,
+                    $renamedByOurs ? $renamedTarget : $keptSource,
+                    $renamedByOurs ? $keptSource : $renamedTarget,
+                );
+            }
+        };
+
+        $record($ourEntries, $theirEntries, self::detectedRenames($baseEntries, $ourEntries, $readObject), true);
+        $record($theirEntries, $ourEntries, self::detectedRenames($baseEntries, $theirEntries, $readObject), false);
+
+        if ($conflicts === []) {
+            return ['entry' => $mergedEntry, 'conflicts' => []];
+        }
+
+        $entries = array_values($mergedEntries);
+        self::sortEntries($entries);
+
+        return [
+            'entry' => new TreeEntry($mergedEntry->mode, $mergedEntry->filename, $writeObject((new Tree($entries))->toObject())),
+            'conflicts' => $conflicts,
+        ];
     }
 
     /**

@@ -49,14 +49,35 @@ return [
 
         $t->same(true, CredentialContext::fromBytes("quit=42\n")->quit);
         $t->same(true, CredentialContext::fromBytes("quit=-42\n")->quit);
+        $t->same(true, CredentialContext::fromBytes("quit=+10\n")->quit);
         $t->same(true, CredentialContext::fromBytes("quit=on\n")->quit);
+        $t->same(true, CredentialContext::fromBytes("quit=YES\n")->quit);
+        $t->same(false, CredentialContext::fromBytes("quit=\n")->quit);
         $t->same(false, CredentialContext::fromBytes("quit=0\n")->quit);
         $t->same(false, CredentialContext::fromBytes("quit=no\n")->quit);
+        $t->same(null, CredentialContext::fromBytes("quit=yesn't\n")->quit);
+
+        $t->same(10, CredentialContext::fromBytes("password_expiry_utc=+10\n")->passwordExpiryUtc);
+        $t->same(null, CredentialContext::fromBytes("password_expiry_utc=never\n")->passwordExpiryUtc);
     },
     'credential context validates helper protocol bytes' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => CredentialContext::fromBytes("url=https://foo\0\n"));
         $t->throws(InvalidArgumentException::class, static fn () => CredentialContext::fromBytes("not-a-field\n"));
         $t->throws(InvalidArgumentException::class, static fn () => (new CredentialContext(path: "foo\nbar"))->storageBytes());
+        $t->throws(InvalidArgumentException::class, static fn () => CredentialContext::fromBytes("username=\xff\n"));
+    },
+    'credential context preserves byte string path and url fields' => static function (TestRunner $t): void {
+        $context = CredentialContext::fromBytes(
+            "url=https://git.example.test/wp-content\xff.git\n"
+            . "path=wp-content\xff.git\n"
+            . "protocol=https\n"
+            . "host=git.example.test\n"
+        );
+
+        $t->same("https://git.example.test/wp-content\xff.git", $context->url);
+        $t->same("wp-content\xff.git", $context->path);
+        $t->contains("url=https://git.example.test/wp-content\xff.git\n", $context->storageBytes());
+        $t->contains("path=wp-content\xff.git\n", $context->storageBytes());
     },
     'credential context url and prompt helpers match gix credentials context' => static function (TestRunner $t): void {
         $t->same(null, (new CredentialContext())->toUrl());
@@ -132,8 +153,11 @@ return [
         $t->contains("host=git.example.test\n", $fixture['requestBytes']);
         $t->same('https://deploy-bot@git.example.test/wp-content.git', $fixture['credentialUrl']);
         $t->same(null, $fixture['clearedPassword']);
+        $t->same(false, $fixture['emptyQuitFalse']);
+        $t->same(1711398853, $fixture['passwordExpiryUtc']);
         $t->contains('password=<redacted>', $fixture['redactedBytes']);
         $t->same($fixture['credentialUrl'], $summary['credentialUrl']);
+        $t->same(false, $summary['emptyQuitFalse']);
         $t->same(false, $summary['secretsInCleartextLog']);
     },
 ];

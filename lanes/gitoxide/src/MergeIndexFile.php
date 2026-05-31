@@ -64,7 +64,7 @@ final class MergeIndexFile
 
     private static function indexPathForConflictStage(TreeMergeConflict $conflict, TreeEntry $entry): string
     {
-        if ($conflict->reason !== 'rename-rename' || !$entry->isTree()) {
+        if (!in_array($conflict->reason, ['rename-rename', 'nested-directory-rename'], true) || !$entry->isTree()) {
             return $conflict->path;
         }
 

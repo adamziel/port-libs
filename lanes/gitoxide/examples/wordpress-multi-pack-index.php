@@ -14,6 +14,7 @@ $templateObject = $fixture['objectsByRole']['template'];
 $mediaObject = $fixture['objectsByRole']['large-media'];
 $content = $index->lookup($contentObject['oid']);
 $media = $index->lookup($mediaObject['oid']);
+$templatePrefix = $index->lookupPrefix(substr($templateObject['oid'], 0, 8));
 
 return [
     'version' => $index->version(),
@@ -27,5 +28,7 @@ return [
     'contentOffset' => $content?->packOffset,
     'largeMediaPack' => $media === null ? null : $index->packNames()[$media->packIndex],
     'largeMediaOffset' => $media?->packOffset,
-    'templatePrefixStatus' => $index->lookupPrefix(substr($templateObject['oid'], 0, 8))['status'],
+    'templatePrefixStatus' => $templatePrefix['status'],
+    'templatePrefixRange' => $templatePrefix['candidateRange'],
+    'templateShortestPrefix' => $index->disambiguatePrefix($templateObject['oid'], 4),
 ];

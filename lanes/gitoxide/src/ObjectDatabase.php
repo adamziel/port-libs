@@ -91,35 +91,19 @@ final class ObjectDatabase
         $oid = strtolower($oid);
         $oid = $this->replacementFor($oid) ?? $oid;
 
-        foreach ($this->multiPackIndexes() as $multiPack) {
-            $entry = $multiPack['index']->lookup($oid);
-            if ($entry === null) {
-                continue;
-            }
-
-            $bundle = $this->bundleForMultiPackEntry($multiPack, $entry);
-            if ($bundle === null) {
-                throw new \RuntimeException("Pack referenced by multi-pack-index was not found for object: {$oid}");
-            }
-
-            return $bundle['data']->readObjectAtOffset($bundle['index'], $oid, $entry->packOffset);
-        }
-
-        foreach ($this->standalonePackBundles() as $bundle) {
-            if ($bundle['index']->lookup($oid) !== null) {
-                return $bundle['data']->readObject($bundle['index'], $oid);
-            }
-        }
-
-        foreach ($this->looseStores() as $store) {
-            $object = $store->tryRead($oid);
-            if ($object !== null) {
-                return $object;
-            }
+        $object = $this->tryReadLocalObject($oid);
+        if ($object !== null) {
+            return $object;
         }
 
         if ($this->hasPromisorPacks()) {
             $object = $this->resolvePromisedObject($oid);
+            if ($object !== null) {
+                return $object;
+            }
+
+            $this->refreshObjectStorage();
+            $object = $this->tryReadLocalObject($oid);
             if ($object !== null) {
                 return $object;
             }
@@ -139,41 +123,21 @@ final class ObjectDatabase
         $oid = strtolower($oid);
         $oid = $this->replacementFor($oid) ?? $oid;
 
-        foreach ($this->multiPackIndexes() as $multiPack) {
-            $entry = $multiPack['index']->lookup($oid);
-            if ($entry === null) {
-                continue;
-            }
-
-            $bundle = $this->bundleForMultiPackEntry($multiPack, $entry);
-            if ($bundle === null) {
-                throw new \RuntimeException("Pack referenced by multi-pack-index was not found for object: {$oid}");
-            }
-
-            return self::headerFromPack($bundle['data']->readObjectHeaderAtOffset($bundle['index'], $oid, $entry->packOffset));
-        }
-
-        foreach ($this->standalonePackBundles() as $bundle) {
-            if ($bundle['index']->lookup($oid) !== null) {
-                return self::headerFromPack($bundle['data']->readObjectHeader($bundle['index'], $oid));
-            }
-        }
-
-        foreach ($this->looseStores() as $store) {
-            $header = $store->tryReadHeader($oid);
-            if ($header !== null) {
-                return [
-                    'type' => $header['type'],
-                    'size' => $header['size'],
-                    'source' => 'loose',
-                ];
-            }
+        $header = $this->tryReadLocalHeader($oid);
+        if ($header !== null) {
+            return $header;
         }
 
         if ($this->hasPromisorPacks()) {
             $object = $this->resolvePromisedObject($oid);
             if ($object !== null) {
                 return self::headerFromObject($object, 'promisor');
+            }
+
+            $this->refreshObjectStorage();
+            $header = $this->tryReadLocalHeader($oid);
+            if ($header !== null) {
+                return $header;
             }
 
             throw new \RuntimeException("Object promised by partial clone filter but not present locally: {$oid}");
@@ -539,6 +503,86 @@ final class ObjectDatabase
         $this->primaryLooseStore()->write($object);
 
         return $object;
+    }
+
+    private function tryReadLocalObject(string $oid): ?GitObject
+    {
+        foreach ($this->multiPackIndexes() as $multiPack) {
+            $entry = $multiPack['index']->lookup($oid);
+            if ($entry === null) {
+                continue;
+            }
+
+            $bundle = $this->bundleForMultiPackEntry($multiPack, $entry);
+            if ($bundle === null) {
+                throw new \RuntimeException("Pack referenced by multi-pack-index was not found for object: {$oid}");
+            }
+
+            return $bundle['data']->readObjectAtOffset($bundle['index'], $oid, $entry->packOffset);
+        }
+
+        foreach ($this->standalonePackBundles() as $bundle) {
+            if ($bundle['index']->lookup($oid) !== null) {
+                return $bundle['data']->readObject($bundle['index'], $oid);
+            }
+        }
+
+        foreach ($this->looseStores() as $store) {
+            $object = $store->tryRead($oid);
+            if ($object !== null) {
+                return $object;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return null|array{type:string,size:int,source:'pack'|'loose'}
+     */
+    private function tryReadLocalHeader(string $oid): ?array
+    {
+        foreach ($this->multiPackIndexes() as $multiPack) {
+            $entry = $multiPack['index']->lookup($oid);
+            if ($entry === null) {
+                continue;
+            }
+
+            $bundle = $this->bundleForMultiPackEntry($multiPack, $entry);
+            if ($bundle === null) {
+                throw new \RuntimeException("Pack referenced by multi-pack-index was not found for object: {$oid}");
+            }
+
+            return self::headerFromPack($bundle['data']->readObjectHeaderAtOffset($bundle['index'], $oid, $entry->packOffset));
+        }
+
+        foreach ($this->standalonePackBundles() as $bundle) {
+            if ($bundle['index']->lookup($oid) !== null) {
+                return self::headerFromPack($bundle['data']->readObjectHeader($bundle['index'], $oid));
+            }
+        }
+
+        foreach ($this->looseStores() as $store) {
+            $header = $store->tryReadHeader($oid);
+            if ($header !== null) {
+                return [
+                    'type' => $header['type'],
+                    'size' => $header['size'],
+                    'source' => 'loose',
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function refreshObjectStorage(): void
+    {
+        $this->packs = null;
+        $this->multiPacks = null;
+        $this->promisorPacks = null;
+        $this->objectDirectories = null;
+        $this->looseStores = null;
     }
 
     private function primaryLooseStore(): LooseObjectStore

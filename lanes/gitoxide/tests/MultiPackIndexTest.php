@@ -194,6 +194,42 @@ return [
         $t->same('ambiguous', $ambiguous['status']);
         $t->same([1, 2], $ambiguous['matches']);
     },
+    'reports upstream-style multi-pack-index prefix candidate ranges and disambiguates by hash kind' => static function (TestRunner $t) use ($buildMultiIndex, $entries, $indexNames): void {
+        $index = MultiPackIndex::fromBytes($buildMultiIndex($entries, $indexNames));
+
+        $ambiguous = $index->lookupPrefix('0FFA');
+        $t->same('ambiguous', $ambiguous['status']);
+        $t->same([1, 2], $ambiguous['matches']);
+        $t->same(['start' => 1, 'end' => 3], $ambiguous['candidateRange']);
+
+        $found = $index->lookupPrefix('0ffa1');
+        $t->same('found', $found['status']);
+        $t->same('0ffa111111111111111111111111111111111111', $found['entry']->oid);
+        $t->same(['start' => 1, 'end' => 2], $found['candidateRange']);
+
+        $missing = $index->lookupPrefix('ffff');
+        $t->same('missing', $missing['status']);
+        $t->same(['start' => 0, 'end' => 0], $missing['candidateRange']);
+
+        $t->same('0ffa1', $index->disambiguatePrefix('0FFA111111111111111111111111111111111111', 4));
+        $t->same('0ffa111111111111111111111111111111111111', $index->disambiguatePrefix('0ffa111111111111111111111111111111111111', 40));
+        $t->same(null, $index->disambiguatePrefix('ffffffffffffffffffffffffffffffffffffffff', 4));
+
+        $sha256First = 'aaaa111111111111111111111111111111111111111111111111111111111111';
+        $sha256Second = 'aaaab22222222222222222222222222222222222222222222222222222222222';
+        $sha256 = MultiPackIndex::fromBytes($buildMultiIndex([
+            ['oid' => $sha256Second, 'packIndex' => 0, 'offset' => 24],
+            ['oid' => $sha256First, 'packIndex' => 0, 'offset' => 12],
+        ], [$indexNames[0]], 'sha256'));
+
+        $sha256Ambiguous = $sha256->lookupPrefix('aaaa');
+        $t->same('ambiguous', $sha256Ambiguous['status']);
+        $t->same(['start' => 0, 'end' => 2], $sha256Ambiguous['candidateRange']);
+        $t->same('aaaa1', $sha256->disambiguatePrefix(strtoupper($sha256First), 4));
+        $t->same($sha256First, $sha256->disambiguatePrefix($sha256First, 64));
+        $t->throws(InvalidArgumentException::class, static fn () => $sha256->lookupPrefix(str_repeat('f', 65)));
+        $t->throws(InvalidArgumentException::class, static fn () => $sha256->disambiguatePrefix($sha256First, 3));
+    },
     'supports raw high-bit offsets when no large-offset chunk is present' => static function (TestRunner $t) use ($buildMultiIndex, $indexNames): void {
         $index = MultiPackIndex::fromBytes($buildMultiIndex([
             ['oid' => '0034111111111111111111111111111111111111', 'packIndex' => 0, 'offset' => 0x80000005],

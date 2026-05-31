@@ -189,4 +189,72 @@ return [
             SourceMap::fromJson('{"version":3,"mappings":"A","sources":[7],"names":[]}');
         });
     },
+    'source map offsets generated columns with upstream overlap semantics' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('blocks.css');
+        $map->addMapping(0, 0, $sourceIndex, 0, 0);
+        $map->addMapping(0, 10, $sourceIndex, 1, 0);
+        $map->addMapping(0, 20, $sourceIndex, 2, 0);
+        $map->addMapping(0, 30, $sourceIndex, 3, 0);
+
+        $map->offsetColumns(0, 20, -15);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+
+        $t->same([0, 5, 15], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 2, 3], array_column($decoded, 'originalLine'));
+
+        $map->offsetColumns(0, 5, 4);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+
+        $t->same([0, 9, 19], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 2, 3], array_column($decoded, 'originalLine'));
+        $beforeNoop = $map->writeVlq();
+        $map->offsetColumns(12, 3, -4);
+        $t->same($beforeNoop, $map->writeVlq());
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->offsetColumns(0, 3, -4);
+        });
+    },
+    'source map offsets generated lines by inserting and removing mapping lines' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('theme.css');
+        foreach ([0, 2, 4, 6] as $line) {
+            $map->addMapping($line, 0, $sourceIndex, $line, 0);
+        }
+
+        $map->offsetLines(2, 2);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+
+        $t->same([0, 4, 6, 8], array_column($decoded, 'generatedLine'));
+        $t->same([0, 2, 4, 6], array_column($decoded, 'originalLine'));
+
+        $map->offsetLines(6, -2);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+
+        $t->same([0, 4, 6], array_column($decoded, 'generatedLine'));
+        $t->same([0, 4, 6], array_column($decoded, 'originalLine'));
+        $empty = new SourceMap();
+        $empty->offsetLines(1, -2);
+        $t->same('', $empty->writeVlq());
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->offsetLines(1, -2);
+        });
+    },
+    'source map adds upstream empty line maps with line offsets' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $map->addEmptyMap('theme.css', ".wp-block-cover {}\n\n.wp-block-button {}\n", 2);
+        $map->addEmptyMap('tokens.css', "--wp--preset--color--primary: #06c;\n:root {}\n", -1);
+
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $data = $map->toArray(null, false);
+
+        $t->same([0, 2, 3, 4], array_column($decoded, 'generatedLine'));
+        $t->same([1, 0, 1, 2], array_column($decoded, 'originalLine'));
+        $t->same([1, 0, 0, 0], array_column($decoded, 'sourceIndex'));
+        $t->same(['theme.css', 'tokens.css'], $data['sources']);
+        $t->same(
+            [".wp-block-cover {}\n\n.wp-block-button {}\n", "--wp--preset--color--primary: #06c;\n:root {}\n"],
+            $data['sourcesContent']
+        );
+    },
 ];

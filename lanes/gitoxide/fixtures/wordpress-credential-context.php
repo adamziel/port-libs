@@ -19,8 +19,9 @@ $helperResponse = CredentialContext::fromBytes(
     . "username=deploy-bot\n"
     . "password=wp-deploy-token\n"
     . "oauth_refresh_token=wp-refresh-token\n"
-    . "password_expiry_utc=1711398853\n"
+    . "password_expiry_utc=+1711398853\n"
 );
+$emptyQuit = CredentialContext::fromBytes("quit=\n");
 $redacted = $helperResponse->redacted();
 $cleared = $helperResponse->clearSecrets();
 
@@ -28,6 +29,7 @@ return [
     'requestBytes' => $request->storageBytes(),
     'credentialUrl' => $helperResponse->toUrl(),
     'passwordExpiryUtc' => $helperResponse->passwordExpiryUtc,
+    'emptyQuitFalse' => $emptyQuit->quit,
     'redactedBytes' => $redacted->storageBytes(),
     'clearedPassword' => $cleared->password,
     'clearedOauthRefreshToken' => $cleared->oauthRefreshToken,

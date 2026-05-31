@@ -209,7 +209,7 @@ final class CredentialContext
      */
     private static function integerField(array $fields, string $key): ?int
     {
-        if (!array_key_exists($key, $fields) || preg_match('/^-?\d+$/', $fields[$key]) !== 1) {
+        if (!array_key_exists($key, $fields) || preg_match('/^[+-]?\d+$/', $fields[$key]) !== 1) {
             return null;
         }
 
@@ -226,13 +226,16 @@ final class CredentialContext
         }
 
         $value = strtolower($fields[$key]);
+        if ($value === '') {
+            return false;
+        }
         if (in_array($value, ['true', 'on', 'yes'], true)) {
             return true;
         }
         if (in_array($value, ['false', 'off', 'no'], true)) {
             return false;
         }
-        if (preg_match('/^-?\d+$/', $value) === 1) {
+        if (preg_match('/^[+-]?\d+$/', $value) === 1) {
             return (int) $value !== 0;
         }
 

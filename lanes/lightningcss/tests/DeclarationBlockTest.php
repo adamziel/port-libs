@@ -182,6 +182,14 @@ return [
         $block = new DeclarationBlock();
 
         $t->same(
+            ['value' => 'content', 'important' => false],
+            $block->getProperty('grid-area: content', 'grid-area')
+        );
+        $t->same(
+            ['value' => 'content', 'important' => false],
+            $block->getProperty('grid-area: content', 'grid-row')
+        );
+        $t->same(
             ['value' => 'a', 'important' => false],
             $block->getProperty('grid-area: a / b / c / d', 'grid-row-start')
         );
@@ -514,6 +522,46 @@ return [
             $block->setProperty('animation: fade 200ms ease, slide 300ms', 'animation-name', 'wp-fade, wp-slide')
         );
     },
+    'declaration block sets upstream grid placement cssom longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'grid-area: masthead-start / content-start / header-end / content-end',
+            $block->setProperty(
+                'grid-area: header-start / content-start / header-end / content-end',
+                'grid-row-start',
+                'masthead-start'
+            )
+        );
+        $t->same(
+            'grid-area: header-start / content-start / header-end / aside-end',
+            $block->setProperty(
+                'grid-area: header-start / content-start / header-end / content-end',
+                'grid-column-end',
+                'aside-end'
+            )
+        );
+        $t->same(
+            'grid-row: hero-start / span 2',
+            $block->setProperty('grid-row: hero-start / hero-end', 'grid-row-end', 'span 2')
+        );
+        $t->same(
+            'grid-column: 2 / 3',
+            $block->setProperty('grid-column: 1 / 3', 'grid-column-start', '2')
+        );
+        $t->same(
+            'grid-row: hero-start / hero-end; grid-column-start: content-start',
+            $block->setProperty('grid-row: hero-start / hero-end', 'grid-column-start', 'content-start')
+        );
+        $t->same(
+            'grid-row-start: masthead-start; grid-area: header-start / content-start / header-end / content-end !important',
+            $block->setProperty(
+                'grid-area: header-start / content-start / header-end / content-end !important',
+                'grid-row-start',
+                'masthead-start'
+            )
+        );
+    },
     'declaration block sets upstream transition cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -703,6 +751,46 @@ return [
         $t->same('flex-wrap: wrap', $block->removeProperty('flex-flow: column wrap', 'flex-direction'));
         $t->same('flex-flow: column wrap', $block->removeProperty('flex-flow: column wrap', '-webkit-flex-direction'));
         $t->same('-webkit-flex-wrap: wrap', $block->removeProperty('-webkit-flex-flow: column wrap', '-webkit-flex-direction'));
+    },
+    'declaration block removes upstream grid placement cssom longhands and shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'grid-column-start: content-start; grid-row-end: header-end; grid-column-end: content-end',
+            $block->removeProperty(
+                'grid-area: header-start / content-start / header-end / content-end',
+                'grid-row-start'
+            )
+        );
+        $t->same(
+            'color: red; grid-row-start: header-start !important; grid-column-start: content-start !important; grid-row-end: header-end !important',
+            $block->removeProperty(
+                'grid-area: header-start / content-start / header-end / content-end !important; color: red',
+                'grid-column-end'
+            )
+        );
+        $t->same(
+            'grid-row-start: hero-start',
+            $block->removeProperty('grid-row: hero-start / hero-end', 'grid-row-end')
+        );
+        $t->same(
+            'grid-column-end: 3',
+            $block->removeProperty('grid-column: 2 / 3', 'grid-column-start')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty(
+                'grid-row-start: header-start; grid-column-start: content-start; grid-row-end: header-end; grid-column-end: content-end; color: red',
+                'grid-area'
+            )
+        );
+        $t->same(
+            'grid-column: content-start / content-end',
+            $block->removeProperty(
+                'grid-row: header-start / header-end; grid-row-start: masthead-start; grid-column: content-start / content-end',
+                'grid-row'
+            )
+        );
     },
     'declaration block removes upstream transition cssom longhands and shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();

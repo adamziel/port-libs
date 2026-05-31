@@ -6,6 +6,7 @@ require __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\ObjectDatabase;
+use PortLibs\Gitoxide\PackBuilder;
 use PortLibs\Gitoxide\PromisorObjectResolver;
 
 $fixture = require __DIR__ . '/../fixtures/wordpress-pack-data.php';
@@ -21,18 +22,32 @@ file_put_contents($packDir . '/' . $basename . '.idx', $fixture['indexBytes']);
 file_put_contents($packDir . '/' . $basename . '.promisor', "blobless WordPress lazy fetch\n");
 
 $mediaBlob = new GitObject('blob', 'Lazily fetched WordPress media attachment bytes');
-$resolver = new class([$mediaBlob->oid() => $mediaBlob]) implements PromisorObjectResolver {
+$resolver = new class($mediaBlob, $gitDir) implements PromisorObjectResolver {
     public array $requests = [];
+    public ?string $hydrationPack = null;
 
-    public function __construct(private readonly array $objects)
-    {
+    public function __construct(
+        private readonly GitObject $object,
+        private readonly string $gitDir,
+    ) {
     }
 
     public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
     {
         $this->requests[] = $oid;
+        if ($oid !== $this->object->oid()) {
+            return null;
+        }
 
-        return $this->objects[$oid] ?? null;
+        $pack = PackBuilder::build([$this->object]);
+        $packDir = $this->gitDir . '/objects/pack';
+        $basename = 'pack-' . $pack->packChecksum();
+        $this->hydrationPack = $basename . '.promisor';
+        file_put_contents($packDir . '/' . $basename . '.pack', $pack->packBytes());
+        file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
+        file_put_contents($packDir . '/' . $basename . '.promisor', "WordPress media lazy hydration\n");
+
+        return null;
     }
 };
 
@@ -46,8 +61,10 @@ return [
     'mediaObject' => $mediaBlob->oid(),
     'beforeRead' => $before,
     'resolverRequests' => $resolver->requests,
+    'hydrationPack' => $resolver->hydrationPack,
+    'promisorPacksAfterHydration' => $database->promisorPackNames(),
     'resolvedType' => $resolved->type,
     'resolvedSize' => strlen($resolved->body),
     'afterRead' => $after,
-    'persistedInLooseStore' => (new ObjectDatabase($gitDir))->read($mediaBlob->oid())->body === $mediaBlob->body,
+    'persistedInPackStore' => (new ObjectDatabase($gitDir))->read($mediaBlob->oid())->body === $mediaBlob->body,
 ];

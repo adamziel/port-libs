@@ -173,6 +173,94 @@ final class SourceMap
         }
     }
 
+    public function offsetColumns(int $generatedLine, int $generatedColumn, int $generatedColumnOffset): void
+    {
+        $this->assertNonNegative($generatedLine, 'generated line');
+        $this->assertNonNegative($generatedColumn, 'generated column');
+
+        $lineMappings = $this->sortedLineMappingIndexes($generatedLine);
+        if ($lineMappings === [] || $generatedColumnOffset === 0) {
+            return;
+        }
+
+        $startColumn = $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
+        $shiftStart = $this->lowerBoundGeneratedColumn($lineMappings, $generatedColumn);
+        $shiftIndexes = [];
+        for ($i = $shiftStart; $i < count($lineMappings); $i++) {
+            $shiftIndexes[$lineMappings[$i]['index']] = true;
+        }
+
+        $removeIndexes = [];
+        if ($generatedColumnOffset < 0) {
+            $removeStart = $this->lowerBoundGeneratedColumn($lineMappings, $startColumn);
+            for ($i = $removeStart; $i < $shiftStart; $i++) {
+                $removeIndexes[$lineMappings[$i]['index']] = true;
+            }
+        }
+
+        $updated = [];
+        foreach ($this->mappings as $index => $mapping) {
+            if (isset($removeIndexes[$index])) {
+                continue;
+            }
+
+            if (isset($shiftIndexes[$index])) {
+                $mapping['generatedColumn'] += $generatedColumnOffset;
+            }
+
+            $updated[] = $mapping;
+        }
+
+        $this->mappings = $this->renumberMappings($updated);
+    }
+
+    public function offsetLines(int $generatedLine, int $generatedLineOffset): void
+    {
+        $this->assertNonNegative($generatedLine, 'generated line');
+
+        if ($generatedLineOffset === 0 || $this->mappings === []) {
+            return;
+        }
+
+        $startLine = $this->offsetNonNegative($generatedLine, $generatedLineOffset, 'line + line offset');
+        $removeStart = null;
+        $removeEnd = null;
+        if ($generatedLineOffset < 0) {
+            $removeStart = $startLine;
+            $removeEnd = $generatedLine;
+        }
+
+        $updated = [];
+        foreach ($this->mappings as $mapping) {
+            if ($removeStart !== null && $mapping['generatedLine'] >= $removeStart && $mapping['generatedLine'] < $removeEnd) {
+                continue;
+            }
+
+            if ($mapping['generatedLine'] >= $generatedLine) {
+                $mapping['generatedLine'] += $generatedLineOffset;
+            }
+
+            $updated[] = $mapping;
+        }
+
+        $this->mappings = $this->renumberMappings($updated);
+    }
+
+    public function addEmptyMap(string $source, string $sourceContent, int $lineOffset = 0): void
+    {
+        $sourceIndex = $this->addSource($source);
+        $this->setSourceContent($sourceIndex, $sourceContent);
+
+        foreach ($this->sourceLines($sourceContent) as $lineNumber => $_line) {
+            $generatedLine = $lineNumber + $lineOffset;
+            if ($generatedLine < 0) {
+                continue;
+            }
+
+            $this->addMapping($generatedLine, 0, $sourceIndex, $lineNumber, 0);
+        }
+    }
+
     /**
      * @param list<string> $sources
      * @param list<string|null> $sourcesContent
@@ -616,6 +704,101 @@ final class SourceMap
         }
 
         return $offsetValue;
+    }
+
+    /**
+     * @return list<array{index:int,column:int,order:int}>
+     */
+    private function sortedLineMappingIndexes(int $generatedLine): array
+    {
+        $lineMappings = [];
+        foreach ($this->mappings as $index => $mapping) {
+            if ($mapping['generatedLine'] === $generatedLine) {
+                $lineMappings[] = [
+                    'index' => $index,
+                    'column' => $mapping['generatedColumn'],
+                    'order' => $mapping['order'],
+                ];
+            }
+        }
+
+        usort(
+            $lineMappings,
+            static fn (array $a, array $b): int => [$a['column'], $a['order']]
+                <=> [$b['column'], $b['order']]
+        );
+
+        return $lineMappings;
+    }
+
+    /**
+     * @param list<array{index:int,column:int,order:int}> $lineMappings
+     */
+    private function lowerBoundGeneratedColumn(array $lineMappings, int $generatedColumn): int
+    {
+        $low = 0;
+        $high = count($lineMappings);
+        while ($low < $high) {
+            $mid = intdiv($low + $high, 2);
+            if ($lineMappings[$mid]['column'] < $generatedColumn) {
+                $low = $mid + 1;
+            } else {
+                $high = $mid;
+            }
+        }
+
+        return $low;
+    }
+
+    /**
+     * @param list<array{
+     *     generatedLine:int,
+     *     generatedColumn:int,
+     *     sourceIndex:int|null,
+     *     originalLine:int|null,
+     *     originalColumn:int|null,
+     *     nameIndex:int|null,
+     *     order:int
+     * }> $mappings
+     * @return list<array{
+     *     generatedLine:int,
+     *     generatedColumn:int,
+     *     sourceIndex:int|null,
+     *     originalLine:int|null,
+     *     originalColumn:int|null,
+     *     nameIndex:int|null,
+     *     order:int
+     * }>
+     */
+    private function renumberMappings(array $mappings): array
+    {
+        foreach ($mappings as $order => &$mapping) {
+            $mapping['order'] = $order;
+        }
+        unset($mapping);
+
+        return array_values($mappings);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function sourceLines(string $sourceContent): array
+    {
+        if ($sourceContent === '') {
+            return [];
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/', $sourceContent);
+        if ($lines === false) {
+            return [];
+        }
+
+        if (preg_match('/(?:\r\n|\r|\n)$/', $sourceContent) === 1) {
+            array_pop($lines);
+        }
+
+        return array_values($lines);
     }
 
     /**

@@ -421,7 +421,12 @@ final class DeclarationBlock
                 $value[] = $components[$component]['value'];
             }
 
-            return ['value' => implode(' / ', $value), 'important' => $important];
+            $area = array_combine(self::GRID_AREA_COMPONENTS, $value);
+            if ($area === false) {
+                return null;
+            }
+
+            return ['value' => $this->serializeGridAreaPlacement($area), 'important' => $important];
         }
 
         return null;
@@ -820,8 +825,27 @@ final class DeclarationBlock
     private function parseGridArea(string $value): ?array
     {
         $parts = $this->splitGridPlacement($value);
-        if (count($parts) !== 4) {
+        if (count($parts) < 1 || count($parts) > 4) {
             return null;
+        }
+
+        if (count($parts) === 1) {
+            $opposite = $this->defaultGridLineEndValue($parts[0]);
+            $parts = [$parts[0], $opposite, $opposite, $opposite];
+        } elseif (count($parts) === 2) {
+            $parts = [
+                $parts[0],
+                $parts[1],
+                $this->defaultGridLineEndValue($parts[0]),
+                $this->defaultGridLineEndValue($parts[1]),
+            ];
+        } elseif (count($parts) === 3) {
+            $parts = [
+                $parts[0],
+                $parts[1],
+                $parts[2],
+                $this->defaultGridLineEndValue($parts[1]),
+            ];
         }
 
         return array_combine(self::GRID_AREA_COMPONENTS, $parts) ?: null;
@@ -833,11 +857,11 @@ final class DeclarationBlock
     private function parseGridLineShorthand(string $value): ?array
     {
         $parts = $this->splitGridPlacement($value);
-        if (count($parts) !== 2) {
+        if (count($parts) < 1 || count($parts) > 2) {
             return null;
         }
 
-        return [$parts[0], $parts[1]];
+        return [$parts[0], $parts[1] ?? $this->defaultGridLineEndValue($parts[0])];
     }
 
     /**
@@ -863,9 +887,125 @@ final class DeclarationBlock
         }
 
         return [
-            'value' => $start['value'] . ' / ' . $end['value'],
+            'value' => $this->serializeGridLinePlacement($start['value'], $end['value']),
             'important' => $start['important'],
         ];
+    }
+
+    private function defaultGridLineEndValue(string $start): string
+    {
+        return $this->isGridAreaLineName($start) ? $start : 'auto';
+    }
+
+    private function isGridAreaLineName(string $value): bool
+    {
+        $value = trim($value);
+
+        return preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $value) === 1
+            && !in_array(strtolower($value), ['auto', 'span'], true);
+    }
+
+    private function canOmitGridLineEnd(string $start, string $end): bool
+    {
+        return strcasecmp(trim($end), 'auto') === 0
+            || ($this->isGridAreaLineName($start) && trim($start) === trim($end));
+    }
+
+    private function serializeGridLinePlacement(string $start, string $end): string
+    {
+        if ($this->canOmitGridLineEnd($start, $end)) {
+            return $start;
+        }
+
+        return $start . ' / ' . $end;
+    }
+
+    /**
+     * @param array<string, string> $values
+     */
+    private function serializeGridAreaPlacement(array $values): string
+    {
+        $rowStart = $values['grid-row-start'];
+        $columnStart = $values['grid-column-start'];
+        $rowEnd = $values['grid-row-end'];
+        $columnEnd = $values['grid-column-end'];
+
+        $canOmitColumnEnd = $this->canOmitGridLineEnd($columnStart, $columnEnd);
+        $canOmitRowEnd = $canOmitColumnEnd && $this->canOmitGridLineEnd($rowStart, $rowEnd);
+        $canOmitColumnStart = $canOmitRowEnd && $this->canOmitGridLineEnd($rowStart, $columnStart);
+
+        $parts = [$rowStart];
+        if (!$canOmitColumnStart) {
+            $parts[] = $columnStart;
+        }
+        if (!$canOmitRowEnd) {
+            $parts[] = $rowEnd;
+        }
+        if (!$canOmitColumnEnd) {
+            $parts[] = $columnEnd;
+        }
+
+        return implode(' / ', $parts);
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function gridPlacementLonghandValuesFromShorthand(string $property, string $value): ?array
+    {
+        if ($property === 'grid-area') {
+            return $this->parseGridArea($value);
+        }
+
+        if ($property === 'grid-row') {
+            $placement = $this->parseGridLineShorthand($value);
+
+            return $placement === null
+                ? null
+                : [
+                    'grid-row-start' => $placement[0],
+                    'grid-row-end' => $placement[1],
+                ];
+        }
+
+        if ($property === 'grid-column') {
+            $placement = $this->parseGridLineShorthand($value);
+
+            return $placement === null
+                ? null
+                : [
+                    'grid-column-start' => $placement[0],
+                    'grid-column-end' => $placement[1],
+                ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $values
+     */
+    private function serializeGridPlacementShorthand(string $property, array $values): ?string
+    {
+        if ($property === 'grid-area') {
+            foreach (self::GRID_AREA_COMPONENTS as $component) {
+                if (!array_key_exists($component, $values)) {
+                    return null;
+                }
+            }
+
+            return $this->serializeGridAreaPlacement($values);
+        }
+
+        if ($property === 'grid-row' && isset($values['grid-row-start'], $values['grid-row-end'])) {
+            return $this->serializeGridLinePlacement($values['grid-row-start'], $values['grid-row-end']);
+        }
+
+        if ($property === 'grid-column' && isset($values['grid-column-start'], $values['grid-column-end'])) {
+            return $this->serializeGridLinePlacement($values['grid-column-start'], $values['grid-column-end']);
+        }
+
+        return null;
     }
 
     private function isGridProperty(string $property): bool
@@ -2232,6 +2372,10 @@ final class DeclarationBlock
         if ($animationValue !== null) {
             return $this->parseEntries($animationValue);
         }
+        $gridValue = $this->setGridPlacementLonghand($entries, $property, $value, $important);
+        if ($gridValue !== null) {
+            return $this->parseEntries($gridValue);
+        }
         $logicalBoxValue = $this->setLogicalBoxProperty($entries, $property, $value, $important);
         if ($logicalBoxValue !== null) {
             return $this->parseEntries($logicalBoxValue);
@@ -2376,6 +2520,52 @@ final class DeclarationBlock
 
                 return $this->serializeEntries($entries);
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setGridPlacementLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!in_array($property, self::GRID_AREA_COMPONENTS, true)) {
+            return null;
+        }
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            $values = $this->gridPlacementLonghandValuesFromShorthand(
+                $entries[$index]['property'],
+                $entries[$index]['value']
+            );
+            if ($values === null || !array_key_exists($property, $values)) {
+                continue;
+            }
+
+            $values[$property] = $value;
+            $serialized = $this->serializeGridPlacementShorthand($entries[$index]['property'], $values);
+            if ($serialized === null) {
+                continue;
+            }
+
+            $entries[$index] = [
+                'property' => $entries[$index]['property'],
+                'value' => $serialized,
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
         }
 
         return null;
@@ -2653,6 +2843,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isGridPlacementProperty($property)) {
+            $normalEntries = $this->parseEntries($this->removeGridPlacementProperty($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeGridPlacementProperty($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
 
         $normalEntries = $this->removeEntriesWithPropertyId($normalEntries, $property);
         $importantEntries = $this->removeEntriesWithPropertyId($importantEntries, $property);
@@ -2841,6 +3037,86 @@ final class DeclarationBlock
         $split = [];
         foreach ($longhands as $longhand) {
             if ($longhand === $property || !isset($values[$longhand])) {
+                continue;
+            }
+
+            $split[] = [
+                'property' => $longhand,
+                'value' => $values[$longhand],
+                'important' => $entry['important'],
+            ];
+        }
+
+        return $split;
+    }
+
+    private function isGridPlacementProperty(string $property): bool
+    {
+        return in_array($property, ['grid-area', 'grid-row', 'grid-column'], true)
+            || in_array($property, self::GRID_AREA_COMPONENTS, true);
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function gridPlacementShorthandLonghands(string $property): ?array
+    {
+        return match ($property) {
+            'grid-row' => ['grid-row-start', 'grid-row-end'],
+            'grid-column' => ['grid-column-start', 'grid-column-end'],
+            'grid-area' => self::GRID_AREA_COMPONENTS,
+            default => null,
+        };
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeGridPlacementProperty(array $entries, string $property): string
+    {
+        $longhands = $this->gridPlacementShorthandLonghands($property) ?? [];
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property || in_array($entry['property'], $longhands, true)) {
+                continue;
+            }
+
+            if ($longhands !== []) {
+                $result[] = $entry;
+                continue;
+            }
+
+            $split = $this->splitGridPlacementShorthandForRemovedLonghand($entry, $property);
+            if ($split === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            array_push($result, ...$split);
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param array{property:string, value:string, important:bool} $entry
+     * @return list<array{property:string, value:string, important:bool}>|null
+     */
+    private function splitGridPlacementShorthandForRemovedLonghand(array $entry, string $property): ?array
+    {
+        $longhands = $this->gridPlacementShorthandLonghands($entry['property']);
+        if ($longhands === null || !in_array($property, $longhands, true)) {
+            return null;
+        }
+
+        $values = $this->gridPlacementLonghandValuesFromShorthand($entry['property'], $entry['value']);
+        if ($values === null) {
+            return null;
+        }
+
+        $split = [];
+        foreach ($longhands as $longhand) {
+            if ($longhand === $property || !array_key_exists($longhand, $values)) {
                 continue;
             }
 

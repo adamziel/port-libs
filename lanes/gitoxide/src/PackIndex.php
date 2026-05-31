@@ -252,38 +252,49 @@ final class PackIndex
     }
 
     /**
-     * @return array{status:'missing'}|array{status:'ambiguous',matches:list<int>}|array{status:'found',entry:PackIndexEntry}
+     * @return array{status:'missing',candidateRange:array{start:int,end:int}}|array{status:'ambiguous',matches:list<int>,candidateRange:array{start:int,end:int}}|array{status:'found',entry:PackIndexEntry,candidateRange:array{start:int,end:int}}
      */
     public function lookupPrefix(string $prefix): array
     {
-        $prefix = strtolower($prefix);
-        if (preg_match('/^[0-9a-f]{4,40}$/', $prefix) !== 1) {
-            throw new \InvalidArgumentException('Lookup prefix must be 4 to 40 hexadecimal characters');
+        $prefix = self::normalizePrefix($prefix);
+        ['matches' => $matches, 'candidateRange' => $candidateRange] = $this->matchingPrefixIndexes($prefix);
+
+        if ($matches === []) {
+            return ['status' => 'missing', 'candidateRange' => $candidateRange];
+        }
+        if (count($matches) > 1) {
+            return ['status' => 'ambiguous', 'matches' => $matches, 'candidateRange' => $candidateRange];
         }
 
-        $firstByte = hexdec(substr(str_pad($prefix, 2, '0'), 0, 2));
-        $lower = strlen($prefix) >= 2 && strlen($prefix) % 2 === 0
-            ? ($firstByte === 0 ? 0 : $this->fanout[$firstByte - 1])
-            : 0;
-        $upper = strlen($prefix) >= 2 && strlen($prefix) % 2 === 0
-            ? $this->fanout[$firstByte]
-            : $this->count();
+        return ['status' => 'found', 'entry' => $this->entryAt($matches[0]), 'candidateRange' => $candidateRange];
+    }
 
-        $matches = [];
-        for ($i = $lower; $i < $upper; $i++) {
-            if (str_starts_with($this->oids[$i], $prefix)) {
-                $matches[] = $i;
+    public function disambiguatePrefix(string $oid, int $minimumHexLength): ?string
+    {
+        if (preg_match('/^[0-9a-fA-F]{40}$/', $oid) !== 1) {
+            throw new \InvalidArgumentException('Disambiguation object id must be a 40-character SHA-1 hex string');
+        }
+        if ($minimumHexLength < 4 || $minimumHexLength > 40) {
+            throw new \InvalidArgumentException('Disambiguation prefix length must be between 4 and 40 hexadecimal characters');
+        }
+
+        $oid = strtolower($oid);
+        if ($minimumHexLength === 40) {
+            return $this->lookup($oid) === null ? null : $oid;
+        }
+
+        for ($hexLength = $minimumHexLength; $hexLength < 40; $hexLength++) {
+            $prefix = substr($oid, 0, $hexLength);
+            $result = $this->lookupPrefix($prefix);
+            if ($result['status'] === 'missing') {
+                return null;
+            }
+            if ($result['status'] === 'found') {
+                return $prefix;
             }
         }
 
-        if ($matches === []) {
-            return ['status' => 'missing'];
-        }
-        if (count($matches) > 1) {
-            return ['status' => 'ambiguous', 'matches' => $matches];
-        }
-
-        return ['status' => 'found', 'entry' => $this->entryAt($matches[0])];
+        return $this->lookup($oid) === null ? null : $oid;
     }
 
     /**
@@ -322,6 +333,45 @@ final class PackIndex
             }
             $previous = $value;
         }
+    }
+
+    private static function normalizePrefix(string $prefix): string
+    {
+        $prefix = strtolower($prefix);
+        if (preg_match('/^[0-9a-f]{4,40}$/', $prefix) !== 1) {
+            throw new \InvalidArgumentException('Lookup prefix must be 4 to 40 hexadecimal characters');
+        }
+
+        return $prefix;
+    }
+
+    /**
+     * @return array{matches:list<int>,candidateRange:array{start:int,end:int}}
+     */
+    private function matchingPrefixIndexes(string $prefix): array
+    {
+        $firstByte = hexdec(substr($prefix, 0, 2));
+        $lower = $firstByte === 0 ? 0 : $this->fanout[$firstByte - 1];
+        $upper = $this->fanout[$firstByte];
+
+        $matches = [];
+        for ($i = $lower; $i < $upper; $i++) {
+            if (str_starts_with($this->oids[$i], $prefix)) {
+                $matches[] = $i;
+            }
+        }
+
+        if ($matches === []) {
+            return ['matches' => [], 'candidateRange' => ['start' => 0, 'end' => 0]];
+        }
+
+        return [
+            'matches' => $matches,
+            'candidateRange' => [
+                'start' => $matches[0],
+                'end' => $matches[count($matches) - 1] + 1,
+            ],
+        ];
     }
 
     private static function readUInt32(string $bytes, int &$offset): int

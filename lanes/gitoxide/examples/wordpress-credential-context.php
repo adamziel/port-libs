@@ -9,6 +9,7 @@ $fixture = require __DIR__ . '/../fixtures/wordpress-credential-context.php';
 return [
     'credentialUrl' => $fixture['credentialUrl'],
     'requestBytes' => $fixture['requestBytes'],
+    'emptyQuitFalse' => $fixture['emptyQuitFalse'],
     'redactedBytes' => $fixture['redactedBytes'],
     'secretsInCleartextLog' => str_contains($fixture['redactedBytes'], 'wp-deploy-token')
         || str_contains($fixture['redactedBytes'], 'wp-refresh-token'),
