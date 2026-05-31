@@ -970,8 +970,9 @@ final class SQLiteSelectExpression
         }
 
         $text = sprintf('%.15G', $value);
+        $text = str_contains($text, 'E') ? str_replace('E', 'e', $text) : $text;
 
-        return str_contains($text, 'E') ? str_replace('E', 'e', $text) : $text;
+        return preg_replace('/e([+-])(\d)$/', 'e${1}0${2}', $text) ?? $text;
     }
 
     /**

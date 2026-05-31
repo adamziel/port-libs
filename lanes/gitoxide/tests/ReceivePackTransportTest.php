@@ -1865,6 +1865,33 @@ return [
         $t->throws(RuntimeException::class, static fn () => $failedTransport->readAdvertisement());
         $t->same([['http://proxy.example.test:8080', 'git.example.test', ['username' => 'bad-user', 'password' => 'bad-pass']]], $failedErasures);
 
+        $unexpectedStatusStores = [];
+        $unexpectedStatusErasures = [];
+        $unexpectedStatusTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static fn (): array => [
+                'status' => 204,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                'body' => '',
+            ],
+            [],
+            30.0,
+            [],
+            [
+                'proxy' => 'http://proxy.example.test:8080',
+                'proxyCredentialHelper' => static fn (): array => ['username' => 'unexpected-user', 'password' => 'unexpected-pass'],
+                'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$unexpectedStatusStores): void {
+                    $unexpectedStatusStores[] = [$proxyUrl, $requestHost, $credentials];
+                },
+                'proxyCredentialErase' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$unexpectedStatusErasures): void {
+                    $unexpectedStatusErasures[] = [$proxyUrl, $requestHost, $credentials];
+                },
+            ]
+        );
+        $t->throws(RuntimeException::class, static fn () => $unexpectedStatusTransport->readAdvertisement());
+        $t->same([], $unexpectedStatusStores);
+        $t->same([['http://proxy.example.test:8080', 'git.example.test', ['username' => 'unexpected-user', 'password' => 'unexpected-pass']]], $unexpectedStatusErasures);
+
         $helperControlByteTransport = new SmartHttpReceivePackTransport(
             'https://git.example.test/wp-content.git',
             static fn (): array => ['status' => 500, 'headers' => [], 'body' => 'should not run'],
@@ -2159,7 +2186,7 @@ return [
         };
 
         $client = new ReceivePackClient(
-            SshReceivePackTransport::connect('ssh://deploy@git.example.test:2222/var/www/wp-content.git', $connector, 11.5),
+            SshReceivePackTransport::connect('ssh+git://deploy@git.example.test:2222/~/wp-content.git', $connector, 11.5),
             'port-libs/0.1'
         );
         $session = $client->handshake();
@@ -2175,7 +2202,7 @@ return [
             'host' => 'git.example.test',
             'user' => 'deploy',
             'port' => 2222,
-            'command' => "git-receive-pack '/var/www/wp-content.git'",
+            'command' => "git-receive-pack '~/wp-content.git'",
             'timeout' => 11.5,
         ], $connection);
         $t->same($request->requestBytes(), $streamBytes($write));
@@ -2283,7 +2310,26 @@ return [
             'port' => null,
             'path' => 'wp-content.git',
         ], SshReceivePackTransport::parseRepositoryUrl('deploy@[2001:db8::42]:wp-content.git'));
+        $t->same([
+            'host' => 'git.example.test',
+            'user' => 'deploy',
+            'port' => 2222,
+            'path' => '~/wp-content.git',
+        ], SshReceivePackTransport::parseRepositoryUrl('ssh+git://deploy@git.example.test:2222/~/wp-content.git'));
+        $t->same([
+            'host' => 'git.example.test',
+            'user' => null,
+            'port' => null,
+            'path' => '~wp-content.git',
+        ], SshReceivePackTransport::parseRepositoryUrl('git+ssh://git.example.test:/~wp-content.git'));
+        $t->same([
+            'host' => 'git.example.test',
+            'user' => null,
+            'port' => null,
+            'path' => '~wp-content.git',
+        ], SshReceivePackTransport::parseRepositoryUrl('git.example.test:/~wp-content.git'));
         $t->same('~/wp-content.git', SshReceivePackTransport::parseRepositoryUrl('ssh://git.example.test/~/wp-content.git')['path']);
+        $t->same("git-receive-pack '~/wp-content.git'", SshReceivePackTransport::receivePackCommand('~/wp-content.git'));
         $t->same("git-receive-pack 'wp content/repo'\\''s.git'", SshReceivePackTransport::receivePackCommand("wp content/repo's.git"));
 
         $badConnector = static fn (): array => ['read' => 'not a stream', 'write' => 'not a stream'];
@@ -2302,6 +2348,8 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('bad%20user@example.test:repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://deploy%40tenant@git.example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://deploy%3Atenant@git.example.test/repo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh+git://-oProxyCommand=open$IFS-aCalculator/repo.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('git+ssh://-oProxyCommand=open$IFS-aCalculator/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('example.test: -upload-pack=/tmp/helper'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::receivePackCommand("repo\0.git"));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::receivePackCommand(' -upload-pack=/tmp/helper'));
@@ -2376,6 +2424,10 @@ return [
         $t->same(true, $fixture['unsafeSshUserDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshEncodedUserDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshPasswordRejected']);
+        $t->same('~/wp-content.git', $fixture['sshLegacySchemeTarget']['path']);
+        $t->same('~wp-content.git', $fixture['sshLegacyGitSchemeTarget']['path']);
+        $t->same('~wp-content.git', $fixture['sshScpLikeHomeTarget']['path']);
+        $t->same(true, $fixture['unsafeSshLegacyHostRejected']);
         $t->same(['GIT_PROTOCOL' => 'version=2', 'LANG' => 'C', 'LC_ALL' => 'C'], $fixture['sshProtocolV2Context']['environment']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@git.example.test'], $fixture['sshProtocolV2Context']['sshArguments']);
         $t->same('caller-provided-ssh-connector', $fixture['sshProtocolV2Context']['authenticationBoundary']);
@@ -2389,6 +2441,9 @@ return [
         $t->same([], $fixture['erasedCredentials']);
         $t->same('Basic ' . base64_encode('wp-proxy-user:wp-proxy-pass'), $fixture['proxyAuthorizationSent']);
         $t->same(false, $fixture['originProxyHeaderLeaked']);
+        $t->same(true, $fixture['unexpectedStatusRejected']);
+        $t->same([], $fixture['unexpectedStatusStores']);
+        $t->same([['http://wp-proxy.example.test:8080', 'git.example.test', ['username' => 'stale-proxy-user', 'password' => 'stale-proxy-pass']]], $fixture['unexpectedStatusErasures']);
         $t->contains('refs/heads/main', $fixture['advertisementBytes']);
     },
     'wordpress fixture documents smart http socks tls receive-pack discovery' => static function (TestRunner $t): void {

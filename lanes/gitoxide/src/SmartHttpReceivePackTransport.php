@@ -627,7 +627,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             return;
         }
 
-        $callback = $status >= 200 && $status < 300
+        $callback = $status === 200
             ? $this->httpOptions['proxyCredentialStore']
             : $this->httpOptions['proxyCredentialErase'];
         if ($callback === null) {

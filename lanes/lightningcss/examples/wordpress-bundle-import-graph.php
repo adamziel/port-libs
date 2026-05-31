@@ -8,6 +8,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $files = [
     '/theme.css' => <<<'CSS'
+@import url("https://fonts.example/css2?family=Inter");
 @layer reset, theme.blocks;
 @import "tokens.css";
 @import "blocks/card.css" layer(theme.blocks) screen and (--wp-wide);
@@ -25,6 +26,7 @@ CSS,
 CSS,
     '/blocks/card.css' => <<<'CSS'
 @import "../shared/buttons.css";
+@import "../shared/buttons-contrast.css" (prefers-contrast);
 .wp-block-query {
   color: green;
 }
@@ -37,6 +39,11 @@ CSS,
     '/shared/buttons.css' => <<<'CSS'
 .wp-block-button__link {
   color: blue;
+}
+CSS,
+    '/shared/buttons-contrast.css' => <<<'CSS'
+.wp-block-button__link {
+  border-color: currentColor;
 }
 CSS,
 ];

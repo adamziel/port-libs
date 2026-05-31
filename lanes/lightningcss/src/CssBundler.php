@@ -108,7 +108,7 @@ final class CssBundler
             /** @var array{specifier:string,layer:?string,supports:?string,media:string,loc:array{line:int,column:int}} $import */
             $import = $item['import'];
             $layer = $this->combineLayer($rule['layer'], $import['layer'], $file, $import['loc']);
-            $media = $this->combineMediaAnd($rule['media'], $import['media']);
+            $media = $this->combineMediaAnd($rule['media'], $import['media'], $file, $import['loc']);
             $supports = $this->combineSupportsAnd($rule['supports'], $import['supports']);
             $resolved = $this->resolveImport($import['specifier'], $file, $import['loc']);
 
@@ -495,7 +495,10 @@ final class CssBundler
         return $parent ?? $child;
     }
 
-    private function combineMediaAnd(string $parent, string $child): string
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function combineMediaAnd(string $parent, string $child, string $file, array $loc): string
     {
         $parent = trim($parent);
         $child = trim($child);
@@ -509,6 +512,16 @@ final class CssBundler
         $queries = [];
         foreach ($this->splitTopLevel($parent, ',') as $parentQuery) {
             foreach ($this->splitTopLevel($child, ',') as $childQuery) {
+                if ($this->isNegatedMediaQuery($parentQuery) && $this->isNegatedMediaQuery($childQuery)) {
+                    throw new CssBundleException(
+                        'unsupported-media-boolean-logic',
+                        'Unsupported boolean logic in @import media query',
+                        $file,
+                        $loc['line'],
+                        $loc['column'],
+                    );
+                }
+
                 $queries[] = $this->andMediaQuery($parentQuery, $childQuery);
             }
         }
@@ -539,6 +552,11 @@ final class CssBundler
         }
 
         return $a . ' and ' . $b;
+    }
+
+    private function isNegatedMediaQuery(string $query): bool
+    {
+        return preg_match('/^\s*not\s+/i', $query) === 1;
     }
 
     private function combineSupportsAnd(?string $parent, ?string $child): ?string

@@ -15,7 +15,11 @@ return [
     'responseSuccessful' => $fixture['responseSuccessful'],
     'sshTarget' => $fixture['sshTarget'],
     'sshIpv6Target' => $fixture['sshIpv6Target'],
+    'sshLegacySchemeTarget' => $fixture['sshLegacySchemeTarget'],
+    'sshLegacyGitSchemeTarget' => $fixture['sshLegacyGitSchemeTarget'],
+    'sshScpLikeHomeTarget' => $fixture['sshScpLikeHomeTarget'],
     'sshCommand' => $fixture['sshCommand'],
+    'sshHomeCommand' => $fixture['sshHomeCommand'],
     'sshProtocolV2Environment' => $fixture['sshProtocolV2Context']['environment'],
     'sshProtocolV2Arguments' => $fixture['sshProtocolV2Context']['sshArguments'],
     'sshCredentialContext' => $fixture['sshProtocolV2Context']['redactedCredentialContext'],
@@ -48,4 +52,5 @@ return [
     'unsafeSshUserDelimiterRejected' => $fixture['unsafeSshUserDelimiterRejected'],
     'unsafeSshEncodedUserDelimiterRejected' => $fixture['unsafeSshEncodedUserDelimiterRejected'],
     'unsafeSshPasswordRejected' => $fixture['unsafeSshPasswordRejected'],
+    'unsafeSshLegacyHostRejected' => $fixture['unsafeSshLegacyHostRejected'],
 ];

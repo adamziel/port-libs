@@ -6,7 +6,14 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 use PortLibs\LightningCSS\SourceMap;
 
-$source = <<<'CSS'
+$entrySource = <<<'CSS'
+@import "blocks.css";
+.theme-footer {
+  color: green;
+}
+CSS;
+
+$blockSource = <<<'CSS'
 /*! Theme package license */
 /*!
  * Block editor stylesheet generated from theme.json
@@ -22,19 +29,27 @@ CSS;
 
 $firstRule = '.wp-block-cover{color:#ff0}';
 $secondRule = '.wp-block-cover .wp-block-button{margin:1rem}';
+$footerRule = '.theme-footer{color:green}';
 $code = "/*! Theme package license */\n"
     . "/*!\n"
     . " * Block editor stylesheet generated from theme.json\n"
     . " * Keep comments for distribution compliance.\n"
     . " */\n"
     . $firstRule
-    . $secondRule;
+    . $secondRule
+    . $footerRule;
+
+$blockMap = new SourceMap();
+$blockSourceIndex = $blockMap->addSource('wp-content/themes/example/blocks.css');
+$blockMap->setSourceContent($blockSourceIndex, $blockSource);
+$blockMap->addPrinterMapping(0, 0, $blockSourceIndex, 5, 1);
+$blockMap->addPrinterMapping(0, strlen($firstRule), $blockSourceIndex, 8, 1);
 
 $map = new SourceMap();
-$sourceIndex = $map->addSource('wp-content/themes/example/blocks.css');
-$map->setSourceContent($sourceIndex, $source);
-$map->addPrinterMapping(5, 0, $sourceIndex, 5, 1);
-$map->addPrinterMapping(5, strlen($firstRule), $sourceIndex, 8, 1);
+$entrySourceIndex = $map->addSource('wp-content/themes/example/style.css');
+$map->setSourceContent($entrySourceIndex, $entrySource);
+$map->addSourceMap($blockMap, 5);
+$map->addMappingWithOffset(0, strlen($firstRule) + strlen($secondRule), $entrySourceIndex, 1, 0, 5, 0);
 
 echo $code . "\n";
 echo $map->toJson(null, false) . "\n";

@@ -71,6 +71,25 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler combines nested media conditions across import graph' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@media print and (color){.c{color:green}}@media print{.b{color:#ff0}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" print; .a { color: red }',
+                '/b.css' => '@import "c.css" (color); .b { color: yellow }',
+                '/c.css' => '.c { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@media print and (color),print and (orientation:landscape){.c{color:green}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" print; .a { color: red }',
+                '/b.css' => '@import "c.css" (color), (orientation: landscape);',
+                '/c.css' => '.c { color: green }',
+            ], '/a.css')
+        );
+    },
     'css bundler merges repeated import conditions like upstream' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print,screen{.b{color:green}}.a{color:red}',
@@ -87,6 +106,43 @@ CSS,
                 '/b.css' => '.b { color: green }',
             ], '/a.css')
         );
+    },
+    'css bundler rejects incompatible repeated media and supports imports' => static function (TestRunner $t) use ($bundle): void {
+        try {
+            $bundle([
+                '/a.css' => '@import "b.css" print; @import "b.css" supports(color: red);',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css');
+        } catch (CssBundleException $exception) {
+            $t->same('unsupported-import-condition', $exception->kind);
+            $t->same('Unsupported import condition', $exception->getMessage());
+            $t->same('/a.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(24, $exception->sourceColumn);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected unsupported import condition exception');
+    },
+    'css bundler rejects unsupported nested negated media boolean logic' => static function (TestRunner $t) use ($bundle): void {
+        try {
+            $bundle([
+                '/a.css' => '@import "b.css" not print; .a { color: red }',
+                '/b.css' => '@import "c.css" not screen; .b { color: green }',
+                '/c.css' => '.c { color: yellow }',
+            ], '/a.css');
+        } catch (CssBundleException $exception) {
+            $t->same('unsupported-media-boolean-logic', $exception->kind);
+            $t->same('Unsupported boolean logic in @import media query', $exception->getMessage());
+            $t->same('/b.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected unsupported media boolean logic exception');
     },
     'css bundler preserves upstream last import graph position and cycles' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
@@ -135,6 +191,50 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler maps anonymous layer imports and unsupported layer combinations' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@layer{.b{color:green}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer; .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $rejectedRepeatedAnonymousLayer = false;
+        try {
+            $bundle([
+                '/a.css' => '@import "b.css" layer; @import "b.css" layer;',
+                '/b.css' => '.b { color: red }',
+            ], '/a.css');
+        } catch (CssBundleException $exception) {
+            $t->same('unsupported-layer-combination', $exception->kind);
+            $t->same('/a.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(24, $exception->sourceColumn);
+            $rejectedRepeatedAnonymousLayer = true;
+        }
+
+        if (!$rejectedRepeatedAnonymousLayer) {
+            throw new RuntimeException('Expected repeated anonymous layer combination exception');
+        }
+
+        try {
+            $bundle([
+                '/a.css' => '@import "b.css" layer; .a { color: red }',
+                '/b.css' => '@import "c.css" layer; .b { color: green }',
+                '/c.css' => '.c { color: green }',
+            ], '/a.css');
+        } catch (CssBundleException $exception) {
+            $t->same('unsupported-layer-combination', $exception->kind);
+            $t->same('/b.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected unsupported anonymous layer combination exception');
+    },
     'css bundler maps external import ordering diagnostics' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@import "https://fonts.example/css";.b{color:green}',
@@ -162,6 +262,27 @@ CSS,
         }
 
         throw new RuntimeException('Expected external import order exception');
+    },
+    'css bundler preserves resolver marked external imports before bundled imports' => static function (TestRunner $t) use ($bundle): void {
+        $resolver = static function (string $specifier, string $originatingFile): array {
+            if ($specifier === './does_not_exist.css' || str_starts_with($specifier, 'https:')) {
+                return ['external' => $specifier];
+            }
+
+            return ['file' => rtrim(dirname($originatingFile), '/') . '/' . ltrim($specifier, './')];
+        };
+
+        $t->same(
+            '@import "https://fonts.googleapis.com/css2?family=Roboto&display=swap";@import "./does_not_exist.css";.b{height:calc(100vh - 64px)}',
+            $bundle([
+                '/a.css' => <<<'CSS'
+@import url("https://fonts.googleapis.com/css2?family=Roboto&display=swap");
+@import "./does_not_exist.css";
+@import "./b.css";
+CSS,
+                '/b.css' => '.b { height: calc(100vh - 64px); }',
+            ], '/a.css', $resolver)
+        );
     },
     'css bundler reports upstream resolver and layer errors with import locations' => static function (TestRunner $t) use ($bundle): void {
         try {

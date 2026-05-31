@@ -611,12 +611,12 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
-     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list'|'function_list'|'module_list'|'collation_list'|'pragma_list', schema: string|null, target: string}
+     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list'|'table_list'|'function_list'|'module_list'|'collation_list'|'pragma_list', schema: string|null, target: string}
      */
     public static function parsePragma(string $sql): array
     {
         $trimmed = rtrim(trim($sql), ';');
-        $identifier = '(?:\"(?:\"\"|[^\"])+\"|`[^`]+`|\[[^\]]+\]|\'(?:\'\'|[^\'])+\'|[A-Za-z_][A-Za-z0-9_]*)';
+        $identifier = '(?:\"(?:\"\"|[^\"])*\"|`[^`]*`|\[[^\]]*\]|\'(?:\'\'|[^\'])*\'|[A-Za-z_][A-Za-z0-9_]*)';
         if (preg_match('/^pragma\s+(?:(?<schema>' . $identifier . ')\s*\.\s*)?(?<pragma>function_list|module_list|collation_list|pragma_list|table_list)(?:\s*(?:\(\s*(?<target>' . $identifier . ')?\s*\)|=\s*(?<equals>' . $identifier . '))?)?$/i', $trimmed, $matches) === 1) {
             return [
                 'pragma' => strtolower($matches['pragma']),
@@ -624,19 +624,31 @@ final class SQLitePragmaSchemaCatalog
                 'target' => self::unquoteIdentifier(($matches['target'] ?? '') !== '' ? $matches['target'] : ($matches['equals'] ?? '')),
             ];
         }
-        if (!preg_match('/^pragma\s+(?:(?<schema>' . $identifier . ')\s*\.\s*)?(?<pragma>table_info|table_xinfo|index_list|index_info|index_xinfo|foreign_key_list)\s*(?:\(\s*(?<paren>' . $identifier . ')\s*\)|=\s*(?<equals>' . $identifier . '))$/i', $trimmed, $matches)) {
+        if (!preg_match('/^pragma\s+(?:(?<schema>' . $identifier . ')\s*\.\s*)?(?<pragma>table_info|table_xinfo|index_list|index_info|index_xinfo|foreign_key_list)(?:\s*(?:\(\s*(?<paren>' . $identifier . ')?\s*\)|=\s*(?<equals>' . $identifier . ')))?$/i', $trimmed, $matches)) {
             throw new InvalidArgumentException('Only PRAGMA table_info, table_xinfo, index_list, index_info, index_xinfo, foreign_key_list, table_list, function_list, module_list, collation_list, and pragma_list are supported');
         }
 
+        $pragma = strtolower($matches['pragma']);
+        $target = '';
+        if (($matches['paren'] ?? '') !== '') {
+            $target = $matches['paren'];
+        } elseif (($matches['equals'] ?? '') !== '') {
+            $target = $matches['equals'];
+        }
+        $target = self::unquoteIdentifier($target);
+        if ($target === '' && !in_array($pragma, ['table_info', 'foreign_key_list'], true)) {
+            throw new InvalidArgumentException("PRAGMA {$pragma} needs a target argument");
+        }
+
         return [
-            'pragma' => strtolower($matches['pragma']),
+            'pragma' => $pragma,
             'schema' => isset($matches['schema']) && $matches['schema'] !== '' ? strtolower(self::unquoteIdentifier($matches['schema'])) : null,
-            'target' => self::unquoteIdentifier($matches['paren'] !== '' ? $matches['paren'] : $matches['equals']),
+            'target' => $target,
         ];
     }
 
     /**
-     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list'|'function_list'|'module_list'|'collation_list'|'pragma_list', schema: string|null, target: string}
+     * @return array{pragma: 'table_info'|'table_xinfo'|'index_list'|'index_info'|'index_xinfo'|'foreign_key_list'|'table_list'|'function_list'|'module_list'|'collation_list'|'pragma_list', schema: string|null, target: string}
      */
     public static function parseTableValuedPragma(string $sql): array
     {
@@ -661,17 +673,29 @@ final class SQLitePragmaSchemaCatalog
                 'target' => '',
             ];
         }
+        $allowsEmptyTarget = in_array($pragma, ['table_info', 'foreign_key_list'], true);
+        if (count($args) === 1 && $args[0] === '' && $allowsEmptyTarget) {
+            return [
+                'pragma' => $pragma,
+                'schema' => null,
+                'target' => '',
+            ];
+        }
         if (count($args) < 1 || count($args) > 2 || $args[0] === '') {
             throw new InvalidArgumentException("pragma_{$pragma} needs a target argument");
         }
         if (count($args) === 2 && $args[1] === '') {
             throw new InvalidArgumentException("pragma_{$pragma} schema argument cannot be empty");
         }
+        $target = self::unquoteIdentifier($args[0]);
+        if ($target === '' && !$allowsEmptyTarget && $pragma !== 'table_list') {
+            throw new InvalidArgumentException("pragma_{$pragma} needs a target argument");
+        }
 
         return [
             'pragma' => $pragma,
             'schema' => isset($args[1]) ? strtolower(self::unquoteIdentifier($args[1])) : null,
-            'target' => self::unquoteIdentifier($args[0]),
+            'target' => $target,
         ];
     }
 

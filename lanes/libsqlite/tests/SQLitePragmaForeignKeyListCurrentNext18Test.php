@@ -156,7 +156,7 @@ $tests['pragma foreign key list current next18 cursor parity'] = static function
 $tests['pragma foreign key list current next18 rejects malformed table valued shapes'] = static function (TestRunner $t) use ($makeCatalog): void {
     $catalog = $makeCatalog();
 
-    $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma('pragma_foreign_key_list()'));
+    $t->same([], $catalog->executeTableValuedPragma('pragma_foreign_key_list()')['rows']);
     $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma("pragma_foreign_key_list('wp_options','main','extra')"));
     $t->throws(InvalidArgumentException::class, static fn () => $catalog->executeTableValuedPragma('pragma_foreign_key_list'));
     $t->same('table_info', $catalog->executeTableValuedPragma("pragma_table_info('wp_options')")['pragma']);

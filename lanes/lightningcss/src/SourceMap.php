@@ -96,6 +96,25 @@ final class SourceMap
         ];
     }
 
+    public function addMappingWithOffset(
+        int $generatedLine,
+        int $generatedColumn,
+        int $sourceIndex,
+        int $originalLine,
+        int $originalColumn,
+        int $lineOffset,
+        int $columnOffset,
+        ?string $name = null
+    ): void {
+        $this->assertNonNegative($generatedLine, 'generated line');
+        $this->assertNonNegative($generatedColumn, 'generated column');
+
+        $offsetLine = $this->offsetNonNegative($generatedLine, $lineOffset, 'generated line + line offset');
+        $offsetColumn = $this->offsetNonNegative($generatedColumn, $columnOffset, 'generated column + column offset');
+
+        $this->addMapping($offsetLine, $offsetColumn, $sourceIndex, $originalLine, $originalColumn, $name);
+    }
+
     public function addPrinterMapping(
         int $generatedLine,
         int $generatedColumn,
@@ -109,6 +128,54 @@ final class SourceMap
         }
 
         $this->addMapping($generatedLine, $generatedColumn, $sourceIndex, $sourceLine, $sourceColumnOneBased - 1, $name);
+    }
+
+    public function addSourceMap(SourceMap $sourceMap, int $lineOffset = 0): void
+    {
+        $sourceIndexes = [];
+        foreach ($sourceMap->sources as $index => $source) {
+            $mappedIndex = $this->addSource($source);
+            $sourceIndexes[$index] = $mappedIndex;
+            if (array_key_exists($index, $sourceMap->sourcesContent)) {
+                $this->sourcesContent[$mappedIndex] = $sourceMap->sourcesContent[$index];
+            }
+        }
+
+        $nameIndexes = [];
+        foreach ($sourceMap->names as $index => $name) {
+            $nameIndexes[$index] = $this->addName($name);
+        }
+
+        foreach ($sourceMap->mappings as $mapping) {
+            $generatedLine = $mapping['generatedLine'] + $lineOffset;
+            if ($generatedLine < 0) {
+                continue;
+            }
+
+            $sourceIndex = $mapping['sourceIndex'];
+            if (!array_key_exists($sourceIndex, $sourceIndexes)) {
+                throw new InvalidArgumentException('Source map mapping references unknown source index: ' . $sourceIndex);
+            }
+
+            $nameIndex = null;
+            if ($mapping['nameIndex'] !== null) {
+                if (!array_key_exists($mapping['nameIndex'], $nameIndexes)) {
+                    throw new InvalidArgumentException('Source map mapping references unknown name index: ' . $mapping['nameIndex']);
+                }
+
+                $nameIndex = $nameIndexes[$mapping['nameIndex']];
+            }
+
+            $this->mappings[] = [
+                'generatedLine' => $generatedLine,
+                'generatedColumn' => $mapping['generatedColumn'],
+                'sourceIndex' => $sourceIndexes[$sourceIndex],
+                'originalLine' => $mapping['originalLine'],
+                'originalColumn' => $mapping['originalColumn'],
+                'nameIndex' => $nameIndex,
+                'order' => count($this->mappings),
+            ];
+        }
     }
 
     public function writeVlq(): string
@@ -322,6 +389,16 @@ final class SourceMap
         if ($value < 0) {
             throw new InvalidArgumentException(ucfirst($label) . ' must be non-negative.');
         }
+    }
+
+    private function offsetNonNegative(int $value, int $offset, string $label): int
+    {
+        $offsetValue = $value + $offset;
+        if ($offsetValue < 0) {
+            throw new InvalidArgumentException(ucfirst($label) . ' must be non-negative.');
+        }
+
+        return $offsetValue;
     }
 
     /**

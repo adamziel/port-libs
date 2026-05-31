@@ -94,11 +94,8 @@ final class SshReceivePackTransport implements ReceivePackTransport
             throw new \InvalidArgumentException('SSH receive-pack URL must be non-empty and must not contain control bytes');
         }
 
-        if (str_starts_with(strtolower($url), 'ssh://')) {
-            return self::parseSshUrl($url);
-        }
         if (str_contains($url, '://')) {
-            throw new \InvalidArgumentException('SSH receive-pack transport expects an ssh:// URL or scp-like SSH URL');
+            return self::parseSshUrl($url);
         }
 
         return self::parseScpLikeUrl($url);
@@ -137,8 +134,8 @@ final class SshReceivePackTransport implements ReceivePackTransport
             throw new \InvalidArgumentException('SSH receive-pack transport could not parse repository URL', 0, $error);
         }
 
-        if (!is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'ssh') {
-            throw new \InvalidArgumentException('SSH receive-pack transport expects an ssh:// URL or scp-like SSH URL');
+        if (!is_array($parts) || !self::isSshScheme((string) ($parts['scheme'] ?? ''))) {
+            throw new \InvalidArgumentException('SSH receive-pack transport expects an ssh://, ssh+git://, git+ssh://, or scp-like SSH URL');
         }
         if (!isset($parts['host']) || !is_string($parts['host']) || $parts['host'] === '') {
             throw new \InvalidArgumentException('SSH receive-pack URL must include a host');
@@ -182,7 +179,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
         $user = isset($matches['user']) && $matches['user'] !== ''
             ? self::decodeComponent($matches['user'], 'user')
             : null;
-        $path = self::decodeComponent($matches['path'], 'repository path');
+        $path = self::normalizeSshPath(self::decodeComponent($matches['path'], 'repository path'));
 
         self::validateHost($host);
         self::validateUser($user);
@@ -203,6 +200,11 @@ final class SshReceivePackTransport implements ReceivePackTransport
         }
 
         return $path;
+    }
+
+    private static function isSshScheme(string $scheme): bool
+    {
+        return in_array(strtolower($scheme), ['ssh', 'ssh+git', 'git+ssh'], true);
     }
 
     private static function normalizeHost(string $host): string

@@ -465,6 +465,7 @@ final class SQLiteAttachedSchemaCatalog
 
         $parsed = SQLitePragmaSchemaCatalog::parsePragma($sql);
         $schemaName = $parsed['schema'];
+        $targetOptionalPragma = in_array($parsed['pragma'], ['table_info', 'foreign_key_list'], true);
 
         if ($parsed['pragma'] === 'table_list' && $schemaName === null) {
             return [
@@ -476,7 +477,9 @@ final class SQLiteAttachedSchemaCatalog
             ];
         }
 
-        if ($schemaName === null) {
+        if ($schemaName === null && $targetOptionalPragma && $parsed['target'] === '') {
+            $schemaName = 'main';
+        } elseif ($schemaName === null) {
             $resolved = match ($parsed['pragma']) {
                 'table_info', 'table_xinfo', 'index_list', 'foreign_key_list' => $this->resolveTable($parsed['target']),
                 'index_info', 'index_xinfo' => $this->resolveIndex($parsed['target']),
@@ -489,7 +492,9 @@ final class SQLiteAttachedSchemaCatalog
             }
         }
 
-        if ($parsed['pragma'] === 'table_list') {
+        if ($parsed['target'] === '' && $targetOptionalPragma) {
+            $pragmaSql = 'PRAGMA ' . $parsed['pragma'];
+        } elseif ($parsed['pragma'] === 'table_list') {
             $pragmaSql = 'PRAGMA ' . self::pragmaIdentifier($schemaName) . '.table_list'
                 . ($parsed['target'] === '' ? '' : '(' . self::pragmaArgumentLiteral($parsed['target']) . ')');
         } else {
@@ -528,6 +533,7 @@ final class SQLiteAttachedSchemaCatalog
 
         $parsed = SQLitePragmaSchemaCatalog::parseTableValuedPragma($sql);
         $schemaName = $parsed['schema'];
+        $targetOptionalPragma = in_array($parsed['pragma'], ['table_info', 'foreign_key_list'], true);
 
         if ($parsed['pragma'] === 'table_list' && $schemaName === null) {
             return [
@@ -539,7 +545,9 @@ final class SQLiteAttachedSchemaCatalog
             ];
         }
 
-        if ($schemaName === null) {
+        if ($schemaName === null && $targetOptionalPragma && $parsed['target'] === '') {
+            $schemaName = 'main';
+        } elseif ($schemaName === null) {
             $resolved = match ($parsed['pragma']) {
                 'table_info', 'table_xinfo', 'index_list', 'foreign_key_list' => $this->resolveTable($parsed['target']),
                 'index_info', 'index_xinfo' => $this->resolveIndex($parsed['target']),

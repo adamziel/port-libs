@@ -201,6 +201,40 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules deduplicates repeated composes references from simple local selectors' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
+        $css = <<<'CSS'
+:local(.test) {
+  composes: foo;
+  composes: foo;
+  composes: foo from global;
+  composes: foo from global;
+  composes: bar from "bar.css";
+  composes: bar from "bar.css";
+  background: white;
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css);
+
+        $t->same('.EgL3uq_test{background:#fff}', $result['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [
+                $local('EgL3uq_foo'),
+                $global('foo'),
+                $dependency('bar', 'bar.css'),
+            ]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
+    'css modules rejects composes outside simple local class selectors' => static function (TestRunner $t): void {
+        $transformer = new CssModulesTransformer();
+
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('.ancestor .test { composes: foo; color: red }'));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('.test:hover { composes: foo; color: red }'));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('.test.foo { composes: foo; color: red }'));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('#test { composes: foo; color: red }'));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform(':global(.test) { composes: foo; color: red }'));
+    },
     'css modules keeps parent composes exports while lowering nested local selectors' => static function (TestRunner $t) use ($export, $dependency): void {
         $css = <<<'CSS'
 .foo {

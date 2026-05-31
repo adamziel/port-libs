@@ -74,6 +74,7 @@ final class CssModulesTransformer
 
             [$selector, $locals] = $this->rewriteSelectorList($prelude);
             [$rewrittenBody, $composes] = $this->rewriteStyleBody($body);
+            $this->assertValidComposesSelector($prelude, $composes);
             $this->addComposesToLocals($locals, $composes);
 
             $output .= $selector . '{' . $rewrittenBody . '}';
@@ -129,6 +130,7 @@ final class CssModulesTransformer
             } else {
                 [$selector, $locals] = $this->rewriteSelectorList($nestedPrelude);
                 [$rewrittenNestedBody, $nestedComposes] = $this->rewriteStyleBody($nestedBody);
+                $this->assertValidComposesSelector($nestedPrelude, $nestedComposes);
                 $this->addComposesToLocals($locals, $nestedComposes);
                 $output .= $selector . '{' . $rewrittenNestedBody . '}';
             }
@@ -252,9 +254,48 @@ final class CssModulesTransformer
         foreach ($locals as $local) {
             $this->ensureExport($local);
             foreach ($composes as $compose) {
+                if (in_array($compose, $this->exports[$local]['composes'], true)) {
+                    continue;
+                }
                 $this->exports[$local]['composes'][] = $compose;
             }
         }
+    }
+
+    /**
+     * @param list<array{type:string, name:string, specifier?:string}> $composes
+     */
+    private function assertValidComposesSelector(string $selectorList, array $composes): void
+    {
+        if ($composes === []) {
+            return;
+        }
+
+        foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
+            if (!$this->isSimpleLocalClassSelector($selector)) {
+                throw new \InvalidArgumentException('CSS Modules composes may only be used in a simple local class selector');
+            }
+        }
+    }
+
+    private function isSimpleLocalClassSelector(string $selector): bool
+    {
+        $selector = trim($selector);
+        if ($selector === '') {
+            return false;
+        }
+
+        if ($this->startsWithPseudoFunction($selector, 0, ':local')) {
+            $open = strlen(':local');
+            $close = $this->findMatchingParen($selector, $open);
+            if (trim(substr($selector, $close + 1)) !== '') {
+                return false;
+            }
+
+            $selector = trim(substr($selector, $open + 1, $close - $open - 1));
+        }
+
+        return preg_match('/^\.[A-Za-z_-][A-Za-z0-9_-]*$/', $selector) === 1;
     }
 
     /**

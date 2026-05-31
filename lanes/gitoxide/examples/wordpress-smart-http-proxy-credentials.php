@@ -18,5 +18,15 @@ return [
     ),
     'proxyAuthorizationSent' => $fixture['proxyAuthorizationSent'],
     'originProxyHeaderLeaked' => $fixture['originProxyHeaderLeaked'],
+    'unexpectedStatusRejected' => $fixture['unexpectedStatusRejected'],
+    'unexpectedStatusStores' => $fixture['unexpectedStatusStores'],
+    'unexpectedStatusErasures' => array_map(
+        static fn (array $entry): array => [
+            'proxyUrl' => $entry[0],
+            'requestHost' => $entry[1],
+            'username' => $entry[2]['username'],
+        ],
+        $fixture['unexpectedStatusErasures']
+    ),
     'wordpressUse' => $fixture['wordpressUse'],
 ];
