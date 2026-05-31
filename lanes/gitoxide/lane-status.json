@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 89.7,
+    "estimatedProgress": 89.8,
     "suiteProgress": "Supervisor-integrated Gitoxide reference transaction, protocol v2 fetch SHA-256 sideband, send-pack response-end terminator, smart HTTP noProxy wildcard/literal, and SSH receive-pack IPv6/user boundary slices. Verification passed focused gate 4 files / 1517 assertions / 0 failures, full Gitoxide lane 39 files / 5907 assertions / 0 failures, accepted examples, PHP lint, JSON/diff checks.",
-    "phpPass": 5907,
+    "phpPass": 5950,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full runner not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source a8642b9f8: full Gitoxide lane passed 39 files / 5907 assertions / 0 failures. Conservative mapped coverage moves from 1644 / 2886 to 1647 / 2886: reference transaction symbolic reflog/lock parity, protocol v2 fetch SHA-256 sideband object-format sections, and send-pack response-end terminator behavior. Smart HTTP noProxy and SSH receive-pack boundary slices deepen represented transport clusters. Full upstream Cargo workspace was not executed.",
-    "currentWork": "Reference transaction symbolic reflog/lock behavior, protocol v2 fetch SHA-256 sideband object-format sections, send-pack response-end terminator parsing, smart HTTP noProxy wildcard/literal behavior, and SSH receive-pack IPv6/user boundaries integrated on current base.",
-    "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch due workspace breadth. Native PHP focused/full-lane evidence is green; continue bounded Gitoxide workers while LightningCSS remains the larger capacity target.",
-    "latestCommit": "a8642b9f8e878e60ccdcfc5002ab80052960c301",
-    "nextTask": "Keep bounded Gitoxide workers on credential, partial clone, pack/index, receive-pack, smart HTTP, SSH, reference, send-pack, fetch-response, config, pathspec, URL/refspec, and merge-base slices with fresh mapped coverage and full-lane PHP evidence.",
+    "audit": "2026-05-31 supervisor follow-up batch at source fc38762cf: full Gitoxide lane passed 39 files / 5950 assertions / 0 failures. Conservative mapped coverage moves from 1647 / 2886 to 1649 / 2886: multi-pack-index prefix candidate/range parity and conflicting-rename-complex resolve-tree parity. Full upstream Cargo workspace was not executed.",
+    "currentWork": "Multi-pack-index prefix candidates and recursive tree-merge conflicting-rename resolve-tree parity integrated on current base, alongside ObjectDatabase multi-pack offset validation follow-ups.",
+    "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch due workspace breadth. Native PHP full-lane evidence is green at 5950 assertions; continue bounded Gitoxide workers while LightningCSS remains the larger capacity target.",
+    "latestCommit": "fc38762cf870ac6675fc1e4efb0e83a990db030e",
+    "nextTask": "Keep three Gitoxide workers on loose-object integrity, sparse-checkout/pathspec, config include, pack/index, receive-pack, smart HTTP, SSH, and partial-clone slices with full-lane PHP gates after each accepted batch.",
     "commit": "a8642b9f8e878e60ccdcfc5002ab80052960c301"
 }

@@ -55,6 +55,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (window cleanup + CSS/Git/SQLite follow-up
+  22:20 UTC): pushed `b5eea1a41` to make Gitoxide and LightningCSS refills
+  close only completed ready `port-dev-*` windows before counting capacity;
+  active workers are preserved and future refills are capped at the requested
+  Gitoxide/LightningCSS ceilings. Source commit `fc38762cf870ac6675fc1e4efb0e83a990db030e`
+  (`ports: extend git css sqlite parity followups`) then landed eight screened
+  handoffs while preserving older untracked libsqlite leftovers. Verification
+  passed `git diff --check`, full Gitoxide `39 files / 5950 assertions / 0
+  failures`, full LightningCSS `13 files / 4649 assertions / 0 failures`, and
+  focused libsqlite `3 files / 20079 assertions / 0 failures` including
+  `SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext761776Test.php` and
+  `SQLiteNoDomainSpecificApiTest.php`. Dashboard evidence now reports Gitoxide
+  `1649 / 2886` mapped and `5950 pass / 0 fail`, LightningCSS `2167 / 3532`
+  mapped and `4649 pass / 0 fail`, and libsqlite `1589 / 1589` mapped with
+  `3966188 pass / 0 fail`. The named JSON-table rowid-cost blocker is fixed in
+  focused evidence; full libsqlite release/all-runner parity is still not
+  proven. Current tmux pool target remains 6 LightningCSS, 3 Gitoxide, and 2
+  libsqlite workers with no long sleepers.
+
 - 2026-05-31 supervisor continuation (CSS/Git/SQLite parity batch 22:05 UTC):
   source commit `a8642b9f8e878e60ccdcfc5002ab80052960c301` (`ports: extend
   git css sqlite parity slices`) landed fifteen screened handoffs; one
