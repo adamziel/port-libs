@@ -6,19 +6,22 @@ LANE="${1:?lane name required}"
 SLICE="${2:?micro-slice label required}"
 SESSION="${3:-isolated-${LANE}-${SLICE}}"
 
-refill_libsqlite_on_exit() {
+refill_lane_on_exit() {
   local status=$?
   trap - EXIT
   if [[ "${LANE:-}" == "libsqlite" && "${LIBSQLITE_AUTO_REFILL:-1}" != "0" && -x "$ROOT/scripts/refill-libsqlite-workers.sh" ]]; then
     LIBSQLITE_AUTO_REFILL=0 bash "$ROOT/scripts/refill-libsqlite-workers.sh" --once || true
   fi
+  if [[ "${LANE:-}" == "gitoxide" && "${GITOXIDE_AUTO_REFILL:-1}" != "0" && -x "$ROOT/scripts/refill-gitoxide-workers.sh" ]]; then
+    GITOXIDE_AUTO_REFILL=0 bash "$ROOT/scripts/refill-gitoxide-workers.sh" --once || true
+  fi
   exit "$status"
 }
-trap refill_libsqlite_on_exit EXIT
+trap refill_lane_on_exit EXIT
 
 AGENT_BIN="${AGENT_BIN:-codex}"
 AGENT_FAST_MODEL="${AGENT_FAST_MODEL:-gpt-5.5}"
-AGENT_FAST_REASONING="${AGENT_FAST_REASONING:-low}"
+AGENT_FAST_REASONING="${AGENT_FAST_REASONING:-xhigh}"
 AGENT_FAST_SERVICE_TIER="${AGENT_FAST_SERVICE_TIER:-priority}"
 
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"

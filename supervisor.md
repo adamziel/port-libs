@@ -15,6 +15,23 @@
 - No secret inspection, printing, or copying.
 - No wrappers as final port deliverables.
 
+## Split Priority Override 2026-05-31T08:10Z
+- New user direction: run the visible worker pool roughly half on continued
+  libsqlite closure and half on Gitoxide porting. Do not keep all capacity on
+  libsqlite while Gitoxide has no active workers.
+- New subagent launch rule: all newly started subagents must use
+  `gpt-5.5` with `model_reasoning_effort="xhigh"` on the fast/priority service
+  tier unless the user explicitly changes this later.
+- Current target: 6 active isolated libsqlite workers and 6 active isolated
+  gitoxide workers in tmux session `main`, with no long sleepers. Preserve
+  dirty worktrees and handoffs while stopping excess libsqlite panes only as
+  needed to make room.
+- Gitoxide workers should own bounded upstream-backed slices in protocol/
+  transport, reference transactions, pack/index/object database behavior,
+  commit/tree writing/parsing, SSH/auth boundaries, and fixture parity.
+- Continue libsqlite integration from accepted evidence; do not publish a
+  libsqlite batch that introduces an unaccounted default-memory regression.
+
 ## Worker Topology
 - supervisor: manage queue, liveness, resource use, integration pressure, and anti-drift.
 - lane workers: implement lane-local native PHP slices and leave focused evidence. Normal watchdog restarts run as isolated worktree workers by default; use `WATCHDOG_USE_ISOLATED_LANE_WORKERS=0` only for an explicit shared-checkout compatibility fallback.

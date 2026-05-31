@@ -8,6 +8,24 @@ Worktree: `{{WORKTREE}}`
 Main repo for handoff artifacts only: `{{MAIN_REPO}}`
 Supervisor log: `{{LOG_FILE}}`
 
+Current supervisor override, 2026-05-31 08:10 UTC:
+
+- Split-priority override: the active worker pool is intentionally split
+  roughly half `libsqlite` and half `gitoxide`. If `Lane` is `gitoxide`, ignore
+  the SQLite-specific rules below except for the general handoff discipline:
+  work only under `lanes/gitoxide/**`, preserve unrelated dirty work, produce a
+  real patch, run focused Gitoxide tests/examples for your slice, and leave
+  evidence in the handoff log/notes. Gitoxide slices should port or verify real
+  Gitoxide behavior from upstream source truth, prioritizing protocol/transport,
+  reference transactions, pack/index/object database behavior, commit/tree
+  writing/parsing, SSH/auth boundaries, and fixture parity. Do not edit
+  dashboard/progress files from a worker. If the slice is too broad, reduce it
+  to a bounded upstream-backed behavior with passing PHP tests instead of
+  returning status-only notes.
+- New subagents must use `gpt-5.5` with
+  `model_reasoning_effort="xhigh"` on the priority service tier unless the
+  user explicitly changes this later.
+
 Current supervisor override, 2026-05-30 13:20 UTC:
 
 - Throughput override, 2026-05-30 15:38 UTC:
