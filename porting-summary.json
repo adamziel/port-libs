@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 02:05:30 UTC",
-    "sourceCommit": "6451294be55eb68219fdd7d7a7020d4ba5af3986",
-    "sourceCommitShort": "6451294be55e",
+    "generated": "2026-05-31 02:10:38 UTC",
+    "sourceCommit": "1f2bdedda6568188aafed5c434384e46a2ba18dc",
+    "sourceCommitShort": "1f2bdedda656",
     "sourceBranch": "unknown",
-    "dashboardCommit": "6451294be55eb68219fdd7d7a7020d4ba5af3986",
-    "dashboardCommitShort": "6451294be55e",
+    "dashboardCommit": "1f2bdedda6568188aafed5c434384e46a2ba18dc",
+    "dashboardCommitShort": "1f2bdedda656",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "1630123 pass / 0 fail",
+            "php": "1638574 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted forty-eighth current-corpus batc...",
-            "currentWork": "Published source d7adf55c8c9ddf2f268d9d52bd1ed0749c8d4e94 with a forty-eighth current-bas...",
+            "audit": "Accepted forty-ninth current-corpus batch...",
+            "currentWork": "Published source 9fa3c59799cb939a39fd8bd9c112c4768ae47fbe with a forty-ninth current-base...",
             "nextTarget": "Continue integrating fresh current-base high-yield libsqlite handoffs from the live 10-11...",
-            "blocker": "Selected forty-eighth corpus gates pass.",
-            "commit": "d7adf55"
+            "blocker": "Selected forty-ninth corpus gates pass after parking the trigger/FK hando...",
+            "commit": "9fa3c59"
         },
         {
             "library": "LightningCSS",
