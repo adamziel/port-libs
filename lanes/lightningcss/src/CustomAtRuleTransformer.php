@@ -21,6 +21,9 @@ final class CustomAtRuleTransformer
     /** @var callable|null */
     private $genericUnknownRuleVisitor = null;
 
+    /** @var callable|null */
+    private $styleRuleVisitor = null;
+
     /** @var array<string, callable> */
     private array $functionVisitors = [];
 
@@ -93,6 +96,39 @@ final class CustomAtRuleTransformer
                     }
 
                     return $forwardedUnknown ? ['type' => 'unknown', 'value' => $rule] : null;
+                },
+                'style' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    $rules = [$rule];
+                    foreach ($visitors as $visitor) {
+                        $callback = self::styleRuleVisitorCallback($visitor);
+                        if ($callback === null) {
+                            continue;
+                        }
+
+                        $nextRules = [];
+                        foreach ($rules as $currentRule) {
+                            $replacement = $callback($currentRule, $transformer);
+                            if ($replacement === null) {
+                                $nextRules[] = $currentRule;
+                                continue;
+                            }
+
+                            foreach (self::normalizeStyleRuleVisitorReplacement($currentRule, $replacement) as $nextRule) {
+                                $nextRules[] = $nextRule;
+                            }
+                        }
+
+                        $rules = $nextRules;
+                        if ($rules === []) {
+                            break;
+                        }
+                    }
+
+                    if ($rules === []) {
+                        return [];
+                    }
+
+                    return count($rules) === 1 ? $rules[0] : $rules;
                 },
             ],
             'Token' => [
@@ -253,6 +289,12 @@ final class CustomAtRuleTransformer
                     $this->unknownRuleVisitors[strtolower((string) $name)] = $callback;
                 }
             }
+        }
+
+        $this->styleRuleVisitor = null;
+        $styleVisitor = $visitor['Rule']['style'] ?? $visitor['style'] ?? null;
+        if (is_callable($styleVisitor)) {
+            $this->styleRuleVisitor = $styleVisitor;
         }
 
         $this->functionVisitors = [];
@@ -635,10 +677,10 @@ final class CustomAtRuleTransformer
             $selector = (string) ($replacement['selector'] ?? '');
             $declarations = $replacement['declarations'] ?? '';
             if (is_array($declarations)) {
-                return $this->emitDeclarationRule([$selector], $this->declarationsToCss($declarations));
+                return $this->emitDeclarationRule([$selector], $this->declarationsToCss($declarations), false);
             }
 
-            return $this->emitDeclarationRule([$selector], (string) $declarations);
+            return $this->emitDeclarationRule([$selector], (string) $declarations, false);
         }
 
         throw new \InvalidArgumentException("Unsupported custom at-rule replacement kind: {$kind}");
@@ -752,6 +794,28 @@ final class CustomAtRuleTransformer
     /**
      * @param array<string, mixed> $visitor
      */
+    private static function styleRuleVisitorCallback(array $visitor): ?callable
+    {
+        $ruleConfig = $visitor['Rule'] ?? null;
+        if (is_callable($ruleConfig)) {
+            return $ruleConfig;
+        }
+
+        if (is_array($ruleConfig) && is_callable($ruleConfig['style'] ?? null)) {
+            return $ruleConfig['style'];
+        }
+
+        $styleConfig = $visitor['style'] ?? null;
+        if (is_callable($styleConfig)) {
+            return $styleConfig;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
     private static function functionVisitorCallback(array $visitor, string $functionName): ?callable
     {
         $functionConfig = $visitor['Function'] ?? null;
@@ -782,6 +846,43 @@ final class CustomAtRuleTransformer
     private static function normalizeUnknownRuleReplacement(array $current, array $replacement): array
     {
         return array_replace($current, $replacement['value']);
+    }
+
+    /**
+     * @param array<string, mixed> $current
+     * @return list<array<string, mixed>>
+     */
+    private static function normalizeStyleRuleVisitorReplacement(array $current, mixed $replacement): array
+    {
+        if ($replacement === false || $replacement === []) {
+            return [];
+        }
+        if (!is_array($replacement)) {
+            throw new \InvalidArgumentException('Rule.style visitor must return a style rule array, list of style rules, or null');
+        }
+        if (array_is_list($replacement)) {
+            $rules = [];
+            foreach ($replacement as $item) {
+                foreach (self::normalizeStyleRuleVisitorReplacement($current, $item) as $rule) {
+                    $rules[] = $rule;
+                }
+            }
+
+            return $rules;
+        }
+        if (($replacement['kind'] ?? null) === 'remove') {
+            return [];
+        }
+
+        $rule = array_replace($current, $replacement);
+        if (array_key_exists('selector', $replacement) && !array_key_exists('selectors', $replacement)) {
+            $rule['selectors'] = array_values(array_filter(
+                array_map('trim', explode(',', (string) $replacement['selector'])),
+                static fn (string $selector): bool => $selector !== ''
+            ));
+        }
+
+        return [$rule];
     }
 
     /**
@@ -827,7 +928,7 @@ final class CustomAtRuleTransformer
     /**
      * @param list<string> $selectors
      */
-    private function emitDeclarationRule(array $selectors, string $declarations): string
+    private function emitDeclarationRule(array $selectors, string $declarations, bool $visitStyleRule = true): string
     {
         $declarations = trim($declarations);
         if ($declarations === '') {
@@ -835,13 +936,96 @@ final class CustomAtRuleTransformer
         }
 
         $entries = $this->declarationBlock->parseEntries($declarations);
+        if ($entries === []) {
+            return '';
+        }
+
+        $rule = [
+            'kind' => 'style-rule',
+            'selector' => implode(',', array_map('trim', $selectors)),
+            'selectors' => array_values(array_map('trim', $selectors)),
+            'declarations' => $entries,
+        ];
+        if ($visitStyleRule && $this->styleRuleVisitor !== null) {
+            return $this->emitStyleRuleReplacement(($this->styleRuleVisitor)($rule, $this), $rule);
+        }
+
+        return $this->emitStyleRule($rule);
+    }
+
+    /**
+     * @param array<string, mixed> $fallbackRule
+     */
+    private function emitStyleRuleReplacement(mixed $replacement, array $fallbackRule): string
+    {
+        if ($replacement === null) {
+            return $this->emitStyleRule($fallbackRule);
+        }
+        if ($replacement === false || $replacement === []) {
+            return '';
+        }
+        if (is_string($replacement)) {
+            return $replacement;
+        }
+        if (!is_array($replacement)) {
+            throw new \InvalidArgumentException('Rule.style visitor must return a style rule array, list of style rules, string, or null');
+        }
+        if (array_is_list($replacement)) {
+            $css = '';
+            foreach ($replacement as $item) {
+                $css .= $this->emitStyleRuleReplacement($item, $fallbackRule);
+            }
+
+            return $css;
+        }
+        if (($replacement['kind'] ?? null) === 'remove') {
+            return '';
+        }
+
+        $rule = array_replace($fallbackRule, $replacement);
+        if (array_key_exists('selector', $replacement) && !array_key_exists('selectors', $replacement)) {
+            $rule['selectors'] = array_values(array_filter(
+                array_map('trim', explode(',', (string) $replacement['selector'])),
+                static fn (string $selector): bool => $selector !== ''
+            ));
+        }
+
+        return $this->emitStyleRule($rule);
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     */
+    private function emitStyleRule(array $rule): string
+    {
+        $selectors = $rule['selectors'] ?? null;
+        if (!is_array($selectors) || $selectors === []) {
+            $selectors = [(string) ($rule['selector'] ?? '')];
+        }
+
+        $entries = $rule['declarations'] ?? [];
+        if (!is_array($entries)) {
+            $entries = $this->declarationBlock->parseEntries((string) $entries);
+        }
+
         $body = '';
         foreach ($entries as $entry) {
-            $body .= $entry['property'] . ':' . $this->rewriteDeclarationValue($entry['value']);
-            if ($entry['important']) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $property = (string) ($entry['property'] ?? '');
+            if ($property === '') {
+                continue;
+            }
+            $body .= $property . ':' . $this->rewriteDeclarationValue((string) ($entry['value'] ?? ''));
+            if (!empty($entry['important'])) {
                 $body .= ' !important';
             }
             $body .= ';';
+        }
+
+        if ($body === '') {
+            return '';
         }
 
         return implode(',', array_map('trim', $selectors)) . '{' . $body . '}';

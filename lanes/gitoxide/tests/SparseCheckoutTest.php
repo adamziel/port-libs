@@ -209,6 +209,24 @@ return [
             ),
         );
     },
+    'pathspec sparse checkout treats unknown exact directory only matches as files' => static function (TestRunner $t): void {
+        $directory = SparseCheckoutSpec::fromPathspecs(['wp-content/cache/']);
+
+        $t->same(false, $directory->includesPath('wp-content/cache', null));
+        $t->same(true, $directory->skipWorktree('wp-content/cache', null));
+        $t->same(false, $directory->includesPath('wp-content/cache', false));
+        $t->same(true, $directory->includesPath('wp-content/cache', true));
+        $t->same(true, $directory->includesPath('wp-content/cache/page.html', null));
+        $t->same(true, $directory->includesPath('wp-content/cache/page.html', false));
+        $t->same(false, $directory->includesPath('wp-content/cache-busting', true));
+
+        $prefixedEmpty = SparseCheckoutSpec::fromPathspecs([], prefix: 'wp-content/themes');
+        $t->same(false, $prefixedEmpty->includesPath('wp-content/themes', null));
+        $t->same(true, $prefixedEmpty->skipWorktree('wp-content/themes', null));
+        $t->same(false, $prefixedEmpty->includesPath('wp-content/themes', false));
+        $t->same(true, $prefixedEmpty->includesPath('wp-content/themes', true));
+        $t->same(true, $prefixedEmpty->includesPath('wp-content/themes/acme/style.css', null));
+    },
     'pathspec sparse checkout keeps excludes authoritative independent of input order' => static function (TestRunner $t): void {
         $positiveThenExclude = SparseCheckoutSpec::fromPathspecs([
             'wp-content/**',

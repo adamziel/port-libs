@@ -219,19 +219,25 @@ final class SQLitePDO extends \PDO
                 return ['rows' => [], 'changes' => 0];
             }
             if (SQLiteInsertValuesSql::startsWithInsertKeyword($sql)) {
-                $result = ['rows' => [], 'changes' => $this->insertValues($sql, $parameters)];
+                $result = $this->executeDataChangeAtomically(
+                    fn (): array => ['rows' => [], 'changes' => $this->insertValues($sql, $parameters)],
+                );
                 $this->clearError();
 
                 return $result;
             }
             if (preg_match('/^update\b/i', $sql) === 1) {
-                $result = ['rows' => [], 'changes' => $this->updateRows($sql, $parameters)];
+                $result = $this->executeDataChangeAtomically(
+                    fn (): array => ['rows' => [], 'changes' => $this->updateRows($sql, $parameters)],
+                );
                 $this->clearError();
 
                 return $result;
             }
             if (preg_match('/^delete\b/i', $sql) === 1) {
-                $result = ['rows' => [], 'changes' => $this->deleteRows($sql, $parameters)];
+                $result = $this->executeDataChangeAtomically(
+                    fn (): array => ['rows' => [], 'changes' => $this->deleteRows($sql, $parameters)],
+                );
                 $this->clearError();
 
                 return $result;
@@ -270,6 +276,27 @@ final class SQLitePDO extends \PDO
         $this->errorInfo = ['HY000', 1, $message];
 
         return new \PDOException($message, 0, $previous);
+    }
+
+    /**
+     * @param callable(): array{rows:list<array<string,mixed>>,changes:int} $operation
+     * @return array{rows:list<array<string,mixed>>,changes:int}
+     */
+    private function executeDataChangeAtomically(callable $operation): array
+    {
+        $tables = $this->tables;
+        $columns = $this->columns;
+        $lastInsertId = $this->lastInsertId;
+
+        try {
+            return $operation();
+        } catch (\Throwable $exception) {
+            $this->tables = $tables;
+            $this->columns = $columns;
+            $this->lastInsertId = $lastInsertId;
+
+            throw $exception;
+        }
     }
 
     /** @return list<string> */
@@ -460,6 +487,14 @@ final class SQLitePDO extends \PDO
         }
         if (preg_match("/^'(.*)'$/s", $expression, $match) === 1) {
             return str_replace("''", "'", $match[1]);
+        }
+        if (preg_match('/^(jsonb?)\s*\((.*)\)$/is', $expression, $match) === 1) {
+            $arguments = [];
+            foreach ($this->splitTopLevel($match[2], ',') as $argument) {
+                $arguments[] = $this->value($argument, $parameters, $row);
+            }
+
+            return SQLiteJsonCanonical::jsonSqlFunctionArguments($match[1], $arguments);
         }
 
         throw new \PDOException("SQLitePDO unsupported scalar expression: {$expression}");

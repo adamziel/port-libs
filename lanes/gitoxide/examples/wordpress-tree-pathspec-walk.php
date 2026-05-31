@@ -82,6 +82,16 @@ $inheritedIcasePathspecs = PathspecSearch::fromSpecs(
     defaultIgnoreCase: true,
 );
 $prefixedPathspecs = PathspecSearch::fromSpecs([':(icase)mu-plugins/*.php'], 'WP-CONTENT');
+$siblingPrefixPathspecs = PathspecSearch::fromSpecs(
+    ['../themes/acme/theme.json'],
+    'wp-content/plugins',
+);
+$rootEscapingPathspecRejected = false;
+try {
+    PathspecSearch::fromSpecs(['../../../wp-config.php'], 'wp-content/plugins');
+} catch (InvalidArgumentException) {
+    $rootEscapingPathspecRejected = true;
+}
 
 $records = TreePathspecWalk::breadthFirst(
     $root,
@@ -155,6 +165,18 @@ $inheritedIcaseRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$siblingPrefixRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $siblingPrefixPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 
 return [
     'matchedContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $records),
@@ -174,6 +196,8 @@ return [
     'pathAwareDefaultContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $pathAwareDefaultRecords),
     'pathAwareDefaultNestedSrcSkipped' => !$pathAwareDefaultPathspecs->isIncluded('wp-content/plugins/gutenberg/src/editor.js', false),
     'inheritedIcaseDefaultContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $inheritedIcaseRecords),
+    'siblingPrefixContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $siblingPrefixRecords),
+    'rootEscapingPathspecRejected' => $rootEscapingPathspecRejected,
     'pathAwareSlashClassSkipped' => !PathspecSearch::fromSpecs([':(glob)wp-content/plugins/foo[/]bar.php'])->isIncluded('wp-content/plugins/foo/bar.php', false),
     'shellSlashClassIncluded' => PathspecSearch::fromSpecs(['wp-content/plugins/foo[/]bar.php'])->isIncluded('wp-content/plugins/foo/bar.php', false),
     'prefixCaseSensitiveUpperContentIncluded' => $prefixedPathspecs->isIncluded('WP-CONTENT/mu-plugins/loader.php', false),

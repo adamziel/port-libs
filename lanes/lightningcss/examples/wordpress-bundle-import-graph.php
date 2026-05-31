@@ -81,11 +81,13 @@ $moduleBundle = (new CssBundler())->bundleCssModules('/modules/card.css', [
 .card {
   composes: token missing-token from "../tokens.module.css";
   color: red;
+  background: var(--card-bg from "../tokens.module.css");
 }
 CSS,
     '/tokens.module.css' => <<<'CSS'
 .token {
   border-color: blue;
+  --card-bg: blue;
 }
 CSS,
     '/theme.css' => '.theme { color: yellow }',
@@ -95,10 +97,11 @@ CSS,
         '/tokens.module.css' => 'tok',
         '/theme.css' => 'theme',
     ],
+    'dashedIdents' => true,
 ]);
 
 if (
-    $moduleBundle['code'] !== '.tok_token{border-color:#00f}.theme_theme{color:#ff0}.card_card{color:red}'
+    $moduleBundle['code'] !== '.tok_token{border-color:#00f;--tok_card-bg:blue}.theme_theme{color:#ff0}.card_card{color:red;background:var(--tok_card-bg)}'
     || ($moduleBundle['exports']['card']['composes'][0]['name'] ?? null) !== 'tok_token'
 ) {
     fwrite(STDERR, "Unexpected CSS Modules bundle graph output\n");

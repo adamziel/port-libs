@@ -361,7 +361,7 @@ final class SparseCheckoutSpec
             return true;
         }
 
-        if ($rule['directoryOnly'] && $isDirectory === false && !str_starts_with($path, $rule['pattern'] . '/')) {
+        if ($rule['directoryOnly'] && $isDirectory !== true && !str_starts_with($path, $rule['pattern'] . '/')) {
             return false;
         }
 
@@ -458,8 +458,15 @@ final class SparseCheckoutSpec
             return true;
         }
 
-        return str_starts_with($candidate, rtrim($literalPrefix, '/'))
+        $literalPrefix = rtrim($literalPrefix, '/');
+
+        return self::pathStartsWithDirectoryPrefix($candidate, $literalPrefix)
             || str_starts_with($literalPrefix, $candidate . '/');
+    }
+
+    private static function pathStartsWithDirectoryPrefix(string $path, string $prefix): bool
+    {
+        return $path === $prefix || str_starts_with($path, $prefix . '/');
     }
 
     /**

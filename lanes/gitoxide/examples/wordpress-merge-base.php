@@ -50,6 +50,14 @@ $compatibilityNoCommitGraphBase = $compatibilityNoCommitGraphBases[0] ?? null;
 $sequentialOctopusBase = $finder->mergeBaseOctopus($fixture['octopusSpecialHeads']);
 $reorderedOctopusBase = $finder->mergeBaseOctopus($fixture['octopusReorderedHeads']);
 $stableOctopusIntersectionBases = $finder->mergeBasesMany($fixture['octopusSpecialHeads']);
+$shallowGraphWalkBase = $timeOnlyFinder->mergeBaseAgainst(
+    $fixture['shallowPluginReview'],
+    $fixture['shallowGraphWalkOthers'],
+);
+$shallowPairwiseBase = $timeOnlyFinder->mergeBase(
+    $fixture['shallowPluginReview'],
+    $fixture['shallowThemeReview'],
+);
 
 return [
     'reviewHeads' => $fixture['heads'],
@@ -84,6 +92,11 @@ return [
     'sequentialOctopusFallsBackToReleaseBaseline' => $sequentialOctopusBase === $fixture['releaseBaseline'],
     'reorderedOctopusKeepsLegacyBaseline' => $reorderedOctopusBase === $fixture['legacyBaseline'],
     'stableIntersectionKeepsLegacyBaseline' => $stableOctopusIntersectionBases === [$fixture['legacyBaseline']],
+    'shallowGraphWalkBase' => $shallowGraphWalkBase,
+    'shallowPairwiseBase' => $shallowPairwiseBase,
+    'shallowReleaseBaseline' => $fixture['shallowReleaseBaseline'],
+    'shallowGraphWalkStopsAtReleaseBaseline' => $shallowGraphWalkBase === $fixture['shallowReleaseBaseline'],
+    'shallowPairwiseStopsAtReleaseBaseline' => $shallowPairwiseBase === $fixture['shallowReleaseBaseline'],
     'sha256ReviewHeads' => $fixture['sha256ReviewHeads'],
     'sha256ReviewBase' => $sha256ReviewBase,
     'sha256GraphWalkBase' => $sha256GraphWalkBase,

@@ -436,6 +436,34 @@ return [
         $t->same(['WP-CONTENT/plugins/Plugin.PHP'], $walkPaths($records));
         $t->same(['WP-CONTENT', 'WP-CONTENT/plugins'], $readPaths);
     },
+    'guards prefix normalization from escaping the worktree during tree walks' => static function (TestRunner $t) use ($makeTreeStore, $walkPaths): void {
+        [$root, $read] = $makeTreeStore();
+
+        $sibling = PathspecSearch::fromSpecs(['../themes/acme/theme.json'], 'wp-content/plugins');
+        $t->same('wp-content', $sibling->prefixDirectory());
+        $t->same(true, $sibling->isIncluded('wp-content/themes/acme/theme.json', false));
+        $t->same([
+            'wp-content/themes/acme/theme.json',
+        ], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $sibling,
+            $read,
+            includeTrees: false,
+        )));
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => PathspecSearch::fromSpecs(['../../../index.php'], 'wp-content/plugins'),
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => PathspecSearch::fromSpecs([':(top)../index.php'], 'wp-content/plugins'),
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => PathspecSearch::fromSpecs(['../..'], 'wp-content'),
+        );
+    },
     'walks trees breadth first with pathspec matches and subtree pruning' => static function (TestRunner $t) use ($makeTreeStore, $walkPaths): void {
         [$root, $read] = $makeTreeStore();
         $readPaths = [];
@@ -553,5 +581,13 @@ return [
             'wp-content/plugins/gutenberg/build/index.js',
             'wp-content/plugins/gutenberg/src/editor.js',
         ], $walkPaths($records));
+    },
+    'wordpress tree pathspec example records root escape guard' => static function (TestRunner $t): void {
+        $example = require dirname(__DIR__) . '/examples/wordpress-tree-pathspec-walk.php';
+
+        $t->same([
+            'wp-content/themes/acme/theme.json',
+        ], $example['siblingPrefixContentPaths']);
+        $t->same(true, $example['rootEscapingPathspecRejected']);
     },
 ];

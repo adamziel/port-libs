@@ -76,20 +76,26 @@ foreach ($cases as $name => [$sql, $field, $index, $expected]) {
 
 $tests['select window exclude filter current next27 plan records preceding frame'] = static function (TestRunner $t) use ($tables): void {
     $plan = SQLiteSelectSql::plan("SELECT sum(option_size) FILTER (WHERE autoload = 'yes') OVER (ORDER BY option_id ROWS BETWEEN 2 PRECEDING AND CURRENT ROW EXCLUDE CURRENT ROW) AS v FROM wp_options", $tables);
-    $t->same(['unit' => 'ROWS', 'preceding' => 2, 'following' => 0, 'exclude' => 'CURRENT ROW'], $plan['select'][0]['frame']);
+    $t->same(['unit' => 'ROWS', 'preceding' => 2, 'following' => 0, 'exclude' => 'CURRENT ROW', 'startBoundary' => '2 PRECEDING', 'endBoundary' => 'CURRENT ROW'], $plan['select'][0]['frame']);
 };
 
 $tests['select window exclude filter current next27 plan records preceding following frame'] = static function (TestRunner $t) use ($tables): void {
     $plan = SQLiteSelectSql::plan("SELECT count(*) FILTER (WHERE include_flag = 1) OVER (ORDER BY option_id RANGE BETWEEN 1.5 PRECEDING AND 2 FOLLOWING) AS v FROM wp_options", $tables);
-    $t->same(['unit' => 'RANGE', 'preceding' => 1.5, 'following' => 2, 'exclude' => 'NO OTHERS'], $plan['select'][0]['frame']);
+    $t->same(['unit' => 'RANGE', 'preceding' => 1.5, 'following' => 2, 'exclude' => 'NO OTHERS', 'startBoundary' => '1.5 PRECEDING', 'endBoundary' => '2 FOLLOWING'], $plan['select'][0]['frame']);
 };
 
-$tests['select window exclude filter current next27 rejects following start bound'] = static function (TestRunner $t) use ($tables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT count(*) OVER (ORDER BY option_id ROWS BETWEEN 1 FOLLOWING AND 2 FOLLOWING) AS v FROM wp_options", $tables));
+$tests['select window exclude filter current next27 accepts following following frame'] = static function (TestRunner $t) use ($column): void {
+    $t->same(
+        [2, 2, 2, 2, 2, 1, 0],
+        $column("SELECT count(*) OVER (ORDER BY option_id ROWS BETWEEN 1 FOLLOWING AND 2 FOLLOWING) AS v FROM wp_options", 'v'),
+    );
 };
 
-$tests['select window exclude filter current next27 rejects preceding end bound'] = static function (TestRunner $t) use ($tables): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute("SELECT count(*) OVER (ORDER BY option_id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS v FROM wp_options", $tables));
+$tests['select window exclude filter current next27 accepts preceding preceding frame'] = static function (TestRunner $t) use ($column): void {
+    $t->same(
+        [0, 1, 2, 2, 2, 2, 2],
+        $column("SELECT count(*) OVER (ORDER BY option_id ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING) AS v FROM wp_options", 'v'),
+    );
 };
 
 $tests['select window exclude filter current next27 rejects bare numeric bound'] = static function (TestRunner $t) use ($tables): void {

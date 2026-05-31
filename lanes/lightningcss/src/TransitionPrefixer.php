@@ -242,6 +242,7 @@ final class TransitionPrefixer
         $uiPrefixChanged = $this->rewriteUiPrefixEntries($entries, $targetOptions);
         $textCompatibilityPrefixChanged = $this->rewriteTextCompatibilityPrefixEntries($entries, $targetOptions);
         $positionStickyChanged = $this->rewritePositionStickyPrefixEntries($entries, $targetOptions);
+        $backgroundClipChanged = $this->rewriteBackgroundClipPrefixEntries($entries, $targetOptions);
         $maskChanged = $this->rewriteMaskPrefixEntries($entries, $selectors, $supportRules);
         $filterChanged = $this->rewriteFilterPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
         $boxShadowChanged = $this->rewriteBoxShadowPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
@@ -274,7 +275,7 @@ final class TransitionPrefixer
         if ($logicalInsetFallback !== null) {
             return $logicalInsetFallback . implode('', $supportRules);
         }
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -869,6 +870,14 @@ final class TransitionPrefixer
                 || $this->targetAtLeast($normalized, 'samsung', [4]),
             'stickyNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [6], [12, 2])
                 || $this->targetInRange($normalized, 'safari', [6, 1], [12, 1]),
+            'backgroundClipNeedsWebkit' => $this->targetInRange($normalized, 'android', [4], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [4], [119])
+                || $this->targetInRange($normalized, 'edge', [79], [119])
+                || $this->targetInRange($normalized, 'ios_saf', [4], [13])
+                || $this->targetInRange($normalized, 'opera', [15], [105])
+                || $this->targetInRange($normalized, 'safari', [3, 2], [13])
+                || $this->targetInRange($normalized, 'samsung', [4], [24]),
+            'backgroundClipNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [14]),
             'textDecorationNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [8], [26])
                 || $this->targetInRange($normalized, 'safari', [8], [26]),
             'textDecorationNeedsMoz' => $this->targetInRange($normalized, 'firefox', [6], [35]),
@@ -2562,6 +2571,126 @@ final class TransitionPrefixer
 
         $entries = $rewritten;
         return true;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteBackgroundClipPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $neededPrefixes = [
+            '-webkit-' => $targetOptions['backgroundClipNeedsWebkit'] ?? false,
+            '-ms-' => $targetOptions['backgroundClipNeedsMs'] ?? false,
+        ];
+        $vendorProperties = [
+            '-webkit-' => '-webkit-background-clip',
+            '-ms-' => '-ms-background-clip',
+        ];
+        $prefixedTextValues = [
+            '-webkit-' => false,
+            '-ms-' => false,
+        ];
+        $hasTextClip = false;
+        $hasStandaloneTextClip = false;
+
+        foreach ($entries as $entry) {
+            if ($entry['important']) {
+                continue;
+            }
+
+            if ($entry['property'] === 'background-clip' && strtolower(trim($entry['value'])) === 'text') {
+                $hasTextClip = true;
+                $hasStandaloneTextClip = true;
+                continue;
+            }
+
+            if ($entry['property'] === 'background' && $this->backgroundValueWithoutTextClip($entry['value']) !== null) {
+                $hasTextClip = true;
+                continue;
+            }
+
+            $prefix = $this->uiPrefixForProperty($entry['property'], $vendorProperties);
+            if ($prefix !== null && strtolower(trim($entry['value'])) === 'text') {
+                $prefixedTextValues[$prefix] = true;
+            }
+        }
+
+        if (!$hasTextClip) {
+            return false;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        foreach ($entries as $entry) {
+            $prefix = $this->uiPrefixForProperty($entry['property'], $vendorProperties);
+            if (
+                $prefix !== null
+                && !$entry['important']
+                && strtolower(trim($entry['value'])) === 'text'
+                && !($neededPrefixes[$prefix] ?? false)
+                && $hasTextClip
+            ) {
+                $changed = true;
+                continue;
+            }
+
+            if ($entry['property'] === 'background' && !$entry['important']) {
+                $background = $this->backgroundValueWithoutTextClip($entry['value']);
+                if ($background !== null && in_array(true, $neededPrefixes, true)) {
+                    if ($background !== '') {
+                        $rewritten[] = $this->entryWithValue($entry, $background);
+                    }
+                    foreach ($neededPrefixes as $neededPrefix => $needed) {
+                        if ($needed && !$prefixedTextValues[$neededPrefix]) {
+                            $rewritten[] = $this->declarationEntry($vendorProperties[$neededPrefix], 'text');
+                            $prefixedTextValues[$neededPrefix] = true;
+                        }
+                    }
+                    if (!$hasStandaloneTextClip) {
+                        $rewritten[] = $this->declarationEntry('background-clip', 'text');
+                    }
+                    $changed = true;
+                    continue;
+                }
+            }
+
+            if ($entry['property'] === 'background-clip' && !$entry['important'] && strtolower(trim($entry['value'])) === 'text') {
+                foreach ($neededPrefixes as $neededPrefix => $needed) {
+                    if ($needed && !$prefixedTextValues[$neededPrefix]) {
+                        $rewritten[] = $this->declarationEntry($vendorProperties[$neededPrefix], 'text');
+                        $prefixedTextValues[$neededPrefix] = true;
+                        $changed = true;
+                    }
+                }
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+        return true;
+    }
+
+    private function backgroundValueWithoutTextClip(string $value): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        $filtered = [];
+        $removed = false;
+        foreach ($tokens as $token) {
+            if (strtolower(trim($token)) === 'text') {
+                $removed = true;
+                continue;
+            }
+
+            $filtered[] = $token;
+        }
+
+        return $removed ? implode(' ', $filtered) : null;
     }
 
     /**

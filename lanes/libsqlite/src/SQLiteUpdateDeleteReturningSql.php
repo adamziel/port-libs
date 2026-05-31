@@ -1343,8 +1343,8 @@ final class SQLiteUpdateDeleteReturningSql
         if (($function === 'printf' || $function === 'format') && count($parts) < 1) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs a format argument");
         }
-        if (($function === 'iif' || $function === 'if') && count($parts) !== 3) {
-            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs three arguments");
+        if (($function === 'iif' || $function === 'if') && count($parts) < 2) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs at least two arguments");
         }
         if (($function === 'likely' || $function === 'unlikely') && count($parts) !== 1) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
@@ -1408,11 +1408,19 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         if ($function === 'iif' || $function === 'if') {
-            $condition = self::sqliteTruthValue(self::limitExpressionValue($parts[0]));
+            $partCount = count($parts);
+            for ($index = 0; $index + 1 < $partCount; $index += 2) {
+                $condition = self::sqliteTruthValue(self::limitExpressionValue($parts[$index]));
+                if ($condition === true) {
+                    return self::limitExpressionValue($parts[$index + 1]);
+                }
+            }
 
-            return $condition === true
-                ? self::limitExpressionValue($parts[1])
-                : self::limitExpressionValue($parts[2]);
+            if ($partCount % 2 === 1) {
+                return self::limitExpressionValue($parts[$partCount - 1]);
+            }
+
+            return null;
         }
         if ($function === 'likely' || $function === 'unlikely' || $function === 'likelihood') {
             if ($function === 'likelihood') {

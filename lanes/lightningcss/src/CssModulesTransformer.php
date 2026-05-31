@@ -8,6 +8,7 @@ final class CssModulesTransformer
 {
     private string $hash = 'EgL3uq';
     private string $pattern = '[hash]_[local]';
+    private bool $dashedIdents = false;
 
     /**
      * @var array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
@@ -15,19 +16,26 @@ final class CssModulesTransformer
     private array $exports = [];
 
     /**
+     * @var array<string, array{type:string, name:string, specifier:string}>
+     */
+    private array $references = [];
+
+    /**
      * @return array{
      *   code:string,
      *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>,
-     *   references:array<string, array{type:string, name:string, specifier?:string}>
+     *   references:array<string, array{type:string, name:string, specifier:string}>
      * }
      *
-     * @param array{hash?:string, pattern?:string, minify?:bool} $options
+     * @param array{hash?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool} $options
      */
     public function transform(string $css, array $options = []): array
     {
         $this->hash = $options['hash'] ?? 'EgL3uq';
         $this->pattern = $options['pattern'] ?? '[hash]_[local]';
+        $this->dashedIdents = ($options['dashedIdents'] ?? $options['dashed_idents'] ?? false) === true;
         $this->exports = [];
+        $this->references = [];
 
         $code = $this->transformRuleList($this->stripComments($css), 0);
         if (($options['minify'] ?? true) === true) {
@@ -37,7 +45,7 @@ final class CssModulesTransformer
         return [
             'code' => $code,
             'exports' => $this->exports,
-            'references' => [],
+            'references' => $this->references,
         ];
     }
 
@@ -167,14 +175,25 @@ final class CssModulesTransformer
 
         $property = strtolower(trim(substr($withoutSemicolon, 0, $colon)));
         if ($property !== 'composes') {
-            $rewrittenValue = $this->rewriteCssModuleDeclarationValue($property, trim(substr($withoutSemicolon, $colon + 1)));
-            if ($rewrittenValue === null) {
+            $rawProperty = trim(substr($withoutSemicolon, 0, $colon));
+            $value = trim(substr($withoutSemicolon, $colon + 1));
+            $rewrittenProperty = $rawProperty;
+            if ($this->dashedIdents && str_starts_with($rawProperty, '--')) {
+                $rewrittenProperty = $this->scopeDashedIdent($rawProperty, false);
+            }
+
+            $rewrittenValue = $this->rewriteCssModuleDeclarationValue($property, $value);
+            if ($this->dashedIdents) {
+                $rewrittenValue = $this->rewriteDashedIdentReferences($rewrittenValue ?? $value);
+            }
+
+            if ($rewrittenValue === null && $rewrittenProperty === $rawProperty) {
                 return $statement;
             }
 
             $trailingSemicolon = str_ends_with(rtrim($statement), ';') ? ';' : '';
 
-            return trim(substr($withoutSemicolon, 0, $colon)) . ':' . $rewrittenValue . $trailingSemicolon;
+            return $rewrittenProperty . ':' . ($rewrittenValue ?? $value) . $trailingSemicolon;
         }
 
         if ($styleNestingDepth > 0) {
@@ -534,16 +553,6 @@ final class CssModulesTransformer
             return false;
         }
 
-        if ($this->startsWithPseudoFunction($selector, 0, ':local')) {
-            $open = strlen(':local');
-            $close = $this->findMatchingParen($selector, $open);
-            if (trim(substr($selector, $close + 1)) !== '') {
-                return false;
-            }
-
-            $selector = trim(substr($selector, $open + 1, $close - $open - 1));
-        }
-
         return preg_match('/^\.[A-Za-z_-][A-Za-z0-9_-]*$/', $selector) === 1;
     }
 
@@ -769,6 +778,159 @@ final class CssModulesTransformer
         $this->ensureExport($local);
 
         return $this->scopedName($local);
+    }
+
+    private function scopeDashedIdent(string $name, bool $isReferenced): string
+    {
+        $this->ensureDashedExport($name, $isReferenced);
+
+        return $this->scopedDashedName($name);
+    }
+
+    private function ensureDashedExport(string $name, bool $isReferenced): void
+    {
+        if (isset($this->exports[$name])) {
+            if ($isReferenced) {
+                $this->exports[$name]['isReferenced'] = true;
+            }
+
+            return;
+        }
+
+        $this->exports[$name] = [
+            'name' => $this->scopedDashedName($name),
+            'composes' => [],
+            'isReferenced' => $isReferenced,
+        ];
+    }
+
+    private function scopedDashedName(string $name): string
+    {
+        if (!str_starts_with($name, '--')) {
+            return $name;
+        }
+
+        return '--' . $this->scopedName(substr($name, 2));
+    }
+
+    private function rewriteDashedIdentReferences(string $value): string
+    {
+        $output = '';
+        $cursor = 0;
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '/' && ($value[$i + 1] ?? '') === '*') {
+                $end = strpos($value, '*/', $i + 2);
+                if ($end === false) {
+                    throw new \InvalidArgumentException('CSS contains an unbalanced comment');
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            $functionName = null;
+            foreach (['var', 'env'] as $candidate) {
+                if ($this->startsWithFunctionName($value, $i, $candidate)) {
+                    $functionName = substr($value, $i, strlen($candidate));
+                    break;
+                }
+            }
+
+            if ($functionName === null) {
+                continue;
+            }
+
+            $open = $i + strlen($functionName);
+            $close = $this->findMatchingParen($value, $open);
+            $inner = substr($value, $open + 1, $close - $open - 1);
+            $output .= substr($value, $cursor, $i - $cursor)
+                . $functionName
+                . '('
+                . $this->rewriteDashedFunctionArguments($inner)
+                . ')';
+            $cursor = $close + 1;
+            $i = $close;
+        }
+
+        return $output . substr($value, $cursor);
+    }
+
+    private function rewriteDashedFunctionArguments(string $inner): string
+    {
+        $comma = $this->findNextTopLevel($inner, ',', 0);
+        $head = $comma === null ? trim($inner) : trim(substr($inner, 0, $comma));
+        $tail = $comma === null ? null : substr($inner, $comma + 1);
+        $rewrittenHead = $this->rewriteDashedReferenceToken($head);
+
+        if ($tail === null) {
+            return $rewrittenHead ?? $inner;
+        }
+
+        $rewrittenTail = $this->rewriteDashedIdentReferences(trim($tail));
+
+        return ($rewrittenHead ?? $head) . ',' . $rewrittenTail;
+    }
+
+    private function rewriteDashedReferenceToken(string $token): ?string
+    {
+        $parts = $this->splitWhitespaceTopLevel($token);
+        if ($parts === [] || !str_starts_with($parts[0], '--')) {
+            return null;
+        }
+
+        $name = $parts[0];
+        if (count($parts) === 1) {
+            return $this->scopeDashedIdent($name, true);
+        }
+
+        if (count($parts) !== 3 || strcasecmp($parts[1], 'from') !== 0) {
+            return null;
+        }
+
+        if (strcasecmp($parts[2], 'global') === 0) {
+            return $name;
+        }
+
+        $specifier = $this->parseQuotedSpecifier($parts[2]);
+        if ($specifier === null) {
+            return null;
+        }
+
+        $placeholder = $this->dashedDependencyPlaceholder($name, $specifier);
+        $this->references[$placeholder] = [
+            'type' => 'dependency',
+            'name' => $name,
+            'specifier' => $specifier,
+        ];
+
+        return $placeholder;
+    }
+
+    private function dashedDependencyPlaceholder(string $name, string $specifier): string
+    {
+        $hash = substr(hash('sha1', $this->hash . "\0" . $name . "\0" . $specifier), 0, 12);
+
+        return '--lc-' . $hash;
     }
 
     /**
@@ -1026,6 +1188,21 @@ final class CssModulesTransformer
         }
 
         return ($selector[$offset + $length] ?? '') === '(';
+    }
+
+    private function startsWithFunctionName(string $value, int $offset, string $name): bool
+    {
+        $length = strlen($name);
+        if (strncasecmp(substr($value, $offset, $length), $name, $length) !== 0) {
+            return false;
+        }
+
+        $previous = $value[$offset - 1] ?? '';
+        if ($previous !== '' && $this->isIdentChar($previous)) {
+            return false;
+        }
+
+        return ($value[$offset + $length] ?? '') === '(';
     }
 
     private function startsWithCssModulesPseudoName(string $selector, int $offset, string $name): bool

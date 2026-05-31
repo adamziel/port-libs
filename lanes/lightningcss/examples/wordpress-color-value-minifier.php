@@ -27,9 +27,15 @@ $css = <<<'CSS'
   color: color-mix(in srgb, white, blue);
   background-color: color-mix(in srgb, rgb(100% 0% 0% / 0.7) 25%, rgb(0% 100% 0% / 0.2));
 }
+
+.wp-block-cover.has-perceptual-mixed-overlay {
+  color: color-mix(in lab, lab(10% 20 30) 25%, lab(50% 60 70));
+  background-color: color-mix(in oklab, oklab(10% 20 30 / .4), oklab(50% 60 70 / .8));
+  outline-color: color-mix(in lab, lab(10% 20 none), lab(50% 60 70));
+}
 CSS;
 
-$expected = '.wp-block-cover.has-hwb-overlay{color:#00c4ff80;background:linear-gradient(#80e1ff,#006280);border-color:buttonborder}.wp-block-button .wp-element-button{color:#fff;outline-color:#000}.wp-block-cover.has-wide-gamut-overlay{background:linear-gradient(lch(29.2345% 66.3 27),color(display-p3 1 .5 0/.2));outline-color:oklab(40.101% .1147 .0453)}.wp-block-cover.has-mixed-overlay{color:#8080ff;background-color:#89760053}';
+$expected = '.wp-block-cover.has-hwb-overlay{color:#00c4ff80;background:linear-gradient(#80e1ff,#006280);border-color:buttonborder}.wp-block-button .wp-element-button{color:#fff;outline-color:#000}.wp-block-cover.has-wide-gamut-overlay{background:linear-gradient(lch(29.2345% 66.3 27),color(display-p3 1 .5 0/.2));outline-color:oklab(40.101% .1147 .0453)}.wp-block-cover.has-mixed-overlay{color:#8080ff;background-color:#89760053}.wp-block-cover.has-perceptual-mixed-overlay{color:lab(40% 50 60);background-color:oklab(36.6667% 46.6667 56.6667/.6);outline-color:lab(30% 40 70)}';
 $actual = (new CssMinifier())->minify($css);
 
 if ($actual !== $expected) {

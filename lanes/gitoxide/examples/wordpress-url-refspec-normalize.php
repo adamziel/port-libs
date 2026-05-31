@@ -10,6 +10,7 @@ use PortLibs\Gitoxide\RefSpec;
 $fixture = require __DIR__ . '/../fixtures/wordpress-url-refspec-normalize.php';
 
 $remote = GitUrl::parse($fixture['remoteUrl']);
+$emptyPortRemote = GitUrl::parse($fixture['emptyPortRemoteUrl']);
 $localMirror = GitUrl::parse($fixture['localMirrorUrl']);
 $fetch = array_map(
     static fn (string $spec): array => RefSpec::parseFetch($spec)->toArray(),
@@ -28,6 +29,7 @@ try {
 
 $summary = [
     'remote' => $remote->toArray(),
+    'emptyPortRemote' => $emptyPortRemote->toArray(),
     'localMirror' => $localMirror->toArray(),
     'fetch' => $fetch,
     'push' => $push,
@@ -41,6 +43,15 @@ $argv = $_SERVER['argv'] ?? [];
 if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     if ($summary['remote']['normalized'] !== $fixture['expectedRemoteUrl']) {
         throw new RuntimeException('Unexpected normalized remote URL');
+    }
+    if ($summary['emptyPortRemote']['normalized'] !== $fixture['expectedEmptyPortRemoteUrl']) {
+        throw new RuntimeException('Unexpected normalized empty-port remote URL');
+    }
+    if ($summary['emptyPortRemote']['host'] !== $fixture['expectedEmptyPortRemoteHost']) {
+        throw new RuntimeException('Unexpected empty-port remote host');
+    }
+    if ($summary['emptyPortRemote']['path'] !== $fixture['expectedEmptyPortRemotePath']) {
+        throw new RuntimeException('Unexpected empty-port remote path');
     }
     if ($summary['localMirror']['normalized'] !== $fixture['expectedLocalMirrorUrl']) {
         throw new RuntimeException('Unexpected normalized local mirror URL');

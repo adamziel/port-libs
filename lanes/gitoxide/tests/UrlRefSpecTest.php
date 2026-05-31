@@ -226,6 +226,32 @@ return [
         $t->same('host.xz:abc', $invalidPortFormat->host());
         $t->same(null, $invalidPortFormat->port());
     },
+    'git url normalizes empty ssh url port markers like gix-url' => static function (TestRunner $t): void {
+        $hostWithEmptyPort = GitUrl::parse('ssh://host:/re/po');
+        $t->same(GitUrl::SCHEME_SSH, $hostWithEmptyPort->scheme());
+        $t->same(null, $hostWithEmptyPort->user());
+        $t->same('host', $hostWithEmptyPort->host());
+        $t->same(null, $hostWithEmptyPort->port());
+        $t->same('/re/po', $hostWithEmptyPort->path());
+        $t->same('ssh://host/re/po', $hostWithEmptyPort->toBytes());
+
+        $userHostWithEmptyPort = GitUrl::parse('ssh://user@host:/~re/po');
+        $t->same('user', $userHostWithEmptyPort->user());
+        $t->same('host', $userHostWithEmptyPort->host());
+        $t->same(null, $userHostWithEmptyPort->port());
+        $t->same('~re/po', $userHostWithEmptyPort->path());
+        $t->same('ssh://user@host/~re/po', $userHostWithEmptyPort->toBytes());
+
+        $bracketedIpv6WithEmptyPort = GitUrl::parse('ssh://[::1]:/repo');
+        $t->same('::1', $bracketedIpv6WithEmptyPort->host());
+        $t->same(null, $bracketedIpv6WithEmptyPort->port());
+        $t->same('/repo', $bracketedIpv6WithEmptyPort->path());
+
+        $nonNumericPortRemainsHostText = GitUrl::parse('ssh://host.xz:abc/path');
+        $t->same('host.xz:abc', $nonNumericPortRemainsHostText->host());
+        $t->same(null, $nonNumericPortRemainsHostText->port());
+        $t->same('ssh://host.xz:abc/path', $nonNumericPortRemainsHostText->toBytes());
+    },
     'refspec parser maps upstream fetch instruction and prefix behavior' => static function (TestRunner $t): void {
         $cases = [
             'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391:' => [
@@ -551,6 +577,9 @@ return [
         $t->same($fixture['expectedRemoteHost'], $summary['remote']['host']);
         $t->same($fixture['expectedRemotePath'], $summary['remote']['path']);
         $t->same($fixture['expectedRemoteUrl'], $summary['remote']['normalized']);
+        $t->same($fixture['expectedEmptyPortRemoteHost'], $summary['emptyPortRemote']['host']);
+        $t->same($fixture['expectedEmptyPortRemotePath'], $summary['emptyPortRemote']['path']);
+        $t->same($fixture['expectedEmptyPortRemoteUrl'], $summary['emptyPortRemote']['normalized']);
         $t->same($fixture['expectedLocalMirrorScheme'], $summary['localMirror']['scheme']);
         $t->same($fixture['expectedLocalMirrorUser'], $summary['localMirror']['user']);
         $t->same($fixture['expectedLocalMirrorHost'], $summary['localMirror']['host']);

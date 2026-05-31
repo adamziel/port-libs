@@ -13,6 +13,11 @@ $moduleExport = static fn (string $name, array $composes = []): array => [
     'isReferenced' => false,
 ];
 $moduleLocal = static fn (string $name): array => ['type' => 'local', 'name' => $name];
+$moduleDashed = static fn (string $name, bool $isReferenced = false): array => [
+    'name' => $name,
+    'composes' => [],
+    'isReferenced' => $isReferenced,
+];
 
 return [
     'css bundler maps upstream resolver import graph order' => static function (TestRunner $t) use ($bundle): void {
@@ -452,6 +457,50 @@ CSS,
                 $moduleLocal('dep_card'),
                 $moduleLocal('dep_token'),
             ]),
+        ], $result['exports']);
+    },
+    'css bundler resolves upstream css module dashed ident dependency graph' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleDashed): void {
+        $result = $bundleModules([
+            '/entry.css' => <<<'CSS'
+@import "./theme.css";
+
+.card {
+  --inline-size: 10px;
+  background: var(--bg from "./tokens.css", var(--fallback from "./tokens.css"));
+  color: rgb(255 255 255 / var(--opacity from "./tokens.css"));
+  margin: env(--inline-size, var(--gap from "./env.css"));
+}
+CSS,
+            '/tokens.css' => <<<'CSS'
+.tokens {
+  --bg: red;
+  --fallback: yellow;
+  --opacity: .5;
+}
+CSS,
+            '/env.css' => <<<'CSS'
+.env {
+  --gap: 20px;
+}
+CSS,
+            '/theme.css' => '.theme { color: blue }',
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/tokens.css' => 'tok',
+                '/env.css' => 'env',
+                '/theme.css' => 'theme',
+            ],
+            'dashedIdents' => true,
+        ]);
+
+        $t->same(
+            '.tok_tokens{--tok_bg:red;--tok_fallback:yellow;--tok_opacity:.5}.env_env{--env_gap:20px}.theme_theme{color:#00f}.entry_card{--entry_inline-size:10px;background:var(--tok_bg,var(--tok_fallback));color:rgb(255 255 255/var(--tok_opacity));margin:env(--entry_inline-size,var(--env_gap))}',
+            $result['code']
+        );
+        $t->same([
+            'card' => $moduleExport('entry_card'),
+            '--inline-size' => $moduleDashed('--entry_inline-size', true),
         ], $result['exports']);
     },
     'css bundler omits unresolved upstream css module dependency exports' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {

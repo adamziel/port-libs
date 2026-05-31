@@ -6,6 +6,11 @@ namespace PortLibs\Gitoxide;
 
 final class MergeBaseFinder
 {
+    private const FLAG_COMMIT1 = 1;
+    private const FLAG_COMMIT2 = 2;
+    private const FLAG_STALE = 4;
+    private const FLAG_RESULT = 8;
+
     /**
      * @var \Closure(string): Commit
      */
@@ -65,17 +70,20 @@ final class MergeBaseFinder
             return [$first];
         }
 
-        $firstAncestors = $this->ancestorsWithDistance($first);
-        $secondAncestors = $this->ancestorsWithDistance($second);
-        $candidates = array_intersect_key($firstAncestors, $secondAncestors);
+        $candidates = $this->paintDownToCommon($first, [$second], $hashLength);
         if ($candidates === []) {
             return [];
         }
+        if (count($candidates) === 1) {
+            return $candidates;
+        }
 
         $best = [];
-        foreach (array_keys($candidates) as $candidate) {
+        $firstAncestors = $this->ancestorsWithDistance($first);
+        $secondAncestors = $this->ancestorsWithDistance($second);
+        foreach ($candidates as $candidate) {
             $redundant = false;
-            foreach (array_keys($candidates) as $other) {
+            foreach ($candidates as $other) {
                 if ($candidate === $other) {
                     continue;
                 }
@@ -138,16 +146,25 @@ final class MergeBaseFinder
             return [$first];
         }
 
+        $candidates = $this->paintDownToCommon($first, $normalizedOthers, $hashLength);
+        if ($candidates === []) {
+            return [];
+        }
+        if (count($candidates) === 1) {
+            return $candidates;
+        }
+
+        $best = [];
         $firstAncestors = $this->ancestorsWithDistance($first);
-        $candidates = [];
+        $candidateMetadata = [];
         foreach ($normalizedOthers as $otherIndex => $other) {
             foreach ($this->ancestorsWithDistance($other) as $candidate => $otherDistance) {
-                if (!isset($firstAncestors[$candidate])) {
+                if (!in_array($candidate, $candidates, true) || !isset($firstAncestors[$candidate])) {
                     continue;
                 }
 
-                if (!isset($candidates[$candidate]) || $otherDistance < $candidates[$candidate]['other']) {
-                    $candidates[$candidate] = [
+                if (!isset($candidateMetadata[$candidate]) || $otherDistance < $candidateMetadata[$candidate]['other']) {
+                    $candidateMetadata[$candidate] = [
                         'first' => $firstAncestors[$candidate],
                         'other' => $otherDistance,
                         'otherIndex' => $otherIndex,
@@ -156,14 +173,9 @@ final class MergeBaseFinder
             }
         }
 
-        if ($candidates === []) {
-            return [];
-        }
-
-        $best = [];
-        foreach (array_keys($candidates) as $candidate) {
+        foreach ($candidates as $candidate) {
             $redundant = false;
-            foreach (array_keys($candidates) as $other) {
+            foreach ($candidates as $other) {
                 if ($candidate === $other) {
                     continue;
                 }
@@ -173,7 +185,7 @@ final class MergeBaseFinder
                 }
             }
             if (!$redundant) {
-                $best[$candidate] = $candidates[$candidate];
+                $best[$candidate] = $candidateMetadata[$candidate];
             }
         }
 
@@ -189,6 +201,72 @@ final class MergeBaseFinder
         });
 
         return array_keys($best);
+    }
+
+    /**
+     * Paint the graph from `first` and the union of `others` until all queued
+     * commits are stale, mirroring gix_revision::merge_base()'s lazy walk.
+     *
+     * @param list<string> $others
+     * @return list<string>
+     */
+    private function paintDownToCommon(string $first, array $others, int $hashLength): array
+    {
+        $flagsByCommit = [];
+        $queue = [];
+        $results = [];
+
+        $enqueue = function (string $oid, int $flags) use (&$flagsByCommit, &$queue, $hashLength): void {
+            $oid = strtolower($oid);
+            self::assertSameObjectFormat($hashLength, $oid);
+            $currentFlags = $flagsByCommit[$oid] ?? 0;
+            if (($currentFlags & $flags) === $flags) {
+                return;
+            }
+
+            $flagsByCommit[$oid] = $currentFlags | $flags;
+            $queue[] = [
+                'oid' => $oid,
+                'priority' => $this->walkPriority($oid),
+            ];
+        };
+
+        $enqueue($first, self::FLAG_COMMIT1);
+        foreach ($others as $other) {
+            $enqueue($other, self::FLAG_COMMIT2);
+        }
+
+        while ($this->queueContainsNonStaleCommit($queue, $flagsByCommit)) {
+            $item = $this->popHighestPriority($queue);
+            $commitId = $item['oid'];
+            $flags = $flagsByCommit[$commitId] ?? 0;
+            $flagsWithoutResult = $flags & (self::FLAG_COMMIT1 | self::FLAG_COMMIT2 | self::FLAG_STALE);
+
+            if ($flagsWithoutResult === (self::FLAG_COMMIT1 | self::FLAG_COMMIT2)) {
+                if (($flags & self::FLAG_RESULT) === 0) {
+                    $flagsByCommit[$commitId] = $flags | self::FLAG_RESULT;
+                    $results[] = $commitId;
+                }
+                $flagsWithoutResult |= self::FLAG_STALE;
+            }
+
+            foreach ($this->commit($commitId)->parents as $parent) {
+                $parent = strtolower($parent);
+                self::assertSameObjectFormat($hashLength, $parent);
+                $parentFlags = $flagsByCommit[$parent] ?? 0;
+                if (($parentFlags & $flagsWithoutResult) === $flagsWithoutResult) {
+                    continue;
+                }
+
+                $flagsByCommit[$parent] = $parentFlags | $flagsWithoutResult;
+                $queue[] = [
+                    'oid' => $parent,
+                    'priority' => $this->walkPriority($parent),
+                ];
+            }
+        }
+
+        return $results;
     }
 
     /**
@@ -370,6 +448,64 @@ final class MergeBaseFinder
         }
 
         return $this->commitCache[$oid];
+    }
+
+    /**
+     * @param list<array{oid: string, priority: array{int, int, string}}> $queue
+     * @param array<string, int> $flagsByCommit
+     */
+    private function queueContainsNonStaleCommit(array $queue, array $flagsByCommit): bool
+    {
+        foreach ($queue as $item) {
+            $flags = $flagsByCommit[$item['oid']] ?? 0;
+            if (($flags & self::FLAG_STALE) === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{oid: string, priority: array{int, int, string}}> $queue
+     * @return array{oid: string, priority: array{int, int, string}}
+     */
+    private function popHighestPriority(array &$queue): array
+    {
+        $bestIndex = 0;
+        foreach ($queue as $index => $item) {
+            if ($this->compareWalkPriority($item['priority'], $queue[$bestIndex]['priority']) > 0) {
+                $bestIndex = $index;
+            }
+        }
+
+        $best = $queue[$bestIndex];
+        array_splice($queue, $bestIndex, 1);
+
+        return $best;
+    }
+
+    /**
+     * @return array{int, int, string}
+     */
+    private function walkPriority(string $oid): array
+    {
+        return [
+            $this->useCommitGraphGenerations ? $this->commitGeneration($oid) : 0,
+            $this->commitTime($oid),
+            $oid,
+        ];
+    }
+
+    /**
+     * @param array{int, int, string} $left
+     * @param array{int, int, string} $right
+     */
+    private function compareWalkPriority(array $left, array $right): int
+    {
+        return $left[0] <=> $right[0]
+            ?: $left[1] <=> $right[1]
+            ?: strcmp($left[2], $right[2]);
     }
 
     private function compareCommitPriority(string $left, string $right): int

@@ -346,6 +346,148 @@ final class SQLiteTransactionBeginLockPlan
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function upstreamCrossDatabaseDeadlockProfile(
+        string $scenario,
+        int $pageSize = 1024,
+        int $initialMainRows = 0,
+        int $initialAuxRows = 0,
+        int $busyTimeoutMs = 1000000,
+        string $journalMode = 'delete',
+        bool $atomicBatchWriteAvailable = false
+    ): array {
+        $scenario = trim($scenario);
+        if (!str_starts_with($scenario, 'lock4-1.')) {
+            throw new InvalidArgumentException('SQLite lock4 cross-database profile scenario is unsupported');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new InvalidArgumentException('SQLite lock4 cross-database profile page size must be a power of two at least 512');
+        }
+        if ($initialMainRows < 0 || $initialAuxRows < 0) {
+            throw new InvalidArgumentException('SQLite lock4 cross-database profile row counts must be non-negative');
+        }
+        if ($busyTimeoutMs < 0) {
+            throw new InvalidArgumentException('SQLite lock4 cross-database profile busy timeout must be non-negative');
+        }
+        $journalMode = strtolower(trim($journalMode));
+        if (!in_array($journalMode, ['delete', 'truncate', 'persist', 'memory'], true)) {
+            throw new InvalidArgumentException('SQLite lock4 cross-database profile requires a rollback journal mode');
+        }
+
+        $skipped = $atomicBatchWriteAvailable;
+        $mainRows = $initialMainRows === 0 ? [] : range(1, $initialMainRows);
+        $auxRows = $initialAuxRows === 0 ? [] : range(1, $initialAuxRows);
+        $parentMainRow = $initialMainRows + 1;
+        $childAuxRow = $initialAuxRows + 2;
+        $childMainRow = $initialMainRows + 2;
+
+        $parentAuxResult = $skipped
+            ? ['code' => 0, 'message' => 'skipped because atomic batch write is available']
+            : ['code' => 1, 'message' => 'database is locked'];
+
+        $lockSequence = [
+            [
+                'actor' => 'parent',
+                'database' => 'main',
+                'operation' => 'BEGIN EXCLUSIVE',
+                'lock' => $skipped ? 'none' : 'exclusive',
+                'status' => $skipped ? 'skipped' : 'ok',
+                'reason' => $skipped ? 'atomic batch write skips lock4 process wait test' : 'parent holds exclusive lock on test.db',
+            ],
+            [
+                'actor' => 'child',
+                'database' => 'aux',
+                'operation' => 'BEGIN; INSERT',
+                'lock' => $skipped ? 'none' : 'reserved',
+                'status' => $skipped ? 'skipped' : 'ok',
+                'reason' => $skipped ? 'atomic batch write skips child writer' : 'child holds writer lock and rollback journal on test2.db',
+            ],
+            [
+                'actor' => 'child',
+                'database' => 'main',
+                'operation' => 'INSERT',
+                'lock' => $skipped ? 'none' : 'waiting',
+                'status' => $skipped ? 'skipped' : 'waiting',
+                'reason' => $skipped ? 'atomic batch write skips cross-database wait' : 'child waits for parent exclusive lock to release',
+            ],
+            [
+                'actor' => 'parent',
+                'database' => 'aux',
+                'operation' => 'INSERT',
+                'lock' => $skipped ? 'none' : 'blocked-by-child-reserved',
+                'status' => $skipped ? 'skipped' : 'busy',
+                'reason' => $skipped ? 'atomic batch write skips parent busy probe' : 'parent cannot write test2.db while child transaction is open',
+            ],
+            [
+                'actor' => 'parent',
+                'database' => 'main',
+                'operation' => 'COMMIT',
+                'lock' => 'none',
+                'status' => $skipped ? 'skipped' : 'ok',
+                'reason' => $skipped ? 'atomic batch write skips parent commit' : 'parent releases test.db so child can finish its queued insert',
+            ],
+            [
+                'actor' => 'child',
+                'database' => 'aux',
+                'operation' => 'COMMIT',
+                'lock' => 'none',
+                'status' => $skipped ? 'skipped' : 'ok',
+                'reason' => $skipped ? 'atomic batch write skips child commit' : 'child deletes rollback journal after committing test2.db',
+            ],
+        ];
+
+        $finalMainRows = $skipped ? $mainRows : array_values(array_merge($mainRows, [$parentMainRow, $childMainRow]));
+        $finalAuxRows = $skipped ? $auxRows : array_values(array_merge($auxRows, [$childAuxRow]));
+
+        return [
+            'status' => $skipped ? 'skipped' : 'ok',
+            'script' => 'lock4.test',
+            'scenario' => $scenario,
+            'upstream' => [
+                'lock4.test lock4-1.1 creates two non-empty rollback databases',
+                'lock4.test lock4-1.2 parent holds test.db exclusive while child holds test2.db transaction',
+                'lock4.test lock4-1.2 parent write to test2.db returns database is locked',
+                'lock4.test lock4-1.3 parent commit lets child finish and test2 row 2 is visible',
+            ],
+            'journal_mode' => $journalMode,
+            'page_size' => $pageSize,
+            'initial_file_bytes' => [
+                'main' => $pageSize * 2,
+                'aux' => $pageSize * 2,
+            ],
+            'initial_rows' => [
+                'main' => $mainRows,
+                'aux' => $auxRows,
+            ],
+            'busy_timeout_ms' => $busyTimeoutMs,
+            'atomic_batch_write_available' => $atomicBatchWriteAvailable,
+            'child_aux_journal_exists_before_parent_probe' => !$skipped,
+            'child_waits_for_main_exclusive_lock' => !$skipped && $busyTimeoutMs > 0,
+            'parent_aux_insert_result' => $parentAuxResult,
+            'parent_aux_busy_result' => $parentAuxResult['message'],
+            'parent_commit_releases_child' => !$skipped,
+            'child_aux_commit_result' => $skipped ? 'skipped' : 'ok',
+            'child_aux_journal_removed_after_commit' => !$skipped,
+            'lock_sequence' => $lockSequence,
+            'final_rows' => [
+                'main' => $finalMainRows,
+                'aux' => $finalAuxRows,
+            ],
+            'parent_observes_aux_rows_after_child_commit' => $finalAuxRows,
+            'deadlock_avoided_by_parent_commit' => !$skipped,
+            'open_file_count_after_cleanup' => 0,
+            'integrity_check' => $skipped ? 'skipped' : 'ok',
+            'dependencies' => [
+                'sqlite-upstream-lock4-test',
+                'sqlite-vfs-cross-database-lock-deadlock',
+                'sqlite-rollback-lock-mode',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
     private static function normalizeSchema(?string $schema): ?string
     {
         if ($schema === null || trim($schema) === '') {

@@ -36,6 +36,12 @@ $css = <<<'CSS'
   @apply card;
   outline-color: @wp-accent;
   box-shadow: 0 0 0 1px @--wp-ring;
+  margin-left: 20px;
+  margin-right: @margin-left;
+
+  &:focus-visible {
+    outline-color: @wp-accent;
+  }
 
   @breakpoint 782px {
     display: grid;
@@ -152,9 +158,43 @@ $result = $transformer->transform($css, [
             },
         ],
     ],
+    [
+        'Rule' => [
+            'style' => static function (array $rule): array {
+                $valuesByProperty = [];
+                foreach ($rule['declarations'] as $declaration) {
+                    $valuesByProperty[$declaration['property']] = $declaration['value'];
+                }
+
+                foreach ($rule['declarations'] as $index => $declaration) {
+                    if (str_starts_with($declaration['value'], '@')) {
+                        $referenced = substr($declaration['value'], 1);
+                        if (isset($valuesByProperty[$referenced])) {
+                            $rule['declarations'][$index]['value'] = $valuesByProperty[$referenced];
+                        }
+                    }
+                }
+
+                $fallbackSelectors = [];
+                foreach ($rule['selectors'] as $selector) {
+                    if (str_contains($selector, ':focus-visible')) {
+                        $fallbackSelectors[] = str_replace(':focus-visible', '.focus-visible', $selector);
+                    }
+                }
+                if ($fallbackSelectors === []) {
+                    return $rule;
+                }
+
+                return [
+                    array_replace($rule, ['selectors' => $fallbackSelectors]),
+                    $rule,
+                ];
+            },
+        ],
+    ],
 ]));
 
-$expected = '.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{outline-color:#056ef0;box-shadow:0 0 0 1px #056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
+$expected = '.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{outline-color:#056ef0;box-shadow:0 0 0 1px #056ef0;margin-left:20px;margin-right:20px}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {

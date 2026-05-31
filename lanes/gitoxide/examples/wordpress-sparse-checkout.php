@@ -63,6 +63,13 @@ $literalDefaultPathspec = SparseCheckoutSpec::fromPathspecs(
     [':(glob)wp-content/plugins/*.php', ':'],
     literalDefault: true,
 );
+$directoryOnlyUnknownPathspec = SparseCheckoutSpec::fromPathspecs([
+    'wp-content/cache/',
+]);
+$prefixedEmptyPathspec = SparseCheckoutSpec::fromPathspecs(
+    [],
+    prefix: 'wp-content/themes',
+);
 $filter = FetchFilterSpec::blobNone();
 
 $root = new Tree([
@@ -134,4 +141,8 @@ return [
     'literalDefaultMagicTextIncluded' => $literalDefaultPathspec->includesPath(':(glob)wp-content/plugins/*.php', false),
     'literalDefaultColonIsLiteral' => $literalDefaultPathspec->includesPath(':', false),
     'literalDefaultAdminSkipped' => $literalDefaultPathspec->skipWorktree('wp-admin/admin.php', false),
+    'directoryOnlyUnknownExactSkipped' => $directoryOnlyUnknownPathspec->skipWorktree('wp-content/cache', null),
+    'directoryOnlyUnknownDescendantIncluded' => $directoryOnlyUnknownPathspec->includesPath('wp-content/cache/page.html', null),
+    'prefixedEmptyUnknownPrefixSkipped' => $prefixedEmptyPathspec->skipWorktree('wp-content/themes', null),
+    'prefixedEmptyDescendantIncluded' => $prefixedEmptyPathspec->includesPath('wp-content/themes/acme/style.css', null),
 ];

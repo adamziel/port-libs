@@ -172,6 +172,51 @@ return [
         $t->same([], $reads);
         $t->throws(InvalidArgumentException::class, static fn () => $mergeBase->mergeBasesAgainst($first, [123]));
     },
+    'maps upstream graph walk stale-queue stop without reading deep shallow ancestors' => static function (TestRunner $t) use ($oid): void {
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+        $missingGrandparent = $oid('0');
+        $staleParent = $oid('1');
+        $shared = $oid('2');
+        $left = $oid('3');
+        $right = $oid('4');
+        $unrelated = $oid('5');
+        $reads = [];
+        $commits = [
+            $staleParent => $timedCommit(1699999900, [$missingGrandparent]),
+            $shared => $timedCommit(1700000000, [$staleParent]),
+            $left => $timedCommit(1700000100, [$shared]),
+            $right => $timedCommit(1700000200, [$shared]),
+            $unrelated => $timedCommit(1700000300),
+        ];
+        $mergeBase = new MergeBaseFinder(static function (string $oid) use ($commits, $missingGrandparent, &$reads): Commit {
+            $reads[] = $oid;
+            if ($oid === $missingGrandparent) {
+                throw new RuntimeException('Upstream graph walk should stop before reading stale shallow ancestors');
+            }
+            if (!isset($commits[$oid])) {
+                throw new RuntimeException("Missing commit fixture: {$oid}");
+            }
+
+            return $commits[$oid];
+        }, useCommitGraphGenerations: false);
+
+        $t->same([$shared], $mergeBase->mergeBasesAgainst($left, [$right, $unrelated]));
+        $t->same($shared, $mergeBase->mergeBase($left, $right));
+        $t->same(true, in_array($staleParent, $reads, true));
+        $t->same(false, in_array($missingGrandparent, $reads, true));
+    },
     'maps upstream graph walk with sha256 commit ids' => static function (TestRunner $t) use ($commit, $finder): void {
         $sha256 = static fn (string $hex): string => str_repeat($hex, 64);
         $root = $sha256('1');
@@ -363,6 +408,11 @@ return [
         $t->same(true, $example['sequentialOctopusFallsBackToReleaseBaseline']);
         $t->same(true, $example['reorderedOctopusKeepsLegacyBaseline']);
         $t->same(true, $example['stableIntersectionKeepsLegacyBaseline']);
+        $t->same($fixture['shallowReleaseBaseline'], $timeOnlyFinder->mergeBaseAgainst($fixture['shallowPluginReview'], $fixture['shallowGraphWalkOthers']));
+        $t->same($fixture['shallowReleaseBaseline'], $example['shallowGraphWalkBase']);
+        $t->same($fixture['shallowReleaseBaseline'], $example['shallowPairwiseBase']);
+        $t->same(true, $example['shallowGraphWalkStopsAtReleaseBaseline']);
+        $t->same(true, $example['shallowPairwiseStopsAtReleaseBaseline']);
     },
     'object database reader requires commit objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-' . bin2hex(random_bytes(4)) . '/.git';

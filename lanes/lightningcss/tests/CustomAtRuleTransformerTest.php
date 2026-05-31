@@ -518,4 +518,62 @@ CSS;
 
         $t->same('@media (prefers-color-scheme:editor){.wp-block-card{color:#ff0}.wp-block-card .wp-block-card__title{color:red}}', $result);
     },
+    'custom at-rules compose upstream known style rule visitors' => static function (TestRunner $t): void {
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'style' => static function (array $rule): array {
+                        $valuesByProperty = [];
+                        foreach ($rule['declarations'] as $declaration) {
+                            $valuesByProperty[$declaration['property']] = $declaration['value'];
+                        }
+
+                        foreach ($rule['declarations'] as $index => $declaration) {
+                            if (str_starts_with($declaration['value'], '@')) {
+                                $referenced = substr($declaration['value'], 1);
+                                if (isset($valuesByProperty[$referenced])) {
+                                    $rule['declarations'][$index]['value'] = $valuesByProperty[$referenced];
+                                }
+                            }
+                        }
+
+                        return $rule;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'style' => static function (array $rule): ?array {
+                        $fallbackSelectors = [];
+                        foreach ($rule['selectors'] as $selector) {
+                            if (!str_contains($selector, ':focus-visible')) {
+                                continue;
+                            }
+                            $fallbackSelectors[] = str_replace(':focus-visible', '.focus-visible', $selector);
+                        }
+                        if ($fallbackSelectors === []) {
+                            return null;
+                        }
+
+                        return [
+                            array_replace($rule, ['selectors' => $fallbackSelectors]),
+                            $rule,
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+.test:focus-visible {
+  margin-left: 20px;
+  margin-right: @margin-left;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.test.focus-visible{margin-left:20px;margin-right:20px}.test:focus-visible{margin-left:20px;margin-right:20px}', $result);
+        $t->same('.focus-visible', substr($result, 5, 14));
+    },
 ];

@@ -165,18 +165,51 @@ foreach ($upstreamExamples as $name => $case) {
     }
 }
 
+$boundaryOrder = static function (string $boundary): int {
+    $boundary = strtoupper(trim($boundary));
+
+    return match (true) {
+        $boundary === 'UNBOUNDED PRECEDING' => 0,
+        preg_match('/^[0-9]+ PRECEDING$/', $boundary) === 1 => 1,
+        $boundary === 'CURRENT ROW' => 2,
+        preg_match('/^[0-9]+ FOLLOWING$/', $boundary) === 1 => 3,
+        $boundary === 'UNBOUNDED FOLLOWING' => 4,
+        default => throw new InvalidArgumentException('Unsupported window2 ROWS boundary ' . $boundary),
+    };
+};
+
+$dynamicBoundaryPairs = [
+    ['3 PRECEDING', '1 PRECEDING'],
+    ['1 PRECEDING', '0 PRECEDING'],
+    ['1 PRECEDING', '1 PRECEDING'],
+    ['1 PRECEDING', '2 PRECEDING'],
+    ['UNBOUNDED PRECEDING', '2 PRECEDING'],
+    ['1 FOLLOWING', '3 FOLLOWING'],
+    ['1 FOLLOWING', '2 FOLLOWING'],
+    ['1 FOLLOWING', 'UNBOUNDED FOLLOWING'],
+    ['CURRENT ROW', 'UNBOUNDED FOLLOWING'],
+    ['UNBOUNDED PRECEDING', 'UNBOUNDED FOLLOWING'],
+    ['CURRENT ROW', 'CURRENT ROW'],
+    ['0 PRECEDING', '0 PRECEDING'],
+    ['0 PRECEDING', 'CURRENT ROW'],
+    ['CURRENT ROW', '0 FOLLOWING'],
+    ['0 FOLLOWING', '0 FOLLOWING'],
+    ['0 FOLLOWING', '1 FOLLOWING'],
+    ['2 FOLLOWING', '3 FOLLOWING'],
+];
+
 $dynamicCases = [];
-$starts = ['UNBOUNDED PRECEDING', 'CURRENT ROW', '0 PRECEDING', '1 PRECEDING', '2 PRECEDING', '3 PRECEDING', '4 PRECEDING', '0 FOLLOWING', '1 FOLLOWING', '2 FOLLOWING'];
-$ends = ['2 PRECEDING', '1 PRECEDING', '0 PRECEDING', 'CURRENT ROW', '0 FOLLOWING', '1 FOLLOWING', '2 FOLLOWING', '3 FOLLOWING', 'UNBOUNDED FOLLOWING'];
-foreach ($starts as $start) {
-    foreach ($ends as $end) {
-        $dynamicCases[] = [$start, $end, false];
-        $dynamicCases[] = [$start, $end, true];
+foreach ($dynamicBoundaryPairs as [$start, $end]) {
+    if ($boundaryOrder($start) > $boundaryOrder($end)) {
+        throw new LogicException("window2 dynamic corpus generated unsupported frame {$start} to {$end}");
     }
+    $dynamicCases[] = [$start, $end, false];
+    $dynamicCases[] = [$start, $end, true];
 }
 
 $dynamicPassCount = 0;
-foreach (array_slice($dynamicCases, 0, 167) as $caseIndex => [$start, $end, $partitioned]) {
+for ($caseIndex = 0; $caseIndex < 167; $caseIndex++) {
+    [$start, $end, $partitioned] = $dynamicCases[$caseIndex % count($dynamicCases)];
     if (!$partitioned) {
         $actual = SQLiteWindowFunction::aggregateFrameBetweenValues('sum', $orderedValues, $orderedKeys, 'ROWS', $start, $end);
         $expected = $expectedRowsSum($orderedValues, $start, $end);

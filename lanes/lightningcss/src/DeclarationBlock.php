@@ -104,6 +104,14 @@ final class DeclarationBlock
         'list-style-image',
         'list-style-type',
     ];
+    private const BORDER_IMAGE_LONGHANDS = [
+        'border-image-source',
+        'border-image-slice',
+        'border-image-width',
+        'border-image-outset',
+        'border-image-repeat',
+    ];
+    private const BORDER_IMAGE_REPEAT_KEYWORDS = ['stretch', 'repeat', 'round', 'space'];
     private const MASK_BORDER_LONGHANDS = [
         'mask-border-source',
         'mask-border-slice',
@@ -189,6 +197,13 @@ final class DeclarationBlock
             return $borderValue;
         }
         if ($this->isBorderProperty($property)) {
+            return null;
+        }
+        $borderImageValue = $this->getBorderImageProperty($entries, $property);
+        if ($borderImageValue !== null) {
+            return $borderImageValue;
+        }
+        if ($this->isBorderImageProperty($property)) {
             return null;
         }
         $flexValue = $this->getFlexProperty($entries, $property);
@@ -332,6 +347,386 @@ final class DeclarationBlock
         }
 
         return $this->composeAnimationShorthandProperty($components);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getBorderImageProperty(array $entries, string $property): ?array
+    {
+        if (!$this->isBorderImageProperty($property)) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'border-image') {
+                $parsed = $this->parseBorderImageComponents($entry['value']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach (self::BORDER_IMAGE_LONGHANDS as $longhand) {
+                    $components[$longhand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($this->isBorderImageLonghand($entry['property'])) {
+                $components[$entry['property']] = [
+                    'value' => $this->normalizeBorderImageLonghandValue($entry['property'], $entry['value']),
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($property !== 'border-image') {
+            return $components[$property] ?? null;
+        }
+
+        foreach (self::BORDER_IMAGE_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->composeBorderImageShorthandValue([
+                'border-image-source' => $components['border-image-source']['value'],
+                'border-image-slice' => $components['border-image-slice']['value'],
+                'border-image-width' => $components['border-image-width']['value'],
+                'border-image-outset' => $components['border-image-outset']['value'],
+                'border-image-repeat' => $components['border-image-repeat']['value'],
+            ]),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setBorderImageLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!$this->isBorderImageLonghand($property)) {
+            return null;
+        }
+
+        $value = $this->normalizeBorderImageLonghandValue($property, $value);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'border-image') {
+                continue;
+            }
+            if ($entries[$index]['important'] !== $important) {
+                return null;
+            }
+
+            $components = $this->parseBorderImageComponents($entries[$index]['value']);
+            if ($components === null) {
+                continue;
+            }
+
+            $components[$property] = $value;
+            $entries[$index] = [
+                'property' => 'border-image',
+                'value' => $this->composeBorderImageShorthandValue($components),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{
+     *     border-image-source:string,
+     *     border-image-slice:string,
+     *     border-image-width:string,
+     *     border-image-outset:string,
+     *     border-image-repeat:string
+     * }|null
+     */
+    private function parseBorderImageComponents(string $value): ?array
+    {
+        $groups = array_map('trim', $this->splitTopLevel($value, '/'));
+        if (count($groups) > 3) {
+            return null;
+        }
+
+        $components = [
+            'border-image-source' => 'none',
+            'border-image-slice' => '100%',
+            'border-image-width' => '1',
+            'border-image-outset' => '0',
+            'border-image-repeat' => 'stretch',
+        ];
+        $sourceSet = false;
+        $sliceTokens = [];
+        $repeatTokens = [];
+
+        foreach ($this->splitWhitespaceTopLevel($groups[0] ?? '') as $token) {
+            $lower = strtolower(trim($token));
+            if (in_array($lower, self::BORDER_IMAGE_REPEAT_KEYWORDS, true)) {
+                $repeatTokens[] = $lower;
+                continue;
+            }
+
+            if (!$sourceSet && $this->isBorderImageSourceToken($token)) {
+                $components['border-image-source'] = $this->normalizeBorderImageSourceValue($token);
+                $sourceSet = true;
+                continue;
+            }
+
+            $sliceTokens[] = $token;
+        }
+
+        if (count($repeatTokens) > 2) {
+            return null;
+        }
+        if ($repeatTokens !== []) {
+            $components['border-image-repeat'] = $this->normalizeBorderImageRepeatValue(implode(' ', $repeatTokens));
+        }
+        if ($sliceTokens !== []) {
+            $components['border-image-slice'] = $this->normalizeBorderImageSliceValue(implode(' ', $sliceTokens));
+        }
+        if (isset($groups[1]) && $groups[1] !== '') {
+            $parsedWidth = $this->parseBorderImageSlashComponent($groups[1]);
+            if ($parsedWidth['rect'] !== null) {
+                $components['border-image-width'] = $parsedWidth['rect'];
+            }
+            array_push($repeatTokens, ...$parsedWidth['repeatTokens']);
+        }
+        if (isset($groups[2]) && $groups[2] !== '') {
+            $parsedOutset = $this->parseBorderImageSlashComponent($groups[2]);
+            if ($parsedOutset['rect'] !== null) {
+                $components['border-image-outset'] = $parsedOutset['rect'];
+            }
+            array_push($repeatTokens, ...$parsedOutset['repeatTokens']);
+        }
+        if (count($repeatTokens) > 2) {
+            return null;
+        }
+        if ($repeatTokens !== []) {
+            $components['border-image-repeat'] = $this->normalizeBorderImageRepeatValue(implode(' ', $repeatTokens));
+        }
+
+        return $components;
+    }
+
+    /**
+     * @return array{rect:?string, repeatTokens:list<string>}
+     */
+    private function parseBorderImageSlashComponent(string $value): array
+    {
+        $rectTokens = [];
+        $repeatTokens = [];
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower(trim($token));
+            if (in_array($lower, self::BORDER_IMAGE_REPEAT_KEYWORDS, true)) {
+                $repeatTokens[] = $lower;
+                continue;
+            }
+
+            $rectTokens[] = $token;
+        }
+
+        return [
+            'rect' => $rectTokens === [] ? null : $this->normalizeBorderImageRectValue(implode(' ', $rectTokens)),
+            'repeatTokens' => $repeatTokens,
+        ];
+    }
+
+    private function isBorderImageSourceToken(string $token): bool
+    {
+        return strtolower($token) === 'none' || $this->isBackgroundImageToken($token);
+    }
+
+    private function normalizeBorderImageLonghandValue(string $property, string $value): string
+    {
+        return match ($property) {
+            'border-image-source' => $this->normalizeBorderImageSourceValue($value),
+            'border-image-slice' => $this->normalizeBorderImageSliceValue($value),
+            'border-image-width', 'border-image-outset' => $this->normalizeBorderImageRectValue($value),
+            'border-image-repeat' => $this->normalizeBorderImageRepeatValue($value),
+            default => trim($value),
+        };
+    }
+
+    private function normalizeBorderImageSourceValue(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^url\(/i', $value) === 1) {
+            return $this->normalizeCssUrlToken($value);
+        }
+
+        return strtolower($value) === 'none' ? 'none' : $value;
+    }
+
+    private function normalizeBorderImageSliceValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        $fill = false;
+        $offsets = [];
+        foreach ($tokens as $token) {
+            if (strcasecmp($token, 'fill') === 0) {
+                $fill = true;
+                continue;
+            }
+
+            $offsets[] = $token;
+        }
+
+        $slice = $offsets === [] ? '100%' : $this->normalizeBorderImageRectValue(implode(' ', $offsets));
+
+        return $fill ? $slice . ' fill' : $slice;
+    }
+
+    private function normalizeBorderImageRectValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if (count($tokens) < 1 || count($tokens) > 4) {
+            return trim($value);
+        }
+
+        return $this->compressBoxShorthand(match (count($tokens)) {
+            1 => [
+                'top' => $tokens[0],
+                'right' => $tokens[0],
+                'bottom' => $tokens[0],
+                'left' => $tokens[0],
+            ],
+            2 => [
+                'top' => $tokens[0],
+                'right' => $tokens[1],
+                'bottom' => $tokens[0],
+                'left' => $tokens[1],
+            ],
+            3 => [
+                'top' => $tokens[0],
+                'right' => $tokens[1],
+                'bottom' => $tokens[2],
+                'left' => $tokens[1],
+            ],
+            default => [
+                'top' => $tokens[0],
+                'right' => $tokens[1],
+                'bottom' => $tokens[2],
+                'left' => $tokens[3],
+            ],
+        });
+    }
+
+    private function normalizeBorderImageRepeatValue(string $value): string
+    {
+        $tokens = array_map(
+            static fn (string $token): string => strtolower(trim($token)),
+            $this->splitWhitespaceTopLevel($value)
+        );
+        $tokens = array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+        if ($tokens === []) {
+            return 'stretch';
+        }
+        if (count($tokens) === 1 || $tokens[0] === $tokens[1]) {
+            return $tokens[0];
+        }
+
+        return $tokens[0] . ' ' . $tokens[1];
+    }
+
+    /**
+     * @param array{
+     *     border-image-source:string,
+     *     border-image-slice:string,
+     *     border-image-width:string,
+     *     border-image-outset:string,
+     *     border-image-repeat:string
+     * } $components
+     */
+    private function composeBorderImageShorthandValue(array $components): string
+    {
+        $source = $this->normalizeBorderImageSourceValue($components['border-image-source']);
+        $slice = $this->normalizeBorderImageSliceValue($components['border-image-slice']);
+        $width = $this->normalizeBorderImageRectValue($components['border-image-width']);
+        $outset = $this->normalizeBorderImageRectValue($components['border-image-outset']);
+        $repeat = $this->normalizeBorderImageRepeatValue($components['border-image-repeat']);
+        $parts = [];
+
+        if (!$this->isDefaultBorderImageSource($source)) {
+            $parts[] = $source;
+        }
+        if (!$this->isDefaultBorderImageSlice($slice) || !$this->isDefaultBorderImageWidth($width) || !$this->isDefaultBorderImageOutset($outset)) {
+            $slicePart = $slice;
+            if (!$this->isDefaultBorderImageWidth($width) || !$this->isDefaultBorderImageOutset($outset)) {
+                $slicePart .= ' / ';
+                if (!$this->isDefaultBorderImageWidth($width)) {
+                    $slicePart .= $width;
+                }
+                if (!$this->isDefaultBorderImageOutset($outset)) {
+                    $slicePart .= ' / ' . $outset;
+                }
+            }
+            $parts[] = trim($slicePart);
+        }
+        if (!$this->isDefaultBorderImageRepeat($repeat)) {
+            $parts[] = $repeat;
+        }
+
+        return $parts === [] ? 'none' : implode(' ', $parts);
+    }
+
+    private function isBorderImageProperty(string $property): bool
+    {
+        return $property === 'border-image' || $this->isBorderImageLonghand($property);
+    }
+
+    private function isBorderImageLonghand(string $property): bool
+    {
+        return in_array($property, self::BORDER_IMAGE_LONGHANDS, true);
+    }
+
+    private function isDefaultBorderImageSource(string $value): bool
+    {
+        return strcasecmp(trim($value), 'none') === 0;
+    }
+
+    private function isDefaultBorderImageSlice(string $value): bool
+    {
+        return strcasecmp(trim($value), '100%') === 0;
+    }
+
+    private function isDefaultBorderImageWidth(string $value): bool
+    {
+        return trim($value) === '1';
+    }
+
+    private function isDefaultBorderImageOutset(string $value): bool
+    {
+        return trim($value) === '0';
+    }
+
+    private function isDefaultBorderImageRepeat(string $value): bool
+    {
+        return strcasecmp(trim($value), 'stretch') === 0;
     }
 
     /**
@@ -3250,6 +3645,10 @@ final class DeclarationBlock
         if ($animationValue !== null) {
             return $this->parseEntries($animationValue);
         }
+        $borderImageValue = $this->setBorderImageLonghand($entries, $property, $value, $important);
+        if ($borderImageValue !== null) {
+            return $this->parseEntries($borderImageValue);
+        }
         $maskBorderValue = $this->setMaskBorderLonghand($entries, $property, $value, $important);
         if ($maskBorderValue !== null) {
             return $this->parseEntries($maskBorderValue);
@@ -4127,6 +4526,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isBorderImageLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeBorderImageLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeBorderImageLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isMaskBorderLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeMaskBorderLonghand($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeMaskBorderLonghand($importantEntries, $property));
@@ -4229,6 +4634,10 @@ final class DeclarationBlock
         $gridLonghands = $this->gridShorthandLonghands($property);
         if ($gridLonghands !== null) {
             return $gridLonghands;
+        }
+
+        if ($property === 'border-image') {
+            return self::BORDER_IMAGE_LONGHANDS;
         }
 
         if ($property === 'mask-border') {
@@ -4369,6 +4778,44 @@ final class DeclarationBlock
             }
 
             foreach (self::LIST_STYLE_LONGHANDS as $longhand) {
+                if ($longhand === $property) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
+                    'value' => $components[$longhand],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeBorderImageLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'border-image') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->parseBorderImageComponents($entry['value']);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach (self::BORDER_IMAGE_LONGHANDS as $longhand) {
                 if ($longhand === $property) {
                     continue;
                 }

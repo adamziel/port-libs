@@ -1674,8 +1674,10 @@ for ($seed = 1; $seed <= 48; $seed++) {
 }
 
 $iifMalformed = [
-    'malformed iif arity rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT iif(TRUE, 1)",
-    'malformed if arity rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT if(TRUE, 1)",
+    'malformed iif one argument rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT iif(TRUE)",
+    'malformed if no arguments rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT if()",
+    'malformed iif false shorthand null direct limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT iif(FALSE, 1)",
+    'malformed if even shorthand no true branch rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT if(FALSE, 1, NULL, 2)",
     'malformed iif null selected branch rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT iif(TRUE, NULL, 1)",
     'malformed if nonintegral selected branch rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT if(FALSE, 1, 2.5)",
 ];
@@ -1684,6 +1686,80 @@ foreach ($iifMalformed as $name => $sql) {
     $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($sql): void {
         $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
     };
+}
+
+$iifShorthandCases = [
+    'parse two arg iif true limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT iif(1, 3)")['limit'], 3],
+    'parse two arg if true offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET if(1, 2)")['offset'], 2],
+    'parse two arg iif false via coalesce' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT coalesce(iif(0, 9), 2)")['limit'], 2],
+    'parse variadic iif first true branch' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT iif(1, 4, 1, 9, 8)")['limit'], 4],
+    'parse variadic if later true branch' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT if(0, 9, '1english', 3, 8)")['limit'], 3],
+    'parse variadic iif default branch' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT iif(NULL, 9, '0', 8, 2)")['limit'], 2],
+    'parse even variadic if false via coalesce' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT coalesce(if(0, 9, NULL, 8), 5)")['limit'], 5],
+];
+
+foreach ($iifShorthandCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity iif shorthand ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        $t->same($expected, $callback());
+        $t->contains('e_expr-37.6b', 'SQLite upstream test/e_expr.test e_expr-37.6b covers two-argument if() truth shorthand');
+        $t->contains('sqlite3ExprIsIIF', '/home/claude/port-libs/.upstream-cache/libsqlite/src/expr.c sqlite3ExprIsIIF handles iif(x,y) and variadic CASE equivalence');
+    };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = match ($seed % 4) {
+        0 => "iif(1, {$limitValue})",
+        1 => "coalesce(iif(0, 9), {$limitValue})",
+        2 => "if(0, 9, 1, {$limitValue}, 8)",
+        default => "iif(NULL, 9, '0', 8, {$limitValue})",
+    };
+    $offsetExpr = match ($seed % 4) {
+        0 => "if(1, {$offsetValue})",
+        1 => "coalesce(if(NULL, 9), {$offsetValue})",
+        2 => "iif(0, 9, '1english', {$offsetValue}, 8)",
+        default => "if(0, 9, 0, 8, {$offsetValue})",
+    };
+    $sql = "UPDATE app_settings SET state = 'iif_shorthand_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update iif shorthand window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = match ($seed % 4) {
+        0 => "if(1, {$limitValue})",
+        1 => "coalesce(iif(0, 9), {$limitValue})",
+        2 => "iif(0, 9, {$limitValue}, {$limitValue}, 8)",
+        default => "if(NULL, 9, '0', 8, {$limitValue})",
+    };
+    $offsetExpr = match ($seed % 4) {
+        0 => "iif(1, {$offsetValue})",
+        1 => "coalesce(if(0, 9), {$offsetValue})",
+        2 => "if(0, 9, '1english', {$offsetValue}, 8)",
+        default => "iif(NULL, 9, '0', 8, {$offsetValue})",
+    };
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue iif shorthand subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
 }
 
 for ($seed = 1; $seed <= 48; $seed++) {

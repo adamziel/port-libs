@@ -24,7 +24,7 @@ $css = <<<'CSS'
   border-radius: 4px;
 }
 
-:local(.cardTitle) {
+.cardTitle {
   composes: heading from "./typography.module.css";
   color: yellow;
 }
@@ -87,12 +87,25 @@ CSS);
     $invalidGlobalList = 'rejected';
 }
 
+try {
+    (new CssModulesTransformer())->transform(<<<'CSS'
+:local(.card) {
+  composes: reset;
+  color: red;
+}
+CSS);
+    $invalidLocalComposes = 'accepted';
+} catch (InvalidArgumentException) {
+    $invalidLocalComposes = 'rejected';
+}
+
 $actual = [
     'code' => $result['code'],
     'exports' => $result['exports'],
     'bareGlobal' => $bareGlobal,
     'invalidComposes' => $invalidComposes,
     'invalidGlobalList' => $invalidGlobalList,
+    'invalidLocalComposes' => $invalidLocalComposes,
 ];
 
 $expected = [
@@ -153,6 +166,7 @@ $expected = [
     'bareGlobal' => 'rejected',
     'invalidComposes' => 'rejected',
     'invalidGlobalList' => 'rejected',
+    'invalidLocalComposes' => 'rejected',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -170,3 +184,4 @@ echo json_encode($actual['exports'], JSON_PRETTY_PRINT) . PHP_EOL;
 echo 'bare-global: ' . $actual['bareGlobal'] . PHP_EOL;
 echo 'invalid-composes: ' . $actual['invalidComposes'] . PHP_EOL;
 echo 'invalid-global-list: ' . $actual['invalidGlobalList'] . PHP_EOL;
+echo 'invalid-local-composes: ' . $actual['invalidLocalComposes'] . PHP_EOL;

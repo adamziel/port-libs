@@ -604,6 +604,9 @@ final class PathspecSearch
                 continue;
             }
             if ($part === '..') {
+                if ($parts === []) {
+                    throw new \InvalidArgumentException('Pathspec path leaves the repository');
+                }
                 array_pop($parts);
                 continue;
             }
@@ -635,6 +638,9 @@ final class PathspecSearch
                 continue;
             }
             if ($part === '..') {
+                if ($segments === []) {
+                    throw new \InvalidArgumentException('Pathspec path leaves the repository');
+                }
                 array_pop($segments);
                 continue;
             }

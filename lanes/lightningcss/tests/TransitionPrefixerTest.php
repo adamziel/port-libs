@@ -421,6 +421,50 @@ return [
             $prefixer->prefixForTargets('.foo { position: sticky; }', ['safari' => 13])
         );
     },
+    'transition prefixer maps upstream background clip text browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{background:url(img.png);-webkit-background-clip:text;background-clip:text}',
+            $prefixer->prefixForTargets('.foo { background: url(img.png); background-clip: text; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{background:url(img.png);background-clip:text}',
+            $prefixer->prefixForTargets('.foo { background: url(img.png); background-clip: text; }', ['safari' => 14])
+        );
+        $t->same(
+            '.foo{background:url(img.png);-webkit-background-clip:text;background-clip:text}',
+            $prefixer->prefixForTargets('.foo { background: url(img.png) text; }', ['chrome' => 45])
+        );
+        $t->same(
+            '.foo{background-image:url(img.png);-webkit-background-clip:text;background-clip:text}',
+            $prefixer->prefixForTargets('.foo { background-image: url(img.png); background-clip: text; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{background:url(img.png);-webkit-background-clip:text}',
+            $prefixer->prefixForTargets('.foo { background: url(img.png); -webkit-background-clip: text; }', ['chrome' => 45])
+        );
+        $t->same(
+            '.foo{-webkit-background-clip:text;background-clip:text}',
+            $prefixer->prefixForTargets('.foo { -webkit-background-clip: text; background-clip: text; }', ['chrome' => 45])
+        );
+        $t->same(
+            '.foo{background-clip:text}',
+            $prefixer->prefixForTargets('.foo { -webkit-background-clip: text; background-clip: text; }', ['chrome' => 120])
+        );
+        $t->same(
+            '.foo{background:url(img.png);-webkit-background-clip:text;background-clip:text}',
+            $prefixer->prefixForTargets('.foo { background: url(img.png); background-clip: text; }', ['chrome' => 119])
+        );
+        $t->same(
+            '.foo{background:url(img.png);background-clip:text}',
+            $prefixer->prefixForTargets('.foo { background: url(img.png); background-clip: text; }', ['chrome' => 120])
+        );
+        $t->same(
+            '.foo{background:url(img.png);-ms-background-clip:text;background-clip:text}',
+            $prefixer->prefixForTargets('.foo { background: url(img.png); background-clip: text; }', ['edge' => 13])
+        );
+    },
     'transition prefixer maps upstream logical inset target fallbacks' => static function (TestRunner $t) use ($variants): void {
         $prefixer = new TransitionPrefixer();
         $selector = $variants('.foo');

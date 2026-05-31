@@ -204,6 +204,31 @@ return [
             $block->getProperty('border: 1px solid red !important', 'border-style')
         );
     },
+    'declaration block reads upstream border image cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $borderImage = 'border-image: url("frame.svg") 10 40 10 40 fill / 12px / 2 round round';
+
+        $t->same(['value' => 'url(frame.svg)', 'important' => false], $block->getProperty($borderImage, 'border-image-source'));
+        $t->same(['value' => '10 40 fill', 'important' => false], $block->getProperty($borderImage, 'border-image-slice'));
+        $t->same(['value' => '12px', 'important' => false], $block->getProperty($borderImage, 'border-image-width'));
+        $t->same(['value' => '2', 'important' => false], $block->getProperty($borderImage, 'border-image-outset'));
+        $t->same(['value' => 'round', 'important' => false], $block->getProperty($borderImage, 'border-image-repeat'));
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty('border-image: 25', 'border-image-source'));
+        $t->same(
+            ['value' => 'url(frame.svg) 10 40 fill / 10px round', 'important' => false],
+            $block->getProperty(
+                'border-image-source: url("frame.svg"); border-image-slice: 10 40 10 40 fill; border-image-width: 10px; border-image-outset: 0; border-image-repeat: round round',
+                'border-image'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                'border-image-source: url(frame.svg); border-image-slice: 10; border-image-width: 12px !important; border-image-outset: 2; border-image-repeat: round',
+                'border-image'
+            )
+        );
+    },
     'declaration block reads upstream grid area cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -816,6 +841,26 @@ return [
             $block->setProperty('mask-border: url(old-frame.svg) 25 !important', 'mask-border-source', 'url(new-frame.svg)')
         );
     },
+    'declaration block sets upstream border image cssom longhands in existing shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'border-image: url(new-frame.svg) 25 / 12px / 2 round',
+            $block->setProperty('border-image: url(old-frame.svg) 25 / 12px / 2 round', 'border-image-source', 'url("new-frame.svg")')
+        );
+        $t->same(
+            'border-image: url(frame.svg) 20 40 fill / 12px round',
+            $block->setProperty('border-image: url(frame.svg) 10 / 12px round', 'border-image-slice', '20 40 20 40 fill')
+        );
+        $t->same(
+            'border-image: url(frame.svg) 25 / 12px space round',
+            $block->setProperty('border-image: url(frame.svg) 25 / 12px round', 'border-image-repeat', 'space round')
+        );
+        $t->same(
+            'border-image-source: url(new-frame.svg); border-image: url(old-frame.svg) 25 !important',
+            $block->setProperty('border-image: url(old-frame.svg) 25 !important', 'border-image-source', 'url(new-frame.svg)')
+        );
+    },
     'declaration block remove drops direct properties and preserves neighbors' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1138,6 +1183,26 @@ return [
         $t->same(
             'color: red; mask-border-slice: 25 !important; mask-border-width: 1 !important; mask-border-outset: 0 !important; mask-border-repeat: stretch !important; mask-border-mode: alpha !important',
             $block->removeProperty('mask-border: url(frame.svg) 25 !important; color: red; mask-border-source: url(new-frame.svg)', 'mask-border-source')
+        );
+    },
+    'declaration block removes upstream border image cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'border-image-slice: 25; border-image-width: 12px; border-image-outset: 2; border-image-repeat: round',
+            $block->removeProperty('border-image: url(frame.svg) 25 / 12px / 2 round', 'border-image-source')
+        );
+        $t->same(
+            'border-image-source: url(frame.svg); border-image-slice: 25; border-image-width: 12px; border-image-outset: 0',
+            $block->removeProperty('border-image: url(frame.svg) 25 / 12px round', 'border-image-repeat')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('border-image: url(frame.svg) 25; border-image-repeat: round; color: red', 'border-image')
+        );
+        $t->same(
+            'color: red; border-image-slice: 25 !important; border-image-width: 1 !important; border-image-outset: 0 !important; border-image-repeat: stretch !important',
+            $block->removeProperty('border-image: url(frame.svg) 25 !important; color: red; border-image-source: url(new-frame.svg)', 'border-image-source')
         );
     },
 ];

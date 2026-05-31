@@ -2391,6 +2391,20 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicPostCheckpointFollowupScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL post-checkpoint followup dynamic parity requires at least one scenario');
+        }
+
+        return self::dynamicPostCheckpointFollowupScenariosFromCheckpointScenarios(
+            self::dynamicPostRecoveryCheckpointScenarios($scenarioCount)
+        );
+    }
+
+    /**
      * @param list<array<string,mixed>> $baseScenarios
      * @return list<array<string,mixed>>
      */
@@ -2684,6 +2698,93 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $baseScenarios
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicPostCheckpointFollowupScenariosFromCheckpointScenarios(array $baseScenarios): array
+    {
+        if ($baseScenarios === []) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL post-checkpoint followup dynamic parity requires at least one checkpoint scenario');
+        }
+
+        $scenarios = [];
+        foreach ($baseScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $tenantId = (int) $base['tenant_id'];
+            $pageSize = (int) $base['page_size'];
+            $jsonbMode = (bool) $base['jsonb_mode'];
+            $releasedCheckpoint = $base['released_checkpoint'];
+            $checkpointedDatabase = (string) $releasedCheckpoint['database_bytes'];
+            $checkpointWalBytes = (string) $releasedCheckpoint['wal_bytes'];
+            $startedNewWalHeader = $checkpointWalBytes === '';
+            if ($startedNewWalHeader) {
+                $checkpointWalBytes = self::emptyCheckpointWalBytes(
+                    $pageSize,
+                    $releasedCheckpoint['next_wal_header_salt'] ?? [0x51, 0x52],
+                    1
+                );
+            }
+
+            $catalogPage = (int) $base['expected_recovery_pages'][0];
+            $followupInsertPage = 2020 + $seed;
+            $followupRows = $base['post_recovery_recovery_plan']['import_plan']['final_rows'];
+            $followupMutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'post_checkpoint_catalog_' . $seed,
+                    'key_name' => 'disabled_rollback_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.after_checkpoint',
+                    'value' => 'after-checkpoint-' . $seed,
+                    'wal_frame_index' => 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'post_checkpoint_insert_' . $seed,
+                    'key_name' => 'post_checkpoint_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.complete',
+                    'value' => true,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $seed * 10000 + 9,
+                    'insert_load_policy' => 'auto',
+                    'initial_value' => '{}',
+                    'page_number' => $followupInsertPage,
+                    'wal_frame_index' => 2,
+                ],
+            ];
+
+            $followupPlan = self::plan($followupRows, $followupMutations, [
+                'database_bytes' => $checkpointedDatabase,
+                'page_size' => $pageSize,
+                'wal_bytes' => $checkpointWalBytes,
+                'transaction' => 'application_post_checkpoint_json_import_' . $seed,
+                'savepoint' => 'post_checkpoint_json_batch_' . $seed,
+                'pre_savepoint_wal_pages' => [],
+                'materialize_success_wal_frames' => true,
+            ]);
+
+            $finalKeys = array_column($followupPlan['import_plan']['final_rows'], 'key_name');
+            $scenarios[] = array_merge($base, [
+                'post_checkpoint_input_database_hash' => hash('sha256', $checkpointedDatabase),
+                'post_checkpoint_input_wal_hash' => hash('sha256', $checkpointWalBytes),
+                'post_checkpoint_wal_bytes' => $checkpointWalBytes,
+                'post_checkpoint_started_new_wal_header' => $startedNewWalHeader,
+                'post_checkpoint_wal_header_length' => strlen($checkpointWalBytes),
+                'expected_followup_pages' => [$catalogPage, $followupInsertPage],
+                'expected_followup_inserted_key' => 'post_checkpoint_payload_' . $seed,
+                'expected_followup_inserted_id' => $seed * 10000 + 9,
+                'post_checkpoint_followup_plan' => $followupPlan,
+                'followup_inserted_key_retained' => in_array('post_checkpoint_payload_' . $seed, $finalKeys, true),
+                'rejected_prior_tail_key_retained_after_followup' => in_array($base['rejected_prior_tail_inserted_key'], $finalKeys, true),
+                'rejected_post_recovery_tail_key_retained_after_followup' => in_array($base['rejected_post_recovery_tail_inserted_key'], $finalKeys, true),
+            ]);
+        }
+
+        return $scenarios;
+    }
+
+    /**
      * @param array<string,mixed> $importPlan
      */
     private static function assertRollbackFramesExist(array $importPlan, int $walFrameCount): void
@@ -2720,6 +2821,27 @@ final class SQLiteJsonImportRollbackWalPlan
     private static function emptyWalBytes(int $pageSize): string
     {
         return pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 0, 0x51, 0x52, 0, 0);
+    }
+
+    /**
+     * @param array{0:int,1:int}|list<int> $salt
+     */
+    private static function emptyCheckpointWalBytes(int $pageSize, array $salt, int $checkpointSequence): string
+    {
+        $saltOne = (int) ($salt[0] ?? 0x51);
+        $saltTwo = (int) ($salt[1] ?? 0x52);
+        $prefix = pack(
+            'N*',
+            SQLiteWalHeader::MAGIC_BIG_ENDIAN,
+            3007000,
+            $pageSize,
+            $checkpointSequence,
+            $saltOne,
+            $saltTwo
+        );
+        $checksum = SQLiteWal::checksumPair($prefix, false);
+
+        return $prefix . pack('N*', $checksum[0], $checksum[1]);
     }
 
     /**

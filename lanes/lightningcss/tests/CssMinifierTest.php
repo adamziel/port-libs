@@ -210,6 +210,39 @@ CSS
             $minifier->minify('.foo { color: color-mix(in srgb, blue, accentcolor); }')
         );
     },
+    'css minifier maps upstream lab and oklab color-mix value normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'color-mix(in %1$s, %1$s(10%% 20 30), %1$s(50%% 60 70))' => '%1$s(30%% 40 50)',
+            'color-mix(in %1$s, %1$s(10%% 20 30) 25%%, %1$s(50%% 60 70))' => '%1$s(40%% 50 60)',
+            'color-mix(in %1$s, 25%% %1$s(10%% 20 30), %1$s(50%% 60 70))' => '%1$s(40%% 50 60)',
+            'color-mix(in %1$s, %1$s(10%% 20 30), 25%% %1$s(50%% 60 70))' => '%1$s(20%% 30 40)',
+            'color-mix(in %1$s, %1$s(10%% 20 30), %1$s(50%% 60 70) 25%%)' => '%1$s(20%% 30 40)',
+            'color-mix(in %1$s, %1$s(10%% 20 30) 25%%, %1$s(50%% 60 70) 75%%)' => '%1$s(40%% 50 60)',
+            'color-mix(in %1$s, %1$s(10%% 20 30) 30%%, %1$s(50%% 60 70) 90%%)' => '%1$s(40%% 50 60)',
+            'color-mix(in %1$s, %1$s(10%% 20 30) 12.5%%, %1$s(50%% 60 70) 37.5%%)' => '%1$s(40%% 50 60/.5)',
+            'color-mix(in %1$s, %1$s(10%% 20 30) 0%%, %1$s(50%% 60 70))' => '%1$s(50%% 60 70)',
+            'color-mix(in %1$s, %1$s(10%% 20 30 / .4), %1$s(50%% 60 70 / .8))' => '%1$s(36.6667%% 46.6667 56.6667/.6)',
+            'color-mix(in %1$s, %1$s(10%% 20 30 / .4) 25%%, %1$s(50%% 60 70 / .8))' => '%1$s(44.2857%% 54.2857 64.2857/.7)',
+            'color-mix(in %1$s, %1$s(10%% 20 30 / .4), %1$s(50%% 60 70 / .8) 25%%)' => '%1$s(26%% 36 46/.5)',
+            'color-mix(in %1$s, %1$s(10%% 20 30 / .4) 12.5%%, %1$s(50%% 60 70 / .8) 37.5%%)' => '%1$s(44.2857%% 54.2857 64.2857/.35)',
+            'color-mix(in %1$s, %1$s(none none none), %1$s(none none none))' => '%1$s(none none none)',
+            'color-mix(in %1$s, %1$s(none none none), %1$s(50%% 60 70))' => '%1$s(50%% 60 70)',
+            'color-mix(in %1$s, %1$s(10%% 20 none), %1$s(50%% 60 70))' => '%1$s(30%% 40 70)',
+            'color-mix(in %1$s, %1$s(none 20 30), %1$s(50%% none 70))' => '%1$s(50%% 20 50)',
+            'color-mix(in %1$s, %1$s(10%% 20 30 / none), %1$s(50%% 60 70 / 0.5))' => '%1$s(30%% 40 50/.5)',
+            'color-mix(in %1$s, %1$s(10%% 20 30 / none), %1$s(50%% 60 70 / none))' => '%1$s(30%% 40 50/none)',
+        ];
+
+        foreach (['lab', 'oklab'] as $space) {
+            foreach ($cases as $input => $expected) {
+                $t->same(
+                    '.foo{color:' . sprintf($expected, $space) . '}',
+                    $minifier->minify('.foo { color: ' . sprintf($input, $space) . '; }')
+                );
+            }
+        }
+    },
     'css minifier maps upstream color-scheme value ordering' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

@@ -189,7 +189,7 @@ final class GitUrl
         }
 
         if ($scheme === self::SCHEME_SSH && $host !== null) {
-            $host = self::stripIpv6Brackets($host);
+            $host = self::normalizeSshUrlHost($host);
         }
 
         return new self($scheme, $user, $password, $host, $port, $path, false);
@@ -377,6 +377,23 @@ final class GitUrl
     {
         $inner = str_starts_with($host, '[') && str_ends_with($host, ']') ? substr($host, 1, -1) : null;
         return $inner ?? $host;
+    }
+
+    private static function normalizeSshUrlHost(string $host): string
+    {
+        if (str_starts_with($host, '[')) {
+            if (str_ends_with($host, ']:')) {
+                return substr($host, 1, -2);
+            }
+
+            return self::stripIpv6Brackets($host);
+        }
+
+        if (str_ends_with($host, ':') && substr_count($host, ':') === 1) {
+            return substr($host, 0, -1);
+        }
+
+        return $host;
     }
 
     private static function scpColonPosition(string $input): ?int

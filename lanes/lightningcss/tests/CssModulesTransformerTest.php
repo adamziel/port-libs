@@ -16,6 +16,11 @@ $dependency = static fn (string $name, string $specifier): array => [
     'name' => $name,
     'specifier' => $specifier,
 ];
+$dashed = static fn (string $name, bool $isReferenced = false): array => [
+    'name' => $name,
+    'composes' => [],
+    'isReferenced' => $isReferenced,
+];
 
 return [
     'css modules unwraps upstream local and global selector pseudos' => static function (TestRunner $t) use ($export): void {
@@ -306,9 +311,9 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
-    'css modules deduplicates repeated composes references from simple local selectors' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
+    'css modules deduplicates repeated composes references from simple class selectors' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
         $css = <<<'CSS'
-:local(.test) {
+.test {
   composes: foo;
   composes: foo;
   composes: foo from global;
@@ -330,6 +335,17 @@ CSS;
             ]),
         ], $result['exports']);
         $t->same([], $result['references']);
+    },
+    'css modules rejects composes from functional local selectors like upstream' => static function (TestRunner $t): void {
+        $transformer = new CssModulesTransformer();
+
+        foreach ([
+            ':local(.test) { composes: foo; color: red }',
+            ':local(.test), .fallback { composes: foo; color: red }',
+            '@media (min-width: 1px) { :local(.test) { composes: foo; color: red } }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform($css));
+        }
     },
     'css modules rejects composes outside simple local class selectors' => static function (TestRunner $t): void {
         $transformer = new CssModulesTransformer();
@@ -391,6 +407,42 @@ CSS;
             'bar' => $export('EgL3uq_bar'),
         ], $result['exports']);
         $t->same([], $result['references']);
+    },
+    'css modules scopes upstream dashed idents and records dependency references' => static function (TestRunner $t) use ($export, $dashed): void {
+        $css = <<<'CSS'
+.foo {
+  --accent: red;
+  color: var(--accent);
+}
+
+.bar {
+  color: var(--color from "./tokens.css");
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css, [
+            'dashedIdents' => true,
+        ]);
+        $placeholder = array_key_first($result['references']);
+
+        if (!is_string($placeholder)) {
+            throw new RuntimeException('Expected a dashed-ident dependency placeholder');
+        }
+
+        $t->contains('.EgL3uq_foo{--EgL3uq_accent:red;color:var(--EgL3uq_accent)}', $result['code']);
+        $t->contains('.EgL3uq_bar{color:var(' . $placeholder . ')}', $result['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+            '--accent' => $dashed('--EgL3uq_accent', true),
+            'bar' => $export('EgL3uq_bar'),
+        ], $result['exports']);
+        $t->same([
+            $placeholder => [
+                'type' => 'dependency',
+                'name' => '--color',
+                'specifier' => './tokens.css',
+            ],
+        ], $result['references']);
     },
     'css modules scopes upstream view transition declaration idents' => static function (TestRunner $t) use ($export): void {
         $css = <<<'CSS'
