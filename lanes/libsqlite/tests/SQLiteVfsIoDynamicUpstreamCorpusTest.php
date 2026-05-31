@@ -91,6 +91,69 @@ foreach ([
 }
 
 foreach ([
+    'io-1 quick balance canonical nine rows' => [1024, 230, 9, 4, 5, 9, [2, 2, 2, 2, 4, 2, 2, 2, 3], 21, 1, 1, true],
+    'io-1 quick balance canonical eight rows' => [1024, 230, 8, 4, 5, 9, [2, 2, 2, 2, 4, 2, 2, 2], 18, 1, 0, true],
+    'io-1 quick balance canonical five rows' => [1024, 230, 5, 4, 5, 9, [2, 2, 2, 2, 4], 12, 1, 0, true],
+    'io-1 quick balance canonical four rows' => [1024, 230, 4, 4, 5, 9, [2, 2, 2, 2], 8, 0, 0, true],
+    'io-1 quick balance smaller payload row thirteen' => [1024, 140, 13, 6, 7, 13, [2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 3], 29, 1, 1, false],
+    'io-1 quick balance smaller payload split only' => [1024, 140, 7, 6, 7, 13, [2, 2, 2, 2, 2, 2, 4], 16, 1, 0, false],
+    'io-1 quick balance 2048 page eleven rows' => [2048, 230, 11, 8, 9, 17, [2, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2], 24, 1, 0, false],
+    'io-1 quick balance 2048 page seventeen rows' => [2048, 230, 17, 8, 9, 17, [2, 2, 2, 2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 3], 37, 1, 1, false],
+    'io-1 quick balance large payload early split' => [1024, 470, 5, 2, 3, 5, [2, 2, 4, 2, 3], 13, 1, 1, false],
+    'io-1 quick balance large payload pre-split' => [1024, 470, 2, 2, 3, 5, [2, 2], 4, 0, 0, false],
+] as $name => [$pageSize, $payloadBytes, $rowCount, $capacity, $splitRow, $quickBalanceRow, $writes, $totalWrites, $splitEvents, $quickBalanceEvents, $canonical]) {
+    $add($name, ['io.test io-1.1', 'io.test io-1.2', 'io.test io-1.3', 'io.test io-1.4', 'io.test io-1.5'], static fn (): array => SQLiteVfsIoDynamicPlan::quickBalanceDynamicWriteProfile($pageSize, $payloadBytes, $rowCount), [
+        'status' => 'ok',
+        'script' => 'io.test',
+        'page_size' => $pageSize,
+        'payload_bytes' => $payloadBytes,
+        'row_count' => $rowCount,
+        'root_leaf_capacity' => $capacity,
+        'split_row' => $splitRow,
+        'quick_balance_row' => $quickBalanceRow,
+        'total_database_writes' => $totalWrites,
+        'split_events' => $splitEvents,
+        'quick_balance_events' => $quickBalanceEvents,
+        'canonical_io_1_shape' => $canonical,
+        'event_database_writes' => $writes,
+        'dependencies' => ['sqlite-upstream-io-test', 'sqlite-vfs-quick-balance-traffic', 'sqlite-pager-io-traffic', 'vfs-io-dynamic-real-corpus'],
+    ]);
+}
+
+foreach ([
+    'io-6 pager cache two table commit retained' => [1024, 2100, 2048, 2, 5, true, true, 'ok', 5120, 2048, ['BEGIN', "INSERT INTO t1 VALUES('123')", "INSERT INTO t2 VALUES('456')", 'COMMIT'], true],
+    'io-6 pager cache one table commit retained' => [1024, 2100, 2048, 1, 5, true, true, 'ok', 5120, 2048, ['BEGIN', "INSERT INTO t1 VALUES('123')", 'COMMIT'], true],
+    'io-6 pager cache too small spills' => [1024, 8, 2048, 2, 5, false, false, 'would-read-corrupt-page', 5120, 2048, ['BEGIN', "INSERT INTO t1 VALUES('123')", "INSERT INTO t2 VALUES('456')", 'COMMIT'], true],
+    'io-6 pager cache mmap path excluded' => [1024, 2000, 2048, 2, 5, false, false, 'would-read-corrupt-page', 5120, 2048, ['BEGIN', "INSERT INTO t1 VALUES('123')", "INSERT INTO t2 VALUES('456')", 'COMMIT'], false],
+    'io-6 pager cache 2048 page retained' => [2048, 2000, 1024, 2, 3, true, true, 'ok', 6144, 2048, ['BEGIN', "INSERT INTO t1 VALUES('123')", "INSERT INTO t2 VALUES('456')", 'COMMIT'], true],
+    'io-6 pager cache many transaction pages retained' => [1024, 2000, 1024, 4, 7, true, true, 'ok', 7168, 2048, ['BEGIN', "INSERT INTO t1 VALUES('123')", "INSERT INTO t2 VALUES('456')", 'COMMIT'], true],
+    'io-6 pager cache many transaction pages spills' => [1024, 12, 1024, 8, 7, false, false, 'would-read-corrupt-page', 7168, 2048, ['BEGIN', "INSERT INTO t1 VALUES('123')", "INSERT INTO t2 VALUES('456')", 'COMMIT'], true],
+    'io-6 pager cache minimal warm read retained' => [1024, 12, 3, 2, 5, true, true, 'ok', 5120, 2048, ['BEGIN', "INSERT INTO t1 VALUES('123')", "INSERT INTO t2 VALUES('456')", 'COMMIT'], true],
+] as $name => [$pageSize, $cachePages, $warmReadPages, $transactionPages, $corruptPageOffset, $retained, $flushAvoided, $integrity, $corruptByteOffset, $corruptBytes, $sequence, $mmapDisabled]) {
+    $add($name, ['io.test io-6.1', 'io.test io-6.2.1', 'io.test io-6.2.2', 'io.test io-6.2.3'], static fn (): array => SQLiteVfsIoDynamicPlan::pagerCacheNoSpillAfterWarmReadProfile($pageSize, $cachePages, $warmReadPages, $transactionPages, $corruptPageOffset, $mmapDisabled), [
+        'status' => 'ok',
+        'script' => 'io.test',
+        'scenario' => 'io-6.2',
+        'page_size' => $pageSize,
+        'cache_pages' => $cachePages,
+        'warm_read_pages' => $warmReadPages,
+        'transaction_pages' => $transactionPages,
+        'mmap_disabled' => $mmapDisabled,
+        'cache_can_hold_warm_read' => $cachePages >= $warmReadPages,
+        'transaction_fits_without_spill' => ($warmReadPages + $transactionPages) <= $cachePages,
+        'pager_cache_retained' => $retained,
+        'dirty_cache_flush_avoided' => $flushAvoided,
+        'integrity_check_after_disk_corruption' => $integrity,
+        'corrupt_page_offset' => $corruptPageOffset,
+        'corrupt_byte_offset' => $corruptByteOffset,
+        'corrupt_bytes' => $corruptBytes,
+        'warm_read_sequence' => ['SELECT x FROM t3 ORDER BY rowid', 'SELECT x FROM t3 ORDER BY x'],
+        'transaction_sequence' => $sequence,
+        'dependencies' => ['upstream-io-cache-no-spill-after-warm-read', 'vfs-io-dynamic-real-corpus'],
+    ]);
+}
+
+foreach ([
     'io-3 sequential spill no precommit sync' => [['sequential'], 1024, 10, 30, 0, 1, 'sequential_device_defers_spill_syncs_until_commit'],
     'io-3 sequential reserved byte size' => [['sequential'], 1024, 10, 30, 0, 1, 'sequential_device_defers_spill_syncs_until_commit'],
     'io-4 safe append single header spill' => [['safe_append'], 1024, 10, 41, 4, 3, 'safe_append_uses_single_journal_header_across_spills'],
@@ -173,6 +236,11 @@ foreach ($cases as $name => $case) {
         $t->same(true, isset($plan['dependencies']));
 
         foreach ($case['expected'] as $key => $expected) {
+            if ($key === 'event_database_writes') {
+                $t->same($expected, array_column($plan['events'], 'database_writes'));
+                continue;
+            }
+
             $t->same($expected, $plan[$key]);
         }
     };

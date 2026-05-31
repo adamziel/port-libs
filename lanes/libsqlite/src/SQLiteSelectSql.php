@@ -3526,9 +3526,12 @@ final class SQLiteSelectSql
         }
 
         $expression = trim(substr($item, 0, $as));
-        $alias = trim(substr($item, $as + 2));
-        $alias = self::unquoteIdentifier($alias) ?? $alias;
-        self::assertIdentifier($alias, 'SQLite SELECT SQL projection alias');
+        $aliasSql = trim(substr($item, $as + 2));
+        $alias = self::unquoteIdentifier($aliasSql);
+        if ($alias === null) {
+            $alias = $aliasSql;
+            self::assertIdentifier($alias, 'SQLite SELECT SQL projection alias');
+        }
 
         return [$expression, $alias];
     }

@@ -2994,4 +2994,54 @@ foreach ($stringLimitMalformed as $name => $sql) {
     };
 }
 
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = ($seed + 2) % 3;
+    $limitExpr = $seed % 2 === 0
+        ? "({$limitValue} BETWEEN 1 AND 4) + {$limitValue} - 1"
+        : "({$limitValue} NOT BETWEEN 6 AND 9) + {$limitValue} - 1";
+    $offsetExpr = $seed % 3 === 0
+        ? "({$offsetValue} BETWEEN 0 AND 3) + {$offsetValue} - 1"
+        : "({$offsetValue} IS NOT NULL) + {$offsetValue} - 1";
+    $effectiveOffset = $offsetValue;
+    $sql = "UPDATE app_settings SET state = 'predicate_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $effectiveOffset, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update predicate scalar limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $effectiveOffset): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($effectiveOffset, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($result['returning']), 'predicate_limit'), array_column($result['returning'], 'state'));
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = $seed % 2 === 0
+        ? "({$limitValue} IN (1, 2, 3)) + {$limitValue} - 1"
+        : "({$limitValue} NOT IN (7, 8, 9)) + {$limitValue} - 1";
+    $offsetExpr = $seed % 4 === 0
+        ? "({$offsetValue} IN (0, 1, 2, 3)) + {$offsetValue} - 1"
+        : "({$offsetValue} NOT IN (7, 8, 9)) + {$offsetValue} - 1";
+    $effectiveOffset = $offsetValue;
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $effectiveOffset, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue predicate subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('rowvalue.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
 return $tests;

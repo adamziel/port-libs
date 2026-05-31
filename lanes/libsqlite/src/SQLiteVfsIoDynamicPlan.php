@@ -1358,6 +1358,69 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @param list<string> $deviceFlags
+     * @return array<string, mixed>
+     */
+    public static function walSequentialHeaderSyncProfile(
+        array $deviceFlags,
+        string $syncMode,
+        int $seedRows,
+        int $postCheckpointInsertRows,
+        int $pageSize = 1024
+    ): array {
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite WAL sequential sync profile page size must be a power of two at least 512');
+        }
+        if ($seedRows < 1 || $postCheckpointInsertRows < 1) {
+            throw new \InvalidArgumentException('SQLite WAL sequential sync profile requires positive row counts');
+        }
+
+        $flags = self::deviceFlags($deviceFlags);
+        $syncMode = strtolower(trim($syncMode));
+        if (!in_array($syncMode, ['off', 'normal', 'full'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL sequential sync profile sync mode is unsupported');
+        }
+
+        $sequential = in_array('sequential', $flags, true);
+        $walFramesAfterSeed = $seedRows + 2;
+        $checkpointFrames = $walFramesAfterSeed;
+        $postCheckpointFrames = $postCheckpointInsertRows;
+        $walHeaderSyncedImmediately = !$sequential && $syncMode !== 'off';
+        $frameContentSynced = $syncMode === 'full';
+        $postCheckpointSyncCount = 0;
+        if ($syncMode === 'normal' && !$sequential) {
+            $postCheckpointSyncCount = 1;
+        } elseif ($syncMode === 'full') {
+            $postCheckpointSyncCount = $sequential ? $postCheckpointInsertRows : $postCheckpointInsertRows + 1;
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'walvfs.test',
+            'upstream' => ['walvfs.test 1.0', 'walvfs.test 1.1', 'walvfs.test 1.2', 'walvfs.test 1.3'],
+            'journal_mode' => 'wal',
+            'sync_mode' => $syncMode,
+            'device_flags' => $flags,
+            'page_size' => $pageSize,
+            'seed_rows' => $seedRows,
+            'post_checkpoint_insert_rows' => $postCheckpointInsertRows,
+            'sequential_device' => $sequential,
+            'wal_frames_after_seed' => $walFramesAfterSeed,
+            'checkpoint_result' => ['busy' => 0, 'log' => $checkpointFrames, 'checkpointed' => $checkpointFrames],
+            'post_checkpoint_wal_frames' => $postCheckpointFrames,
+            'wal_header_synced_immediately' => $walHeaderSyncedImmediately,
+            'wal_frame_content_synced' => $frameContentSynced,
+            'post_checkpoint_wal_sync_count' => $postCheckpointSyncCount,
+            'wal_header_sync_deferred' => $sequential && $syncMode !== 'off',
+            'reader_rows_after_insert' => $seedRows + $postCheckpointInsertRows,
+            'reason' => $sequential
+                ? 'sequential_wal_device_defers_header_sync_after_checkpoint'
+                : 'non_sequential_wal_device_syncs_header_after_checkpoint',
+            'dependencies' => ['upstream-walvfs-sequential-header-sync', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function walCheckpointInterruptProfile(int $writeFailCountdown, bool $oomBeforeInterrupt): array

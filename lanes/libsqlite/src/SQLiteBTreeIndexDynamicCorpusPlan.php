@@ -5656,6 +5656,123 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,object_type:string,object_name:string,statement:string,result_code:int,message:string|null,defensive_mode:int|null,requires_capability:string|null,schema_before:list<string>,schema_after:list<string>,drops_existing_table:bool,integrity:string}>
+     */
+    public static function indexReservedSchemaNameCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index-18 reserved-name corpus requires at least one case');
+        }
+
+        $existingSchema = ['sqlite_autoindex_t7_1', 'sqlite_autoindex_t7_2', 'sqlite_autoindex_t7_3', 't7'];
+        $templates = [
+            [
+                'index-18.1',
+                'table',
+                'sqlite_t1',
+                'CREATE TABLE sqlite_t1(a, b, c)',
+                1,
+                'object name reserved for internal use: sqlite_t1',
+                null,
+                null,
+                [],
+                [],
+                false,
+            ],
+            [
+                'index-18.1.2',
+                'table',
+                'sqlite_t1',
+                'CREATE TABLE sqlite_t1(a, b, c)',
+                1,
+                'object name reserved for internal use: sqlite_t1',
+                null,
+                null,
+                [],
+                [],
+                false,
+            ],
+            [
+                'index-18.2',
+                'index',
+                'sqlite_i1',
+                'CREATE INDEX sqlite_i1 ON t7(c)',
+                1,
+                'object name reserved for internal use: sqlite_i1',
+                0,
+                null,
+                $existingSchema,
+                $existingSchema,
+                false,
+            ],
+            [
+                'index-18.3',
+                'view',
+                'sqlite_v1',
+                'CREATE VIEW sqlite_v1 AS SELECT * FROM t7',
+                1,
+                'object name reserved for internal use: sqlite_v1',
+                0,
+                'view',
+                $existingSchema,
+                $existingSchema,
+                false,
+            ],
+            [
+                'index-18.4',
+                'trigger',
+                'sqlite_tr1',
+                'CREATE TRIGGER sqlite_tr1 BEFORE INSERT ON t7 BEGIN SELECT 1; END',
+                1,
+                'object name reserved for internal use: sqlite_tr1',
+                0,
+                'trigger',
+                $existingSchema,
+                $existingSchema,
+                false,
+            ],
+            [
+                'index-18.5',
+                'table',
+                't7',
+                'DROP TABLE t7',
+                0,
+                null,
+                0,
+                null,
+                $existingSchema,
+                [],
+                true,
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $type, $name, $statement, $code, $message, $defensive, $capability, $before, $after, $drops] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $rows[] = [
+                'source' => 'index.test sections index-18.1 through index-18.5',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'object_type' => $type,
+                'object_name' => $name,
+                'statement' => $statement,
+                'result_code' => $code,
+                'message' => $message,
+                'defensive_mode' => $defensive,
+                'requires_capability' => $capability,
+                'schema_before' => $before,
+                'schema_after' => $after,
+                'drops_existing_table' => $drops,
+                'integrity' => $code === 0 ? 'ok' : 'schema-preserved-after-reserved-name-error',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,batch:int,table_name:string,constraint_sql:string,conflict_policy:string,statement:string,result_code:int,message:string|null,transaction_state:string,rows_after:list<array<int,mixed>>,schema_preserved:bool,merged_autoindex:bool,autoindex_name:string,integrity:string}>
      */
     public static function index19MergedConstraintConflictPolicyCases(int $cases = 1000): array
@@ -9409,6 +9526,153 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
                 'detail' => $usesPartialIndex
                     ? 'SEARCH t1 USING COVERING INDEX bad1 for WITHOUT ROWID partial-index predicate'
                     : 'index7 WITHOUT ROWID partial-index lifecycle section ' . $section,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,sql:string,table_shape:string,candidate_indexes:list<string>,chosen_index:string,rejected_indexes:list<string>,equality_prefix:list<string>,range_column:string,order_column:string,uses_temp_btree:bool,detail:string,integrity:string}>
+     */
+    public static function whereHCompositeSupersetIndexCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite whereH composite-superset index corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'whereH-1.1/1.2',
+                'three-column index created before shorter suffix index remains preferred',
+                ['t1abc', 't1bc'],
+                't1abc',
+                ['t1bc'],
+                ['a', 'b'],
+                'c',
+                'c',
+                'SELECT d FROM t1 WHERE a=? AND b=? AND c>=? ORDER BY c',
+            ],
+            [
+                'whereH-2.1/2.2',
+                'three-column index created after shorter suffix index remains preferred',
+                ['t1bc', 't1abc'],
+                't1abc',
+                ['t1bc'],
+                ['a', 'b'],
+                'c',
+                'c',
+                'SELECT d FROM t1 WHERE a=? AND b=? AND c>=? ORDER BY c',
+            ],
+            [
+                'whereH-3.1/3.2',
+                'four-column index outranks c-d and b-c-d candidates when equality prefix is complete',
+                ['t1cd', 't1bcd', 't1abcd'],
+                't1abcd',
+                ['t1cd', 't1bcd'],
+                ['a', 'b', 'c'],
+                'd',
+                'd',
+                'SELECT d FROM t1 WHERE a=? AND b=? AND c=? AND d>=? ORDER BY d',
+            ],
+            [
+                'whereH-4.1/4.2',
+                'four-column index remains preferred when created between narrower alternatives',
+                ['t1cd', 't1abcd', 't1bcd'],
+                't1abcd',
+                ['t1cd', 't1bcd'],
+                ['a', 'b', 'c'],
+                'd',
+                'd',
+                'SELECT d FROM t1 WHERE a=? AND b=? AND c=? AND d>=? ORDER BY d',
+            ],
+            [
+                'whereH-5.1/5.2',
+                'four-column index remains preferred when created after both narrower alternatives',
+                ['t1bcd', 't1cd', 't1abcd'],
+                't1abcd',
+                ['t1bcd', 't1cd'],
+                ['a', 'b', 'c'],
+                'd',
+                'd',
+                'SELECT d FROM t1 WHERE a=? AND b=? AND c=? AND d>=? ORDER BY d',
+            ],
+            [
+                'whereH-6.1/6.2',
+                'four-column index remains preferred when c-d candidate is created last',
+                ['t1bcd', 't1abcd', 't1cd'],
+                't1abcd',
+                ['t1bcd', 't1cd'],
+                ['a', 'b', 'c'],
+                'd',
+                'd',
+                'SELECT d FROM t1 WHERE a=? AND b=? AND c=? AND d>=? ORDER BY d',
+            ],
+            [
+                'whereH-7.1/7.2',
+                'four-column index remains preferred when created before both narrower alternatives',
+                ['t1abcd', 't1bcd', 't1cd'],
+                't1abcd',
+                ['t1bcd', 't1cd'],
+                ['a', 'b', 'c'],
+                'd',
+                'd',
+                'SELECT d FROM t1 WHERE a=? AND b=? AND c=? AND d>=? ORDER BY d',
+            ],
+            [
+                'whereH-8.1/8.2',
+                'four-column index remains preferred when b-c-d candidate is created last',
+                ['t1abcd', 't1cd', 't1bcd'],
+                't1abcd',
+                ['t1cd', 't1bcd'],
+                ['a', 'b', 'c'],
+                'd',
+                'd',
+                'SELECT d FROM t1 WHERE a=? AND b=? AND c=? AND d>=? ORDER BY d',
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [
+                $section,
+                $scenario,
+                $candidateIndexes,
+                $chosenIndex,
+                $rejectedIndexes,
+                $equalityPrefix,
+                $rangeColumn,
+                $orderColumn,
+                $sql,
+            ] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+
+            $out[] = [
+                'source' => 'whereH.test sections whereH-1.1 through whereH-8.2',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario . ' dynamic batch ' . $batch,
+                'sql' => $sql,
+                'table_shape' => $chosenIndex === 't1abc'
+                    ? 't1(a,b,c,d) with t1abc and t1bc candidate indexes'
+                    : 't1(a,b,c,d,e) with t1cd, t1bcd, and t1abcd candidate indexes',
+                'candidate_indexes' => $candidateIndexes,
+                'chosen_index' => $chosenIndex,
+                'rejected_indexes' => $rejectedIndexes,
+                'equality_prefix' => $equalityPrefix,
+                'range_column' => $rangeColumn,
+                'order_column' => $orderColumn,
+                'uses_temp_btree' => false,
+                'detail' => 'SEARCH t1 USING INDEX ' . $chosenIndex
+                    . ' ('
+                    . implode('=? AND ', $equalityPrefix)
+                    . '=? AND '
+                    . $rangeColumn
+                    . '>=?) ORDER BY '
+                    . $orderColumn
+                    . ' WITHOUT TEMP B-TREE',
+                'integrity' => 'ok',
             ];
         }
 

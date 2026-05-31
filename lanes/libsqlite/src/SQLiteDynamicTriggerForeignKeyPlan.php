@@ -3652,13 +3652,17 @@ final class SQLiteDynamicTriggerForeignKeyPlan
                     'source_matched' => $matchedSource,
                     'event' => $event,
                 ];
-                $log[] = '(' . (string) ($old[$targetKeyColumn] ?? '') . ',' . (string) ($old[$setColumn] ?? '') . ')->(' . (string) $eventKey . ',' . (string) $sourceValue . ')';
+                if ($event === 'instead-of-update-view' && array_key_exists('__hidden__b', $old)) {
+                    $log[] = '(' . (string) ($old[$setColumn] ?? '') . ',' . (string) $old['__hidden__b'] . ')->(' . (string) $sourceValue . ',' . (string) $old['__hidden__b'] . ')';
+                } else {
+                    $log[] = '(' . (string) ($old[$targetKeyColumn] ?? '') . ',' . (string) ($old[$setColumn] ?? '') . ')->(' . (string) $eventKey . ',' . (string) $sourceValue . ')';
+                }
             }
         }
 
         return [
             'source' => match ($event) {
-                'after-insert' => $temporaryTrigger ? 'triggerupfrom.test triggerupfrom-2.2..3.0' : 'triggerupfrom.test triggerupfrom-1.0..1.3',
+                'after-insert' => $sourceSchema !== 'main' && $sourceSchema === $targetSchema ? 'triggerupfrom.test triggerupfrom-2.0..3.0' : ($temporaryTrigger ? 'triggerupfrom.test triggerupfrom-2.2..3.0' : 'triggerupfrom.test triggerupfrom-1.0..1.3'),
                 'before-delete' => 'triggerupfrom.test triggerupfrom-2.3..2.4',
                 default => 'triggerupfrom.test triggerupfrom-4.2..4.3',
             },
