@@ -548,6 +548,61 @@ final class SQLiteVfsIoTrafficPlan
     }
 
     /**
+     * @return array{script:string,scenario:string,writer_connection:string,reader_connection:string,writer_holds_reserved:bool,requester_holds_read_lock:bool,operation:string,busy_handler_registered:bool,busy_callback_invoked:bool,busy_callback_counts:list<int>,busy_break_count:int|null,result_code:string,result_message:string,reader_can_select:bool,writer_transaction_open:bool,rollback_required:bool,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function lockBusyCallbackProfile(
+        string $scenario,
+        bool $requesterHoldsReadLock,
+        int $busyBreakCount = 0,
+        string $operation = 'update'
+    ): array {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite lock busy callback scenario requires a name');
+        }
+        if ($busyBreakCount < 0) {
+            throw new \InvalidArgumentException('SQLite lock busy callback break count must be non-negative');
+        }
+
+        $operation = strtolower(trim($operation));
+        if (!in_array($operation, ['update', 'insert', 'delete'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite lock busy callback operation: {$operation}");
+        }
+
+        $callbackInvoked = !$requesterHoldsReadLock;
+        $counts = $callbackInvoked ? range(0, $busyBreakCount) : [];
+
+        return [
+            'script' => 'lock.test',
+            'scenario' => $scenario,
+            'writer_connection' => 'db',
+            'reader_connection' => 'db2',
+            'writer_holds_reserved' => true,
+            'requester_holds_read_lock' => $requesterHoldsReadLock,
+            'operation' => $operation,
+            'busy_handler_registered' => true,
+            'busy_callback_invoked' => $callbackInvoked,
+            'busy_callback_counts' => $counts,
+            'busy_break_count' => $callbackInvoked ? $busyBreakCount : null,
+            'result_code' => 'SQLITE_BUSY',
+            'result_message' => 'database is locked',
+            'reader_can_select' => true,
+            'writer_transaction_open' => true,
+            'rollback_required' => true,
+            'dependencies' => [
+                'sqlite-upstream-lock-test',
+                'sqlite-vfs-reserved-lock-contention',
+                'sqlite-busy-handler-callback-sequence',
+            ],
+            'upstream' => [
+                'lock.test lock-2.1 writer obtains RESERVED lock',
+                'lock.test lock-2.2 reader can SELECT while writer holds RESERVED',
+                'lock.test lock-2.3 busy callback skipped when requester already holds read lock',
+                'lock.test lock-2.4 busy callback repeats until callback break',
+            ],
+        ];
+    }
+
+    /**
      * @return array{script:string,scenario:string,upstream:string,persistent:bool,destination_page_size:int,destination_initially_populated:bool,fault_index:int,fault_phase:string,partial_step_result:string,source_update_result:string,final_step_result:string,finish_result:string,destination_error_before_finish:string,destination_error_after_finish:string,contents_match:bool,destination_restored_to_prior_image:bool,integrity_check:string,backup_can_continue_after_source_write_error:bool,deferred_backup_update_error:bool,open_file_count:int,dependencies:list<string>}
      */
     public static function backupIoErrorStateMachine(

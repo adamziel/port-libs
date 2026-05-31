@@ -9,7 +9,7 @@ final class SQLiteUpsertReturningSql
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<list<string>>|null $uniqueConstraints
-     * @return array{target:string,target_alias:?string,conflict_target:list<string>,columns:list<string>,incoming_rows:list<array<string,mixed>>,before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning:list<array<string,mixed>>,changes:int}
+     * @return array{target:string,target_alias:?string,conflict_target:list<string>,conflict_where:?string,columns:list<string>,incoming_rows:list<array<string,mixed>>,before:list<array<string,mixed>>,after:list<array<string,mixed>>,inserted_rows:list<array<string,mixed>>,updated_rows:list<array<string,mixed>>,skipped_rows:list<array<string,mixed>>,returning:list<array<string,mixed>>,changes:int}
      */
     public static function execute(string $sql, array $tables, ?array $uniqueConstraints = null): array
     {
@@ -42,6 +42,7 @@ final class SQLiteUpsertReturningSql
             'target' => $target,
             'target_alias' => $parsed['target_alias'],
             'conflict_target' => $conflictTarget,
+            'conflict_where' => $parsed['conflict_where'],
             'columns' => $parsed['columns'],
             'incoming_rows' => $incomingRows,
             'before' => $result['before'],
@@ -99,7 +100,7 @@ final class SQLiteUpsertReturningSql
     }
 
     /**
-     * @return array{target:string,target_alias:?string,columns:list<string>,incoming_rows:list<array<string,mixed>>,conflict_target:list<string>,action:'update'|'nothing',assignments:array<string,string>,where:?string,returning:string}
+     * @return array{target:string,target_alias:?string,columns:list<string>,incoming_rows:list<array<string,mixed>>,conflict_target:list<string>,conflict_where:?string,action:'update'|'nothing',assignments:array<string,string>,where:?string,returning:string}
      */
     public static function parse(string $sql): array
     {
@@ -191,6 +192,25 @@ final class SQLiteUpsertReturningSql
         }
 
         $offset = self::skipWhitespace($sql, $offset);
+        $conflictWhere = null;
+        if (preg_match('/\GWHERE\b/i', $sql, $whereMatch, 0, $offset) === 1) {
+            $whereStart = $offset + strlen($whereMatch[0]);
+            $actionOffset = self::keywordOffset($sql, 'DO UPDATE', $whereStart);
+            $doNothingOffset = self::keywordOffset($sql, 'DO NOTHING', $whereStart);
+            if ($actionOffset === null || ($doNothingOffset !== null && $doNothingOffset < $actionOffset)) {
+                $actionOffset = $doNothingOffset;
+            }
+            if ($actionOffset === null) {
+                throw new \InvalidArgumentException('SQLite UPSERT conflict target WHERE must be followed by DO UPDATE SET or DO NOTHING');
+            }
+            $conflictWhere = trim(substr($sql, $whereStart, $actionOffset - $whereStart));
+            if ($conflictWhere === '') {
+                throw new \InvalidArgumentException('SQLite UPSERT conflict target WHERE clause must not be empty');
+            }
+            self::validateConflictTargetWhere($conflictWhere, $columns);
+            $offset = self::skipWhitespace($sql, $actionOffset);
+        }
+
         $action = 'update';
         $assignmentSql = '';
         $whereSql = null;
@@ -235,6 +255,7 @@ final class SQLiteUpsertReturningSql
             'columns' => $columns,
             'incoming_rows' => $incomingRows,
             'conflict_target' => $conflictTarget,
+            'conflict_where' => $conflictWhere,
             'action' => $action,
             'assignments' => $action === 'update' ? self::parseAssignments($assignmentSql) : [],
             'where' => $whereSql,
@@ -353,6 +374,48 @@ final class SQLiteUpsertReturningSql
         $uniqueConstraints = self::normalizeUniqueConstraints($conflictTarget, $uniqueConstraints);
         if (!self::targetMatchesUniqueConstraint($conflictTarget, $uniqueConstraints)) {
             throw new \InvalidArgumentException('SQLite UPSERT ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint');
+        }
+    }
+
+    /**
+     * @param list<string> $columns
+     */
+    private static function validateConflictTargetWhere(string $where, array $columns): void
+    {
+        $sql = preg_replace("/'(?:''|[^'])*'/", ' ', $where);
+        if (!is_string($sql)) {
+            throw new \InvalidArgumentException('SQLite UPSERT conflict target WHERE clause is malformed');
+        }
+        $sql = preg_replace_callback('/"(?:""|[^"])*"|\[(?:\]\]|[^\]])*\]/', static function (array $match): string {
+            $identifier = self::dequoteIdentifier($match[0]);
+
+            return $identifier === null ? ' ' : $identifier;
+        }, $sql);
+        if (!is_string($sql)) {
+            throw new \InvalidArgumentException('SQLite UPSERT conflict target WHERE clause is malformed');
+        }
+
+        preg_match_all('/\b[A-Za-z_][A-Za-z0-9_]*\b/', $sql, $matches);
+        $keywords = [
+            'and' => true,
+            'binary' => true,
+            'collate' => true,
+            'false' => true,
+            'glob' => true,
+            'is' => true,
+            'like' => true,
+            'not' => true,
+            'null' => true,
+            'or' => true,
+            'true' => true,
+        ];
+        foreach ($matches[0] as $identifier) {
+            if (isset($keywords[strtolower($identifier)])) {
+                continue;
+            }
+            if (!in_array($identifier, $columns, true)) {
+                throw new \InvalidArgumentException("no such column: {$identifier}");
+            }
         }
     }
 

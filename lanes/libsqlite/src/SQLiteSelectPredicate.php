@@ -59,8 +59,10 @@ final class SQLiteSelectPredicate
             'NOT LIKE' => self::like($row, $predicate, true),
             'GLOB' => self::glob($row, $predicate, false),
             'NOT GLOB' => self::glob($row, $predicate, true),
-            'MATCH' => self::matchRegexp($row, $predicate, 'MATCH'),
-            'REGEXP' => self::matchRegexp($row, $predicate, 'REGEXP'),
+            'MATCH' => self::matchRegexp($row, $predicate, 'MATCH', false),
+            'NOT MATCH' => self::matchRegexp($row, $predicate, 'MATCH', true),
+            'REGEXP' => self::matchRegexp($row, $predicate, 'REGEXP', false),
+            'NOT REGEXP' => self::matchRegexp($row, $predicate, 'REGEXP', true),
             'IS NULL' => self::operand($row, $predicate, 'left') === null,
             'IS NOT NULL' => self::operand($row, $predicate, 'left') !== null,
             default => throw new \InvalidArgumentException("SQLite SELECT predicate operator {$operator} is not supported"),
@@ -376,7 +378,7 @@ final class SQLiteSelectPredicate
      * @param array<string,mixed> $row
      * @param array<string,mixed> $predicate
      */
-    private static function matchRegexp(array $row, array $predicate, string $operator): ?bool
+    private static function matchRegexp(array $row, array $predicate, string $operator, bool $negate): ?bool
     {
         $left = self::operand($row, $predicate, 'left');
         $right = self::operand($row, $predicate, 'right');
@@ -390,12 +392,16 @@ final class SQLiteSelectPredicate
                 throw new \InvalidArgumentException("SQLite SELECT {$operator} predicate callback must be callable");
             }
 
-            return self::truthValue($callback($left, $right));
+            $matched = self::truthValue($callback($right, $left));
+
+            return $matched === null ? null : ($negate ? !$matched : $matched);
         }
 
         $comparison = self::compareValues($left, $right, false, self::predicateCollations($predicate) ?? self::predicateCollation($predicate));
 
-        return $comparison === null ? null : $comparison === 0;
+        $matched = $comparison === null ? null : $comparison === 0;
+
+        return $matched === null ? null : ($negate ? !$matched : $matched);
     }
 
     /**

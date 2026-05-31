@@ -1603,4 +1603,72 @@ foreach ($iifMalformed as $name => $sql) {
     };
 }
 
+for ($limit = 1; $limit <= 5; $limit++) {
+    for ($offset = 0; $offset <= 4; $offset++) {
+        $sql = "UPDATE app_settings SET state = 'rowvalue4_window' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limit} OFFSET {$offset}) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+        $windowIds = array_slice([6, 3, 5, 2, 8], $offset, $limit);
+        $expected = array_values(array_intersect([2, 3, 5, 6, 8], $windowIds));
+
+        $tests[sprintf('rowvalue update delete limit dynamic parity rowvalue4 update ordered tuple window limit %d offset %d', $limit, $offset)] =
+            static function (TestRunner $t) use ($execute, $sql, $expected, $limit, $offset): void {
+                $result = $execute($sql);
+                $t->same($expected, $result['plan']->selectedIds);
+                $t->same($expected, array_column($result['returning'], 'setting_id'));
+                $t->contains("LIMIT {$limit} OFFSET {$offset}", $sql);
+            };
+    }
+}
+
+for ($limit = 1; $limit <= 5; $limit++) {
+    for ($offset = 0; $offset <= 4; $offset++) {
+        $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT {$limit} OFFSET {$offset}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+        $windowIds = array_slice([8, 2, 5, 3, 6], $offset, $limit);
+        $expected = array_values(array_intersect([2, 3, 5, 6, 8], $windowIds));
+
+        $tests[sprintf('rowvalue update delete limit dynamic parity rowvalue4 delete descending tuple window limit %d offset %d', $limit, $offset)] =
+            static function (TestRunner $t) use ($execute, $sql, $expected): void {
+                $result = $execute($sql);
+                $t->same($expected, $result['plan']->selectedIds);
+                $t->same($expected, array_column($result['returning'], 'setting_id'));
+                $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            };
+    }
+}
+
+$nullTupleCases = [
+    'update matching null tuple is unknown and skipped' => [
+        "UPDATE app_settings SET key_value = 'null_tuple' WHERE (tenant_id, state) IN (SELECT tenant_id, state FROM app_settings WHERE setting_id = 7) RETURNING setting_id ORDER BY setting_id LIMIT -1",
+        [],
+    ],
+    'delete matching null tuple is unknown and skipped' => [
+        "DELETE FROM app_settings WHERE (tenant_id, state) IN (SELECT tenant_id, state FROM app_settings WHERE setting_id = 7) RETURNING setting_id ORDER BY setting_id LIMIT -1",
+        [],
+    ],
+    'update nonmatching tuple with null source is unknown and skipped' => [
+        "UPDATE app_settings SET key_value = 'null_tuple' WHERE (tenant_id, state) IN (SELECT tenant_id, state FROM app_settings WHERE setting_id IN (7, 8) ORDER BY setting_id LIMIT 1) RETURNING setting_id ORDER BY setting_id LIMIT -1",
+        [],
+    ],
+    'delete null tuple source still matches concrete tuple after offset' => [
+        "DELETE FROM app_settings WHERE (tenant_id, state) IN (SELECT tenant_id, state FROM app_settings WHERE setting_id IN (7, 8) ORDER BY setting_id LIMIT 1 OFFSET 1) RETURNING setting_id ORDER BY setting_id LIMIT -1",
+        [8],
+    ],
+    'update not in against null tuple source is unknown and skipped' => [
+        "UPDATE app_settings SET key_value = 'not_in_null_tuple' WHERE (tenant_id, state) NOT IN (SELECT tenant_id, state FROM app_settings WHERE setting_id = 7) RETURNING setting_id ORDER BY setting_id LIMIT -1",
+        [1, 2, 3, 4, 5, 6],
+    ],
+    'delete not in with null source excluded by offset can select concrete nonmatches' => [
+        "DELETE FROM app_settings WHERE (tenant_id, state) NOT IN (SELECT tenant_id, state FROM app_settings WHERE setting_id IN (7, 8) ORDER BY setting_id LIMIT 1 OFFSET 1) RETURNING setting_id ORDER BY setting_id LIMIT 3",
+        [1, 2, 3],
+    ],
+];
+
+foreach ($nullTupleCases as $name => [$sql, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity rowvalue3 ' . $name] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+        };
+}
+
 return $tests;

@@ -6,6 +6,7 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteJsonCanonical;
 use PortLibs\LibSqlite\SQLiteJsonSubtypeValue;
 use PortLibs\LibSqlite\SQLiteJsonValidity;
+use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $tests = [];
 
@@ -61,6 +62,8 @@ $flags = [
     'strict-plus-jsonb' => 9,
 ];
 
+$sqlLiteral = static fn (string $value): string => "'" . str_replace("'", "''", $value) . "'";
+
 foreach ($cases as $scenario => $case) {
     $tests['real upstream json101 string escape validity dynamic ' . $scenario] = static function (TestRunner $t) use ($case, $flags, $scenario, $wrappers): void {
         foreach ($wrappers as $wrapperName => $wrap) {
@@ -108,6 +111,17 @@ foreach ($cases as $scenario => $case) {
             }
         }
     };
+
+    $tests['real upstream json101 select dispatcher escape validity dynamic ' . $scenario] =
+        static function (TestRunner $t) use ($case, $scenario, $sqlLiteral): void {
+            $expected = $case['valid'] ? 1 : 0;
+            $json = $case['json'];
+
+            $t->same($expected, SQLiteSelectSql::execute('SELECT json_valid(' . $sqlLiteral($json) . ') AS valid', [])[0]['valid'], $scenario . ' SELECT default flag');
+            $t->same($expected, SQLiteSelectSql::execute('SELECT json_valid(' . $sqlLiteral($json) . ', 1) AS valid', [])[0]['valid'], $scenario . ' SELECT explicit strict flag');
+            $t->same($case['valid'], SQLiteJsonValidity::jsonValidSqlFunctionArguments('json_valid', [$json, 1]), $scenario . ' function arguments strict flag');
+            $t->same($case['valid'], SQLiteJsonValidity::jsonValid($json, SQLiteJsonValidity::FLAG_STRICT_TEXT), $scenario . ' direct strict flag');
+        };
 }
 
 $tests['real upstream json101 string escape validity dynamic corpus accounting'] = static function (TestRunner $t) use ($cases, $wrappers, $flags): void {
@@ -124,5 +138,31 @@ $tests['real upstream json101 string escape validity dynamic corpus accounting']
         'json101.test: json101-10.1 through json101-10.95 plus json101-10.86.0 through json101-10.86.6'
     );
 };
+
+$tests['real upstream json101-11 select dispatcher array nesting depth boundary'] =
+    static function (TestRunner $t) use ($sqlLiteral): void {
+        $valid = str_repeat('[', 1000) . '0' . str_repeat(']', 1000);
+        $tooDeep = str_repeat('[', 1001) . '0' . str_repeat(']', 1001);
+
+        $t->true(SQLiteJsonValidity::jsonValid($valid));
+        $t->same(false, SQLiteJsonValidity::jsonValid($tooDeep));
+        $t->same(1, SQLiteSelectSql::execute('SELECT json_valid(' . $sqlLiteral($valid) . ') AS valid', [])[0]['valid']);
+        $t->same(0, SQLiteSelectSql::execute('SELECT json_valid(' . $sqlLiteral($tooDeep) . ') AS valid', [])[0]['valid']);
+        $t->true(SQLiteJsonValidity::jsonValid($valid, SQLiteJsonValidity::FLAG_STRICT_TEXT));
+        $t->same(false, SQLiteJsonValidity::jsonValid($tooDeep, SQLiteJsonValidity::FLAG_STRICT_TEXT));
+    };
+
+$tests['real upstream json101-11 select dispatcher object nesting depth boundary'] =
+    static function (TestRunner $t) use ($sqlLiteral): void {
+        $valid = str_repeat('{"a":', 1000) . '0' . str_repeat('}', 1000);
+        $tooDeep = str_repeat('{"a":', 1001) . '0' . str_repeat('}', 1001);
+
+        $t->true(SQLiteJsonValidity::jsonValid($valid));
+        $t->same(false, SQLiteJsonValidity::jsonValid($tooDeep));
+        $t->same(1, SQLiteSelectSql::execute('SELECT json_valid(' . $sqlLiteral($valid) . ') AS valid', [])[0]['valid']);
+        $t->same(0, SQLiteSelectSql::execute('SELECT json_valid(' . $sqlLiteral($tooDeep) . ') AS valid', [])[0]['valid']);
+        $t->true(SQLiteJsonValidity::jsonValid($valid, SQLiteJsonValidity::FLAG_STRICT_TEXT));
+        $t->same(false, SQLiteJsonValidity::jsonValid($tooDeep, SQLiteJsonValidity::FLAG_STRICT_TEXT));
+    };
 
 return $tests;

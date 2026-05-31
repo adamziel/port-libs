@@ -344,12 +344,141 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
         ];
     }
 
+    /** @return array<string,mixed> */
+    public static function triggerCAffinityTiming(): array
+    {
+        $cases = [];
+        foreach (range(1, 180) as $seed) {
+            $insert = match ($seed % 4) {
+                0 => ['rowid' => null, 'a' => -42.4, 'b' => -42.4, 'c' => -42.4],
+                1 => ['rowid' => 45, 'a' => 45, 'b' => 45, 'c' => 45],
+                2 => ['rowid' => -42.0, 'a' => -42.0, 'b' => -42.0, 'c' => -42.0],
+                default => ['rowid' => null, 'a' => '1', 'b' => '1', 'c' => '1'],
+            };
+            $insertBefore = self::triggerCAffinityRow($insert, true, 1);
+            $insertAfter = self::triggerCAffinityRow($insert, false, 1);
+
+            $update = $seed % 3 === 0
+                ? ['rowid' => $insertAfter['rowid'], 'a' => '9.1', 'b' => '9.1', 'c' => '9.1']
+                : ['rowid' => $insertAfter['rowid'] + ($seed % 2), 'a' => '8', 'b' => '8', 'c' => '8'];
+            $updateNew = self::triggerCAffinityRow($update, false, $update['rowid']);
+
+            $cases[] = [
+                'case' => 'triggerC-4.1.' . (2 + ($seed % 8)),
+                'variant' => $seed,
+                'source' => 'triggerC.test',
+                'insert_statement' => $insert,
+                'before_insert_log' => $insertBefore,
+                'after_insert_log' => $insertAfter,
+                'before_delete_log' => $insertAfter,
+                'after_delete_log' => $insertAfter,
+                'before_update_old_log' => $insertAfter,
+                'before_update_new_log' => $updateNew,
+                'after_update_old_log' => $insertAfter,
+                'after_update_new_log' => $updateNew,
+                'new_values_are_affinity_coerced_before_before_trigger' => true,
+                'auto_rowid_before_insert_is_negative_one' => $insert['rowid'] === null,
+                'real_affinity_reports_real_for_exact_integer' => $updateNew['types']['c'] === 'real',
+                'integer_affinity_keeps_fractional_real' => $insertAfter['values']['b'] === -42.4 ? $insertAfter['types']['b'] === 'real' : true,
+            ];
+        }
+
+        return [
+            'source' => 'triggerC.test',
+            'scenarios' => ['triggerC-4.1.1', 'triggerC-4.1.2', 'triggerC-4.1.3', 'triggerC-4.1.4', 'triggerC-4.1.5', 'triggerC-4.1.6', 'triggerC-4.1.7', 'triggerC-4.1.8', 'triggerC-4.1.9'],
+            'cases' => $cases,
+            'dependencies' => [
+                'sqlite-upstream-triggerC-affinity-before-trigger-new-row',
+                'sqlite-upstream-triggerC-auto-rowid-before-insert-negative-one',
+                'sqlite-upstream-triggerC-real-affinity-type-visible-to-triggers',
+                'sqlite-upstream-triggerC-update-old-new-images-affinity-coerced',
+            ],
+        ];
+    }
+
     /** @param list<mixed> $args */
     private static function trigger6Counter(int &$counter, array $args): int
     {
         $counter++;
 
         return $counter;
+    }
+
+    /**
+     * @param array{rowid:mixed,a:mixed,b:mixed,c:mixed} $row
+     * @return array{rowid:int,values:array{a:mixed,b:mixed,c:float|int|string},types:array{rowid:string,a:string,b:string,c:string},log:string}
+     */
+    private static function triggerCAffinityRow(array $row, bool $beforeInsert, int $assignedRowid): array
+    {
+        $rowid = $beforeInsert && $row['rowid'] === null ? -1 : self::triggerCIntegerValue($row['rowid'] ?? $assignedRowid, $assignedRowid);
+        $a = self::triggerCTextValue($row['a']);
+        $b = self::triggerCNumericValue($row['b']);
+        $c = self::triggerCRealValue($row['c']);
+
+        $types = [
+            'rowid' => 'integer',
+            'a' => 'text',
+            'b' => is_float($b) ? 'real' : 'integer',
+            'c' => 'real',
+        ];
+        $values = ['a' => $a, 'b' => $b, 'c' => $c];
+
+        return [
+            'rowid' => $rowid,
+            'values' => $values,
+            'types' => $types,
+            'log' => implode(' ', [
+                (string) $rowid,
+                $types['rowid'],
+                (string) $a,
+                $types['a'],
+                (string) $b,
+                $types['b'],
+                self::triggerCRealLogValue($c),
+                $types['c'],
+            ]),
+        ];
+    }
+
+    private static function triggerCIntegerValue(mixed $value, int $fallback): int
+    {
+        if ($value === null) {
+            return $fallback;
+        }
+
+        return (int) $value;
+    }
+
+    private static function triggerCTextValue(mixed $value): string
+    {
+        return (string) $value;
+    }
+
+    private static function triggerCNumericValue(mixed $value): int|float
+    {
+        if (is_string($value) && is_numeric($value)) {
+            $number = $value + 0;
+        } elseif (is_int($value) || is_float($value)) {
+            $number = $value;
+        } else {
+            return (string) $value;
+        }
+
+        return floor((float) $number) === (float) $number ? (int) $number : (float) $number;
+    }
+
+    private static function triggerCRealValue(mixed $value): float
+    {
+        return (float) $value;
+    }
+
+    private static function triggerCRealLogValue(float $value): string
+    {
+        if (floor($value) === $value) {
+            return sprintf('%.1f', $value);
+        }
+
+        return rtrim(rtrim(sprintf('%.12F', $value), '0'), '.');
     }
 
     /**

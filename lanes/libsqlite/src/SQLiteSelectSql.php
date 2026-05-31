@@ -3579,7 +3579,7 @@ final class SQLiteSelectSql
             return $betweenPredicate;
         }
 
-        foreach (['IS NOT DISTINCT FROM', 'IS DISTINCT FROM', 'NOT LIKE', 'LIKE', 'NOT GLOB', 'GLOB', 'IS NOT', 'IS', '>=', '<=', '<>', '!=', '==', '=', '>', '<'] as $operator) {
+        foreach (['IS NOT DISTINCT FROM', 'IS DISTINCT FROM', 'NOT REGEXP', 'NOT MATCH', 'NOT LIKE', 'LIKE', 'NOT GLOB', 'GLOB', 'REGEXP', 'MATCH', 'IS NOT', 'IS', '>=', '<=', '<>', '!=', '==', '=', '>', '<'] as $operator) {
             $offset = self::operatorOffset($sql, $operator);
             if ($offset === null) {
                 continue;
@@ -3604,6 +3604,11 @@ final class SQLiteSelectSql
                     $predicateRight = $escapeParts[0];
                     $predicateEscape = $escapeParts[1];
                 }
+            }
+
+            if (($operator === 'MATCH' || $operator === 'NOT MATCH' || $operator === 'REGEXP' || $operator === 'NOT REGEXP')
+                && preg_match('/\s+ESCAPE\s+/i', $right) === 1) {
+                throw new \InvalidArgumentException("SQLite SELECT SQL {$operator} expression does not support ESCAPE");
             }
 
             $predicate = [
@@ -5001,7 +5006,7 @@ final class SQLiteSelectSql
      */
     private static function topLevelComparisonExpressionOperator(string $sql): ?array
     {
-        return self::topLevelComparisonExpressionOperatorIn($sql, ['IS NOT DISTINCT FROM', 'IS DISTINCT FROM', 'IS NOT', 'NOT LIKE', 'NOT GLOB', 'LIKE', 'GLOB', 'IS', '==', '!=', '<>', '='])
+        return self::topLevelComparisonExpressionOperatorIn($sql, ['IS NOT DISTINCT FROM', 'IS DISTINCT FROM', 'IS NOT', 'NOT REGEXP', 'NOT MATCH', 'NOT LIKE', 'NOT GLOB', 'LIKE', 'GLOB', 'REGEXP', 'MATCH', 'IS', '==', '!=', '<>', '='])
             ?? self::topLevelComparisonExpressionOperatorIn($sql, ['>=', '<=', '>', '<']);
     }
 

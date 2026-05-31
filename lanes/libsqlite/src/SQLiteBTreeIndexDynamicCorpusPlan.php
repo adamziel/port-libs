@@ -7857,6 +7857,89 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,page_size:int,row_count:int,index_name:string,write_pages:list<int>,forward_steps:int,backward_steps:int,noncontiguous_steps:int,forward_bias_ratio:float,passes_upstream_guard:bool,batch:int,detail:string,integrity:string}>
+     */
+    public static function index5SequentialIndexBuildWriteCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index5 dynamic corpus requires at least one case');
+        }
+
+        $out = [];
+        $pageSize = 1024;
+        $rowCount = 100000;
+
+        for ($case = 1; $case <= $cases; $case++) {
+            $batch = intdiv($case - 1, 24) + 1;
+            $offset = ($case - 1) % 24;
+            $start = 3 + (($batch - 1) % 17);
+            $pages = [];
+
+            for ($i = 0; $i < 18; $i++) {
+                $pages[] = $start + $i;
+            }
+
+            if (($offset % 8) >= 4) {
+                $insertAt = 6 + ($offset % 4);
+                $pages[$insertAt] = max(1, $pages[$insertAt - 1] - 1);
+            }
+
+            if ($offset >= 8) {
+                $pages[14] += 3 + ($batch % 2);
+            }
+
+            [$forward, $backward, $noncontiguous] = self::indexWriteDirectionCounts($pages);
+            $out[] = [
+                'source' => 'index5.test sections index5-1.1 through index5-1.3',
+                'case' => $case,
+                'upstream_section' => $case === 1 ? 'index5-1.1' : ($case % 2 === 0 ? 'index5-1.2' : 'index5-1.3'),
+                'scenario' => 'bulk CREATE INDEX page-write ordering dynamic batch ' . $batch,
+                'page_size' => $pageSize,
+                'row_count' => $rowCount,
+                'index_name' => 'i1',
+                'write_pages' => $pages,
+                'forward_steps' => $forward,
+                'backward_steps' => $backward,
+                'noncontiguous_steps' => $noncontiguous,
+                'forward_bias_ratio' => ($backward + $noncontiguous) === 0 ? (float) $forward : $forward / ($backward + $noncontiguous),
+                'passes_upstream_guard' => $forward > (2 * ($backward + $noncontiguous)),
+                'batch' => $batch,
+                'detail' => 'xWrite page-order trace favors forward CREATE INDEX leaf writes',
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<int> $pages
+     *
+     * @return array{0:int,1:int,2:int}
+     */
+    private static function indexWriteDirectionCounts(array $pages): array
+    {
+        $forward = 0;
+        $backward = 0;
+        $noncontiguous = 0;
+        $previous = $pages[0] ?? 0;
+
+        for ($i = 1, $count = count($pages); $i < $count; $i++) {
+            $next = $pages[$i];
+            if ($next === $previous + 1) {
+                $forward++;
+            } elseif ($next === $previous - 1) {
+                $backward++;
+            } else {
+                $noncontiguous++;
+            }
+            $previous = $next;
+        }
+
+        return [$forward, $backward, $noncontiguous];
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,kind:string,sql:string,result_code:int,error:string|null,result_rows:list<array<int,mixed>>,expected:list<mixed>,uses_index:bool,index_name:string|null,catalog_indexes:list<string>,integrity:string,detail:string}>
      */
     public static function indexTestTailSchemaAffinityCases(int $cases = 1000): array
