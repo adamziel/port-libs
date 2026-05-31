@@ -52,6 +52,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS CSSOM/import-graph
+  integration 17:33 UTC): source commit
+  `43537ea93043c66122f11b00c817e49e8392115c` (`ports: extend lightningcss
+  cssom import graph parity`) landed two verified current-base LightningCSS
+  handoffs after excluding stale shared metadata. LightningCSS full lane
+  evidence moves from `2696` to `2715 pass / 0 fail`, with conservative mapped
+  coverage moving from `1571 / 3532` to `1573 / 3532`: duplicate
+  supports-gated imports remain unconditional when any same-file occurrence is
+  unconditional, CSS Modules dependency imports clear duplicate supports
+  wrappers like upstream, and background attachment/origin/clip CSSOM
+  longhands are read, set, and removed from background shorthands. Gates
+  passed: PHP lint on changed PHP files, `git diff --check --
+  lanes/lightningcss`, no WordPress/WP/wp_ text introduced by the changed
+  source diff, focused gate `2 files / 635 assertions / 0 failures`, full
+  LightningCSS lane `13 files / 2715 assertions / 0 failures`, and
+  `wordpress-background-cssom.php` plus `wordpress-bundle-import-graph.php`
+  smoke runs. Full upstream Rust/Node/WASM runners were not executed for this
+  isolated batch. The visible LightningCSS pool was refilled with six fresh
+  `gpt-5.5` xhigh priority workers around 17:30 UTC.
+
 - 2026-05-31 supervisor continuation (LightningCSS bundle/prefix/media/grid
   integration 17:05 UTC): source commit
   `72be03b700d5ba4c1da72af9062533356c4ff88d` (`ports: extend lightningcss
@@ -7610,6 +7630,29 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Pager/WAL default-memory pressure, known-red broad clusters, rejected VFS/JSON
   regressions, remaining app-WAL/row-value conflicts, and release/all-runner
   parity remain blockers before gitoxide.
+
+## Supervisor Integration 2026-05-31T17:33Z LightningCSS CSSOM/Import-Graph Batch
+
+- Integrated source commit
+  `43537ea93043c66122f11b00c817e49e8392115c` (`ports: extend lightningcss
+  cssom import graph parity`) from two accepted current-base LightningCSS
+  handoffs. The batch was applied one handoff at a time, excluding stale shared
+  metadata, so overlapping stale candidates remained queued for later rebase.
+- Public LightningCSS evidence moves from `2696` to `2715 pass / 0 fail`.
+  Conservative mapped coverage moves from `1571 / 3532` to `1573 / 3532` for
+  duplicate supports import graph behavior. Background attachment/origin/clip
+  CSSOM longhand read/write/remove behavior deepens the already represented
+  DeclarationBlock CSSOM cluster.
+- Verification passed PHP lint on changed PHP files, `git diff --check --
+  lanes/lightningcss`, no WordPress/WP/wp_ text introduced by the changed
+  source diff, focused gate `2 files / 635 assertions / 0 failures`, full
+  LightningCSS lane `13 files / 2715 assertions / 0 failures`, and touched
+  examples for background CSSOM and bundle import graph behavior. Full upstream
+  Rust/Node/WASM runners were not executed for this isolated batch.
+- Next supervision step: refresh the public dashboard, archive the two consumed
+  handoffs, keep the visible LightningCSS pool busy from the new base, and
+  continue source-only LightningCSS integration while keeping SQLite closure and
+  Gitoxide lanes alive.
 
 ## Supervisor Integration 2026-05-31T17:25Z LightningCSS Bundle/Media/Maps Batch
 
