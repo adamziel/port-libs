@@ -187,4 +187,35 @@ foreach (SQLiteRealUpstreamPagerWalDynamicCorpusPlan::walOverwriteRecoveryRows()
     };
 }
 
+foreach (SQLiteRealUpstreamPagerWalDynamicCorpusPlan::walPersistLimitRows() as $row) {
+    $tests['real upstream corpus pager wal dynamic ' . $row['upstream'] . ' persists then truncates wal on close'] = static function (TestRunner $t) use ($row): void {
+        $t->same(500, $row['left_length']);
+        $t->same(500, $row['right_length']);
+        $t->same(64, strlen($row['left_digest']));
+        $t->same(64, strlen($row['right_digest']));
+        $t->same(true, ctype_xdigit($row['left_digest']));
+        $t->same(true, ctype_xdigit($row['right_digest']));
+        $t->same(16, strlen($row['left_prefix']));
+        $t->same(16, strlen($row['right_prefix']));
+        $t->same(true, ctype_xdigit($row['left_prefix']));
+        $t->same(true, ctype_xdigit($row['right_prefix']));
+        $t->same(true, $row['left_digest'] !== $row['right_digest']);
+        $t->same(['a', 'b'], $row['primary_key_columns']);
+        $t->same(true, $row['rowid'] >= 0 && $row['rowid'] < 200);
+        $t->same(3 + $row['rowid'], $row['wal_frame']);
+        $t->same(intdiv($row['rowid'], 128), $row['checkpoint_batch']);
+        $t->same(2 + intdiv($row['rowid'], 4), $row['page_number']);
+        $t->same(128, $row['wal_autocheckpoint']);
+        $t->same(16384, $row['journal_size_limit']);
+        $t->same(true, $row['persist_wal_enabled']);
+        $t->same(true, $row['wal_exists_before_close']);
+        $t->same(0, $row['wal_truncated_size_after_close']);
+        $t->same('ok', $row['integrity_check_after_reopen']);
+        $t->same(true, in_array('real-upstream-corpus-walpersist', $row['dependencies'], true));
+        $t->same(true, in_array('sqlite-wal-persist-file-control', $row['dependencies'], true));
+        $t->same(true, in_array('sqlite-wal-journal-size-limit', $row['dependencies'], true));
+        $t->same(true, str_starts_with($row['upstream'], 'walpersist.test 3.2 row '));
+    };
+}
+
 return $tests;

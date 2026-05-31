@@ -2993,6 +2993,51 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,query_shape:string,declared_index:string,declared_index_selectivity:string,automatic_index_allowed:bool,uses_automatic_index:bool,uses_declared_index:bool,uses_skip_scan:bool,uses_bloom_filter:bool,recursive_cte:bool,detail:string,integrity:string}>
+     */
+    public static function autoindex3DeclaredIndexShadowCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite autoindex3 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            ['autoindex3-100', 'do not create an automatic index that shadows existing equality indexes', 'SELECT * FROM t1, t2 WHERE d=b', 't1b/t2d', '10000 500', false, false, true, false, false, false, 'SCAN t1; SEARCH t2 USING INDEX t2d (d=?)'],
+            ['autoindex3-110', 'non-equality declared-index constraint still allows automatic index on residual equality', 'SELECT * FROM t1, t2 WHERE d>b AND x=y', 't1b/t2d', '10000 500', true, true, false, false, false, false, 'SEARCH t2 USING AUTOMATIC COVERING INDEX (y=?)'],
+            ['autoindex3-120', 'reverse non-equality declared-index constraint still allows automatic index', 'SELECT * FROM t1, t2 WHERE d<b AND x=y', 't1b/t2d', '10000 500', true, true, false, false, false, false, 'SEARCH t2 USING AUTOMATIC COVERING INDEX (y=?)'],
+            ['autoindex3-130', 'IS NULL declared-index probe does not shadow automatic index on independent equality', 'SELECT * FROM t1, t2 WHERE d IS NULL AND x=y', 't1b/t2d', '10000 500', true, true, true, false, false, false, 'SEARCH t2 USING INDEX t2d (d=?); SEARCH t1 USING AUTOMATIC COVERING INDEX (x=?)'],
+            ['autoindex3-140', 'IN expression over declared-index column still permits automatic index on residual equality', 'SELECT * FROM t1, t2 WHERE d IN (5,b) AND x=y', 't1b/t2d', '10000 500', true, true, true, false, false, false, 'SEARCH t2 USING INDEX t2d (d=?); SEARCH t1 USING AUTOMATIC COVERING INDEX (x=?)'],
+            ['autoindex3-220', 'skip-scan on a declared composite index is not automatically better than a transient covering index', 'SELECT count(*) FROM u, v WHERE u.b=v.b AND v.e>34', 'uab/vbde/ve', '40000 400 1', true, true, true, false, true, false, 'SEARCH v USING INDEX ve (e>?); BLOOM FILTER ON u (b=?); SEARCH u USING AUTOMATIC COVERING INDEX (b=?)'],
+            ['autoindex3-310 setup', 'recursive CTE setup uses declared pid/rx index for seed step', 'WITH RECURSIVE children seed SELECT cid FROM t2 WHERE pid=?1 AND rx=?2', 'x1/sqlite_autoindex_t2_1', '500000 250 250', false, false, true, false, false, true, 'CO-ROUTINE children; SETUP; SEARCH t2 USING INDEX x1 (pid=? AND rx=?)'],
+            ['autoindex3-310 recursive', 'recursive CTE step reuses declared pid/rx index instead of a low-selectivity automatic index', 'SELECT cid FROM t2 JOIN children ON t2.pid=children.id AND rx=?2', 'x1/sqlite_autoindex_t2_1', '500000 250 250', false, false, true, false, false, true, 'RECURSIVE STEP; SCAN children; SEARCH t2 USING INDEX x1 (pid=? AND rx=?)'],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $queryShape, $declaredIndex, $selectivity, $automaticIndexAllowed, $usesAutomaticIndex, $usesDeclaredIndex, $usesSkipScan, $usesBloomFilter, $recursiveCte, $detail] = $templates[($case - 1) % count($templates)];
+            $rows[] = [
+                'source' => 'autoindex3.test autoindex3-100 through autoindex3-310',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'query_shape' => $queryShape,
+                'declared_index' => $declaredIndex,
+                'declared_index_selectivity' => $selectivity,
+                'automatic_index_allowed' => $automaticIndexAllowed,
+                'uses_automatic_index' => $usesAutomaticIndex,
+                'uses_declared_index' => $usesDeclaredIndex,
+                'uses_skip_scan' => $usesSkipScan,
+                'uses_bloom_filter' => $usesBloomFilter,
+                'recursive_cte' => $recursiveCte,
+                'detail' => $detail,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,page_size:int,row_count:int,blob_bytes:int|null,cache_size:int|null,index_name:string,unique:bool,duplicate_value:int|null,expected_error:string|null,integrity:string,sorter_pages:int,spill_batches:int,table_reset:bool}>
      */
     public static function index4CreateIndexStressCases(int $cases = 1200): array

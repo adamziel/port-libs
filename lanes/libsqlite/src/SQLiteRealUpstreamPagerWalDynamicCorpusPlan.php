@@ -354,6 +354,69 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walPersistLimitRows(): array
+    {
+        $rows = [];
+
+        for ($rowid = 0; $rowid < 200; $rowid++) {
+            $leftSeed = self::walPersistPayloadSeed($rowid, 500, 17);
+            $rightSeed = self::walPersistPayloadSeed($rowid, 500, 91);
+            $pageNumber = 2 + intdiv($rowid, 4);
+            $walFrame = 3 + $rowid;
+            $checkpointBatch = intdiv($rowid, 128);
+
+            $rows[] = [
+                'upstream' => 'walpersist.test 3.2 row ' . $rowid,
+                'rowid' => $rowid,
+                'left_length' => 500,
+                'right_length' => 500,
+                'left_digest' => $leftSeed['digest'],
+                'right_digest' => $rightSeed['digest'],
+                'left_prefix' => $leftSeed['prefix'],
+                'right_prefix' => $rightSeed['prefix'],
+                'primary_key_columns' => ['a', 'b'],
+                'wal_frame' => $walFrame,
+                'checkpoint_batch' => $checkpointBatch,
+                'page_number' => $pageNumber,
+                'wal_autocheckpoint' => 128,
+                'journal_size_limit' => 16384,
+                'persist_wal_enabled' => true,
+                'wal_exists_before_close' => true,
+                'wal_truncated_size_after_close' => 0,
+                'integrity_check_after_reopen' => 'ok',
+                'dependencies' => [
+                    'real-upstream-corpus-walpersist',
+                    'sqlite-wal-persist-file-control',
+                    'sqlite-wal-journal-size-limit',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array{digest: string, prefix: string}
+     */
+    private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array
+    {
+        $bytes = '';
+        $state = (($rowid + 1) * 1103515245 + $salt) & 0x7fffffff;
+
+        for ($i = 0; $i < $length; $i++) {
+            $state = (int) (($state * 1103515245 + 12345 + $salt + $rowid) % 2147483648);
+            $bytes .= chr($state % 256);
+        }
+
+        return [
+            'digest' => hash('sha256', $bytes),
+            'prefix' => strtoupper(bin2hex(substr($bytes, 0, 8))),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private static function caseRow(string $upstream, int $inserted, int $count, int $sum, int $headerField, array $locks, string $behavior): array

@@ -1699,6 +1699,36 @@ final class SQLiteVfsIoDynamicPlan
                 'reason' => 'shared_cache_incremental_vacuum_shrink_equals_freelist_delta',
                 'upstream' => ['incrvacuum_ioerr.test incrvacuum-ioerr-4'],
             ],
+            'ioerr-12-incremental-vacuum' => [
+                'script' => 'ioerr.test',
+                'reason' => 'incremental_vacuum_after_overflow_delete_reports_io_errors_without_corrupting_freelist',
+                'upstream' => ['ioerr.test ioerr-12 incremental vacuum page release'],
+            ],
+            'ioerr-12-coresident-sector' => [
+                'script' => 'ioerr.test',
+                'reason' => 'new_page_allocation_journals_coresident_overflow_sector_before_write',
+                'upstream' => ['ioerr.test ioerr-12 coresident sector journaling'],
+            ],
+            'ioerr-13-balance-quick-pointermap' => [
+                'script' => 'ioerr.test',
+                'reason' => 'balance_quick_appended_page_updates_multiple_pointer_map_pages_under_io_error',
+                'upstream' => ['ioerr.test ioerr-13 balance_quick pointer-map update'],
+            ],
+            'ioerr-14-balance-deeper-pointermap' => [
+                'script' => 'ioerr.test',
+                'reason' => 'balance_deeper_root_divide_reparents_overflow_page_pointer_map_under_io_error',
+                'upstream' => ['ioerr.test ioerr-14 balance_deeper pointer-map update'],
+            ],
+            'ioerr-15-index-delete-overflow' => [
+                'script' => 'ioerr.test',
+                'reason' => 'index_delete_with_large_overflow_insert_rolls_back_io_error_and_preserves_refcounts',
+                'upstream' => ['ioerr.test ioerr-15 index delete plus overflow insert'],
+            ],
+            'ioerr-16-vacuum-cache-spill' => [
+                'script' => 'ioerr.test',
+                'reason' => 'post_vacuum_incremental_vacuum_cache_spill_handles_io_error_before_commit',
+                'upstream' => ['ioerr.test ioerr-16 vacuum incremental cache-spill branch'],
+            ],
             default => throw new \InvalidArgumentException("Unsupported SQLite auto-vacuum I/O error scenario: {$scenario}"),
         };
     }

@@ -4637,7 +4637,7 @@ final class SQLiteSelectSql
      */
     private static function topLevelComparisonExpressionOperator(string $sql): ?array
     {
-        return self::topLevelComparisonExpressionOperatorIn($sql, ['IS NOT', 'NOT LIKE', 'NOT GLOB', 'LIKE', 'GLOB', 'IS', '==', '!=', '<>', '='])
+        return self::topLevelComparisonExpressionOperatorIn($sql, ['IS NOT DISTINCT FROM', 'IS DISTINCT FROM', 'IS NOT', 'NOT LIKE', 'NOT GLOB', 'LIKE', 'GLOB', 'IS', '==', '!=', '<>', '='])
             ?? self::topLevelComparisonExpressionOperatorIn($sql, ['>=', '<=', '>', '<']);
     }
 
