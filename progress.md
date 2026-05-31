@@ -52,6 +52,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS integration 13:25 UTC):
+  source commit `1c057c12e3e48a5519e5b4be69c9bac23e39a737`
+  (`ports: add lightningcss layer media cssom parity`) landed two verified
+  LightningCSS handoffs after excluding stale shared status/manifest metadata.
+  LightningCSS full lane evidence moves from `1382` to `1417 pass / 0 fail`,
+  with conservative mapped coverage moving from `1046 / 3532` to `1069 /
+  3532`: +23 media-query and cascade-layer minifier checks. CSSOM
+  shorthand-group removal for border, flex-flow, and grid declaration groups
+  is verified but counted inside the existing DeclarationBlock cluster.
+  Verification passed PHP lint on changed/new LightningCSS PHP files, diff
+  checks, focused LightningCSS gate `4 files / 979 assertions / 0 failures`,
+  full LightningCSS lane `13 files / 1417 assertions / 0 failures`, and two
+  touched examples. The first full-lane run caught a nested-layer bundler order
+  regression; the committed source preserves upstream bundled layer statement
+  order before merging ordinary layer runs. Root aggregate and full upstream
+  LightningCSS Rust/Node runners were not run for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS integration 13:20 UTC):
   source commit `428f6525152b7ba71871979c3986a65ccabd1333`
   (`ports: add lightningcss sourcemap cssom module parity`) landed three
