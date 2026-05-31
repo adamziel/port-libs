@@ -436,6 +436,14 @@ return [
 
         $t->same('AAAA;;', $map->writeVlq());
         $t->same([0], array_column(SourceMap::decodeVlq($map->writeVlq()), 'generatedLine'));
+        $beforeColumnNoop = $map->writeVlq();
+        $map->offsetColumns(1, 3, 2);
+        $t->same($beforeColumnNoop, $map->writeVlq());
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->offsetColumns(1, 3, -4);
+        });
+        $map->offsetColumns(5, 3, -4);
+        $t->same($beforeColumnNoop, $map->writeVlq());
 
         $map->offsetLines(3, -1);
         $t->same('AAAA;', $map->writeVlq());

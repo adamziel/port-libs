@@ -872,6 +872,34 @@ CSS
             )
         );
     },
+    'css minifier composes upstream grid shorthands with area rows' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.test-miss-areas-3{grid-template:"a a a"30px"b c c"60px". . ."100px/1fr 1fr 1fr}',
+            $minifier->minify(
+                '.test-miss-areas-3 { grid-template: 30px 60px 100px / 1fr 1fr 1fr; grid-template-areas: "a a a" "b c c"; }'
+            )
+        );
+        $t->same(
+            '.test-miss-areas-4{grid:"a a a"30px"b c c"60px". . ."100px/1fr 1fr 1fr}',
+            $minifier->minify(
+                '.test-miss-areas-4 { grid: 30px 60px 100px / 1fr 1fr 1fr; grid-template-areas: "a a a" "b c c"; }'
+            )
+        );
+        $t->same(
+            '.grid-shorthand-areas{grid:".content."/1fr 3fr}',
+            $minifier->minify(
+                '.grid-shorthand-areas { grid: auto / 1fr 3fr; grid-template-areas: ". content ."; }'
+            )
+        );
+        $t->same(
+            '.grid-shorthand-areas-rows{grid:".content."20px/1fr 3fr}',
+            $minifier->minify(
+                '.grid-shorthand-areas-rows { grid: auto / 1fr 3fr; grid-template-rows: 20px; grid-template-areas: ". content ."; }'
+            )
+        );
+    },
     'css minifier maps upstream property rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

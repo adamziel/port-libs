@@ -21,6 +21,20 @@ return [
         $t->same('(width<=240px)', $parser->minifyList('(240px >= width)'));
         $t->same('(width<600px) and (height<600px)', $parser->minifyList('(width < 600px) and (height < 600px)'));
     },
+    'media query parser maps upstream negated simple range normalization' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        $t->same('(width>=240px)', $parser->minifyList('not (width < 240px)'));
+        $t->same('(width>240px)', $parser->minifyList('not (width <= 240px)'));
+        $t->same('(width<=240px)', $parser->minifyList('not (width > 240px)'));
+        $t->same('(width<240px)', $parser->minifyList('not (width >= 240px)'));
+        $t->same('(width<240px)', $parser->minifyList('not (min-width: 240px)'));
+        $t->same('(width>240px)', $parser->minifyList('not (max-width: 240px)'));
+        $t->same('(color<=2)', $parser->minifyList('not (color > 2)'));
+        $t->same('(resolution<2dppx)', $parser->minifyList('not (resolution >= 2dppx)'));
+        $t->same('screen and (width>=240px)', $parser->minifyList('screen and not (width < 240px)'));
+        $t->same('not (100px<=width<=200px)', $parser->minifyList('not (100px <= width <= 200px)'));
+    },
     'media query parser maps upstream typed range feature families' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 
@@ -157,6 +171,7 @@ return [
         $t->same('', (new CssMinifier())->minify('@media not all { .foo { color: chartreuse } }'));
         $t->same('@media not ((color) or (hover)){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media not (((color) or (hover))) { .foo { color: chartreuse } }'));
         $t->same('@media (hover) and (color) and (test){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (hover) and ((color) and (test)) { .foo { color: chartreuse } }'));
+        $t->same('@layer blocks{@media (width>=240px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media not (width < 240px) { .foo { color: chartreuse } } }'));
     },
     'css minifier rejects invalid media ranges inside cascade layers' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

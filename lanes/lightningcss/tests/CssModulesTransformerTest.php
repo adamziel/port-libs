@@ -324,6 +324,69 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules accepts upstream important priority on composes declarations' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
+        $localResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.test {
+  composes: foo ! important;
+  background: white;
+}
+
+.foo {
+  color: red;
+}
+CSS);
+
+        $t->same('.EgL3uq_test{background:#fff}.EgL3uq_foo{color:red}', $localResult['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [$local('EgL3uq_foo')]),
+            'foo' => $export('EgL3uq_foo'),
+        ], $localResult['exports']);
+        $t->same([], $localResult['references']);
+
+        $globalResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.test {
+  composes: foo from global !IMPORTANT;
+  background: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_test{background:#fff}', $globalResult['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [$global('foo')]),
+        ], $globalResult['exports']);
+        $t->same([], $globalResult['references']);
+
+        $dependencyResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.test {
+  composes: foo from "./foo.css"!important;
+  background: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_test{background:#fff}', $dependencyResult['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [$dependency('foo', './foo.css')]),
+        ], $dependencyResult['exports']);
+        $t->same([], $dependencyResult['references']);
+
+        $escapedResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.test {
+  composes: foo\!important;
+  background: white;
+}
+
+.foo\!important {
+  color: green;
+}
+CSS);
+
+        $t->same('.EgL3uq_test{background:#fff}.EgL3uq_foo\!important{color:green}', $escapedResult['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [$local('EgL3uq_foo!important')]),
+            'foo!important' => $export('EgL3uq_foo!important'),
+        ], $escapedResult['exports']);
+        $t->same([], $escapedResult['references']);
+    },
     'css modules decodes escaped dependency specifiers in composes metadata' => static function (TestRunner $t) use ($export, $dependency): void {
         $css = <<<'CSS'
 .test {

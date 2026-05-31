@@ -780,6 +780,8 @@ final class CssBundler
             $specifier = trim(substr($rest, $open + 1, $close - $open - 1));
             if (($specifier[0] ?? '') === '"' || ($specifier[0] ?? '') === "'") {
                 $specifier = $this->cssStringTokenValue($specifier);
+            } else {
+                $specifier = $this->decodeCssEscapes($specifier);
             }
             $offset = $close + 1;
         } elseif (($rest[$offset] ?? '') === '"' || ($rest[$offset] ?? '') === "'") {
@@ -1437,7 +1439,75 @@ final class CssBundler
 
         $value = substr($token, 1, -1);
 
-        return preg_replace('/\\\\(["\'\\\\])/', '$1', $value) ?? $value;
+        return $this->decodeCssEscapes($value);
+    }
+
+    private function decodeCssEscapes(string $token): string
+    {
+        $output = '';
+        $length = strlen($token);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $token[$i];
+            if ($char !== '\\') {
+                $output .= $char;
+                continue;
+            }
+
+            if ($i + 1 >= $length) {
+                $output .= '\\';
+                continue;
+            }
+
+            $next = $token[$i + 1];
+            if ($next === "\r") {
+                $i++;
+                if (($token[$i + 1] ?? '') === "\n") {
+                    $i++;
+                }
+                continue;
+            }
+
+            if ($next === "\n" || $next === "\f") {
+                $i++;
+                continue;
+            }
+
+            if (!ctype_xdigit($next)) {
+                $output .= $next;
+                $i++;
+                continue;
+            }
+
+            $hex = '';
+            $cursor = $i + 1;
+            while ($cursor < $length && strlen($hex) < 6 && ctype_xdigit($token[$cursor])) {
+                $hex .= $token[$cursor];
+                $cursor++;
+            }
+
+            if ($cursor < $length && ctype_space($token[$cursor])) {
+                $cursor++;
+            }
+
+            $output .= $this->codepointToUtf8((int) hexdec($hex));
+            $i = $cursor - 1;
+        }
+
+        return $output;
+    }
+
+    private function codepointToUtf8(int $codepoint): string
+    {
+        if ($codepoint <= 0 || $codepoint > 0x10ffff) {
+            $codepoint = 0xfffd;
+        }
+
+        if (function_exists('mb_chr')) {
+            return mb_chr($codepoint, 'UTF-8');
+        }
+
+        return html_entity_decode('&#x' . dechex($codepoint) . ';', ENT_NOQUOTES, 'UTF-8');
     }
 
     private function isIdentifierChar(string $char): bool

@@ -39,12 +39,18 @@ $css = <<<'CSS'
       color: yellow;
     }
   }
+
+  @media not (width < 960px) {
+    .wp-block-query.is-wide {
+      color: chartreuse;
+    }
+  }
 }
 CSS;
 
 $minifier = new CssMinifier();
 $actual = $minifier->minify($css);
-$expected = '@layer theme;@layer blocks{.wp-block-query{color:red;background:#fff}.wp-block-query__empty{color:#7fff00}@media (width>=600px) and (hover) and (color){.wp-block-query{color:#ff0}}}@layer utilities;';
+$expected = '@layer theme;@layer blocks{.wp-block-query{color:red;background:#fff}.wp-block-query__empty{color:#7fff00}@media (width>=600px) and (hover) and (color){.wp-block-query{color:#ff0}}@media (width>=960px){.wp-block-query.is-wide{color:#7fff00}}}@layer utilities;';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($actual !== $expected) {

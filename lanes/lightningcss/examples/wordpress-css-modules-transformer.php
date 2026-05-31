@@ -18,7 +18,7 @@ $css = <<<'CSS'
   }
 
   composes: reset from "./core.module.css";
-  composes: has-spacing from global;
+  composes: has-spacing from global ! important;
 }
 
 :global(.wp-block-button) .card {
@@ -26,7 +26,7 @@ $css = <<<'CSS'
 }
 
 .cardTitle {
-  composes: heading from "./typography\ components.module.css";
+  composes: heading from "./typography\ components.module.css" !important;
   color: yellow;
 }
 

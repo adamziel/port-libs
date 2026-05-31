@@ -381,8 +381,17 @@ final class SourceMap
         $this->assertNonNegative($generatedLine, 'generated line');
         $this->assertNonNegative($generatedColumn, 'generated column');
 
+        if ($generatedColumnOffset === 0) {
+            return;
+        }
+
+        $lineExists = $generatedLine < $this->generatedLineCount;
         $lineMappings = $this->sortedLineMappingIndexes($generatedLine);
-        if ($lineMappings === [] || $generatedColumnOffset === 0) {
+        if ($lineMappings === []) {
+            if ($lineExists) {
+                $this->offsetNonNegative($generatedColumn, $generatedColumnOffset, 'column + column offset');
+            }
+
             return;
         }
 

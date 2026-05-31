@@ -51,6 +51,7 @@ $files = [
 @import "tokens.css";
 @import "blocks/card.css" layer(theme.blocks) screen and (--wp-wide);
 @import url(blocks/print.css) supports(print-color-adjust: exact) print;
+@import "blocks/escaped\000020hero.css" layer(theme.blocks);
 
 .wp-site-blocks {
   color: red;
@@ -75,6 +76,11 @@ CSS,
   color: black;
 }
 CSS,
+    '/blocks/escaped hero.css' => <<<'CSS'
+.wp-block-cover {
+  color: purple;
+}
+CSS,
     '/shared/buttons.css' => <<<'CSS'
 .wp-block-button__link {
   color: blue;
@@ -87,7 +93,12 @@ CSS,
 CSS,
 ];
 
-echo (new CssBundler())->bundle('/theme.css', $files) . PHP_EOL;
+$themeBundle = (new CssBundler())->bundle('/theme.css', $files);
+echo $themeBundle . PHP_EOL;
+if (!str_contains($themeBundle, '.wp-block-cover{color:purple}')) {
+    fwrite(STDERR, "Expected escaped import path to resolve in block-theme CSS\n");
+    exit(1);
+}
 
 try {
     (new CssBundler())->bundle('/broken-theme.css', [

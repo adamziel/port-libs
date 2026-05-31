@@ -255,10 +255,53 @@ final class CssModulesTransformer
             throw new \InvalidArgumentException('The `composes` property cannot be used within nested rules');
         }
 
-        $value = trim(substr($withoutSemicolon, $colon + 1));
+        $value = $this->stripDeclarationPriority(trim(substr($withoutSemicolon, $colon + 1)));
         array_push($composes, ...$this->parseComposesValue($value));
 
         return '';
+    }
+
+    private function stripDeclarationPriority(string $value): string
+    {
+        $bang = null;
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\' && $i + 1 < $length) {
+                    $i++;
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $i++;
+                continue;
+            }
+
+            if ($char === '!') {
+                $bang = $i;
+            }
+        }
+
+        if ($bang === null || preg_match('/^\s*important\s*$/i', substr($value, $bang + 1)) !== 1) {
+            return $value;
+        }
+
+        return rtrim(substr($value, 0, $bang));
     }
 
     /**

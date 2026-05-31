@@ -215,6 +215,41 @@ CSS,
             ], '/theme.css')
         );
     },
+    'css bundler decodes upstream escaped import specifiers before resolution' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '.theme-tokens{color:green}@media screen{.icon{color:#00f}}.entry{color:red}',
+            $bundle([
+                '/entry.css' => <<<'CSS'
+@import "./theme\000020components.css";
+@import url(./icons\2f arrow.css) screen;
+.entry { color: red }
+CSS,
+                '/theme components.css' => '.theme-tokens { color: green }',
+                '/icons/arrow.css' => '.icon { color: blue }',
+            ], '/entry.css')
+        );
+
+        $resolved = [];
+        $t->same(
+            '.token{color:green}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "pkg:theme\2d tokens.css"; .entry { color: red }',
+                '/vendor/tokens.css' => '.token { color: green }',
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return '/vendor/tokens.css';
+            })
+        );
+        $t->same([['pkg:theme-tokens.css', '/entry.css']], $resolved);
+
+        $t->same(
+            '@import "https://fonts.example/css";.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "https\3a //fonts.example/css"; .entry { color: red }',
+            ], '/entry.css')
+        );
+    },
     'css bundler combines nested media conditions across import graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print and (color){.c{color:green}}@media print{.b{color:#ff0}}.a{color:red}',

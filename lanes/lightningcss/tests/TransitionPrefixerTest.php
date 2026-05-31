@@ -47,6 +47,57 @@ return [
             (new TransitionPrefixer())->prefixLegacySafari('.foo { transition-property: transform; }')
         );
     },
+    'transition prefixer maps upstream transform family target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-transform:scale(.5);-moz-transform:scale(.5);transform:scale(.5)}',
+            $prefixer->prefixForTargets('.foo { transform: scale(0.5); }', ['firefox' => 6, 'safari' => 6])
+        );
+        $t->same(
+            '.foo{-webkit-transform:var(--transform);-moz-transform:var(--transform);transform:var(--transform)}',
+            $prefixer->prefixForTargets('.foo { transform: var(--transform); }', ['firefox' => 6, 'safari' => 6])
+        );
+        $t->same(
+            '.foo{-webkit-transform-origin:0 0;-ms-transform-origin:0 0;-o-transform-origin:0 0;transform-origin:0 0}',
+            $prefixer->prefixForTargets('.foo { transform-origin: 0 0; }', ['chrome' => 35, 'ie' => 9, 'opera' => 12])
+        );
+        $t->same(
+            '.foo{transform-origin:0 0}',
+            $prefixer->prefixForTargets('.foo { -webkit-transform-origin: 0 0; -ms-transform-origin: 0 0; -o-transform-origin: 0 0; transform-origin: 0 0; }', ['chrome' => 36, 'ie' => 10, 'opera' => 13])
+        );
+        $t->same(
+            '.foo{-webkit-perspective:400px;-moz-perspective:400px;perspective:400px;-webkit-perspective-origin:0 0;-moz-perspective-origin:0 0;perspective-origin:0 0;-webkit-transform-style:preserve-3d;-moz-transform-style:preserve-3d;transform-style:preserve-3d}',
+            $prefixer->prefixForTargets('.foo { perspective: 400px; perspective-origin: 0 0; transform-style: preserve-3d; }', ['chrome' => 35, 'firefox' => 15])
+        );
+        $t->same(
+            '.foo{perspective:400px;perspective-origin:0 0;transform-style:preserve-3d}',
+            $prefixer->prefixForTargets('.foo { -webkit-perspective: 400px; -moz-perspective: 400px; perspective: 400px; -webkit-perspective-origin: 0 0; -moz-perspective-origin: 0 0; perspective-origin: 0 0; -webkit-transform-style: preserve-3d; -moz-transform-style: preserve-3d; transform-style: preserve-3d; }', ['chrome' => 36, 'firefox' => 16])
+        );
+    },
+    'transition prefixer maps upstream transform browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $webkitTransform = '.foo{-webkit-transform:scale(.5);transform:scale(.5)}';
+        $modernTransform = '.foo{transform:scale(.5)}';
+
+        $t->same($webkitTransform, $prefixer->prefixForTargets('.foo { transform: scale(0.5); }', ['chrome' => 35]));
+        $t->same($modernTransform, $prefixer->prefixForTargets('.foo { transform: scale(0.5); }', ['chrome' => 36]));
+        $t->same('.foo{-moz-transform:scale(.5);transform:scale(.5)}', $prefixer->prefixForTargets('.foo { transform: scale(0.5); }', ['firefox' => 15]));
+        $t->same($modernTransform, $prefixer->prefixForTargets('.foo { transform: scale(0.5); }', ['firefox' => 16]));
+        $t->same('.foo{-ms-transform:scale(.5);transform:scale(.5)}', $prefixer->prefixForTargets('.foo { transform: scale(0.5); }', ['ie' => 9]));
+        $t->same($modernTransform, $prefixer->prefixForTargets('.foo { transform: scale(0.5); }', ['ie' => 10]));
+        $t->same('.foo{-o-transform:scale(.5);transform:scale(.5)}', $prefixer->prefixForTargets('.foo { transform: scale(0.5); }', ['opera' => 12]));
+        $t->same($modernTransform, $prefixer->prefixForTargets('.foo { transform: scale(0.5); }', ['opera' => 13]));
+
+        $t->same('.foo{-webkit-perspective:400px;perspective:400px}', $prefixer->prefixForTargets('.foo { perspective: 400px; }', ['chrome' => 35]));
+        $t->same('.foo{perspective:400px}', $prefixer->prefixForTargets('.foo { perspective: 400px; }', ['chrome' => 36]));
+        $t->same('.foo{-moz-transform-style:preserve-3d;transform-style:preserve-3d}', $prefixer->prefixForTargets('.foo { transform-style: preserve-3d; }', ['firefox' => 15]));
+        $t->same('.foo{transform-style:preserve-3d}', $prefixer->prefixForTargets('.foo { transform-style: preserve-3d; }', ['firefox' => 16]));
+        $t->same('.foo{-webkit-backface-visibility:hidden;backface-visibility:hidden}', $prefixer->prefixForTargets('.foo { backface-visibility: hidden; }', ['safari' => '15.2']));
+        $t->same('.foo{backface-visibility:hidden}', $prefixer->prefixForTargets('.foo { backface-visibility: hidden; }', ['safari' => '15.3']));
+        $t->same('.foo{-moz-backface-visibility:hidden;backface-visibility:hidden}', $prefixer->prefixForTargets('.foo { backface-visibility: hidden; }', ['firefox' => 15]));
+        $t->same('.foo{backface-visibility:hidden}', $prefixer->prefixForTargets('.foo { backface-visibility: hidden; }', ['firefox' => 16]));
+    },
     'transition prefixer maps upstream clamp lowering for legacy safari targets' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

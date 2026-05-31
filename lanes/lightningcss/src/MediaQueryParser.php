@@ -50,6 +50,7 @@ final class MediaQueryParser
         $query = $this->normalizeWhitespace($query);
         $this->validateTopLevelConditionFunctions($query);
         $query = $this->normalizeBooleanConditionGroups($query);
+        $query = $this->invertNegatedSimpleRangeConditions($query);
         $query = preg_replace_callback('/^(not|only)\s+(screen|print|all)\b/i', static fn (array $m): string => strtolower($m[1]) . ' ' . strtolower($m[2]), $query) ?? $query;
         $query = preg_replace_callback('/^(screen|print|all)\b/i', static fn (array $m): string => strtolower($m[1]), $query) ?? $query;
 
@@ -571,6 +572,58 @@ final class MediaQueryParser
         }
 
         return $output;
+    }
+
+    private function invertNegatedSimpleRangeConditions(string $query): string
+    {
+        $output = '';
+        $length = strlen($query);
+
+        for ($i = 0; $i < $length; $i++) {
+            if (!$this->startsKeywordAt($query, $i, 'not')) {
+                $output .= $query[$i];
+                continue;
+            }
+
+            $after = $i + 3;
+            $spaceStart = $after;
+            while ($after < $length && ctype_space($query[$after])) {
+                $after++;
+            }
+
+            if ($after === $spaceStart || ($query[$after] ?? '') !== '(') {
+                $output .= $query[$i];
+                continue;
+            }
+
+            $close = $this->findMatchingDelimiter($query, $after, '(', ')');
+            $inner = substr($query, $after + 1, $close - $after - 1);
+            $inverted = $this->invertSimpleRangeFeature(trim($inner));
+            if ($inverted === null) {
+                $output .= substr($query, $i, $close - $i + 1);
+                $i = $close;
+                continue;
+            }
+
+            $output .= '(' . $inverted . ')';
+            $i = $close;
+        }
+
+        return $this->normalizeWhitespace($output);
+    }
+
+    private function invertSimpleRangeFeature(string $feature): ?string
+    {
+        if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)\s*(<=|>=|<|>)\s*(.+)$/', $feature, $matches) !== 1) {
+            return null;
+        }
+
+        $name = strtolower($matches[1]);
+        if (!$this->isRangeComparableMediaFeature($name)) {
+            return null;
+        }
+
+        return $name . $this->invertComparison($matches[2]) . $this->minifyValue($matches[3]);
     }
 
     private function flattenRedundantBooleanGroups(string $query, string $operator): string

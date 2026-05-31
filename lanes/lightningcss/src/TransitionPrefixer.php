@@ -241,6 +241,7 @@ final class TransitionPrefixer
         $printColorAdjustChanged = $this->rewritePrintColorAdjustPrefixEntries($entries, $targetOptions);
         $uiPrefixChanged = $this->rewriteUiPrefixEntries($entries, $targetOptions);
         $textCompatibilityPrefixChanged = $this->rewriteTextCompatibilityPrefixEntries($entries, $targetOptions);
+        $transformPrefixChanged = $this->rewriteTransformPrefixEntries($entries, $targetOptions);
         $positionStickyChanged = $this->rewritePositionStickyPrefixEntries($entries, $targetOptions);
         $backgroundClipChanged = $this->rewriteBackgroundClipPrefixEntries($entries, $targetOptions);
         $clipPathChanged = $this->rewriteClipPathPrefixEntries($entries, $targetOptions);
@@ -278,7 +279,7 @@ final class TransitionPrefixer
         if ($logicalInsetFallback !== null) {
             return $logicalInsetFallback . implode('', $supportRules);
         }
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -793,6 +794,26 @@ final class TransitionPrefixer
             || $this->targetInRange($normalized, 'firefox', [0], [48])
             || $this->targetInRange($normalized, 'safari', [0], [9, 255, 255])
             || $this->targetInRange($normalized, 'ios_saf', [0], [9, 255, 255]);
+        $transformNeedsWebkit = $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
+            || $this->targetInRange($normalized, 'chrome', [4], [35])
+            || $this->targetInRange($normalized, 'ios_saf', [3, 2], [8, 1])
+            || $this->targetInRange($normalized, 'opera', [15], [22])
+            || $this->targetInRange($normalized, 'safari', [3, 1], [8]);
+        $transformNeedsMoz = $this->targetInRange($normalized, 'firefox', [3, 5], [15]);
+        $transformNeedsMs = $this->targetInRange($normalized, 'ie', [0], [9]);
+        $transformNeedsO = $this->targetInRange($normalized, 'opera', [10, 5], [12]);
+        $perspectiveNeedsWebkit = $this->targetInRange($normalized, 'android', [3], [4, 4, 3])
+            || $this->targetInRange($normalized, 'chrome', [12], [35])
+            || $this->targetInRange($normalized, 'ios_saf', [3, 2], [8, 1])
+            || $this->targetInRange($normalized, 'opera', [15], [22])
+            || $this->targetInRange($normalized, 'safari', [4], [8]);
+        $perspectiveNeedsMoz = $this->targetInRange($normalized, 'firefox', [10], [15]);
+        $backfaceVisibilityNeedsWebkit = $this->targetInRange($normalized, 'android', [3], [4, 4, 3])
+            || $this->targetInRange($normalized, 'chrome', [12], [35])
+            || $this->targetInRange($normalized, 'ios_saf', [3, 2], [15, 2])
+            || $this->targetInRange($normalized, 'opera', [15], [22])
+            || $this->targetInRange($normalized, 'safari', [4], [15, 2]);
+        $backfaceVisibilityNeedsMoz = $this->targetInRange($normalized, 'firefox', [10], [15]);
 
         return [
             'boxShadowNeedsWebkit' => $needsWebkitBoxShadow,
@@ -877,6 +898,14 @@ final class TransitionPrefixer
                 || $this->targetAtLeast($normalized, 'opera', [15])
                 || $this->targetAtLeast($normalized, 'safari', [6, 1])
                 || $this->targetAtLeast($normalized, 'samsung', [4]),
+            'transformNeedsWebkit' => $transformNeedsWebkit,
+            'transformNeedsMoz' => $transformNeedsMoz,
+            'transformNeedsMs' => $transformNeedsMs,
+            'transformNeedsO' => $transformNeedsO,
+            'perspectiveNeedsWebkit' => $perspectiveNeedsWebkit,
+            'perspectiveNeedsMoz' => $perspectiveNeedsMoz,
+            'backfaceVisibilityNeedsWebkit' => $backfaceVisibilityNeedsWebkit,
+            'backfaceVisibilityNeedsMoz' => $backfaceVisibilityNeedsMoz,
             'maskNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [119])
                 || $this->targetInRange($normalized, 'edge', [79], [119])
@@ -3028,6 +3057,35 @@ final class TransitionPrefixer
 
         return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'box-decoration-break', [
             '-webkit-' => $targetOptions['boxDecorationBreakNeedsWebkit'] ?? false,
+        ]) || $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteTransformPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $changed = false;
+        foreach (['transform', 'transform-origin'] as $property) {
+            $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, $property, [
+                '-webkit-' => $targetOptions['transformNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['transformNeedsMoz'] ?? false,
+                '-ms-' => $targetOptions['transformNeedsMs'] ?? false,
+                '-o-' => $targetOptions['transformNeedsO'] ?? false,
+            ]) || $changed;
+        }
+
+        foreach (['perspective', 'perspective-origin', 'transform-style'] as $property) {
+            $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, $property, [
+                '-webkit-' => $targetOptions['perspectiveNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['perspectiveNeedsMoz'] ?? false,
+            ]) || $changed;
+        }
+
+        return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'backface-visibility', [
+            '-webkit-' => $targetOptions['backfaceVisibilityNeedsWebkit'] ?? false,
+            '-moz-' => $targetOptions['backfaceVisibilityNeedsMoz'] ?? false,
         ]) || $changed;
     }
 

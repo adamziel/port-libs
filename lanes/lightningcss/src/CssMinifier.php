@@ -7860,6 +7860,10 @@ final class CssMinifier
      */
     private function rewriteGridTemplateGroup(array &$entries): void
     {
+        if ($this->rewriteGridShorthandAreaGroup($entries)) {
+            return;
+        }
+
         $templateProperties = [
             'areas' => 'grid-template-areas',
             'rows' => 'grid-template-rows',
@@ -8158,6 +8162,106 @@ final class CssMinifier
             'value' => $this->minifyGridLineShorthandValue($entries[$latestStart]['value'] . '/' . $entries[$latestEnd]['value']),
             'important' => false,
             'drop' => false,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteGridShorthandAreaGroup(array &$entries): bool
+    {
+        $shorthandIndex = null;
+        $areaIndex = null;
+        $rowIndex = null;
+        $columnIndex = null;
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if ($entry['important']) {
+                return false;
+            }
+
+            if ($entry['property'] === 'grid' || $entry['property'] === 'grid-template') {
+                $shorthandIndex = $index;
+                $areaIndex = null;
+                $rowIndex = null;
+                $columnIndex = null;
+                continue;
+            }
+
+            if ($shorthandIndex === null) {
+                continue;
+            }
+
+            if ($entry['property'] === 'grid-template-areas') {
+                $areaIndex = $index;
+                continue;
+            }
+            if ($entry['property'] === 'grid-template-rows') {
+                $rowIndex = $index;
+                continue;
+            }
+            if ($entry['property'] === 'grid-template-columns') {
+                $columnIndex = $index;
+            }
+        }
+
+        if ($shorthandIndex === null || $areaIndex === null) {
+            return false;
+        }
+
+        $shorthand = $this->parseGridTemplateShorthandForAreas(
+            $entries[$shorthandIndex]['property'],
+            $entries[$shorthandIndex]['value'],
+        );
+        if ($shorthand === null) {
+            return false;
+        }
+
+        $rows = $rowIndex !== null ? $entries[$rowIndex]['value'] : $shorthand['rows'];
+        $columns = $columnIndex !== null ? $entries[$columnIndex]['value'] : $shorthand['columns'];
+        $value = $this->serializeGridTemplateDeclarationShorthand($entries[$areaIndex]['value'], $rows, $columns);
+        if ($value === null) {
+            return false;
+        }
+
+        foreach (array_filter([$areaIndex, $rowIndex, $columnIndex], static fn (?int $index): bool => $index !== null) as $index) {
+            $entries[$index]['drop'] = true;
+        }
+        $entries[$shorthandIndex]['value'] = $value;
+
+        return true;
+    }
+
+    /**
+     * @return array{rows:string,columns:string}|null
+     */
+    private function parseGridTemplateShorthandForAreas(string $property, string $value): ?array
+    {
+        $parts = $this->splitTopLevel($value, '/');
+        if (count($parts) !== 2) {
+            return null;
+        }
+
+        $rows = trim($parts[0]);
+        $columns = trim($parts[1]);
+        if ($rows === '' || $columns === '') {
+            return null;
+        }
+
+        if ($property === 'grid' && (stripos($rows, 'auto-flow') !== false || stripos($columns, 'auto-flow') !== false)) {
+            return null;
+        }
+
+        if (strcasecmp($rows, 'none') === 0) {
+            return null;
+        }
+
+        return [
+            'rows' => $rows,
+            'columns' => $columns,
         ];
     }
 
