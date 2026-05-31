@@ -86,6 +86,23 @@ $preparedBrokenDelete = $store->prepareLooseDeleteTransaction(
 $preparedBrokenDeleteHadLock = is_file($preparedBrokenPath . '.lock');
 $preparedBrokenDeleteEdits = $preparedBrokenDelete->commit();
 $preparedBrokenDeleteCleanedLock = !is_file($preparedBrokenPath . '.lock');
+$preparedNoOpRef = $fixture['preparedNoOpRef'];
+$store->update(
+    $preparedNoOpRef,
+    ReferenceTarget::object($fixture['reviewCommit']),
+    ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+);
+$preparedNoOpPath = $dir . '/' . $prefix . $preparedNoOpRef;
+file_put_contents($preparedNoOpPath . '.lock', 'held by an idempotent deploy check');
+$preparedNoOp = $store->prepareLooseUpdateTransaction(
+    [$preparedNoOpRef => ReferenceTarget::object($fixture['reviewCommit'])],
+    'sha1',
+    new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+    $fixture['preparedNoOpReflogMessage'],
+    true,
+    ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+);
+$preparedNoOpEdits = $preparedNoOp->commit();
 
 return [
     'namespace' => $fixture['namespace'],
@@ -116,5 +133,10 @@ return [
     'preparedBrokenDeleteHadLock' => $preparedBrokenDeleteHadLock,
     'preparedBrokenDeleteCleanedLock' => $preparedBrokenDeleteCleanedLock,
     'preparedBrokenDeleteRefStillExists' => is_file($preparedBrokenPath),
+    'preparedNoOpEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedNoOpEdits),
+    'preparedNoOpCommit' => $store->find($preparedNoOpRef)->targetObjectId(),
+    'preparedNoOpHeldLockPreserved' => is_file($preparedNoOpPath . '.lock')
+        && file_get_contents($preparedNoOpPath . '.lock') === 'held by an idempotent deploy check',
+    'preparedNoOpReflogExists' => $store->reflogExists($preparedNoOpRef),
     'wordpressUse' => $fixture['wordpressUse'],
 ];

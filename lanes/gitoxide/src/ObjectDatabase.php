@@ -63,6 +63,17 @@ final class ObjectDatabase
         $this->assertObjectId($oid);
         $oid = strtolower($oid);
 
+        if ($this->tryContainsLocal($oid)) {
+            return true;
+        }
+
+        $this->refreshObjectStorage();
+
+        return $this->tryContainsLocal($oid);
+    }
+
+    private function tryContainsLocal(string $oid): bool
+    {
         foreach ($this->multiPackIndexes() as $multiPack) {
             $entry = $multiPack['index']->lookup($oid);
             if ($entry !== null) {
@@ -184,6 +195,27 @@ final class ObjectDatabase
             throw new \InvalidArgumentException("Lookup prefix must be 4 to {$maxLength} hexadecimal characters");
         }
 
+        $oids = $this->prefixMatches($prefix);
+        if (count($oids) <= 1) {
+            $this->refreshObjectStorage();
+            $oids = $this->prefixMatches($prefix);
+        }
+
+        if ($oids === []) {
+            return ['status' => 'missing'];
+        }
+        if (count($oids) > 1) {
+            return ['status' => 'ambiguous', 'matches' => $oids];
+        }
+
+        return ['status' => 'found', 'oid' => $oids[0]];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function prefixMatches(string $prefix): array
+    {
         $matches = [];
         foreach ($this->multiPackIndexes() as $multiPack) {
             $result = $multiPack['index']->lookupPrefix($prefix);
@@ -217,14 +249,8 @@ final class ObjectDatabase
 
         $oids = array_keys($matches);
         sort($oids, SORT_STRING);
-        if ($oids === []) {
-            return ['status' => 'missing'];
-        }
-        if (count($oids) > 1) {
-            return ['status' => 'ambiguous', 'matches' => $oids];
-        }
 
-        return ['status' => 'found', 'oid' => $oids[0]];
+        return $oids;
     }
 
     /**

@@ -70,6 +70,7 @@ $packChecksum = '0f3ea84cd1bba10c2a03d736a460635082833e59';
 
 return [
     'indexBytes' => $buildIndex($objects, $packChecksum),
+    'objectHash' => 'sha1',
     'objects' => $objects,
     'packChecksum' => $packChecksum,
     'wordpressUse' => 'A PHP object database can use a pack index to locate compacted WordPress content objects in shared-hosting repositories without invoking git.',

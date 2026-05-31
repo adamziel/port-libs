@@ -56,6 +56,18 @@ $before = $database->objectState($mediaBlob->oid());
 $resolved = $database->read($mediaBlob->oid());
 $after = $database->objectState($mediaBlob->oid());
 
+$templateBlob = new GitObject('blob', 'Externally hydrated WordPress block template bytes');
+$templateOid = $templateBlob->oid();
+$beforeExternalHydration = $database->objectState($templateOid);
+$templatePack = PackBuilder::build([$templateBlob]);
+$templatePackBase = 'pack-' . $templatePack->packChecksum();
+file_put_contents($packDir . '/' . $templatePackBase . '.pack', $templatePack->packBytes());
+file_put_contents($packDir . '/' . $templatePackBase . '.idx', $templatePack->indexBytes());
+file_put_contents($packDir . '/' . $templatePackBase . '.promisor', "WordPress template external hydration\n");
+$containsAfterExternalHydration = $database->contains($templateOid);
+$prefixAfterExternalHydration = $database->lookupPrefix(strtoupper(substr($templateOid, 0, 12)));
+$afterExternalHydration = $database->objectState($templateOid);
+
 return [
     'promisorPacks' => $database->promisorPackNames(),
     'mediaObject' => $mediaBlob->oid(),
@@ -67,4 +79,11 @@ return [
     'resolvedSize' => strlen($resolved->body),
     'afterRead' => $after,
     'persistedInPackStore' => (new ObjectDatabase($gitDir))->read($mediaBlob->oid())->body === $mediaBlob->body,
+    'externalHydratedObject' => $templateOid,
+    'beforeExternalHydration' => $beforeExternalHydration,
+    'externalHydrationPack' => $templatePackBase . '.promisor',
+    'containsAfterExternalHydration' => $containsAfterExternalHydration,
+    'prefixAfterExternalHydration' => $prefixAfterExternalHydration,
+    'afterExternalHydration' => $afterExternalHydration,
+    'promisorPacksAfterExternalHydration' => $database->promisorPackNames(),
 ];

@@ -121,6 +121,9 @@ final class LooseReferenceStore
             }
 
             $name = substr($path, strlen($gitDirectory));
+            if (str_ends_with($name, '.lock')) {
+                continue;
+            }
             if (!str_starts_with($name, $prefix)) {
                 continue;
             }

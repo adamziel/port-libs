@@ -18,6 +18,7 @@ return [
         'refs/heads/production',
         'refs/heads/review/plugin-c/assets',
         'refs/heads/review/plugin-c/content',
+        'refs/heads/review/plugin-f/no-op',
     ],
     'expectedPhysicalHead' => "ref: refs/namespaces/{$namespace}/{$headTarget}\n",
     'expectedHeadDirectoryRecovered' => true,
@@ -36,11 +37,15 @@ return [
     'expectedPreparedCommitOpenAfterCommit' => false,
     'preparedDeleteRef' => 'refs/heads/review/plugin-d/stale',
     'preparedBrokenDeleteRef' => 'refs/heads/review/plugin-e/broken',
+    'preparedNoOpRef' => 'refs/heads/review/plugin-f/no-op',
     'expectedPreparedDeleteEditNames' => [
         'refs/heads/review/plugin-d/stale',
     ],
     'expectedPreparedBrokenDeleteEditNames' => [
         'refs/heads/review/plugin-e/broken',
+    ],
+    'expectedPreparedNoOpEditNames' => [
+        'refs/heads/review/plugin-f/no-op',
     ],
     'expectedPreparedDeleteHadLock' => true,
     'expectedPreparedDeleteCleanedLock' => true,
@@ -49,7 +54,10 @@ return [
     'expectedPreparedBrokenDeleteHadLock' => true,
     'expectedPreparedBrokenDeleteCleanedLock' => true,
     'expectedPreparedBrokenDeleteRefStillExists' => false,
+    'expectedPreparedNoOpHeldLockPreserved' => true,
+    'expectedPreparedNoOpReflogExists' => false,
     'preparedReflogMessage' => 'prepared tenant review refs',
+    'preparedNoOpReflogMessage' => 'idempotent tenant review ref',
     'preparedReflogCommitter' => 'Deploy Bot <deploy@example.com> 1234 +0000',
-    'wordpressUse' => 'A multisite WordPress deployment tool can promote a reviewed plugin snapshot, stage a pair of prepared tenant review refs with audit reflogs, prune stale and broken review refs through prepared delete locks, prune the old review ref, and recover from an interrupted deploy that left an empty tenant HEAD directory blocker without invoking git update-ref.',
+    'wordpressUse' => 'A multisite WordPress deployment tool can promote a reviewed plugin snapshot, stage a pair of prepared tenant review refs with audit reflogs, skip idempotent prepared writes without disturbing a held ref lock or adding reflog noise, prune stale and broken review refs through prepared delete locks, prune the old review ref, and recover from an interrupted deploy that left an empty tenant HEAD directory blocker without invoking git update-ref.',
 ];

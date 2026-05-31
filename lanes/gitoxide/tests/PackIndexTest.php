@@ -6,8 +6,13 @@ use PortLibs\Gitoxide\PackIndex;
 
 $packChecksum = '0f3ea84cd1bba10c2a03d736a460635082833e59';
 
-$buildIndex = static function (array $entries, string $packChecksum) use (&$buildIndex): string {
+$buildIndex = static function (array $entries, string $packChecksum, string $hash = 'sha1') use (&$buildIndex): string {
     usort($entries, static fn (array $a, array $b): int => strcmp($a['oid'], $b['oid']));
+    $hashBytes = match ($hash) {
+        'sha1' => 20,
+        'sha256' => 32,
+        default => throw new RuntimeException("Unsupported test hash: {$hash}"),
+    };
     $fanout = array_fill(0, 256, 0);
     foreach ($entries as $entry) {
         $fanout[hexdec(substr($entry['oid'], 0, 2))]++;
@@ -23,7 +28,11 @@ $buildIndex = static function (array $entries, string $packChecksum) use (&$buil
         $bytes .= pack('N', $count);
     }
     foreach ($entries as $entry) {
-        $bytes .= hex2bin($entry['oid']);
+        $oid = hex2bin($entry['oid']);
+        if ($oid === false || strlen($oid) !== $hashBytes) {
+            throw new RuntimeException('Invalid object id in test pack index');
+        }
+        $bytes .= $oid;
     }
     foreach ($entries as $entry) {
         $bytes .= pack('N', $entry['crc32']);
@@ -46,7 +55,7 @@ $buildIndex = static function (array $entries, string $packChecksum) use (&$buil
     }
 
     $bytes .= hex2bin($packChecksum);
-    return $bytes . hex2bin(hash('sha1', $bytes));
+    return $bytes . hex2bin(hash($hash, $bytes));
 };
 
 $buildV1Index = static function (array $entries, string $packChecksum): string {
@@ -163,6 +172,44 @@ return [
         $t->same(null, $index->disambiguatePrefix('ffffffffffffffffffffffffffffffffffffffff', 4));
         $t->throws(InvalidArgumentException::class, static fn () => $index->disambiguatePrefix($first, 3));
     },
+    'reports sha256 pack index prefix ranges like multi-pack-index hash-kind lookup' => static function (TestRunner $t) use ($buildIndex): void {
+        $first = 'aaaa' . str_repeat('1', 60);
+        $second = 'aaaab' . str_repeat('2', 59);
+        $third = 'bbbb' . str_repeat('3', 60);
+        $packChecksum = hash('sha256', 'wordpress-sha256-pack-checksum');
+        $indexBytes = $buildIndex([
+            ['oid' => $second, 'offset' => 24, 'crc32' => 2],
+            ['oid' => $third, 'offset' => 36, 'crc32' => 3],
+            ['oid' => $first, 'offset' => 12, 'crc32' => 1],
+        ], $packChecksum, 'sha256');
+        $index = PackIndex::fromBytes($indexBytes, 'sha256');
+
+        $t->same('sha256', $index->objectHash());
+        $t->same(32, $index->hashBytes());
+        $t->same($packChecksum, $index->packChecksum());
+        $t->same(hash('sha256', substr($indexBytes, 0, -32)), $index->verifyChecksum());
+
+        $ambiguous = $index->lookupPrefix('AAAA');
+        $t->same('ambiguous', $ambiguous['status']);
+        $t->same([0, 1], $ambiguous['matches']);
+        $t->same(['start' => 0, 'end' => 2], $ambiguous['candidateRange']);
+
+        $found = $index->lookupPrefix('aaaa1');
+        $t->same('found', $found['status']);
+        $t->same($first, $found['entry']->oid);
+        $t->same(['start' => 0, 'end' => 1], $found['candidateRange']);
+        $t->same(12, $index->lookup(strtoupper($first))?->packOffset);
+
+        $missing = $index->lookupPrefix('ffff');
+        $t->same('missing', $missing['status']);
+        $t->same(['start' => 0, 'end' => 0], $missing['candidateRange']);
+
+        $t->same('aaaa1', $index->disambiguatePrefix(strtoupper($first), 4));
+        $t->same($first, $index->disambiguatePrefix($first, 64));
+        $t->same(null, $index->disambiguatePrefix(str_repeat('f', 64), 4));
+        $t->throws(InvalidArgumentException::class, static fn () => $index->lookup($first . '0'));
+        $t->throws(InvalidArgumentException::class, static fn () => PackIndex::fromBytes('', 'blake3'));
+    },
     'rejects corrupt pack index headers fanout sizes and checksums' => static function (TestRunner $t) use ($buildIndex, $entries, $packChecksum): void {
         $valid = $buildIndex($entries, $packChecksum);
         $t->throws(InvalidArgumentException::class, static fn () => PackIndex::fromBytes('not an index'));
@@ -189,7 +236,9 @@ return [
     },
     'wordpress fixture locates compacted content objects without git binary' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-index.php';
-        $index = PackIndex::fromBytes($fixture['indexBytes']);
+        $index = PackIndex::fromBytes($fixture['indexBytes'], $fixture['objectHash']);
+        $t->same('sha1', $index->objectHash());
+        $t->same(20, $index->hashBytes());
         $t->same(3, $index->count());
         $t->same($fixture['packChecksum'], $index->packChecksum());
         $t->same($fixture['objects'][1]['offset'], $index->lookup($fixture['objects'][1]['oid'])?->packOffset);

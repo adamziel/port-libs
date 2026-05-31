@@ -10,8 +10,11 @@ final class PackIndex
     private const FANOUT_ENTRIES = 256;
     private const UINT32_BYTES = 4;
     private const UINT64_BYTES = 8;
-    private const HASH_BYTES = 20;
     private const LARGE_OFFSET_FLAG = 0x80000000;
+    private const HASHES = [
+        'sha1' => 20,
+        'sha256' => 32,
+    ];
 
     /**
      * @param list<int> $fanout
@@ -22,6 +25,8 @@ final class PackIndex
     private function __construct(
         private readonly string $bytes,
         private readonly int $version,
+        private readonly string $hashName,
+        private readonly int $hashBytes,
         private readonly array $fanout,
         private readonly array $oids,
         private readonly array $crc32s,
@@ -31,19 +36,21 @@ final class PackIndex
     ) {
     }
 
-    public static function fromBytes(string $bytes): self
+    public static function fromBytes(string $bytes, string $objectHash = 'sha1'): self
     {
+        $objectHash = self::normalizeObjectHash($objectHash);
+        $hashBytes = self::HASHES[$objectHash];
         if (!str_starts_with($bytes, self::V2_SIGNATURE)) {
-            return self::fromV1Bytes($bytes);
+            return self::fromV1Bytes($bytes, $objectHash, $hashBytes);
         }
 
-        return self::fromV2Bytes($bytes);
+        return self::fromV2Bytes($bytes, $objectHash, $hashBytes);
     }
 
-    private static function fromV1Bytes(string $bytes): self
+    private static function fromV1Bytes(string $bytes, string $objectHash, int $hashBytes): self
     {
         $length = strlen($bytes);
-        $minimum = self::FANOUT_ENTRIES * self::UINT32_BYTES + self::HASH_BYTES * 2;
+        $minimum = self::FANOUT_ENTRIES * self::UINT32_BYTES + $hashBytes * 2;
         if ($length < $minimum) {
             throw new \InvalidArgumentException("Pack index of size {$length} is too small for a v1 index");
         }
@@ -56,10 +63,10 @@ final class PackIndex
         self::assertMonotonicFanout($fanout);
 
         $count = $fanout[255];
-        $entryBytes = $count * (self::UINT32_BYTES + self::HASH_BYTES);
+        $entryBytes = $count * (self::UINT32_BYTES + $hashBytes);
         $expectedSize = self::FANOUT_ENTRIES * self::UINT32_BYTES
             + $entryBytes
-            + self::HASH_BYTES * 2;
+            + $hashBytes * 2;
         if ($length !== $expectedSize) {
             throw new \InvalidArgumentException("Pack index size is incorrect, expected {$expectedSize} bytes for {$count} objects in version 1, got {$length} bytes");
         }
@@ -69,26 +76,26 @@ final class PackIndex
         $packOffsets = [];
         for ($i = 0; $i < $count; $i++) {
             $packOffsets[] = self::readUInt32($bytes, $offset);
-            $oid = substr($bytes, $offset, self::HASH_BYTES);
-            if (strlen($oid) !== self::HASH_BYTES) {
+            $oid = substr($bytes, $offset, $hashBytes);
+            if (strlen($oid) !== $hashBytes) {
                 throw new \InvalidArgumentException('Pack index ended while reading a v1 object id');
             }
             $oids[] = bin2hex($oid);
             $crc32s[] = null;
-            $offset += self::HASH_BYTES;
+            $offset += $hashBytes;
         }
 
-        $packChecksum = bin2hex(substr($bytes, $offset, self::HASH_BYTES));
-        $offset += self::HASH_BYTES;
-        $indexChecksum = bin2hex(substr($bytes, $offset, self::HASH_BYTES));
+        $packChecksum = bin2hex(substr($bytes, $offset, $hashBytes));
+        $offset += $hashBytes;
+        $indexChecksum = bin2hex(substr($bytes, $offset, $hashBytes));
 
-        return new self($bytes, 1, $fanout, $oids, $crc32s, $packOffsets, $packChecksum, $indexChecksum);
+        return new self($bytes, 1, $objectHash, $hashBytes, $fanout, $oids, $crc32s, $packOffsets, $packChecksum, $indexChecksum);
     }
 
-    private static function fromV2Bytes(string $bytes): self
+    private static function fromV2Bytes(string $bytes, string $objectHash, int $hashBytes): self
     {
         $length = strlen($bytes);
-        $minimum = strlen(self::V2_SIGNATURE) + self::UINT32_BYTES + self::FANOUT_ENTRIES * self::UINT32_BYTES + self::HASH_BYTES * 2;
+        $minimum = strlen(self::V2_SIGNATURE) + self::UINT32_BYTES + self::FANOUT_ENTRIES * self::UINT32_BYTES + $hashBytes * 2;
         if ($length < $minimum) {
             throw new \InvalidArgumentException("Pack index of size {$length} is too small for a v2 index");
         }
@@ -106,7 +113,7 @@ final class PackIndex
         self::assertMonotonicFanout($fanout);
 
         $count = $fanout[255];
-        $oidTableBytes = $count * self::HASH_BYTES;
+        $oidTableBytes = $count * $hashBytes;
         $crcTableBytes = $count * self::UINT32_BYTES;
         $offsetTableBytes = $count * self::UINT32_BYTES;
         $offset32Start = $offset + $oidTableBytes + $crcTableBytes;
@@ -117,8 +124,8 @@ final class PackIndex
 
         $oids = [];
         for ($i = 0; $i < $count; $i++) {
-            $oids[] = bin2hex(substr($bytes, $offset, self::HASH_BYTES));
-            $offset += self::HASH_BYTES;
+            $oids[] = bin2hex(substr($bytes, $offset, $hashBytes));
+            $offset += $hashBytes;
         }
 
         $crc32s = [];
@@ -151,7 +158,7 @@ final class PackIndex
             + $crcTableBytes
             + $offsetTableBytes
             + $largeOffsetBytes
-            + self::HASH_BYTES * 2;
+            + $hashBytes * 2;
         if ($length !== $expectedSize) {
             throw new \InvalidArgumentException("Pack index size is incorrect, expected {$expectedSize} bytes for {$count} objects in version 2, got {$length} bytes");
         }
@@ -170,20 +177,20 @@ final class PackIndex
         }
         $offset += $largeOffsetBytes;
 
-        $packChecksum = bin2hex(substr($bytes, $offset, self::HASH_BYTES));
-        $offset += self::HASH_BYTES;
-        $indexChecksum = bin2hex(substr($bytes, $offset, self::HASH_BYTES));
+        $packChecksum = bin2hex(substr($bytes, $offset, $hashBytes));
+        $offset += $hashBytes;
+        $indexChecksum = bin2hex(substr($bytes, $offset, $hashBytes));
 
-        return new self($bytes, $version, $fanout, $oids, $crc32s, $packOffsets, $packChecksum, $indexChecksum);
+        return new self($bytes, $version, $objectHash, $hashBytes, $fanout, $oids, $crc32s, $packOffsets, $packChecksum, $indexChecksum);
     }
 
-    public static function open(string $path): self
+    public static function open(string $path, string $objectHash = 'sha1'): self
     {
         if (!is_file($path)) {
             throw new \RuntimeException("Pack index file not found: {$path}");
         }
 
-        return self::fromBytes((string) file_get_contents($path));
+        return self::fromBytes((string) file_get_contents($path), $objectHash);
     }
 
     public function version(): int
@@ -194,6 +201,16 @@ final class PackIndex
     public function count(): int
     {
         return $this->fanout[255];
+    }
+
+    public function objectHash(): string
+    {
+        return $this->hashName;
+    }
+
+    public function hashBytes(): int
+    {
+        return $this->hashBytes;
     }
 
     public function packChecksum(): string
@@ -208,7 +225,7 @@ final class PackIndex
 
     public function verifyChecksum(): string
     {
-        $actual = hash('sha1', substr($this->bytes, 0, -self::HASH_BYTES));
+        $actual = hash($this->hashName, substr($this->bytes, 0, -$this->hashBytes));
         if ($actual !== $this->indexChecksum) {
             throw new \RuntimeException('Pack index checksum mismatch');
         }
@@ -227,8 +244,9 @@ final class PackIndex
 
     public function lookup(string $oid): ?PackIndexEntry
     {
-        if (preg_match('/^[0-9a-fA-F]{40}$/', $oid) !== 1) {
-            throw new \InvalidArgumentException('Lookup object id must be a 40-character SHA-1 hex string');
+        $hexLength = $this->hashBytes * 2;
+        if (preg_match('/^[0-9a-fA-F]{' . $hexLength . '}$/', $oid) !== 1) {
+            throw new \InvalidArgumentException("Lookup object id must be a {$hexLength}-character {$this->hashName} hex string");
         }
         $oid = strtolower($oid);
         $firstByte = hexdec(substr($oid, 0, 2));
@@ -256,7 +274,7 @@ final class PackIndex
      */
     public function lookupPrefix(string $prefix): array
     {
-        $prefix = self::normalizePrefix($prefix);
+        $prefix = $this->normalizePrefix($prefix);
         ['matches' => $matches, 'candidateRange' => $candidateRange] = $this->matchingPrefixIndexes($prefix);
 
         if ($matches === []) {
@@ -271,20 +289,21 @@ final class PackIndex
 
     public function disambiguatePrefix(string $oid, int $minimumHexLength): ?string
     {
-        if (preg_match('/^[0-9a-fA-F]{40}$/', $oid) !== 1) {
-            throw new \InvalidArgumentException('Disambiguation object id must be a 40-character SHA-1 hex string');
+        $hexLength = $this->hashBytes * 2;
+        if (preg_match('/^[0-9a-fA-F]{' . $hexLength . '}$/', $oid) !== 1) {
+            throw new \InvalidArgumentException("Disambiguation object id must be a {$hexLength}-character {$this->hashName} hex string");
         }
-        if ($minimumHexLength < 4 || $minimumHexLength > 40) {
-            throw new \InvalidArgumentException('Disambiguation prefix length must be between 4 and 40 hexadecimal characters');
+        if ($minimumHexLength < 4 || $minimumHexLength > $hexLength) {
+            throw new \InvalidArgumentException("Disambiguation prefix length must be between 4 and {$hexLength} hexadecimal characters");
         }
 
         $oid = strtolower($oid);
-        if ($minimumHexLength === 40) {
+        if ($minimumHexLength === $hexLength) {
             return $this->lookup($oid) === null ? null : $oid;
         }
 
-        for ($hexLength = $minimumHexLength; $hexLength < 40; $hexLength++) {
-            $prefix = substr($oid, 0, $hexLength);
+        for ($length = $minimumHexLength; $length < $hexLength; $length++) {
+            $prefix = substr($oid, 0, $length);
             $result = $this->lookupPrefix($prefix);
             if ($result['status'] === 'missing') {
                 return null;
@@ -335,11 +354,22 @@ final class PackIndex
         }
     }
 
-    private static function normalizePrefix(string $prefix): string
+    private static function normalizeObjectHash(string $objectHash): string
+    {
+        $normalized = strtolower($objectHash);
+        if (!isset(self::HASHES[$normalized])) {
+            throw new \InvalidArgumentException("Unsupported pack index object hash: {$objectHash}");
+        }
+
+        return $normalized;
+    }
+
+    private function normalizePrefix(string $prefix): string
     {
         $prefix = strtolower($prefix);
-        if (preg_match('/^[0-9a-f]{4,40}$/', $prefix) !== 1) {
-            throw new \InvalidArgumentException('Lookup prefix must be 4 to 40 hexadecimal characters');
+        $hexLength = $this->hashBytes * 2;
+        if (preg_match('/^[0-9a-f]{4,' . $hexLength . '}$/', $prefix) !== 1) {
+            throw new \InvalidArgumentException("Lookup prefix must be 4 to {$hexLength} hexadecimal characters");
         }
 
         return $prefix;

@@ -29,6 +29,18 @@ $writePromisorPackFixture = static function (): array {
     return [$gitDir, $fixture, $basename];
 };
 
+$writePromisorPackForObject = static function (string $gitDir, GitObject $object, string $promisorNote): string {
+    $pack = PackBuilder::build([$object]);
+    $packDir = $gitDir . '/objects/pack';
+    $basename = 'pack-' . $pack->packChecksum();
+
+    file_put_contents($packDir . '/' . $basename . '.pack', $pack->packBytes());
+    file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
+    file_put_contents($packDir . '/' . $basename . '.promisor', $promisorNote);
+
+    return $basename . '.promisor';
+};
+
 return [
     'parses common partial clone fetch filter specs' => static function (TestRunner $t): void {
         $blobNone = FetchFilterSpec::parse('blob:none');
@@ -190,6 +202,41 @@ return [
         $t->same($missingConfigBlob->body, $database->read($missingConfigOid)->body);
         $t->same([$missingConfigOid], $resolver->requests);
     },
+    'object database contains refreshes after external promisor pack hydration' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackForObject): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $hydratedThemeBlob = new GitObject('blob', 'Externally hydrated WordPress theme asset bytes');
+        $hydratedThemeOid = $hydratedThemeBlob->oid();
+        $database = new ObjectDatabase($gitDir);
+
+        $t->same('promised-missing', $database->objectState($hydratedThemeOid)['status']);
+        $t->same(1, count($database->promisorPackNames()));
+
+        $hydrationPack = $writePromisorPackForObject($gitDir, $hydratedThemeBlob, "external promisor hydration\n");
+
+        $t->same(true, $database->contains($hydratedThemeOid));
+        $t->same('promisor-present', $database->objectState($hydratedThemeOid)['status']);
+        $t->same(true, in_array($hydrationPack, $database->promisorPackNames(), true));
+        $t->same($hydratedThemeBlob->body, $database->read($hydratedThemeOid)->body);
+        $t->same('pack', $database->readHeader($hydratedThemeOid)['source']);
+    },
+    'object database prefix lookup refreshes after external promisor pack hydration' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackForObject): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $hydratedTemplateBlob = new GitObject('blob', 'Externally hydrated block template bytes');
+        $hydratedTemplateOid = $hydratedTemplateBlob->oid();
+        $prefix = strtoupper(substr($hydratedTemplateOid, 0, 12));
+        $database = new ObjectDatabase($gitDir);
+
+        $t->same('missing', $database->lookupPrefix($prefix)['status']);
+
+        $hydrationPack = $writePromisorPackForObject($gitDir, $hydratedTemplateBlob, "external prefix hydration\n");
+        $found = $database->lookupPrefix($prefix);
+
+        $t->same('found', $found['status']);
+        $t->same($hydratedTemplateOid, $found['oid']);
+        $t->same(true, in_array($hydrationPack, $database->promisorPackNames(), true));
+        $t->same('promisor-present', $database->objectState($hydratedTemplateOid)['status']);
+        $t->same($hydratedTemplateBlob->body, $database->read($hydratedTemplateOid)->body);
+    },
     'object database rejects promisor resolver object id mismatches' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir] = $writePromisorPackFixture();
         $requestedOid = str_repeat('f', 40);
@@ -221,5 +268,15 @@ return [
         $t->same('promisor-present', $database->objectState($packedContentOid)['status']);
         $t->same('promised-missing', $database->objectState($mediaEntry?->oid ?? str_repeat('0', 40))['status']);
         $t->same(false, FetchFilterSpec::blobNone()->includesObject($missingMediaBlob));
+    },
+    'wordpress lazy promisor example reports external pack hydration refresh' => static function (TestRunner $t): void {
+        $summary = require dirname(__DIR__) . '/examples/wordpress-lazy-promisor-fetch.php';
+
+        $t->same('promised-missing', $summary['beforeExternalHydration']['status']);
+        $t->same(true, $summary['containsAfterExternalHydration']);
+        $t->same('found', $summary['prefixAfterExternalHydration']['status']);
+        $t->same($summary['externalHydratedObject'], $summary['prefixAfterExternalHydration']['oid']);
+        $t->same('promisor-present', $summary['afterExternalHydration']['status']);
+        $t->same(true, in_array($summary['externalHydrationPack'], $summary['promisorPacksAfterExternalHydration'], true));
     },
 ];

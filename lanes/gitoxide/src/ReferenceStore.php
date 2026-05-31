@@ -62,6 +62,8 @@ final class ReferenceStore
         ?CommitSignature $committer = null,
         string $reflogMessage = '',
         bool $forceCreateReflog = false,
+        string $previous = self::PREVIOUS_ANY,
+        ?ReferenceTarget $expectedTarget = null,
     ): PreparedReferenceTransaction
     {
         if (is_file($this->packedRefsLockPath()) || is_dir($this->packedRefsLockPath())) {
@@ -80,8 +82,24 @@ final class ReferenceStore
                 $physicalName = $this->physicalName((string) $name);
                 $physicalTarget = $this->physicalTarget($target);
                 $existing = $this->tryFindPhysical($physicalName, $algorithm);
+                $this->assertPreviousValueAllowsUpdate($physicalName, $physicalTarget, $existing, $previous, $expectedTarget);
                 $targetPath = $this->referencePath($physicalName);
                 $lockPath = $targetPath . '.lock';
+                $edit = ReferenceTransactionEdit::update(
+                    $this->storeRelativeName($physicalName),
+                    $this->storeRelativeTarget($existing?->target),
+                    $this->storeRelativeTarget($physicalTarget),
+                    ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
+                    true,
+                );
+
+                if ($existing !== null && $physicalTarget->isObject() && self::targetsEqual($existing->target, $physicalTarget)) {
+                    $locks[] = [
+                        'action' => PreparedReferenceTransaction::ACTION_NOOP,
+                        'edit' => $edit,
+                    ];
+                    continue;
+                }
 
                 if (is_file($lockPath) || is_dir($lockPath)) {
                     throw new \RuntimeException("A lock could not be obtained for reference \"{$this->storeRelativeName($physicalName)}\"");
@@ -98,13 +116,7 @@ final class ReferenceStore
 
                 $locks[] = [
                     'lockPath' => $lockPath,
-                    'edit' => ReferenceTransactionEdit::update(
-                        $this->storeRelativeName($physicalName),
-                        $this->storeRelativeTarget($existing?->target),
-                        $this->storeRelativeTarget($physicalTarget),
-                        ReferenceTransactionEdit::REFLOG_AND_REFERENCE,
-                        true,
-                    ),
+                    'edit' => $edit,
                     'reflog' => $writeReflog ? [
                         'physicalName' => $physicalName,
                         'previousTarget' => $existing?->target,

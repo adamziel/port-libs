@@ -1065,6 +1065,79 @@ return [
         $t->same("{$new}\n", file_get_contents($nonAutoDir . '/refs/internal/no-auto-log'));
         $t->same(null, $nonAuto->reflogContents('refs/internal/no-auto-log'));
     },
+    'prepared reference transaction skips locks and reflogs for unchanged object updates like upstream' => static function (TestRunner $t) use ($old): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-noop-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $store->looseStore()->writeDirect('refs/heads/main', $old);
+        $heldLock = $dir . '/refs/heads/main.lock';
+        file_put_contents($heldLock, 'held by another transaction');
+
+        $transaction = $store->prepareLooseUpdateTransaction(
+            ['refs/heads/main' => ReferenceTarget::object($old)],
+            'sha1',
+            $committer,
+            'same target should not log',
+            true,
+            ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+        );
+
+        $t->same('held by another transaction', file_get_contents($heldLock));
+        $t->same(null, $store->reflogContents('refs/heads/main'));
+
+        $edits = $transaction->commit();
+
+        $t->same(false, $transaction->isOpen());
+        $t->same(['refs/heads/main'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same([$old], array_map(static fn ($edit): ?string => $edit->previousTarget?->value, $edits));
+        $t->same([$old], array_map(static fn ($edit): ?string => $edit->newTarget?->value, $edits));
+        $t->same([ReferenceTransactionEdit::REFLOG_AND_REFERENCE], array_map(static fn ($edit): string => $edit->reflogMode, $edits));
+        $t->same([true], array_map(static fn ($edit): bool => $edit->updatesReference, $edits));
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/main'));
+        $t->same('held by another transaction', file_get_contents($heldLock));
+        $t->same(null, $store->reflogContents('refs/heads/main'), 'unchanged object updates do not append even with a forced reflog request');
+        $t->same(['refs/heads/main'], array_map(static fn ($reference): string => $reference->name, $store->looseAll()));
+    },
+    'prepared non-conflicting transactions write reflogs while another lock remains open' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-non-conflicting-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+
+        $ongoing = $store->prepareLooseUpdateTransaction(
+            ['refs/new' => ReferenceTarget::object($old)],
+            'sha1',
+            $committer,
+            'log peeled',
+            true,
+        );
+        $t->same(true, is_file($dir . '/refs/new.lock'));
+
+        $second = $store->prepareLooseUpdateTransaction(
+            ['refs/non-conflicting' => ReferenceTarget::object($new)],
+            'sha1',
+            $committer,
+            'log peeled',
+            true,
+        );
+        $second->commit();
+
+        $t->same(true, is_file($dir . '/refs/new.lock'));
+        $t->same(false, is_file($dir . '/refs/new'));
+        $t->same("{$new}\n", file_get_contents($dir . '/refs/non-conflicting'));
+        $t->contains(
+            str_repeat('0', 40) . " {$new} Deploy Bot <deploy@example.com> 1234 +0000\tlog peeled\n",
+            (string) $store->reflogContents('refs/non-conflicting'),
+        );
+
+        $ongoing->commit();
+
+        $t->same(false, is_file($dir . '/refs/new.lock'));
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/new'));
+        $t->contains(
+            str_repeat('0', 40) . " {$old} Deploy Bot <deploy@example.com> 1234 +0000\tlog peeled\n",
+            (string) $store->reflogContents('refs/new'),
+        );
+    },
     'prepared reference transaction commit recovers empty reflog directory blockers' => static function (TestRunner $t) use ($old): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-reflog-dir-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -1290,6 +1363,11 @@ return [
         $t->same($fixture['expectedPreparedBrokenDeleteHadLock'], $summary['preparedBrokenDeleteHadLock']);
         $t->same($fixture['expectedPreparedBrokenDeleteCleanedLock'], $summary['preparedBrokenDeleteCleanedLock']);
         $t->same($fixture['expectedPreparedBrokenDeleteRefStillExists'], $summary['preparedBrokenDeleteRefStillExists']);
+        $t->same($fixture['expectedPreparedNoOpEditNames'], $summary['preparedNoOpEditNames']);
+        $t->same($fixture['reviewCommit'], $summary['preparedNoOpCommit']);
+        $t->same($fixture['expectedPreparedNoOpHeldLockPreserved'], $summary['preparedNoOpHeldLockPreserved']);
+        $t->same($fixture['expectedPreparedNoOpReflogExists'], $summary['preparedNoOpReflogExists']);
+        $t->contains('idempotent prepared writes', $summary['wordpressUse']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-deref-reference-transaction.php';

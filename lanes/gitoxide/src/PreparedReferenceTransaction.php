@@ -8,23 +8,30 @@ final class PreparedReferenceTransaction
 {
     public const ACTION_UPDATE = 'update';
     public const ACTION_DELETE = 'delete';
+    public const ACTION_NOOP = 'noop';
 
     private bool $open = true;
 
     /**
-     * @param list<array{action?:string,lockPath:string,edit:ReferenceTransactionEdit,reflog?:array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string}|null,delete?:array{physicalName:string,deleteReference:bool,deleteReflog:bool}}> $locks
+     * @param list<array{action?:string,lockPath?:string,edit:ReferenceTransactionEdit,reflog?:array{physicalName:string,previousTarget:?ReferenceTarget,newTarget:ReferenceTarget,committer:?CommitSignature,message:string,forceCreate:bool,algorithm:string}|null,delete?:array{physicalName:string,deleteReference:bool,deleteReflog:bool}}> $locks
      */
     public function __construct(
         private readonly string $gitDirectory,
         private readonly array $locks,
     ) {
         foreach ($locks as $lock) {
-            if (!is_string($lock['lockPath'] ?? null) || !$lock['edit'] instanceof ReferenceTransactionEdit) {
-                throw new \InvalidArgumentException('Prepared reference locks must contain lock paths and transaction edits');
+            if (!$lock['edit'] instanceof ReferenceTransactionEdit) {
+                throw new \InvalidArgumentException('Prepared reference operations must contain transaction edits');
             }
             $action = $lock['action'] ?? self::ACTION_UPDATE;
-            if (!in_array($action, [self::ACTION_UPDATE, self::ACTION_DELETE], true)) {
+            if (!in_array($action, [self::ACTION_UPDATE, self::ACTION_DELETE, self::ACTION_NOOP], true)) {
                 throw new \InvalidArgumentException("Unknown prepared reference action: {$action}");
+            }
+            if ($action === self::ACTION_NOOP) {
+                continue;
+            }
+            if (!is_string($lock['lockPath'] ?? null)) {
+                throw new \InvalidArgumentException('Prepared reference locks must contain lock paths and transaction edits');
             }
             $reflog = $lock['reflog'] ?? null;
             if ($reflog === null) {
@@ -88,6 +95,10 @@ final class PreparedReferenceTransaction
         }
 
         for ($index = count($this->locks) - 1; $index >= 0; $index--) {
+            if (($this->locks[$index]['action'] ?? self::ACTION_UPDATE) === self::ACTION_NOOP) {
+                continue;
+            }
+
             $lockPath = $this->locks[$index]['lockPath'];
             if (is_file($lockPath) && !unlink($lockPath)) {
                 throw new \RuntimeException("Unable to remove prepared reference lock: {$lockPath}");
@@ -120,7 +131,11 @@ final class PreparedReferenceTransaction
         $this->open = false;
 
         foreach ($this->locks as $lock) {
-            if (($lock['action'] ?? self::ACTION_UPDATE) === self::ACTION_DELETE) {
+            $action = $lock['action'] ?? self::ACTION_UPDATE;
+            if ($action === self::ACTION_NOOP) {
+                continue;
+            }
+            if ($action === self::ACTION_DELETE) {
                 $this->commitDelete($lock);
             } else {
                 $this->commitUpdate($lock);
