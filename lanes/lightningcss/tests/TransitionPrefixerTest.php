@@ -22,7 +22,7 @@ return [
 
         $t->same(
             $expected,
-            (new TransitionPrefixer())->prefixLegacySafari('.foo { transition-property: margin-inline-start, padding-inline-start; }')
+            (new TransitionPrefixer())->prefixForTargets('.foo { transition-property: margin-inline-start, padding-inline-start; }', ['safari' => 8])
         );
     },
     'transition prefixer maps upstream inline transition shorthand direction selectors' => static function (TestRunner $t) use ($variants): void {
@@ -34,7 +34,7 @@ return [
 
         $t->same(
             $expected,
-            (new TransitionPrefixer())->prefixLegacySafari('.foo { transition: margin-inline-start 2s, padding-inline-start 200ms; }')
+            (new TransitionPrefixer())->prefixForTargets('.foo { transition: margin-inline-start 2s, padding-inline-start 200ms; }', ['safari' => 8])
         );
     },
     'transition prefixer maps upstream transform transition prefixing' => static function (TestRunner $t): void {
@@ -45,6 +45,38 @@ return [
         $t->same(
             '.foo{-webkit-transition-property:-webkit-transform,transform;transition-property:-webkit-transform,transform}',
             (new TransitionPrefixer())->prefixLegacySafari('.foo { transition-property: transform; }')
+        );
+    },
+    'transition prefixer maps upstream transition declaration target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $transition = '.foo { transition: opacity 200ms; }';
+        $modern = '.foo{transition:opacity .2s}';
+        $webkit = '.foo{-webkit-transition:opacity .2s;transition:opacity .2s}';
+
+        $t->same(
+            '.foo{-webkit-transition:opacity .2s;-moz-transition:opacity .2s;transition:opacity .2s}',
+            $prefixer->prefixForTargets($transition, ['safari' => 5, 'firefox' => 14])
+        );
+        $t->same(
+            $modern,
+            $prefixer->prefixForTargets('.foo { -webkit-transition: opacity 200ms; -moz-transition: opacity 200ms; transition: opacity 200ms; }', ['chrome' => 95])
+        );
+
+        $t->same($webkit, $prefixer->prefixForTargets($transition, ['chrome' => 25]));
+        $t->same($modern, $prefixer->prefixForTargets($transition, ['chrome' => 26]));
+        $t->same('.foo{-moz-transition:opacity .2s;transition:opacity .2s}', $prefixer->prefixForTargets($transition, ['firefox' => 15]));
+        $t->same($modern, $prefixer->prefixForTargets($transition, ['firefox' => 16]));
+        $t->same('.foo{-o-transition:opacity .2s;transition:opacity .2s}', $prefixer->prefixForTargets($transition, ['opera' => 12]));
+        $t->same($modern, $prefixer->prefixForTargets($transition, ['opera' => 13]));
+        $t->same($webkit, $prefixer->prefixForTargets($transition, ['ios_saf' => 6]));
+        $t->same($modern, $prefixer->prefixForTargets($transition, ['ios_saf' => 7]));
+        $t->same(
+            '.foo{-webkit-transition:opacity .2s ease-in-out .1s;transition:opacity .2s ease-in-out .1s}',
+            $prefixer->prefixForTargets('.foo { transition-duration: 200ms; transition-delay: 100ms; transition-timing-function: ease-in-out; transition-property: opacity; }', ['safari' => 6])
+        );
+        $t->same(
+            '.foo{transition:opacity .2s ease-in-out .1s}',
+            $prefixer->prefixForTargets('.foo { transition-duration: 200ms; transition-delay: 100ms; transition-timing-function: ease-in-out; transition-property: opacity; }', ['safari' => 7])
         );
     },
     'transition prefixer maps upstream transform family target prefixes' => static function (TestRunner $t): void {
@@ -1255,23 +1287,23 @@ CSS;
 
         $t->same(
             '.foo{transition:-webkit-mask .2s,mask .2s}',
-            $prefixer->prefixLegacySafari('.foo { transition: mask 200ms; }')
+            $prefixer->prefixForTargets('.foo { transition: mask 200ms; }', ['chrome' => 119])
         );
         $t->same(
             '.foo{transition:-webkit-mask-box-image .2s,mask-border .2s}',
-            $prefixer->prefixLegacySafari('.foo { transition: mask-border 200ms; }')
+            $prefixer->prefixForTargets('.foo { transition: mask-border 200ms; }', ['chrome' => 119])
         );
         $t->same(
             '.foo{transition-property:-webkit-mask,mask}',
-            $prefixer->prefixLegacySafari('.foo { transition-property: mask; }')
+            $prefixer->prefixForTargets('.foo { transition-property: mask; }', ['chrome' => 119])
         );
         $t->same(
             '.foo{transition-property:-webkit-mask-box-image,mask-border}',
-            $prefixer->prefixLegacySafari('.foo { transition-property: mask-border; }')
+            $prefixer->prefixForTargets('.foo { transition-property: mask-border; }', ['chrome' => 119])
         );
         $t->same(
             '.foo{transition-property:-webkit-mask-composite,mask-composite,-webkit-mask-source-type,mask-mode}',
-            $prefixer->prefixLegacySafari('.foo { transition-property: mask-composite, mask-mode; }')
+            $prefixer->prefixForTargets('.foo { transition-property: mask-composite, mask-mode; }', ['chrome' => 119])
         );
     },
     'transition prefixer maps upstream mask-border shorthand and longhand prefixing' => static function (TestRunner $t): void {
@@ -2201,6 +2233,18 @@ CSS;
             '@layer blocks{@media (width>=.5px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width >= 0.5px) { .wp-block-query { color: yellow; } } }', ['firefox' => 64])
         );
+        $t->same(
+            '@layer blocks{@media (max-width:env(--branding-small 1,20px)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (max-width: env(--branding-small 1, 20px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (width<=env(--branding-small 1,20px)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (max-width: env(--branding-small 1, 20px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 64])
+        );
+        $t->same(
+            '@layer blocks{@media (max-width:env(safe-area-inset-top)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (max-width: env(safe-area-inset-top)) { .wp-block-query { color: yellow; } } }', ['chrome' => 95])
+        );
     },
     'transition prefixer maps upstream typed media range fallbacks inside layers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
@@ -2257,6 +2301,10 @@ CSS;
         $t->throws(
             InvalidArgumentException::class,
             static fn () => $prefixer->prefixForTargets('@layer blocks { @media var(--theme-breakpoint) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $prefixer->prefixForTargets('@layer blocks { @media (width >= var(--theme-breakpoint)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
     },
     'transition prefixer maps upstream media range include and exclude flags inside layers' => static function (TestRunner $t): void {
@@ -2438,7 +2486,7 @@ CSS;
 
         $t->same(
             '.wp-block-cover.is-style-framed{transition:-webkit-mask-box-image .2s,mask-border .2s,-webkit-mask .4s,mask .4s}',
-            (new TransitionPrefixer())->prefixLegacySafari($css)
+            (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 119])
         );
     },
     'wordpress sticky header filters get target-boundary WebKit prefixes without node' => static function (TestRunner $t): void {

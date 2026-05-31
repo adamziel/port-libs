@@ -7,6 +7,7 @@ use PortLibs\LightningCSS\DeclarationBlock;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $declarations = 'animation: core-block-fade 240ms ease-out both';
+$prefixedDeclarations = '-webkit-animation: core-block-fade 240ms ease-out both';
 $block = new DeclarationBlock();
 
 $actual = [
@@ -17,6 +18,9 @@ $actual = [
     'slowerEntrance' => $block->setProperty($declarations, 'animation-duration', '320ms'),
     'multiNameFallback' => $block->setProperty('animation: core-block-fade 240ms', 'animation-name', 'wp-block-fade-in, wp-block-slide-up'),
     'durationRemoved' => $block->removeProperty($declarations, 'animation-duration'),
+    'webkitDuration' => $block->getProperty($prefixedDeclarations, '-webkit-animation-duration'),
+    'webkitSlowerEntrance' => $block->setProperty($prefixedDeclarations, '-webkit-animation-duration', '320ms'),
+    'webkitDurationRemoved' => $block->removeProperty($prefixedDeclarations, '-webkit-animation-duration'),
 ];
 
 $expected = [
@@ -27,6 +31,9 @@ $expected = [
     'slowerEntrance' => 'animation: 320ms ease-out both core-block-fade',
     'multiNameFallback' => 'animation: 240ms core-block-fade; animation-name: wp-block-fade-in, wp-block-slide-up',
     'durationRemoved' => 'animation-name: core-block-fade; animation-timing-function: ease-out; animation-iteration-count: 1; animation-direction: normal; animation-play-state: running; animation-delay: 0s; animation-fill-mode: both; animation-timeline: auto',
+    'webkitDuration' => ['value' => '240ms', 'important' => false],
+    'webkitSlowerEntrance' => '-webkit-animation: 320ms ease-out both core-block-fade',
+    'webkitDurationRemoved' => '-webkit-animation-name: core-block-fade; -webkit-animation-timing-function: ease-out; -webkit-animation-iteration-count: 1; -webkit-animation-direction: normal; -webkit-animation-play-state: running; -webkit-animation-delay: 0s; -webkit-animation-fill-mode: both',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

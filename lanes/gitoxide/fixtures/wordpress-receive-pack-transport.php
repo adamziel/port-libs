@@ -113,6 +113,8 @@ return [
     'gitDaemonServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytes('/wp-content.git', 'git.example.test', 9418, ['version=2']),
     'gitDaemonUrlServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://git.example.test:9418/wp-content.git', ['version=2']),
     'gitDaemonValueOnlyExtraServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://git.example.test/wp-content.git', ['version=2', 'session-id', 'object-format=sha1']),
+    'gitDaemonProtocolV2HomeServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytes('/~/wp-content.git', 'git.example.test', null, ['session-id', 'object-format=sha1'], 2),
+    'gitDaemonProtocolV2NamedHomeUrlServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://git.example.test/%7Edeploy/wp-content.git', ['session-id'], 2),
     'gitDaemonEncodedUrlServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://git%2Dmirror.example.test/wp%2Dcontent.git', ['version=2']),
     'gitDaemonIpv6ServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytes('/wp-content.git', '2001:db8::42', null, ['version=2']),
     'unsafeGitDaemonPathRejected' => (static function (): bool {
@@ -163,6 +165,15 @@ return [
     'unsafeGitDaemonExtraParameterRejected' => (static function (): bool {
         try {
             GitDaemonReceivePackTransport::serviceRequestBytes('/wp-content.git', 'git.example.test', null, ['bad parameter']);
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+
+        return false;
+    })(),
+    'unsafeGitDaemonProtocolVersionRejected' => (static function (): bool {
+        try {
+            GitDaemonReceivePackTransport::serviceRequestBytes('/wp-content.git', 'git.example.test', null, [], 3);
         } catch (InvalidArgumentException) {
             return true;
         }

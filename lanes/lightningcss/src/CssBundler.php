@@ -602,6 +602,7 @@ final class CssBundler
         $importIndex = 0;
         $depIndex = 0;
         $hasBundledImport = false;
+        $bodyStarted = false;
 
         foreach ($stylesheet['cssModuleDependencies'] as $dependency) {
             $depSourceIndex = (int) $dependency['sourceIndex'];
@@ -651,11 +652,20 @@ final class CssBundler
             }
 
             if (($item['type'] ?? null) === 'layer-statement') {
-                $output .= $this->rewriteLayerStatement((string) $item['raw'], $stylesheet['layer']);
+                $statement = $this->rewriteLayerStatement((string) $item['raw'], $stylesheet['layer']);
+                if ($bodyStarted) {
+                    $body .= $statement;
+                } else {
+                    $output .= $statement;
+                }
                 continue;
             }
 
-            $body .= (string) $item['raw'];
+            $raw = (string) $item['raw'];
+            $body .= $raw;
+            if (!$this->startsAtKeyword($raw, 0, '@charset')) {
+                $bodyStarted = true;
+            }
         }
 
         $output .= $this->wrapRules($body, $stylesheet['layer'], $stylesheet['media'], $stylesheet['supports']);

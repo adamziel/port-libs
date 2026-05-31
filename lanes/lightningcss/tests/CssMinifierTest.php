@@ -1526,6 +1526,8 @@ CSS
 
         $t->same('@import "foo.css";', $minifier->minify('@import url(foo.css);'));
         $t->same('@import "foo.css";', $minifier->minify('@import "foo.css";'));
+        $t->same('@import "foo\"bar\\\\baz.css";', $minifier->minify('@import "foo\"bar\\\\baz.css";'));
+        $t->same('@import "foo bar.css";', $minifier->minify('@import "foo\20 bar.css";'));
         $t->same('@import "foo.css" print;', $minifier->minify('@import url(foo.css) print;'));
         $t->same('@import "foo.css" print;', $minifier->minify('@import "foo.css" print;'));
         $t->same(

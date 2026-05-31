@@ -719,6 +719,23 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler preserves non-prelude layer statement order in imported graph' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '.component{color:green}@layer late;.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "component.css"; .entry { color: red }',
+                '/component.css' => '.component { color: green } @layer late;',
+            ], '/entry.css')
+        );
+
+        $t->same(
+            '@layer theme{.component{color:green}@layer theme.late}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "component.css" layer(theme); .entry { color: red }',
+                '/component.css' => '.component { color: green } @layer late;',
+            ], '/entry.css')
+        );
+    },
     'css bundler maps anonymous layer imports and unsupported layer combinations' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@layer{.b{color:green}}.a{color:red}',
@@ -838,7 +855,7 @@ CSS,
             ], '/a.css', $resolver)
         );
     },
-    'css bundler serializes resolver marked external url backslashes like upstream strings' => static function (TestRunner $t) use ($bundle): void {
+    'css bundler serializes resolver marked external url quotes and backslashes like upstream strings' => static function (TestRunner $t) use ($bundle): void {
         $resolved = [];
         $resolver = static function (string $specifier, string $originatingFile) use (&$resolved): array|string {
             $resolved[] = [$specifier, $originatingFile];
@@ -858,6 +875,28 @@ CSS,
         );
         $t->same([
             ['theme-remote.css', '/a.css'],
+            ['b.css', '/a.css'],
+        ], $resolved);
+
+        $resolved = [];
+        $quoteResolver = static function (string $specifier, string $originatingFile) use (&$resolved): array|string {
+            $resolved[] = [$specifier, $originatingFile];
+            if ($specifier === 'quote-remote.css') {
+                return ['external' => 'https://cdn.example/theme"dark\\editor.css'];
+            }
+
+            return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+        };
+
+        $t->same(
+            '@import "https://cdn.example/theme\"dark\\\\editor.css" screen;.b{color:green}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "quote-remote.css" screen; @import "b.css"; .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css', $quoteResolver)
+        );
+        $t->same([
+            ['quote-remote.css', '/a.css'],
             ['b.css', '/a.css'],
         ], $resolved);
     },

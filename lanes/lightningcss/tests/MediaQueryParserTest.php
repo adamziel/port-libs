@@ -112,6 +112,17 @@ return [
         $t->same('(not (max-width:100px)) and (not (min-width:calc(100vw - 50px)))', $parser->lowerRangeSyntaxList('(100px < width < calc(100vw-50px))'));
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('&test, speech'));
     },
+    'media query parser maps upstream environment variable range values' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        $t->same('(width<=env(--branding-small))', $parser->minifyList('(max-width: env(--branding-small))'));
+        $t->same('(width<=env(--branding-small 1))', $parser->minifyList('(max-width: env(--branding-small 1))'));
+        $t->same('(width<=env(--branding-small 1,20px))', $parser->minifyList('(max-width: env(--branding-small 1, 20px))'));
+        $t->same('(width<=env(safe-area-inset-top))', $parser->minifyList('(max-width: env(safe-area-inset-top))'));
+        $t->same('(width<=env(unknown))', $parser->minifyList('(max-width: env(unknown))'));
+        $t->same('(max-width:env(--branding-small 1,20px))', $parser->lowerRangeSyntaxList('(max-width: env(--branding-small 1, 20px))'));
+        $t->same('(max-width:env(safe-area-inset-top))', $parser->lowerRangeSyntaxList('(max-width: env(safe-area-inset-top))'));
+    },
     'media query parser rejects upstream invalid range and feature syntax' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
         $invalid = [
@@ -128,6 +139,8 @@ return [
             '(1px <= scan <= 2px)',
             '(grid: 10)',
             '(prefers-color-scheme = dark)',
+            '(width >= var(--theme-breakpoint))',
+            '(--theme-breakpoint >= var(--theme-breakpoint))',
             '(-webkit-min-device-pixel-ratio: hi)',
             '(-webkit-min-device-pixel-ratio >= 2)',
             'unknown(foo)',
@@ -269,6 +282,8 @@ return [
         $t->same('@layer blocks{@media (width<960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media not (not (width < 960px)) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media screen and (width>=960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media screen and (not (width < 960px)) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (hover) and (width>=960px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (hover) and (not (width < 960px)) { .foo { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media (width<=env(--branding-small 1,20px)){.foo{padding:env(--branding-padding 2,20px)}}}', (new CssMinifier())->minify('@layer blocks { @media (max-width: env(--branding-small 1, 20px)) { .foo { padding: env(--branding-padding 2, 20px); } } }'));
+        $t->same('@layer blocks{@media (width<=env(safe-area-inset-top)){.foo{padding-top:env(safe-area-inset-top)}}}', (new CssMinifier())->minify('@layer blocks { @media (max-width: env(safe-area-inset-top)) { .foo { padding-top: env(safe-area-inset-top); } } }'));
         $t->same('@media (width>=240px){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media all and (width >= 240px) { .foo { color: chartreuse } }'));
         $t->same('@layer blocks{@media (width>=600px) and (hover){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media all and (min-width: 600px) and (hover) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (color) or (hover){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media all and ((color) or (hover)) { .foo { color: chartreuse } } }'));
@@ -290,6 +305,7 @@ return [
             '@layer blocks { @media (scan >= 1) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (grid: 10) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (prefers-color-scheme = dark) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (width >= var(--theme-breakpoint)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media var(--theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media screen and calc(theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media screen and (color) or (hover) { .wp-block-query { color: chartreuse; } } }',

@@ -14,6 +14,8 @@ $fallThroughResponse = PushResponse::fromReportStatusPacketLines($fixture['fallT
 $compatibilityResponse = PushResponse::fromReportStatusPacketLines($fixture['compatibilityResponse']);
 $expectedFilteredResponse = PushResponse::fromReportStatusPacketLines($fixture['expectedFilterResponse'])
     ->forExpectedRefNames($fixture['expectedRefNames']);
+$multiReportResponse = PushResponse::fromReportStatusPacketLines($fixture['multiReportResponse'])
+    ->forExpectedRefNames([$fixture['multiReportRef']['requested']]);
 $missingExpectedResponse = PushResponse::fromReportStatusPacketLines($fixture['missingExpectedResponse'])
     ->forExpectedRefNames(['refs/heads/main']);
 $oversizedReportStatusRejected = false;
@@ -100,6 +102,15 @@ return [
         ],
         $expectedFilteredResponse->refStatuses()
     ),
+    'multiReportRefs' => array_map(
+        static fn (PushRefStatus $status): array => [
+            'requestedRef' => $status->refName,
+            'effectiveRef' => $status->effectiveRefName(),
+            'oldObject' => $status->oldObject,
+            'newObject' => $status->newObject,
+        ],
+        $multiReportResponse->refStatuses()
+    ),
     'missingExpectedRefs' => array_map(
         static fn (PushRefStatus $status): array => [
             'requestedRef' => $status->refName,
@@ -117,6 +128,10 @@ return [
     'compatibilityBareRejectionDefaulted' => $compatibilityResponse->refStatuses()[1]->message === 'failed',
     'expectedUnknownStatusIgnored' => count($expectedFilteredResponse->refStatuses()) === 2,
     'expectedLastStatusWon' => $expectedFilteredResponse->refStatuses()[0]->message === 'post-update hook accepted',
+    'multiReportStatusPreserved' => array_map(
+        static fn (PushRefStatus $status): string => $status->effectiveRefName(),
+        $multiReportResponse->refStatuses()
+    ) === $fixture['multiReportRef']['actual'],
     'missingExpectedStatusRejected' => !$missingExpectedResponse->isSuccessful()
         && $missingExpectedResponse->rejectedRefs()[0]->message === 'remote failed to report status',
     'carriageReturnStatusRejected' => $carriageReturnStatusRejected,

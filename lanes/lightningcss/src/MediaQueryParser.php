@@ -481,7 +481,7 @@ final class MediaQueryParser
             return false;
         }
 
-        if (preg_match('/^(?:calc|clamp|env|max|min|var)\(/i', $value) === 1) {
+        if (preg_match('/^(?:calc|clamp|env|max|min)\(/i', $value) === 1) {
             return true;
         }
 

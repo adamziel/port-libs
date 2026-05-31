@@ -190,6 +190,40 @@ return [
         $t->same($new, $filtered->refStatuses()[1]->newObject);
         $t->same([], $filtered->rejectedRefs());
     },
+    'preserves repeated proc-receive report-status-v2 reports for requested refs' => static function (TestRunner $t) use ($packet, $flush): void {
+        $siteAOld = str_repeat('6', 40);
+        $siteANew = str_repeat('7', 40);
+        $siteBOld = str_repeat('8', 40);
+        $siteBNew = str_repeat('9', 40);
+        $response = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-deploy\n")
+            . $packet("option refname refs/heads/site-a\n")
+            . $packet("option old-oid {$siteAOld}\n")
+            . $packet("option new-oid {$siteANew}\n")
+            . $packet("ok refs/for/wp-deploy\n")
+            . $packet("option refname refs/heads/site-b\n")
+            . $packet("option old-oid {$siteBOld}\n")
+            . $packet("option new-oid {$siteBNew}\n")
+            . $packet("ok refs/heads/main post-update hook accepted\n")
+            . $flush
+        );
+        $filtered = $response->forExpectedRefNames(['refs/for/wp-deploy', 'refs/heads/main']);
+
+        $t->same(3, count($response->refStatuses()));
+        $t->same(3, count($filtered->refStatuses()));
+        $t->same(true, $filtered->isSuccessful());
+        $t->same('refs/for/wp-deploy', $filtered->refStatuses()[0]->refName);
+        $t->same('refs/heads/site-a', $filtered->refStatuses()[0]->effectiveRefName());
+        $t->same($siteAOld, $filtered->refStatuses()[0]->oldObject);
+        $t->same($siteANew, $filtered->refStatuses()[0]->newObject);
+        $t->same('refs/for/wp-deploy', $filtered->refStatuses()[1]->refName);
+        $t->same('refs/heads/site-b', $filtered->refStatuses()[1]->effectiveRefName());
+        $t->same($siteBOld, $filtered->refStatuses()[1]->oldObject);
+        $t->same($siteBNew, $filtered->refStatuses()[1]->newObject);
+        $t->same('refs/heads/main', $filtered->refStatuses()[2]->refName);
+        $t->same('post-update hook accepted', $filtered->refStatuses()[2]->message);
+    },
     'marks missing requested receive-status refs as remote failures like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
         $response = PushResponse::fromReportStatusPacketLines(
             $packet("unpack ok\n")
@@ -380,6 +414,18 @@ return [
             static fn (array $status): string => $status['effectiveRef'],
             $summary['expectedFilteredRefs']
         ));
+        $t->same($fixture['multiReportRef']['actual'], array_map(
+            static fn (array $status): string => $status['effectiveRef'],
+            $summary['multiReportRefs']
+        ));
+        $t->same($fixture['multiReportRef']['oldObjects'], array_map(
+            static fn (array $status): string => $status['oldObject'],
+            $summary['multiReportRefs']
+        ));
+        $t->same($fixture['multiReportRef']['newObjects'], array_map(
+            static fn (array $status): string => $status['newObject'],
+            $summary['multiReportRefs']
+        ));
         $t->same(true, $summary['oversizedReportStatusRejected']);
         $t->same(true, $summary['fatalSidebandRejected']);
         $t->same(true, $summary['fallThroughAccepted']);
@@ -387,6 +433,7 @@ return [
         $t->same(true, $summary['compatibilityBareRejectionDefaulted']);
         $t->same(true, $summary['expectedUnknownStatusIgnored']);
         $t->same(true, $summary['expectedLastStatusWon']);
+        $t->same(true, $summary['multiReportStatusPreserved']);
         $t->same(true, $summary['carriageReturnStatusRejected']);
         $t->same(true, $summary['emptyPacketLineRejected']);
         $t->same(true, $summary['unrequestedOptionRejected']);

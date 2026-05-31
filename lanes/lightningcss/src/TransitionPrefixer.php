@@ -1136,6 +1136,12 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'opera', [15], [29])
                 || $this->targetInRange($normalized, 'safari', [4], [8]),
             'keyframesNeedsMoz' => $this->targetInRange($normalized, 'firefox', [5], [15]),
+            'transitionNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 0, 4])
+                || $this->targetInRange($normalized, 'chrome', [4], [25])
+                || $this->targetInRange($normalized, 'ios_saf', [3], [6])
+                || $this->targetInRange($normalized, 'safari', [3, 1], [6]),
+            'transitionNeedsMoz' => $this->targetInRange($normalized, 'firefox', [4], [15]),
+            'transitionNeedsO' => $this->targetInRange($normalized, 'opera', [10], [12]),
         ];
     }
 
@@ -2103,45 +2109,92 @@ final class TransitionPrefixer
      */
     private function rewritePrefixedTransitionEntries(array &$entries, array $targetOptions): bool
     {
+        $baseProperties = [
+            'transition' => true,
+            'transition-property' => true,
+            'transition-duration' => true,
+            'transition-delay' => true,
+            'transition-timing-function' => true,
+        ];
+        $neededPrefixes = [
+            '-webkit-' => $targetOptions['transitionNeedsWebkit'] ?? false,
+            '-moz-' => $targetOptions['transitionNeedsMoz'] ?? false,
+            '-o-' => $targetOptions['transitionNeedsO'] ?? false,
+        ];
+        $vendorProperties = [];
+        foreach (array_keys($baseProperties) as $baseProperty) {
+            foreach ($neededPrefixes as $prefix => $_needed) {
+                $vendorProperties[$prefix . $baseProperty] = [$prefix, $baseProperty];
+            }
+        }
+
+        $unprefixedValues = [];
+        $prefixedValues = [];
+        $hasRelevantDeclaration = false;
+        foreach ($entries as $entry) {
+            if (isset($baseProperties[$entry['property']])) {
+                $hasRelevantDeclaration = true;
+                if (!$entry['important']) {
+                    [$value] = $this->canonicalPrefixedTransitionValue($entry['property'], $entry['value'], $targetOptions);
+                    $unprefixedValues[$entry['property']][$value] = true;
+                }
+                continue;
+            }
+
+            if (isset($vendorProperties[$entry['property']])) {
+                $hasRelevantDeclaration = true;
+                if (!$entry['important']) {
+                    [$prefix, $baseProperty] = $vendorProperties[$entry['property']];
+                    $prefixedValues[$baseProperty][$prefix][$entry['value']] = true;
+                }
+            }
+        }
+
+        if (!$hasRelevantDeclaration || $unprefixedValues === []) {
+            return false;
+        }
+
         $changed = false;
         $rewritten = [];
-
         foreach ($entries as $entry) {
             if ($entry['important']) {
                 $rewritten[] = $entry;
                 continue;
             }
 
-            if ($entry['property'] === 'transition') {
-                [$value, $entryChanged, $needsPrefixedTransition] = $this->rewritePrefixedTransitionShorthand($entry['value'], $targetOptions);
-                if ($entryChanged) {
-                    if ($needsPrefixedTransition) {
-                        $rewritten[] = [
-                            'property' => '-webkit-transition',
-                            'name' => '-webkit-transition',
-                            'value' => $value,
-                            'important' => false,
-                        ];
-                    }
-                    $entry['value'] = $value;
+            if (isset($vendorProperties[$entry['property']])) {
+                [$prefix, $baseProperty] = $vendorProperties[$entry['property']];
+                if (
+                    !$this->transitionDeclarationNeedsPrefix($baseProperty, $entry['value'], $prefix, $neededPrefixes, $targetOptions)
+                    && isset($unprefixedValues[$baseProperty][$entry['value']])
+                ) {
                     $changed = true;
+                    continue;
                 }
+
                 $rewritten[] = $entry;
                 continue;
             }
 
-            if ($entry['property'] === 'transition-property') {
-                [$value, $entryChanged, $needsPrefixedTransition] = $this->rewritePrefixedTransitionPropertyList($entry['value'], $targetOptions);
+            if (isset($baseProperties[$entry['property']])) {
+                [$value, $entryChanged, $needsPrefixedTransition] = $this->canonicalPrefixedTransitionValue($entry['property'], $entry['value'], $targetOptions);
                 if ($entryChanged) {
-                    if ($needsPrefixedTransition) {
-                        $rewritten[] = [
-                            'property' => '-webkit-transition-property',
-                            'name' => '-webkit-transition-property',
-                            'value' => $value,
-                            'important' => false,
-                        ];
-                    }
                     $entry['value'] = $value;
+                    $changed = true;
+                }
+
+                $entryNeededPrefixes = $neededPrefixes;
+                if ($needsPrefixedTransition) {
+                    $entryNeededPrefixes['-webkit-'] = true;
+                }
+
+                foreach ($entryNeededPrefixes as $prefix => $needed) {
+                    if (!$needed || isset($prefixedValues[$entry['property']][$prefix][$value])) {
+                        continue;
+                    }
+
+                    $rewritten[] = $this->declarationEntry($prefix . $entry['property'], $value);
+                    $prefixedValues[$entry['property']][$prefix][$value] = true;
                     $changed = true;
                 }
             }
@@ -2152,6 +2205,44 @@ final class TransitionPrefixer
         $entries = $rewritten;
 
         return $changed;
+    }
+
+    /**
+     * @return array{0:string,1:bool,2:bool}
+     */
+    private function canonicalPrefixedTransitionValue(string $property, string $value, array $targetOptions): array
+    {
+        if ($property === 'transition') {
+            return $this->rewritePrefixedTransitionShorthand($value, $targetOptions);
+        }
+
+        if ($property === 'transition-property') {
+            return $this->rewritePrefixedTransitionPropertyList($value, $targetOptions);
+        }
+
+        return [$value, false, false];
+    }
+
+    /**
+     * @param array<string, bool> $neededPrefixes
+     */
+    private function transitionDeclarationNeedsPrefix(
+        string $baseProperty,
+        string $value,
+        string $prefix,
+        array $neededPrefixes,
+        array $targetOptions
+    ): bool {
+        if ($neededPrefixes[$prefix] ?? false) {
+            return true;
+        }
+
+        if ($prefix === '-webkit-' && ($baseProperty === 'transition' || $baseProperty === 'transition-property')) {
+            [, , $needsPrefixedTransition] = $this->canonicalPrefixedTransitionValue($baseProperty, $value, $targetOptions);
+            return $needsPrefixedTransition;
+        }
+
+        return false;
     }
 
     /**

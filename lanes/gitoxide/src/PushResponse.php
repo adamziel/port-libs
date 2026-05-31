@@ -159,13 +159,13 @@ final class PushResponse
 
                 continue;
             }
-            $matched[$status->refName] = $status;
+            $matched[$status->refName][] = $status;
         }
 
         $filtered = [];
         foreach ($ordered as $refName) {
             if (isset($matched[$refName])) {
-                $filtered[] = $matched[$refName];
+                array_push($filtered, ...self::expectedRefStatuses($matched[$refName]));
                 continue;
             }
 
@@ -173,6 +173,27 @@ final class PushResponse
         }
 
         return new self($this->unpackStatus, $filtered, $this->progressMessages, $this->errorMessages);
+    }
+
+    /**
+     * @param non-empty-list<PushRefStatus> $statuses
+     * @return non-empty-list<PushRefStatus>
+     */
+    private static function expectedRefStatuses(array $statuses): array
+    {
+        $last = $statuses[count($statuses) - 1];
+        if (!$last->isOk()) {
+            return [$last];
+        }
+
+        $reports = [];
+        foreach ($statuses as $status) {
+            if ($status->isOk() && $status->hasReportOption()) {
+                $reports[] = $status;
+            }
+        }
+
+        return $reports !== [] ? $reports : [$last];
     }
 
     /**

@@ -558,6 +558,14 @@ return [
                 'grid-template'
             )
         );
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty('grid-template: auto / 1fr', 'grid-template-rows'));
+        $t->same(['value' => '1fr', 'important' => false], $block->getProperty('grid-template: auto / 1fr', 'grid-template-columns'));
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty('grid-template: auto / 1fr', 'grid-template-areas'));
+        $t->same(
+            ['value' => 'minmax(0, 1fr) 18rem', 'important' => true],
+            $block->getProperty('grid-template: auto / minmax(0, 1fr) 18rem !important', 'grid-template-columns')
+        );
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty('grid-template: none', 'grid-template'));
     },
     'declaration block reads upstream grid cssom shorthand only for initial auto placement' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
@@ -763,6 +771,32 @@ return [
         $t->same(
             ['value' => '400ms', 'important' => true],
             $block->getProperty('animation: fade 200ms; animation-duration: 400ms !important', 'animation-duration')
+        );
+    },
+    'declaration block reads upstream prefixed animation cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $webkit = '-webkit-animation: fade 200ms ease-in 50ms both paused';
+        $t->same(['value' => 'fade', 'important' => false], $block->getProperty($webkit, '-webkit-animation-name'));
+        $t->same(['value' => '200ms', 'important' => false], $block->getProperty($webkit, '-webkit-animation-duration'));
+        $t->same(['value' => 'ease-in', 'important' => false], $block->getProperty($webkit, '-webkit-animation-timing-function'));
+        $t->same(['value' => '50ms', 'important' => false], $block->getProperty($webkit, '-webkit-animation-delay'));
+        $t->same(['value' => 'both', 'important' => false], $block->getProperty($webkit, '-webkit-animation-fill-mode'));
+        $t->same(['value' => 'paused', 'important' => false], $block->getProperty($webkit, '-webkit-animation-play-state'));
+        $t->same(['value' => '200ms ease-in 50ms both paused fade', 'important' => false], $block->getProperty($webkit, '-webkit-animation'));
+        $t->same(null, $block->getProperty($webkit, 'animation-duration'));
+        $t->same(null, $block->getProperty($webkit, '-webkit-animation-timeline'));
+
+        $t->same(
+            ['value' => '400ms', 'important' => true],
+            $block->getProperty('-moz-animation: fade 200ms; -moz-animation-duration: 400ms !important', '-moz-animation-duration')
+        );
+        $t->same(
+            ['value' => '300ms linear 75ms 2 reverse both slide', 'important' => false],
+            $block->getProperty(
+                '-o-animation-name: slide; -o-animation-duration: 300ms; -o-animation-timing-function: linear; -o-animation-iteration-count: 2; -o-animation-direction: reverse; -o-animation-play-state: running; -o-animation-delay: 75ms; -o-animation-fill-mode: both',
+                '-o-animation'
+            )
         );
     },
     'declaration block reads upstream animation range cssom longhands' => static function (TestRunner $t): void {
@@ -1492,6 +1526,26 @@ return [
             $block->setProperty('animation: wp-block-fade 240ms !important', 'animation-duration', '320ms')
         );
     },
+    'declaration block sets upstream prefixed animation cssom longhands in existing shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            '-webkit-animation: 200ms ease-in 50ms fade',
+            $block->setProperty('-webkit-animation: fade 200ms ease-in', '-webkit-animation-delay', '50ms')
+        );
+        $t->same(
+            '-o-animation: 200ms slide',
+            $block->setProperty('-o-animation: fade 200ms', '-o-animation-name', 'slide')
+        );
+        $t->same(
+            '-moz-animation: 200ms fade, 300ms slide; -moz-animation-duration: 250ms',
+            $block->setProperty('-moz-animation: fade 200ms, slide 300ms', '-moz-animation-duration', '250ms')
+        );
+        $t->same(
+            '-webkit-animation-duration: 300ms; -webkit-animation: fade 200ms !important',
+            $block->setProperty('-webkit-animation: fade 200ms !important', '-webkit-animation-duration', '300ms')
+        );
+    },
     'declaration block sets upstream animation range cssom longhands in existing shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1558,6 +1612,30 @@ return [
                 'grid-row-start',
                 'masthead-start'
             )
+        );
+    },
+    'declaration block sets upstream grid template cssom longhands in existing shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'grid-template: auto / 2fr',
+            $block->setProperty('grid-template: auto / 1fr', 'grid-template-columns', '2fr')
+        );
+        $t->same(
+            'grid-template: minmax(0, 1fr) auto / 1fr',
+            $block->setProperty('grid-template: auto / 1fr', 'grid-template-rows', 'minmax(0, 1fr) auto')
+        );
+        $t->same(
+            'grid-template: auto / 1fr',
+            $block->setProperty('grid-template: auto / 1fr', 'grid-template-areas', 'none')
+        );
+        $t->same(
+            'grid-template: auto / 1fr; grid-template-columns: 2fr',
+            $block->setProperty('grid-template: auto / 1fr; grid-template-columns: 3fr', 'grid-template-columns', '2fr')
+        );
+        $t->same(
+            'grid-template-columns: 2fr; grid-template: auto / 1fr !important',
+            $block->setProperty('grid-template: auto / 1fr !important', 'grid-template-columns', '2fr')
         );
     },
     'declaration block sets upstream transition cssom longhands' => static function (TestRunner $t): void {
@@ -2220,6 +2298,35 @@ return [
             $block->removeProperty('animation: fade 200ms both, slide 300ms linear 50ms forwards', 'animation-fill-mode')
         );
     },
+    'declaration block removes upstream prefixed animation cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            '-webkit-animation-name: fade; -webkit-animation-timing-function: ease-in; -webkit-animation-iteration-count: 1; -webkit-animation-direction: normal; -webkit-animation-play-state: paused; -webkit-animation-delay: 50ms; -webkit-animation-fill-mode: both; color: red',
+            $block->removeProperty(
+                '-webkit-animation: fade 200ms ease-in 50ms both paused; color: red',
+                '-webkit-animation-duration'
+            )
+        );
+        $t->same(
+            'animation: slide 1s; color: red',
+            $block->removeProperty(
+                '-webkit-animation: fade 200ms; -webkit-animation-duration: 300ms; animation: slide 1s; color: red',
+                '-webkit-animation'
+            )
+        );
+        $t->same(
+            '-webkit-animation: fade 200ms; color: red',
+            $block->removeProperty('-webkit-animation: fade 200ms; animation: slide 1s; color: red', 'animation')
+        );
+        $t->same(
+            'color: red; -moz-animation-name: fade !important; -moz-animation-duration: 200ms !important; -moz-animation-timing-function: ease !important; -moz-animation-iteration-count: 1 !important; -moz-animation-direction: normal !important; -moz-animation-play-state: running !important; -moz-animation-fill-mode: none !important',
+            $block->removeProperty(
+                '-moz-animation: fade 200ms !important; color: red; -moz-animation-delay: 50ms',
+                '-moz-animation-delay'
+            )
+        );
+    },
     'declaration block removes upstream animation range cssom longhands and shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -2285,6 +2392,30 @@ return [
                 'grid-row: header-start / header-end; grid-row-start: masthead-start; grid-column: content-start / content-end',
                 'grid-row'
             )
+        );
+    },
+    'declaration block removes upstream grid template cssom longhands by splitting shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'grid-template-columns: 1fr; grid-template-areas: none',
+            $block->removeProperty('grid-template: auto / 1fr', 'grid-template-rows')
+        );
+        $t->same(
+            'grid-template-rows: auto; grid-template-areas: none',
+            $block->removeProperty('grid-template: auto / 1fr', 'grid-template-columns')
+        );
+        $t->same(
+            'grid-template-rows: auto; grid-template-columns: 1fr',
+            $block->removeProperty('grid-template: auto / 1fr', 'grid-template-areas')
+        );
+        $t->same(
+            'grid-template-columns: none; grid-template-areas: none',
+            $block->removeProperty('grid-template: none', 'grid-template-rows')
+        );
+        $t->same(
+            'color: red; grid-template-columns: 1fr !important; grid-template-areas: none !important',
+            $block->removeProperty('grid-template: auto / 1fr !important; color: red; grid-template-rows: minmax(0, 1fr)', 'grid-template-rows')
         );
     },
     'declaration block removes upstream transition cssom longhands and shorthand' => static function (TestRunner $t): void {

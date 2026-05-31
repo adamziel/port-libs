@@ -318,6 +318,46 @@ return [
         $t->same([], $response->rejectedRefs());
         $t->same(['remote: validating deployment refs'], $response->progressMessages());
     },
+    'receive-pack client preserves repeated proc-receive reports for one requested ref' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $siteAOld = str_repeat('6', 40);
+        $siteANew = str_repeat('7', 40);
+        $siteBOld = str_repeat('8', 40);
+        $siteBNew = str_repeat('9', 40);
+        $blob = new GitObject('blob', 'WordPress proc-receive multi-report payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status-v2 side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x02remote: proc-receive expanded deployment refs\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/for/wp-deploy\n"))
+            . $packet("\x01" . $packet("option refname refs/heads/site-a\n"))
+            . $packet("\x01" . $packet("option old-oid {$siteAOld}\n"))
+            . $packet("\x01" . $packet("option new-oid {$siteANew}\n"))
+            . $packet("\x01" . $packet("ok refs/for/wp-deploy\n"))
+            . $packet("\x01" . $packet("option refname refs/heads/site-b\n"))
+            . $packet("\x01" . $packet("option old-oid {$siteBOld}\n"))
+            . $packet("\x01" . $packet("option new-oid {$siteBNew}\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $client = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($advertisement . $responseBytes), $streamWith('')),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/for/wp-deploy', $blob->oid());
+
+        $response = $client->send($session->buildRequest([$blob]));
+
+        $t->same(true, $response->isSuccessful());
+        $t->same(2, count($response->refStatuses()));
+        $t->same(['remote: proc-receive expanded deployment refs'], $response->progressMessages());
+        $t->same('refs/heads/site-a', $response->refStatuses()[0]->effectiveRefName());
+        $t->same($siteAOld, $response->refStatuses()[0]->oldObject);
+        $t->same($siteANew, $response->refStatuses()[0]->newObject);
+        $t->same('refs/heads/site-b', $response->refStatuses()[1]->effectiveRefName());
+        $t->same($siteBOld, $response->refStatuses()[1]->oldObject);
+        $t->same($siteBNew, $response->refStatuses()[1]->newObject);
+        $t->same([], $response->rejectedRefs());
+    },
     'receive-pack client marks missing requested status refs as remote failures' => static function (TestRunner $t) use ($packet, $flush, $streamWith): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
         $blob = new GitObject('blob', 'WordPress missing status payload');
@@ -471,6 +511,15 @@ return [
         $urlPacketWithValueOnlyExtra = GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://example.test/repo.git', ['value-only', 'key=value']);
         $t->same("git-receive-pack /repo.git\0host=example.test\0\0value-only\0key=value\0", substr($urlPacketWithValueOnlyExtra, 4));
 
+        $protocolV2Packet = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, [], 2);
+        $t->same("git-receive-pack /repo.git\0host=example.test\0\0version=2\0", substr($protocolV2Packet, 4));
+
+        $protocolV2ExtraPacket = GitDaemonReceivePackTransport::serviceRequestBytes('/~/repo.git', 'example.test', null, ['session-id', 'object-format=sha1'], 2);
+        $t->same("git-receive-pack ~/repo.git\0host=example.test\0\0version=2\0session-id\0object-format=sha1\0", substr($protocolV2ExtraPacket, 4));
+
+        $namedHomeUrlPacket = GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://example.test/%7Edeploy/repo.git', ['session-id'], 2);
+        $t->same("git-receive-pack ~deploy/repo.git\0host=example.test\0\0version=2\0session-id\0", substr($namedHomeUrlPacket, 4));
+
         $encodedUrlPacket = GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://git%2Dmirror.example.test/wp%2Dcontent.git', ['version=2']);
         $t->same("git-receive-pack /wp-content.git\0host=git-mirror.example.test\0\0version=2\0", substr($encodedUrlPacket, 4));
 
@@ -501,6 +550,8 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['1bad']));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['bad=']));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['bad key=1']));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, [], 0));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://example.test/repo.git', [], 3));
     },
     'smart http receive-pack transport strips service advertisement and posts request' => static function (TestRunner $t) use ($packet, $flush): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
@@ -2674,9 +2725,12 @@ return [
         $t->contains('PACK', $packBytes);
         $t->same("git-receive-pack /wp-content.git\0host=git-mirror.example.test\0\0version=2\0", substr($fixture['gitDaemonEncodedUrlServiceRequest'], 4));
         $t->same("git-receive-pack /wp-content.git\0host=git.example.test\0\0version=2\0session-id\0object-format=sha1\0", substr($fixture['gitDaemonValueOnlyExtraServiceRequest'], 4));
+        $t->same("git-receive-pack ~/wp-content.git\0host=git.example.test\0\0version=2\0session-id\0object-format=sha1\0", substr($fixture['gitDaemonProtocolV2HomeServiceRequest'], 4));
+        $t->same("git-receive-pack ~deploy/wp-content.git\0host=git.example.test\0\0version=2\0session-id\0", substr($fixture['gitDaemonProtocolV2NamedHomeUrlServiceRequest'], 4));
         $t->same(true, $fixture['unsafeGitDaemonEncodedControlByteRejected']);
         $t->same(true, $fixture['unsafeGitDaemonEncodedHostDelimiterRejected']);
         $t->same(true, $fixture['unsafeGitDaemonExtraParameterRejected']);
+        $t->same(true, $fixture['unsafeGitDaemonProtocolVersionRejected']);
         $t->same(true, $fixture['unsafeSmartHttpCredentialTabRejected']);
         $t->same(true, $fixture['unsafeSmartHttpExtraParameterTabRejected']);
         $t->same(true, $fixture['unsafeSmartHttpHeaderTabRejected']);

@@ -7293,7 +7293,7 @@ final class CssMinifier
             return $token;
         }
 
-        return '"' . str_replace('"', '\\"', $matches[2]) . '"';
+        return $this->serializeCssStringValue($this->decodeCssStringEscapes($matches[2]));
     }
 
     private function cssStringTokenValue(string $token): string
@@ -7302,7 +7302,105 @@ final class CssMinifier
             return trim($token);
         }
 
-        return $matches[2];
+        return $this->decodeCssStringEscapes($matches[2]);
+    }
+
+    private function serializeCssStringValue(string $value): string
+    {
+        $output = '"';
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            $byte = ord($char);
+            if ($char === '"' || $char === '\\') {
+                $output .= '\\' . $char;
+                continue;
+            }
+            if ($byte === 0) {
+                $output .= "\u{FFFD}";
+                continue;
+            }
+            if (($byte >= 1 && $byte <= 31) || $byte === 127) {
+                $output .= '\\' . dechex($byte) . ' ';
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output . '"';
+    }
+
+    private function decodeCssStringEscapes(string $token): string
+    {
+        $output = '';
+        $length = strlen($token);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $token[$i];
+            if ($char !== '\\') {
+                $output .= $char;
+                continue;
+            }
+
+            if ($i + 1 >= $length) {
+                $output .= '\\';
+                continue;
+            }
+
+            $next = $token[$i + 1];
+            if ($next === "\r") {
+                $i++;
+                if (($token[$i + 1] ?? '') === "\n") {
+                    $i++;
+                }
+                continue;
+            }
+
+            if ($next === "\n" || $next === "\f") {
+                $i++;
+                continue;
+            }
+
+            if (!ctype_xdigit($next)) {
+                $output .= $next;
+                $i++;
+                continue;
+            }
+
+            $hex = '';
+            $cursor = $i + 1;
+            while ($cursor < $length && strlen($hex) < 6 && ctype_xdigit($token[$cursor])) {
+                $hex .= $token[$cursor];
+                $cursor++;
+            }
+
+            if ($cursor < $length && ctype_space($token[$cursor])) {
+                if ($token[$cursor] === "\r" && ($token[$cursor + 1] ?? '') === "\n") {
+                    $cursor += 2;
+                } else {
+                    $cursor++;
+                }
+            }
+
+            $output .= $this->codepointToUtf8((int) hexdec($hex));
+            $i = $cursor - 1;
+        }
+
+        return $output;
+    }
+
+    private function codepointToUtf8(int $codepoint): string
+    {
+        if ($codepoint <= 0 || $codepoint > 0x10ffff) {
+            $codepoint = 0xfffd;
+        }
+
+        if (function_exists('mb_chr')) {
+            return mb_chr($codepoint, 'UTF-8');
+        }
+
+        return html_entity_decode('&#x' . dechex($codepoint) . ';', ENT_NOQUOTES, 'UTF-8');
     }
 
     private function normalizeCssUrlToken(string $token, bool $quoteSafeUrls): string

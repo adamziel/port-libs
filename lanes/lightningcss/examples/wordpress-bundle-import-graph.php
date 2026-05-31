@@ -226,6 +226,18 @@ if ($supportsGraphBundle !== '@supports ((display:grid) or (display:flex)) and (
 
 echo 'supports-import-graph: grouped' . PHP_EOL;
 
+$lateLayerBundle = (new CssBundler())->bundle('/late-layer-entry.css', [
+    '/late-layer-entry.css' => '@import "blocks/card.css" layer(theme.blocks); .wp-site-blocks { color: red }',
+    '/blocks/card.css' => '.wp-block-card { color: green } @layer editor-overrides;',
+]);
+
+if ($lateLayerBundle !== '@layer theme.blocks{.wp-block-card{color:green}@layer theme.blocks.editor-overrides}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected post-style layer statement to remain after block styles\n");
+    exit(1);
+}
+
+echo 'late-layer-import-order: preserved' . PHP_EOL;
+
 try {
     (new CssBundler())->bundle('/broken-theme.css', [
         '/broken-theme.css' => '.wp-site-blocks { color: red } @import "tokens.css";',
@@ -348,13 +360,13 @@ CSS,
     '/tokens.css' => ':root { --wp--preset--color--brand: blue; }',
 ], static function (string $specifier): array|string {
     if ($specifier === 'cdn:editor.css') {
-        return ['external' => 'https://cdn.example/wp\\blocks-editor.css'];
+        return ['external' => 'https://cdn.example/wp"blocks\\editor.css'];
     }
 
     return '/' . ltrim($specifier, './');
 });
 
-if ($externalResolverBundle !== '@import "https://cdn.example/wp\\\\blocks-editor.css" screen;:root{--wp--preset--color--brand:blue}.wp-site-blocks{color:red}') {
+if ($externalResolverBundle !== '@import "https://cdn.example/wp\"blocks\\\\editor.css" screen;:root{--wp--preset--color--brand:blue}.wp-site-blocks{color:red}') {
     fwrite(STDERR, "Unexpected resolver external string output\n");
     exit(1);
 }

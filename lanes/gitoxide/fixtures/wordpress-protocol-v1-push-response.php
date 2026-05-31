@@ -14,6 +14,10 @@ $newSha256 = str_repeat('b', 64);
 $staleHookOld = str_repeat('1', 40);
 $currentHookOld = str_repeat('2', 40);
 $newHookObject = str_repeat('3', 64);
+$siteAOld = str_repeat('6', 40);
+$siteANew = str_repeat('7', 40);
+$siteBOld = str_repeat('8', 40);
+$siteBNew = str_repeat('9', 40);
 
 return [
     'refs' => [
@@ -82,6 +86,25 @@ return [
         . $packet("option old-oid {$currentHookOld}\n")
         . $packet("option new-oid {$newHookObject}\n")
         . $packet("ok refs/heads/main post-update hook accepted\n")
+        . $flush,
+    'multiReportRef' => [
+        'requested' => 'refs/for/wp-deploy',
+        'actual' => [
+            'refs/heads/site-a',
+            'refs/heads/site-b',
+        ],
+        'oldObjects' => [$siteAOld, $siteBOld],
+        'newObjects' => [$siteANew, $siteBNew],
+    ],
+    'multiReportResponse' => $packet("unpack ok\n")
+        . $packet("ok refs/for/wp-deploy\n")
+        . $packet("option refname refs/heads/site-a\n")
+        . $packet("option old-oid {$siteAOld}\n")
+        . $packet("option new-oid {$siteANew}\n")
+        . $packet("ok refs/for/wp-deploy\n")
+        . $packet("option refname refs/heads/site-b\n")
+        . $packet("option old-oid {$siteBOld}\n")
+        . $packet("option new-oid {$siteBNew}\n")
         . $flush,
     'missingExpectedResponse' => $packet("unpack ok\n")
         . $packet("ok refs/heads/ghost ignored by send-pack\n")

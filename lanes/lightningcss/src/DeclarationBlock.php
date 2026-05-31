@@ -109,6 +109,17 @@ final class DeclarationBlock
         'animation-fill-mode',
         'animation-timeline',
     ];
+    private const ANIMATION_PREFIXABLE_LONGHANDS = [
+        'animation-name',
+        'animation-duration',
+        'animation-timing-function',
+        'animation-iteration-count',
+        'animation-direction',
+        'animation-play-state',
+        'animation-delay',
+        'animation-fill-mode',
+    ];
+    private const ANIMATION_VENDOR_PREFIXES = ['-webkit-', '-moz-', '-o-'];
     private const ANIMATION_RANGE_LONGHANDS = [
         'animation-range-start',
         'animation-range-end',
@@ -739,25 +750,33 @@ final class DeclarationBlock
      */
     private function getAnimationProperty(array $entries, string $property): ?array
     {
-        if (!$this->isAnimationProperty($property)) {
+        $prefix = $this->animationPrefixForProperty($property);
+        $base = $this->baseAnimationProperty($property);
+        if ($prefix === null || $base === null) {
             return null;
         }
 
         $components = [];
         $sawAnimationProperty = false;
         foreach ($entries as $entry) {
-            if ($entry['property'] === 'animation') {
-                $components = $this->animationComponentsFromShorthand($entry['value'], $entry['important']);
+            $entryPrefix = $this->animationPrefixForProperty($entry['property']);
+            $entryBase = $this->baseAnimationProperty($entry['property']);
+            if ($entryPrefix !== $prefix || $entryBase === null) {
+                continue;
+            }
+
+            if ($entryBase === 'animation') {
+                $components = $this->animationComponentsFromShorthand($entry['value'], $entry['important'], $prefix);
                 $sawAnimationProperty = true;
                 continue;
             }
 
-            if (!$this->isAnimationLonghand($entry['property'])) {
+            if (!$this->isAnimationLonghandBase($entryBase, $prefix)) {
                 continue;
             }
 
-            $components[$entry['property']] = [
-                'value' => $this->normalizeAnimationLonghandList($entry['property'], $entry['value']),
+            $components[$entryBase] = [
+                'value' => $this->normalizeAnimationLonghandList($entryBase, $entry['value']),
                 'important' => $entry['important'],
             ];
             $sawAnimationProperty = true;
@@ -767,11 +786,11 @@ final class DeclarationBlock
             return null;
         }
 
-        if ($property !== 'animation') {
-            return $components[$property] ?? null;
+        if ($base !== 'animation') {
+            return $components[$base] ?? null;
         }
 
-        return $this->composeAnimationShorthandProperty($components);
+        return $this->composeAnimationShorthandProperty($components, $prefix);
     }
 
     /**
@@ -2504,6 +2523,16 @@ final class DeclarationBlock
         $components = array_fill_keys(self::GRID_AREA_COMPONENTS, null);
         $template = array_fill_keys(array_merge(self::GRID_TEMPLATE_COMPONENTS, self::GRID_AUTO_COMPONENTS), null);
         foreach ($entries as $entry) {
+            if ($entry['property'] === 'grid-template') {
+                $parsed = $this->gridTemplateComponentsFromShorthand($entry['value'], $entry['important']);
+                if ($parsed !== null) {
+                    foreach ($parsed as $component => $value) {
+                        $template[$component] = $value;
+                    }
+                }
+                continue;
+            }
+
             if (array_key_exists($entry['property'], $template)) {
                 $template[$entry['property']] = [
                     'value' => $entry['value'],
@@ -2556,6 +2585,10 @@ final class DeclarationBlock
 
         if ($property === 'grid') {
             return $this->composeGridShorthand($template);
+        }
+
+        if (array_key_exists($property, $template)) {
+            return $template[$property];
         }
 
         if (in_array($property, self::GRID_AREA_COMPONENTS, true)) {
@@ -2615,6 +2648,16 @@ final class DeclarationBlock
         }
 
         if ($this->isGridTemplateAreasNone($areas['value'])) {
+            if (
+                strcasecmp(trim($rows['value']), 'none') === 0
+                && strcasecmp(trim($columns['value']), 'none') === 0
+            ) {
+                return [
+                    'value' => 'none',
+                    'important' => $important,
+                ];
+            }
+
             return [
                 'value' => $this->normalizeGridTrackValue($rows['value']) . ' / ' . $this->normalizeGridTrackValue($columns['value']),
                 'important' => $important,
@@ -2647,6 +2690,50 @@ final class DeclarationBlock
         }
 
         return $this->composeGridTemplateShorthand($components);
+    }
+
+    /**
+     * @return array<string, array{value:string, important:bool}>|null
+     */
+    private function gridTemplateComponentsFromShorthand(string $value, bool $important): ?array
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'none') === 0) {
+            return [
+                'grid-template-rows' => ['value' => 'none', 'important' => $important],
+                'grid-template-columns' => ['value' => 'none', 'important' => $important],
+                'grid-template-areas' => ['value' => 'none', 'important' => $important],
+            ];
+        }
+
+        if ($this->gridTemplateValueHasAreas($value)) {
+            return null;
+        }
+
+        $parts = array_map(
+            static fn (string $part): string => trim($part),
+            $this->splitTopLevel($value, '/')
+        );
+        if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
+            return null;
+        }
+
+        return [
+            'grid-template-rows' => [
+                'value' => $this->normalizeGridTrackValue($parts[0]),
+                'important' => $important,
+            ],
+            'grid-template-columns' => [
+                'value' => $this->normalizeGridTrackValue($parts[1]),
+                'important' => $important,
+            ],
+            'grid-template-areas' => ['value' => 'none', 'important' => $important],
+        ];
+    }
+
+    private function gridTemplateValueHasAreas(string $value): bool
+    {
+        return str_contains($value, '"') || str_contains($value, "'");
     }
 
     /**
@@ -5434,25 +5521,38 @@ final class DeclarationBlock
      */
     private function removeAnimationLonghand(array $entries, string $property): string
     {
+        $prefix = $this->animationPrefixForProperty($property);
+        $base = $this->baseAnimationProperty($property);
+        if ($prefix === null || $base === null || !$this->isAnimationLonghandBase($base, $prefix)) {
+            return $this->serializeEntries($entries);
+        }
+
         $result = [];
         foreach ($entries as $entry) {
-            if ($entry['property'] === $property) {
-                continue;
-            }
-
-            if ($entry['property'] !== 'animation') {
+            $entryPrefix = $this->animationPrefixForProperty($entry['property']);
+            $entryBase = $this->baseAnimationProperty($entry['property']);
+            if ($entryPrefix !== $prefix || $entryBase === null) {
                 $result[] = $entry;
                 continue;
             }
 
-            $components = $this->animationComponentsFromShorthand($entry['value'], $entry['important']);
-            foreach (self::ANIMATION_LONGHANDS as $longhand) {
-                if ($longhand === $property) {
+            if ($entryBase === $base) {
+                continue;
+            }
+
+            if ($entryBase !== 'animation') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->animationComponentsFromShorthand($entry['value'], $entry['important'], $prefix);
+            foreach ($this->animationLonghandsForPrefix($prefix) as $longhand) {
+                if ($longhand === $base) {
                     continue;
                 }
 
                 $result[] = [
-                    'property' => $longhand,
+                    'property' => $this->animationPropertyName($prefix, $longhand),
                     'value' => $components[$longhand]['value'],
                     'important' => $entry['important'],
                 ];
@@ -8238,6 +8338,10 @@ final class DeclarationBlock
         if ($borderRadiusValue !== null) {
             return $this->parseEntries($borderRadiusValue);
         }
+        $gridTemplateValue = $this->setGridTemplateLonghand($entries, $property, $value, $important);
+        if ($gridTemplateValue !== null) {
+            return $this->parseEntries($gridTemplateValue);
+        }
         $gridValue = $this->setGridPlacementLonghand($entries, $property, $value, $important);
         if ($gridValue !== null) {
             return $this->parseEntries($gridValue);
@@ -8558,6 +8662,59 @@ final class DeclarationBlock
     /**
      * @param list<array{property:string, value:string, important:bool}> $entries
      */
+    private function setGridTemplateLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!in_array($property, self::GRID_TEMPLATE_COMPONENTS, true)) {
+            return null;
+        }
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'grid-template') {
+                continue;
+            }
+            if ($entries[$index]['important'] !== $important) {
+                return null;
+            }
+
+            $components = $this->gridTemplateComponentsFromShorthand($entries[$index]['value'], $entries[$index]['important']);
+            if ($components === null) {
+                return null;
+            }
+
+            $components[$property] = [
+                'value' => $value,
+                'important' => $important,
+            ];
+            $gridTemplate = $this->composeGridTemplateShorthand($components);
+            if ($gridTemplate === null) {
+                return null;
+            }
+
+            $entries[$index] = [
+                'property' => 'grid-template',
+                'value' => $gridTemplate['value'],
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
     private function setFlexItemLonghand(array $entries, string $property, string $base, string $prefix, string $value, bool $important): ?string
     {
         $value = $this->normalizeFlexLonghandValue($base, $value);
@@ -8771,10 +8928,14 @@ final class DeclarationBlock
      */
     private function setAnimationNameLonghand(array $entries, string $property, string $value, bool $important): ?string
     {
-        if ($property !== 'animation-name') {
+        $prefix = $this->animationPrefixForProperty($property);
+        $base = $this->baseAnimationProperty($property);
+        if ($prefix === null || $base !== 'animation-name') {
             return null;
         }
 
+        $shorthand = $this->animationPropertyName($prefix, 'animation');
+        $longhand = $this->animationPropertyName($prefix, 'animation-name');
         $names = array_values(array_filter(
             array_map('trim', $this->splitTopLevel($value, ',')),
             static fn (string $name): bool => $name !== ''
@@ -8784,9 +8945,15 @@ final class DeclarationBlock
         }
 
         for ($index = count($entries) - 1; $index >= 0; $index--) {
-            if ($entries[$index]['property'] === 'animation-name') {
+            $entryPrefix = $this->animationPrefixForProperty($entries[$index]['property']);
+            $entryBase = $this->baseAnimationProperty($entries[$index]['property']);
+            if ($entryPrefix !== $prefix || $entryBase === null) {
+                continue;
+            }
+
+            if ($entryBase === 'animation-name') {
                 $entries[$index] = [
-                    'property' => 'animation-name',
+                    'property' => $longhand,
                     'value' => $value,
                     'important' => $important,
                 ];
@@ -8794,7 +8961,7 @@ final class DeclarationBlock
                 return $this->serializeEntries($entries);
             }
 
-            if ($entries[$index]['property'] !== 'animation') {
+            if ($entryBase !== 'animation') {
                 continue;
             }
             if ($entries[$index]['important'] !== $important) {
@@ -8812,7 +8979,7 @@ final class DeclarationBlock
                 }
 
                 $entries[$index] = [
-                    'property' => 'animation',
+                    'property' => $shorthand,
                     'value' => implode(', ', $updated),
                     'important' => $important,
                 ];
@@ -8821,7 +8988,7 @@ final class DeclarationBlock
             }
 
             $entries[$index] = [
-                'property' => 'animation',
+                'property' => $shorthand,
                 'value' => implode(', ', array_map(
                     function (string $layer): string {
                         $parts = $this->parseAnimationLayer($layer);
@@ -8833,7 +9000,7 @@ final class DeclarationBlock
                 'important' => $important,
             ];
             $entries[] = [
-                'property' => 'animation-name',
+                'property' => $longhand,
                 'value' => $value,
                 'important' => $important,
             ];
@@ -8849,24 +9016,34 @@ final class DeclarationBlock
      */
     private function setAnimationLonghand(array $entries, string $property, string $value, bool $important): ?string
     {
-        if (!$this->isAnimationLonghand($property)) {
+        $prefix = $this->animationPrefixForProperty($property);
+        $base = $this->baseAnimationProperty($property);
+        if ($prefix === null || $base === null || !$this->isAnimationLonghandBase($base, $prefix)) {
             return null;
         }
 
-        if ($property === 'animation-name') {
+        if ($base === 'animation-name') {
             return $this->setAnimationNameLonghand($entries, $property, $value, $important);
         }
 
-        $value = $this->normalizeAnimationLonghandList($property, $value);
+        $shorthand = $this->animationPropertyName($prefix, 'animation');
+        $longhand = $this->animationPropertyName($prefix, $base);
+        $value = $this->normalizeAnimationLonghandList($base, $value);
         $values = $this->animationComponentList($value);
         if ($values === []) {
             throw new \InvalidArgumentException("{$property} cannot be empty");
         }
 
         for ($index = count($entries) - 1; $index >= 0; $index--) {
-            if ($entries[$index]['property'] === $property) {
+            $entryPrefix = $this->animationPrefixForProperty($entries[$index]['property']);
+            $entryBase = $this->baseAnimationProperty($entries[$index]['property']);
+            if ($entryPrefix !== $prefix || $entryBase === null) {
+                continue;
+            }
+
+            if ($entryBase === $base) {
                 $entries[$index] = [
-                    'property' => $property,
+                    'property' => $longhand,
                     'value' => $value,
                     'important' => $important,
                 ];
@@ -8874,7 +9051,7 @@ final class DeclarationBlock
                 return $this->serializeEntries($entries);
             }
 
-            if ($entries[$index]['property'] !== 'animation') {
+            if ($entryBase !== 'animation') {
                 continue;
             }
             if ($entries[$index]['important'] !== $important) {
@@ -8884,12 +9061,12 @@ final class DeclarationBlock
             $layers = $this->parseAnimationCssomLayers($entries[$index]['value']);
             if (count($values) !== count($layers)) {
                 $entries[$index] = [
-                    'property' => 'animation',
+                    'property' => $shorthand,
                     'value' => $this->serializeAnimationCssomLayers($layers),
                     'important' => $important,
                 ];
                 $entries[] = [
-                    'property' => $property,
+                    'property' => $longhand,
                     'value' => $value,
                     'important' => $important,
                 ];
@@ -8898,11 +9075,11 @@ final class DeclarationBlock
             }
 
             foreach ($layers as $layerIndex => $_layer) {
-                $layers[$layerIndex][$property] = $values[$layerIndex];
+                $layers[$layerIndex][$base] = $values[$layerIndex];
             }
 
             $entries[$index] = [
-                'property' => 'animation',
+                'property' => $shorthand,
                 'value' => $this->serializeAnimationCssomLayers($layers),
                 'important' => $important,
             ];
@@ -8916,14 +9093,14 @@ final class DeclarationBlock
     /**
      * @return array<string, array{value:string, important:bool}>
      */
-    private function animationComponentsFromShorthand(string $value, bool $important): array
+    private function animationComponentsFromShorthand(string $value, bool $important, string $prefix = ''): array
     {
         $layers = $this->parseAnimationCssomLayers($value);
         $components = [
             'animation' => ['value' => $this->serializeAnimationCssomLayers($layers), 'important' => $important],
         ];
 
-        foreach (self::ANIMATION_LONGHANDS as $longhand) {
+        foreach ($this->animationLonghandsForPrefix($prefix) as $longhand) {
             $components[$longhand] = [
                 'value' => implode(', ', array_column($layers, $longhand)),
                 'important' => $important,
@@ -8937,12 +9114,13 @@ final class DeclarationBlock
      * @param array<string, array{value:string, important:bool}> $components
      * @return array{value:string, important:bool}|null
      */
-    private function composeAnimationShorthandProperty(array $components): ?array
+    private function composeAnimationShorthandProperty(array $components, string $prefix = ''): ?array
     {
         $lists = [];
         $important = null;
         $length = null;
-        foreach (self::ANIMATION_LONGHANDS as $longhand) {
+        $longhands = $this->animationLonghandsForPrefix($prefix);
+        foreach ($longhands as $longhand) {
             if (!isset($components[$longhand])) {
                 return null;
             }
@@ -8967,7 +9145,7 @@ final class DeclarationBlock
         $layers = [];
         for ($index = 0; $index < $length; $index++) {
             $layer = [];
-            foreach (self::ANIMATION_LONGHANDS as $longhand) {
+            foreach ($longhands as $longhand) {
                 $layer[$longhand] = $lists[$longhand][$index];
             }
             $layers[] = $layer;
@@ -9218,12 +9396,73 @@ final class DeclarationBlock
 
     private function isAnimationProperty(string $property): bool
     {
-        return $property === 'animation' || $this->isAnimationLonghand($property);
+        return $this->baseAnimationProperty($property) !== null;
+    }
+
+    private function isAnimationShorthand(string $property): bool
+    {
+        return $this->baseAnimationProperty($property) === 'animation';
     }
 
     private function isAnimationLonghand(string $property): bool
     {
-        return in_array($property, self::ANIMATION_LONGHANDS, true);
+        $prefix = $this->animationPrefixForProperty($property);
+        $base = $this->baseAnimationProperty($property);
+
+        return $prefix !== null && $base !== null && $this->isAnimationLonghandBase($base, $prefix);
+    }
+
+    private function isAnimationLonghandBase(string $base, string $prefix): bool
+    {
+        return in_array($base, $this->animationLonghandsForPrefix($prefix), true);
+    }
+
+    private function animationPrefixForProperty(string $property): ?string
+    {
+        foreach (self::ANIMATION_VENDOR_PREFIXES as $prefix) {
+            if (str_starts_with($property, $prefix . 'animation')) {
+                return $this->baseAnimationProperty($property) === null ? null : $prefix;
+            }
+        }
+
+        if (str_starts_with($property, 'animation')) {
+            return $this->baseAnimationProperty($property) === null ? null : '';
+        }
+
+        return null;
+    }
+
+    private function baseAnimationProperty(string $property): ?string
+    {
+        $prefix = '';
+        foreach (self::ANIMATION_VENDOR_PREFIXES as $candidate) {
+            if (str_starts_with($property, $candidate)) {
+                $property = substr($property, strlen($candidate));
+                $prefix = $candidate;
+                break;
+            }
+        }
+
+        if ($property === 'animation') {
+            return $property;
+        }
+
+        $longhands = $prefix === '' ? self::ANIMATION_LONGHANDS : self::ANIMATION_PREFIXABLE_LONGHANDS;
+
+        return in_array($property, $longhands, true) ? $property : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function animationLonghandsForPrefix(string $prefix): array
+    {
+        return $prefix === '' ? self::ANIMATION_LONGHANDS : self::ANIMATION_PREFIXABLE_LONGHANDS;
+    }
+
+    private function animationPropertyName(string $prefix, string $base): string
+    {
+        return $prefix . $base;
     }
 
     /**
@@ -9832,9 +10071,9 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
-        if ($property === 'animation') {
-            $normalEntries = $this->removeAnimationShorthandWithinPriority($normalEntries);
-            $importantEntries = $this->removeAnimationShorthandWithinPriority($importantEntries);
+        if ($this->isAnimationShorthand($property)) {
+            $normalEntries = $this->removeAnimationShorthandWithinPriority($normalEntries, $property);
+            $importantEntries = $this->removeAnimationShorthandWithinPriority($importantEntries, $property);
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
@@ -9891,6 +10130,12 @@ final class DeclarationBlock
         if ($this->isAnimationRangeLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeAnimationRangeLonghand($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeAnimationRangeLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
+        if (in_array($property, self::GRID_TEMPLATE_COMPONENTS, true)) {
+            $normalEntries = $this->parseEntries($this->removeGridTemplateLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeGridTemplateLonghand($importantEntries, $property));
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
@@ -10056,12 +10301,20 @@ final class DeclarationBlock
      * @param list<array{property:string, value:string, important:bool}> $entries
      * @return list<array{property:string, value:string, important:bool}>
      */
-    private function removeAnimationShorthandWithinPriority(array $entries): array
+    private function removeAnimationShorthandWithinPriority(array $entries, string $property): array
     {
+        $prefix = $this->animationPrefixForProperty($property);
+        if ($prefix === null) {
+            return $entries;
+        }
+
         return array_values(array_filter(
             $entries,
-            fn (array $entry): bool => $entry['property'] !== 'animation'
-                && !$this->isAnimationLonghand($entry['property'])
+            function (array $entry) use ($prefix): bool {
+                $base = $this->baseAnimationProperty($entry['property']);
+
+                return $base === null || $this->animationPrefixForProperty($entry['property']) !== $prefix;
+            }
         ));
     }
 
@@ -10284,6 +10537,44 @@ final class DeclarationBlock
                 $result[] = [
                     'property' => $this->flexProperty($prefix, $longhand),
                     'value' => $components[$name],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeGridTemplateLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'grid-template') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->gridTemplateComponentsFromShorthand($entry['value'], $entry['important']);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach (self::GRID_TEMPLATE_COMPONENTS as $longhand) {
+                if ($longhand === $property) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
+                    'value' => $components[$longhand]['value'],
                     'important' => $entry['important'],
                 ];
             }
