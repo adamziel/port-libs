@@ -13,5 +13,6 @@ return [
     'conflictStyle' => $fixture['conflictStyle'],
     'httpExtraHeader' => $fixture['httpExtraHeader'],
     'transferFsckObjects' => $fixture['transferFsckObjects'],
+    'escapedGitdirPolicy' => $fixture['escapedGitdirPolicy'],
     'sectionsLoaded' => $fixture['sectionsLoaded'],
 ];

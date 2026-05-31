@@ -31,6 +31,11 @@ extraHeader = X-WP-Deploy: staging
 fsckObjects = true
 CFG);
 
+$write($repo . '/escaped-gitdir.config', <<<CFG
+[wordpress]
+escapedGitdir = matched
+CFG);
+
 $write($gitDir . '/config', <<<CFG
 [core]
 repositoryformatversion = 0
@@ -42,6 +47,8 @@ url = https://git.example.test/wp-content.git
 path = ../deploy-branch.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/**"]
 path = ../remote-policy.config
+[includeIf "gitdir:wp\\-content.git/"]
+path = ../escaped-gitdir.config
 CFG);
 
 $config = GitConfig::fromFile($gitDir . '/config', [
@@ -57,6 +64,7 @@ return [
     'conflictStyle' => $config->value('merge', null, 'conflictStyle'),
     'httpExtraHeader' => $config->value('http', null, 'extraHeader'),
     'transferFsckObjects' => $config->value('transfer', null, 'fsckObjects'),
+    'escapedGitdirPolicy' => $config->value('wordpress', null, 'escapedGitdir'),
     'sectionsLoaded' => array_map(
         static fn (array $section): string => $section['subsection'] === null
             ? $section['name']

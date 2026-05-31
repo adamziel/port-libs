@@ -153,7 +153,7 @@ final class GitConfig
             if (preg_match('/^\s*\[([A-Za-z0-9_.-]+)(?:\s+"((?:\\\\.|[^"])*)")?\]\s*(?:[#;].*)?$/', $line, $matches) === 1) {
                 $section = [
                     'name' => strtolower($matches[1]),
-                    'subsection' => array_key_exists(2, $matches) ? self::unquote($matches[2]) : null,
+                    'subsection' => array_key_exists(2, $matches) ? self::unquoteSubsection($matches[2]) : null,
                     'entries' => [],
                     'path' => $path,
                 ];
@@ -282,6 +282,25 @@ final class GitConfig
 
         if ($escaped) {
             $out .= '\\';
+        }
+
+        return $out;
+    }
+
+    private static function unquoteSubsection(string $value): string
+    {
+        $out = '';
+        $length = strlen($value);
+
+        for ($index = 0; $index < $length; $index++) {
+            $byte = $value[$index];
+            if ($byte === '\\' && $index + 1 < $length) {
+                $index++;
+                $out .= $value[$index];
+                continue;
+            }
+
+            $out .= $byte;
         }
 
         return $out;
@@ -418,7 +437,6 @@ final class GitConfig
         if ($pattern === null) {
             return false;
         }
-        $pattern = self::normalizePath($pattern);
 
         if (str_starts_with($pattern, './')) {
             if ($targetConfigPath === null) {
@@ -559,13 +577,18 @@ final class GitConfig
 
     private static function wildmatch(string $pattern, string $text, bool $ignoreCase): bool
     {
-        $pattern = self::normalizePath($pattern);
         $text = self::normalizePath($text);
         $regex = '';
         $length = strlen($pattern);
 
         for ($index = 0; $index < $length; $index++) {
             $byte = $pattern[$index];
+            if ($byte === '\\' && $index + 1 < $length) {
+                $index++;
+                $regex .= preg_quote($pattern[$index], '~');
+                continue;
+            }
+
             if ($byte === '*') {
                 if ($index + 1 < $length && $pattern[$index + 1] === '*') {
                     $regex .= '.*';

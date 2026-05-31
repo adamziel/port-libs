@@ -133,6 +133,32 @@ return [
         $t->same('glob-override', $config->value('section', null, 'value'));
     },
 
+    'conditional include quoted subsections and globs use upstream backslash escape rules' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
+        $t->same('override-value', $loadConditionalValue('gitdir:work\\tree/', []));
+        $t->same('override-value', $loadConditionalValue('gitdir:\\\\work\\\\tree\\\\/', []));
+        $t->same('override-value', $loadConditionalValue('gitdir:work\\\\tree/', []));
+
+        $root = $tmpDir();
+        $write($root . '/literal-star', "[user]\nstar = literal\n");
+        $write($root . '/wildcard-star', "[user]\nwildcard = glob\n");
+        $write($root . '/miss', "[user]\nmiss = no\n");
+        $write($root . '/config', <<<CFG
+        [remote "plugin"]
+        url = https://git.example.test/star*repo
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/star\\\\*repo"]
+        path = "literal-star"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/star*repo"]
+        path = "wildcard-star"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/star\\\\*missing"]
+        path = "miss"
+        CFG);
+
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same('literal', $config->value('user', null, 'star'));
+        $t->same('glob', $config->value('user', null, 'wildcard'));
+        $t->same(null, $config->value('user', null, 'miss'));
+    },
+
     'hasconfig includeIf searches parent config with gix ordering and cycle boundaries' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $root = $tmpDir();
         $write($root . '/include-this', "[user]\nthis = included\n");
@@ -237,8 +263,10 @@ return [
         $t->same('zdiff3', $fixture['conflictStyle']);
         $t->same('X-WP-Deploy: staging', $fixture['httpExtraHeader']);
         $t->same('true', $fixture['transferFsckObjects']);
+        $t->same('matched', $fixture['escapedGitdirPolicy']);
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
+        $t->same($fixture['escapedGitdirPolicy'], $summary['escapedGitdirPolicy']);
         $t->same($fixture['sectionsLoaded'], $summary['sectionsLoaded']);
     },
 ];

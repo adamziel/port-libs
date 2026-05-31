@@ -17,6 +17,11 @@ $pathspec = SparseCheckoutSpec::fromPathspecs([
     ':!wp-content/cache/**',
     ':(top,glob,icase)WP-CONTENT/Plugins/*/block.json',
 ]);
+$wildmatchPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content/plugins/[ag]*/block.[jt]son',
+    ':(exclude,glob)wp-content/cache/**',
+    ':(glob)wp-content/**/theme.\?son',
+]);
 $filter = FetchFilterSpec::blobNone();
 
 $root = new Tree([
@@ -54,4 +59,7 @@ return [
     'pathspecPluginBlockIncluded' => $pathspec->includesPath('WP-CONTENT/Plugins/Gutenberg/block.json', false),
     'pathspecCacheSkipped' => $pathspec->skipWorktree('wp-content/cache/page.html', false),
     'pathspecAdminSkipped' => $pathspec->skipWorktree('wp-admin/admin.php', false),
+    'pathspecBracketPluginBlockIncluded' => $wildmatchPathspec->includesPath('wp-content/plugins/akismet/block.json', false),
+    'pathspecCacheExcludeAuthoritative' => $wildmatchPathspec->skipWorktree('wp-content/cache/page.html', false),
+    'pathspecRecursiveEscapedThemeIncluded' => $wildmatchPathspec->includesPath('wp-content/themes/site/theme.?son', false),
 ];

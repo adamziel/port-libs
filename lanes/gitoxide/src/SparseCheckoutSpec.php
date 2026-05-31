@@ -160,6 +160,17 @@ final class SparseCheckoutSpec
             true
         );
 
+        $positive = [];
+        $negative = [];
+        foreach ($patterns as $pattern) {
+            if ($pattern['negative']) {
+                $negative[] = $pattern;
+            } else {
+                $positive[] = $pattern;
+            }
+        }
+        $patterns = [...$positive, ...$negative];
+
         return new self(self::MODE_NON_CONE, [], $patterns, $ignoreCase, $allExcluded);
     }
 
@@ -336,18 +347,17 @@ final class SparseCheckoutSpec
     private function patternMatchesCandidate(array $rule, string $candidate): bool
     {
         $ignoreCase = $rule['ignoreCase'] ?? $this->ignoreCase;
-        $pattern = $ignoreCase ? strtolower($rule['pattern']) : $rule['pattern'];
-        $candidate = $ignoreCase ? strtolower($candidate) : $candidate;
+        $pattern = $rule['pattern'];
 
         if (!$rule['anchored'] && !($rule['pathspec'] ?? false) && !str_contains($pattern, '/')) {
             $candidate = basename($candidate);
         }
 
         if ($rule['literal'] ?? false) {
-            return $pattern === $candidate;
+            return $ignoreCase ? strtolower($pattern) === strtolower($candidate) : $pattern === $candidate;
         }
 
-        return preg_match(self::globRegex($pattern, $rule['matchSlash'] ?? false), $candidate) === 1;
+        return preg_match(self::globRegex($pattern, $rule['matchSlash'] ?? false, $ignoreCase), $candidate) === 1;
     }
 
     /**
@@ -391,16 +401,31 @@ final class SparseCheckoutSpec
         return $paths;
     }
 
-    private static function globRegex(string $pattern, bool $matchSlash): string
+    private static function globRegex(string $pattern, bool $matchSlash, bool $ignoreCase = false): string
     {
         $regex = '';
         $length = strlen($pattern);
         for ($i = 0; $i < $length; $i++) {
             $char = $pattern[$i];
+            if ($char === '\\') {
+                if ($i + 1 < $length) {
+                    $regex .= preg_quote($pattern[++$i], '#');
+                } else {
+                    $regex .= preg_quote($char, '#');
+                }
+                continue;
+            }
             if ($char === '*') {
                 if (($pattern[$i + 1] ?? '') === '*') {
-                    $regex .= '.*';
-                    $i++;
+                    while (($pattern[$i + 1] ?? '') === '*') {
+                        $i++;
+                    }
+                    if (($pattern[$i + 1] ?? '') === '/') {
+                        $regex .= '(?:.*/)?';
+                        $i++;
+                    } else {
+                        $regex .= '.*';
+                    }
                 } else {
                     $regex .= $matchSlash ? '.*' : '[^/]*';
                 }
@@ -410,10 +435,130 @@ final class SparseCheckoutSpec
                 $regex .= $matchSlash ? '.' : '[^/]';
                 continue;
             }
+            if ($char === '[') {
+                $end = self::findCharacterClassEnd($pattern, $i);
+                if ($end !== null) {
+                    $regex .= (!$matchSlash ? '(?!/)' : '')
+                        . self::characterClassRegex(substr($pattern, $i + 1, $end - $i - 1));
+                    $i = $end;
+                    continue;
+                }
+            }
             $regex .= preg_quote($char, '#');
         }
 
-        return '#^' . $regex . '$#';
+        return '#^' . $regex . '$#' . ($ignoreCase ? 'i' : '');
+    }
+
+    private static function findCharacterClassEnd(string $pattern, int $start): ?int
+    {
+        $length = strlen($pattern);
+        $cursor = $start + 1;
+        if ($cursor >= $length) {
+            return null;
+        }
+        if (($pattern[$cursor] ?? '') === '!' || ($pattern[$cursor] ?? '') === '^') {
+            $cursor++;
+        }
+        if (($pattern[$cursor] ?? '') === ']') {
+            $cursor++;
+        }
+
+        for (; $cursor < $length; $cursor++) {
+            $char = $pattern[$cursor];
+            if ($char === '\\') {
+                $cursor++;
+                continue;
+            }
+            if ($char === '[' && ($pattern[$cursor + 1] ?? '') === ':') {
+                $classEnd = strpos($pattern, ':]', $cursor + 2);
+                if ($classEnd !== false) {
+                    $cursor = $classEnd + 1;
+                    continue;
+                }
+            }
+            if ($char === ']') {
+                return $cursor;
+            }
+        }
+
+        return null;
+    }
+
+    private static function characterClassRegex(string $class): string
+    {
+        if ($class === '') {
+            return preg_quote('[]', '#');
+        }
+
+        $negated = false;
+        if ($class[0] === '!' || $class[0] === '^') {
+            $negated = true;
+            $class = substr($class, 1);
+        }
+
+        $body = '';
+        $length = strlen($class);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $class[$i];
+            if ($char === '\\') {
+                if ($i + 1 < $length) {
+                    $body .= self::escapeCharacterClassByte($class[++$i]);
+                } else {
+                    $body .= '\\\\';
+                }
+                continue;
+            }
+            if ($char === '[' && ($class[$i + 1] ?? '') === ':') {
+                $end = strpos($class, ':]', $i + 2);
+                if ($end !== false) {
+                    $name = substr($class, $i + 2, $end - $i - 2);
+                    $mapped = self::posixCharacterClassRegex($name);
+                    if ($mapped === null) {
+                        return preg_quote('[' . ($negated ? '!' : '') . $class . ']', '#');
+                    }
+                    $body .= $mapped;
+                    $i = $end + 1;
+                    continue;
+                }
+            }
+            $body .= self::escapeCharacterClassByte($char);
+        }
+
+        if ($body === '') {
+            return preg_quote('[]', '#');
+        }
+
+        return '[' . ($negated ? '^' : '') . $body . ']';
+    }
+
+    private static function escapeCharacterClassByte(string $char): string
+    {
+        return match ($char) {
+            '\\' => '\\\\',
+            ']' => '\\]',
+            '#' => '\\#',
+            default => $char,
+        };
+    }
+
+    private static function posixCharacterClassRegex(string $class): ?string
+    {
+        return match ($class) {
+            'alnum' => '[:alnum:]',
+            'alpha' => '[:alpha:]',
+            'blank' => '[:blank:]',
+            'cntrl' => '[:cntrl:]',
+            'digit' => '[:digit:]',
+            'graph' => '[:graph:]',
+            'lower' => '[:lower:]',
+            'print' => '[:print:]',
+            'punct' => '[:punct:]',
+            'space' => ' ',
+            'upper' => '[:upper:]',
+            'xdigit' => '[:xdigit:]',
+            default => null,
+        };
     }
 
     /**
@@ -547,7 +692,7 @@ final class SparseCheckoutSpec
     {
         $length = strlen($pattern);
         for ($i = 0; $i < $length; $i++) {
-            if ($pattern[$i] === '*' || $pattern[$i] === '?') {
+            if ($pattern[$i] === '*' || $pattern[$i] === '?' || $pattern[$i] === '[' || $pattern[$i] === '\\') {
                 return substr($pattern, 0, $i);
             }
         }
@@ -557,12 +702,11 @@ final class SparseCheckoutSpec
 
     private static function patternHasWildcard(string $pattern): bool
     {
-        return str_contains($pattern, '*') || str_contains($pattern, '?');
+        return strpbrk($pattern, '*?[') !== false || str_contains($pattern, '\\');
     }
 
     private static function normalizePathspecPath(string $path): string
     {
-        $path = str_replace('\\', '/', $path);
         if (str_contains($path, "\0")) {
             throw new \InvalidArgumentException('Sparse checkout path cannot contain NUL bytes');
         }
