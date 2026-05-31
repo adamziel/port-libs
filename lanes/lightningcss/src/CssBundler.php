@@ -1024,15 +1024,7 @@ final class CssBundler
             $open = $offset + strlen($this->readIdentifier($rest, $offset));
             $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
             $layer = trim(substr($rest, $open + 1, $close - $open - 1));
-            if ($layer === '' || $this->containsTopLevelDelimiter($layer, ',')) {
-                throw new CssBundleException(
-                    'parser-error',
-                    "Invalid @import layer name: {$layer}",
-                    $file,
-                    $loc['line'],
-                    $loc['column'],
-                );
-            }
+            $this->validateImportLayerName($layer, $file, $loc);
             $offset = $close + 1;
             $offset = $this->skipWhitespaceAndComments($rest, $offset);
         } elseif (strncasecmp(substr($rest, $offset, strlen('layer')), 'layer', strlen('layer')) === 0) {
@@ -1063,6 +1055,123 @@ final class CssBundler
             'media' => $media,
             'loc' => $loc,
         ];
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function validateImportLayerName(string $layer, string $file, array $loc): void
+    {
+        if ($layer === '' || $this->containsTopLevelDelimiter($layer, ',') || !$this->isValidLayerName($layer)) {
+            throw new CssBundleException(
+                'parser-error',
+                "Invalid @import layer name: {$layer}",
+                $file,
+                $loc['line'],
+                $loc['column'],
+            );
+        }
+    }
+
+    private function isValidLayerName(string $layer): bool
+    {
+        $length = strlen($layer);
+        $offset = 0;
+        if (!$this->consumeLayerNameSegment($layer, $offset)) {
+            return false;
+        }
+
+        while ($offset < $length) {
+            if ($layer[$offset] !== '.') {
+                return false;
+            }
+
+            $offset++;
+            if (!$this->consumeLayerNameSegment($layer, $offset)) {
+                return false;
+            }
+        }
+
+        return $offset === $length;
+    }
+
+    private function consumeLayerNameSegment(string $layer, int &$offset): bool
+    {
+        $length = strlen($layer);
+        $start = $offset;
+        if ($offset >= $length) {
+            return false;
+        }
+
+        if ($layer[$offset] === '-') {
+            $offset++;
+            if (($layer[$offset] ?? '') === '-') {
+                $offset++;
+            }
+        }
+
+        if ($offset >= $length) {
+            return $offset - $start >= 2 && substr($layer, $start, 2) === '--';
+        }
+
+        if (!$this->isLayerNameStart($layer, $offset)) {
+            return false;
+        }
+
+        $this->consumeLayerNameCodepoint($layer, $offset);
+        while ($offset < $length && $this->isLayerNameContinue($layer, $offset)) {
+            $this->consumeLayerNameCodepoint($layer, $offset);
+        }
+
+        return $offset > $start;
+    }
+
+    private function isLayerNameStart(string $layer, int $offset): bool
+    {
+        if (($layer[$offset] ?? '') === '\\') {
+            return $this->isValidCssEscape($layer, $offset);
+        }
+
+        $byte = ord($layer[$offset]);
+
+        return ($byte >= 0x80)
+            || $layer[$offset] === '_'
+            || ctype_alpha($layer[$offset]);
+    }
+
+    private function isLayerNameContinue(string $layer, int $offset): bool
+    {
+        if (($layer[$offset] ?? '') === '\\') {
+            return $this->isValidCssEscape($layer, $offset);
+        }
+
+        $byte = ord($layer[$offset]);
+
+        return ($byte >= 0x80)
+            || $layer[$offset] === '_'
+            || $layer[$offset] === '-'
+            || ctype_alnum($layer[$offset]);
+    }
+
+    private function consumeLayerNameCodepoint(string $layer, int &$offset): void
+    {
+        if (($layer[$offset] ?? '') === '\\') {
+            $offset = $this->cssEscapeEndOffset($layer, $offset) + 1;
+            return;
+        }
+
+        $offset++;
+    }
+
+    private function isValidCssEscape(string $value, int $offset): bool
+    {
+        if (($value[$offset] ?? '') !== '\\' || $offset + 1 >= strlen($value)) {
+            return false;
+        }
+
+        $next = $value[$offset + 1];
+
+        return $next !== "\n" && $next !== "\r" && $next !== "\f";
     }
 
     /**

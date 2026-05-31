@@ -946,8 +946,19 @@ CSS,
             throw new RuntimeException('Expected invalid @import layer name exception');
         };
 
+        $validEscaped = (new CssBundler())->bundle('/entry.css', [
+            '/entry.css' => '@import "tokens.css" layer(theme\20 tokens.block); .entry { color: red }',
+            '/tokens.css' => ':root { --gap: 1rem }',
+        ]);
+        $t->same('@layer theme\ tokens.block{:root{--gap:1rem}}.entry{color:red}', $validEscaped);
+
         $assertInvalidLayerImport('@import "tokens.css" layer(foo, bar); .entry { color: red }', 'Invalid @import layer name: foo, bar');
         $assertInvalidLayerImport('@import "tokens.css" layer(); .entry { color: red }', 'Invalid @import layer name: ');
+        $assertInvalidLayerImport('@import "tokens.css" layer(foo bar); .entry { color: red }', 'Invalid @import layer name: foo bar');
+        $assertInvalidLayerImport('@import "tokens.css" layer(foo.); .entry { color: red }', 'Invalid @import layer name: foo.');
+        $assertInvalidLayerImport('@import "tokens.css" layer(.foo); .entry { color: red }', 'Invalid @import layer name: .foo');
+        $assertInvalidLayerImport('@import "tokens.css" layer(foo..bar); .entry { color: red }', 'Invalid @import layer name: foo..bar');
+        $assertInvalidLayerImport('@import "tokens.css" layer(foo/* old */.bar); .entry { color: red }', 'Invalid @import layer name: foo/* old */.bar');
     },
     'css bundler rejects block-form invalid import layer names before graph resolution' => static function (TestRunner $t): void {
         $reads = [];

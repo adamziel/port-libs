@@ -409,6 +409,47 @@ try {
     echo 'invalid-import-layer-block: rejected-before-read' . PHP_EOL;
 }
 
+$escapedLayerNameBundle = (new CssBundler())->bundle('/escaped-layer-name.css', [
+    '/escaped-layer-name.css' => '@import "tokens.css" layer(theme\20 tokens.block); .wp-site-blocks { color: red }',
+    '/tokens.css' => ':root { --wp--preset--color--brand: blue; }',
+]);
+
+if ($escapedLayerNameBundle !== '@layer theme\ tokens.block{:root{--wp--preset--color--brand:blue}}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected escaped import layer names to stay valid before block-theme bundling\n");
+    exit(1);
+}
+
+echo 'escaped-import-layer-name: bundled' . PHP_EOL;
+
+$invalidDottedLayerReads = [];
+try {
+    (new CssBundler())->bundleWithReader(
+        '/invalid-dotted-layer.css',
+        static function (string $file) use (&$invalidDottedLayerReads): string {
+            $invalidDottedLayerReads[] = $file;
+
+            return $file === '/invalid-dotted-layer.css'
+                ? '@import "tokens.css" layer(theme .blocks); .wp-site-blocks { color: red }'
+                : ':root { --wp--preset--color--brand: blue; }';
+        }
+    );
+
+    fwrite(STDERR, "Expected invalid dotted import layer diagnostic before block-theme graph resolution\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'Invalid @import layer name: theme .blocks'
+        || $exception->sourceFile !== '/invalid-dotted-layer.css'
+        || $invalidDottedLayerReads !== ['/invalid-dotted-layer.css']
+    ) {
+        fwrite(STDERR, 'Unexpected invalid dotted layer diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'invalid-import-layer-dots: rejected-before-read' . PHP_EOL;
+}
+
 $externalLayerMediaBundle = (new CssBundler())->bundle('/external-layer-media.css', [
     '/external-layer-media.css' => <<<'CSS'
 @import "https://cdn.example/theme.css" supports(display: flex) layer;
