@@ -16,6 +16,12 @@ final class CustomAtRuleTransformer
     private $genericRuleVisitor = null;
 
     /** @var array<string, callable> */
+    private array $unknownRuleVisitors = [];
+
+    /** @var callable|null */
+    private $genericUnknownRuleVisitor = null;
+
+    /** @var array<string, callable> */
     private array $functionVisitors = [];
 
     /** @var callable|null */
@@ -48,6 +54,21 @@ final class CustomAtRuleTransformer
                 'custom' => static function (array $rule, self $transformer) use ($visitors): mixed {
                     foreach ($visitors as $visitor) {
                         $callback = self::customRuleVisitorCallback($visitor, $rule['name']);
+                        if ($callback === null) {
+                            continue;
+                        }
+
+                        $replacement = $callback($rule, $transformer);
+                        if ($replacement !== null) {
+                            return $replacement;
+                        }
+                    }
+
+                    return null;
+                },
+                'unknown' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    foreach ($visitors as $visitor) {
+                        $callback = self::unknownRuleVisitorCallback($visitor, $rule['name']);
                         if ($callback === null) {
                             continue;
                         }
@@ -171,8 +192,21 @@ final class CustomAtRuleTransformer
             }
         }
         foreach ($visitor as $name => $callback) {
-            if (is_string($name) && is_callable($callback) && !in_array($name, ['Rule', 'Function', 'custom'], true)) {
+            if (is_string($name) && is_callable($callback) && !in_array($name, ['Rule', 'Function', 'custom', 'unknown'], true)) {
                 $this->ruleVisitors[strtolower($name)] = $callback;
+            }
+        }
+
+        $this->unknownRuleVisitors = [];
+        $this->genericUnknownRuleVisitor = null;
+        $unknownVisitors = $visitor['Rule']['unknown'] ?? $visitor['unknown'] ?? [];
+        if (is_callable($unknownVisitors)) {
+            $this->genericUnknownRuleVisitor = $unknownVisitors;
+        } elseif (is_array($unknownVisitors)) {
+            foreach ($unknownVisitors as $name => $callback) {
+                if (is_callable($callback)) {
+                    $this->unknownRuleVisitors[strtolower((string) $name)] = $callback;
+                }
             }
         }
 
@@ -230,11 +264,15 @@ final class CustomAtRuleTransformer
             $body = substr($css, $nextBlock + 1, $close - $nextBlock - 1);
 
             if (str_starts_with($prelude, '@')) {
-                [$name] = $this->parseAtPrelude($prelude);
+                [$name, $atPrelude] = $this->parseAtPrelude($prelude);
                 if ($this->isCustomAtRule($name)) {
                     $output .= $this->processCustomAtRule($prelude, $body, null);
                 } else {
-                    $output .= $prelude . '{' . $this->processRuleList($body) . '}';
+                    $rule = $this->buildUnknownRule($name, $atPrelude, $body, null);
+                    $replacement = $this->callUnknownRuleVisitor($rule);
+                    $output .= $replacement === null
+                        ? $prelude . '{' . $this->processRuleList($body) . '}'
+                        : $this->emitReplacement($replacement, null);
                 }
             } else {
                 $selectors = $this->splitTopLevel($prelude, ',');
@@ -258,7 +296,12 @@ final class CustomAtRuleTransformer
 
         [$name, $prelude] = $this->parseAtPrelude($statement);
         if (!$this->isCustomAtRule($name)) {
-            return $statement . ';';
+            $rule = $this->buildUnknownRule($name, $prelude, null, $parentSelectors);
+            $replacement = $this->callUnknownRuleVisitor($rule);
+
+            return $replacement === null
+                ? $statement . ';'
+                : $this->emitReplacement($replacement, $parentSelectors);
         }
 
         $rule = $this->buildCustomRule($name, $prelude, null, $parentSelectors);
@@ -330,14 +373,18 @@ final class CustomAtRuleTransformer
             $nestedBody = substr($body, $nextBlock + 1, $close - $nextBlock - 1);
 
             if (str_starts_with($nestedPrelude, '@')) {
-                [$name] = $this->parseAtPrelude($nestedPrelude);
+                [$name, $atPrelude] = $this->parseAtPrelude($nestedPrelude);
                 if ($this->isCustomAtRule($name)) {
                     $output .= $this->processCustomAtRule($nestedPrelude, $nestedBody, $selectors);
                 } elseif (str_starts_with($nestedPrelude, '@nest ')) {
                     $nestedSelectors = $this->resolveNestedSelectors($selectors, substr($nestedPrelude, 6));
                     $output .= $this->processStyleBody($nestedBody, $nestedSelectors);
                 } else {
-                    $output .= $nestedPrelude . '{' . $this->processStyleBody($nestedBody, $selectors) . '}';
+                    $rule = $this->buildUnknownRule($name, $atPrelude, $nestedBody, $selectors);
+                    $replacement = $this->callUnknownRuleVisitor($rule);
+                    $output .= $replacement === null
+                        ? $nestedPrelude . '{' . $this->processStyleBody($nestedBody, $selectors) . '}'
+                        : $this->emitReplacement($replacement, $selectors);
                 }
             } else {
                 $nestedSelectors = $this->resolveNestedSelectors($selectors, $nestedPrelude);
@@ -405,6 +452,25 @@ final class CustomAtRuleTransformer
         ];
     }
 
+    /**
+     * @param list<string>|null $parentSelectors
+     * @return array{name:string, prelude:string, preludeTokens:list<array{type:string,value:mixed}>, body:string, hasBlock:bool, context:string, parentSelectors:list<string>}
+     */
+    private function buildUnknownRule(string $name, string $prelude, ?string $body, ?array $parentSelectors): array
+    {
+        $prelude = trim($prelude);
+
+        return [
+            'name' => $name,
+            'prelude' => $prelude,
+            'preludeTokens' => $this->parseUnknownPreludeTokens($prelude),
+            'body' => $body ?? '',
+            'hasBlock' => $body !== null,
+            'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
+            'parentSelectors' => $parentSelectors ?? [],
+        ];
+    }
+
     private function parseCustomPreludeValue(string $name, string $prelude, ?string $grammar): string
     {
         $prelude = trim($prelude);
@@ -432,6 +498,19 @@ final class CustomAtRuleTransformer
     private function callRuleVisitor(array $rule): mixed
     {
         $visitor = $this->ruleVisitors[$rule['name']] ?? $this->genericRuleVisitor;
+        if ($visitor === null) {
+            return null;
+        }
+
+        return $visitor($rule, $this);
+    }
+
+    /**
+     * @param array{name:string} $rule
+     */
+    private function callUnknownRuleVisitor(array $rule): mixed
+    {
+        $visitor = $this->unknownRuleVisitors[$rule['name']] ?? $this->genericUnknownRuleVisitor;
         if ($visitor === null) {
             return null;
         }
@@ -535,6 +614,35 @@ final class CustomAtRuleTransformer
         }
 
         return self::caseInsensitiveCallback($visitor, $ruleName);
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function unknownRuleVisitorCallback(array $visitor, string $ruleName): ?callable
+    {
+        $ruleConfig = $visitor['Rule'] ?? null;
+        if (is_array($ruleConfig)) {
+            $unknownConfig = $ruleConfig['unknown'] ?? null;
+            if (is_callable($unknownConfig)) {
+                return $unknownConfig;
+            }
+
+            if (is_array($unknownConfig)) {
+                return self::caseInsensitiveCallback($unknownConfig, $ruleName);
+            }
+        }
+
+        $unknownConfig = $visitor['unknown'] ?? null;
+        if (is_callable($unknownConfig)) {
+            return $unknownConfig;
+        }
+
+        if (is_array($unknownConfig)) {
+            return self::caseInsensitiveCallback($unknownConfig, $ruleName);
+        }
+
+        return null;
     }
 
     /**
@@ -672,6 +780,106 @@ final class CustomAtRuleTransformer
             },
             $this->splitTopLevel($arguments, ',')
         );
+    }
+
+    /**
+     * @return list<array{type:string,value:mixed}>
+     */
+    private function parseUnknownPreludeTokens(string $prelude): array
+    {
+        $tokens = [];
+        foreach ($this->splitWhitespaceTokens($prelude) as $token) {
+            if (
+                strlen($token) >= 2
+                && (($token[0] === '"' && $token[strlen($token) - 1] === '"') || ($token[0] === "'" && $token[strlen($token) - 1] === "'"))
+            ) {
+                $tokens[] = [
+                    'type' => 'token',
+                    'value' => [
+                        'type' => 'string',
+                        'value' => stripcslashes(substr($token, 1, -1)),
+                    ],
+                ];
+                continue;
+            }
+
+            if (preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $token) === 1) {
+                $tokens[] = [
+                    'type' => 'token',
+                    'value' => [
+                        'type' => 'ident',
+                        'value' => $token,
+                    ],
+                ];
+                continue;
+            }
+
+            $tokens[] = [
+                'type' => 'raw',
+                'value' => $token,
+            ];
+        }
+
+        return $tokens;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitWhitespaceTokens(string $value): array
+    {
+        $tokens = [];
+        $current = '';
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $current .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $current .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $current .= $char;
+                continue;
+            }
+            if ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            }
+
+            if (ctype_space($char) && $parenDepth === 0 && $bracketDepth === 0) {
+                if (trim($current) !== '') {
+                    $tokens[] = trim($current);
+                    $current = '';
+                }
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        if (trim($current) !== '') {
+            $tokens[] = trim($current);
+        }
+
+        return $tokens;
     }
 
     private function findMatchingParen(string $css, int $open): ?int

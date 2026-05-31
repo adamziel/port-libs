@@ -385,6 +385,43 @@ return [
             )
         );
     },
+    'declaration block reads and writes upstream inset cssom rect shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => '0 1px', 'important' => false],
+            $block->getProperty('top: 0; right: 1px; bottom: 0; left: 1px', 'inset')
+        );
+        $t->same(
+            ['value' => '2px', 'important' => false],
+            $block->getProperty('inset: 2px 4px 6px 8px', 'top')
+        );
+        $t->same(
+            ['value' => '4px', 'important' => false],
+            $block->getProperty('inset: 2px 4px 6px 8px', 'right')
+        );
+        $t->same(
+            null,
+            $block->getProperty('top: 0; right: 1px; bottom: 0 !important; left: 1px', 'inset')
+        );
+        $t->same(
+            ['value' => '0', 'important' => true],
+            $block->getProperty('inset: 0 !important; top: 2px', 'top')
+        );
+        $t->same('inset: 2px 0 0', $block->setProperty('inset: 0', 'top', '2px'));
+        $t->same(
+            'inset: 1px 2px 1px 3px',
+            $block->setProperty('inset: 1px 2px', 'left', '3px')
+        );
+        $t->same(
+            'inset: 4px; inset-inline-start: 2px; top: 8px',
+            $block->setProperty('inset: 4px; inset-inline-start: 2px', 'top', '8px')
+        );
+        $t->same(
+            'top: 10px; inset-inline-start: 4px',
+            $block->setProperty('top: 10px; inset-inline-start: 2px', 'inset-inline-start', '4px')
+        );
+    },
     'declaration block sets upstream background position shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -520,6 +557,26 @@ return [
         $t->same(
             'padding-top: 1rem !important; padding-right: 2rem !important; padding-bottom: 3rem !important',
             $block->removeProperty('padding: 1rem 2rem 3rem 4rem !important', 'padding-left')
+        );
+    },
+    'declaration block removes upstream inset cssom rect shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'right: 2px; bottom: 1px; left: 2px',
+            $block->removeProperty('inset: 1px 2px', 'top')
+        );
+        $t->same(
+            'top: 1px; bottom: 3px; left: 4px',
+            $block->removeProperty('inset: 1px 2px 3px 4px', 'right')
+        );
+        $t->same(
+            'inset-inline-start: 4px',
+            $block->removeProperty('top: 0; right: 1px; bottom: 0; left: 1px; inset-inline-start: 4px', 'inset')
+        );
+        $t->same(
+            'color: red; right: 1px !important; bottom: 0 !important; left: 1px !important',
+            $block->removeProperty('inset: 0 1px !important; top: 2px; color: red', 'top')
         );
     },
     'declaration block removes upstream background cssom shorthand and supported longhands' => static function (TestRunner $t): void {

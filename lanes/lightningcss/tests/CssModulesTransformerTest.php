@@ -206,6 +206,42 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules parses upstream composes from delimiters strictly' => static function (TestRunner $t) use ($export, $local, $dependency): void {
+        $css = <<<'CSS'
+.test {
+  composes: global none;
+  composes: foo from './foo bar.css';
+  background: white;
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css);
+
+        $t->same('.EgL3uq_test{background:#fff}', $result['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [
+                $local('EgL3uq_global'),
+                $local('EgL3uq_none'),
+                $dependency('foo', './foo bar.css'),
+            ]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
+    'css modules rejects malformed upstream composes grammar' => static function (TestRunner $t): void {
+        $transformer = new CssModulesTransformer();
+
+        foreach ([
+            '.test { composes: from global; color: red }',
+            '.test { composes: foo from; color: red }',
+            '.test { composes: foo from bar; color: red }',
+            '.test { composes: foo from global bar; color: red }',
+            '.test { composes: foo from "foo.css" bar; color: red }',
+            '.test { composes: initial; color: red }',
+            '.test { composes: revert-layer; color: red }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform($css));
+        }
+    },
     'css modules merges repeated composes declarations across local and dependency references' => static function (TestRunner $t) use ($export, $local, $dependency): void {
         $css = <<<'CSS'
 .test {

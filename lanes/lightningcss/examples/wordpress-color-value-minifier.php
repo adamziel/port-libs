@@ -17,9 +17,14 @@ $css = <<<'CSS'
   color: light-dark(#FFF, #FFF);
   outline-color: hsl(none none none);
 }
+
+.wp-block-cover.has-wide-gamut-overlay {
+  background: linear-gradient(lch(29.2345% 44.2% 27deg), color(display-p3 100% 50% 0 / 20%));
+  outline-color: oklab(.40101 0.1147 0.0453);
+}
 CSS;
 
-$expected = '.wp-block-cover.has-hwb-overlay{color:#00c4ff80;background:linear-gradient(#80e1ff,#006280);border-color:buttonborder}.wp-block-button .wp-element-button{color:#fff;outline-color:#000}';
+$expected = '.wp-block-cover.has-hwb-overlay{color:#00c4ff80;background:linear-gradient(#80e1ff,#006280);border-color:buttonborder}.wp-block-button .wp-element-button{color:#fff;outline-color:#000}.wp-block-cover.has-wide-gamut-overlay{background:linear-gradient(lch(29.2345% 66.3 27),color(display-p3 1 .5 0/.2));outline-color:oklab(40.101% .1147 .0453)}';
 $actual = (new CssMinifier())->minify($css);
 
 if ($actual !== $expected) {

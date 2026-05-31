@@ -50,6 +50,50 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler maps upstream import prelude ordering diagnostics' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            "/*! bundle */\n@layer reset;.b{color:green}.a{color:red}",
+            $bundle([
+                '/a.css' => '@charset "utf-8"; @layer reset; /*! bundle */ @import "b.css"; .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $rejectedAfterStyle = false;
+        try {
+            $bundle([
+                '/a.css' => '.a { color: red } @import "b.css"; .tail { color: blue }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css');
+        } catch (CssBundleException $exception) {
+            $t->same('parser-error', $exception->kind);
+            $t->same('@import rules must precede all rules aside from @charset and @layer statements', $exception->getMessage());
+            $t->same('/a.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(26, $exception->sourceColumn);
+            $rejectedAfterStyle = true;
+        }
+
+        if (!$rejectedAfterStyle) {
+            throw new RuntimeException('Expected late @import after style rule exception');
+        }
+
+        try {
+            $bundle([
+                '/a.css' => '@namespace svg "http://www.w3.org/2000/svg"; @import "icons.css"; svg|path { fill: red }',
+                '/icons.css' => '.icon { fill: green }',
+            ], '/a.css');
+        } catch (CssBundleException $exception) {
+            $t->same('parser-error', $exception->kind);
+            $t->same('/a.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(53, $exception->sourceColumn);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected late @import after @namespace exception');
+    },
     'css bundler wraps imported files in supports media and layer conditions' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@supports (color:green){@media print{.b{color:green}}}.a{color:red}',

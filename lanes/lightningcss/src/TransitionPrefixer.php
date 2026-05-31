@@ -238,6 +238,8 @@ final class TransitionPrefixer
         $colorSchemeChanged = $this->rewriteColorSchemeFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $printColorAdjustChanged = $this->rewritePrintColorAdjustPrefixEntries($entries, $targetOptions);
         $uiPrefixChanged = $this->rewriteUiPrefixEntries($entries, $targetOptions);
+        $textCompatibilityPrefixChanged = $this->rewriteTextCompatibilityPrefixEntries($entries, $targetOptions);
+        $positionStickyChanged = $this->rewritePositionStickyPrefixEntries($entries, $targetOptions);
         $maskChanged = $this->rewriteMaskPrefixEntries($entries, $selectors, $supportRules);
         $filterChanged = $this->rewriteFilterPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
         $boxShadowChanged = $this->rewriteBoxShadowPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
@@ -264,7 +266,7 @@ final class TransitionPrefixer
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
         $lightDarkChanged = $this->rewriteLightDarkFallbackEntries($entries, $targetOptions);
         $lightDarkSerializationChanged = $this->rewriteLightDarkAdvancedColorSerializationEntries($entries, $targetOptions);
-        if ($transitionChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
+        if ($transitionChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -278,7 +280,9 @@ final class TransitionPrefixer
     {
         $lowerSimpleRanges = $targetOptions['mediaRangeSimpleNeedsFallback'] ?? false;
         $lowerIntervalRanges = $targetOptions['mediaRangeIntervalNeedsFallback'] ?? false;
-        if ((!$lowerSimpleRanges && !$lowerIntervalRanges) || preg_match('/^@media\b/i', $prelude) !== 1) {
+        $needsResolutionPrefixes = ($targetOptions['mediaResolutionNeedsWebkitPrefix'] ?? false)
+            || ($targetOptions['mediaResolutionNeedsMozPrefix'] ?? false);
+        if ((!$lowerSimpleRanges && !$lowerIntervalRanges && !$needsResolutionPrefixes) || preg_match('/^@media\b/i', $prelude) !== 1) {
             return $prelude;
         }
 
@@ -287,7 +291,138 @@ final class TransitionPrefixer
             return $prelude;
         }
 
-        return '@media ' . (new MediaQueryParser())->lowerRangeSyntaxList($condition, $lowerSimpleRanges, $lowerIntervalRanges);
+        $condition = (new MediaQueryParser())->lowerRangeSyntaxList($condition, $lowerSimpleRanges, $lowerIntervalRanges);
+        if ($needsResolutionPrefixes) {
+            $condition = $this->prefixResolutionMediaQueries($condition, $targetOptions);
+        }
+
+        return '@media ' . $condition;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function prefixResolutionMediaQueries(string $queryList, array $targetOptions): string
+    {
+        $needsWebkit = $targetOptions['mediaResolutionNeedsWebkitPrefix'] ?? false;
+        $needsMoz = $targetOptions['mediaResolutionNeedsMozPrefix'] ?? false;
+        if (!$needsWebkit && !$needsMoz) {
+            return $queryList;
+        }
+
+        $queries = [];
+        $seen = [];
+        foreach ($this->splitTopLevel($queryList, ',') as $query) {
+            foreach ($this->resolutionMediaQueryVariants($query, $needsWebkit, $needsMoz) as $variant) {
+                if (isset($seen[$variant])) {
+                    continue;
+                }
+
+                $seen[$variant] = true;
+                $queries[] = $variant;
+            }
+        }
+
+        return implode(',', $queries);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resolutionMediaQueryVariants(string $query, bool $needsWebkit, bool $needsMoz): array
+    {
+        $match = $this->matchResolutionCondition($query);
+        if ($match === null) {
+            return [$query];
+        }
+
+        $ratio = $this->resolutionValueToDevicePixelRatio($match['value']);
+        if ($ratio === null) {
+            return [$query];
+        }
+
+        $variants = [];
+        if ($needsWebkit) {
+            $variants[] = substr_replace(
+                $query,
+                $this->resolutionPrefixCondition($match['bound'], $ratio, 'webkit', $match['negated']),
+                $match['offset'],
+                $match['length']
+            );
+        }
+        if ($needsMoz) {
+            $variants[] = substr_replace(
+                $query,
+                $this->resolutionPrefixCondition($match['bound'], $ratio, 'moz', $match['negated']),
+                $match['offset'],
+                $match['length']
+            );
+        }
+        $variants[] = $query;
+
+        return $variants;
+    }
+
+    /**
+     * @return array{offset:int,length:int,bound:string,value:string,negated:bool}|null
+     */
+    private function matchResolutionCondition(string $query): ?array
+    {
+        if (preg_match('/not \((min|max)-resolution:([^)]+)\)/i', $query, $matches, PREG_OFFSET_CAPTURE) === 1) {
+            return [
+                'offset' => $matches[0][1],
+                'length' => strlen($matches[0][0]),
+                'bound' => strtolower($matches[1][0]),
+                'value' => trim($matches[2][0]),
+                'negated' => true,
+            ];
+        }
+
+        if (preg_match('/\((min|max)-resolution:([^)]+)\)/i', $query, $matches, PREG_OFFSET_CAPTURE) !== 1) {
+            return null;
+        }
+
+        return [
+            'offset' => $matches[0][1],
+            'length' => strlen($matches[0][0]),
+            'bound' => strtolower($matches[1][0]),
+            'value' => trim($matches[2][0]),
+            'negated' => false,
+        ];
+    }
+
+    private function resolutionPrefixCondition(string $bound, string $ratio, string $vendor, bool $negated): string
+    {
+        $feature = match ($vendor) {
+            'webkit' => $bound === 'min' ? '-webkit-min-device-pixel-ratio' : '-webkit-max-device-pixel-ratio',
+            'moz' => $bound === 'min' ? 'min--moz-device-pixel-ratio' : 'max--moz-device-pixel-ratio',
+            default => $bound . '-resolution',
+        };
+        $condition = '(' . $feature . ':' . $ratio . ')';
+
+        return $negated ? 'not ' . $condition : $condition;
+    }
+
+    private function resolutionValueToDevicePixelRatio(string $value): ?string
+    {
+        if (preg_match('/^([0-9]+(?:\.[0-9]+)?)(dppx|dpi|dpcm)$/i', trim($value), $matches) !== 1) {
+            return null;
+        }
+
+        $number = (float) $matches[1];
+        $ratio = match (strtolower($matches[2])) {
+            'dppx' => $number,
+            'dpi' => $number / 96,
+            'dpcm' => $number / (96 / 2.54),
+            default => null,
+        };
+        if ($ratio === null) {
+            return null;
+        }
+
+        $formatted = rtrim(rtrim(sprintf('%.5f', round($ratio, 5)), '0'), '.');
+
+        return $formatted === '-0' ? '0' : $formatted;
     }
 
     /**
@@ -667,6 +802,28 @@ final class TransitionPrefixer
             'appearanceNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [79]),
             'appearanceNeedsMs' => isset($normalized['ie'])
                 || $this->targetInRange($normalized, 'edge', [12], [18]),
+            'textSizeAdjustNeedsWebkit' => $this->targetAtLeast($normalized, 'ios_saf', [5]),
+            'textSizeAdjustNeedsMoz' => isset($normalized['firefox']),
+            'textSizeAdjustNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
+                || $this->targetAtLeast($normalized, 'ie', [10]),
+            'hyphensNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [4, 1], [16, 5])
+                || $this->targetInRange($normalized, 'safari', [5, 1], [16, 5]),
+            'hyphensNeedsMoz' => $this->targetInRange($normalized, 'firefox', [6], [42]),
+            'hyphensNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
+                || $this->targetAtLeast($normalized, 'ie', [10]),
+            'tabSizeNeedsMoz' => $this->targetInRange($normalized, 'firefox', [4], [90]),
+            'tabSizeNeedsO' => $this->targetInRange($normalized, 'opera', [10], [12, 1]),
+            'textAlignLastNeedsMoz' => $this->targetInRange($normalized, 'firefox', [12], [48]),
+            'textOverflowNeedsO' => $this->targetInRange($normalized, 'opera', [9], [12]),
+            'boxDecorationBreakNeedsWebkit' => $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [22], [129])
+                || $this->targetInRange($normalized, 'edge', [79], [129])
+                || $this->targetAtLeast($normalized, 'ios_saf', [7])
+                || $this->targetAtLeast($normalized, 'opera', [15])
+                || $this->targetAtLeast($normalized, 'safari', [6, 1])
+                || $this->targetAtLeast($normalized, 'samsung', [4]),
+            'stickyNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [6], [12, 2])
+                || $this->targetInRange($normalized, 'safari', [6, 1], [12, 1]),
             'textDecorationNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [8], [26])
                 || $this->targetInRange($normalized, 'safari', [8], [26]),
             'textDecorationNeedsMoz' => $this->targetInRange($normalized, 'firefox', [6], [35]),
@@ -728,6 +885,9 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'android', [0], [103])
                 || $this->targetInRange($normalized, 'opera', [0], [89])
                 || $this->targetInRange($normalized, 'samsung', [0], [19]),
+            'mediaResolutionNeedsWebkitPrefix' => $this->targetInRange($normalized, 'safari', [0], [15])
+                || $this->targetInRange($normalized, 'ios_saf', [0], [15]),
+            'mediaResolutionNeedsMozPrefix' => $this->targetInRange($normalized, 'firefox', [0], [15]),
             'keyframesNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [42])
                 || $this->targetInRange($normalized, 'ios_saf', [3], [8, 0])
@@ -1194,6 +1354,90 @@ final class TransitionPrefixer
             '-moz-' => $targetOptions['appearanceNeedsMoz'] ?? false,
             '-ms-' => $targetOptions['appearanceNeedsMs'] ?? false,
         ]) || $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteTextCompatibilityPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'text-size-adjust', [
+            '-webkit-' => $targetOptions['textSizeAdjustNeedsWebkit'] ?? false,
+            '-moz-' => $targetOptions['textSizeAdjustNeedsMoz'] ?? false,
+            '-ms-' => $targetOptions['textSizeAdjustNeedsMs'] ?? false,
+        ]);
+        $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'hyphens', [
+            '-webkit-' => $targetOptions['hyphensNeedsWebkit'] ?? false,
+            '-moz-' => $targetOptions['hyphensNeedsMoz'] ?? false,
+            '-ms-' => $targetOptions['hyphensNeedsMs'] ?? false,
+        ]) || $changed;
+        $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'tab-size', [
+            '-moz-' => $targetOptions['tabSizeNeedsMoz'] ?? false,
+            '-o-' => $targetOptions['tabSizeNeedsO'] ?? false,
+        ]) || $changed;
+        $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'text-align-last', [
+            '-moz-' => $targetOptions['textAlignLastNeedsMoz'] ?? false,
+        ]) || $changed;
+        $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'text-overflow', [
+            '-o-' => $targetOptions['textOverflowNeedsO'] ?? false,
+        ]) || $changed;
+
+        return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'box-decoration-break', [
+            '-webkit-' => $targetOptions['boxDecorationBreakNeedsWebkit'] ?? false,
+        ]) || $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewritePositionStickyPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $needsWebkit = $targetOptions['stickyNeedsWebkit'] ?? false;
+        $hasSticky = false;
+        $hasWebkitSticky = false;
+        foreach ($entries as $entry) {
+            if ($entry['property'] !== 'position' || $entry['important']) {
+                continue;
+            }
+            $value = strtolower($entry['value']);
+            if ($value === 'sticky') {
+                $hasSticky = true;
+            } elseif ($value === '-webkit-sticky') {
+                $hasWebkitSticky = true;
+            }
+        }
+
+        if (!$hasSticky) {
+            return false;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'position' && !$entry['important']) {
+                $value = strtolower($entry['value']);
+                if ($value === '-webkit-sticky' && !$needsWebkit) {
+                    $changed = true;
+                    continue;
+                }
+                if ($value === 'sticky' && $needsWebkit && !$hasWebkitSticky) {
+                    $rewritten[] = $this->declarationEntry('position', '-webkit-sticky');
+                    $hasWebkitSticky = true;
+                    $changed = true;
+                }
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+        return true;
     }
 
     /**
@@ -3854,11 +4098,16 @@ final class TransitionPrefixer
             'lab(40% 56.6 39)' => '#b32323',
             'lab(51.5117% 43.3777 -29.0443)' => '#af5cae',
             'lab(52.2319% 40.1449 59.9171)',
+            'oklab(59.686% .1009 .1192)',
             'oklab(59.686% 0.1009 0.1192)' => '#c65d07',
+            'oklch(59.686% .15619 49.7694)',
             'oklch(59.686% 0.15619 49.7694)' => '#c65d06',
+            'oklch(40% .12687354 34.568626)',
             'oklch(40% 0.1268735435 34.568626)' => '#7e250f',
+            'oklch(100% 0 0/.5)',
             'oklch(100% 0 0deg/50%)' => '#ffffff80',
             'lab(47.7776% -34.2947 -7.65904)',
+            'oklab(54% -.1 -.02)',
             'oklab(54.0% -0.10 -0.02)' => '#00807c',
             'lch(56.208% 136.76 46.312)',
             'lab(56.208% 94.4644 98.8928)' => '#ff0f0e',
@@ -3880,6 +4129,7 @@ final class TransitionPrefixer
         return match ($color) {
             'lab(40% 56.6 39)' => 'color(display-p3 .643308 .192455 .167712)',
             'lab(52.2319% 40.1449 59.9171)',
+            'oklab(59.686% .1009 .1192)',
             'oklab(59.686% 0.1009 0.1192)' => 'color(display-p3 .724144 .386777 .148795)',
             'lch(56.208% 136.76 46.312)',
             'lab(56.208% 94.4644 98.8928)' => 'color(display-p3 1 .0000153435 -.00000303562)',
@@ -3887,6 +4137,7 @@ final class TransitionPrefixer
             'lab(51% 70.4544 -115.586)' => 'color(display-p3 .440289 .28452 1.23485)',
             'lch(50.998% 135.363 338)',
             'lab(50.998% 125.506 -50.7078)' => 'color(display-p3 .972962 -.362078 .804206)',
+            'oklch(100% 0 0/.5)',
             'oklch(100% 0 0deg/50%)' => 'color(display-p3 1 1 1 / .5)',
             default => null,
         };
@@ -3898,11 +4149,16 @@ final class TransitionPrefixer
             'lab(40% 56.6 39)' => 'lab(40% 56.6 39)',
             'lab(51.5117% 43.3777 -29.0443)' => 'lab(51.5117% 43.3777 -29.0443)',
             'lab(52.2319% 40.1449 59.9171)',
+            'oklab(59.686% .1009 .1192)',
             'oklab(59.686% 0.1009 0.1192)' => 'lab(52.2319% 40.1449 59.9171)',
+            'oklch(59.686% .15619 49.7694)',
             'oklch(59.686% 0.15619 49.7694)' => 'lab(52.2321% 40.1417 59.9527)',
+            'oklch(40% .12687354 34.568626)',
             'oklch(40% 0.1268735435 34.568626)' => 'lab(29.2661% 38.2437 35.3889)',
+            'oklch(100% 0 0/.5)',
             'oklch(100% 0 0deg/50%)' => 'lab(100% 0 0 / .5)',
             'lab(47.7776% -34.2947 -7.65904)',
+            'oklab(54% -.1 -.02)',
             'oklab(54.0% -0.10 -0.02)' => 'lab(47.7776% -34.2947 -7.65904)',
             'lch(56.208% 136.76 46.312)',
             'lab(56.208% 94.4644 98.8928)' => 'lab(56.208% 94.4644 98.8928)',

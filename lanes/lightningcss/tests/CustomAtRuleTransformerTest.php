@@ -313,4 +313,67 @@ CSS;
 
         $t->same('.testA{color:red}.testB{color:#0f0}', $result);
     },
+    'custom at-rules map upstream composed unknown at-rule visitors' => static function (TestRunner $t): void {
+        $dependencies = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'unknown' => [
+                        'dep' => static function (array $rule) use (&$dependencies): array {
+                            $dependencies[] = $rule['preludeTokens'][0]['value']['value'];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Rule' => [
+                    'unknown' => [
+                        'dep2' => static function (array $rule) use (&$dependencies): array {
+                            $dependencies[] = [
+                                'name' => $rule['name'],
+                                'prelude' => $rule['prelude'],
+                                'string' => $rule['preludeTokens'][0]['value']['value'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@dep "foo.js"; @dep2 "bar.js"; .foo { width: 32px; }', [], $visitor);
+
+        $t->same('.foo{width:32px}', $result);
+        $t->same('foo.js', $dependencies[0]);
+        $t->same(['name' => 'dep2', 'prelude' => '"bar.js"', 'string' => 'bar.js'], $dependencies[1]);
+    },
+    'custom at-rules visit unknown at-rule blocks inside style rules' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+.wp-block-card {
+  @when editor {
+    color: yellow;
+
+    & .wp-block-card__title {
+      color: red;
+    }
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => [
+                    'when' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->media(
+                        '(prefers-color-scheme: ' . $rule['prelude'] . ')',
+                        $transformer->styleBlock($rule['body'])
+                    ),
+                ],
+            ],
+        ]);
+
+        $t->same('@media (prefers-color-scheme:editor){.wp-block-card{color:#ff0}.wp-block-card .wp-block-card__title{color:red}}', $result);
+    },
 ];

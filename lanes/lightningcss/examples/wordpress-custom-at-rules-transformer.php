@@ -7,6 +7,9 @@ use PortLibs\LightningCSS\CustomAtRuleTransformer;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $css = <<<'CSS'
+@asset "wp-block-card/view.js";
+@asset-style "wp-block-card/style.css";
+
 @tokens wp {
   --gap: 24px;
   accent: yellow;
@@ -42,6 +45,7 @@ CSS;
 
 $tokens = [];
 $mixins = [];
+$dependencies = [];
 $transformer = new CustomAtRuleTransformer();
 
 $result = $transformer->transform($css, [
@@ -67,6 +71,13 @@ $result = $transformer->transform($css, [
 ], CustomAtRuleTransformer::composeVisitors([
     [
         'Rule' => [
+            'unknown' => [
+                'asset' => static function (array $rule) use (&$dependencies): array {
+                    $dependencies[] = ['type' => 'script', 'path' => $rule['preludeTokens'][0]['value']['value']];
+
+                    return [];
+                },
+            ],
             'custom' => [
                 'tokens' => static function (array $rule) use (&$tokens): array {
                     foreach ($rule['declarations'] as $declaration) {
@@ -88,6 +99,13 @@ $result = $transformer->transform($css, [
     ],
     [
         'Rule' => [
+            'unknown' => [
+                'asset-style' => static function (array $rule) use (&$dependencies): array {
+                    $dependencies[] = ['type' => 'style', 'path' => $rule['preludeTokens'][0]['value']['value']];
+
+                    return [];
+                },
+            ],
             'custom' => [
                 'responsive' => static function (array $rule, CustomAtRuleTransformer $transformer): array {
                     return [
@@ -113,6 +131,13 @@ $expected = '.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-bl
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {
         fwrite(STDERR, "Unexpected custom at-rule transform output:\n{$result}\n");
+        exit(1);
+    }
+    if ($dependencies !== [
+        ['type' => 'script', 'path' => 'wp-block-card/view.js'],
+        ['type' => 'style', 'path' => 'wp-block-card/style.css'],
+    ]) {
+        fwrite(STDERR, "Unexpected custom at-rule dependencies:\n" . json_encode($dependencies) . "\n");
         exit(1);
     }
 

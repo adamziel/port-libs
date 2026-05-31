@@ -268,6 +268,159 @@ return [
             $prefixer->prefixForTargets('.foo { appearance: none; }', ['safari' => 16])
         );
     },
+    'transition prefixer maps upstream legacy text and sticky prefix helpers' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-text-size-adjust:none;-moz-text-size-adjust:none;-ms-text-size-adjust:none;text-size-adjust:none}',
+            $prefixer->prefixForTargets('.foo { text-size-adjust: none; }', [
+                'ios_saf' => 16,
+                'edge' => 15,
+                'firefox' => 20,
+            ])
+        );
+        $t->same(
+            '.foo{text-size-adjust:none}',
+            $prefixer->prefixForTargets('.foo { -webkit-text-size-adjust: none; -moz-text-size-adjust: none; -ms-text-size-adjust: none; text-size-adjust: none; }', ['chrome' => 110])
+        );
+        $t->same(
+            '.foo{-webkit-hyphens:manual;-moz-hyphens:manual;-ms-hyphens:manual;hyphens:manual}',
+            $prefixer->prefixForTargets('.foo { hyphens: manual; }', [
+                'safari' => 14,
+                'firefox' => 40,
+                'ie' => 10,
+            ])
+        );
+        $t->same(
+            '.foo{-webkit-hyphens:manual;hyphens:manual}',
+            $prefixer->prefixForTargets('.foo { -webkit-hyphens: manual; -moz-hyphens: manual; -ms-hyphens: manual; hyphens: manual; }', [
+                'safari' => 14,
+                'chrome' => 88,
+                'firefox' => 88,
+                'edge' => 79,
+            ])
+        );
+        $t->same(
+            '.foo{hyphens:manual}',
+            $prefixer->prefixForTargets('.foo { -webkit-hyphens: manual; -moz-hyphens: manual; -ms-hyphens: manual; hyphens: manual; }', [
+                'chrome' => 88,
+                'firefox' => 88,
+                'edge' => 79,
+            ])
+        );
+        $t->same(
+            '.foo{-moz-tab-size:4;-o-tab-size:4;tab-size:4}',
+            $prefixer->prefixForTargets('.foo { tab-size: 4; }', [
+                'firefox' => 50,
+                'opera' => 12,
+            ])
+        );
+        $t->same(
+            '.foo{tab-size:4}',
+            $prefixer->prefixForTargets('.foo { -moz-tab-size: 4; -o-tab-size: 4; tab-size: 4; }', [
+                'firefox' => 94,
+                'opera' => 30,
+            ])
+        );
+        $t->same(
+            '.foo{-moz-text-align-last:left;text-align-last:left}',
+            $prefixer->prefixForTargets('.foo { text-align-last: left; }', ['firefox' => 40])
+        );
+        $t->same(
+            '.foo{text-align-last:left}',
+            $prefixer->prefixForTargets('.foo { -moz-text-align-last: left; text-align-last: left; }', ['firefox' => 88])
+        );
+        $t->same(
+            '.foo{-o-text-overflow:ellipsis;text-overflow:ellipsis}',
+            $prefixer->prefixForTargets('.foo { text-overflow: ellipsis; }', [
+                'safari' => 4,
+                'opera' => 10,
+            ])
+        );
+        $t->same(
+            '.foo{text-overflow:ellipsis}',
+            $prefixer->prefixForTargets('.foo { -o-text-overflow: ellipsis; text-overflow: ellipsis; }', [
+                'safari' => 4,
+                'opera' => 14,
+            ])
+        );
+        $t->same(
+            '.foo{-webkit-box-decoration-break:clone;box-decoration-break:clone}',
+            $prefixer->prefixForTargets('.foo { box-decoration-break: clone; }', ['safari' => 15])
+        );
+        $t->same(
+            '.foo{box-decoration-break:clone}',
+            $prefixer->prefixForTargets('.foo { box-decoration-break: clone; }', ['firefox' => 95])
+        );
+        $t->same(
+            '.foo{position:-webkit-sticky;position:sticky}',
+            $prefixer->prefixForTargets('.foo { position: sticky; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{position:sticky}',
+            $prefixer->prefixForTargets('.foo { position: -webkit-sticky; position: sticky; }', ['safari' => 13])
+        );
+    },
+    'transition prefixer maps upstream legacy text browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{text-size-adjust:none}',
+            $prefixer->prefixForTargets('.foo { text-size-adjust: none; }', ['ios_saf' => '4.3'])
+        );
+        $t->same(
+            '.foo{-webkit-text-size-adjust:none;text-size-adjust:none}',
+            $prefixer->prefixForTargets('.foo { text-size-adjust: none; }', ['ios_saf' => 5])
+        );
+        $t->same(
+            '.foo{-webkit-hyphens:manual;hyphens:manual}',
+            $prefixer->prefixForTargets('.foo { hyphens: manual; }', ['safari' => '16.5'])
+        );
+        $t->same(
+            '.foo{hyphens:manual}',
+            $prefixer->prefixForTargets('.foo { hyphens: manual; }', ['safari' => 17])
+        );
+        $t->same(
+            '.foo{-moz-tab-size:4;tab-size:4}',
+            $prefixer->prefixForTargets('.foo { tab-size: 4; }', ['firefox' => 90])
+        );
+        $t->same(
+            '.foo{tab-size:4}',
+            $prefixer->prefixForTargets('.foo { tab-size: 4; }', ['firefox' => 91])
+        );
+        $t->same(
+            '.foo{-moz-text-align-last:left;text-align-last:left}',
+            $prefixer->prefixForTargets('.foo { text-align-last: left; }', ['firefox' => 48])
+        );
+        $t->same(
+            '.foo{text-align-last:left}',
+            $prefixer->prefixForTargets('.foo { text-align-last: left; }', ['firefox' => 49])
+        );
+        $t->same(
+            '.foo{-o-text-overflow:ellipsis;text-overflow:ellipsis}',
+            $prefixer->prefixForTargets('.foo { text-overflow: ellipsis; }', ['opera' => 12])
+        );
+        $t->same(
+            '.foo{text-overflow:ellipsis}',
+            $prefixer->prefixForTargets('.foo { text-overflow: ellipsis; }', ['opera' => 13])
+        );
+        $t->same(
+            '.foo{-webkit-box-decoration-break:clone;box-decoration-break:clone}',
+            $prefixer->prefixForTargets('.foo { box-decoration-break: clone; }', ['chrome' => 129])
+        );
+        $t->same(
+            '.foo{box-decoration-break:clone}',
+            $prefixer->prefixForTargets('.foo { box-decoration-break: clone; }', ['chrome' => 130])
+        );
+        $t->same(
+            '.foo{position:-webkit-sticky;position:sticky}',
+            $prefixer->prefixForTargets('.foo { position: sticky; }', ['safari' => '12.1'])
+        );
+        $t->same(
+            '.foo{position:sticky}',
+            $prefixer->prefixForTargets('.foo { position: sticky; }', ['safari' => 13])
+        );
+    },
     'transition prefixer maps upstream border-radius target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -938,6 +1091,42 @@ CSS;
         $t->same(
             '@layer blocks{@media not (max-width:0){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width > 0) { .wp-block-query { color: yellow; } } }', ['chrome' => 85])
+        );
+    },
+    'transition prefixer maps upstream resolution media prefixes inside layers' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@layer blocks{@media (-webkit-min-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15])
+        );
+        $t->same(
+            '@layer blocks{@media (min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['firefox' => 10])
+        );
+        $t->same(
+            '@layer blocks{@media not (-webkit-max-device-pixel-ratio:2),not (max-resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (resolution > 2dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15])
+        );
+        $t->same(
+            '@media (-webkit-min-device-pixel-ratio:3.125),(min-resolution:300dpi){.foo{color:#ff0}}',
+            $prefixer->prefixForTargets('@media (resolution >= 300dpi) { .foo { color: yellow; } }', ['safari' => 15])
+        );
+        $t->same(
+            '@media (-webkit-min-device-pixel-ratio:2.99985),(min--moz-device-pixel-ratio:2.99985),(min-resolution:113.38dpcm){.foo{color:#ff0}}',
+            $prefixer->prefixForTargets('@media (min-resolution: 113.38dpcm) { .foo { color: yellow; } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@layer blocks{@media (color) and (-webkit-min-device-pixel-ratio:2),(color) and (min-resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (color) and (min-resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15])
+        );
+        $t->same(
+            '@media (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx),(min-resolution:192dpi){.foo{color:#ff0}}',
+            $prefixer->prefixForTargets('@media (min-resolution: 2dppx), (min-resolution: 192dpi) { .foo { color: yellow; } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@media only screen and (-webkit-min-device-pixel-ratio:1.3),only screen and (min--moz-device-pixel-ratio:1.3),only screen and (min-resolution:124.8dpi){.foo{color:#ff0}}',
+            $prefixer->prefixForTargets('@media only screen and (min-resolution: 124.8dpi) { .foo { color: yellow; } }', ['safari' => 15, 'firefox' => 10])
         );
     },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {

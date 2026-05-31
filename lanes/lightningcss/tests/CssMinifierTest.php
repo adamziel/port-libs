@@ -137,6 +137,49 @@ CSS
         $t->same('.foo{color:red}', $minifier->minify('.foo { color: hwb(none none none) }'));
         $t->same('.foo{color:#000}', $minifier->minify('.foo { color: rgb(none none none) }'));
     },
+    'css minifier maps upstream advanced color function normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            '.foo { color: lab(29.2345% 39.3825 20.0664); }' => '.foo{color:lab(29.2345% 39.3825 20.0664)}',
+            '.foo { color: lab(29.2345 39.3825 20.0664); }' => '.foo{color:lab(29.2345% 39.3825 20.0664)}',
+            '.foo { color: lab(29.2345% 39.3825% 20.0664%); }' => '.foo{color:lab(29.2345% 49.2281 25.083)}',
+            '.foo { color: lab(29.2345% 39.3825 20.0664 / 100%); }' => '.foo{color:lab(29.2345% 39.3825 20.0664)}',
+            '.foo { color: lab(29.2345% 39.3825 20.0664 / 50%); }' => '.foo{color:lab(29.2345% 39.3825 20.0664/.5)}',
+            '.foo { color: lch(29.2345% 44.2 27); }' => '.foo{color:lch(29.2345% 44.2 27)}',
+            '.foo { color: lch(29.2345 44.2 27); }' => '.foo{color:lch(29.2345% 44.2 27)}',
+            '.foo { color: lch(29.2345% 44.2% 27deg); }' => '.foo{color:lch(29.2345% 66.3 27)}',
+            '.foo { color: lch(29.2345% 44.2 45deg); }' => '.foo{color:lch(29.2345% 44.2 45)}',
+            '.foo { color: lch(29.2345% 44.2 .5turn); }' => '.foo{color:lch(29.2345% 44.2 180)}',
+            '.foo { color: lch(29.2345% 44.2 27 / 100%); }' => '.foo{color:lch(29.2345% 44.2 27)}',
+            '.foo { color: lch(29.2345% 44.2 27 / 50%); }' => '.foo{color:lch(29.2345% 44.2 27/.5)}',
+            '.foo { color: oklab(40.101% 0.1147 0.0453); }' => '.foo{color:oklab(40.101% .1147 .0453)}',
+            '.foo { color: oklab(.40101 0.1147 0.0453); }' => '.foo{color:oklab(40.101% .1147 .0453)}',
+            '.foo { color: oklab(40.101% 0.1147% 0.0453%); }' => '.foo{color:oklab(40.101% .0004588 .0001812)}',
+            '.foo { color: oklch(40.101% 0.12332 21.555); }' => '.foo{color:oklch(40.101% .12332 21.555)}',
+            '.foo { color: oklch(.40101 0.12332 21.555); }' => '.foo{color:oklch(40.101% .12332 21.555)}',
+            '.foo { color: oklch(40.101% 0.12332% 21.555); }' => '.foo{color:oklch(40.101% .00049328 21.555)}',
+            '.foo { color: oklch(40.101% 0.12332 .5turn); }' => '.foo{color:oklch(40.101% .12332 180)}',
+            '.foo { color: color(display-p3 1 0.5 0); }' => '.foo{color:color(display-p3 1 .5 0)}',
+            '.foo { color: color(display-p3 100% 50% 0%); }' => '.foo{color:color(display-p3 1 .5 0)}',
+            '.foo { color: color(xyz-d50 0.2005 0.14089 0.4472); }' => '.foo{color:color(xyz-d50 .2005 .14089 .4472)}',
+            '.foo { color: color(xyz-d50 20.05% 14.089% 44.72%); }' => '.foo{color:color(xyz-d50 .2005 .14089 .4472)}',
+            '.foo { color: color(xyz-d65 0.2005 0.14089 0.4472); }' => '.foo{color:color(xyz .2005 .14089 .4472)}',
+            '.foo { color: color(xyz-d65 20.05% 14.089% 44.72%); }' => '.foo{color:color(xyz .2005 .14089 .4472)}',
+            '.foo { color: color(xyz 0.2005 0.14089 0.4472); }' => '.foo{color:color(xyz .2005 .14089 .4472)}',
+            '.foo { color: color(xyz 20.05% 14.089% 44.72%); }' => '.foo{color:color(xyz .2005 .14089 .4472)}',
+            '.foo { color: color(xyz 0.2005 0 0); }' => '.foo{color:color(xyz .2005 0 0)}',
+            '.foo { color: color(xyz 0 0 0); }' => '.foo{color:color(xyz 0 0 0)}',
+            '.foo { color: color(xyz 0 1 0); }' => '.foo{color:color(xyz 0 1 0)}',
+            '.foo { color: color(xyz 0 1 0 / 20%); }' => '.foo{color:color(xyz 0 1 0/.2)}',
+            '.foo { color: color(xyz 0 0 0 / 20%); }' => '.foo{color:color(xyz 0 0 0/.2)}',
+            '.foo { color: color(display-p3 100% 50% 0 / 20%); }' => '.foo{color:color(display-p3 1 .5 0/.2)}',
+            '.foo { color: color(display-p3 100% 0 0 / 20%); }' => '.foo{color:color(display-p3 1 0 0/.2)}',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same($expected, $minifier->minify($input));
+        }
+    },
     'css minifier maps upstream color-scheme value ordering' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

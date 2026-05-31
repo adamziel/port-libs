@@ -19,6 +19,12 @@ final class DeclarationBlock
             'bottom' => 'padding-bottom',
             'left' => 'padding-left',
         ],
+        'inset' => [
+            'top' => 'top',
+            'right' => 'right',
+            'bottom' => 'bottom',
+            'left' => 'left',
+        ],
     ];
 
     private const BACKGROUND_LONGHANDS = [

@@ -100,7 +100,7 @@ final class CssBundler
             );
         }
 
-        $items = $this->topLevelItems($this->files[$file]);
+        $items = $this->topLevelItems($this->files[$file], $file);
         $licenseComments = [];
         $contentItems = [];
         foreach ($items as $item) {
@@ -311,11 +311,12 @@ final class CssBundler
     /**
      * @return list<array<string, mixed>>
      */
-    private function topLevelItems(string $css): array
+    private function topLevelItems(string $css, string $file): array
     {
         $items = [];
         $length = strlen($css);
         $cursor = 0;
+        $importsAllowed = true;
 
         while (true) {
             $cursor = $this->collectTopLevelTrivia($css, $cursor, $items);
@@ -328,6 +329,17 @@ final class CssBundler
             if ($statementEnd !== null && ($blockOpen === null || $statementEnd < $blockOpen)) {
                 $raw = substr($css, $cursor, $statementEnd - $cursor + 1);
                 if ($this->startsAtKeyword($css, $cursor, '@import')) {
+                    if (!$importsAllowed) {
+                        $loc = $this->sourceLocation($css, $cursor + strlen('@import'));
+                        throw new CssBundleException(
+                            'parser-error',
+                            '@import rules must precede all rules aside from @charset and @layer statements',
+                            $file,
+                            $loc['line'],
+                            $loc['column'],
+                        );
+                    }
+
                     $items[] = [
                         'type' => 'import',
                         'raw' => $raw,
@@ -340,6 +352,10 @@ final class CssBundler
                         'raw' => $raw,
                     ];
                 } else {
+                    if (!$this->startsAtKeyword($css, $cursor, '@charset')) {
+                        $importsAllowed = false;
+                    }
+
                     $items[] = [
                         'type' => 'other',
                         'raw' => $raw,
@@ -352,6 +368,7 @@ final class CssBundler
             if ($blockOpen === null) {
                 $trailing = trim(substr($css, $cursor));
                 if ($trailing !== '') {
+                    $importsAllowed = false;
                     $items[] = [
                         'type' => 'other',
                         'raw' => $trailing,
@@ -361,6 +378,7 @@ final class CssBundler
             }
 
             $close = $this->findMatchingDelimiter($css, $blockOpen, '{', '}');
+            $importsAllowed = false;
             $items[] = [
                 'type' => 'other',
                 'raw' => substr($css, $cursor, $close - $cursor + 1),

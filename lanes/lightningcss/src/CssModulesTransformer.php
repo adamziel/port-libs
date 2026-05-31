@@ -226,22 +226,46 @@ final class CssModulesTransformer
      */
     private function parseComposesValue(string $value): array
     {
+        $tokens = $this->tokenizeComposesValue($value);
+        $fromIndex = null;
+        foreach ($tokens as $index => $token) {
+            if (strcasecmp($token, 'from') === 0) {
+                $fromIndex = $index;
+                break;
+            }
+        }
+
         $type = 'local';
         $specifier = null;
+        $names = $tokens;
 
-        if (preg_match('/^(.*?)\s+from\s+global$/i', $value, $matches) === 1) {
-            $value = trim($matches[1]);
-            $type = 'global';
-        } elseif (preg_match('/^(.*?)\s+from\s+(["\'])(.*?)\2$/i', $value, $matches) === 1) {
-            $value = trim($matches[1]);
-            $type = 'dependency';
-            $specifier = $matches[3];
+        if ($fromIndex !== null) {
+            $names = array_slice($tokens, 0, $fromIndex);
+            $from = array_slice($tokens, $fromIndex + 1);
+            if (count($from) !== 1) {
+                throw new \InvalidArgumentException('Invalid CSS Modules composes declaration');
+            }
+
+            if (strcasecmp($from[0], 'global') === 0) {
+                $type = 'global';
+            } else {
+                $specifier = $this->parseQuotedSpecifier($from[0]);
+                if ($specifier === null) {
+                    throw new \InvalidArgumentException('Invalid CSS Modules composes declaration');
+                }
+
+                $type = 'dependency';
+            }
+        }
+
+        if ($names === []) {
+            throw new \InvalidArgumentException('Invalid CSS Modules composes declaration');
         }
 
         $references = [];
-        foreach (preg_split('/\s+/', trim($value)) ?: [] as $name) {
-            if ($name === '') {
-                continue;
+        foreach ($names as $name) {
+            if (!$this->isValidComposesIdent($name)) {
+                throw new \InvalidArgumentException('Invalid CSS Modules composes declaration');
             }
 
             if ($type === 'local') {
@@ -268,6 +292,86 @@ final class CssModulesTransformer
         }
 
         return $references;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tokenizeComposesValue(string $value): array
+    {
+        $tokens = [];
+        $current = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+
+            if ($quote !== null) {
+                $current .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $current .= $value[++$i];
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $tokens[] = $current;
+                    $current = '';
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                if ($current !== '') {
+                    $tokens[] = $current;
+                    $current = '';
+                }
+
+                $quote = $char;
+                $current = $char;
+                continue;
+            }
+
+            if (ctype_space($char)) {
+                if ($current !== '') {
+                    $tokens[] = $current;
+                    $current = '';
+                }
+                continue;
+            }
+
+            $current .= $char;
+        }
+
+        if ($quote !== null) {
+            throw new \InvalidArgumentException('Invalid CSS Modules composes declaration');
+        }
+
+        if ($current !== '') {
+            $tokens[] = $current;
+        }
+
+        return $tokens;
+    }
+
+    private function parseQuotedSpecifier(string $token): ?string
+    {
+        $quote = $token[0] ?? '';
+        if (($quote !== '"' && $quote !== "'") || substr($token, -1) !== $quote) {
+            return null;
+        }
+
+        return substr($token, 1, -1);
+    }
+
+    private function isValidComposesIdent(string $name): bool
+    {
+        if (in_array(strtolower($name), ['from', 'initial', 'inherit', 'unset', 'default', 'revert', 'revert-layer'], true)) {
+            return false;
+        }
+
+        return preg_match('/^-?(?:[A-Za-z_]|-[A-Za-z_])[A-Za-z0-9_-]*$/', $name) === 1;
     }
 
     /**

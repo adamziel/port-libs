@@ -10773,9 +10773,11 @@ final class CssMinifier
                 $lower = strtolower($identifier);
                 $previous = $value[$i - 1] ?? '';
                 $next = $value[$i + strlen($identifier)] ?? '';
-                if ($next === '(' && in_array($lower, ['hsl', 'hsla', 'hwb', 'rgb', 'rgba'], true)) {
+                if ($next === '(' && in_array($lower, ['hsl', 'hsla', 'hwb', 'rgb', 'rgba', 'lab', 'lch', 'oklab', 'oklch', 'color'], true)) {
                     [$function, $offset] = $this->readFunctionRaw($value, $i);
-                    $output .= $this->minifyColorFunction($function) ?? $function;
+                    $output .= $this->minifyColorFunction($function)
+                        ?? $this->minifyAdvancedColorFunction($function)
+                        ?? $function;
                     $i = $offset;
                     continue;
                 }
@@ -10893,6 +10895,258 @@ final class CssMinifier
         }
 
         return $this->serializeColorBytes($red, $green, $blue, $alpha);
+    }
+
+    private function minifyAdvancedColorFunction(string $function): ?string
+    {
+        if (preg_match('/^(lab|lch|oklab|oklch|color)\((.*)\)$/is', trim($function), $matches) !== 1) {
+            return null;
+        }
+
+        $name = strtolower($matches[1]);
+        $parts = $this->parseAdvancedColorFunctionParts($matches[2]);
+        if ($parts === null) {
+            return null;
+        }
+
+        $alpha = $this->serializeAdvancedColorAlpha($parts['alpha']);
+        if ($alpha === null) {
+            return null;
+        }
+
+        if ($name === 'lab') {
+            if (count($parts['components']) !== 3) {
+                return null;
+            }
+
+            $lightness = $this->normalizeLabLightnessComponent($parts['components'][0]);
+            $a = $this->normalizeLabAxisComponent($parts['components'][1]);
+            $b = $this->normalizeLabAxisComponent($parts['components'][2]);
+            if ($lightness === null || $a === null || $b === null) {
+                return null;
+            }
+
+            return 'lab(' . $lightness . ' ' . $a . ' ' . $b . $alpha . ')';
+        }
+
+        if ($name === 'lch') {
+            if (count($parts['components']) !== 3) {
+                return null;
+            }
+
+            $lightness = $this->normalizeLabLightnessComponent($parts['components'][0]);
+            $chroma = $this->normalizeLchChromaComponent($parts['components'][1]);
+            $hue = $this->normalizeColorHueComponent($parts['components'][2]);
+            if ($lightness === null || $chroma === null || $hue === null) {
+                return null;
+            }
+
+            return 'lch(' . $lightness . ' ' . $chroma . ' ' . $hue . $alpha . ')';
+        }
+
+        if ($name === 'oklab') {
+            if (count($parts['components']) !== 3) {
+                return null;
+            }
+
+            $lightness = $this->normalizeOkLightnessComponent($parts['components'][0]);
+            $a = $this->normalizeOklabAxisComponent($parts['components'][1]);
+            $b = $this->normalizeOklabAxisComponent($parts['components'][2]);
+            if ($lightness === null || $a === null || $b === null) {
+                return null;
+            }
+
+            return 'oklab(' . $lightness . ' ' . $a . ' ' . $b . $alpha . ')';
+        }
+
+        if ($name === 'oklch') {
+            if (count($parts['components']) !== 3) {
+                return null;
+            }
+
+            $lightness = $this->normalizeOkLightnessComponent($parts['components'][0]);
+            $chroma = $this->normalizeOklabAxisComponent($parts['components'][1]);
+            $hue = $this->normalizeColorHueComponent($parts['components'][2]);
+            if ($lightness === null || $chroma === null || $hue === null) {
+                return null;
+            }
+
+            return 'oklch(' . $lightness . ' ' . $chroma . ' ' . $hue . $alpha . ')';
+        }
+
+        if (count($parts['components']) !== 4) {
+            return null;
+        }
+
+        $space = $this->normalizeColorSpaceName($parts['components'][0]);
+        $red = $this->normalizeColorFunctionComponent($parts['components'][1]);
+        $green = $this->normalizeColorFunctionComponent($parts['components'][2]);
+        $blue = $this->normalizeColorFunctionComponent($parts['components'][3]);
+        if ($red === null || $green === null || $blue === null) {
+            return null;
+        }
+
+        return 'color(' . $space . ' ' . $red . ' ' . $green . ' ' . $blue . $alpha . ')';
+    }
+
+    /**
+     * @return array{components:list<string>,alpha:?string}|null
+     */
+    private function parseAdvancedColorFunctionParts(string $arguments): ?array
+    {
+        $arguments = trim($arguments);
+        if ($arguments === '') {
+            return null;
+        }
+
+        $slashParts = $this->splitTopLevel($arguments, '/');
+        if (count($slashParts) > 2) {
+            return null;
+        }
+
+        $components = $this->splitWhitespaceTopLevel($slashParts[0] ?? '');
+        if ($components === []) {
+            return null;
+        }
+
+        return [
+            'components' => $components,
+            'alpha' => isset($slashParts[1]) ? trim($slashParts[1]) : null,
+        ];
+    }
+
+    private function serializeAdvancedColorAlpha(?string $alpha): ?string
+    {
+        if ($alpha === null || trim($alpha) === '') {
+            return '';
+        }
+
+        $value = $this->parseAlphaComponent($alpha);
+        if ($value === null) {
+            return null;
+        }
+
+        if (abs($value - 1.0) < 0.0000001) {
+            return '';
+        }
+
+        return '/' . $this->minifyColorNumber($value);
+    }
+
+    private function normalizeLabLightnessComponent(string $token): ?string
+    {
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return null;
+        }
+
+        return $this->minifyColorNumber($number['value']) . '%';
+    }
+
+    private function normalizeOkLightnessComponent(string $token): ?string
+    {
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return null;
+        }
+
+        $value = $number['isPercentage'] ? $number['value'] : $number['value'] * 100;
+
+        return $this->minifyColorNumber($value) . '%';
+    }
+
+    private function normalizeLabAxisComponent(string $token): ?string
+    {
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return null;
+        }
+
+        $value = $number['isPercentage'] ? $number['value'] * 1.25 : $number['value'];
+
+        return $this->minifyColorNumber($value, $number['isPercentage'] ? 4 : 8);
+    }
+
+    private function normalizeLchChromaComponent(string $token): ?string
+    {
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return null;
+        }
+
+        $value = $number['isPercentage'] ? $number['value'] * 1.5 : $number['value'];
+
+        return $this->minifyColorNumber($value, $number['isPercentage'] ? 4 : 8);
+    }
+
+    private function normalizeOklabAxisComponent(string $token): ?string
+    {
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return null;
+        }
+
+        $value = $number['isPercentage'] ? $number['value'] * 0.004 : $number['value'];
+
+        return $this->minifyColorNumber($value);
+    }
+
+    private function normalizeColorHueComponent(string $token): ?string
+    {
+        $degrees = $this->parseHueDegrees($token);
+
+        return $degrees === null ? null : $this->minifyColorNumber($degrees);
+    }
+
+    private function normalizeColorFunctionComponent(string $token): ?string
+    {
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return null;
+        }
+
+        $value = $number['isPercentage'] ? $number['value'] / 100 : $number['value'];
+
+        return $this->minifyColorNumber($value);
+    }
+
+    private function normalizeColorSpaceName(string $space): string
+    {
+        $space = strtolower(trim($space));
+
+        return $space === 'xyz-d65' ? 'xyz' : $space;
+    }
+
+    /**
+     * @return array{value:float,isPercentage:bool}|null
+     */
+    private function parseColorNumberToken(string $token): ?array
+    {
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(%)?$/', trim($token), $matches) !== 1) {
+            return null;
+        }
+
+        return [
+            'value' => (float) $matches[1],
+            'isPercentage' => isset($matches[2]) && $matches[2] === '%',
+        ];
+    }
+
+    private function minifyColorNumber(float $number, int $precision = 8): string
+    {
+        if (abs($number) < 0.000000000001) {
+            return '0';
+        }
+
+        $formatted = rtrim(rtrim(sprintf('%.' . $precision . 'F', $number), '0'), '.');
+        if (str_starts_with($formatted, '0.')) {
+            return substr($formatted, 1);
+        }
+        if (str_starts_with($formatted, '-0.')) {
+            return '-' . substr($formatted, 2);
+        }
+
+        return $formatted;
     }
 
     /**
