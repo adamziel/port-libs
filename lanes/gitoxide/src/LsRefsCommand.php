@@ -16,6 +16,7 @@ final class LsRefsCommand
         private readonly ProtocolCapabilities $capabilities,
         private readonly array $features,
         private readonly array $arguments,
+        private readonly ?string $agent = null,
     ) {
     }
 
@@ -37,7 +38,7 @@ final class LsRefsCommand
             $arguments[] = $argument;
         }
 
-        return new self($capabilities, $features, $arguments);
+        return new self($capabilities, $features, $arguments, $agent);
     }
 
     /**
@@ -56,6 +57,36 @@ final class LsRefsCommand
         return $this->arguments;
     }
 
+    /**
+     * @return list<string>
+     */
+    public function requestFeatureLines(): array
+    {
+        if ($this->agent === null) {
+            return [];
+        }
+
+        return ['agent=' . $this->agent];
+    }
+
+    public function requestBytes(): string
+    {
+        $this->validate();
+
+        $bytes = self::packetLine("command=ls-refs\n");
+        foreach ($this->requestFeatureLines() as $feature) {
+            $bytes .= self::textPacketLine($feature);
+        }
+        if ($this->arguments !== []) {
+            $bytes .= '0001';
+            foreach ($this->arguments as $argument) {
+                $bytes .= self::textPacketLine($argument);
+            }
+        }
+
+        return $bytes . '0000';
+    }
+
     public function validate(): void
     {
         foreach ($this->arguments as $argument) {
@@ -69,6 +100,10 @@ final class LsRefsCommand
             if (!$known) {
                 throw new \InvalidArgumentException("ls-refs: argument {$argument} is not known or allowed");
             }
+        }
+
+        foreach ($this->requestFeatureLines() as $featureLine) {
+            self::assertProtocolTextLine($featureLine, 'ls-refs feature');
         }
 
         $allowed = $this->capabilities->capability('ls-refs')?->values() ?? [];
@@ -113,6 +148,36 @@ final class LsRefsCommand
         }
 
         return $refs;
+    }
+
+    /**
+     * @return list<RemoteRef>
+     */
+    public static function parseV2PacketLines(string $bytes): array
+    {
+        $offset = 0;
+        $lines = '';
+
+        while (true) {
+            $packet = self::readPacket($bytes, $offset);
+            if ($packet === null) {
+                throw new \RuntimeException('ls-refs advertisement: missing flush packet');
+            }
+            if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
+                return self::parseV2Refs($lines);
+            }
+            if ($packet['kind'] === 'delimiter') {
+                throw new \InvalidArgumentException('ls-refs advertisement: unexpected delimiter packet');
+            }
+            if (str_starts_with($packet['payload'], 'ERR ')) {
+                throw new \RuntimeException('ls-refs advertisement: upload-pack error ' . self::trimLineEnding(substr($packet['payload'], 4)));
+            }
+
+            $lines .= $packet['payload'];
+            if (!str_ends_with($lines, "\n")) {
+                $lines .= "\n";
+            }
+        }
     }
 
     public static function parseV2RefLine(string $line): RemoteRef
@@ -196,5 +261,83 @@ final class LsRefsCommand
         if (preg_match('/^[0-9a-fA-F]{40}$/', $oid) !== 1) {
             throw new \InvalidArgumentException('Protocol ref object id must be a 40-character SHA-1 hex string');
         }
+    }
+
+    private static function textPacketLine(string $line): string
+    {
+        self::assertProtocolTextLine($line, 'ls-refs request line');
+        if (!str_ends_with($line, "\n")) {
+            $line .= "\n";
+        }
+
+        return self::packetLine($line);
+    }
+
+    private static function packetLine(string $payload): string
+    {
+        return sprintf('%04x', strlen($payload) + 4) . $payload;
+    }
+
+    private static function assertProtocolTextLine(string $line, string $label): void
+    {
+        if ($line === '') {
+            throw new \InvalidArgumentException("{$label} cannot be empty");
+        }
+        if (str_contains($line, "\0") || str_contains($line, "\r")) {
+            throw new \InvalidArgumentException("{$label} contains bytes that cannot be written as a protocol v2 text line");
+        }
+
+        $withoutFinalNewline = str_ends_with($line, "\n") ? substr($line, 0, -1) : $line;
+        if (str_contains($withoutFinalNewline, "\n")) {
+            throw new \InvalidArgumentException("{$label} contains bytes that cannot be written as a protocol v2 text line");
+        }
+    }
+
+    /**
+     * @return null|array{kind:string,payload:string}
+     */
+    private static function readPacket(string $bytes, int &$offset): ?array
+    {
+        if ($offset >= strlen($bytes)) {
+            return null;
+        }
+        if ($offset + 4 > strlen($bytes)) {
+            throw new \InvalidArgumentException('ls-refs advertisement: truncated packet line length');
+        }
+
+        $header = substr($bytes, $offset, 4);
+        if (preg_match('/^[0-9a-fA-F]{4}$/', $header) !== 1) {
+            throw new \InvalidArgumentException("ls-refs advertisement: invalid packet line length {$header}");
+        }
+        $offset += 4;
+
+        $length = hexdec($header);
+        if ($length === 0) {
+            return ['kind' => 'flush', 'payload' => ''];
+        }
+        if ($length === 1) {
+            return ['kind' => 'delimiter', 'payload' => ''];
+        }
+        if ($length === 2) {
+            return ['kind' => 'response-end', 'payload' => ''];
+        }
+        if ($length < 4) {
+            throw new \InvalidArgumentException("ls-refs advertisement: invalid packet line length {$header}");
+        }
+
+        $payloadLength = $length - 4;
+        if ($offset + $payloadLength > strlen($bytes)) {
+            throw new \InvalidArgumentException('ls-refs advertisement: truncated packet line payload');
+        }
+
+        $payload = substr($bytes, $offset, $payloadLength);
+        $offset += $payloadLength;
+
+        return ['kind' => 'data', 'payload' => $payload];
+    }
+
+    private static function trimLineEnding(string $line): string
+    {
+        return rtrim($line, "\r\n");
     }
 }

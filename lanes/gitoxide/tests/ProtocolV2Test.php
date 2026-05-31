@@ -5,6 +5,10 @@ declare(strict_types=1);
 use PortLibs\Gitoxide\LsRefsCommand;
 use PortLibs\Gitoxide\ProtocolCapabilities;
 
+$packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
+$delimiter = '0001';
+$flush = '0000';
+
 return [
     'parses v1 capability bytes like gix-transport' => static function (TestRunner $t): void {
         $input = "7814e8a05a59c0cf5fb186661d1551c75d1299b5 HEAD\0"
@@ -36,6 +40,33 @@ return [
         $t->same(false, $capabilities->capability('object-format')?->supports('sha2'));
         $t->same('HEAD:refs/heads/master', $capabilities->symrefs()[0]->value);
     },
+    'parses protocol v2 packet-line capability advertisements like gix-transport' => static function (TestRunner $t) use ($packet, $flush): void {
+        $capabilities = ProtocolCapabilities::fromV2PacketLines(
+            $packet("version 2\n")
+                . $packet("agent=git/github-gdf51a71f0236\n")
+                . $packet("ls-refs\n")
+                . $packet("fetch=shallow filter\n")
+                . $packet("server-option\n")
+                . $flush
+        );
+
+        $t->same(['agent', 'ls-refs', 'fetch', 'server-option'], $capabilities->names());
+        $t->same('git/github-gdf51a71f0236', $capabilities->capability('agent')?->value);
+        $t->same(['shallow', 'filter'], $capabilities->capability('fetch')?->values());
+
+        $noNewlines = ProtocolCapabilities::fromV2PacketLines(
+            $packet('version 2')
+                . $packet('ls-refs')
+                . $packet('fetch=filter ref-in-want sideband-all packfile-uris wait-for-done shallow')
+                . $packet('session-id')
+                . $flush
+        );
+
+        $t->same(['ls-refs', 'fetch', 'session-id'], $noNewlines->names());
+        $t->same(true, $noNewlines->capability('fetch')?->supports('wait-for-done'));
+        $t->throws(RuntimeException::class, static fn () => ProtocolCapabilities::fromV2PacketLines($packet("ERR repository unavailable\n") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => ProtocolCapabilities::fromV2PacketLines('0003'));
+    },
     'parses v2 capabilities and builds ls-refs command arguments' => static function (TestRunner $t): void {
         $capabilities = ProtocolCapabilities::fromV2Lines("version 2\nls-refs=unborn\nfetch=shallow filter ref-in-want sideband-all packfile-uris\nagent=git/2.44.0\n");
         $command = LsRefsCommand::create([
@@ -63,6 +94,33 @@ return [
             'ref-prefix refs/heads/feature',
         ], $command->arguments());
         $command->validate();
+    },
+    'builds upstream-shaped ls-refs protocol v2 request packet lines' => static function (TestRunner $t) use ($packet, $delimiter, $flush): void {
+        $capabilities = ProtocolCapabilities::fromV2PacketLines(
+            $packet("version 2\n")
+                . $packet("ls-refs=unborn\n")
+                . $packet("fetch=shallow filter\n")
+                . $flush
+        );
+        $command = LsRefsCommand::create(['HEAD', 'refs/heads/', 'refs/tags'], $capabilities, 'git/2.28.0');
+
+        $t->same(['agent=git/2.28.0'], $command->requestFeatureLines());
+        $t->same(
+            $packet("command=ls-refs\n")
+                . $packet("agent=git/2.28.0\n")
+                . $delimiter
+                . $packet("symrefs\n")
+                . $packet("peel\n")
+                . $packet("unborn\n")
+                . $packet("ref-prefix HEAD\n")
+                . $packet("ref-prefix refs/heads/\n")
+                . $packet("ref-prefix refs/tags\n")
+                . $flush,
+            $command->requestBytes()
+        );
+
+        $badAgent = LsRefsCommand::create(['HEAD'], $capabilities, "bad\nagent");
+        $t->throws(InvalidArgumentException::class, static fn () => $badAgent->requestBytes());
     },
     'validates ls-refs argument prefixes and unsupported features' => static function (TestRunner $t): void {
         $capabilities = ProtocolCapabilities::fromV2Lines("version 2\nother=do-not-matter\n");
@@ -105,6 +163,21 @@ return [
         $t->same('978f927e6397113757dfec6332e7d9c7e356ac25', $refs[7]->tag);
         $t->same('4d979abcde5cea47b079c38850828956c9382a56', $refs[7]->object);
     },
+    'parses protocol v2 ls-refs packet-line advertisements and remote errors' => static function (TestRunner $t) use ($packet, $flush): void {
+        $refs = LsRefsCommand::parseV2PacketLines(
+            $packet("808e50d724f604f69ab93c6da2919c014667bedb HEAD symref-target:refs/heads/main\n")
+                . $packet('unborn refs/heads/next-release symref-target:refs/heads/main')
+                . $flush
+        );
+
+        $t->same(2, count($refs));
+        $t->same('symbolic', $refs[0]->kind);
+        $t->same('refs/heads/main', $refs[0]->target);
+        $t->same('unborn', $refs[1]->kind);
+        $t->same('refs/heads/main', $refs[1]->target);
+        $t->throws(RuntimeException::class, static fn () => LsRefsCommand::parseV2PacketLines($packet("ERR repository unavailable\n") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::parseV2PacketLines('000x'));
+    },
     'rejects malformed protocol v2 ref lines' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::parseV2RefLine('808e50d724f604f69ab93c6da2919c014667bedb'));
         $t->throws(InvalidArgumentException::class, static fn () => LsRefsCommand::parseV2RefLine('808e50d724f604f69ab93c6da2919c014667bedb HEAD unknown:value'));
@@ -112,10 +185,10 @@ return [
     },
     'wordpress fixture discovers active branch release tag and unborn staging ref' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v2-ls-refs.php';
-        $capabilities = ProtocolCapabilities::fromV2Lines($fixture['capabilities']);
+        $capabilities = ProtocolCapabilities::fromV2PacketLines($fixture['capabilityAdvertisement']);
         $command = LsRefsCommand::create($fixture['refPrefixes'], $capabilities, 'port-libs/0.1');
         $command->validate();
-        $refs = LsRefsCommand::parseV2Refs($fixture['response']);
+        $refs = LsRefsCommand::parseV2PacketLines($fixture['responseAdvertisement']);
 
         $byName = [];
         foreach ($refs as $ref) {
@@ -131,6 +204,7 @@ return [
             'ref-prefix refs/heads/main',
             'ref-prefix refs/tags/wp-release',
         ], $command->arguments());
+        $t->same($fixture['requestBytes'], $command->requestBytes());
         $t->same('refs/heads/main', $byName['HEAD']->target);
         $t->same($fixture['objects']['main'], $byName['refs/heads/main']->object);
         $t->same('peeled', $byName['refs/tags/wp-release']->kind);

@@ -12,6 +12,11 @@ use PortLibs\Gitoxide\TreeEntry;
 $blob = str_repeat('1', 40);
 $tree = str_repeat('2', 40);
 $sparse = SparseCheckoutSpec::cone(['wp-content/plugins/gutenberg']);
+$pathspec = SparseCheckoutSpec::fromPathspecs([
+    'wp-content/**',
+    ':!wp-content/cache/**',
+    ':(top,glob,icase)WP-CONTENT/Plugins/*/block.json',
+]);
 $filter = FetchFilterSpec::blobNone();
 
 $root = new Tree([
@@ -46,4 +51,7 @@ return [
     'pluginEntriesToMaterialize' => $entryNames($sparse->includedTreeEntries($plugins, 'wp-content/plugins')),
     'akismetSkipped' => $sparse->skipWorktree('wp-content/plugins/akismet/akismet.php', false),
     'gutenbergBlockIncluded' => $sparse->includesPath('wp-content/plugins/gutenberg/block.json', false),
+    'pathspecPluginBlockIncluded' => $pathspec->includesPath('WP-CONTENT/Plugins/Gutenberg/block.json', false),
+    'pathspecCacheSkipped' => $pathspec->skipWorktree('wp-content/cache/page.html', false),
+    'pathspecAdminSkipped' => $pathspec->skipWorktree('wp-admin/admin.php', false),
 ];

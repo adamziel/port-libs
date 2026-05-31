@@ -11,13 +11,14 @@ final class SparseCheckoutSpec
 
     /**
      * @param list<string> $recursiveDirectories
-     * @param list<array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool}> $patterns
+     * @param list<array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool}> $patterns
      */
     private function __construct(
         public readonly string $mode,
         private readonly array $recursiveDirectories,
         private readonly array $patterns,
         public readonly bool $ignoreCase = false,
+        private readonly bool $allPatternsExcludedFallback = false,
     ) {
         if (!in_array($mode, [self::MODE_CONE, self::MODE_NON_CONE], true)) {
             throw new \InvalidArgumentException("Unsupported sparse checkout mode: {$mode}");
@@ -122,6 +123,44 @@ final class SparseCheckoutSpec
         }
 
         return new self(self::MODE_NON_CONE, [], $patterns, $ignoreCase);
+    }
+
+    /**
+     * Build a sparse matcher from Gitoxide/Git pathspec patterns.
+     *
+     * This intentionally supports the pathspec subset that can be evaluated from
+     * paths alone. Attribute pathspecs are rejected because sparse checkout
+     * matching has no attribute provider at this layer.
+     *
+     * @param list<string> $pathspecs
+     */
+    public static function fromPathspecs(array $pathspecs, bool $ignoreCase = false): self
+    {
+        if ($pathspecs === []) {
+            return new self(self::MODE_NON_CONE, [], [[
+                'pattern' => '',
+                'negative' => false,
+                'directoryOnly' => false,
+                'anchored' => true,
+                'literal' => true,
+                'ignoreCase' => $ignoreCase,
+                'pathspec' => true,
+                'always' => true,
+            ]], $ignoreCase);
+        }
+
+        $patterns = [];
+        foreach ($pathspecs as $pathspec) {
+            $patterns[] = self::parsePathspec($pathspec, $ignoreCase);
+        }
+
+        $allExcluded = $patterns !== [] && array_reduce(
+            $patterns,
+            static fn (bool $carry, array $pattern): bool => $carry && $pattern['negative'],
+            true
+        );
+
+        return new self(self::MODE_NON_CONE, [], $patterns, $ignoreCase, $allExcluded);
     }
 
     /**
@@ -232,26 +271,57 @@ final class SparseCheckoutSpec
     private function matchesNonConePath(string $path, ?bool $isDirectory): bool
     {
         $included = false;
+        $matched = false;
         foreach ($this->patterns as $rule) {
             if (!$this->nonConeRuleMatches($rule, $path, $isDirectory)) {
                 continue;
             }
+            $matched = true;
             $included = !$rule['negative'];
+        }
+
+        if (!$included && $isDirectory === true) {
+            foreach ($this->patterns as $rule) {
+                if ($rule['negative'] || !($rule['pathspec'] ?? false)) {
+                    continue;
+                }
+                if ($this->pathspecRuleCanMatchDescendant($rule, $path)) {
+                    return true;
+                }
+            }
+        }
+
+        if (!$included && !$matched && $this->allPatternsExcludedFallback) {
+            return true;
         }
 
         return $included;
     }
 
     /**
-     * @param array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool} $rule
+     * @param array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool} $rule
      */
     private function nonConeRuleMatches(array $rule, string $path, ?bool $isDirectory): bool
     {
+        if ($rule['always'] ?? false) {
+            return true;
+        }
+
         if ($rule['directoryOnly'] && $isDirectory === false && !str_starts_with($path, $rule['pattern'] . '/')) {
             return false;
         }
 
-        foreach (self::pathAndAncestors($path) as $candidate) {
+        $candidates = [$path];
+        if (
+            !($rule['pathspec'] ?? false)
+            || $rule['directoryOnly']
+            || ($rule['literal'] ?? false)
+            || !self::patternHasWildcard($rule['pattern'])
+        ) {
+            $candidates = self::pathAndAncestors($path);
+        }
+
+        foreach ($candidates as $candidate) {
             if ($this->patternMatchesCandidate($rule, $candidate)) {
                 return true;
             }
@@ -261,18 +331,50 @@ final class SparseCheckoutSpec
     }
 
     /**
-     * @param array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool} $rule
+     * @param array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool} $rule
      */
     private function patternMatchesCandidate(array $rule, string $candidate): bool
     {
-        $pattern = $this->ignoreCase ? strtolower($rule['pattern']) : $rule['pattern'];
-        $candidate = $this->ignoreCase ? strtolower($candidate) : $candidate;
+        $ignoreCase = $rule['ignoreCase'] ?? $this->ignoreCase;
+        $pattern = $ignoreCase ? strtolower($rule['pattern']) : $rule['pattern'];
+        $candidate = $ignoreCase ? strtolower($candidate) : $candidate;
 
-        if (!$rule['anchored'] && !str_contains($pattern, '/')) {
+        if (!$rule['anchored'] && !($rule['pathspec'] ?? false) && !str_contains($pattern, '/')) {
             $candidate = basename($candidate);
         }
 
-        return preg_match(self::globRegex($pattern), $candidate) === 1;
+        if ($rule['literal'] ?? false) {
+            return $pattern === $candidate;
+        }
+
+        return preg_match(self::globRegex($pattern, $rule['matchSlash'] ?? false), $candidate) === 1;
+    }
+
+    /**
+     * @param array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal?:bool,matchSlash?:bool,ignoreCase?:bool,pathspec?:bool,always?:bool} $rule
+     */
+    private function pathspecRuleCanMatchDescendant(array $rule, string $path): bool
+    {
+        if ($path === '' || ($rule['always'] ?? false)) {
+            return true;
+        }
+
+        $pattern = $rule['pattern'];
+        $ignoreCase = $rule['ignoreCase'] ?? $this->ignoreCase;
+        $candidate = $ignoreCase ? strtolower($path) : $path;
+        $patternForCompare = $ignoreCase ? strtolower($pattern) : $pattern;
+
+        if ($rule['literal'] ?? false) {
+            return $patternForCompare === $candidate || str_starts_with($patternForCompare, $candidate . '/');
+        }
+
+        $literalPrefix = self::literalPrefixBeforeWildcard($patternForCompare);
+        if ($literalPrefix === '') {
+            return true;
+        }
+
+        return str_starts_with($candidate, rtrim($literalPrefix, '/'))
+            || str_starts_with($literalPrefix, $candidate . '/');
     }
 
     /**
@@ -289,7 +391,7 @@ final class SparseCheckoutSpec
         return $paths;
     }
 
-    private static function globRegex(string $pattern): string
+    private static function globRegex(string $pattern, bool $matchSlash): string
     {
         $regex = '';
         $length = strlen($pattern);
@@ -300,18 +402,187 @@ final class SparseCheckoutSpec
                     $regex .= '.*';
                     $i++;
                 } else {
-                    $regex .= '[^/]*';
+                    $regex .= $matchSlash ? '.*' : '[^/]*';
                 }
                 continue;
             }
             if ($char === '?') {
-                $regex .= '[^/]';
+                $regex .= $matchSlash ? '.' : '[^/]';
                 continue;
             }
             $regex .= preg_quote($char, '#');
         }
 
         return '#^' . $regex . '$#';
+    }
+
+    /**
+     * @return array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal:bool,matchSlash:bool,ignoreCase:bool,pathspec:bool,always:bool}
+     */
+    private static function parsePathspec(string $pathspec, bool $defaultIgnoreCase): array
+    {
+        if ($pathspec === '') {
+            throw new \InvalidArgumentException('An empty string is not a valid pathspec');
+        }
+
+        $negative = false;
+        $anchored = false;
+        $ignoreCase = $defaultIgnoreCase;
+        $literal = false;
+        $matchSlash = true;
+        $cursor = 0;
+
+        if ($pathspec === ':') {
+            return self::pathspecRule('', false, false, true, true, $matchSlash, $ignoreCase, true);
+        }
+
+        if ($pathspec[0] === ':') {
+            $cursor = 1;
+            $length = strlen($pathspec);
+            $unimplementedShortKeywords = "\"#%&'-',;<=>@_`~";
+            while ($cursor < $length) {
+                $char = $pathspec[$cursor];
+                $cursor++;
+                if ($char === '/') {
+                    $anchored = true;
+                    continue;
+                }
+                if ($char === '!' || $char === '^') {
+                    $negative = true;
+                    continue;
+                }
+                if ($char === ':') {
+                    break;
+                }
+                if (str_contains($unimplementedShortKeywords, $char)) {
+                    throw new \InvalidArgumentException("Unsupported pathspec short magic: {$char}");
+                }
+                $cursor--;
+                break;
+            }
+
+            if (($pathspec[$cursor] ?? '') === '(') {
+                $end = strpos($pathspec, ')', $cursor);
+                if ($end === false) {
+                    throw new \InvalidArgumentException('Missing closing parenthesis in pathspec signature');
+                }
+                $keywords = substr($pathspec, $cursor + 1, $end - $cursor - 1);
+                foreach ($keywords === '' ? [] : explode(',', $keywords) as $keyword) {
+                    if ($keyword === 'top') {
+                        $anchored = true;
+                        continue;
+                    }
+                    if ($keyword === 'icase') {
+                        $ignoreCase = true;
+                        continue;
+                    }
+                    if ($keyword === 'exclude') {
+                        $negative = true;
+                        continue;
+                    }
+                    if ($keyword === 'literal') {
+                        if (!$matchSlash) {
+                            throw new \InvalidArgumentException('literal and glob pathspec magic cannot be combined');
+                        }
+                        $literal = true;
+                        continue;
+                    }
+                    if ($keyword === 'glob') {
+                        if ($literal) {
+                            throw new \InvalidArgumentException('literal and glob pathspec magic cannot be combined');
+                        }
+                        $matchSlash = false;
+                        continue;
+                    }
+                    if ($keyword === 'attr') {
+                        continue;
+                    }
+                    if (str_starts_with($keyword, 'attr:')) {
+                        throw new \InvalidArgumentException('Pathspec attributes are not available to sparse checkout matching');
+                    }
+                    throw new \InvalidArgumentException("Unsupported pathspec magic keyword: {$keyword}");
+                }
+                $cursor = $end + 1;
+            }
+        }
+
+        $pattern = substr($pathspec, $cursor);
+        $directoryOnly = str_ends_with($pattern, '/');
+        if ($directoryOnly) {
+            $pattern = substr($pattern, 0, -1);
+        }
+        $pattern = self::normalizePathspecPath($pattern);
+        $always = $pattern === '';
+
+        return self::pathspecRule($pattern, $negative, $directoryOnly, $anchored, $literal, $matchSlash, $ignoreCase, $always);
+    }
+
+    /**
+     * @return array{pattern:string,negative:bool,directoryOnly:bool,anchored:bool,literal:bool,matchSlash:bool,ignoreCase:bool,pathspec:bool,always:bool}
+     */
+    private static function pathspecRule(
+        string $pattern,
+        bool $negative,
+        bool $directoryOnly,
+        bool $anchored,
+        bool $literal,
+        bool $matchSlash,
+        bool $ignoreCase,
+        bool $always,
+    ): array {
+        return [
+            'pattern' => $pattern,
+            'negative' => $negative,
+            'directoryOnly' => $directoryOnly,
+            'anchored' => $anchored,
+            'literal' => $literal,
+            'matchSlash' => $matchSlash,
+            'ignoreCase' => $ignoreCase,
+            'pathspec' => true,
+            'always' => $always,
+        ];
+    }
+
+    private static function literalPrefixBeforeWildcard(string $pattern): string
+    {
+        $length = strlen($pattern);
+        for ($i = 0; $i < $length; $i++) {
+            if ($pattern[$i] === '*' || $pattern[$i] === '?') {
+                return substr($pattern, 0, $i);
+            }
+        }
+
+        return $pattern;
+    }
+
+    private static function patternHasWildcard(string $pattern): bool
+    {
+        return str_contains($pattern, '*') || str_contains($pattern, '?');
+    }
+
+    private static function normalizePathspecPath(string $path): string
+    {
+        $path = str_replace('\\', '/', $path);
+        if (str_contains($path, "\0")) {
+            throw new \InvalidArgumentException('Sparse checkout path cannot contain NUL bytes');
+        }
+
+        $parts = [];
+        foreach (explode('/', $path) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                if ($parts === []) {
+                    throw new \InvalidArgumentException("Pathspec leaves the repository: {$path}");
+                }
+                array_pop($parts);
+                continue;
+            }
+            $parts[] = $part;
+        }
+
+        return implode('/', $parts);
     }
 
     private function comparisonPath(string $path): string
@@ -336,7 +607,7 @@ final class SparseCheckoutSpec
 
     private static function normalizePath(string $path): string
     {
-        $path = str_replace('\\', '/', trim($path));
+        $path = str_replace('\\', '/', $path);
         if (str_contains($path, "\0")) {
             throw new \InvalidArgumentException('Sparse checkout path cannot contain NUL bytes');
         }

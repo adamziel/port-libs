@@ -14,6 +14,17 @@ $commit = $pack->readObject($index, $fixture['objects'][0]['oid']);
 $blob = $pack->readObject($index, $fixture['objects'][1]['oid']);
 $deltaBlob = $pack->readObject($index, $fixture['objects'][2]['oid']);
 
+$strictDeclaredSizeGuard = false;
+try {
+    $malformedBlobPack = 'PACK' . pack('N2', 2, 1)
+        . chr((3 << 4) | 1)
+        . gzcompress('AB')
+        . str_repeat("\0", 20);
+    PackData::fromBytes($malformedBlobPack)->entryAtOffset(12);
+} catch (RuntimeException) {
+    $strictDeclaredSizeGuard = true;
+}
+
 return [
     'version' => $pack->version(),
     'objects' => $pack->count(),
@@ -23,4 +34,5 @@ return [
     'deltaBlobOid' => $deltaBlob->oid(),
     'blobPreview' => strtok($blob->body, "\n"),
     'deltaBlobHasPackedEdit' => str_contains($deltaBlob->body, 'reconstructed packed edit'),
+    'strictDeclaredSizeGuard' => $strictDeclaredSizeGuard,
 ];

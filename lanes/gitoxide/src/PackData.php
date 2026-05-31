@@ -123,13 +123,7 @@ final class PackData
         }
 
         $compressed = substr($this->bytes, $cursor, $nextOffset - $cursor);
-        $data = zlib_decode($compressed, $size);
-        if ($data === false) {
-            throw new \RuntimeException('Unable to inflate pack data entry');
-        }
-        if (strlen($data) !== $size) {
-            throw new \RuntimeException("Pack entry decompressed size mismatch: expected {$size}, got " . strlen($data));
-        }
+        $data = self::inflateEntryData($compressed, $size);
 
         return new PackDataEntry($kind, $size, $packOffset, $cursor, $cursor - $packOffset, $data, $baseDistance, $baseObjectId);
     }
@@ -365,6 +359,26 @@ final class PackData
         }
 
         return $result;
+    }
+
+    private static function inflateEntryData(string $compressed, int $expectedSize): string
+    {
+        if ($expectedSize < 0) {
+            throw new \RuntimeException('Pack entry decompressed size cannot be negative');
+        }
+
+        $limit = $expectedSize === PHP_INT_MAX ? $expectedSize : $expectedSize + 1;
+        $data = @zlib_decode($compressed, $limit);
+        if ($data === false) {
+            throw new \RuntimeException('Unable to inflate pack data entry to its declared size');
+        }
+
+        $actualSize = strlen($data);
+        if ($actualSize !== $expectedSize) {
+            throw new \RuntimeException("Pack entry decompressed size mismatch: expected {$expectedSize}, got {$actualSize}");
+        }
+
+        return $data;
     }
 
     /**

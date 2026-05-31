@@ -50,6 +50,33 @@ final class ProtocolCapabilities
         return self::fromTokens(array_values(array_filter($lines, static fn (string $line): bool => $line !== '')));
     }
 
+    public static function fromV2PacketLines(string $bytes): self
+    {
+        $offset = 0;
+        $lines = '';
+
+        while (true) {
+            $packet = self::readPacket($bytes, $offset);
+            if ($packet === null) {
+                throw new \RuntimeException('protocol v2 capability advertisement: missing flush packet');
+            }
+            if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
+                return self::fromV2Lines($lines);
+            }
+            if ($packet['kind'] === 'delimiter') {
+                throw new \InvalidArgumentException('protocol v2 capability advertisement: unexpected delimiter packet');
+            }
+            if (str_starts_with($packet['payload'], 'ERR ')) {
+                throw new \RuntimeException('protocol v2 capability advertisement: server error ' . self::trimLineEnding(substr($packet['payload'], 4)));
+            }
+
+            $lines .= $packet['payload'];
+            if (!str_ends_with($lines, "\n")) {
+                $lines .= "\n";
+            }
+        }
+    }
+
     /**
      * @return list<ProtocolCapability>
      */
@@ -112,5 +139,53 @@ final class ProtocolCapabilities
         }
 
         return new self($capabilities);
+    }
+
+    /**
+     * @return null|array{kind:string,payload:string}
+     */
+    private static function readPacket(string $bytes, int &$offset): ?array
+    {
+        if ($offset >= strlen($bytes)) {
+            return null;
+        }
+        if ($offset + 4 > strlen($bytes)) {
+            throw new \InvalidArgumentException('protocol v2 capability advertisement: truncated packet line length');
+        }
+
+        $header = substr($bytes, $offset, 4);
+        if (preg_match('/^[0-9a-fA-F]{4}$/', $header) !== 1) {
+            throw new \InvalidArgumentException("protocol v2 capability advertisement: invalid packet line length {$header}");
+        }
+        $offset += 4;
+
+        $length = hexdec($header);
+        if ($length === 0) {
+            return ['kind' => 'flush', 'payload' => ''];
+        }
+        if ($length === 1) {
+            return ['kind' => 'delimiter', 'payload' => ''];
+        }
+        if ($length === 2) {
+            return ['kind' => 'response-end', 'payload' => ''];
+        }
+        if ($length < 4) {
+            throw new \InvalidArgumentException("protocol v2 capability advertisement: invalid packet line length {$header}");
+        }
+
+        $payloadLength = $length - 4;
+        if ($offset + $payloadLength > strlen($bytes)) {
+            throw new \InvalidArgumentException('protocol v2 capability advertisement: truncated packet line payload');
+        }
+
+        $payload = substr($bytes, $offset, $payloadLength);
+        $offset += $payloadLength;
+
+        return ['kind' => 'data', 'payload' => $payload];
+    }
+
+    private static function trimLineEnding(string $line): string
+    {
+        return rtrim($line, "\r\n");
     }
 }

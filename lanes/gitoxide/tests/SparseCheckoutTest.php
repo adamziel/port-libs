@@ -94,4 +94,59 @@ return [
         $t->same(true, $spec->includesPath('WP-CONTENT/plugins/plugin-loader.php', false));
         $t->same(false, $spec->includesPath('wp-content/plugins/akismet/akismet.php', false));
     },
+    'pathspec sparse checkout parses gitoxide magic include and exclude rules' => static function (TestRunner $t): void {
+        $spec = SparseCheckoutSpec::fromPathspecs([
+            'wp-content/**',
+            ':!wp-content/cache/**',
+            ':(top,glob,icase)WP-CONTENT/Plugins/*/block.json',
+            ':(literal)wp-content/plugins/*.literal',
+        ]);
+
+        $t->same(true, $spec->includesPath('wp-content/plugins/gutenberg/block.json', false));
+        $t->same(true, $spec->includesPath('WP-CONTENT/Plugins/Gutenberg/block.json', false));
+        $t->same(false, $spec->includesPath('wp-content/cache/page.html', false));
+        $t->same(false, $spec->includesPath('wp-admin/admin.php', false));
+        $t->same(true, $spec->includesPath('wp-content', true));
+        $t->same(true, $spec->includesPath('wp-content/plugins', true));
+        $t->same(true, $spec->includesPath('wp-content/plugins/gutenberg', true));
+        $t->same(true, $spec->includesPath('wp-content/plugins/*.literal', false));
+
+        $literalSpec = SparseCheckoutSpec::fromPathspecs([':(literal)wp-content/plugins/*.literal']);
+        $t->same(true, $literalSpec->includesPath('wp-content/plugins/*.literal', false));
+        $t->same(false, $literalSpec->includesPath('wp-content/plugins/plugin.literal', false));
+
+        $literalBang = SparseCheckoutSpec::fromPathspecs(['!literal']);
+        $t->same(true, $literalBang->includesPath('!literal', false));
+        $t->same(false, $literalBang->includesPath('literal', false));
+
+        $spacePath = SparseCheckoutSpec::fromPathspecs([' some/path']);
+        $t->same(true, $spacePath->includesPath(' some/path', false));
+        $t->same(false, $spacePath->includesPath('some/path', false));
+
+        $excludeOnly = SparseCheckoutSpec::fromPathspecs([':!wp-content/cache/**']);
+        $t->same(true, $excludeOnly->includesPath('index.php', false));
+        $t->same(true, $excludeOnly->includesPath('wp-content/plugins/gutenberg/block.json', false));
+        $t->same(false, $excludeOnly->includesPath('wp-content/cache/page.html', false));
+
+        $t->throws(InvalidArgumentException::class, static fn () => SparseCheckoutSpec::fromPathspecs(['']));
+        $t->throws(InvalidArgumentException::class, static fn () => SparseCheckoutSpec::fromPathspecs([':(top']));
+        $t->throws(InvalidArgumentException::class, static fn () => SparseCheckoutSpec::fromPathspecs([':(glob,literal)path']));
+        $t->throws(InvalidArgumentException::class, static fn () => SparseCheckoutSpec::fromPathspecs([':(attr:binary)media/**']));
+        $t->throws(InvalidArgumentException::class, static fn () => SparseCheckoutSpec::fromPathspecs([':#()path']));
+        $t->throws(InvalidArgumentException::class, static fn () => SparseCheckoutSpec::fromPathspecs(['../outside']));
+    },
+    'pathspec sparse checkout distinguishes shell glob and path-aware glob slash matching' => static function (TestRunner $t): void {
+        $shellGlob = SparseCheckoutSpec::fromPathspecs(['wp-content*']);
+        $pathAwareGlob = SparseCheckoutSpec::fromPathspecs([':(glob)wp-content*']);
+        $nil = SparseCheckoutSpec::fromPathspecs([':']);
+        $none = SparseCheckoutSpec::fromPathspecs([]);
+
+        $t->same(true, $shellGlob->includesPath('wp-content/plugins/gutenberg/block.json', false));
+        $t->same(true, $pathAwareGlob->includesPath('wp-content', true));
+        $t->same(false, $pathAwareGlob->includesPath('wp-content/plugins/gutenberg/block.json', false));
+        $t->same(true, $pathAwareGlob->includesPath('wp-content/plugins', true));
+        $t->same(false, $pathAwareGlob->includesPath('wp-admin', true));
+        $t->same(true, $nil->includesPath('wp-admin/admin.php', false));
+        $t->same(true, $none->includesPath('wp-admin/admin.php', false));
+    },
 ];

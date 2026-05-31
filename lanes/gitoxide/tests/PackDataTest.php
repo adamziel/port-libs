@@ -89,7 +89,8 @@ $buildPackFixture = static function (array $objects): array {
             }
         }
 
-        $entryBytes = $encodeEntryHeader($object['typeId'], strlen($objectBody)) . $entryPrefix . gzcompress($objectBody);
+        $declaredSize = $object['declaredSize'] ?? strlen($objectBody);
+        $entryBytes = $encodeEntryHeader($object['typeId'], $declaredSize) . $entryPrefix . gzcompress($objectBody);
         $pack .= $entryBytes;
         $indexType = $object['finalType'] ?? $object['type'];
         $indexBody = $object['finalBody'] ?? $objectBody;
@@ -132,6 +133,22 @@ $copyThenInsertDelta = static function (string $base, string $insert) use ($enco
         . chr(strlen($base))
         . chr(strlen($insert))
         . $insert;
+};
+
+$captureWarnings = static function (callable $callback): array {
+    $warnings = [];
+    set_error_handler(static function (int $severity, string $message) use (&$warnings): bool {
+        $warnings[] = $message;
+
+        return true;
+    });
+    try {
+        $callback();
+    } finally {
+        restore_error_handler();
+    }
+
+    return $warnings;
 };
 
 $buildThinWordPressBlobs = static function (): array {
@@ -302,8 +319,61 @@ return [
 
         $t->throws(RuntimeException::class, static fn () => PackData::fromBytes($packBytes)->readObject(PackIndex::fromBytes($indexBytes), $entries[1]['oid']));
     },
+    'rejects malformed delta declared-size parity without php warnings' => static function (TestRunner $t) use ($buildPackFixture, $encodeDeltaSize, $captureWarnings): void {
+        $base = new GitObject('blob', 'A');
+        $copyOne = $encodeDeltaSize(1) . $encodeDeltaSize(1) . chr(0x90) . chr(1);
+
+        [$longPackBytes, $longIndexBytes, $longEntries] = $buildPackFixture([
+            [
+                'type' => 'ref-delta',
+                'typeId' => 7,
+                'body' => $copyOne . chr(0),
+                'declaredSize' => strlen($copyOne),
+                'baseOid' => $base->oid(),
+                'finalType' => 'blob',
+                'finalBody' => 'A',
+            ],
+        ]);
+        $longPack = PackData::fromBytes($longPackBytes);
+        $longIndex = PackIndex::fromBytes($longIndexBytes);
+        $longWarnings = $captureWarnings(static function () use ($t, $longPack, $longIndex, $longEntries, $base): void {
+            $t->throws(RuntimeException::class, static fn () => $longPack->readObjectWithExternalBases($longIndex, $longEntries[0]['oid'], [$base->oid() => $base]));
+        });
+
+        [$shortPackBytes, $shortIndexBytes, $shortEntries] = $buildPackFixture([
+            [
+                'type' => 'ref-delta',
+                'typeId' => 7,
+                'body' => $copyOne,
+                'declaredSize' => strlen($copyOne) + 1,
+                'baseOid' => $base->oid(),
+                'finalType' => 'blob',
+                'finalBody' => 'A',
+            ],
+        ]);
+        $shortPack = PackData::fromBytes($shortPackBytes);
+        $shortIndex = PackIndex::fromBytes($shortIndexBytes);
+        $shortWarnings = $captureWarnings(static function () use ($t, $shortPack, $shortIndex, $shortEntries, $base): void {
+            $t->throws(RuntimeException::class, static fn () => $shortPack->readObjectWithExternalBases($shortIndex, $shortEntries[0]['oid'], [$base->oid() => $base]));
+        });
+
+        [$mismatchedBasePackBytes, $mismatchedBaseIndexBytes, $mismatchedBaseEntries] = $buildPackFixture([
+            ['type' => 'blob', 'typeId' => 3, 'body' => 'A', 'declaredSize' => 2],
+            ['type' => 'ofs-delta', 'typeId' => 6, 'body' => $copyOne, 'baseEntry' => 0, 'finalType' => 'blob', 'finalBody' => 'A'],
+        ]);
+        $mismatchedBasePack = PackData::fromBytes($mismatchedBasePackBytes);
+        $mismatchedBaseIndex = PackIndex::fromBytes($mismatchedBaseIndexBytes);
+        $mismatchedBaseWarnings = $captureWarnings(static function () use ($t, $mismatchedBasePack, $mismatchedBaseIndex, $mismatchedBaseEntries): void {
+            $t->throws(RuntimeException::class, static fn () => $mismatchedBasePack->readObject($mismatchedBaseIndex, $mismatchedBaseEntries[1]['oid']));
+        });
+
+        $t->same([], $longWarnings);
+        $t->same([], $shortWarnings);
+        $t->same([], $mismatchedBaseWarnings);
+    },
     'wordpress fixture reads compacted commit blob and delta objects without git binary' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-data.php';
+        $summary = require dirname(__DIR__) . '/examples/wordpress-pack-data.php';
         $pack = PackData::fromBytes($fixture['packBytes']);
         $index = PackIndex::fromBytes($fixture['indexBytes']);
 
@@ -317,6 +387,7 @@ return [
         $t->contains('wp_posts export', $blob->body);
         $t->same('blob', $deltaBlob->type);
         $t->contains('reconstructed packed edit', $deltaBlob->body);
+        $t->same(true, $summary['strictDeclaredSizeGuard']);
     },
     'wordpress fixture resolves and repairs thin content packs' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-thin-pack-repair.php';
