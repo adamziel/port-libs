@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 17:25:48 UTC",
-    "sourceCommit": "200f297b95a896d04656cb5f01bdede84039d492",
-    "sourceCommitShort": "200f297b95a8",
+    "generated": "2026-05-31 17:33:16 UTC",
+    "sourceCommit": "43537ea93043c66122f11b00c817e49e8392115c",
+    "sourceCommitShort": "43537ea93043",
     "sourceBranch": "main",
-    "dashboardCommit": "dcb4aa2227276c97626968cffddb69a6db95c3cc",
-    "dashboardCommitShort": "dcb4aa222727",
+    "dashboardCommit": "20c5b661ae9e64625a219fc368752ce61552bd3e",
+    "dashboardCommitShort": "20c5b661ae9e",
     "averageProgressPercent": "86.6",
     "lanes": [
         {
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "85.5",
+            "progressPercent": "85.6",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1571",
-            "coverage": "1571 / 3532",
-            "php": "2696 pass / 0 fail",
+            "mapped": "1573",
+            "coverage": "1573 / 3532",
+            "php": "2715 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "native CSS parser/formatter/minifier, declaration CSSOM...",
-            "audit": "Supervisor accepted source commit 200f297...",
-            "currentWork": "Native LightningCSS now covers parent-relative import path preservation in the bundler, r...",
+            "audit": "Supervisor accepted source commit 43537ea...",
+            "currentWork": "Native LightningCSS now keeps duplicate supports-gated imports unconditional when any sam...",
             "nextTarget": "Continue current-base LightningCSS integration from source-only clean candidates, priorit...",
             "blocker": "No current LightningCSS PHP blocker for this batch.",
-            "commit": "200f297"
+            "commit": "43537ea"
         },
         {
             "library": "markerPDF",
