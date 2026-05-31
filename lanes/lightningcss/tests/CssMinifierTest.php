@@ -137,6 +137,79 @@ CSS
         $t->same('.foo{color:red}', $minifier->minify('.foo { color: hwb(none none none) }'));
         $t->same('.foo{color:#000}', $minifier->minify('.foo { color: rgb(none none none) }'));
     },
+    'css minifier maps upstream rgb relative color sRGB origins' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'rgb(from rebeccapurple r g b)' => '#639',
+            'rgb(from rebeccapurple r g b / alpha)' => '#639',
+            'rgb(from rgb(20%, 40%, 60%, 80%) r g b / alpha)' => '#369c',
+            'rgb(from hsl(120deg 20% 50% / .5) r g b / alpha)' => '#66996680',
+            'rgb(from rgb(from rebeccapurple r g b) r g b)' => '#639',
+            'rgb(from rebeccapurple 0 0 0)' => '#000',
+            'rgb(from rebeccapurple 0 0 0 / 0)' => '#0000',
+            'rgb(from rebeccapurple 0 g b / alpha)' => '#039',
+            'rgb(from rebeccapurple r 0 b / alpha)' => '#609',
+            'rgb(from rebeccapurple r g 0 / alpha)' => '#630',
+            'rgb(from rebeccapurple r g b / 0)' => '#6390',
+            'rgb(from rgb(20%, 40%, 60%, 80%) 0 g b / alpha)' => '#069c',
+            'rgb(from rgb(20%, 40%, 60%, 80%) r 0 b / alpha)' => '#309c',
+            'rgb(from rgb(20%, 40%, 60%, 80%) r g 0 / alpha)' => '#360c',
+            'rgb(from rgb(20%, 40%, 60%, 80%) r g b / 0)' => '#3690',
+            'rgb(from rebeccapurple 25 g b / alpha)' => '#193399',
+            'rgb(from rebeccapurple r 25 b / alpha)' => '#661999',
+            'rgb(from rebeccapurple r g 25 / alpha)' => '#663319',
+            'rgb(from rebeccapurple r g b / .25)' => '#66339940',
+            'rgb(from rgb(20%, 40%, 60%, 80%) 25 g b / alpha)' => '#196699cc',
+            'rgb(from rgb(20%, 40%, 60%, 80%) r 25 b / alpha)' => '#331999cc',
+            'rgb(from rgb(20%, 40%, 60%, 80%) r g 25 / alpha)' => '#336619cc',
+            'rgb(from rgb(20%, 40%, 60%, 80%) r g b / .20)' => '#3693',
+            'rgb(from rebeccapurple 20% g b / alpha)' => '#339',
+            'rgb(from rebeccapurple r 20% b / alpha)' => '#639',
+            'rgb(from rebeccapurple r g 20% / alpha)' => '#633',
+            'rgb(from rebeccapurple r g b / 20%)' => '#6393',
+            'rgb(from rebeccapurple 25 g b / 25%)' => '#19339940',
+            'rgb(from rebeccapurple r 25 b / 25%)' => '#66199940',
+            'rgb(from rebeccapurple r g 25 / 25%)' => '#66331940',
+            'rgb(from rgb(20%, 40%, 60%, 80%) 25 g b / 25%)' => '#19669940',
+            'rgb(from rgb(20%, 40%, 60%, 80%) r 25 b / 25%)' => '#33199940',
+            'rgb(from rgb(20%, 40%, 60%, 80%) r g 25 / 25%)' => '#33661940',
+            'rgb(from rebeccapurple g b r)' => '#396',
+            'rgb(from rebeccapurple b alpha r / g)' => '#990166',
+            'rgb(from rebeccapurple r r r / r)' => '#666',
+            'rgb(from rebeccapurple alpha alpha alpha / alpha)' => '#010101',
+            'rgb(from rgb(20%, 40%, 60%, 80%) g b r)' => '#693',
+            'rgb(from rgb(20%, 40%, 60%, 80%) b alpha r / g)' => '#990133',
+            'rgb(from rgb(20%, 40%, 60%, 80%) r r r / r)' => '#333',
+            'rgb(from rgb(20%, 40%, 60%, 80%) alpha alpha alpha / alpha)' => '#010101cc',
+            'rgb(from rebeccapurple r 20% 10)' => '#66330a',
+            'rgb(from rebeccapurple r 10 20%)' => '#660a33',
+            'rgb(from rebeccapurple 0% 10 10)' => '#000a0a',
+            'rgb(from rgb(20%, 40%, 60%, 80%) r 20% 10)' => '#33330a',
+            'rgb(from rgb(20%, 40%, 60%, 80%) r 10 20%)' => '#330a33',
+            'rgb(from rgb(20%, 40%, 60%, 80%) 0% 10 10)' => '#000a0a',
+            'rgb(from rebeccapurple calc(r) calc(g) calc(b))' => '#639',
+            'rgb(from rebeccapurple r calc(g * 2) 10)' => '#66660a',
+            'rgb(from rebeccapurple b calc(r * .5) 10)' => '#99330a',
+            'rgb(from rebeccapurple r calc(g * .5 + g * .5) 10)' => '#66330a',
+            'rgb(from rebeccapurple r calc(b * .5 - g * .5) 10)' => '#66330a',
+            'rgb(from rgb(20%, 40%, 60%, 80%) calc(r) calc(g) calc(b) / calc(alpha))' => '#369c',
+            'rgb(from rebeccapurple none none none)' => '#000',
+            'rgb(from rebeccapurple none none none / none)' => '#0000',
+            'rgb(from rebeccapurple r g none)' => '#630',
+            'rgb(from rebeccapurple r g none / alpha)' => '#630',
+            'rgb(from rebeccapurple r g b / none)' => '#6390',
+            'rgb(from rgb(20% 40% 60% / 80%) r g none / alpha)' => '#360c',
+            'rgb(from rgb(20% 40% 60% / 80%) r g b / none)' => '#3690',
+            'rgb(from rgb(none none none) r g b)' => '#000',
+            'rgb(from rgb(none none none / none) r g b / alpha)' => '#0000',
+            'rgb(from rgb(20% none 60%) r g b)' => '#309',
+            'rgb(from rgb(20% 40% 60% / none) r g b / alpha)' => '#3690',
+        ];
+
+        foreach ($cases as $input => $expectedColor) {
+            $t->same('.foo{color:' . $expectedColor . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
+        }
+    },
     'css minifier maps upstream advanced color function normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $cases = [
@@ -1037,6 +1110,11 @@ CSS
         );
         $t->same('@import "foo.css";', $minifier->minify('@charset "UTF-8"; @import url(foo.css);'));
         $t->same('@layer foo;@import "foo.css";', $minifier->minify('@layer foo; @import url(foo.css);'));
+        $t->same('@import "test.css" layer;', $minifier->minify("@import 'test.css' layer;"));
+        $t->same('@import "test.css" layer(foo);', $minifier->minify("@import 'test.css' layer(foo);"));
+        $t->same('@import "test.css" layer(foo.bar);', $minifier->minify("@import 'test.css' layer(foo.bar);"));
+        $t->same('@import "test.css" layer(foo\\ bar);', $minifier->minify("@import 'test.css' layer(foo\\20 bar);"));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify("@import 'test.css' layer(foo, bar) {};"));
     },
     'css minifier maps upstream layer statement and block consolidation' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -1074,6 +1152,8 @@ CSS
             '@layer a,b;@import "a.css" layer(x);@layer c;@layer d{foo{color:red}}',
             $minifier->minify('@layer a; @layer b; @import "a.css" layer(x); @layer c; @layer d { foo { color: red; } }')
         );
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@layer;'));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@layer foo, bar {};'));
     },
     'css minifier maps upstream supports rule condition normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

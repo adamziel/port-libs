@@ -58,6 +58,18 @@ if (($argv[1] ?? null) === '--self-test') {
         exit(1);
     } catch (InvalidArgumentException) {
     }
+
+    foreach ([
+        '@layer theme, blocks {}',
+        '@import "blocks/query-card.css" layer(theme, blocks) {};',
+    ] as $invalidLayerCss) {
+        try {
+            $minifier->minify($invalidLayerCss);
+            fwrite(STDERR, "Expected invalid layer syntax to be rejected: {$invalidLayerCss}\n");
+            exit(1);
+        } catch (InvalidArgumentException) {
+        }
+    }
 }
 
 echo $actual . PHP_EOL;

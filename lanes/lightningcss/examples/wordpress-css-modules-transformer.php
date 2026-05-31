@@ -11,6 +11,7 @@ $css = <<<'CSS'
   background: white;
   view-transition-name: card-enter;
   view-transition-class: card page;
+  animation: card-pop 240ms ease-out;
 
   .cardIcon {
     color: yellow;
@@ -48,6 +49,11 @@ $css = <<<'CSS'
 
 @view-transition {
   types: card-enter page;
+}
+
+@keyframes card-pop {
+  from { opacity: 0 }
+  to { opacity: 1 }
 }
 CSS;
 
@@ -151,7 +157,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '.BlockA_card{background:#fff;view-transition-name:BlockA_card-enter;view-transition-class:BlockA_card BlockA_page}.BlockA_card .BlockA_cardIcon{color:#ff0}.wp-block-button .BlockA_card{border-radius:4px}.BlockA_cardTitle{color:#ff0}.BlockA_card\:featured{outline:1px solid #ff0}.wp-block-button .legacyButton .BlockA_cardTitle{text-decoration:none}@media (width>=600px){.BlockA_cardCompact{gap:8px}}@view-transition{types:BlockA_card-enter BlockA_page}',
+    'code' => '.BlockA_card{background:#fff;view-transition-name:BlockA_card-enter;view-transition-class:BlockA_card BlockA_page;animation:.24s ease-out BlockA_card-pop}.BlockA_card .BlockA_cardIcon{color:#ff0}.wp-block-button .BlockA_card{border-radius:4px}.BlockA_cardTitle{color:#ff0}.BlockA_card\:featured{outline:1px solid #ff0}.wp-block-button .legacyButton .BlockA_cardTitle{text-decoration:none}@media (width>=600px){.BlockA_cardCompact{gap:8px}}@view-transition{types:BlockA_card-enter BlockA_page}@keyframes BlockA_card-pop{0%{opacity:0}to{opacity:1}}',
     'exports' => [
         'card' => [
             'name' => 'BlockA_card',
@@ -177,6 +183,11 @@ $expected = [
             'name' => 'BlockA_page',
             'composes' => [],
             'isReferenced' => false,
+        ],
+        'card-pop' => [
+            'name' => 'BlockA_card-pop',
+            'composes' => [],
+            'isReferenced' => true,
         ],
         'cardIcon' => [
             'name' => 'BlockA_cardIcon',

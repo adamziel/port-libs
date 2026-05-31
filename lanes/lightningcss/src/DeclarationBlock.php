@@ -62,6 +62,11 @@ final class DeclarationBlock
 
     private const FLEX_DIRECTIONS = ['row', 'row-reverse', 'column', 'column-reverse'];
     private const FLEX_WRAPS = ['nowrap', 'wrap', 'wrap-reverse'];
+    private const FLEX_ITEM_LONGHANDS = [
+        'flex-grow',
+        'flex-shrink',
+        'flex-basis',
+    ];
     private const ANIMATION_DIRECTIONS = ['normal', 'reverse', 'alternate', 'alternate-reverse'];
     private const ANIMATION_FILL_MODES = ['none', 'forwards', 'backwards', 'both'];
     private const ANIMATION_PLAY_STATES = ['running', 'paused'];
@@ -431,37 +436,65 @@ final class DeclarationBlock
             return null;
         }
 
-        $components = $this->resolveFlexComponents($entries, $prefix);
-        if ($base === 'flex-flow') {
-            $direction = $components['direction'];
-            $wrap = $components['wrap'];
-            if ($direction === null && $wrap === null) {
-                return null;
+        if (in_array($base, ['flex-flow', 'flex-direction', 'flex-wrap'], true)) {
+            $components = $this->resolveFlexFlowComponents($entries, $prefix);
+            if ($base === 'flex-flow') {
+                $direction = $components['direction'];
+                $wrap = $components['wrap'];
+                if ($direction === null && $wrap === null) {
+                    return null;
+                }
+                if (!$components['flow'] && ($direction === null || $wrap === null)) {
+                    return null;
+                }
+
+                $important = ($direction ?? $wrap)['important'];
+                if ($direction !== null && $direction['important'] !== $important) {
+                    return null;
+                }
+                if ($wrap !== null && $wrap['important'] !== $important) {
+                    return null;
+                }
+
+                return [
+                    'value' => $this->composeFlexFlow($direction['value'] ?? null, $wrap['value'] ?? null),
+                    'important' => $important,
+                ];
             }
-            if (!$components['flow'] && ($direction === null || $wrap === null)) {
+
+            if ($base === 'flex-direction') {
+                return $components['direction'];
+            }
+
+            return $components['wrap'];
+        }
+
+        if (in_array($base, ['flex', 'flex-grow', 'flex-shrink', 'flex-basis'], true)) {
+            $components = $this->resolveFlexItemComponents($entries, $prefix);
+            if ($base !== 'flex') {
+                return $components[$base];
+            }
+
+            $grow = $components['flex-grow'];
+            $shrink = $components['flex-shrink'];
+            $basis = $components['flex-basis'];
+            if ($grow === null || $shrink === null || $basis === null) {
                 return null;
             }
 
-            $important = ($direction ?? $wrap)['important'];
-            if ($direction !== null && $direction['important'] !== $important) {
-                return null;
-            }
-            if ($wrap !== null && $wrap['important'] !== $important) {
+            $important = $grow['important'];
+            if ($shrink['important'] !== $important || $basis['important'] !== $important) {
                 return null;
             }
 
             return [
-                'value' => $this->composeFlexFlow($direction['value'] ?? null, $wrap['value'] ?? null),
+                'value' => $this->composeFlexShorthandValue([
+                    'flex-grow' => $grow['value'],
+                    'flex-shrink' => $shrink['value'],
+                    'flex-basis' => $basis['value'],
+                ]),
                 'important' => $important,
             ];
-        }
-
-        if ($base === 'flex-direction') {
-            return $components['direction'];
-        }
-
-        if ($base === 'flex-wrap') {
-            return $components['wrap'];
         }
 
         return null;
@@ -3580,7 +3613,7 @@ final class DeclarationBlock
      *     flow:bool
      * }
      */
-    private function resolveFlexComponents(array $entries, string $prefix): array
+    private function resolveFlexFlowComponents(array $entries, string $prefix): array
     {
         $components = [
             'direction' => null,
@@ -3624,11 +3657,11 @@ final class DeclarationBlock
 
     private function flexPrefixForProperty(string $property): ?string
     {
-        if (str_starts_with($property, '-webkit-flex-')) {
+        if ($property === '-webkit-flex' || str_starts_with($property, '-webkit-flex-')) {
             return '-webkit-';
         }
 
-        if (str_starts_with($property, 'flex-')) {
+        if ($property === 'flex' || str_starts_with($property, 'flex-')) {
             return '';
         }
 
@@ -3641,7 +3674,7 @@ final class DeclarationBlock
             $property = substr($property, strlen('-webkit-'));
         }
 
-        return in_array($property, ['flex-flow', 'flex-direction', 'flex-wrap'], true)
+        return in_array($property, ['flex', 'flex-flow', 'flex-direction', 'flex-wrap', 'flex-grow', 'flex-shrink', 'flex-basis'], true)
             ? $property
             : null;
     }
@@ -3682,6 +3715,227 @@ final class DeclarationBlock
             [$direction, $wrap],
             static fn (?string $part): bool => $part !== null && $part !== ''
         )));
+    }
+
+    /**
+     * @param array{flex-grow:string, flex-shrink:string, flex-basis:string} $components
+     */
+    private function composeFlexShorthandValue(array $components): string
+    {
+        $grow = $components['flex-grow'];
+        $shrink = $components['flex-shrink'];
+        $basis = $components['flex-basis'];
+
+        if ($this->flexNumberEquals($grow, 0.0) && $this->flexNumberEquals($shrink, 0.0) && strtolower($basis) === 'auto') {
+            return 'none';
+        }
+
+        $basisKind = $this->flexBasisZeroKind($basis);
+        $parts = [];
+        if (!$this->flexNumberEquals($grow, 1.0) || !$this->flexNumberEquals($shrink, 1.0) || $basisKind !== 'nonzero') {
+            $parts[] = $grow;
+            if (!$this->flexNumberEquals($shrink, 1.0) || $basisKind === 'length') {
+                $parts[] = $shrink;
+            }
+        }
+
+        if ($basisKind !== 'percentage') {
+            $parts[] = $basis;
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function flexBasisZeroKind(string $value): string
+    {
+        $value = strtolower(trim($value));
+        if (preg_match('/^[+-]?(?:0+(?:\.0+)?|\.0+)(?:e[+-]?\d+)?%$/', $value) === 1) {
+            return 'percentage';
+        }
+
+        if (preg_match('/^[+-]?(?:0+(?:\.0+)?|\.0+)(?:e[+-]?\d+)?(?:[a-z]+)?$/', $value) === 1) {
+            return 'length';
+        }
+
+        return 'nonzero';
+    }
+
+    private function flexNumberEquals(string $value, float $expected): bool
+    {
+        if (!$this->isFlexNumberToken($value)) {
+            return false;
+        }
+
+        return abs(((float) $value) - $expected) < 0.0000001;
+    }
+
+    /**
+     * @return array{flex-grow:string, flex-shrink:string, flex-basis:string}|null
+     */
+    private function parseFlexShorthandComponents(string $value): ?array
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'none') === 0) {
+            return [
+                'flex-grow' => '0',
+                'flex-shrink' => '0',
+                'flex-basis' => 'auto',
+            ];
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $grow = null;
+        $shrink = null;
+        $basis = null;
+        $count = count($tokens);
+        for ($index = 0; $index < $count; $index++) {
+            $token = $tokens[$index];
+            if ($grow === null && $this->isFlexNumberToken($token)) {
+                $grow = $this->normalizeFlexNumberValue($token);
+                if ($index + 1 < $count && $this->isFlexNumberToken($tokens[$index + 1])) {
+                    $shrink = $this->normalizeFlexNumberValue($tokens[++$index]);
+                }
+                continue;
+            }
+
+            if ($basis === null && $this->isFlexBasisToken($token)) {
+                $basis = $this->normalizeFlexBasisValue($token);
+                continue;
+            }
+
+            return null;
+        }
+
+        return [
+            'flex-grow' => $grow ?? '1',
+            'flex-shrink' => $shrink ?? '1',
+            'flex-basis' => $basis ?? '0%',
+        ];
+    }
+
+    private function normalizeFlexLonghandValue(string $base, string $value): ?string
+    {
+        return match ($base) {
+            'flex-grow', 'flex-shrink' => $this->isFlexNumberToken($value) ? $this->normalizeFlexNumberValue($value) : null,
+            'flex-basis' => $this->isFlexBasisToken($value) ? $this->normalizeFlexBasisValue($value) : null,
+            default => null,
+        };
+    }
+
+    private function isFlexNumberToken(string $value): bool
+    {
+        return preg_match('/^[+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?$/', trim($value)) === 1;
+    }
+
+    private function normalizeFlexNumberValue(string $value): string
+    {
+        $number = (float) trim($value);
+        if (abs($number) < 0.0000001) {
+            return '0';
+        }
+
+        return rtrim(rtrim(sprintf('%.6F', $number), '0'), '.');
+    }
+
+    private function isFlexBasisToken(string $value): bool
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'auto') === 0) {
+            return true;
+        }
+
+        if (preg_match('/^[+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?%$/', $value) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^[+-]?(?:(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?)(?:[a-z]+)$/i', $value) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^[+-]?(?:0+(?:\.0+)?|\.0+)(?:[eE][+-]?\d+)?$/', $value) === 1) {
+            return true;
+        }
+
+        return preg_match('/^(?:calc|min|max|clamp)\(/i', $value) === 1;
+    }
+
+    private function normalizeFlexBasisValue(string $value): string
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'auto') === 0) {
+            return 'auto';
+        }
+
+        if (preg_match('/^([+-]?(?:\d*\.\d+|\d+)(?:[eE][+-]?\d+)?)(%|[a-z]+)$/i', $value, $matches) === 1) {
+            $number = $this->normalizeFlexNumberValue($matches[1]);
+            if ($number === '0' && $matches[2] !== '%') {
+                return '0';
+            }
+
+            return $number . strtolower($matches[2]);
+        }
+
+        if ($this->isFlexNumberToken($value) && $this->flexNumberEquals($value, 0.0)) {
+            return '0';
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{
+     *     flex-grow:array{value:string, important:bool}|null,
+     *     flex-shrink:array{value:string, important:bool}|null,
+     *     flex-basis:array{value:string, important:bool}|null
+     * }
+     */
+    private function resolveFlexItemComponents(array $entries, string $prefix): array
+    {
+        $components = [
+            'flex-grow' => null,
+            'flex-shrink' => null,
+            'flex-basis' => null,
+        ];
+
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $this->flexProperty($prefix, 'flex')) {
+                $parsed = $this->parseFlexShorthandComponents($entry['value']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach (self::FLEX_ITEM_LONGHANDS as $longhand) {
+                    $components[$longhand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            $entryPrefix = $this->flexPrefixForProperty($entry['property']);
+            $entryBase = $this->baseFlexProperty($entry['property']);
+            if ($entryPrefix !== $prefix || !in_array($entryBase, self::FLEX_ITEM_LONGHANDS, true)) {
+                continue;
+            }
+
+            $value = $this->normalizeFlexLonghandValue($entryBase, $entry['value']);
+            if ($value === null) {
+                continue;
+            }
+
+            $components[$entryBase] = [
+                'value' => $value,
+                'important' => $entry['important'],
+            ];
+        }
+
+        return $components;
     }
 
     /**
@@ -6103,11 +6357,112 @@ final class DeclarationBlock
     /**
      * @param list<array{property:string, value:string, important:bool}> $entries
      */
+    private function setFlexItemLonghand(array $entries, string $property, string $base, string $prefix, string $value, bool $important): ?string
+    {
+        $value = $this->normalizeFlexLonghandValue($base, $value);
+        if ($value === null) {
+            return null;
+        }
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] === $this->flexProperty($prefix, 'flex')) {
+                if ($entries[$index]['important'] !== $important) {
+                    return null;
+                }
+
+                $components = $this->parseFlexShorthandComponents($entries[$index]['value']);
+                if ($components === null) {
+                    continue;
+                }
+
+                $components[$base] = $value;
+                $entries[$index] = [
+                    'property' => $entries[$index]['property'],
+                    'value' => $this->composeFlexShorthandValue($components),
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($this->baseFlexProperty($entries[$index]['property']) === 'flex') {
+                $components = $this->parseFlexShorthandComponents($entries[$index]['value']);
+                if ($components === null) {
+                    continue;
+                }
+
+                $entryPrefix = $this->flexPrefixForProperty($entries[$index]['property']);
+                if ($entryPrefix === null) {
+                    continue;
+                }
+
+                array_splice(
+                    $entries,
+                    $index,
+                    1,
+                    $this->flexItemLonghandEntries($components, $entryPrefix, $base, $entries[$index]['important'])
+                );
+                $entries[] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{flex-grow:string, flex-shrink:string, flex-basis:string} $components
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function flexItemLonghandEntries(array $components, string $prefix, ?string $skip, bool $important): array
+    {
+        $entries = [];
+        foreach (self::FLEX_ITEM_LONGHANDS as $longhand) {
+            if ($longhand === $skip) {
+                continue;
+            }
+
+            $entries[] = [
+                'property' => $this->flexProperty($prefix, $longhand),
+                'value' => $components[$longhand],
+                'important' => $important,
+            ];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
     private function setFlexLonghand(array $entries, string $property, string $value, bool $important): ?string
     {
         $prefix = $this->flexPrefixForProperty($property);
         $base = $this->baseFlexProperty($property);
-        if ($prefix === null || !in_array($base, ['flex-direction', 'flex-wrap'], true)) {
+        if ($prefix === null || $base === null) {
+            return null;
+        }
+
+        if (in_array($base, self::FLEX_ITEM_LONGHANDS, true)) {
+            return $this->setFlexItemLonghand($entries, $property, $base, $prefix, $value, $important);
+        }
+
+        if (!in_array($base, ['flex-direction', 'flex-wrap'], true)) {
             return null;
         }
 
@@ -7067,7 +7422,7 @@ final class DeclarationBlock
             return $borderLonghands;
         }
 
-        $flexLonghands = $this->flexFlowLonghands($property);
+        $flexLonghands = $this->flexShorthandLonghands($property);
         if ($flexLonghands !== null) {
             return $flexLonghands;
         }
@@ -7123,18 +7478,25 @@ final class DeclarationBlock
     /**
      * @return list<string>|null
      */
-    private function flexFlowLonghands(string $property): ?array
+    private function flexShorthandLonghands(string $property): ?array
     {
         $prefix = $this->flexPrefixForProperty($property);
         $base = $this->baseFlexProperty($property);
-        if ($prefix === null || $base !== 'flex-flow') {
+        if ($prefix === null) {
             return null;
         }
 
-        return [
-            $this->flexProperty($prefix, 'flex-direction'),
-            $this->flexProperty($prefix, 'flex-wrap'),
-        ];
+        return match ($base) {
+            'flex' => array_map(
+                fn (string $longhand): string => $this->flexProperty($prefix, $longhand),
+                self::FLEX_ITEM_LONGHANDS
+            ),
+            'flex-flow' => [
+                $this->flexProperty($prefix, 'flex-direction'),
+                $this->flexProperty($prefix, 'flex-wrap'),
+            ],
+            default => null,
+        };
     }
 
     /**
@@ -7157,7 +7519,7 @@ final class DeclarationBlock
         $prefix = $this->flexPrefixForProperty($property);
         $base = $this->baseFlexProperty($property);
 
-        return $prefix !== null && in_array($base, ['flex-direction', 'flex-wrap'], true);
+        return $prefix !== null && in_array($base, ['flex-direction', 'flex-wrap', 'flex-grow', 'flex-shrink', 'flex-basis'], true);
     }
 
     /**
@@ -7167,7 +7529,38 @@ final class DeclarationBlock
     {
         $prefix = $this->flexPrefixForProperty($property);
         $base = $this->baseFlexProperty($property);
-        if ($prefix === null || !in_array($base, ['flex-direction', 'flex-wrap'], true)) {
+        if ($prefix === null || $base === null) {
+            return null;
+        }
+
+        if (in_array($base, self::FLEX_ITEM_LONGHANDS, true)) {
+            $result = [];
+            foreach ($entries as $entry) {
+                if ($entry['property'] === $property) {
+                    continue;
+                }
+
+                if ($entry['property'] !== $this->flexProperty($prefix, 'flex')) {
+                    $result[] = $entry;
+                    continue;
+                }
+
+                $components = $this->parseFlexShorthandComponents($entry['value']);
+                if ($components === null) {
+                    $result[] = $entry;
+                    continue;
+                }
+
+                array_push(
+                    $result,
+                    ...$this->flexItemLonghandEntries($components, $prefix, $base, $entry['important'])
+                );
+            }
+
+            return $this->serializeEntries($result);
+        }
+
+        if (!in_array($base, ['flex-direction', 'flex-wrap'], true)) {
             return null;
         }
 

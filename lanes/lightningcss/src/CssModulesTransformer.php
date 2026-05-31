@@ -16,6 +16,7 @@ final class CssModulesTransformer
     private string $filename = 'test.css';
     private string $pattern = '[hash]_[local]';
     private bool $dashedIdents = false;
+    private bool $animation = true;
     private bool $pure = false;
 
     /**
@@ -35,7 +36,7 @@ final class CssModulesTransformer
      *   references:array<string, array{type:string, name:string, specifier:string}>
      * }
      *
-     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, pure?:bool} $options
+     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, pure?:bool} $options
      */
     public function transform(string $css, array $options = []): array
     {
@@ -50,6 +51,7 @@ final class CssModulesTransformer
                 ? self::hashCssModuleString($css, $this->patternStartsWithSegment('[content-hash]'))
                 : '');
         $this->dashedIdents = ($options['dashedIdents'] ?? $options['dashed_idents'] ?? false) === true;
+        $this->animation = ($options['animation'] ?? true) !== false;
         $this->pure = ($options['pure'] ?? false) === true;
         $this->exports = [];
         $this->references = [];
@@ -93,7 +95,7 @@ final class CssModulesTransformer
             $trimmedPrelude = trim($prelude);
 
             if ($trimmedPrelude !== '' && $trimmedPrelude[0] === '@') {
-                $output .= $prelude . '{' . $this->transformAtRuleBody($trimmedPrelude, $body, $styleNestingDepth) . '}';
+                $output .= $this->rewriteAtRulePrelude($prelude, $trimmedPrelude) . '{' . $this->transformAtRuleBody($trimmedPrelude, $body, $styleNestingDepth) . '}';
                 $cursor = $close + 1;
                 continue;
             }
@@ -128,6 +130,38 @@ final class CssModulesTransformer
         }
 
         return $this->transformRuleList($body, $styleNestingDepth);
+    }
+
+    private function rewriteAtRulePrelude(string $prelude, string $trimmedPrelude): string
+    {
+        if ($this->animation && preg_match('/^@(?:-[a-z]+-)?keyframes\b/i', $trimmedPrelude) === 1) {
+            return $this->rewriteKeyframesPrelude($prelude);
+        }
+
+        return $prelude;
+    }
+
+    private function rewriteKeyframesPrelude(string $prelude): string
+    {
+        if (preg_match('/^(\s*@(?:-[a-z]+-)?keyframes\b)(\s*)(.*)$/is', $prelude, $matches) !== 1) {
+            return $prelude;
+        }
+
+        $nameSource = $matches[3];
+        $leading = strspn($nameSource, " \t\r\n\f");
+        $token = $this->readCssIdentifierToken($nameSource, $leading);
+        if ($token === null) {
+            return $prelude;
+        }
+
+        $name = $token['decoded'];
+        $this->ensureExport($name);
+
+        return $matches[1]
+            . $matches[2]
+            . substr($nameSource, 0, $leading)
+            . $this->escapeCssIdentifier($this->scopedName($name))
+            . substr($nameSource, $token['end']);
     }
 
     /**
@@ -254,11 +288,115 @@ final class CssModulesTransformer
     private function rewriteCssModuleDeclarationValue(string $property, string $value): ?string
     {
         return match ($property) {
+            'animation' => $this->animation ? $this->rewriteAnimationShorthandValue($value) : null,
+            'animation-name' => $this->animation ? $this->rewriteAnimationNameValue($value) : null,
             'view-transition-name' => $this->rewriteViewTransitionNameValue($value),
             'view-transition-class' => $this->rewriteViewTransitionIdentList($value, ['none']),
             'view-transition-group' => $this->rewriteViewTransitionNameValue($value, ['contain']),
             default => null,
         };
+    }
+
+    private function rewriteAnimationNameValue(string $value): string
+    {
+        return implode(',', array_map(
+            fn (string $part): string => $this->rewriteAnimationNameToken(trim($part)) ?? trim($part),
+            $this->splitTopLevel($value, ',')
+        ));
+    }
+
+    private function rewriteAnimationShorthandValue(string $value): string
+    {
+        $animations = [];
+        foreach ($this->splitTopLevel($value, ',') as $animation) {
+            $tokens = $this->splitWhitespaceTopLevel($animation);
+            $rewritten = [];
+            $scopedName = false;
+
+            foreach ($tokens as $token) {
+                if (!$scopedName) {
+                    $replacement = $this->rewriteAnimationNameToken($token);
+                    if ($replacement !== null) {
+                        $rewritten[] = $replacement;
+                        $scopedName = true;
+                        continue;
+                    }
+                }
+
+                $rewritten[] = $token;
+            }
+
+            $animations[] = implode(' ', $rewritten);
+        }
+
+        return implode(',', $animations);
+    }
+
+    private function rewriteAnimationNameToken(string $token): ?string
+    {
+        if ($token === '' || $this->isAnimationShorthandKeyword($token) || $this->isAnimationShorthandNonNameToken($token)) {
+            return null;
+        }
+
+        if ($this->isQuotedToken($token)) {
+            $name = $this->decodeCssStringToken(substr($token, 1, -1));
+            if ($name === '' || $this->isAnimationShorthandKeyword($name)) {
+                return null;
+            }
+
+            return $this->escapeCssIdentifier($this->scopeCustomIdentReference($name));
+        }
+
+        $decoded = $this->decodeCssIdentifierToken($token);
+        if ($decoded === null || $decoded === '' || $this->isAnimationShorthandKeyword($decoded)) {
+            return null;
+        }
+
+        return $this->escapeCssIdentifier($this->scopeCustomIdentReference($decoded));
+    }
+
+    private function isAnimationShorthandKeyword(string $token): bool
+    {
+        return in_array(strtolower($token), [
+            'none',
+            'initial',
+            'inherit',
+            'unset',
+            'default',
+            'revert',
+            'revert-layer',
+            'linear',
+            'ease',
+            'ease-in',
+            'ease-out',
+            'ease-in-out',
+            'step-start',
+            'step-end',
+            'infinite',
+            'normal',
+            'reverse',
+            'alternate',
+            'alternate-reverse',
+            'forwards',
+            'backwards',
+            'both',
+            'running',
+            'paused',
+            'auto',
+        ], true);
+    }
+
+    private function isAnimationShorthandNonNameToken(string $token): bool
+    {
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:ms|s)$/i', $token) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) === 1) {
+            return true;
+        }
+
+        return str_contains($token, '(');
     }
 
     /**
@@ -989,6 +1127,14 @@ final class CssModulesTransformer
         ]);
     }
 
+    public static function filenameHashForPattern(string $filename, ?string $projectRoot = null, string $pattern = '[hash]_[local]'): string
+    {
+        return self::hashCssModuleString(
+            self::relativeFilenameForHash($filename, $projectRoot),
+            str_starts_with($pattern, '[hash]')
+        );
+    }
+
     private function patternStartsWithSegment(string $segment): bool
     {
         return str_starts_with($this->pattern, $segment);
@@ -1213,6 +1359,14 @@ final class CssModulesTransformer
     private function scopeCustomIdent(string $local): string
     {
         $this->ensureExport($local);
+
+        return $this->scopedName($local);
+    }
+
+    private function scopeCustomIdentReference(string $local): string
+    {
+        $this->ensureExport($local);
+        $this->exports[$local]['isReferenced'] = true;
 
         return $this->scopedName($local);
     }

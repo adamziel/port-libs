@@ -550,6 +550,59 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules scopes upstream animation custom idents while preserving composes exports' => static function (TestRunner $t) use ($export, $dependency): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.test {
+  animation: rotate var(--duration) linear infinite;
+  composes: token from "tokens.css";
+}
+
+@keyframes rotate {
+  from { opacity: 0 }
+  to { opacity: 1 }
+}
+CSS);
+
+        $t->same('.EgL3uq_test{animation:EgL3uq_rotate var(--duration) linear infinite}@keyframes EgL3uq_rotate{0%{opacity:0}to{opacity:1}}', $result['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [$dependency('token', 'tokens.css')]),
+            'rotate' => [
+                'name' => 'EgL3uq_rotate',
+                'composes' => [],
+                'isReferenced' => true,
+            ],
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $none = (new CssModulesTransformer())->transform('.test { animation: none var(--duration); }');
+        $t->same('.EgL3uq_test{animation:none var(--duration)}', $none['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test'),
+        ], $none['exports']);
+
+        $variable = (new CssModulesTransformer())->transform('.test { animation: var(--animation); }');
+        $t->same('.EgL3uq_test{animation:var(--animation)}', $variable['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test'),
+        ], $variable['exports']);
+
+        $disabled = (new CssModulesTransformer())->transform('.test { animation: rotate var(--duration); }', ['animation' => false]);
+        $t->same('.EgL3uq_test{animation:rotate var(--duration)}', $disabled['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test'),
+        ], $disabled['exports']);
+
+        $quoted = (new CssModulesTransformer())->transform('.test { animation: "rotate" var(--duration); }');
+        $t->same('.EgL3uq_test{animation:EgL3uq_rotate var(--duration)}', $quoted['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test'),
+            'rotate' => [
+                'name' => 'EgL3uq_rotate',
+                'composes' => [],
+                'isReferenced' => true,
+            ],
+        ], $quoted['exports']);
+    },
     'css modules scopes upstream dashed idents and records dependency references' => static function (TestRunner $t) use ($export, $dashed): void {
         $css = <<<'CSS'
 .foo {

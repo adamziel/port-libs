@@ -393,6 +393,37 @@ return [
         );
         $t->same(null, $block->getProperty('-webkit-flex-flow: row', 'flex-direction'));
     },
+    'declaration block reads upstream flex cssom shorthand and longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty('flex: none', 'flex'));
+        $t->same(['value' => '0', 'important' => false], $block->getProperty('flex: none', 'flex-grow'));
+        $t->same(['value' => '0', 'important' => false], $block->getProperty('flex: none', 'flex-shrink'));
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty('flex: none', 'flex-basis'));
+        $t->same(['value' => 'auto', 'important' => true], $block->getProperty('flex: auto !important', 'flex'));
+        $t->same(
+            ['value' => '1', 'important' => false],
+            $block->getProperty('flex-grow: 1; flex-shrink: 1; flex-basis: 0%', 'flex')
+        );
+        $t->same(
+            ['value' => '1 1 0', 'important' => false],
+            $block->getProperty('flex-grow: 1; flex-shrink: 1; flex-basis: 0px', 'flex')
+        );
+        $t->same(
+            ['value' => '1 0 auto', 'important' => false],
+            $block->getProperty('flex-grow: 1; flex-shrink: 0; flex-basis: auto', 'flex')
+        );
+        $t->same(
+            ['value' => '2 10px', 'important' => false],
+            $block->getProperty('flex-grow: 2; flex-shrink: 1; flex-basis: 10px', 'flex')
+        );
+        $t->same(
+            null,
+            $block->getProperty('flex-grow: 1; flex-shrink: 1 !important; flex-basis: 0%', 'flex')
+        );
+        $t->same(['value' => '10px', 'important' => false], $block->getProperty('-webkit-flex: 2 10px', '-webkit-flex-basis'));
+        $t->same(null, $block->getProperty('-webkit-flex: 2 10px', 'flex-basis'));
+    },
     'declaration block reads upstream place alignment cssom shorthands and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -872,6 +903,23 @@ return [
         $t->same(
             'flex-flow: wrap; -webkit-flex-direction: column',
             $block->setProperty('flex-flow: row wrap', '-webkit-flex-direction', 'column')
+        );
+    },
+    'declaration block sets upstream flex cssom longhands in existing shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same('flex: 1 0', $block->setProperty('flex: 0 0', 'flex-grow', '1'));
+        $t->same('flex: 1 1 0', $block->setProperty('flex: 1 1 0', 'flex-basis', '0px'));
+        $t->same('flex: 1', $block->setProperty('flex: 1 1 0', 'flex-basis', '0%'));
+        $t->same('flex: 1 0 auto', $block->setProperty('flex: auto', 'flex-shrink', '0'));
+        $t->same('-webkit-flex: 2 auto', $block->setProperty('-webkit-flex: auto', '-webkit-flex-grow', '2'));
+        $t->same(
+            'flex-basis: auto; flex: 1 !important',
+            $block->setProperty('flex: 1 !important', 'flex-basis', 'auto')
+        );
+        $t->same(
+            'flex: 0 0; flex-grow: var(--grow)',
+            $block->setProperty('flex: 0 0', 'flex-grow', 'var(--grow)')
         );
     },
     'declaration block sets upstream place alignment cssom longhands in existing shorthands' => static function (TestRunner $t): void {
@@ -1427,6 +1475,21 @@ return [
         $t->same('flex-wrap: wrap', $block->removeProperty('flex-flow: column wrap', 'flex-direction'));
         $t->same('flex-flow: column wrap', $block->removeProperty('flex-flow: column wrap', '-webkit-flex-direction'));
         $t->same('-webkit-flex-wrap: wrap', $block->removeProperty('-webkit-flex-flow: column wrap', '-webkit-flex-direction'));
+    },
+    'declaration block removes upstream flex cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same('flex-shrink: 0; flex-basis: 10px', $block->removeProperty('flex: 2 0 10px', 'flex-grow'));
+        $t->same('flex-grow: 1; flex-shrink: 1', $block->removeProperty('flex: auto', 'flex-basis'));
+        $t->same('color: red', $block->removeProperty('flex: 1; flex-grow: 2; flex-basis: auto; color: red', 'flex'));
+        $t->same(
+            '-webkit-flex-grow: 2; -webkit-flex-shrink: 1',
+            $block->removeProperty('-webkit-flex: 2 10px', '-webkit-flex-basis')
+        );
+        $t->same(
+            'color: red; flex-shrink: 0 !important; flex-basis: 10px !important',
+            $block->removeProperty('flex: 2 0 10px !important; flex-grow: 1; color: red', 'flex-grow')
+        );
     },
     'declaration block removes upstream place alignment cssom longhands and shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();

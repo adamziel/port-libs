@@ -63,6 +63,48 @@ final class SourceMap
         return $index;
     }
 
+    /**
+     * @param list<string> $sources
+     * @return list<int>
+     */
+    public function addSources(array $sources): array
+    {
+        $indexes = [];
+        foreach ($sources as $source) {
+            if (!is_string($source)) {
+                throw new InvalidArgumentException('Source map sources must be strings.');
+            }
+
+            $indexes[] = $this->addSource($source);
+        }
+
+        return $indexes;
+    }
+
+    public function getSourceIndex(string $source): ?int
+    {
+        $source = self::makeRelativePath($this->projectRoot, $source);
+
+        return $this->sourceIndexes[$source] ?? null;
+    }
+
+    public function getSource(int $sourceIndex): string
+    {
+        if (!array_key_exists($sourceIndex, $this->sources)) {
+            throw new OutOfBoundsException('Unknown source index: ' . $sourceIndex);
+        }
+
+        return $this->sources[$sourceIndex];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getSources(): array
+    {
+        return $this->sources;
+    }
+
     public function setSourceContent(int $sourceIndex, string $content): void
     {
         $this->assertSourceIndex($sourceIndex);
@@ -71,6 +113,15 @@ final class SourceMap
         }
 
         $this->sourcesContent[$sourceIndex] = $content;
+    }
+
+    public function getSourceContent(int $sourceIndex): string
+    {
+        if (!array_key_exists($sourceIndex, $this->sourcesContent)) {
+            throw new OutOfBoundsException('Unknown source content index: ' . $sourceIndex);
+        }
+
+        return $this->sourcesContent[$sourceIndex];
     }
 
     public function addName(string $name): int
@@ -84,6 +135,46 @@ final class SourceMap
         $this->nameIndexes[$name] = $index;
 
         return $index;
+    }
+
+    /**
+     * @param list<string> $names
+     * @return list<int>
+     */
+    public function addNames(array $names): array
+    {
+        $indexes = [];
+        foreach ($names as $name) {
+            if (!is_string($name)) {
+                throw new InvalidArgumentException('Source map names must be strings.');
+            }
+
+            $indexes[] = $this->addName($name);
+        }
+
+        return $indexes;
+    }
+
+    public function getNameIndex(string $name): ?int
+    {
+        return $this->nameIndexes[$name] ?? null;
+    }
+
+    public function getName(int $nameIndex): string
+    {
+        if (!array_key_exists($nameIndex, $this->names)) {
+            throw new OutOfBoundsException('Unknown name index: ' . $nameIndex);
+        }
+
+        return $this->names[$nameIndex];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getNames(): array
+    {
+        return $this->names;
     }
 
     public function addMapping(
@@ -593,6 +684,21 @@ final class SourceMap
         }
 
         return $this->mappingForRead($lineMappings[0], 0);
+    }
+
+    /**
+     * @return list<array{generatedLine:int,generatedColumn:int,sourceIndex:int|null,originalLine:int|null,originalColumn:int|null,nameIndex:int|null}>
+     */
+    public function getMappings(): array
+    {
+        $mappings = $this->mappings;
+        usort(
+            $mappings,
+            static fn (array $a, array $b): int => [$a['generatedLine'], $a['generatedColumn'], $a['order']]
+                <=> [$b['generatedLine'], $b['generatedColumn'], $b['order']]
+        );
+
+        return array_map(fn (array $mapping): array => $this->mappingForRead($mapping), $mappings);
     }
 
     public function writeVlq(): string

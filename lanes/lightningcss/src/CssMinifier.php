@@ -877,7 +877,7 @@ final class CssMinifier
         if ($semicolon !== null && ($open === null || $semicolon < $open)) {
             $prelude = trim(substr($css, $start, $semicolon - $start));
             if ($prelude === '') {
-                return null;
+                throw new \InvalidArgumentException('Invalid @layer statement: missing layer name');
             }
 
             return [
@@ -893,7 +893,7 @@ final class CssMinifier
 
         $prelude = trim(substr($css, $start, $open - $start));
         if (str_contains($prelude, ',')) {
-            return null;
+            throw new \InvalidArgumentException("Invalid @layer block prelude: {$prelude}");
         }
 
         $close = $this->findMatchingBraceInCss($css, $open);
@@ -909,7 +909,7 @@ final class CssMinifier
 
         $names = $this->minifyLayerNameList($prelude);
         if (count($names) !== 1) {
-            return null;
+            throw new \InvalidArgumentException("Invalid @layer block prelude: {$prelude}");
         }
 
         return [
@@ -1377,7 +1377,12 @@ final class CssMinifier
             if ($this->startsAtKeyword($tail, 0, 'layer')) {
                 if (($tail[strlen('layer')] ?? '') === '(') {
                     [$function, $functionEnd] = $this->readFunctionRaw($tail, 0);
-                    $parts[] = 'layer(' . trim(substr($function, strlen('layer('), -1)) . ')';
+                    $layerName = trim(substr($function, strlen('layer('), -1));
+                    if (count($this->splitTopLevel($layerName, ',')) > 1) {
+                        throw new \InvalidArgumentException("Invalid @import layer name: {$layerName}");
+                    }
+
+                    $parts[] = 'layer(' . $this->minifyLayerName($layerName) . ')';
                     $tail = trim(substr($tail, $functionEnd + 1));
                     $sawLayerModifier = true;
                     continue;
@@ -12317,6 +12322,7 @@ final class CssMinifier
             'gray' => [128, 128, 128, 1.0],
             'green' => [0, 128, 0, 1.0],
             'lime' => [0, 255, 0, 1.0],
+            'rebeccapurple' => [102, 51, 153, 1.0],
             'red' => [255, 0, 0, 1.0],
             'transparent' => [0, 0, 0, 0.0],
             'white' => [255, 255, 255, 1.0],
@@ -12369,6 +12375,13 @@ final class CssMinifier
         }
 
         $name = strtolower($matches[1]);
+        if ($name === 'rgb' || $name === 'rgba') {
+            $relativeRgb = $this->minifyRelativeRgbColorFunction($matches[2]);
+            if ($relativeRgb !== null) {
+                return $relativeRgb;
+            }
+        }
+
         $parts = $this->parseColorFunctionParts($matches[2]);
         if ($parts === null) {
             return null;
@@ -12423,6 +12436,240 @@ final class CssMinifier
         }
 
         return $this->serializeColorBytes($red, $green, $blue, $alpha);
+    }
+
+    private function minifyRelativeRgbColorFunction(string $arguments): ?string
+    {
+        $slashParts = $this->splitTopLevel(trim($arguments), '/');
+        if ($slashParts === [] || count($slashParts) > 2) {
+            return null;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($slashParts[0]);
+        if (count($tokens) !== 5 || strcasecmp($tokens[0], 'from') !== 0) {
+            return null;
+        }
+
+        $origin = $this->parseRelativeSrgbOrigin($tokens[1]);
+        if ($origin === null) {
+            return null;
+        }
+
+        $red = $this->evaluateRelativeRgbComponent($tokens[2], $origin);
+        $green = $this->evaluateRelativeRgbComponent($tokens[3], $origin);
+        $blue = $this->evaluateRelativeRgbComponent($tokens[4], $origin);
+        if ($red === null || $green === null || $blue === null) {
+            return null;
+        }
+
+        $alpha = isset($slashParts[1])
+            ? $this->evaluateRelativeAlphaComponent(trim($slashParts[1]), $origin)
+            : 1.0;
+        if ($alpha === null) {
+            return null;
+        }
+
+        return $this->serializeColorBytes($red, $green, $blue, $alpha);
+    }
+
+    /**
+     * @return array{red:int,green:int,blue:int,alpha:float}|null
+     */
+    private function parseRelativeSrgbOrigin(string $origin): ?array
+    {
+        $origin = trim($origin);
+        $serialized = $this->minifyColorFunction($origin) ?? $origin;
+
+        return $this->parseSerializedSrgbColor($serialized);
+    }
+
+    /**
+     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     */
+    private function evaluateRelativeRgbComponent(string $token, array $origin): ?int
+    {
+        $value = $this->evaluateRelativeColorChannelToken($token, $origin, false);
+
+        return $value === null ? null : $this->clampColorByte((int) round($value));
+    }
+
+    /**
+     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     */
+    private function evaluateRelativeAlphaComponent(string $token, array $origin): ?float
+    {
+        $value = $this->evaluateRelativeColorChannelToken($token, $origin, true);
+
+        return $value === null ? null : min(1.0, max(0.0, $value));
+    }
+
+    /**
+     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     */
+    private function evaluateRelativeColorChannelToken(string $token, array $origin, bool $alphaContext): ?float
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return null;
+        }
+
+        if (strcasecmp($token, 'none') === 0) {
+            return 0.0;
+        }
+
+        $channel = $this->relativeColorChannelValue($token, $origin);
+        if ($channel !== null) {
+            return $channel;
+        }
+
+        if (preg_match('/^calc\((.*)\)$/is', $token, $matches) === 1) {
+            return $this->evaluateRelativeColorCalcExpression($matches[1], $origin);
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+            $percentage = (float) $matches[1];
+
+            return $alphaContext ? $percentage / 100 : $percentage * 255 / 100;
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) === 1) {
+            return (float) $token;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     */
+    private function relativeColorChannelValue(string $token, array $origin): ?float
+    {
+        return match (strtolower(trim($token))) {
+            'r' => (float) $origin['red'],
+            'g' => (float) $origin['green'],
+            'b' => (float) $origin['blue'],
+            'alpha' => $origin['alpha'],
+            default => null,
+        };
+    }
+
+    /**
+     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     */
+    private function evaluateRelativeColorCalcExpression(string $expression, array $origin): ?float
+    {
+        $offset = 0;
+        $value = $this->parseRelativeColorCalcSum($expression, $offset, $origin);
+        if ($value === null) {
+            return null;
+        }
+
+        $this->skipRelativeColorCalcWhitespace($expression, $offset);
+
+        return $offset === strlen($expression) ? $value : null;
+    }
+
+    /**
+     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     */
+    private function parseRelativeColorCalcSum(string $expression, int &$offset, array $origin): ?float
+    {
+        $value = $this->parseRelativeColorCalcProduct($expression, $offset, $origin);
+        if ($value === null) {
+            return null;
+        }
+
+        while (true) {
+            $this->skipRelativeColorCalcWhitespace($expression, $offset);
+            $operator = $expression[$offset] ?? '';
+            if ($operator !== '+' && $operator !== '-') {
+                return $value;
+            }
+
+            $offset++;
+            $right = $this->parseRelativeColorCalcProduct($expression, $offset, $origin);
+            if ($right === null) {
+                return null;
+            }
+
+            $value = $operator === '+' ? $value + $right : $value - $right;
+        }
+    }
+
+    /**
+     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     */
+    private function parseRelativeColorCalcProduct(string $expression, int &$offset, array $origin): ?float
+    {
+        $value = $this->parseRelativeColorCalcFactor($expression, $offset, $origin);
+        if ($value === null) {
+            return null;
+        }
+
+        while (true) {
+            $this->skipRelativeColorCalcWhitespace($expression, $offset);
+            $operator = $expression[$offset] ?? '';
+            if ($operator !== '*' && $operator !== '/') {
+                return $value;
+            }
+
+            $offset++;
+            $right = $this->parseRelativeColorCalcFactor($expression, $offset, $origin);
+            if ($right === null || ($operator === '/' && abs($right) < 0.000000000001)) {
+                return null;
+            }
+
+            $value = $operator === '*' ? $value * $right : $value / $right;
+        }
+    }
+
+    /**
+     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     */
+    private function parseRelativeColorCalcFactor(string $expression, int &$offset, array $origin): ?float
+    {
+        $this->skipRelativeColorCalcWhitespace($expression, $offset);
+        $char = $expression[$offset] ?? '';
+        if ($char === '+' || $char === '-') {
+            $offset++;
+            $value = $this->parseRelativeColorCalcFactor($expression, $offset, $origin);
+
+            return $value === null ? null : ($char === '-' ? -$value : $value);
+        }
+
+        if ($char === '(') {
+            $offset++;
+            $value = $this->parseRelativeColorCalcSum($expression, $offset, $origin);
+            $this->skipRelativeColorCalcWhitespace($expression, $offset);
+            if (($expression[$offset] ?? '') !== ')') {
+                return null;
+            }
+            $offset++;
+
+            return $value;
+        }
+
+        if (preg_match('/\G[+-]?(?:\d+|\d*\.\d+)/', $expression, $matches, 0, $offset) === 1) {
+            $offset += strlen($matches[0]);
+
+            return (float) $matches[0];
+        }
+
+        if (preg_match('/\G[_a-zA-Z][_a-zA-Z0-9-]*/', $expression, $matches, 0, $offset) === 1) {
+            $offset += strlen($matches[0]);
+
+            return $this->relativeColorChannelValue($matches[0], $origin);
+        }
+
+        return null;
+    }
+
+    private function skipRelativeColorCalcWhitespace(string $expression, int &$offset): void
+    {
+        $length = strlen($expression);
+        while ($offset < $length && ctype_space($expression[$offset])) {
+            $offset++;
+        }
     }
 
     private function minifyAdvancedColorFunction(string $function): ?string
@@ -12777,7 +13024,9 @@ final class CssMinifier
     private function parseAlphaComponent(string $token): ?float
     {
         $token = trim($token);
-        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+        if (strcasecmp($token, 'none') === 0) {
+            $value = 0.0;
+        } elseif (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
             $value = (float) $matches[1] / 100;
         } elseif (preg_match('/^([+-]?(?:\d+|\d*\.\d+))$/', $token, $matches) === 1) {
             $value = (float) $matches[1];

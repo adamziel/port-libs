@@ -719,6 +719,31 @@ CSS,
             'a' => $moduleExport('pP97eq-a'),
         ], $result['exports']);
     },
+    'css bundler maps upstream css module project-root hashes across import graph' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
+        $expectedCode = '.dyGcAa_b{background:#ff0}.CK9avG_a{background:#fff}';
+        $expectedExports = [
+            'a' => $moduleExport('CK9avG_a'),
+        ];
+
+        $rootA = $bundleModules([
+            '/foo/bar/a.css' => "\n        @import \"b.css\";\n        .a { background: white; }\n      ",
+            '/foo/bar/b.css' => "\n        .b { background: yellow; }\n      ",
+        ], '/foo/bar/a.css', null, [
+            'projectRoot' => '/foo/bar',
+        ]);
+
+        $rootB = $bundleModules([
+            '/x/y/z/a.css' => "\n      @import \"b.css\";\n      .a { background: white; }\n    ",
+            '/x/y/z/b.css' => "\n      .b { background: yellow; }\n    ",
+        ], '/x/y/z/a.css', null, [
+            'projectRoot' => '/x/y/z',
+        ]);
+
+        $t->same($expectedCode, $rootA['code']);
+        $t->same($expectedExports, $rootA['exports']);
+        $t->same($expectedCode, $rootB['code']);
+        $t->same($expectedExports, $rootB['exports']);
+    },
     'css bundler omits unresolved upstream css module dependency exports' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
         $result = $bundleModules([
             '/entry.css' => <<<'CSS'

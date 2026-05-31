@@ -22,7 +22,7 @@ final class CssBundler
 
     private bool $cssModules = false;
 
-    /** @var array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool} */
+    /** @var array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,projectRoot?:string,project_root?:string} */
     private array $cssModuleOptions = [];
 
     /**
@@ -79,7 +79,7 @@ final class CssBundler
      *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModules(string $entry, array $files, ?callable $resolver = null, array $options = []): array
     {
@@ -94,7 +94,7 @@ final class CssBundler
      *
      * @param callable(string): string $reader
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModulesWithReader(string $entry, callable $reader, ?callable $resolver = null, array $options = []): array
     {
@@ -109,7 +109,7 @@ final class CssBundler
      *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool} $cssModuleOptions
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,projectRoot?:string,project_root?:string} $cssModuleOptions
      * @param (callable(string): string)|null $reader
      */
     private function bundleInternal(
@@ -192,12 +192,7 @@ final class CssBundler
         $source = $this->readFile($file, $rule);
         $cssModuleResult = null;
         if ($this->cssModules) {
-            $cssModuleResult = (new CssModulesTransformer())->transform($source, [
-                'hash' => $this->cssModuleHashForFile($file),
-                'pattern' => $this->cssModuleOptions['pattern'] ?? '[hash]_[local]',
-                'minify' => $this->cssModuleOptions['minify'] ?? true,
-                'dashedIdents' => ($this->cssModuleOptions['dashedIdents'] ?? $this->cssModuleOptions['dashed_idents'] ?? false) === true,
-            ]);
+            $cssModuleResult = (new CssModulesTransformer())->transform($source, $this->cssModuleTransformOptions($file));
             $source = $cssModuleResult['code'];
         }
 
@@ -1095,7 +1090,32 @@ final class CssBundler
         return '@layer ' . implode(', ', $prefixed) . ';';
     }
 
-    private function cssModuleHashForFile(string $file): string
+    /**
+     * @return array{hash?:string,filename:string,projectRoot?:string,pattern:string,minify:bool,dashedIdents:bool}
+     */
+    private function cssModuleTransformOptions(string $file): array
+    {
+        $options = [
+            'filename' => $file,
+            'pattern' => $this->cssModulePattern(),
+            'minify' => $this->cssModuleOptions['minify'] ?? true,
+            'dashedIdents' => ($this->cssModuleOptions['dashedIdents'] ?? $this->cssModuleOptions['dashed_idents'] ?? false) === true,
+        ];
+
+        $projectRoot = $this->cssModuleProjectRoot();
+        if ($projectRoot !== null) {
+            $options['projectRoot'] = $projectRoot;
+        }
+
+        $hash = $this->cssModuleExplicitHashForFile($file);
+        if ($hash !== null) {
+            $options['hash'] = $hash;
+        }
+
+        return $options;
+    }
+
+    private function cssModuleExplicitHashForFile(string $file): ?string
     {
         $hashes = $this->cssModuleOptions['hashes'] ?? null;
         if (is_array($hashes) && isset($hashes[$file])) {
@@ -1106,22 +1126,56 @@ final class CssBundler
             return (string) $hashes($file);
         }
 
-        $hash = rtrim(strtr(base64_encode(hash('sha1', $file, true)), '+/', '_-'), '=');
-        $hash = substr($hash, 0, 6);
+        return null;
+    }
 
-        return preg_match('/^[A-Za-z_]/', $hash) === 1 ? $hash : '_' . substr($hash, 0, 5);
+    private function cssModuleHashForFile(string $file): string
+    {
+        return $this->cssModuleExplicitHashForFile($file)
+            ?? CssModulesTransformer::filenameHashForPattern($file, $this->cssModuleProjectRoot(), $this->cssModulePattern());
     }
 
     private function cssModuleDashedNameForSource(int $sourceIndex, string $name): string
     {
+        $export = $this->stylesheets[$sourceIndex]['cssModuleExports'][$name] ?? null;
+        if (is_array($export) && isset($export['name']) && is_string($export['name'])) {
+            return $export['name'];
+        }
+
         $file = $this->stylesheets[$sourceIndex]['file'];
         $local = str_starts_with($name, '--') ? substr($name, 2) : $name;
-        $pattern = $this->cssModuleOptions['pattern'] ?? '[hash]_[local]';
+        $pattern = $this->cssModulePattern();
 
         return '--' . strtr($pattern, [
+            '[name]' => $this->cssModulePatternFileName($file),
             '[hash]' => $this->cssModuleHashForFile($file),
+            '[content-hash]' => '',
             '[local]' => $local,
         ]);
+    }
+
+    private function cssModulePattern(): string
+    {
+        return $this->cssModuleOptions['pattern'] ?? '[hash]_[local]';
+    }
+
+    private function cssModuleProjectRoot(): ?string
+    {
+        $root = $this->cssModuleOptions['projectRoot'] ?? $this->cssModuleOptions['project_root'] ?? null;
+        if (!is_string($root) || $root === '') {
+            return null;
+        }
+
+        return $this->normalizePath($root);
+    }
+
+    private function cssModulePatternFileName(string $file): string
+    {
+        $base = basename(str_replace('\\', '/', $file));
+        $dot = strrpos($base, '.');
+        $stem = $dot === false ? $base : substr($base, 0, $dot);
+
+        return str_replace('.', '-', $stem);
     }
 
     private function normalizePath(string $path): string

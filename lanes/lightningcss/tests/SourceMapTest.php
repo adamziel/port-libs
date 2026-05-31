@@ -315,6 +315,67 @@ return [
         $t->same([0, 1], array_column($decoded, 'generatedLine'));
         $t->same([0, 0], array_column($decoded, 'sourceIndex'));
     },
+    'source map exposes upstream source name and mapping lookup APIs after offsets' => static function (TestRunner $t): void {
+        $map = new SourceMap('/srv/www/site/wp-content/themes/example');
+        $style = $map->addSource('style.css');
+        $block = $map->addSource('/srv/www/site/wp-content/themes/example/blocks/card.css');
+        $virtual = $map->addSource('theme://generated/editor.css');
+
+        $t->same(
+            [$style, $block, $virtual, $style],
+            $map->addSources([
+                '/srv/www/site/wp-content/themes/example/style.css',
+                'file:///srv/www/site/wp-content/themes/example/blocks/card.css',
+                'theme://generated/editor.css',
+                './style.css',
+            ])
+        );
+        $t->same($style, $map->getSourceIndex('/srv/www/site/wp-content/themes/example/style.css'));
+        $t->same($block, $map->getSourceIndex('file:///srv/www/site/wp-content/themes/example/blocks/card.css'));
+        $t->same(null, $map->getSourceIndex('missing.css'));
+        $t->same('style.css', $map->getSource($style));
+        $t->same(['style.css', 'blocks/card.css', 'theme://generated/editor.css'], $map->getSources());
+        $t->throws(OutOfBoundsException::class, static function () use ($map): void {
+            $map->getSource(99);
+        });
+        $t->throws(OutOfBoundsException::class, static function () use ($map, $style): void {
+            $map->getSourceContent($style);
+        });
+
+        $map->setSourceContent($style, '.theme{color:green}');
+        $map->setSourceContent($virtual, '.editor{outline:0}');
+        $t->same('.theme{color:green}', $map->getSourceContent($style));
+        $t->same('', $map->getSourceContent($block));
+        $t->same('.editor{outline:0}', $map->getSourceContent($virtual));
+
+        $footerName = $map->addName('theme-footer');
+        $nameIndexes = $map->addNames(['block-cover', 'theme-footer', 'editor-inline']);
+        $t->same([1, $footerName, 2], $nameIndexes);
+        $t->same($footerName, $map->getNameIndex('theme-footer'));
+        $t->same(null, $map->getNameIndex('unknown-name'));
+        $t->same('block-cover', $map->getName(1));
+        $t->same(['theme-footer', 'block-cover', 'editor-inline'], $map->getNames());
+        $t->throws(OutOfBoundsException::class, static function () use ($map): void {
+            $map->getName(99);
+        });
+
+        $map->addMapping(0, 0, $style, 1, 0, 'theme-footer');
+        $map->addMapping(0, 20, $block, 4, 2, 'block-cover');
+        $map->addGeneratedMapping(0, 30);
+        $map->addMapping(1, 1, $virtual, 0, 0, 'editor-inline');
+        $map->offsetColumns(0, 20, 5);
+        $map->offsetLines(1, 2);
+
+        $t->same(
+            [
+                ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 1, 'originalColumn' => 0, 'nameIndex' => 0],
+                ['generatedLine' => 0, 'generatedColumn' => 25, 'sourceIndex' => 1, 'originalLine' => 4, 'originalColumn' => 2, 'nameIndex' => 1],
+                ['generatedLine' => 0, 'generatedColumn' => 35, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
+                ['generatedLine' => 3, 'generatedColumn' => 1, 'sourceIndex' => 2, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 2],
+            ],
+            $map->getMappings()
+        );
+    },
     'source map offsets generated columns with upstream overlap semantics' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $sourceIndex = $map->addSource('blocks.css');

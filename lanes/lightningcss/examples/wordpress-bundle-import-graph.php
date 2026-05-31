@@ -238,3 +238,32 @@ if (
 }
 
 echo 'css-modules: dependency graph resolved' . PHP_EOL;
+
+$rootedA = (new CssBundler())->bundleCssModules('/themes/one/blocks/card.css', [
+    '/themes/one/blocks/card.css' => <<<'CSS'
+@import "../tokens.css";
+.card { color: white; }
+CSS,
+    '/themes/one/tokens.css' => '.tokens { color: yellow; }',
+], null, [
+    'projectRoot' => '/themes/one',
+]);
+$rootedB = (new CssBundler())->bundleCssModules('/sites/current/blocks/card.css', [
+    '/sites/current/blocks/card.css' => <<<'CSS'
+@import "../tokens.css";
+.card { color: white; }
+CSS,
+    '/sites/current/tokens.css' => '.tokens { color: yellow; }',
+], null, [
+    'projectRoot' => '/sites/current',
+]);
+
+if (
+    $rootedA['code'] !== $rootedB['code']
+    || ($rootedA['exports']['card']['name'] ?? null) !== ($rootedB['exports']['card']['name'] ?? null)
+) {
+    fwrite(STDERR, "Unexpected project-root-stable CSS Modules bundle output\n");
+    exit(1);
+}
+
+echo 'css-modules-project-root: stable' . PHP_EOL;

@@ -130,6 +130,22 @@ $dataUrlMap->addMapping(1, 1, $dataUrlSource, 0, 0, 'critical-rule');
 $dataUrl = $dataUrlMap->toDataUrl('/');
 $dataUrlRoundTrip = SourceMap::fromDataUrl($dataUrl, '/srv/www/example');
 
+$lookup = [
+    'sourceIndexes' => $projectRootMap->addSources([
+        '/srv/www/example/wp-content/themes/example/style.css',
+        'file:///srv/www/example/wp-content/themes/example/./blocks.css',
+        'theme://generated/editor.css',
+    ]),
+    'blockIndex' => $projectRootMap->getSourceIndex('file:///srv/www/example/wp-content/themes/example/blocks.css'),
+    'missingSource' => $projectRootMap->getSourceIndex('wp-content/themes/example/missing.css'),
+    'sources' => $projectRootMap->getSources(),
+    'blockContent' => $projectRootMap->getSourceContent($projectBlocks),
+    'nameIndexes' => $projectRootMap->addNames(['theme-footer', 'block-cover', 'virtual-editor-rule']),
+    'virtualName' => $projectRootMap->getNameIndex('virtual-editor-rule'),
+    'names' => $projectRootMap->getNames(),
+    'mappings' => $projectRootMap->getMappings(),
+];
+
 $actual = [
     'css' => $code,
     'map' => $map->toJson(null, false),
@@ -139,6 +155,7 @@ $actual = [
     'projectRootMap' => $projectRootMap->toJson(null, false),
     'dataUrl' => $dataUrl,
     'dataUrlRoundTrip' => $dataUrlRoundTrip->toJson('/'),
+    'lookup' => $lookup,
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -151,6 +168,21 @@ if (($argv[1] ?? null) === '--self-test') {
         'projectRootMap' => '{"version":3,"mappings":"AACAA,0BCIAC;ACLAC","sources":["wp-content/themes/example/style.css","wp-content/themes/example/blocks.css","theme://generated/editor.css"],"sourcesContent":["@import \"blocks.css\";\n.theme-footer {\n  color: green;\n}","/*! Theme package license */\n/*!\n * Block editor stylesheet generated from theme.json\n * Keep comments for distribution compliance.\n */\n.wp-block-cover {\n  color: yellow;\n}\n.wp-block-cover .wp-block-button {\n  margin: 1rem;\n}",".wp-block-cover{outline:2px solid currentColor}"],"names":["theme-footer","block-cover","virtual-editor-rule"]}',
         'dataUrl' => 'data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiLyIsIm1hcHBpbmdzIjoiO0NBQUFBIiwic291cmNlcyI6WyJ3cC1jb250ZW50L3RoZW1lcy9leGFtcGxlL2lubGluZS1jcml0aWNhbC5jc3MiXSwic291cmNlc0NvbnRlbnQiOlsiLmNyaXRpY2Fse2Rpc3BsYXk6YmxvY2t9XG4iXSwibmFtZXMiOlsiY3JpdGljYWwtcnVsZSJdfQ==',
         'dataUrlRoundTrip' => '{"version":3,"sourceRoot":"/","mappings":";CAAAA","sources":["wp-content/themes/example/inline-critical.css"],"sourcesContent":[".critical{display:block}\n"],"names":["critical-rule"]}',
+        'lookup' => [
+            'sourceIndexes' => [0, 1, 2],
+            'blockIndex' => 1,
+            'missingSource' => null,
+            'sources' => ['wp-content/themes/example/style.css', 'wp-content/themes/example/blocks.css', 'theme://generated/editor.css'],
+            'blockContent' => $blockSource,
+            'nameIndexes' => [0, 1, 2],
+            'virtualName' => 2,
+            'names' => ['theme-footer', 'block-cover', 'virtual-editor-rule'],
+            'mappings' => [
+                ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 1, 'originalColumn' => 0, 'nameIndex' => 0],
+                ['generatedLine' => 0, 'generatedColumn' => strlen($footerRule), 'sourceIndex' => 1, 'originalLine' => 5, 'originalColumn' => 0, 'nameIndex' => 1],
+                ['generatedLine' => 1, 'generatedColumn' => 0, 'sourceIndex' => 2, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 2],
+            ],
+        ],
     ];
 
     if ($actual !== $expected) {
