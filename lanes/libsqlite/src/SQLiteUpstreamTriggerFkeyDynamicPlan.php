@@ -738,6 +738,60 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
     }
 
     /** @return array<string,mixed> */
+    public static function triggerCLateDiagnosticsCorpus(): array
+    {
+        $cases = [];
+        foreach (range(1, 220) as $seed) {
+            $textKey = 'text-key-' . $seed;
+            $integerKey = $seed + 1000;
+            $viewName = $seed % 2 === 0 ? 'sqlite_master' : 'app_catalog';
+            $orderExpression = $seed % 3 === 0 ? 'raise(IGNORE)' : 'raise(ABORT, \'msg\')';
+            $groupExpression = $seed % 2 === 0 ? 'raise(IGNORE)' : 'raise(ABORT, \'msg\')';
+
+            $cases[] = [
+                'case' => 'triggerC-late-diagnostics-' . $seed,
+                'source' => 'triggerC.test',
+                'variant' => $seed,
+                'scenarios' => ['triggerC-16.1', 'triggerC-16.2', 'triggerC-17.0', 'triggerC-17.1'],
+                'raise_outside_trigger' => [
+                    'select_source' => $viewName,
+                    'union_projection' => 1,
+                    'order_expression' => $orderExpression,
+                    'order_by_error_precedes_raise_error' => true,
+                    'order_by_error' => '1st ORDER BY term does not match any column in the result set',
+                    'group_expression' => $groupExpression,
+                    'having_expression' => 'raise(ABORT, \'msg\')',
+                    'group_by_error' => 'RAISE() may only be used within a trigger-program',
+                    'raise_rejected_outside_trigger_program' => true,
+                ],
+                'integer_primary_key_before_trigger' => [
+                    'table' => 'xyz',
+                    'trigger' => 'xyz_tr',
+                    'trigger_timing' => 'before insert',
+                    'trigger_body' => 'SELECT new.x',
+                    'accepted_integer_row' => ['x' => $integerKey, 'y' => 2, 'z' => 3],
+                    'rejected_text_row' => ['x' => $textKey, 'y' => 2, 'z' => 3],
+                    'error' => 'datatype mismatch',
+                    'before_trigger_does_not_coerce_ipk_text' => true,
+                    'statement_rejected_before_row_visible' => true,
+                ],
+            ];
+        }
+
+        return [
+            'source' => 'triggerC.test',
+            'scenarios' => ['triggerC-16.1', 'triggerC-16.2', 'triggerC-17.0', 'triggerC-17.1'],
+            'cases' => $cases,
+            'dependencies' => [
+                'sqlite-upstream-triggerC-raise-outside-trigger-order-by-diagnostic',
+                'sqlite-upstream-triggerC-raise-outside-trigger-group-having-diagnostic',
+                'sqlite-upstream-triggerC-before-trigger-does-not-mask-ipk-datatype-mismatch',
+                'sqlite-upstream-triggerC-text-ipk-insert-rejected-before-row-visible',
+            ],
+        ];
+    }
+
+    /** @return array<string,mixed> */
     public static function trigger1LateRegressionCorpus(): array
     {
         $cases = [];

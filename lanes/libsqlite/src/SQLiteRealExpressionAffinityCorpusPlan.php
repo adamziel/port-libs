@@ -312,6 +312,117 @@ final class SQLiteRealExpressionAffinityCorpusPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $tableRows
+     * @param list<array<string,mixed>> $indexEntries
+     * @param list<string> $keyColumns
+     * @param list<int|string> $deletedPrimaryKeys
+     * @return array{missing_primary_keys:list<int|string>,matched_primary_keys:list<int|string>,stale_index_keys:list<array<string,mixed>>,remaining_table_rows:list<array<string,mixed>>,integrity:list<string>}
+     */
+    public static function expressionIndexMismatchPlan(
+        array $tableRows,
+        array $indexEntries,
+        array $keyColumns,
+        string $primaryKeyColumn = 'rowid',
+        array $deletedPrimaryKeys = [],
+        string $indexName = 'expridx'
+    ): array {
+        if ($keyColumns === []) {
+            throw new \InvalidArgumentException('SQLite expression index mismatch plan needs at least one key column');
+        }
+
+        $deleted = array_fill_keys(array_map(static fn (int|string $key): string => (string) $key, $deletedPrimaryKeys), true);
+        $indexKeys = [];
+        foreach ($indexEntries as $entry) {
+            foreach ($keyColumns as $column) {
+                if (!array_key_exists($column, $entry)) {
+                    throw new \InvalidArgumentException("SQLite expression index entry is missing key column {$column}");
+                }
+            }
+            if (!array_key_exists($primaryKeyColumn, $entry)) {
+                throw new \InvalidArgumentException("SQLite expression index entry is missing primary key column {$primaryKeyColumn}");
+            }
+            if (isset($deleted[(string) $entry[$primaryKeyColumn]])) {
+                continue;
+            }
+
+            $key = self::expressionIndexKey($entry, $keyColumns, $primaryKeyColumn);
+            $indexKeys[$key] = true;
+        }
+
+        $missing = [];
+        $matched = [];
+        $remainingRows = [];
+        $expectedKeys = [];
+        foreach ($tableRows as $row) {
+            if (!array_key_exists($primaryKeyColumn, $row)) {
+                throw new \InvalidArgumentException("SQLite expression table row is missing primary key column {$primaryKeyColumn}");
+            }
+
+            $primaryKey = (string) $row[$primaryKeyColumn];
+            if (isset($deleted[$primaryKey])) {
+                continue;
+            }
+
+            foreach ($keyColumns as $column) {
+                if (!array_key_exists($column, $row)) {
+                    throw new \InvalidArgumentException("SQLite expression table row is missing key column {$column}");
+                }
+            }
+
+            $key = self::expressionIndexKey($row, $keyColumns, $primaryKeyColumn);
+            $expectedKeys[$key] = true;
+            $remainingRows[] = $row;
+            if (isset($indexKeys[$key])) {
+                $matched[] = $row[$primaryKeyColumn];
+            } else {
+                $missing[] = $row[$primaryKeyColumn];
+            }
+        }
+
+        $stale = [];
+        foreach ($indexEntries as $entry) {
+            if (isset($deleted[(string) $entry[$primaryKeyColumn]])) {
+                continue;
+            }
+            $key = self::expressionIndexKey($entry, $keyColumns, $primaryKeyColumn);
+            if (!isset($expectedKeys[$key])) {
+                $stale[] = $entry;
+            }
+        }
+
+        $integrity = [];
+        foreach ($missing as $primaryKey) {
+            $integrity[] = "row {$primaryKey} missing from index {$indexName}";
+        }
+        foreach ($stale as $entry) {
+            $integrity[] = "stale key for row {$entry[$primaryKeyColumn]} remains in index {$indexName}";
+        }
+
+        return [
+            'missing_primary_keys' => $missing,
+            'matched_primary_keys' => $matched,
+            'stale_index_keys' => $stale,
+            'remaining_table_rows' => $remainingRows,
+            'integrity' => $integrity === [] ? ['ok'] : $integrity,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $keyColumns
+     */
+    private static function expressionIndexKey(array $row, array $keyColumns, string $primaryKeyColumn): string
+    {
+        $parts = [];
+        foreach ($keyColumns as $column) {
+            $parts[] = self::storageClass($row[$column]) . ':' . self::quote($row[$column]);
+        }
+        $parts[] = self::storageClass($row[$primaryKeyColumn]) . ':' . self::quote($row[$primaryKeyColumn]);
+
+        return implode('|', $parts);
+    }
+
+    /**
      * @return array{left:mixed,right:mixed,leftStorageClass:string,rightStorageClass:string}
      */
     private static function coercedPair(mixed $left, mixed $right, string $leftAffinity, string $rightAffinity): array

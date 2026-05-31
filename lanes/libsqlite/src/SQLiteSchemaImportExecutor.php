@@ -115,6 +115,9 @@ final class SQLiteSchemaImportExecutor
         }
         $this->ensureSchema($schema);
         $ifNotExists = trim($matches['if'][0] ?? '') !== '';
+        if ($this->findRecord($schema, 'index', $name) !== null) {
+            throw new \InvalidArgumentException("SQLite schema import index {$name} already exists in {$schema}");
+        }
         if ($this->findRecord($schema, 'table', $name) !== null) {
             if ($ifNotExists) {
                 return [

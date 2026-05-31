@@ -1434,8 +1434,8 @@ final class SQLiteCoreScalarFunction
             'current_date' => self::dateTime('date', [$instant]),
             'current_time' => self::dateTime('time', [$instant]),
             'current_timestamp' => self::dateTime('datetime', [$instant]),
-            'date', 'time', 'datetime', 'julianday', 'unixepoch' => self::dateTime($normalized, self::replaceStatementNowArgument($arguments, 0, $instant, $normalized === 'unixepoch')),
-            'strftime' => self::dateTime('strftime', self::replaceStatementNowArgument($arguments, 1, $instant, false)),
+            'date', 'time', 'datetime', 'julianday', 'unixepoch' => self::dateTime($normalized, self::replaceStatementNowArgument($arguments, 0, $instant, self::statementNowNeedsSubsecond($normalized, $arguments))),
+            'strftime' => self::dateTime('strftime', self::replaceStatementNowArgument($arguments, 1, $instant, self::strftimeStatementNowNeedsSubsecond($arguments))),
             default => self::sqlFunctionArguments($functionName, $arguments),
         };
     }
@@ -1457,6 +1457,46 @@ final class SQLiteCoreScalarFunction
         }
 
         return $replaced;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function statementNowNeedsSubsecond(string $functionName, array $arguments): bool
+    {
+        if ($functionName === 'unixepoch') {
+            return true;
+        }
+
+        if (!in_array($functionName, ['time', 'datetime'], true)) {
+            return false;
+        }
+
+        foreach (array_slice($arguments, 1) as $argument) {
+            if (!is_string($argument)) {
+                continue;
+            }
+
+            $modifier = strtolower(trim($argument));
+            if ($modifier === 'subsec' || $modifier === 'subsecond') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<mixed> $arguments
+     */
+    private static function strftimeStatementNowNeedsSubsecond(array $arguments): bool
+    {
+        $format = $arguments[0] ?? null;
+        if (!is_string($format)) {
+            return false;
+        }
+
+        return str_contains($format, '%f') || str_contains($format, '%J');
     }
 
     private static function isDateTimeInSQLiteRange(\DateTimeImmutable $instant): bool

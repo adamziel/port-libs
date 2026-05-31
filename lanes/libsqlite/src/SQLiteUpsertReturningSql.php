@@ -694,6 +694,12 @@ final class SQLiteUpsertReturningSql
         if ($term === '0') {
             return false;
         }
+        if (strcasecmp($term, 'TRUE') === 0) {
+            return true;
+        }
+        if (strcasecmp($term, 'FALSE') === 0) {
+            return false;
+        }
         if (preg_match('/^(.+?)\s+IS\s+(NOT\s+)?NULL$/is', $term, $match) === 1) {
             $isNull = self::evaluateExpression($match[1], $target, $targetAlias, $current, $excluded) === null;
 
@@ -758,6 +764,10 @@ final class SQLiteUpsertReturningSql
                     return null;
                 }
 
+                if (is_float($left) || is_float($right)) {
+                    return $operator === '+' ? (float) $left + (float) $right : (float) $left - (float) $right;
+                }
+
                 return $operator === '+' ? (int) $left + (int) $right : (int) $left - (int) $right;
             }
         }
@@ -818,6 +828,12 @@ final class SQLiteUpsertReturningSql
             }
             if (preg_match("/^'(.*)'$/s", $term) === 1) {
                 $projection[$term] = static fn (): mixed => self::literal($term);
+                continue;
+            }
+            if (preg_match('/^(TRUE|FALSE)(?:\s+AS\s+([A-Za-z_][A-Za-z0-9_]*))?$/i', $term, $boolMatch) === 1) {
+                $alias = $boolMatch[2] ?? strtoupper($boolMatch[1]);
+                $literal = strtoupper($boolMatch[1]);
+                $projection[$alias] = static fn (): int => $literal === 'TRUE' ? 1 : 0;
                 continue;
             }
             if (preg_match('/^(?:(excluded|[A-Za-z_][A-Za-z0-9_]*)\.)?([A-Za-z_][A-Za-z0-9_]*)(?:\s+AS\s+([A-Za-z_][A-Za-z0-9_]*))?$/i', $term, $match) !== 1) {
@@ -909,8 +925,19 @@ final class SQLiteUpsertReturningSql
         if (strcasecmp($sql, 'NULL') === 0) {
             return null;
         }
+        if (strcasecmp($sql, 'TRUE') === 0) {
+            return 1;
+        }
+        if (strcasecmp($sql, 'FALSE') === 0) {
+            return 0;
+        }
         if (preg_match('/^-?\d+$/', $sql) === 1) {
             return (int) $sql;
+        }
+        if (preg_match('/^-?(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?$/', $sql) === 1
+            || preg_match('/^-?\d+[eE][+-]?\d+$/', $sql) === 1
+        ) {
+            return (float) $sql;
         }
 
         throw new \InvalidArgumentException("SQLite UPSERT RETURNING literal is not supported: {$sql}");

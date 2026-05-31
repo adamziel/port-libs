@@ -1478,7 +1478,7 @@ final class SQLiteWindowFunction
             }
         }
         if (!is_int($value) && (!is_float($value) || floor($value) !== $value)) {
-            throw new \InvalidArgumentException('SQLite nth_value() index must be an integer');
+            throw new \InvalidArgumentException('SQLite nth_value() index must be positive');
         }
 
         $nth = (int) $value;

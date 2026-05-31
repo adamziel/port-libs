@@ -10242,6 +10242,127 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,table_name:string,index_name:string|null,operation:string,cursor_open:bool,expected_result:array{int,string},initial_rows:int,deleted_rows:int,remaining_rows:int,remaining_values:list<mixed>,index_entries_preserved:bool,integrity:string,detail:string}>
+     */
+    public static function delete2Delete3CursorAndLargeDeleteCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite delete2/delete3 dynamic corpus requires at least one case');
+        }
+
+        $oddSurvivors = [];
+        for ($value = 1; $value <= 524288; $value += 2) {
+            if ($value <= 15 || $value >= 524279) {
+                $oddSurvivors[] = $value;
+            }
+        }
+
+        $templates = [
+            [
+                'delete2-1.1/1.3',
+                'primary-key index is populated before a read cursor is held open',
+                'q',
+                'sqlite_autoindex_q_1',
+                'seed indexed rows',
+                false,
+                [0, ''],
+                3,
+                0,
+                3,
+                ['id.1', 'id.2', 'id.3'],
+                true,
+                'opening state keeps table and primary-key index consistent',
+            ],
+            [
+                'delete2-1.4/1.8',
+                'delete while a table cursor is active removes the table row and matching primary-key entry',
+                'q',
+                'sqlite_autoindex_q_1',
+                'DELETE FROM q WHERE rowid=1 with active SELECT cursor',
+                true,
+                [0, ''],
+                3,
+                1,
+                2,
+                ['id.2', 'id.3'],
+                true,
+                'modern SQLite permits the delete but must not remove only the index entry',
+            ],
+            [
+                'delete2-1.9/1.11',
+                'retrying the same rowid delete after finalizing the cursor is a harmless miss',
+                'q',
+                'sqlite_autoindex_q_1',
+                'DELETE FROM q WHERE rowid=1 after cursor finalize',
+                false,
+                [0, ''],
+                2,
+                0,
+                2,
+                ['id.2', 'id.3'],
+                true,
+                'second delete preserves the already-consistent table/index pair',
+            ],
+            [
+                'delete2-2.1/2.2',
+                'deleting a joined source table during row production preserves yielded result rows',
+                't1',
+                null,
+                'DELETE FROM t1 inside t1,t2 row callback',
+                true,
+                [0, ''],
+                1,
+                1,
+                0,
+                [null, 3, 4, null, 5, 6],
+                true,
+                'row callback delete does not corrupt the active cross-join result',
+            ],
+            [
+                'delete3-1.1/1.3',
+                'large rowid delete removes all even keys and preserves odd-key btree integrity',
+                't1',
+                'integer-primary-key',
+                'DELETE FROM t1 WHERE x%2==0',
+                false,
+                [0, ''],
+                524288,
+                262144,
+                262144,
+                $oddSurvivors,
+                true,
+                'large row-list delete leaves exactly the odd rowid btree keys',
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $table, $index, $operation, $cursorOpen, $result, $initial, $deleted, $remaining, $values, $indexPreserved, $detail] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'delete2.test sections delete2-1.1 through delete2-2.2 and delete3.test sections delete3-1.1 through delete3-1.3',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+                'scenario' => $scenario,
+                'table_name' => $table,
+                'index_name' => $index,
+                'operation' => $operation,
+                'cursor_open' => $cursorOpen,
+                'expected_result' => $result,
+                'initial_rows' => $initial,
+                'deleted_rows' => $deleted,
+                'remaining_rows' => $remaining,
+                'remaining_values' => $values,
+                'index_entries_preserved' => $indexPreserved,
+                'integrity' => 'ok',
+                'detail' => $detail . '; dynamic replay ' . (intdiv($case - 1, count($templates)) + 1),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,sql:string,statement_kind:string,table_name:string,indexed_by:string|null,not_indexed:bool,where_terms:list<string>,expected_code:int,expected_error:string|null,expected_detail:string,uses_named_index:bool,uses_any_index:bool,rowid_allowed:bool,view_dependency:bool,partial_index_usable:bool,integrity:string,batch:int}>
      */
     public static function indexedByDynamicPlannerEnforcementCases(int $cases = 1000): array

@@ -3832,6 +3832,94 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{a:int|string,b?:string}> $parents
+     * @param list<array{c:int|string,d:int|string|null,label?:string}> $children
+     * @param array{operation:string,parent_key:int|string,new_parent_key?:int|string,default:int|string|null,insert_default_parent?:bool,deferred?:bool} $statement
+     * @return array<string,mixed>
+     */
+    public static function fkey2SetDefaultActionPlan(array $parents, array $children, array $statement): array
+    {
+        $operation = strtolower((string) ($statement['operation'] ?? ''));
+        if (!in_array($operation, ['delete', 'update'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2 SET DEFAULT operation is unsupported');
+        }
+
+        $parentKey = $statement['parent_key'] ?? throw new \InvalidArgumentException('SQLite fkey2 SET DEFAULT parent key is required');
+        $default = $statement['default'] ?? null;
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $originalParents = $parents;
+        $originalChildren = $children;
+        $actions = [];
+
+        if ((bool) ($statement['insert_default_parent'] ?? false) && $default !== null && !self::containsParentKey($parents, $default)) {
+            $parents[] = ['a' => $default, 'b' => 'default-parent'];
+            $actions[] = ['action' => 'insert-default-parent', 'parent_key' => $default];
+        }
+
+        if ($operation === 'delete') {
+            $parents = array_values(array_filter(
+                $parents,
+                static fn (array $parent): bool => ($parent['a'] ?? null) !== $parentKey
+            ));
+            foreach ($children as $index => $child) {
+                if (($child['d'] ?? null) !== $parentKey) {
+                    continue;
+                }
+                $children[$index]['d'] = $default;
+                $actions[] = ['action' => 'set-default-child', 'child_key' => $child['c'], 'old_parent_key' => $parentKey, 'new_parent_key' => $default];
+            }
+        } else {
+            $newParentKey = $statement['new_parent_key'] ?? throw new \InvalidArgumentException('SQLite fkey2 SET DEFAULT update key is required');
+            foreach ($parents as $index => $parent) {
+                if (($parent['a'] ?? null) !== $parentKey) {
+                    continue;
+                }
+                $parents[$index]['a'] = $newParentKey;
+                $actions[] = ['action' => 'update-parent', 'old_parent_key' => $parentKey, 'new_parent_key' => $newParentKey];
+            }
+            foreach ($children as $index => $child) {
+                if (($child['d'] ?? null) !== $parentKey) {
+                    continue;
+                }
+                $children[$index]['d'] = $default;
+                $actions[] = ['action' => 'set-default-child', 'child_key' => $child['c'], 'old_parent_key' => $parentKey, 'new_parent_key' => $default];
+            }
+        }
+
+        $violations = self::simpleForeignKeyViolations(
+            array_map(static fn (array $row): array => ['pid' => $row['a']], $parents),
+            array_map(static fn (array $row): array => ['cid' => $row['c'], 'pid' => $row['d']], $children)
+        );
+        $rollback = (bool) ($statement['deferred'] ?? false) && $violations !== [];
+
+        return [
+            'source' => $operation === 'delete' ? 'fkey2.test fkey2-9.1.1..9.1.5' : 'fkey2.test fkey2-9.2.1..9.2.3',
+            'operation' => 'foreign-key-set-default-action',
+            'status' => $violations === [] ? 'commit-ok' : ($rollback ? 'rolled-back' : 'constraint-failed'),
+            'statement_operation' => $operation,
+            'default_key' => $default,
+            'parent_keys' => array_values(array_map(static fn (array $row): mixed => $row['a'], self::sortRows($rollback ? $originalParents : $parents))),
+            'child_keys' => array_values(array_map(static fn (array $row): mixed => $row['d'], self::sortRows($rollback ? $originalChildren : $children))),
+            'attempted_parent_keys' => array_values(array_map(static fn (array $row): mixed => $row['a'], self::sortRows($parents))),
+            'attempted_child_keys' => array_values(array_map(static fn (array $row): mixed => $row['d'], self::sortRows($children))),
+            'action_count' => count($actions),
+            'actions' => $actions,
+            'violation_count' => count($violations),
+            'violations' => $violations,
+            'rolled_back' => $rollback,
+            'rollback_parent_keys' => $rollback ? array_values(array_map(static fn (array $row): mixed => $row['a'], self::sortRows($originalParents))) : [],
+            'rollback_child_keys' => $rollback ? array_values(array_map(static fn (array $row): mixed => $row['d'], self::sortRows($originalChildren))) : [],
+            'dependencies' => [
+                'sqlite-fkey2-set-default-delete-rewrites-child-key',
+                'sqlite-fkey2-set-default-update-rewrites-composite-child-key',
+                'sqlite-fkey2-set-default-missing-parent-fails-at-constraint-check',
+                'sqlite-fkey2-set-default-existing-parent-commits',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{b:int|string,c:int|string,label?:string}> $parents
      * @param list<array{id:int|string,e:int|string|null,f:int|string|null,label?:string}> $children
      * @param array{operation:string,rows?:list<array{id:int|string,e:int|string|null,f:int|string|null,label?:string>>,set?:array{e?:int|string|null,f?:int|string|null},on_update?:string,deferred?:bool} $statement
@@ -7322,6 +7410,20 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return $newPid === null ? (string) $oldPid . '_updated' : $newPid;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     */
+    private static function containsParentKey(array $parents, mixed $key): bool
+    {
+        foreach ($parents as $parent) {
+            if (($parent['a'] ?? null) === $key) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

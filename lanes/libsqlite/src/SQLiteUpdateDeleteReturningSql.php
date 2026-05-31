@@ -788,6 +788,10 @@ final class SQLiteUpdateDeleteReturningSql
         while (($stripped = self::stripEnclosingParentheses($expression)) !== null) {
             $expression = $stripped;
         }
+        $logical = self::evaluateLimitLogicalExpression($expression);
+        if ($logical['matched']) {
+            return $logical['value'] === null ? null : ($logical['value'] ? 1 : 0);
+        }
         $concatParts = self::splitOperator($expression, '||');
         if (count($concatParts) > 1) {
             $pieces = [];
@@ -925,6 +929,46 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT expression is not supported');
+    }
+
+    /**
+     * @return array{matched:bool,value:?bool}
+     */
+    private static function evaluateLimitLogicalExpression(string $expression): array
+    {
+        $orParts = self::splitWhereOr($expression);
+        if (count($orParts) > 1) {
+            $sawNull = false;
+            foreach ($orParts as $part) {
+                $truth = self::sqliteTruthValue(self::limitExpressionValue($part));
+                if ($truth === true) {
+                    return ['matched' => true, 'value' => true];
+                }
+                if ($truth === null) {
+                    $sawNull = true;
+                }
+            }
+
+            return ['matched' => true, 'value' => $sawNull ? null : false];
+        }
+
+        $andParts = self::splitWhereAnd($expression);
+        if (count($andParts) > 1) {
+            $sawNull = false;
+            foreach ($andParts as $part) {
+                $truth = self::sqliteTruthValue(self::limitExpressionValue($part));
+                if ($truth === false) {
+                    return ['matched' => true, 'value' => false];
+                }
+                if ($truth === null) {
+                    $sawNull = true;
+                }
+            }
+
+            return ['matched' => true, 'value' => $sawNull ? null : true];
+        }
+
+        return ['matched' => false, 'value' => null];
     }
 
     /**

@@ -2790,4 +2790,57 @@ foreach ($mathLimitMalformed as $name => $sql) {
     };
 }
 
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = $seed % 2 === 0 ? 1 : 0;
+    $offsetValue = $seed % 3 === 0 ? 1 : 0;
+    $limitExpr = $seed % 2 === 0 ? 'TRUE AND (2 > 1)' : 'TRUE AND FALSE';
+    $offsetExpr = $seed % 3 === 0 ? 'FALSE OR (3 BETWEEN 2 AND 4)' : 'FALSE OR FALSE';
+    $sql = "UPDATE app_settings SET state = 'logical_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update logical and or limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = $seed % 2 === 0 ? 2 : 1;
+    $offsetValue = $seed % 4 === 0 ? 1 : 0;
+    $limitExpr = $seed % 2 === 0 ? '(1 IN (1, 2)) + (0 OR 1)' : '1 OR NULL';
+    $offsetExpr = $seed % 4 === 0 ? 'NULL OR TRUE' : 'NULL AND FALSE';
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue logical subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+$logicalLimitMalformed = [
+    'malformed null and true limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT NULL AND TRUE",
+    'malformed false or null offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET FALSE OR NULL",
+    'malformed and missing right operand rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT TRUE AND",
+    'malformed or missing left operand rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT OR TRUE",
+];
+
+foreach ($logicalLimitMalformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity logical scalar ' . $name] = static function (TestRunner $t) use ($sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
+        $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+    };
+}
+
 return $tests;

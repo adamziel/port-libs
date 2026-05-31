@@ -514,6 +514,86 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     /**
      * @return list<array<string, mixed>>
      */
+    public static function wal5BlockingCheckpointExtendedRows(): array
+    {
+        $checkpointCases = [
+            ['wal5-1.$tn.3', 'passive', 9, 5, 9, 0, null, 'reader_snapshot_allows_partial_checkpoint'],
+            ['wal5-1.$tn.5', 'restart', 12, 6, 12, 6, 2, 'busy_handler_releases_reader_then_restart_completes'],
+            ['wal5-1.$tn.11', 'restart', 5, 10, 5, 8, 3, 'restart_waits_for_partial_and_full_log_readers'],
+            ['wal5-2.1.$tn.3', 'passive', 3, 2, 3, 0, null, 'checkpoint_all_attached_databases'],
+            ['wal5-2.2.$tn.4', 'restart', 3, 2, 3, 1, 2, 'attached_restart_busy_on_main_reader'],
+            ['wal5-2.3.$tn.7', 'full', 4, 1, 4, 1, 2, 'attached_full_backfills_unpinned_aux_only'],
+            ['wal5-2.4.1.$tn.2', 'passive', 3, 3, 3, 0, null, 'passive_never_waits_for_writer_or_reader'],
+            ['wal5-2.4.3.$tn.2', 'full', 4, 4, 4, 0, 2, 'full_waits_for_writer_then_readers'],
+            ['wal5-2.4.4.$tn.2', 'full', 3, 3, 3, 1, 1, 'full_busy_handler_stops_on_writer_lock'],
+            ['wal5-2.4.5.$tn.2', 'full', 4, 4, 3, 1, 2, 'full_busy_handler_stops_on_partial_reader'],
+            ['wal5-2.4.7.$tn.2', 'restart', 4, 4, 4, 0, 3, 'restart_waits_for_all_wal_readers'],
+            ['wal5-2.4.8.$tn.2', 'restart', 3, 3, 3, 1, 1, 'restart_busy_handler_stops_on_writer_lock'],
+            ['wal5-2.4.9.$tn.2', 'restart', 4, 4, 3, 1, 2, 'restart_busy_handler_stops_on_partial_reader'],
+            ['wal5-2.4.10.$tn.2', 'restart', 4, 4, 4, 1, 3, 'restart_busy_handler_stops_on_any_wal_reader'],
+            ['wal5-2.4.11.$tn.2', 'truncate', 4, 0, 0, 0, 3, 'truncate_waits_then_truncates_wal'],
+            ['wal5-2.4.12.$tn.2', 'truncate', 3, 3, 3, 1, 1, 'truncate_busy_handler_stops_on_writer_lock'],
+            ['wal5-2.4.13.$tn.2', 'truncate', 4, 4, 3, 1, 2, 'truncate_busy_handler_stops_on_partial_reader'],
+            ['wal5-2.4.14.$tn.2', 'truncate', 4, 4, 4, 1, 3, 'truncate_busy_handler_stops_on_any_wal_reader'],
+            ['wal5-3.$tn.2', 'passive', 2, 2, 2, 0, null, 'repeated_checkpoint_preserves_backfilled_wal'],
+            ['wal5-3.$tn.6', 'passive', 0, 0, 0, 0, null, 'reopen_after_checkpoint_reports_empty_log'],
+            ['wal5-4.$tn.2', 'truncate', 8, 0, 0, 0, null, 'truncate_checkpoint_zeros_wal_file'],
+            ['wal5-5.$tn.3', 'passive', 10, 10, 10, 0, null, 'passive_checkpoints_complete_log_with_reader'],
+            ['wal5-5.$tn.6', 'full', 10, 10, 10, 1, null, 'full_busy_with_writer_after_complete_checkpoint'],
+            ['wal5-5.$tn.8', 'full', 10, 10, 10, 0, null, 'full_succeeds_after_writer_rollback'],
+            ['wal5-5.$tn.9', 'truncate', 10, 10, 10, 1, null, 'truncate_busy_while_reader_holds_checkpointed_log'],
+            ['wal5-5.$tn.11', 'truncate', 10, 0, 0, 0, null, 'truncate_after_reader_release_zeros_wal'],
+            ['wal5-5.$tn.15', 'truncate', 4, 4, 4, 1, null, 'truncate_busy_on_new_reader'],
+            ['wal5-5.$tn.17', 'restart', 4, 4, 4, 1, null, 'restart_busy_on_new_reader'],
+            ['wal5-5.$tn.18', 'restart', 4, 4, 4, 0, null, 'restart_after_reader_release_preserves_log'],
+            ['wal5-5.$tn.20', 'truncate', 4, 0, 0, 0, null, 'truncate_final_zeroes_log'],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= 1200; $case++) {
+            [$section, $mode, $logFrames, $databasePages, $checkpointedFrames, $busy, $busyReleaseStep, $behavior] = $checkpointCases[($case - 1) % count($checkpointCases)];
+            $requestMethod = ($case % 2) === 0 ? 'capi' : 'pragma';
+            $pageSize = [1024, 2048, 4096][($case - 1) % 3];
+            $readerEndFrame = $busy === 0 ? null : max(1, min($logFrames, $checkpointedFrames));
+            $expectedWalAction = $mode === 'truncate' && $busy === 0 ? 'truncate_wal' : 'preserve_wal';
+            $expectedWalBytes = $expectedWalAction === 'truncate_wal' ? 0 : self::walFileSize($logFrames, $pageSize);
+
+            $rows[] = [
+                'upstream' => 'wal5.test ' . $section . ' dynamic blocking checkpoint ' . $case,
+                'source_file' => 'wal5.test',
+                'case' => $case,
+                'request_method' => $requestMethod,
+                'mode' => $mode,
+                'page_size' => $pageSize,
+                'log_frame_count' => $logFrames,
+                'database_page_count' => $databasePages,
+                'checkpointed_frame_count' => $checkpointedFrames,
+                'busy' => $busy,
+                'busy_release_step' => $busyReleaseStep,
+                'reader_end_frame' => $readerEndFrame,
+                'behavior' => $behavior,
+                'expected_checkpoint' => [$busy, $logFrames, $checkpointedFrames],
+                'expected_wal_action' => $expectedWalAction,
+                'expected_wal_bytes' => $expectedWalBytes,
+                'attached_database_case' => str_contains($section, 'wal5-2.'),
+                'truncate_case' => $mode === 'truncate',
+                'restart_case' => $mode === 'restart',
+                'full_case' => $mode === 'full',
+                'passive_case' => $mode === 'passive',
+                'dependencies' => [
+                    'real-upstream-corpus-wal5',
+                    'sqlite-wal-blocking-checkpoint',
+                    'sqlite-wal-reader-writer-lock-boundary',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
     public static function walModeTransitionRows(): array
     {
         $sourceSections = [
