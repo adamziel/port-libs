@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-31 15:43:32 UTC",
-    "sourceCommit": "d43627a9d97bc145b33b02f68b652b008fc04b84",
-    "sourceCommitShort": "d43627a9d97b",
+    "generated": "2026-05-31 15:50:32 UTC",
+    "sourceCommit": "70cf7efb5226c51c4830294e62c0be48581af11b",
+    "sourceCommitShort": "70cf7efb5226",
     "sourceBranch": "main",
-    "dashboardCommit": "9e789b5e353309a647c0566b3aa211cb3c83da9c",
-    "dashboardCommitShort": "9e789b5e3533",
-    "averageProgressPercent": "86.9",
+    "dashboardCommit": "cdab5d4b681ac508317d035a9cc915ee0649f40b",
+    "dashboardCommitShort": "cdab5d4b681a",
+    "averageProgressPercent": "87.0",
     "lanes": [
         {
             "library": "difftastic",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "80.0",
+            "progressPercent": "81.0",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1316",
-            "coverage": "1316 / 3532",
-            "php": "1966 pass / 0 fail",
+            "mapped": "1340",
+            "coverage": "1340 / 3532",
+            "php": "2025 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "static upstream inventory plus upstream Rust/Node/WASM...",
-            "audit": "Supervisor accepted source commit d43627a...",
-            "currentWork": "Native LightningCSS now covers overflow CSSOM operations, typed media feature range parsi...",
+            "audit": "Supervisor accepted source commit 70cf7ef...",
+            "currentWork": "Native LightningCSS now covers CSS Modules pure mode local/global selector boundaries, ta...",
             "nextTarget": "Keep dedicated LightningCSS workers on current-base source-map/bundler integration edges,...",
             "blocker": "No current LightningCSS PHP blocker for this batch.",
-            "commit": "d43627a"
+            "commit": "70cf7ef"
         },
         {
             "library": "markerPDF",
