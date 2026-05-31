@@ -38,7 +38,7 @@ final class SQLiteSelectQuery
             if (!is_int($earlyOffset)) {
                 throw new \InvalidArgumentException('SQLite SELECT query offset must be an integer');
             }
-            $rows = array_slice($rows, max(0, $earlyOffset), max(0, $plan['limit']));
+            $rows = SQLiteSelectResult::limitOffset($rows, $plan['limit'], $earlyOffset);
             $earlyLimitApplied = true;
         }
 

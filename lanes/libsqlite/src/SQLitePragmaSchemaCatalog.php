@@ -1151,7 +1151,7 @@ final class SQLitePragmaSchemaCatalog
         $words = [];
         foreach (preg_split('/\s+/', trim($tail)) ?: [] as $word) {
             $upper = strtoupper(trim($word));
-            if ($upper === '' || in_array($upper, ['PRIMARY', 'NOT', 'NULL', 'UNIQUE', 'CHECK', 'DEFAULT', 'COLLATE', 'REFERENCES', 'GENERATED', 'AS'], true)) {
+            if ($upper === '' || in_array($upper, ['PRIMARY', 'NOT', 'NULL', 'UNIQUE', 'CHECK', 'DEFAULT', 'COLLATE', 'REFERENCES', 'GENERATED', 'ALWAYS', 'AS'], true)) {
                 break;
             }
             $words[] = strtoupper(self::unquoteIdentifier(trim($word)));

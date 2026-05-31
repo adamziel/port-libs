@@ -4521,6 +4521,63 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,table_kind:string,omit_constraint:bool,constraints:list<array{column:string,operator:string,value:string,usable:bool}>,plan_shape:string,virtual_index:list<string>,cost:int,estimated_rows:int,result_rowids:list<int>,ordinary_indexes:list<string>,primary_key_ignored:bool,detail:string}>
+     */
+    public static function bestindex3VirtualTableLikeOrCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindex3 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            ['bestindex3-1.1', 'virtual table LIKE constraint is passed to xBestIndex', 'virtual', false, [['a', 'LIKE', 'abc', true]], 'single-vtab-scan', ['a LIKE ?'], [1, 2, 3, 4, 5, 6], [], false, 'SCAN t1 VIRTUAL TABLE INDEX 0:a LIKE ?'],
+            ['bestindex3-1.2', 'virtual table equality constraint is passed to xBestIndex', 'virtual', false, [['a', '=', 'abc', true]], 'single-vtab-scan', ['a EQ ?'], [1, 2, 3, 4, 5, 6], [], false, 'SCAN t1 VIRTUAL TABLE INDEX 0:a EQ ?'],
+            ['bestindex3-1.3', 'OR equality terms use separate virtual table probes', 'virtual', false, [['a', '=', 'abc', true], ['b', '=', 'def', true]], 'multi-index-or', ['a EQ ?', 'b EQ ?'], [1, 2, 3, 4, 5, 6], [], false, 'MULTI-INDEX OR: SCAN t1 VIRTUAL TABLE INDEX 0:a EQ ?; SCAN t1 VIRTUAL TABLE INDEX 0:b EQ ?'],
+            ['bestindex3-1.4', 'OR mixed LIKE and equality terms use separate virtual table probes', 'virtual', false, [['a', 'LIKE', 'abc%', true], ['b', '=', 'def', true]], 'multi-index-or', ['a LIKE ?', 'b EQ ?'], [1, 2, 3, 4, 5, 6], [], false, 'MULTI-INDEX OR: SCAN t1 VIRTUAL TABLE INDEX 0:a LIKE ?; SCAN t1 VIRTUAL TABLE INDEX 0:b EQ ?'],
+            ['bestindex3-1.6.0.1', 'non-omitted virtual LIKE residual filters c values beginning with o', 'virtual', false, [['c', 'LIKE', 'o%', true]], 'xfilter-residual', ['c LIKE ?'], [3, 4], [], false, 'xFilter receives c LIKE ? and core applies the residual when omit is false'],
+            ['bestindex3-1.6.0.2', 'non-omitted virtual OR residual unions LIKE and equality matches', 'virtual', false, [['c', 'LIKE', 'o%', true], ['b', '=', 'y', true]], 'xfilter-residual-or', ['c LIKE ?', 'b EQ ?'], [3, 4, 6], [], false, 'xFilter probes both OR arms and residual filtering removes duplicates'],
+            ['bestindex3-1.6.0.3', 'non-omitted virtual equality and LIKE OR preserves upstream row order', 'virtual', false, [['c', '=', 'three', true], ['c', 'LIKE', 'o%', true]], 'xfilter-residual-or', ['c EQ ?', 'c LIKE ?'], [1, 6, 3, 4], [], false, 'xFilter returns equality arm rows before LIKE arm rows'],
+            ['bestindex3-1.6.1.1', 'omitted virtual LIKE constraint is enforced by xFilter SQL', 'virtual', true, [['c', 'LIKE', 'o%', true]], 'xfilter-omit', ['c LIKE ?'], [3, 4], [], false, 'xBestIndex marks c LIKE ? omitted and xFilter adds WHERE c LIKE value'],
+            ['bestindex3-1.6.1.2', 'omitted virtual OR residual preserves union behavior', 'virtual', true, [['c', 'LIKE', 'o%', true], ['b', '=', 'y', true]], 'xfilter-omit-or', ['c LIKE ?', 'b EQ ?'], [3, 4, 6], [], false, 'xFilter handles omitted constraints and core OR planning keeps both arms'],
+            ['bestindex3-1.6.1.3', 'omitted virtual equality and LIKE OR preserves upstream row order', 'virtual', true, [['c', '=', 'three', true], ['c', 'LIKE', 'o%', true]], 'xfilter-omit-or', ['c EQ ?', 'c LIKE ?'], [1, 6, 3, 4], [], false, 'xFilter omitted constraints still return equality rows before LIKE rows'],
+            ['bestindex3-2.2', 'ordinary table OR combines LIKE range and equality index probes', 'ordinary', false, [['x', 'LIKE', 'abc%', true], ['y', '=', 'def', true]], 'multi-index-or', ['x>? AND x<?', 'y=?'], [], ['t2x', 't2y'], false, 'MULTI-INDEX OR: SEARCH t2 USING INDEX t2x (x>? AND x<?); SEARCH t2 USING INDEX t2y (y=?)'],
+            ['bestindex3-3.1/3.2', 'virtual table declaration primary key is ignored for vtab planning', 'virtual', false, [], 'decl-vtab-primary-key-ignored', [], [], [], true, 'CREATE VIRTUAL TABLE declarations keep columns but ignore PRIMARY KEY constraints'],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $tableKind, $omit, $constraints, $shape, $virtualIndex, $rowids, $ordinaryIndexes, $primaryKeyIgnored, $detail] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'bestindex3.test bestindex3-1.1 through bestindex3-3.2',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'table_kind' => $tableKind,
+                'omit_constraint' => $omit,
+                'constraints' => array_map(
+                    static fn (array $constraint): array => [
+                        'column' => $constraint[0],
+                        'operator' => $constraint[1],
+                        'value' => $constraint[2],
+                        'usable' => $constraint[3],
+                    ],
+                    $constraints,
+                ),
+                'plan_shape' => $shape,
+                'virtual_index' => $virtualIndex,
+                'cost' => $constraints === [] ? 1000000 : 100,
+                'estimated_rows' => $constraints === [] ? 1000000 : 10,
+                'result_rowids' => $rowids,
+                'ordinary_indexes' => $ordinaryIndexes,
+                'primary_key_ignored' => $primaryKeyIgnored,
+                'detail' => $detail,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

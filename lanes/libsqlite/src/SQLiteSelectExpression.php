@@ -447,6 +447,13 @@ final class SQLiteSelectExpression
 
             return self::jsonExpressionResult($normalized, SQLiteJsonRemove::removeSqlFunctionArguments($normalized, $evaluated));
         }
+        if ($normalized === 'json_array_insert' || $normalized === 'jsonb_array_insert') {
+            if (($evaluated[0] ?? null) instanceof SQLiteJsonSubtypeValue) {
+                $evaluated[0] = $evaluated[0]->json;
+            }
+
+            return self::jsonExpressionResult($normalized, SQLiteJsonArrayInsert::arrayInsertSqlFunctionArguments($normalized, $evaluated));
+        }
         if ($normalized === 'json_extract' || $normalized === 'jsonb_extract') {
             if ($evaluated === []) {
                 throw new \InvalidArgumentException('SQLite SELECT expression json_extract() requires a JSON argument');

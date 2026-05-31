@@ -1227,6 +1227,13 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : strlen((string) $value);
         }
+        if (preg_match('/^CASE\s+WHEN\s+(.+?)\s+THEN\s+(.+?)\s+ELSE\s+(.+?)\s+END$/is', $expression, $match) === 1) {
+            $truth = self::sqliteTruthValue(self::evaluateExpression($match[1], $row));
+
+            return $truth === true
+                ? self::evaluateExpression($match[2], $row)
+                : self::evaluateExpression($match[3], $row);
+        }
         if (preg_match('/^CASE\s+(.+?)\s+WHEN\s+(.+?)\s+THEN\s+(.+?)\s+ELSE\s+(.+?)\s+END$/is', $expression, $match) === 1) {
             $caseValue = self::evaluateExpression($match[1], $row);
             $whenValue = self::evaluateExpression($match[2], $row);
@@ -1240,6 +1247,26 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return self::literal($expression);
+    }
+
+    private static function sqliteTruthValue(mixed $value): ?bool
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value) || is_float($value)) {
+            return $value != 0;
+        }
+        if (is_string($value)) {
+            $numeric = is_numeric($value) ? (float) $value : 0.0;
+
+            return $numeric != 0.0;
+        }
+
+        throw new \InvalidArgumentException('SQLite UPDATE/DELETE expression truth values must be scalar or NULL');
     }
 
     /**

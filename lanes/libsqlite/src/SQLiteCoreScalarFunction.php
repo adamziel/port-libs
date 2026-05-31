@@ -2128,6 +2128,14 @@ final class SQLiteCoreScalarFunction
             return '0.0';
         }
 
+        if (floor($value) === $value && abs($value) >= 1.0e16) {
+            $digits = sprintf('%.0F', abs($value));
+            $mantissa = $digits[0] . '.' . substr($digits, 1);
+            $exponent = strlen($digits) - 1;
+
+            return ($value < 0 ? '-' : '') . $mantissa . 'e+' . $exponent;
+        }
+
         $formatted = sprintf('%.15G', $value);
         if (!str_contains($formatted, '.') && !str_contains($formatted, 'E')) {
             $formatted .= '.0';

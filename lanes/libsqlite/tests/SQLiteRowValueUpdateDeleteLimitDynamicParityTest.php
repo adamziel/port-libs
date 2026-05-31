@@ -84,6 +84,10 @@ $deleteRowValueShiftSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, 
 $updateRowValueBitwiseSubqueryLimit = "UPDATE app_settings SET state = 'bitwise_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT (7&3) OFFSET (6|1)-6) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
 $deleteRowValueAbsSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT abs(-3) OFFSET abs(-2)) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
 $updateBitwiseNegativeLimit = "UPDATE app_settings SET state = 'bitwise_all' WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT ~0 OFFSET -~0";
+$updateSearchedCaseLimit = "UPDATE app_settings SET state = 'case_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT CASE WHEN TRUE THEN 2 ELSE 1 END OFFSET CASE WHEN FALSE THEN 3 ELSE 1 END";
+$deleteSearchedCaseCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT CASE WHEN '1' THEN 1 ELSE 3 END, CASE WHEN 0 THEN 1 ELSE 2 END";
+$updateRowValueSearchedCaseSubqueryLimit = "UPDATE app_settings SET state = 'case_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT CASE WHEN TRUE THEN 3 ELSE 1 END OFFSET CASE WHEN NULL THEN 4 ELSE 1 END) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+$deleteRowValueSearchedCaseSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT CASE WHEN 'not numeric' THEN 1 ELSE 2 END OFFSET CASE WHEN 1 THEN 2 ELSE 0 END) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
 
 $cases = [
     'parse update negative offset retained' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateNegativeOffset)['offset'], -4],
@@ -211,6 +215,17 @@ $cases = [
     'parse update bitwise-not negative limit means no limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateBitwiseNegativeLimit)['limit'], -1],
     'parse update negative bitwise-not offset clamps to zero' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateBitwiseNegativeLimit)['offset'], 1],
     'update bitwise-not negative limit selects all after offset clamp expression' => [static fn (): mixed => $execute($updateBitwiseNegativeLimit)['plan']->selectedIds, [2, 3, 6, 8]],
+    'parse update searched CASE limit uses true branch' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateSearchedCaseLimit)['limit'], 2],
+    'parse update searched CASE offset uses false branch' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateSearchedCaseLimit)['offset'], 1],
+    'update searched CASE limit selects ordered lazy window' => [static fn (): mixed => $execute($updateSearchedCaseLimit)['plan']->selectedIds, [2, 3]],
+    'update searched CASE limit returns source order' => [static fn (): mixed => array_column($execute($updateSearchedCaseLimit)['returning'], 'setting_id'), [2, 3]],
+    'parse delete searched CASE comma offset uses text truth' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteSearchedCaseCommaLimit)['offset'], 1],
+    'parse delete searched CASE comma count uses numeric false branch' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteSearchedCaseCommaLimit)['limit'], 2],
+    'delete searched CASE comma limit selects ordered window' => [static fn (): mixed => $execute($deleteSearchedCaseCommaLimit)['plan']->selectedIds, [2, 3]],
+    'update row-value searched CASE subquery applies before tuple match' => [static fn (): mixed => $execute($updateRowValueSearchedCaseSubqueryLimit)['plan']->selectedIds, [2, 3, 5]],
+    'update row-value searched CASE subquery returns source order' => [static fn (): mixed => array_column($execute($updateRowValueSearchedCaseSubqueryLimit)['returning'], 'setting_id'), [2, 3, 5]],
+    'delete row-value searched CASE subquery applies numeric truth branch' => [static fn (): mixed => $execute($deleteRowValueSearchedCaseSubqueryLimit)['plan']->selectedIds, [2, 5]],
+    'delete row-value searched CASE subquery keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueSearchedCaseSubqueryLimit)['tables']['app_settings'], 'setting_id'), [1, 3, 4, 6, 7, 8]],
     'malformed modulo zero limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 5%0"), InvalidArgumentException::class],
     'malformed cast null limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT CAST(NULL AS INTEGER)"), InvalidArgumentException::class],
     'malformed cast blob offset rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET CAST(X'ABCD' AS INT)"), InvalidArgumentException::class],
@@ -374,6 +389,46 @@ for ($seed = 1; $seed <= 48; $seed++) {
             $t->same($expected, $result['plan']->selectedIds);
             $t->same($expected, array_column($result['returning'], 'setting_id'));
             $t->same(min($limitValue, count($expected)), count($result['returning']));
+        };
+}
+
+for ($seed = 1; $seed <= 40; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $condition = $seed % 2 === 0 ? '1' : "'2'";
+    $limitExpr = "CASE WHEN {$condition} THEN {$limitValue} ELSE 1 END";
+    $offsetExpr = "CASE WHEN 0 THEN 4 ELSE {$offsetValue} END";
+    $sql = "UPDATE app_settings SET state = 'case_dyn' WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update searched case window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 40; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 2) % 4;
+    $limitCondition = $seed % 2 === 0 ? 'TRUE' : "'0'";
+    $offsetCondition = $seed % 3 === 0 ? 'NULL' : 'FALSE';
+    $limitExpr = "CASE WHEN {$limitCondition} THEN {$limitValue} ELSE 2 END";
+    $offsetExpr = "CASE WHEN {$offsetCondition} THEN 5 ELSE {$offsetValue} END";
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $effectiveLimit = $seed % 2 === 0 ? $limitValue : 2;
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $effectiveLimit)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue searched case subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
         };
 }
 
