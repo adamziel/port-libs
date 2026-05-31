@@ -1471,6 +1471,31 @@ CSS;
 
         $t->same('.foo{margin:10px;padding:20px}', $result);
     },
+    'custom at-rules revisit upstream raw Function variables' => static function (TestRunner $t): void {
+        $seen = [];
+        $result = (new CustomAtRuleTransformer())->transform('.foo { color: theme("foo"); background: theme("red"); }', [], [
+            'Function' => [
+                'theme' => static function (array $arguments): ?array {
+                    if (($arguments[0] ?? null) === 'foo') {
+                        return ['raw' => 'var(--foo)'];
+                    }
+                    if (($arguments[0] ?? null) === 'red') {
+                        return ['raw' => 'rgba(255, 0, 0)'];
+                    }
+
+                    return null;
+                },
+            ],
+            'DashedIdent' => static function (string $ident) use (&$seen): string {
+                $seen[] = $ident;
+
+                return '--prefix-' . substr($ident, 2);
+            },
+        ]);
+
+        $t->same('.foo{color:var(--prefix-foo);background:red}', $result);
+        $t->same(['--foo'], $seen);
+    },
     'custom at-rules compose upstream Declaration custom property visitors' => static function (TestRunner $t): void {
         $seenTokenTypes = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([

@@ -1667,6 +1667,8 @@ final class CssModulesTransformer
      */
     private function rewriteSelectorList(string $selectorList): array
     {
+        $this->assertSelectorPseudoElementBoundaries($selectorList);
+
         $rewritten = [];
         $locals = [];
 
@@ -1681,6 +1683,165 @@ final class CssModulesTransformer
         }
 
         return [implode(', ', $rewritten), $locals];
+    }
+
+    private function assertSelectorPseudoElementBoundaries(string $selectorList): void
+    {
+        foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
+            $this->assertSelectorPseudoElementBoundary($selector);
+        }
+    }
+
+    private function assertSelectorPseudoElementBoundary(string $selector): void
+    {
+        $quote = null;
+        $bracketDepth = 0;
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                continue;
+            }
+
+            if ($bracketDepth === 0 && $this->startsWithPseudoFunction($selector, $i, ':global')) {
+                $open = $i + strlen(':global');
+                $close = $this->findMatchingParen($selector, $open);
+                $this->assertSelectorPseudoElementBoundaries(substr($selector, $open + 1, $close - $open - 1));
+                $i = $close;
+                continue;
+            }
+
+            if ($bracketDepth === 0 && $this->startsWithPseudoFunction($selector, $i, ':local')) {
+                $open = $i + strlen(':local');
+                $close = $this->findMatchingParen($selector, $open);
+                $this->assertSelectorPseudoElementBoundaries(substr($selector, $open + 1, $close - $open - 1));
+                $i = $close;
+                continue;
+            }
+
+            $pseudoElement = $bracketDepth === 0 ? $this->cssModulesPseudoElementAt($selector, $i) : null;
+            if ($pseudoElement === null) {
+                if ($char === '\\') {
+                    $escapeEnd = $this->cssEscapeEnd($selector, $i);
+                    if ($escapeEnd !== null) {
+                        $i = $escapeEnd;
+                    }
+                }
+                continue;
+            }
+
+            if (isset($pseudoElement['inner'])) {
+                $this->assertSelectorPseudoElementBoundaries($pseudoElement['inner']);
+            }
+
+            $this->assertPseudoElementTail($selector, $pseudoElement['end'], $pseudoElement['allowPseudoClasses']);
+            $i = $pseudoElement['end'] - 1;
+        }
+    }
+
+    /**
+     * @return array{end:int,allowPseudoClasses:bool,inner?:string}|null
+     */
+    private function cssModulesPseudoElementAt(string $selector, int $offset): ?array
+    {
+        if (($selector[$offset] ?? '') !== ':') {
+            return null;
+        }
+
+        $colonLength = ($selector[$offset + 1] ?? '') === ':' ? 2 : 1;
+        $token = $this->readCssIdentifierToken($selector, $offset + $colonLength);
+        if ($token === null) {
+            return null;
+        }
+
+        $name = strtolower($token['decoded']);
+        if ($name === 'slotted' && ($selector[$token['end']] ?? '') === '(') {
+            $close = $this->findMatchingParen($selector, $token['end']);
+
+            return [
+                'end' => $close + 1,
+                'allowPseudoClasses' => false,
+                'inner' => substr($selector, $token['end'] + 1, $close - $token['end'] - 1),
+            ];
+        }
+
+        if (!in_array($name, ['before', 'after', 'first-letter', 'first-line'], true)) {
+            return null;
+        }
+
+        return [
+            'end' => $token['end'],
+            'allowPseudoClasses' => true,
+        ];
+    }
+
+    private function assertPseudoElementTail(string $selector, int $offset, bool $allowPseudoClasses): void
+    {
+        $length = strlen($selector);
+        $cursor = $offset;
+
+        while ($cursor < $length) {
+            $char = $selector[$cursor];
+            if (ctype_space($char)) {
+                if (trim(substr($selector, $cursor)) === '') {
+                    return;
+                }
+
+                throw new \InvalidArgumentException('CSS pseudo-elements cannot be followed by selectors');
+            }
+
+            if (!$allowPseudoClasses || $char !== ':' || ($selector[$cursor + 1] ?? '') === ':') {
+                throw new \InvalidArgumentException('CSS pseudo-elements cannot be followed by selectors');
+            }
+
+            $token = $this->readCssIdentifierToken($selector, $cursor + 1);
+            if ($token === null) {
+                throw new \InvalidArgumentException('CSS pseudo-elements cannot be followed by selectors');
+            }
+
+            $cursor = $token['end'];
+            if (($selector[$cursor] ?? '') === '(') {
+                $cursor = $this->findMatchingParen($selector, $cursor) + 1;
+            }
+
+            if ($cursor >= $length) {
+                return;
+            }
+
+            $next = $selector[$cursor] ?? '';
+            if ($next !== ':') {
+                $rest = substr($selector, $cursor);
+                if (trim($rest) === '') {
+                    return;
+                }
+
+                throw new \InvalidArgumentException('CSS pseudo-elements cannot be followed by selectors');
+            }
+        }
     }
 
     /**

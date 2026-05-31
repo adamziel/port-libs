@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\ReceivePackClient;
 use PortLibs\Gitoxide\SmartHttpReceivePackTransport;
 
 $packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
@@ -90,6 +92,61 @@ $usernameOnlyProxyTransport = new SmartHttpReceivePackTransport(
     ],
 );
 $usernameOnlyProxyAdvertisement = $usernameOnlyProxyTransport->readAdvertisement();
+
+$cidrNoProxyRequests = [];
+$cidrNoProxyHelperCalls = 0;
+$cidrNoProxyBlob = new GitObject('blob', 'WordPress CIDR no-proxy payload');
+$cidrNoProxyResponseBytes = $packet("\x01" . $packet("unpack ok\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $flush)
+    . $flush;
+$cidrNoProxyClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://192.168.12.34/wp-content.git',
+        static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$cidrNoProxyRequests, $packet, $flush, $advertisementBytes, $cidrNoProxyResponseBytes): array {
+            $cidrNoProxyRequests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'httpOptions' => $httpOptions,
+            ];
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => [
+                        'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                        'Set-Cookie' => 'wp_session=cidr; Path=/; Secure',
+                    ],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $cidrNoProxyResponseBytes,
+            ];
+        },
+        [],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+        [
+            'proxy' => 'http://wp-proxy.example.test:8080',
+            'noProxy' => '192.168.0.0/16',
+            'proxyCredentialHelper' => static function () use (&$cidrNoProxyHelperCalls): array {
+                $cidrNoProxyHelperCalls++;
+
+                return ['username' => 'cidr-proxy-user', 'password' => 'cidr-proxy-pass'];
+            },
+        ],
+    ),
+    'port-libs/wordpress',
+);
+$cidrNoProxySession = $cidrNoProxyClient->handshake();
+$cidrNoProxySession->createOrUpdate('refs/heads/main', $cidrNoProxyBlob->oid());
+$cidrNoProxyResponse = $cidrNoProxyClient->send($cidrNoProxySession->buildRequest([$cidrNoProxyBlob]));
 
 $urlCredentialProxyRequests = [];
 $urlCredentialProxyHelperCalls = [];
@@ -220,6 +277,11 @@ return [
     'usernameOnlyProxyAuthorizationSent' => $usernameOnlyProxyRequests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'usernameOnlyProxyUrl' => $usernameOnlyProxyRequests[0]['httpOptions']['proxyUrl'] ?? null,
     'usernameOnlyOriginProxyHeaderLeaked' => isset($usernameOnlyProxyRequests[0]['headers']['Proxy-Authorization']),
+    'cidrNoProxyBypassedProxy' => $cidrNoProxyResponse->isSuccessful()
+        && ($cidrNoProxyRequests[0]['httpOptions'] ?? null) === []
+        && ($cidrNoProxyRequests[1]['httpOptions'] ?? null) === [],
+    'cidrNoProxyHelperCalls' => $cidrNoProxyHelperCalls,
+    'cidrNoProxyPostCookieHeader' => $cidrNoProxyRequests[1]['headers']['Cookie'] ?? null,
     'urlCredentialProxyAdvertisementBytes' => $urlCredentialProxyAdvertisement,
     'urlCredentialProxyHelperCalls' => $urlCredentialProxyHelperCalls,
     'urlCredentialProxyStores' => $urlCredentialProxyStores,

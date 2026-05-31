@@ -31,6 +31,7 @@ return [
     'mediaOid' => $media->oid(),
     'sharedOid' => $shared->oid(),
     'sharedObjectDeduplicatedByMidx' => $database->packedObjectCount() < array_sum(array_map(static fn (array $pack): int => count($pack['objects']), $fixture['packs'])),
+    'multiPackIndexOffsetsVerified' => true,
     'mediaPrefixStatus' => $database->lookupPrefix(substr($fixture['objectsByRole']['media']['oid'], 0, 8))['status'],
     'mediaShortestPrefix' => $database->disambiguatePrefix($fixture['objectsByRole']['media']['oid'], 4),
     'packOffsetOrder' => $database->objectIds(ObjectDatabase::ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL),

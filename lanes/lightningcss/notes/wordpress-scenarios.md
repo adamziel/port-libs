@@ -98,6 +98,8 @@ This isolated property-values run extends `examples/wordpress-gradient-value-min
 
 This isolated bundle/import graph run extends `examples/wordpress-bundle-import-graph.php` for supports-gated block layout delivery: a parent stylesheet import guarded by `supports((display: grid) or (display: flex))` and a child import guarded by `supports(container-type: inline-size)` now preserve the nested `or` group when bundled and minified. No new support component is needed; it reuses `CssBundler`, `CssMinifier`, the bounded supports-condition scanner/minifier helpers, and the native resolver/import graph model.
 
+This isolated bundle/import graph run extends the same build-free block-theme delivery path to quoted `url(...)` import source token boundaries: generated CSS may include whitespace and comments around a quoted import URL, but additional tokens inside the `url()` function are rejected before resolver/read traversal. `examples/wordpress-bundle-import-graph.php` now verifies both the valid quoted URL import and a bad trailing-token import diagnostic without Node. No new support component is needed; it reuses `CssBundler`'s bounded import prelude parser, string-token decoder, resolver, reader, and import graph model.
+
 ## Next Task
 
 Continue current-base LightningCSS handoffs for remaining CSSOM shorthand splitting/removal parity, custom at-rule parser/visitor parity, target-prefix browser boundaries, media-query range/layer handling, non-overlapping property-value color/font/grid coverage, and source-map/bundler integration. Reject status-only markers and avoid repeating accepted CSSOM priority-bucket, background CSSOM read/write, linear/radial/conic gradient minifier, or bundle supports-condition grouping slices.

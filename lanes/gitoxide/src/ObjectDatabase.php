@@ -746,6 +746,7 @@ final class ObjectDatabase
                     throw new \RuntimeException("Pack index referenced by multi-pack-index not found: {$packDirectory}/{$indexName}");
                 }
             }
+            self::assertMultiPackEntriesMatchPackIndexes($index, $bundlesByIndexName, $packDirectory);
 
             $this->multiPacks[] = [
                 'index' => $index,
@@ -756,6 +757,28 @@ final class ObjectDatabase
         }
 
         return $this->multiPacks;
+    }
+
+    /**
+     * @param array<string,array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string}> $bundlesByIndexName
+     */
+    private static function assertMultiPackEntriesMatchPackIndexes(MultiPackIndex $index, array $bundlesByIndexName, string $packDirectory): void
+    {
+        $indexNames = $index->indexNames();
+        foreach ($index->entries() as $entry) {
+            $indexName = $indexNames[$entry->packIndex] ?? null;
+            if ($indexName === null || !isset($bundlesByIndexName[$indexName])) {
+                throw new \RuntimeException("Pack index referenced by multi-pack-index not found: {$packDirectory}/{$indexName}");
+            }
+
+            $packEntry = $bundlesByIndexName[$indexName]['index']->lookup($entry->oid);
+            if ($packEntry === null) {
+                throw new \RuntimeException("Multi-pack-index object {$entry->oid} was not found in referenced pack index: {$packDirectory}/{$indexName}");
+            }
+            if ($packEntry->packOffset !== $entry->packOffset) {
+                throw new \RuntimeException("Multi-pack-index object offset mismatch for {$entry->oid}: multi-pack-index has {$entry->packOffset}, referenced pack index has {$packEntry->packOffset}");
+            }
+        }
     }
 
     /**

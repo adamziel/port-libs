@@ -5147,10 +5147,62 @@ final class CustomAtRuleTransformer
             return null;
         }
         if (is_array($replacement)) {
-            return $this->serializeVisitorValue($this->normalizeVisitorValue($replacement));
+            $normalized = $this->normalizeVisitorValue($replacement);
+            if (
+                is_array($normalized)
+                && ($normalized['type'] ?? null) === 'raw'
+                && is_string($normalized['value'] ?? null)
+            ) {
+                return $this->rewriteRawVisitorFunctions($normalized['value']);
+            }
+
+            return $this->serializeVisitorValue($normalized);
         }
 
         return (string) $replacement;
+    }
+
+    private function rewriteRawVisitorFunctions(string $value): string
+    {
+        if (
+            $this->environmentVariableVisitors === []
+            && $this->genericEnvironmentVariableVisitor === null
+            && $this->variableVisitors === []
+            && $this->genericVariableVisitor === null
+            && $this->urlVisitor === null
+            && $this->dashedIdentVisitor === null
+        ) {
+            return $value;
+        }
+
+        $output = '';
+        $cursor = 0;
+        $length = strlen($value);
+
+        while ($cursor < $length) {
+            if (preg_match('/[a-zA-Z_-][-_a-zA-Z0-9]*(?=\()/A', substr($value, $cursor), $matches) !== 1) {
+                $output .= $value[$cursor];
+                $cursor++;
+                continue;
+            }
+
+            $name = $matches[0];
+            $open = $cursor + strlen($name);
+            $close = $this->findMatchingParen($value, $open);
+            if ($close === null) {
+                $output .= $name;
+                $cursor += strlen($name);
+                continue;
+            }
+
+            $argumentsCss = substr($value, $open + 1, $close - $open - 1);
+            $raw = $name . '(' . $argumentsCss . ')';
+            $replacement = $this->callStructuredValueVisitor($name, $argumentsCss, $raw);
+            $output .= $replacement === null ? $raw : $this->serializeVisitorValue($replacement);
+            $cursor = $close + 1;
+        }
+
+        return $output;
     }
 
     private function rewriteValueTokens(string $value): string

@@ -1950,6 +1950,95 @@ return [
         $directTransport->readAdvertisement();
         $t->same([], $directRequests[0]['httpOptions']);
 
+        $cidrBypassRequests = [];
+        $cidrBypassHelperCalls = 0;
+        $cidrBypassClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://192.168.12.34/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$cidrBypassRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $cidrBypassRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_session=cidr; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'proxy' => 'http://proxy.example.test:8080',
+                    'noProxy' => '192.168.0.0/16,2001:db8::/32',
+                    'proxyCredentialHelper' => static function () use (&$cidrBypassHelperCalls): array {
+                        $cidrBypassHelperCalls++;
+
+                        return ['username' => 'cidr-proxy-user', 'password' => 'cidr-proxy-pass'];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $cidrBypassSession = $cidrBypassClient->handshake();
+        $cidrBypassSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $cidrBypassRequest = $cidrBypassSession->buildRequest([$blob]);
+
+        $cidrBypassResponse = $cidrBypassClient->send($cidrBypassRequest);
+
+        $t->same(true, $cidrBypassResponse->isSuccessful());
+        $t->same(0, $cidrBypassHelperCalls);
+        $t->same([[], []], array_column($cidrBypassRequests, 'httpOptions'));
+        $t->same('wp_session=cidr', $cidrBypassRequests[1]['headers']['Cookie']);
+        $t->same($cidrBypassRequest->requestBytes(), $cidrBypassRequests[1]['body']);
+
+        $ipv6CidrBypassRequests = [];
+        $ipv6CidrBypassHelperCalls = 0;
+        $ipv6CidrBypassTransport = new SmartHttpReceivePackTransport(
+            'https://[2001:db8::10]/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$ipv6CidrBypassRequests, $packet, $flush): array {
+                $ipv6CidrBypassRequests[] = ['url' => $url, 'httpOptions' => $httpOptions];
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            [],
+            30.0,
+            [],
+            [
+                'proxy' => 'http://proxy.example.test:8080',
+                'noProxy' => '[2001:db8::]/32',
+                'proxyCredentialHelper' => static function () use (&$ipv6CidrBypassHelperCalls): array {
+                    $ipv6CidrBypassHelperCalls++;
+
+                    return ['username' => 'ipv6-proxy-user', 'password' => 'ipv6-proxy-pass'];
+                },
+            ]
+        );
+        $ipv6CidrBypassTransport->readAdvertisement();
+        $t->same(0, $ipv6CidrBypassHelperCalls);
+        $t->same([], $ipv6CidrBypassRequests[0]['httpOptions']);
+        $t->same('https://[2001:db8::10]/wp-content.git/info/refs?service=git-receive-pack', $ipv6CidrBypassRequests[0]['url']);
+
         $defaultPortRequests = [];
         $defaultPortTransport = new SmartHttpReceivePackTransport(
             'https://git.example.test/wp-content.git',
@@ -2265,6 +2354,9 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => "example.test,bad\t.test"]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => 'example.test,bad host.test']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => ['example.test', 'bad/host.test']]));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => '192.168.0.0/33']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => 'example.test/24']));
+        $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => '*.192.168.0.0/16']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['noProxy' => ['example.test', 'bad\\host.test']]));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['proxyCredentialStore' => 'not callable']));
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['sslCaInfo' => __DIR__ . '/missing-ca.pem']));
@@ -2906,6 +2998,11 @@ return [
         $t->same($fixture['usernameOnlyProxyUrl'], $summary['usernameOnlyProxyCredentialUrl']);
         $t->same($fixture['usernameOnlyProxyAuthorizationSent'], $summary['usernameOnlyProxyAuthorizationSent']);
         $t->same(false, $summary['usernameOnlyOriginProxyHeaderLeaked']);
+        $t->same(true, $fixture['cidrNoProxyBypassedProxy']);
+        $t->same(0, $fixture['cidrNoProxyHelperCalls']);
+        $t->same('wp_session=cidr', $fixture['cidrNoProxyPostCookieHeader']);
+        $t->same($fixture['cidrNoProxyBypassedProxy'], $summary['cidrNoProxyBypassedProxy']);
+        $t->same($fixture['cidrNoProxyPostCookieHeader'], $summary['cidrNoProxyPostCookieHeader']);
         $t->same([['http://stale-user:stale-pass@wp-proxy.example.test:8080', 'git.example.test']], $fixture['urlCredentialProxyHelperCalls']);
         $t->same('http://wp-proxy.example.test:8080', $fixture['urlCredentialProxyUrl']);
         $t->same('Basic ' . base64_encode('helper-proxy-user:helper-proxy-pass'), $fixture['urlCredentialProxyAuthorizationSent']);

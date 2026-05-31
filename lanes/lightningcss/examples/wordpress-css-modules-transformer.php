@@ -224,6 +224,25 @@ CSS, [
     'hash' => 'BlockA',
 ]);
 
+$pseudoElementBoundaryResult = (new CssModulesTransformer())->transform(<<<'CSS'
+:host(:global(.wp-block-button)) .card,
+::slotted(.card),
+.card::before:hover {
+  color: yellow;
+}
+
+.card {
+  composes: cardBase;
+  color: red;
+}
+
+.cardBase {
+  color: blue;
+}
+CSS, [
+    'hash' => 'BlockA',
+]);
+
 try {
     (new CssModulesTransformer())->transform(<<<'CSS'
 .card {
@@ -272,6 +291,29 @@ CSS);
     $invalidLocalComposes = 'accepted';
 } catch (InvalidArgumentException) {
     $invalidLocalComposes = 'rejected';
+}
+
+try {
+    (new CssModulesTransformer())->transform(<<<'CSS'
+::slotted(:global(.wp-block-button)) .card {
+  color: red;
+}
+CSS);
+    $invalidPseudoElementBoundary = 'accepted';
+} catch (InvalidArgumentException) {
+    $invalidPseudoElementBoundary = 'rejected';
+}
+
+try {
+    (new CssModulesTransformer())->transform(<<<'CSS'
+:host(.card) {
+  composes: cardBase;
+  color: red;
+}
+CSS);
+    $invalidPseudoElementComposes = 'accepted';
+} catch (InvalidArgumentException) {
+    $invalidPseudoElementComposes = 'rejected';
 }
 
 try {
@@ -362,6 +404,8 @@ $actual = [
     'invalidComposes' => $invalidComposes,
     'invalidGlobalList' => $invalidGlobalList,
     'invalidLocalComposes' => $invalidLocalComposes,
+    'invalidPseudoElementBoundary' => $invalidPseudoElementBoundary,
+    'invalidPseudoElementComposes' => $invalidPseudoElementComposes,
     'deprecatedValueRule' => $deprecatedValueRule,
     'invalidPattern' => $invalidPattern,
     'pureNoCheck' => $pureNoCheck['code'],
@@ -380,6 +424,8 @@ $actual = [
     'composeOnlyExports' => $composeOnlyResult['exports'],
     'commentedComposes' => $commentedComposesResult['code'],
     'commentedComposesExports' => $commentedComposesResult['exports'],
+    'pseudoElementBoundary' => $pseudoElementBoundaryResult['code'],
+    'pseudoElementBoundaryExports' => $pseudoElementBoundaryResult['exports'],
 ];
 
 $expected = [
@@ -556,6 +602,8 @@ $expected = [
     'invalidComposes' => 'rejected',
     'invalidGlobalList' => 'rejected',
     'invalidLocalComposes' => 'rejected',
+    'invalidPseudoElementBoundary' => 'rejected',
+    'invalidPseudoElementComposes' => 'rejected',
     'deprecatedValueRule' => 'The @value rule is deprecated',
     'invalidPattern' => 'Error parsing CSS modules pattern: unknown placeholder "[block]" at index 0',
     'pureNoCheck' => '.wp-block-button{color:red}',
@@ -728,6 +776,24 @@ $expected = [
             'isReferenced' => false,
         ],
     ],
+    'pseudoElementBoundary' => ':host(.wp-block-button) .BlockA_card,::slotted(.BlockA_card),.BlockA_card:before:hover{color:#ff0}.BlockA_card{color:red}.BlockA_cardBase{color:#00f}',
+    'pseudoElementBoundaryExports' => [
+        'card' => [
+            'name' => 'BlockA_card',
+            'composes' => [
+                [
+                    'type' => 'local',
+                    'name' => 'BlockA_cardBase',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+        'cardBase' => [
+            'name' => 'BlockA_cardBase',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+    ],
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -747,6 +813,8 @@ echo 'bare-global: ' . $actual['bareGlobal'] . PHP_EOL;
 echo 'invalid-composes: ' . $actual['invalidComposes'] . PHP_EOL;
 echo 'invalid-global-list: ' . $actual['invalidGlobalList'] . PHP_EOL;
 echo 'invalid-local-composes: ' . $actual['invalidLocalComposes'] . PHP_EOL;
+echo 'invalid-pseudo-element-boundary: ' . $actual['invalidPseudoElementBoundary'] . PHP_EOL;
+echo 'invalid-pseudo-element-composes: ' . $actual['invalidPseudoElementComposes'] . PHP_EOL;
 echo 'deprecated-value-rule: ' . $actual['deprecatedValueRule'] . PHP_EOL;
 echo 'invalid-pattern: ' . $actual['invalidPattern'] . PHP_EOL;
 echo 'pure-no-check: ' . $actual['pureNoCheck'] . PHP_EOL;
@@ -758,3 +826,4 @@ echo 'pseudo-classes: ' . $actual['pseudoClasses'] . PHP_EOL;
 echo 'raw-pseudo-function: ' . $actual['rawPseudoFunction'] . PHP_EOL;
 echo 'compose-only: ' . $actual['composeOnly'] . PHP_EOL;
 echo 'commented-composes: ' . $actual['commentedComposes'] . PHP_EOL;
+echo 'pseudo-element-boundary: ' . $actual['pseudoElementBoundary'] . PHP_EOL;

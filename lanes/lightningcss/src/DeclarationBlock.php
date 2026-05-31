@@ -384,6 +384,22 @@ final class DeclarationBlock
         return $entries;
     }
 
+    public function length(string $block): int
+    {
+        return count($this->parseEntries($block));
+    }
+
+    public function item(string $block, int $index): ?string
+    {
+        if ($index < 0) {
+            throw new \InvalidArgumentException('CSS declaration index cannot be negative');
+        }
+
+        $entries = $this->cssomOrderedEntries($this->parseEntries($block));
+
+        return $entries[$index]['property'] ?? null;
+    }
+
     /**
      * Returns the source ranges for the declaration at the given zero-based index.
      *

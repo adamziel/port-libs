@@ -28,6 +28,9 @@ return [
         $fixture['usernameOnlyProxyStores']
     ),
     'usernameOnlyOriginProxyHeaderLeaked' => $fixture['usernameOnlyOriginProxyHeaderLeaked'],
+    'cidrNoProxyBypassedProxy' => $fixture['cidrNoProxyBypassedProxy'],
+    'cidrNoProxyHelperCalls' => $fixture['cidrNoProxyHelperCalls'],
+    'cidrNoProxyPostCookieHeader' => $fixture['cidrNoProxyPostCookieHeader'],
     'urlCredentialProxyHelperCalls' => $fixture['urlCredentialProxyHelperCalls'],
     'urlCredentialProxyUrl' => $fixture['urlCredentialProxyUrl'],
     'urlCredentialProxyAuthorizationSent' => $fixture['urlCredentialProxyAuthorizationSent'],

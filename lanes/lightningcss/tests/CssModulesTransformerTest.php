@@ -120,6 +120,44 @@ CSS));
         $t->same([], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules enforces upstream pseudo-element boundaries around local global selectors' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+:host(:global(.wp-block)) .card,
+::slotted(.card),
+.card::before:hover {
+  color: red;
+}
+
+.card {
+  composes: base;
+  color: yellow;
+}
+
+.base {
+  color: blue;
+}
+CSS);
+
+        $t->same(':host(.wp-block) .EgL3uq_card,::slotted(.EgL3uq_card),.EgL3uq_card:before:hover{color:red}.EgL3uq_card{color:#ff0}.EgL3uq_base{color:#00f}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        foreach ([
+            '::slotted(.card) .title { color: red }',
+            '::slotted(:global(.wp-block)) .card { color: red }',
+            '::slotted(.card):hover { color: red }',
+            '.card::before .title { color: red }',
+            ':global(.wp-block::before .title) .card { color: red }',
+            ':local(.card::after .title) { color: red }',
+            ':host(.card) { composes: base; color: red }',
+            '::slotted(.card) { composes: base; color: red }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
+        }
+    },
     'css modules leaves upstream raw custom pseudo function tokens unscoped while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card {

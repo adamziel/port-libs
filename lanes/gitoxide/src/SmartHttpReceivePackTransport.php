@@ -726,6 +726,10 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             if ($pattern === '') {
                 continue;
             }
+            if (str_contains($pattern, '/') && self::cidrMatches($host, $pattern)) {
+                return true;
+            }
+            $pattern = trim($pattern, '[]');
             if (str_starts_with($pattern, '.')) {
                 if (str_ends_with($host, $pattern) || $host === substr($pattern, 1)) {
                     return true;
@@ -738,6 +742,61 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return false;
+    }
+
+    private static function cidrMatches(string $host, string $pattern): bool
+    {
+        $cidr = self::parseCidrPattern($pattern);
+        if ($cidr === null) {
+            return false;
+        }
+
+        $hostBytes = @inet_pton(trim($host, '[]'));
+        if ($hostBytes === false || strlen($hostBytes) !== strlen($cidr['network'])) {
+            return false;
+        }
+
+        $fullBytes = intdiv($cidr['prefix'], 8);
+        $remainingBits = $cidr['prefix'] % 8;
+        if ($fullBytes > 0 && substr($hostBytes, 0, $fullBytes) !== substr($cidr['network'], 0, $fullBytes)) {
+            return false;
+        }
+        if ($remainingBits === 0) {
+            return true;
+        }
+
+        $mask = (0xff << (8 - $remainingBits)) & 0xff;
+
+        return (ord($hostBytes[$fullBytes]) & $mask) === (ord($cidr['network'][$fullBytes]) & $mask);
+    }
+
+    /**
+     * @return null|array{network: string, prefix: int}
+     */
+    private static function parseCidrPattern(string $pattern): ?array
+    {
+        $pattern = trim($pattern);
+        if (preg_match('/^\[([^\]]+)\]\/(\d+)$/', $pattern, $matches) === 1) {
+            $address = $matches[1];
+            $prefix = (int) $matches[2];
+        } else {
+            [$address, $prefixString] = array_pad(explode('/', $pattern, 2), 2, null);
+            if ($prefixString === null || preg_match('/^\d+$/', $prefixString) !== 1) {
+                return null;
+            }
+            $prefix = (int) $prefixString;
+        }
+
+        $network = @inet_pton($address);
+        if ($network === false) {
+            return null;
+        }
+        $maxPrefix = strlen($network) * 8;
+        if ($prefix < 0 || $prefix > $maxPrefix) {
+            return null;
+        }
+
+        return ['network' => $network, 'prefix' => $prefix];
     }
 
     /**
@@ -1030,8 +1089,11 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             if (self::containsControlByte($pattern)) {
                 throw new \InvalidArgumentException('smart HTTP receive-pack noProxy entries must not contain control bytes');
             }
-            if ($pattern !== '*' && preg_match('/[\s\/\\\\]/', $pattern) === 1) {
-                throw new \InvalidArgumentException('smart HTTP receive-pack noProxy entries must not contain whitespace, slash, or backslash delimiters');
+            if ($pattern !== '*' && preg_match('/[\s\\\\]/', $pattern) === 1) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack noProxy entries must not contain whitespace or backslash delimiters');
+            }
+            if (str_contains($pattern, '/') && self::parseCidrPattern($pattern) === null) {
+                throw new \InvalidArgumentException('smart HTTP receive-pack noProxy CIDR entries must include an IP address and valid prefix length');
             }
             $patterns[] = $pattern;
         }

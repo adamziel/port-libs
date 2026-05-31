@@ -269,6 +269,29 @@ return [
         $t->same(['.prelude{}', '.wp-block-cover{}'], $data['sourcesContent']);
         $t->same(['prelude-rule', 'block-rule'], $data['names']);
     },
+    'source map preserves imported tables when raw vlq offsets skip every mapping' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $map->addVlqMap(
+            'AAAAA;AACA',
+            ['blocks/skipped.scss', 'blocks/unused.scss'],
+            ['.skipped { color: red }', '.unused { color: blue }'],
+            ['skippedRule', 'unusedRule'],
+            -3,
+            0
+        );
+
+        $data = $map->toArray(null, false);
+
+        $t->same('', $map->writeVlq());
+        $t->same([], $map->getMappings());
+        $t->same(['blocks/skipped.scss', 'blocks/unused.scss'], $data['sources']);
+        $t->same(['.skipped { color: red }', '.unused { color: blue }'], $data['sourcesContent']);
+        $t->same(['skippedRule', 'unusedRule'], $data['names']);
+        $t->same(
+            '{"version":3,"mappings":"","sources":["blocks/skipped.scss","blocks/unused.scss"],"sourcesContent":[".skipped { color: red }",".unused { color: blue }"],"names":["skippedRule","unusedRule"]}',
+            $map->toJson(null, false)
+        );
+    },
     'source map imports raw vlq maps with upstream negative column offsets' => static function (TestRunner $t): void {
         $generatedOnly = new SourceMap();
         $generatedOnly->addVlqMap('K,I;O', ['generated.css'], ['.generated{}'], [], 0, -3);

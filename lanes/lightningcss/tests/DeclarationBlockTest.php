@@ -66,6 +66,20 @@ return [
         );
         $t->same($declarations, $block->removeProperty($declarations, '--BLOCK-ACCENT'));
     },
+    'declaration block enumerates upstream cssom length and item order' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'color: red !important; background: white; --Block-Accent: blue; margin: 1rem !important; color: green';
+
+        $t->same(5, $block->length($declarations));
+        $t->same('background', $block->item($declarations, 0));
+        $t->same('--Block-Accent', $block->item($declarations, 1));
+        $t->same('color', $block->item($declarations, 2));
+        $t->same('color', $block->item($declarations, 3));
+        $t->same('margin', $block->item($declarations, 4));
+        $t->same(null, $block->item($declarations, 5));
+        $t->same(0, $block->length(''));
+        $t->throws(InvalidArgumentException::class, static fn () => $block->item($declarations, -1));
+    },
     'declaration block maps cssom declaration source ranges' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $backgroundValue = 'url("/theme/a;b.css") !important';

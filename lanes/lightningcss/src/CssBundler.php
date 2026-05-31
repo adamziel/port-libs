@@ -997,13 +997,7 @@ final class CssBundler
         if ($this->startsFunction($rest, $offset, 'url')) {
             $open = $offset + strlen($this->readIdentifier($rest, $offset));
             $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
-            $specifier = trim(substr($rest, $open + 1, $close - $open - 1));
-            if (($specifier[0] ?? '') === '"' || ($specifier[0] ?? '') === "'") {
-                $specifier = $this->cssStringTokenValue($specifier);
-            } else {
-                $this->validateUnquotedImportUrlSource($specifier, $file, $loc);
-                $specifier = $this->decodeCssEscapes($specifier);
-            }
+            $specifier = $this->parseImportUrlFunctionSource(substr($rest, $open + 1, $close - $open - 1), $file, $loc);
             $offset = $close + 1;
         } elseif (($rest[$offset] ?? '') === '"' || ($rest[$offset] ?? '') === "'") {
             $end = $this->readQuotedTokenEnd($rest, $offset);
@@ -1055,6 +1049,28 @@ final class CssBundler
             'media' => $media,
             'loc' => $loc,
         ];
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function parseImportUrlFunctionSource(string $source, string $file, array $loc): string
+    {
+        $offset = $this->skipWhitespaceAndComments($source, 0);
+        if (($source[$offset] ?? '') === '"' || ($source[$offset] ?? '') === "'") {
+            $end = $this->readQuotedTokenEnd($source, $offset);
+            $after = $this->skipWhitespaceAndComments($source, $end);
+            if ($after < strlen($source)) {
+                $this->throwInvalidImportSource($file, $loc);
+            }
+
+            return $this->cssStringTokenValue(substr($source, $offset, $end - $offset));
+        }
+
+        $specifier = trim($source);
+        $this->validateUnquotedImportUrlSource($specifier, $file, $loc);
+
+        return $this->decodeCssEscapes($specifier);
     }
 
     /**

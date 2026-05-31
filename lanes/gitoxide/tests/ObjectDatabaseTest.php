@@ -57,6 +57,70 @@ $writeWordPressMultiPackFixture = static function (bool $omitMediaPack = false):
     return [$gitDir, $fixture];
 };
 
+$rewriteMultiPackIndexOffset = static function (string $bytes, string $oid, int $packIndex, int $packOffset): string {
+    $readUInt64 = static function (string $data, int $offset): int {
+        $parts = unpack('Nhigh/Nlow', substr($data, $offset, 8));
+
+        return (int) $parts['high'] * 4294967296 + (int) $parts['low'];
+    };
+
+    if (substr($bytes, 0, 4) !== 'MIDX') {
+        throw new RuntimeException('Test fixture did not contain a multi-pack-index');
+    }
+
+    $hashKind = ord($bytes[5]);
+    $hash = match ($hashKind) {
+        1 => ['name' => 'sha1', 'bytes' => 20],
+        2 => ['name' => 'sha256', 'bytes' => 32],
+        default => throw new RuntimeException('Unsupported test multi-pack-index hash kind'),
+    };
+    $chunkCount = ord($bytes[6]);
+    $entries = [];
+    $tableOffset = 12;
+    for ($i = 0; $i <= $chunkCount; $i++) {
+        $entries[] = [
+            'id' => substr($bytes, $tableOffset, 4),
+            'offset' => $readUInt64($bytes, $tableOffset + 4),
+        ];
+        $tableOffset += 12;
+    }
+
+    $chunks = [];
+    for ($i = 0; $i < $chunkCount; $i++) {
+        $chunks[$entries[$i]['id']] = [
+            'start' => $entries[$i]['offset'],
+            'end' => $entries[$i + 1]['offset'],
+        ];
+    }
+    if (!isset($chunks['OIDL'], $chunks['OOFF'])) {
+        throw new RuntimeException('Test multi-pack-index is missing object-id or offset chunks');
+    }
+
+    $objectCount = intdiv($chunks['OIDL']['end'] - $chunks['OIDL']['start'], $hash['bytes']);
+    $entryIndex = null;
+    for ($i = 0; $i < $objectCount; $i++) {
+        $entryOid = bin2hex(substr($bytes, $chunks['OIDL']['start'] + $i * $hash['bytes'], $hash['bytes']));
+        if ($entryOid === strtolower($oid)) {
+            $entryIndex = $i;
+            break;
+        }
+    }
+    if ($entryIndex === null) {
+        throw new RuntimeException("Test multi-pack-index did not contain object {$oid}");
+    }
+
+    $offsetEntry = $chunks['OOFF']['start'] + $entryIndex * 8;
+    $bytes = substr_replace($bytes, pack('N2', $packIndex, $packOffset), $offsetEntry, 8);
+
+    $checksumOffset = max(array_map(static fn (array $range): int => $range['end'], $chunks));
+    $checksum = hex2bin(hash($hash['name'], substr($bytes, 0, $checksumOffset)));
+    if ($checksum === false) {
+        throw new RuntimeException('Unable to encode test multi-pack-index checksum');
+    }
+
+    return substr($bytes, 0, $checksumOffset) . $checksum;
+};
+
 $looseObjectPath = static fn (string $gitDir, string $oid): string => $gitDir . '/objects/' . substr($oid, 0, 2) . '/' . substr($oid, 2);
 $writeCompressedLooseBytes = static function (string $gitDir, string $oid, string $bytes) use ($looseObjectPath): void {
     $path = $looseObjectPath($gitDir, $oid);
@@ -558,6 +622,34 @@ return [
         $database = new ObjectDatabase($gitDir);
 
         $t->throws(RuntimeException::class, static fn () => $database->packedObjectCount());
+    },
+    'object database validates multi-pack-index object offsets against referenced pack indexes before prefix lookup' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture, $rewriteMultiPackIndexOffset): void {
+        [$gitDir, $fixture] = $writeWordPressMultiPackFixture();
+        $media = $fixture['objectsByRole']['media'];
+        $wrongOffset = $media['offset'] + 1;
+        file_put_contents(
+            $gitDir . '/objects/pack/multi-pack-index',
+            $rewriteMultiPackIndexOffset($fixture['multiIndexBytes'], $media['oid'], $media['packIndex'], $wrongOffset)
+        );
+
+        $database = new ObjectDatabase($gitDir);
+        try {
+            $database->lookupPrefix(substr($media['oid'], 0, 8));
+            throw new RuntimeException('Expected stale multi-pack-index object offset to be rejected');
+        } catch (RuntimeException $exception) {
+            $t->contains('Multi-pack-index object offset mismatch', $exception->getMessage());
+            $t->contains($media['oid'], $exception->getMessage());
+            $t->contains((string) $wrongOffset, $exception->getMessage());
+            $t->contains((string) $media['offset'], $exception->getMessage());
+        }
+    },
+    'wordpress object database multi-pack example verifies referenced pack offsets' => static function (TestRunner $t): void {
+        $summary = require dirname(__DIR__) . '/examples/wordpress-object-database-multi-pack.php';
+
+        $t->same(true, $summary['multiPackIndexOffsetsVerified']);
+        $t->same('found', $summary['mediaPrefixStatus']);
+        $t->same(3, $summary['packedObjects']);
+        $t->same(4, $summary['rawPackIndexObjects']);
     },
     'wordpress object database example writes deployment commits through the database' => static function (TestRunner $t): void {
         $summary = require dirname(__DIR__) . '/examples/wordpress-object-database.php';

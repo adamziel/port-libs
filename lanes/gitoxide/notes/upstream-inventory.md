@@ -1381,3 +1381,29 @@ SSH receive-pack ProgramKind boundary slice prepared on 2026-05-31:
   exited `0`; and `git diff --check -- lanes/gitoxide` passed. Full Cargo
   workspace runner was not executed.
 - Expected mapped denominator movement: `1605 / 2886` to `1606 / 2886`.
+
+Smart HTTP noProxy CIDR cookie-parity slice prepared on 2026-05-31:
+
+- Pending worker slice `gitoxide-smart-http-transport-cookie-proxy-parity-20260531T203750Z`
+  on accepted base `91b42fe7029899440b4b46f38b3f903a76f3b322` maps the smart
+  HTTP transport boundary where Gitoxide forwards configured `noProxy` values
+  into curl's `noproxy` handling without config-layer validation.
+- Source truth: `gix/src/repository/config/transport.rs` reads
+  `gitoxide.http.noProxy` and environment-derived `no_proxy` into
+  `http::Options::no_proxy`; `gix-transport/src/client/blocking_io/http/curl/remote.rs`
+  passes that string to `handle.noproxy(&no_proxy)?` next to proxy URL and
+  proxy-auth setup; `gix/tests/gix/repository/config/transport_options.rs`
+  asserts the config layer does not validate the value.
+- Native PHP delta: `SmartHttpReceivePackTransport` now accepts IPv4 and IPv6
+  CIDR `noProxy` entries, bypasses stream proxy options and proxy credential
+  helper callbacks for matching origins, preserves origin `Set-Cookie` state
+  into the bypassed receive-pack POST, and still rejects invalid slash entries
+  before requester handoff.
+- Verification: red-first `ReceivePackTransportTest.php` failed with `1 test
+  files, 479 assertions, 2 failures`; after implementation, focused
+  `ReceivePackTransportTest.php` passed `1 test files, 582 assertions, 0
+  failures`; full Gitoxide lane verification passed `39 test files, 5430
+  assertions, 0 failures`. PHP lint, the touched example smoke, JSON
+  validation, and `git diff --check -- lanes/gitoxide` also passed. Full Cargo
+  workspace runner was not executed.
+- Expected mapped denominator movement: `1632 / 2886` to `1633 / 2886`.
