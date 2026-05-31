@@ -31,7 +31,7 @@ final class CssModulesTransformer
 
         $code = $this->transformRuleList($this->stripComments($css));
         if (($options['minify'] ?? true) === true) {
-            $code = (new CssMinifier())->minify($code);
+            $code = (new NestingTransformer())->lower($code);
         }
 
         return [

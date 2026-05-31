@@ -19,5 +19,6 @@ return [
     'bracketUrlPolicy' => $fixture['bracketUrlPolicy'],
     'posixUrlPolicy' => $fixture['posixUrlPolicy'],
     'legacyBytePolicy' => $fixture['legacyBytePolicy'],
+    'unboundedDoubleStarRejectedPolicy' => $fixture['unboundedDoubleStarRejectedPolicy'],
     'sectionsLoaded' => $fixture['sectionsLoaded'],
 ];

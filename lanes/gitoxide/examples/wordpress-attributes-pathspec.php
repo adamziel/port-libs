@@ -12,6 +12,12 @@ $fixture = require __DIR__ . '/../fixtures/wordpress-attributes-pathspec.php';
 $attributes = GitAttributes::fromString($fixture['attributes']);
 $matcher = PathspecMatcher::fromSpecs($fixture['deploymentPathspecs']);
 $search = PathspecSearch::fromSpecs($fixture['deploymentPathspecs']);
+$classAttributes = GitAttributes::fromString(
+    "wp-content/uploads/[[:digit:]][[:digit:]]/** dated-upload\n"
+    . "wp-content/plugins/foo[/]bar.php slash-class\n",
+    withBuiltInMacros: false,
+);
+$datedUploadSearch = PathspecSearch::fromSpecs([':(attr:dated-upload)wp-content/uploads/**']);
 $searchSelected = [];
 foreach ($fixture['paths'] as $path => $isDirectory) {
     if ($search->isIncluded($path, $isDirectory, $attributes)) {
@@ -48,6 +54,21 @@ return [
         'wp-content/uploads/logo.png',
         false,
         $attributes,
+    ),
+    'datedUploadAttributes' => $classAttributes->attributesForPath(
+        'wp-content/uploads/05/photo.jpg',
+        ['dated-upload'],
+    ),
+    'datedUploadPathspecMatches' => $datedUploadSearch->isIncluded(
+        'wp-content/uploads/05/photo.jpg',
+        false,
+        $classAttributes,
+    ),
+    'slashClassDoesNotCrossDirectory' => !PathspecMatcher::matchesOne(
+        ':(attr:slash-class)wp-content/plugins/**',
+        'wp-content/plugins/foo/bar.php',
+        false,
+        $classAttributes,
     ),
     'cacheExcluded' => !$matcher->matches('wp-content/cache/page.html', false, $attributes),
     'buildExcludedByPathspec' => !$matcher->matches('wp-content/plugins/gutenberg/build/index.js', false, $attributes),

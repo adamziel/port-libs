@@ -201,4 +201,26 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules keeps parent composes exports while lowering nested local selectors' => static function (TestRunner $t) use ($export, $dependency): void {
+        $css = <<<'CSS'
+.foo {
+  color: red;
+
+  .bar {
+    color: green;
+  }
+
+  composes: test from "foo.css";
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css);
+
+        $t->same('.EgL3uq_foo{color:red}.EgL3uq_foo .EgL3uq_bar{color:green}', $result['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo', [$dependency('test', 'foo.css')]),
+            'bar' => $export('EgL3uq_bar'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
 ];

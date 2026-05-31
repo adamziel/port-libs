@@ -62,6 +62,11 @@ $write($repo . '/legacy-byte.config', <<<CFG
 legacyByte = matched
 CFG);
 
+$write($repo . '/unbounded-double-star.config', <<<CFG
+[wordpress]
+unboundedDoubleStar = should-not-load
+CFG);
+
 $write($gitDir . '/config', <<<CFG
 [core]
 repositoryformatversion = 0
@@ -73,6 +78,8 @@ url = https://git.example.test/wp-content.git
 url = https://git.example.test/wp-content/site-7.git
 [remote "legacy-byte"]
 url = https://git.example.test/wp-content/legacy-{$legacyByte}.git
+[remote "nested-content"]
+url = https://git.example.test/wp/site/content.git
 [includeIf "onbranch:deploy/"]
 path = ../deploy-branch.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/**"]
@@ -89,6 +96,8 @@ path = ../bracket-url.config
 path = ../posix-url.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/legacy-?.git"]
 path = ../legacy-byte.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test/wp/site**content.git"]
+path = ../unbounded-double-star.config
 CFG);
 
 $config = GitConfig::fromFile($gitDir . '/config', [
@@ -110,6 +119,7 @@ return [
     'bracketUrlPolicy' => $config->value('wordpress', null, 'bracketUrl'),
     'posixUrlPolicy' => $config->value('wordpress', null, 'posixUrl'),
     'legacyBytePolicy' => $config->value('wordpress', null, 'legacyByte'),
+    'unboundedDoubleStarRejectedPolicy' => $config->value('wordpress', null, 'unboundedDoubleStar'),
     'sectionsLoaded' => array_map(
         static fn (array $section): string => $section['subsection'] === null
             ? $section['name']

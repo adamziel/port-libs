@@ -171,6 +171,46 @@ return [
         $t->same(null, $config->value('user', null, 'miss'));
     },
 
+    'conditional include double-star only crosses slash at path component boundaries' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
+        $root = $tmpDir();
+        $worktree = $root . '/wp/site/content';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/unbounded.config', "[policy]\nunbounded = loaded\n");
+        $write($worktree . '/bounded.config', "[policy]\nbounded = loaded\n");
+        $write($gitDir . '/config', <<<CFG
+        [includeIf "gitdir:wp**content/"]
+        path = ../unbounded.config
+        [includeIf "gitdir:wp/**/content/"]
+        path = ../bounded.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same(null, $config->value('policy', null, 'unbounded'));
+        $t->same('loaded', $config->value('policy', null, 'bounded'));
+
+        $t->same('base-value', $loadConditionalValue('onbranch:release**candidate', [
+            'branchName' => 'refs/heads/release/site/candidate',
+        ]));
+        $t->same('override-value', $loadConditionalValue('onbranch:release/**/candidate', [
+            'branchName' => 'refs/heads/release/site/candidate',
+        ]));
+
+        $root = $tmpDir();
+        $write($root . '/unbounded-url', "[user]\nunbounded = loaded\n");
+        $write($root . '/bounded-url', "[user]\nbounded = loaded\n");
+        $write($root . '/config', <<<CFG
+        [remote "content"]
+        url = https://git.example.test/wp/site/content.git
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp**content.git"]
+        path = "unbounded-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp/**/content.git"]
+        path = "bounded-url"
+        CFG);
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same(null, $config->value('user', null, 'unbounded'));
+        $t->same('loaded', $config->value('user', null, 'bounded'));
+    },
+
     'conditional include bracket classes do not match slash separators' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
         $root = $tmpDir();
         $worktree = $root . '/work/tree';
@@ -458,6 +498,7 @@ return [
         $t->same('matched', $fixture['bracketUrlPolicy']);
         $t->same('matched', $fixture['posixUrlPolicy']);
         $t->same('matched', $fixture['legacyBytePolicy']);
+        $t->same(null, $fixture['unboundedDoubleStarRejectedPolicy']);
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
         $t->same($fixture['escapedGitdirPolicy'], $summary['escapedGitdirPolicy']);
@@ -466,6 +507,7 @@ return [
         $t->same($fixture['bracketUrlPolicy'], $summary['bracketUrlPolicy']);
         $t->same($fixture['posixUrlPolicy'], $summary['posixUrlPolicy']);
         $t->same($fixture['legacyBytePolicy'], $summary['legacyBytePolicy']);
+        $t->same($fixture['unboundedDoubleStarRejectedPolicy'], $summary['unboundedDoubleStarRejectedPolicy']);
         $t->same($fixture['sectionsLoaded'], $summary['sectionsLoaded']);
     },
 ];

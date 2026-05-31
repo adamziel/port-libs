@@ -464,25 +464,129 @@ final class GitAttributes
                 continue;
             }
             if ($char === '[') {
-                $end = strpos($pattern, ']', $i + 1);
-                if ($end !== false) {
-                    $class = substr($pattern, $i + 1, $end - $i - 1);
-                    if ($class !== '') {
-                        $negated = $class[0] === '!';
-                        if ($negated) {
-                            $class = substr($class, 1);
-                        }
-                        $class = str_replace(['\\', '~', ']'], ['\\\\', '\~', '\]'], $class);
-                        $regex .= '[' . ($negated ? '^' : '') . $class . ']';
-                        $i = $end;
-                        continue;
-                    }
+                $end = self::findCharacterClassEnd($pattern, $i);
+                if ($end !== null) {
+                    $regex .= ($pathAware ? '(?!/)' : '')
+                        . self::characterClassRegex(substr($pattern, $i + 1, $end - $i - 1));
+                    $i = $end;
+                    continue;
                 }
             }
             $regex .= preg_quote($char, '~');
         }
 
         return '~^' . $regex . '$~' . ($ignoreCase ? 'i' : '');
+    }
+
+    private static function findCharacterClassEnd(string $pattern, int $start): ?int
+    {
+        $length = strlen($pattern);
+        $cursor = $start + 1;
+        if ($cursor >= $length) {
+            return null;
+        }
+        if (($pattern[$cursor] ?? '') === '!' || ($pattern[$cursor] ?? '') === '^') {
+            $cursor++;
+        }
+        if (($pattern[$cursor] ?? '') === ']') {
+            $cursor++;
+        }
+
+        for (; $cursor < $length; $cursor++) {
+            $char = $pattern[$cursor];
+            if ($char === '\\') {
+                $cursor++;
+                continue;
+            }
+            if ($char === '[' && ($pattern[$cursor + 1] ?? '') === ':') {
+                $classEnd = strpos($pattern, ':]', $cursor + 2);
+                if ($classEnd !== false) {
+                    $cursor = $classEnd + 1;
+                    continue;
+                }
+            }
+            if ($char === ']') {
+                return $cursor;
+            }
+        }
+
+        return null;
+    }
+
+    private static function characterClassRegex(string $class): string
+    {
+        if ($class === '') {
+            return preg_quote('[]', '~');
+        }
+
+        $negated = false;
+        if ($class[0] === '!' || $class[0] === '^') {
+            $negated = true;
+            $class = substr($class, 1);
+        }
+
+        $body = '';
+        $length = strlen($class);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $class[$i];
+            if ($char === '\\') {
+                if ($i + 1 < $length) {
+                    $body .= self::escapeCharacterClassByte($class[++$i]);
+                } else {
+                    $body .= '\\\\';
+                }
+                continue;
+            }
+            if ($char === '[' && ($class[$i + 1] ?? '') === ':') {
+                $end = strpos($class, ':]', $i + 2);
+                if ($end !== false) {
+                    $name = substr($class, $i + 2, $end - $i - 2);
+                    $mapped = self::posixCharacterClassRegex($name);
+                    if ($mapped === null) {
+                        return preg_quote('[' . ($negated ? '!' : '') . $class . ']', '~');
+                    }
+                    $body .= $mapped;
+                    $i = $end + 1;
+                    continue;
+                }
+            }
+            $body .= self::escapeCharacterClassByte($char);
+        }
+
+        if ($body === '') {
+            return preg_quote('[]', '~');
+        }
+
+        return '[' . ($negated ? '^' : '') . $body . ']';
+    }
+
+    private static function escapeCharacterClassByte(string $char): string
+    {
+        return match ($char) {
+            '\\' => '\\\\',
+            ']' => '\\]',
+            '~' => '\\~',
+            default => $char,
+        };
+    }
+
+    private static function posixCharacterClassRegex(string $class): ?string
+    {
+        return match ($class) {
+            'alnum' => '[:alnum:]',
+            'alpha' => '[:alpha:]',
+            'blank' => '[:blank:]',
+            'cntrl' => '[:cntrl:]',
+            'digit' => '[:digit:]',
+            'graph' => '[:graph:]',
+            'lower' => '[:lower:]',
+            'print' => '[:print:]',
+            'punct' => '[:punct:]',
+            'space' => ' ',
+            'upper' => '[:upper:]',
+            'xdigit' => '[:xdigit:]',
+            default => null,
+        };
     }
 
     private static function normalizePath(string $path): string

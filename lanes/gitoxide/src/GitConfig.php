@@ -590,14 +590,30 @@ final class GitConfig
             }
 
             if ($byte === '*') {
-                if ($index + 1 < $length && $pattern[$index + 1] === '*') {
-                    if ($index + 2 < $length && $pattern[$index + 2] === '/') {
+                $starStart = $index;
+                while ($index + 1 < $length && $pattern[$index + 1] === '*') {
+                    $index++;
+                }
+
+                $starCount = $index - $starStart + 1;
+                $nextByte = $pattern[$index + 1] ?? null;
+                $nextIsEscapedSlash = $nextByte === '\\' && ($pattern[$index + 2] ?? null) === '/';
+                $isPathComponentDoubleStar = $starCount >= 2
+                    && ($starStart === 0 || $pattern[$starStart - 1] === '/')
+                    && ($nextByte === null || $nextByte === '/' || $nextIsEscapedSlash);
+
+                if ($isPathComponentDoubleStar) {
+                    if ($nextByte === '/') {
+                        $regex .= '(?:.*/)?';
+                        $index++;
+                        continue;
+                    }
+                    if ($nextIsEscapedSlash) {
                         $regex .= '(?:.*/)?';
                         $index += 2;
                         continue;
                     }
                     $regex .= '.*';
-                    $index++;
                 } else {
                     $regex .= '[^/]*';
                 }

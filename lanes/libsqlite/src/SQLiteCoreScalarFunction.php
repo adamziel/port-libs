@@ -2263,7 +2263,7 @@ final class SQLiteCoreScalarFunction
             return self::sprintfAlternateFloat($specifier, $number, $type);
         }
 
-        return sprintf(self::phpSprintfSpecifier($specifier, $type), $number);
+        return self::normalizePrintfExponent(sprintf(self::phpSprintfSpecifier($specifier, $type), $number));
     }
 
     private static function sprintfCharacter(string $specifier, mixed $value): string
@@ -2291,7 +2291,7 @@ final class SQLiteCoreScalarFunction
 
     private static function sprintfAlternateFloat(string $specifier, float $value, string $type): string
     {
-        $formatted = sprintf(self::phpSprintfSpecifier($specifier, $type), $value);
+        $formatted = self::normalizePrintfExponent(sprintf(self::phpSprintfSpecifier($specifier, $type), $value));
         if ($type === 'f' || $type === 'F') {
             $precision = self::printfPrecision($specifier);
             if ($precision === null || $precision > 16) {
@@ -2342,6 +2342,15 @@ final class SQLiteCoreScalarFunction
         }
 
         return $formatted;
+    }
+
+    private static function normalizePrintfExponent(string $formatted): string
+    {
+        return preg_replace_callback(
+            '/([eE])([+-])(\d+)(\s*)\z/',
+            static fn (array $matches): string => $matches[1] . $matches[2] . str_pad($matches[3], 2, '0', STR_PAD_LEFT) . $matches[4],
+            $formatted
+        ) ?? $formatted;
     }
 
     private static function roundFixedDecimalSignificantDigits(string $formatted, int $significantDigits): string

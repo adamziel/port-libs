@@ -46,6 +46,25 @@ final class SQLiteRecord
         }
     }
 
+    /**
+     * @param list<mixed> $values
+     * @param list<string> $affinities
+     */
+    public static function encodeWithColumnAffinities(array $values, array $affinities, int $textEncoding = 1): string
+    {
+        $storedValues = [];
+        foreach ($values as $index => $value) {
+            $affinity = self::columnAffinity($affinities[$index] ?? 'NONE');
+            $storedValue = SQLiteAffinityComparison::applyAffinity($value, $affinity);
+            if ($affinity === 'REAL' && is_float($storedValue) && self::realCanUseIntegerSerialType($storedValue)) {
+                $storedValue = (int) $storedValue;
+            }
+            $storedValues[] = $storedValue;
+        }
+
+        return self::encode($storedValues, $textEncoding);
+    }
+
     public static function parse(string $payload, int $textEncoding = 1): self
     {
         [$headerSize, $headerSizeBytes] = SQLiteVarint::decode($payload, 0);
@@ -76,6 +95,21 @@ final class SQLiteRecord
         }
 
         return new self($values, $serialTypes, $dataOffset);
+    }
+
+    /**
+     * @param list<string> $affinities
+     */
+    public static function parseWithColumnAffinities(string $payload, array $affinities, int $textEncoding = 1): self
+    {
+        $record = self::parse($payload, $textEncoding);
+        $values = [];
+        foreach ($record->values as $index => $value) {
+            $affinity = self::columnAffinity($affinities[$index] ?? 'NONE');
+            $values[] = $affinity === 'REAL' && is_int($value) ? (float) $value : $value;
+        }
+
+        return new self($values, $record->serialTypes, $record->bytesRead);
     }
 
     /**
@@ -134,6 +168,40 @@ final class SQLiteRecord
         }
 
         return [6, self::signedIntegerBytes($value, 8)];
+    }
+
+    private static function realCanUseIntegerSerialType(float $value): bool
+    {
+        if (!is_finite($value)) {
+            return false;
+        }
+        if ($value < (float) PHP_INT_MIN || $value > (float) PHP_INT_MAX) {
+            return false;
+        }
+
+        $integerValue = (int) $value;
+
+        return (float) $integerValue === $value;
+    }
+
+    private static function columnAffinity(string $affinity): string
+    {
+        $normalized = strtoupper($affinity);
+
+        if ($normalized === '' || $normalized === 'NONE' || str_contains($normalized, 'BLOB')) {
+            return 'NONE';
+        }
+        if (str_contains($normalized, 'INT')) {
+            return 'INTEGER';
+        }
+        if (str_contains($normalized, 'CHAR') || str_contains($normalized, 'CLOB') || str_contains($normalized, 'TEXT')) {
+            return 'TEXT';
+        }
+        if (str_contains($normalized, 'REAL') || str_contains($normalized, 'FLOA') || str_contains($normalized, 'DOUB')) {
+            return 'REAL';
+        }
+
+        return 'NUMERIC';
     }
 
     private static function signedIntegerBytes(int $value, int $bytes): string

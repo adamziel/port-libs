@@ -8,9 +8,14 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $css = <<<'CSS'
 :global(.wp-block-button) .card {
+  background: white;
+
+  .cardIcon {
+    color: yellow;
+  }
+
   composes: reset from "./core.module.css";
   composes: has-spacing from global;
-  background: white;
 }
 
 :local(.cardTitle) {

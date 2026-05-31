@@ -1263,3 +1263,44 @@ Object, pack, attributes, and config batch accepted on 2026-05-31:
 - The mapped denominator moves from `1535 / 2886` to `1539 / 2886` for the
   four distinct upstream-backed behavior slices. Full Cargo workspace tests
   were not run for this slice.
+
+Config include double-star component-boundary handoff pending on 2026-05-31:
+
+- Pending handoff on accepted base `ab384a0d481bd4acef6592a38a3540df9d0cc3f2`
+  adds one Gitoxide config include slice. The source truth is
+  `gix-config/src/file/includes/mod.rs` using `gix_glob::wildmatch` with
+  `NO_MATCH_SLASH_LITERAL`, plus `gix-glob/src/wildmatch.rs` where `**` only
+  crosses slash separators when the star run is a full path component
+  boundary.
+- Native PHP verification in the isolated worktree is green: `php -l` on the
+  changed Gitoxide PHP files, focused `GitConfigTest.php` `1 file / 89
+  assertions / 0 failures`, full Gitoxide lane tests `39 files / 4456
+  assertions / 0 failures`, `wordpress-config-include-conditional.php`
+  exiting 0, and `git diff --check -- lanes/gitoxide`.
+- The mapped denominator moves from `1561 / 2886` to `1562 / 2886` for the
+  distinct upstream-backed config include double-star component-boundary
+  behavior. Full Cargo workspace tests were not run for this slice.
+
+Attributes/pathspec glob character-class slice prepared on 2026-05-31:
+
+- Pending worker slice `gitoxide-attributes-pathspec-match-parity-20260531T115757Z`
+  on accepted base `ab384a0d481bd4acef6592a38a3540df9d0cc3f2` maps the
+  `gix-attributes` provider side of path-aware gix-glob character classes used
+  by `:(attr:...)` pathspec filters.
+- Source truth: `gix-attributes/src/search/attributes.rs` calls
+  `matches_repo_relative_path()` with `Mode::NO_MATCH_SLASH_LITERAL`, and
+  `gix-pathspec/src/search/matching.rs` applies selected attribute outcomes
+  after the pathspec path match.
+- Native PHP delta: `GitAttributes::globRegex()` now handles POSIX character
+  classes such as `[[:digit:]]` without malformed PCRE warnings and keeps
+  bracket classes path-aware, so `[/]` does not match a directory separator
+  while evaluating attributes.
+- Verification: `php -l` on the changed Gitoxide PHP/example/test files,
+  `php tools/run-tests.php lanes/gitoxide/tests/AttributesPathspecTest.php`
+  passed `1 test files, 79 assertions, 0 failures`,
+  `php tools/run-tests.php lanes/gitoxide/tests` passed
+  `39 test files, 4460 assertions, 0 failures`,
+  `php lanes/gitoxide/examples/wordpress-attributes-pathspec.php` exited `0`,
+  and `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace tests
+  were not run for this slice.
+- Expected mapped denominator movement: `1561 / 2886` to `1562 / 2886`.

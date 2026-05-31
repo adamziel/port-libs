@@ -57,6 +57,32 @@ return [
         $t->same(['local' => null], $local->attributesForPath('a/B/D/g', ['local'], false));
         $t->same(['local' => true], $local->attributesForPath('a/B/D/g', ['local'], false, true));
     },
+    'attribute pathspec filters use gix glob character class parity' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString("wp-content/uploads/[[:digit:]][[:digit:]]/** dated\n"
+            . "wp-content/uploads/[!0-4][[:digit:]]/** late-year\n"
+            . "wp-content/plugins/foo[/]bar.php slash-class\n", withBuiltInMacros: false);
+
+        $t->same(['dated' => true], $attributes->attributesForPath('wp-content/uploads/05/photo.jpg', ['dated']));
+        $t->same(['dated' => null], $attributes->attributesForPath('wp-content/uploads/ab/photo.jpg', ['dated']));
+        $t->same(['late-year' => true], $attributes->attributesForPath('wp-content/uploads/52/photo.jpg', ['late-year']));
+        $t->same(['late-year' => null], $attributes->attributesForPath('wp-content/uploads/42/photo.jpg', ['late-year']));
+        $t->same(['slash-class' => null], $attributes->attributesForPath('wp-content/plugins/foo/bar.php', ['slash-class']));
+        $t->same(true, PathspecMatcher::matchesOne(
+            ':(attr:dated)wp-content/uploads/**',
+            'wp-content/uploads/05/photo.jpg',
+            false,
+            $attributes,
+        ));
+        $t->same(false, PathspecMatcher::matchesOne(
+            ':(attr:dated)wp-content/uploads/**',
+            'wp-content/uploads/ab/photo.jpg',
+            false,
+            $attributes,
+        ));
+        $search = PathspecSearch::fromSpecs([':(attr:late-year)wp-content/uploads/**']);
+        $t->same(true, $search->isIncluded('wp-content/uploads/52/photo.jpg', false, $attributes));
+        $t->same(false, $search->isIncluded('wp-content/uploads/42/photo.jpg', false, $attributes));
+    },
     'pathspec parser accepts upstream attribute magic and escaped values' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/plugins/** deploy=plugin kind=one,two\n"
             . "wp-content/themes/** deploy=theme kind=one-two\n"
@@ -171,6 +197,9 @@ return [
         $t->same(PathspecMatch::KIND_WILDCARD, $example['pluginPathspecSearchKind']);
         $t->same(true, $example['explicitDeployUnspecifiedMatches']);
         $t->same(false, $example['absentDeployUnspecifiedMatches']);
+        $t->same(['dated-upload' => true], $example['datedUploadAttributes']);
+        $t->same(true, $example['datedUploadPathspecMatches']);
+        $t->same(true, $example['slashClassDoesNotCrossDirectory']);
         $t->same(true, $example['cacheExcluded']);
         $t->same(true, $example['buildExcludedByPathspec']);
     },
