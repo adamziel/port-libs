@@ -565,6 +565,32 @@ final class ReferenceStore
         return (string) file_get_contents($path);
     }
 
+    /**
+     * @return list<ReflogEntry>|null
+     */
+    public function reflogEntries(string $name, string $algorithm = 'any'): ?array
+    {
+        $contents = $this->reflogContents($name);
+        if ($contents === null) {
+            return null;
+        }
+
+        return ReflogEntry::parseAll($contents, $algorithm);
+    }
+
+    /**
+     * @return list<ReflogEntry>|null
+     */
+    public function reflogEntriesReverse(string $name, string $algorithm = 'any'): ?array
+    {
+        $contents = $this->reflogContents($name);
+        if ($contents === null) {
+            return null;
+        }
+
+        return ReflogEntry::parseReverse($contents, $algorithm);
+    }
+
     public function appendReflog(
         string $name,
         ?ReferenceTarget $previous,
@@ -955,9 +981,7 @@ final class ReferenceStore
             throw new \RuntimeException("Unable to create reflog directory: {$directory}");
         }
 
-        $old = $previous?->value ?? str_repeat('0', ReferenceTarget::hashHexLength($algorithm));
-        $line = $old . ' ' . $new->value . ' ' . $committer->trimmed()->storageBytes();
-        $line .= $message === '' ? "\n" : "\t{$message}\n";
+        $line = ReflogEntry::appendLine($previous, $new, $committer, $message, $algorithm);
 
         if (file_put_contents($path, $line, FILE_APPEND) === false) {
             throw new \RuntimeException("Unable to append reflog: {$physicalName}");

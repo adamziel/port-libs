@@ -369,12 +369,26 @@ final class Commit
 
     public function signedDataForSignature(): ?string
     {
+        $signature = $this->signatureForVerification();
+        return $signature === null ? null : $signature['signedData'];
+    }
+
+    /**
+     * Return the first gpgsig value with the exact commit bytes that were signed.
+     *
+     * @return array{signature: string, signedData: string}|null
+     */
+    public function signatureForVerification(): ?array
+    {
         $header = $this->signatureHeaderWithRange();
         if ($header === null || $this->rawBody === null) {
             return null;
         }
 
-        return substr($this->rawBody, 0, $header['start']) . substr($this->rawBody, $header['end']);
+        return [
+            'signature' => $header['signature'],
+            'signedData' => substr($this->rawBody, 0, $header['start']) . substr($this->rawBody, $header['end']),
+        ];
     }
 
     /**

@@ -22,6 +22,10 @@ $lateStandardHeaderCommit = Commit::parse($fixture['lateStandardHeaderCommitBody
 $oddTimestampCommit = Commit::parse($fixture['oddTimestampCommitBody']);
 $oddTimestampAuthor = $oddTimestampCommit->authorSignature();
 $oddTimestampCommitter = $oddTimestampCommit->committerSignature();
+$whitespaceSignatureCommit = Commit::parse($fixture['whitespaceSignatureCommitBody']);
+$whitespaceSignature = $whitespaceSignatureCommit->signatureForVerification();
+$multiGpgsigCommit = Commit::parse($fixture['multiGpgsigCommitBody']);
+$multiGpgsigSignature = $multiGpgsigCommit->signatureForVerification();
 $standaloneTrailerMessage = CommitMessage::fromBytes("Review imported plugin metadata\n\n" . $fixture['standaloneTrailerBody']);
 $standaloneTrailerBody = $standaloneTrailerMessage->body ?? '';
 $misorderedHeaderRejected = false;
@@ -137,6 +141,20 @@ return [
     'oddTimestampCommitterTime' => $oddTimestampCommitter->time(),
     'oddTimestampCommitterRawTime' => $oddTimestampCommitter->time,
     'oddTimestampRoundTripMatches' => Commit::parse($oddTimestampCommit->storageBytes())->storageBytes() === $oddTimestampCommit->storageBytes(),
+    'whitespaceSignature' => $whitespaceSignature['signature'] ?? null,
+    'whitespaceSignedDataSha1' => $whitespaceSignature === null ? null : sha1($whitespaceSignature['signedData']),
+    'whitespaceSignedDataHasSignatureHeader' => $whitespaceSignature !== null && str_contains($whitespaceSignature['signedData'], 'gpgsig '),
+    'whitespaceTokenTypes' => array_map(
+        static fn (array $result): string => $result['token']['type'] ?? 'error',
+        Commit::iterateTokens($fixture['whitespaceSignatureCommitBody']),
+    ),
+    'multiGpgsigHeaderCount' => count($multiGpgsigCommit->extraHeaderValues('gpgsig')),
+    'multiGpgsigFirstSignature' => $multiGpgsigCommit->pgpSignature(),
+    'multiGpgsigSignedDataSha1' => $multiGpgsigSignature === null ? null : sha1($multiGpgsigSignature['signedData']),
+    'multiGpgsigSignedDataKeepsLaterGpgsigLines' => $multiGpgsigSignature !== null
+        && str_contains($multiGpgsigSignature['signedData'], 'gpgsig Version: GnuPG v1.4.10 (GNU/Linux)')
+        && str_contains($multiGpgsigSignature['signedData'], 'gpgsig -----END PGP SIGNATURE-----'),
+    'multiGpgsigRoundTripMatches' => $multiGpgsigCommit->storageBytes() === $fixture['multiGpgsigCommitBody'],
     'tokenTypes' => array_map(static fn (array $result): string => $result['token']['type'] ?? 'error', $tokenResults),
     'tokenExtraHeaderNames' => array_values(array_map(
         static fn (array $result): string => $result['token']['name'],

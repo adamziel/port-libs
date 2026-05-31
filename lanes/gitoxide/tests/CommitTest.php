@@ -552,6 +552,64 @@ return [
         $t->same(null, $unsigned->pgpSignature());
         $t->same(null, $unsigned->signedDataForSignature());
     },
+    'commit signature verification helper follows gitoxide gpgsig range stripping' => static function (TestRunner $t): void {
+        $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "parent 1111111111111111111111111111111111111111\n"
+            . "author A <a@example.test> 1700000000 +0000\n"
+            . "committer C <c@example.test> 1700000000 +0000\n"
+            . "gpgsig -----BEGIN PGP SIGNATURE-----\n"
+            . " \n"
+            . " c2lnbmVkLXdoaXRlc3BhY2U=\n"
+            . " -----END PGP SIGNATURE-----\n"
+            . " \n"
+            . "\n"
+            . "Whitespace signature commit\n";
+
+        $commit = Commit::parse($body);
+        $signature = $commit->signatureForVerification();
+        $expectedSignedData = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "parent 1111111111111111111111111111111111111111\n"
+            . "author A <a@example.test> 1700000000 +0000\n"
+            . "committer C <c@example.test> 1700000000 +0000\n"
+            . "\n"
+            . "Whitespace signature commit\n";
+
+        $t->same("-----BEGIN PGP SIGNATURE-----\n\nc2lnbmVkLXdoaXRlc3BhY2U=\n-----END PGP SIGNATURE-----\n", $signature['signature'] ?? null);
+        $t->same($expectedSignedData, $signature['signedData'] ?? null);
+        $t->same($expectedSignedData, $commit->signedDataForSignature());
+        $t->same(false, str_contains($signature['signedData'] ?? '', 'gpgsig '));
+        $t->same($signature['signature'], $commit->pgpSignature());
+
+        $tokens = Commit::iterateTokens($body);
+        $t->same(['tree', 'parent', 'author', 'committer', 'extraHeader', 'message'], array_map(static fn (array $result): ?string => $result['token']['type'] ?? null, $tokens));
+        $t->same($signature['signature'], $tokens[4]['token']['value']);
+        $t->same("Whitespace signature commit\n", $tokens[5]['token']['message']);
+    },
+    'old git multi gpgsig header lines remain separate and signed data strips only the first one' => static function (TestRunner $t): void {
+        $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
+            . "parent 1111111111111111111111111111111111111111\n"
+            . "author Junio C Hamano <gitster@pobox.com> 1319256362 -0700\n"
+            . "committer Junio C Hamano <gitster@pobox.com> 1319259176 -0700\n"
+            . "gpgsig -----BEGIN PGP SIGNATURE-----\n"
+            . "gpgsig Version: GnuPG v1.4.10 (GNU/Linux)\n"
+            . "gpgsig \n"
+            . "gpgsig cGF5bG9hZA==\n"
+            . "gpgsig -----END PGP SIGNATURE-----\n"
+            . "\n"
+            . "pretty: %G[?GS] placeholders\n";
+
+        $commit = Commit::parse($body);
+        $signature = $commit->signatureForVerification();
+
+        $t->same(5, count($commit->extraHeaderValues('gpgsig')));
+        $t->same('-----BEGIN PGP SIGNATURE-----', $commit->pgpSignature());
+        $t->same('-----BEGIN PGP SIGNATURE-----', $signature['signature'] ?? null);
+        $t->contains('gpgsig Version: GnuPG v1.4.10 (GNU/Linux)', $signature['signedData'] ?? '');
+        $t->contains('gpgsig -----END PGP SIGNATURE-----', $signature['signedData'] ?? '');
+        $t->same($body, $commit->storageBytes());
+        $t->same($body, Commit::parse($commit->storageBytes())->storageBytes());
+        $t->same('pretty: %G[?GS] placeholders' . "\n", $commit->message);
+    },
     'commit body can be read from a native git object' => static function (TestRunner $t): void {
         $body = "tree 0123456789abcdef0123456789abcdef01234567\n"
             . "author A <a@example.test> 1700000000 +0000\n"
@@ -610,5 +668,14 @@ return [
         $t->same($fixture['expectedOddTimestampCommitterTime'], $summary['oddTimestampCommitterTime']);
         $t->same($fixture['expectedOddTimestampCommitterRawTime'], $summary['oddTimestampCommitterRawTime']);
         $t->same(true, $summary['oddTimestampRoundTripMatches']);
+        $t->same($fixture['expectedWhitespaceSignature'], $summary['whitespaceSignature']);
+        $t->same($fixture['expectedWhitespaceSignedDataSha1'], $summary['whitespaceSignedDataSha1']);
+        $t->same(false, $summary['whitespaceSignedDataHasSignatureHeader']);
+        $t->same($fixture['expectedWhitespaceTokenTypes'], $summary['whitespaceTokenTypes']);
+        $t->same($fixture['expectedMultiGpgsigHeaderCount'], $summary['multiGpgsigHeaderCount']);
+        $t->same($fixture['expectedMultiGpgsigFirstSignature'], $summary['multiGpgsigFirstSignature']);
+        $t->same($fixture['expectedMultiGpgsigSignedDataSha1'], $summary['multiGpgsigSignedDataSha1']);
+        $t->same(true, $summary['multiGpgsigSignedDataKeepsLaterGpgsigLines']);
+        $t->same(true, $summary['multiGpgsigRoundTripMatches']);
     },
 ];

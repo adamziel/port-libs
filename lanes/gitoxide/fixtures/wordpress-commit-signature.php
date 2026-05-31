@@ -46,6 +46,28 @@ $oddTimestampBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
     . "\n"
     . "Import with legacy timestamp offsets\n";
 
+$whitespaceSignatureBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
+    . "author WordPress Importer <importer@example.test> 1710000000 -0230\n"
+    . "committer WordPress Deploy Bot <deploy@example.test> 1710003600 +0000\n"
+    . "gpgsig -----BEGIN PGP SIGNATURE-----\n"
+    . " \n"
+    . " c2lnbmVkLXdoaXRlc3BhY2Utd29yZHByZXNz\n"
+    . " -----END PGP SIGNATURE-----\n"
+    . " \n"
+    . "\n"
+    . "Whitespace signed WordPress import\n";
+
+$multiGpgsigBody = "tree 0123456789abcdef0123456789abcdef01234567\n"
+    . "author Junio C Hamano <gitster@pobox.com> 1319256362 -0700\n"
+    . "committer Junio C Hamano <gitster@pobox.com> 1319259176 -0700\n"
+    . "gpgsig -----BEGIN PGP SIGNATURE-----\n"
+    . "gpgsig Version: GnuPG v1.4.10 (GNU/Linux)\n"
+    . "gpgsig \n"
+    . "gpgsig c2lnbmVkLW9sZC1naXQ=\n"
+    . "gpgsig -----END PGP SIGNATURE-----\n"
+    . "\n"
+    . "pretty: %G[?GS] placeholders\n";
+
 $standaloneTrailerBody = "Reviewed-by: Migration Reviewer <reviewer@example.test>\n"
     . " dry-run approved\n"
     . "(cherry picked from commit 0123456789abcdef0123456789abcdef01234567)\n";
@@ -55,6 +77,8 @@ return [
     'lateStandardHeaderCommitBody' => $lateStandardHeaderBody,
     'misorderedHeaderCommitBody' => $misorderedHeaderBody,
     'oddTimestampCommitBody' => $oddTimestampBody,
+    'whitespaceSignatureCommitBody' => $whitespaceSignatureBody,
+    'multiGpgsigCommitBody' => $multiGpgsigBody,
     'standaloneTrailerBody' => $standaloneTrailerBody,
     'expectedTree' => '0123456789abcdef0123456789abcdef01234567',
     'expectedAuthorName' => 'WordPress Importer',
@@ -65,6 +89,12 @@ return [
     'expectedOddTimestampAuthorTime' => ['seconds' => 1312735823, 'offset' => 19080],
     'expectedOddTimestampCommitterTime' => ['seconds' => 1288373970, 'offset' => 0],
     'expectedOddTimestampCommitterRawTime' => '1288373970 --700',
+    'expectedWhitespaceSignature' => "-----BEGIN PGP SIGNATURE-----\n\nc2lnbmVkLXdoaXRlc3BhY2Utd29yZHByZXNz\n-----END PGP SIGNATURE-----\n",
+    'expectedWhitespaceSignedDataSha1' => 'de69a99d082679afe290ae6278e2df565f85fc40',
+    'expectedWhitespaceTokenTypes' => ['tree', 'author', 'committer', 'extraHeader', 'message'],
+    'expectedMultiGpgsigHeaderCount' => 5,
+    'expectedMultiGpgsigFirstSignature' => '-----BEGIN PGP SIGNATURE-----',
+    'expectedMultiGpgsigSignedDataSha1' => '95434dd7365f2260ed87ef549f84a8bdb9bf335a',
     'expectedSummary' => 'Import WordPress export',
     'expectedWriterObjectIdGuard' => true,
     'expectedBodyWithoutTrailers' => 'Source: wp-content/uploads/export.wxr',
