@@ -48,6 +48,32 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 00:22 UTC):
+  Latest libsqlite source is integrated as `3fc7e9752`
+  (`libsqlite: add thirty-second current corpus sweep`). The batch accepted 14
+  behavior-producing handoffs: row-value UPDATE/DELETE LIMIT cast parity,
+  B-tree index late lifecycle behavior, date2 index-row behavior, expression
+  overflow affinity behavior, JSON103 aggregate expansion, JSON105
+  current-index behavior, pager WAL mode-lock behavior, PRAGMA cache_spill
+  behavior, SELECT6 derived alias aggregate behavior, trigger/FK temp-trigger
+  behavior, trigger/FK restrict-action behavior, UPSERT omitted-target
+  behavior, UPSERT fault behavior, and VFS atomic-device behavior.
+  Verification passed PHP lint for `22` changed/new PHP files, `git diff
+  --check -- lanes/libsqlite`, focused selected tests `14 files / 121366
+  assertions / 0 failures / 32342 PASS lines`, accepted-base overlap `1 file /
+  947 assertions / 0 failures / 320 PASS lines`, B-tree related tests `21
+  files / 769650 assertions / 0 failures / 45624 PASS lines`, trigger/FK
+  related tests `48 files / 386450 assertions / 0 failures / 314541 PASS
+  lines`, pager/PRAGMA related tests `3 files / 15723 assertions / 0 failures
+  / 4212 PASS lines`, and row-value/UPSERT/select/expression/domain related
+  tests `10 files / 63349 assertions / 0 failures / 8077 PASS lines`. Honest
+  selected movement is `+32022`, so the public row should move to `1331008
+  pass / 0 fail` with coverage still `1589 / 1589`. App-WAL remains parked
+  unless independently proved; one row-value follow-up and one blocked date
+  note are parked for rebase/rework rather than counted; libsqlite remains
+  active until full functional/release/all-runner gates are done before moving
+  the team to gitoxide.
+
 - 2026-05-31 supervisor continuation (integration sample 00:12 UTC):
   Latest libsqlite source is integrated as `6322e3640`
   (`libsqlite: add thirty-first current corpus sweep`). The batch accepted 8
