@@ -48,6 +48,32 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 03:34 UTC):
+  Batch62 is integrated locally as source
+  `69a668d6cd556be2938a08354d76da8a9f8d7cd1` (`libsqlite: add
+  sixty-second current corpus sweep`). The batch accepted 17
+  source/test-moving handoffs across application WAL rollback JSON parity,
+  expression operator precedence and EXISTS projection behavior, SELECT core
+  real-select behavior, date5 exact-cycle affinity behavior, B-tree dynamic and
+  autoindex2 planner behavior, window3/rank/exclude behavior, PRAGMA
+  cache-spill and pager settings behavior, trigger/FK dynamic behavior, pager
+  WAL dynamic and 64K behavior, UPSERT RETURNING composite-fault behavior,
+  JSON501/JSON5 behavior, and VFS SHM lock behavior. Five candidates were
+  parked as rowvalue/app-WAL direct conflicts or status-only after lane-status
+  exclusion. Verification passed PHP lint for `26` changed/new PHP files, `git
+  diff --check -- lanes/libsqlite`, no newly-added WordPress/wp source text in
+  the batch source diff, focused selected tests `17 files / 692259 assertions /
+  0 failures / 54200 PASS lines`, accepted-base overlap `4 files / 427426
+  assertions / 0 failures / 30103 PASS lines`, and isolated per-file related
+  guard `737 files / 9428791 assertions / 0 failures / 1557081 PASS lines`. A
+  broader `753`-file diagnostic had `16` failures, but each failing file
+  produced identical pass/fail counts on pre-batch base and current (`68615`
+  assertions / `4096` failures), so those remain known-red diagnostics rather
+  than accepted regressions. Honest selected movement is `+24097`, moving
+  libsqlite from `1854061` to `1878158 pass / 0 fail`; mapped coverage remains
+  `1589 / 1589`. Broad release/all-runner parity remains open; gitoxide starts
+  only after libsqlite closure is recorded.
+
 - 2026-05-31 supervisor continuation (integration sample 03:24 UTC):
   Batch61 is integrated locally as source
   `464ad4011610ee534ae033ab81f08bae2d86f7ae` (`libsqlite: add
