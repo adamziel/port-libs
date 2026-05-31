@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-31 15:50:32 UTC",
-    "sourceCommit": "70cf7efb5226c51c4830294e62c0be48581af11b",
-    "sourceCommitShort": "70cf7efb5226",
+    "generated": "2026-05-31 15:53:41 UTC",
+    "sourceCommit": "936d2538f83c4656157d51ad8743d62a1affe84a",
+    "sourceCommitShort": "936d2538f83c",
     "sourceBranch": "main",
-    "dashboardCommit": "cdab5d4b681ac508317d035a9cc915ee0649f40b",
-    "dashboardCommitShort": "cdab5d4b681a",
-    "averageProgressPercent": "87.0",
+    "dashboardCommit": "52c9e3a026e7033db40552f3e9e64f46e0d45447",
+    "dashboardCommitShort": "52c9e3a026e7",
+    "averageProgressPercent": "86.2",
     "lanes": [
         {
             "library": "difftastic",
@@ -60,20 +60,20 @@
         },
         {
             "library": "gitoxide",
-            "progressPercent": "96.0",
+            "progressPercent": "86.0",
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1593",
-            "coverage": "1593 / 2886",
-            "php": "4872 pass / 0 fail",
+            "mapped": "1596",
+            "coverage": "1596 / 2886",
+            "php": "4936 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "targeted upstream inventory and native PHP behavior sli...",
-            "audit": "Supervisor accepted source commit d43627a...",
-            "currentWork": "Native Gitoxide now covers the upstream v2 fetch.response sideband fixture, send-pack opt...",
-            "nextTarget": "Continue Gitoxide current-base handoffs for protocol/transport, reference transactions, p...",
+            "phase": "static upstream inventory plus native PHP object databa...",
+            "audit": "Supervisor accepted source commit 936d253...",
+            "currentWork": "Native Gitoxide now sizes pack-index lookups/checksums/prefix ranges from SHA-1 or SHA-25...",
+            "nextTarget": "Keep Gitoxide workers on current-base SHA-256 pack-data reads, remaining partial-clone/pr...",
             "blocker": "No current Gitoxide PHP blocker for this batch.",
-            "commit": "d43627a"
+            "commit": "936d253"
         },
         {
             "library": "libsqlite",
