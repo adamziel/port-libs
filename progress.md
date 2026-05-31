@@ -43,7 +43,7 @@
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
 - Memory: current supervisor sample reports 27 GiB total and about 9.6 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 333G available after bounded cache/log/worktree cleanup; `/tmp` has about 2.8G available. Preserve dirty work and use bounded cleanup/refill only.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 369G available after bounded cache/log/worktree cleanup; `/tmp` has about 3.4G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool is
   capped at 11 visible development windows: 6 LightningCSS, 3 Gitoxide, and 2
@@ -54,6 +54,35 @@
   refilled immediately.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (AO cleanup + CSS/Git/SQLite parity batch
+  23:10 UTC): answered the active-session concern with evidence. There is still
+  one attached tmux session (`main`), not multiple live tmux sessions. The
+  stale-session pruner killed `0` extra sessions because no stale `port-*`
+  sessions existed. AO-style cleanup did need to handle artifacts: the
+  supervisor archived and removed `90` inactive dirty worktrees under
+  `.tmux-team/archives/inactive-worktrees-20260531T230338Z/` and
+  `.tmux-team/archives/inactive-worktrees-20260531T230444Z/`, preserving
+  status, diffs, cached diffs, untracked payloads, and matching handoff
+  artifacts. `.tmux-team/worktrees` fell from about `22G` to `5.9G`, old
+  isolated-worker logs were compressed from about `13G` to `2.7G`, and
+  `/home/claude` free space rose to about `369G`. The visible worker pool is
+  back at `11` active Codex workers: `6` LightningCSS, `3` Gitoxide, and `2`
+  libsqlite, all `gpt-5.5` xhigh priority with no long sleepers. Source commit
+  `a556abb49e9ed352736a1b5a5f5ce17dcfb54cb2` (`ports: extend transport css
+  sqlite parity`) landed twelve screened handoffs. Verification passed staged
+  `git diff --check`, PHP lint on representative changed files, full Gitoxide
+  `39 files / 6108 assertions / 0 failures`, full LightningCSS `13 files /
+  4790 assertions / 0 failures`, focused libsqlite `4 files / 66111 assertions
+  / 0 failures` including `SQLiteNoDomainSpecificApiTest.php`, accepted
+  Gitoxide examples, accepted LightningCSS example self-tests, and a libsqlite
+  source added-lines guard showing no new `WordPress|wordpress|WP_|wp_` text or
+  numbered `CurrentSourceNext`/`Plan` suffix additions. Dashboard evidence now
+  reports Gitoxide `1660 / 2886` mapped and `6108 pass / 0 fail`,
+  LightningCSS `2195 / 3532` mapped and `4790 pass / 0 fail`, and libsqlite
+  `1589 / 1589` mapped with `4251603 pass / 0 fail`. Full upstream Cargo,
+  Rust/Node/WASM, and libsqlite release/all runners were not executed for this
+  isolated batch, so those remain honest completion risks.
 
 - 2026-05-31 supervisor continuation (AO cleanup + CSS/Git/SQLite parity batch
   22:50 UTC): audited the user's active-session concern and found one attached
