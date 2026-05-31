@@ -55,6 +55,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (AO cleanup + CSS/Git/SQLite parity batch
+  22:50 UTC): audited the user's active-session concern and found one attached
+  tmux session (`main`), not multiple live tmux sessions. The visible worker
+  pool had dropped to `9` isolated Codex workers, so it was refilled to `11`
+  active windows: `6` LightningCSS, `3` Gitoxide, and `2` libsqlite, all
+  `gpt-5.5` xhigh priority with no long sleepers. Source commit
+  `48a678f72d6dbd1f5120d968539f6a35ea87b7c7` (`ports: extend css git sqlite
+  upstream parity`) landed eight screened handoffs. Verification passed
+  `git diff --check`, PHP lint on `27` changed/new PHP files, full Gitoxide
+  `39 files / 6076 assertions / 0 failures`, full LightningCSS `13 files /
+  4702 assertions / 0 failures`, focused libsqlite `3 files / 29236 assertions
+  / 0 failures` including `SQLiteNoDomainSpecificApiTest.php`, accepted
+  Gitoxide examples, and accepted LightningCSS example self-tests. Dashboard
+  evidence now reports Gitoxide `1657 / 2886` mapped and `6076 pass / 0 fail`,
+  LightningCSS `2174 / 3532` mapped and `4702 pass / 0 fail`, and libsqlite
+  `1589 / 1589` mapped with `4198004 pass / 0 fail`. Full upstream Cargo,
+  Rust/Node/WASM, and libsqlite release/all runners were not executed for this
+  isolated batch, so those remain honest completion risks. AO cleanup should
+  close completed ready worker windows and archive consumed/inactive worktrees;
+  it must not kill active visible workers or discard dirty lane work.
+
 - 2026-05-31 supervisor continuation (SQLite/CSS/Git corpus batch 22:45 UTC):
   source commit `2c0373f438e45343426119f813ee1a8f3028145f`
   (`ports: extend sqlite css git corpus parity`) landed thirteen screened
