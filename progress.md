@@ -52,6 +52,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS/libsqlite integration
+  15:08 UTC): source commit `c7f40df35cea0d901a0e1b8ad627ab49b2c78790`
+  (`ports: add lightningcss cssom fontface inset parity`) landed five
+  LightningCSS handoffs and one libsqlite parity handoff. LightningCSS full
+  lane evidence moves from `1759` to `1829 pass / 0 fail`, with conservative
+  mapped coverage moving from `1232 / 3532` to `1258 / 3532`: +2 custom
+  at-rule Function/dashed token visitor checks, +18 remaining @font-face
+  minifier helper cases, and +6 logical inset target-prefix/browser-boundary
+  cases. CSSOM mask-border and scroll-snap read/write/remove behavior is
+  verified but counted inside the existing DeclarationBlock CSSOM cluster.
+  Verification passed PHP lint, metadata JSON decode, diff checks, focused
+  LightningCSS gate `4 files / 1401 assertions / 0 failures`, full
+  LightningCSS lane `13 files / 1829 assertions / 0 failures`, and five
+  touched examples. Libsqlite row-value UPDATE/DELETE LIMIT dynamic parity
+  adds JSON scalar expression support, moving focused row-value assertions
+  from `17530` to `18236` and selected libsqlite evidence from `2927776` to
+  `2928482 pass / 0 fail`; focused libsqlite verification passed `3 files /
+  18864 assertions / 0 failures` including the source-neutral API guard. Full
+  upstream LightningCSS Rust/Node runners and full libsqlite lane were not run
+  for this isolated batch; the known libsqlite full-runner blockers remain
+  pager/WAL memory pressure and the existing window-frame failure.
+
 - 2026-05-31 supervisor continuation (Gitoxide/libsqlite integration 15:05 UTC):
   source commit `99fdb5f4b17295c9c1b9a5bff902491a6dc8fcc3`
   (`ports: add gitoxide tree merge and sqlite WAL checkpoint parity`) landed

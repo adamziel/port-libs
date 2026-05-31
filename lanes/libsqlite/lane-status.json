@@ -12,6 +12,6 @@
     "blocker": "Remaining libsqlite closure items: the full libsqlite lane currently fails outside this slice on existing window-frame behavior in SQLiteRealUpstreamWindow2RowsFollowingDynamicTest.php, default-memory app-WAL/pager pressure can exhaust 1024M before that point, baseline PRAGMA/SELECT known-red clusters remain, rejected/conflicting VFS/JSON/WAL/app-WAL/row-value slices need triage, release/all-runner parity is not closed, old accepted source-debt outside changed batch files remains, and source-neutral API guards must continue proving no WordPress-specific classes or methods remain in native libsqlite source.",
     "nextTask": "Keep active current-base libsqlite workers on real PASS-delta and full-runner closure handoffs, prioritizing SQLiteRealUpstreamWindow2RowsFollowingDynamicTest.php unsupported window-frame behavior, default-memory app-WAL/pager pressure, PRAGMA/VFS/JSON/row-value/btree/window/filter behavior, and proof that accepted source stays source-neutral; avoid repeating this JSON scalar row-value LIMIT slice.",
     "wordpressScenarioLatest": "No WordPress-specific libsqlite API changes were introduced. The latest isolated slice focuses on generic SQLite JSON scalar functions in row-value UPDATE/DELETE LIMIT/OFFSET expressions.",
-    "latestCommit": "pending supervisor LightningCSS/libsqlite rowvalue batch on base 5042ee5a640251937d88ffe1e25c7b681010f72f",
-    "commit": "pending-lightningcss-cssom-fontface-logical-inset-rowvalue"
+    "latestCommit": "c7f40df35cea0d901a0e1b8ad627ab49b2c78790 (ports: add lightningcss cssom fontface inset parity)",
+    "commit": "c7f40df35cea0d901a0e1b8ad627ab49b2c78790"
 }
