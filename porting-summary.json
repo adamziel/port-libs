@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-31 16:01:33 UTC",
-    "sourceCommit": "c8e01c478bd73f16bb789f7c43f383a71a42a518",
-    "sourceCommitShort": "c8e01c478bd7",
+    "generated": "2026-05-31 16:09:38 UTC",
+    "sourceCommit": "4b52aac232d0a3602ebf70bc6a0ed62949c621c7",
+    "sourceCommitShort": "4b52aac232d0",
     "sourceBranch": "main",
-    "dashboardCommit": "b7e54464cccb86f3418d0891406add4a87463ac6",
-    "dashboardCommitShort": "b7e54464cccb",
-    "averageProgressPercent": "86.2",
+    "dashboardCommit": "4d1d75ed32b476c30b32c10a43b2e9e8aa237f3c",
+    "dashboardCommitShort": "4d1d75ed32b4",
+    "averageProgressPercent": "86.3",
     "lanes": [
         {
             "library": "difftastic",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "81.0",
+            "progressPercent": "82.0",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1340",
-            "coverage": "1340 / 3532",
-            "php": "2025 pass / 0 fail",
+            "mapped": "1349",
+            "coverage": "1349 / 3532",
+            "php": "2092 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
-            "phase": "static upstream inventory plus upstream Rust/Node/WASM...",
-            "audit": "Supervisor accepted source commit 70cf7ef...",
-            "currentWork": "Native LightningCSS now covers CSS Modules pure mode local/global selector boundaries, ta...",
-            "nextTarget": "Keep dedicated LightningCSS workers on current-base source-map/bundler integration edges,...",
+            "phase": "static upstream inventory plus PHP-focused LightningCSS...",
+            "audit": "Supervisor accepted source commit 4b52aac...",
+            "currentWork": "Native LightningCSS now covers reader-backed bundle SourceProvider behavior, escaped CSS...",
+            "nextTarget": "Keep the 36-worker LightningCSS surge on current-base handoffs for exact CSS Modules hash...",
             "blocker": "No current LightningCSS PHP blocker for this batch.",
-            "commit": "70cf7ef"
+            "commit": "4b52aac"
         },
         {
             "library": "markerPDF",
