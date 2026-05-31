@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-31 16:56:49 UTC",
-    "sourceCommit": "18c5d92abc4e399c320225bf777d56edb40efcb9",
-    "sourceCommitShort": "18c5d92abc4e",
+    "generated": "2026-05-31 17:01:51 UTC",
+    "sourceCommit": "412b44687747aab22852c1d28fa85bc7ee934844",
+    "sourceCommitShort": "412b44687747",
     "sourceBranch": "main",
-    "dashboardCommit": "b89efb9baeb2cb8ee00829573bb5b45f2d349c42",
-    "dashboardCommitShort": "b89efb9baeb2",
-    "averageProgressPercent": "86.5",
+    "dashboardCommit": "a7818e8eb5d49fa1e9ef96a9f6ee2ccb800219b6",
+    "dashboardCommitShort": "a7818e8eb5d4",
+    "averageProgressPercent": "86.6",
     "lanes": [
         {
             "library": "difftastic",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "84.0",
+            "progressPercent": "85.0",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1458",
-            "coverage": "1458 / 3532",
-            "php": "2361 pass / 0 fail",
+            "mapped": "1539",
+            "coverage": "1539 / 3532",
+            "php": "2489 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "native CSS parser/formatter/minifier, declaration CSSOM...",
-            "audit": "Supervisor accepted source commit 18c5d92...",
-            "currentWork": "Native LightningCSS now covers Declaration/DeclarationExit custom at-rule visitor composi...",
+            "audit": "Supervisor accepted source commit 412b446...",
+            "currentWork": "Native LightningCSS now covers CSS Modules animation custom ident/keyframes scoping, rela...",
             "nextTarget": "Continue current-base LightningCSS integration from source-only clean candidates, priorit...",
             "blocker": "No current LightningCSS PHP blocker for this batch.",
-            "commit": "18c5d92"
+            "commit": "412b446"
         },
         {
             "library": "markerPDF",
