@@ -2525,6 +2525,52 @@ CSS;
             $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { list-style: var(--foo) linear-gradient(lab(56.208% 94.4644 98.8928), lab(51% 70.4544 -115.586)); } }', ['chrome' => 90])
         );
     },
+    'transition prefixer maps upstream linear-gradient browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $default = '.foo { background-image: linear-gradient(red, blue); }';
+        $right = '.foo { background-image: linear-gradient(to right, red, blue); }';
+
+        $t->same(
+            '.foo{background-image:-webkit-gradient(linear,0 0,0 100%,from(red),to(#00f));background-image:-webkit-linear-gradient(top,red,#00f);background-image:linear-gradient(red,#00f)}',
+            $prefixer->prefixForTargets($default, ['chrome' => 8])
+        );
+        $t->same(
+            '.foo{background-image:-webkit-gradient(linear,0 0,100% 0,from(red),to(#00f));background-image:-webkit-linear-gradient(left,red,#00f);background-image:linear-gradient(to right,red,#00f)}',
+            $prefixer->prefixForTargets($right, ['chrome' => 8])
+        );
+        $t->same(
+            '.foo{background-image:-webkit-linear-gradient(top,red,#00f);background-image:linear-gradient(red,#00f)}',
+            $prefixer->prefixForTargets($default, ['chrome' => 10])
+        );
+        $t->same(
+            '.foo{background-image:linear-gradient(red,#00f)}',
+            $prefixer->prefixForTargets($default, ['chrome' => 26])
+        );
+        $t->same(
+            '.foo{background-image:-moz-linear-gradient(top,red,#00f);background-image:linear-gradient(red,#00f)}',
+            $prefixer->prefixForTargets($default, ['firefox' => 15])
+        );
+        $t->same(
+            '.foo{background-image:linear-gradient(red,#00f)}',
+            $prefixer->prefixForTargets($default, ['firefox' => 16])
+        );
+        $t->same(
+            '.foo{background-image:-o-linear-gradient(top,red,#00f);background-image:linear-gradient(red,#00f)}',
+            $prefixer->prefixForTargets($default, ['opera' => 12])
+        );
+        $t->same(
+            '.foo{background-image:linear-gradient(red,#00f)}',
+            $prefixer->prefixForTargets($default, ['opera' => 13])
+        );
+        $t->same(
+            '.foo{background-image:linear-gradient(red,#00f)}',
+            $prefixer->prefixForTargets('.foo { background-image: -webkit-linear-gradient(top, red, blue); background-image: -moz-linear-gradient(top, red, blue); background-image: -o-linear-gradient(top, red, blue); background-image: linear-gradient(red, blue); }', ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{background-image:-webkit-linear-gradient(top,red,#00f);background-image:-moz-linear-gradient(top,red,#00f)}',
+            $prefixer->prefixForTargets('.foo { background-image: -webkit-linear-gradient(top, red, blue); background-image: -moz-linear-gradient(top, red, blue); }', ['chrome' => 95])
+        );
+    },
     'transition prefixer maps upstream image-set WebKit prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -2733,6 +2779,34 @@ CSS;
         $t->same(
             '@layer blocks{@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (hover) or (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media not ((min-width:100px) and (max-width:200px)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media not (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media (hover) and (min-width:100px) and (max-width:200px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (hover) and (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media (not (max-width:100px)) and (not (min-width:200px)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (100px < width < 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media not ((not (max-width:100px)) and (not (min-width:200px))){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media not (100px < width < 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media (max-width:200px) and (min-width:100px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (200px >= width >= 100px) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media not (max-color:2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (color > 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media not (min-color:2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (color < 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
             '@layer blocks{@media not (max-width:0){.wp-block-query{color:#ff0}}}',

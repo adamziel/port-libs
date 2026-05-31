@@ -238,6 +238,26 @@ return [
         $t->same(GitUrl::SCHEME_SSH, $legacyScheme->scheme());
         $t->same('ssh://host.xz/repo', $legacyScheme->toBytes());
 
+        $ftpRemote = GitUrl::parse('ftp://git.example.test/wp-content/site.git');
+        $t->same('ftp', $ftpRemote->scheme());
+        $t->same('git.example.test', $ftpRemote->host());
+        $t->same('/wp-content/site.git', $ftpRemote->path());
+        $t->same('ftp://git.example.test/wp-content/site.git', $ftpRemote->toBytes());
+        $t->same(null, $ftpRemote->portOrDefault());
+
+        $ftpsRemote = GitUrl::parse('ftps://git.example.test/wp-content/site.git');
+        $t->same('ftps', $ftpsRemote->scheme());
+        $t->same('git.example.test', $ftpsRemote->host());
+        $t->same('/wp-content/site.git', $ftpsRemote->path());
+        $t->same('ftps://git.example.test/wp-content/site.git', $ftpsRemote->toBytes());
+        $t->same(null, $ftpsRemote->portOrDefault());
+
+        $customHelperRemote = GitUrl::parse('abc:///wp-content/site.git');
+        $t->same('abc', $customHelperRemote->scheme());
+        $t->same(null, $customHelperRemote->host());
+        $t->same('/wp-content/site.git', $customHelperRemote->path());
+        $t->same('abc:///wp-content/site.git', $customHelperRemote->toBytes());
+
         $unsafe = GitUrl::parse('ssh://-Fconfigfile@-oProxyCommand=open$IFS-aCalculator/-oProxyCommand=open$IFS-aCalculator');
         $t->same(null, $unsafe->userArgumentSafe());
         $t->same(null, $unsafe->hostArgumentSafe());
@@ -250,6 +270,8 @@ return [
 
         $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('ssh://host.xz'));
         $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('git://host.xz'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('ftp:///wp-content/site.git'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('ftps:///wp-content/site.git'));
         $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('file://'));
         $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('ssh://host.xz:0/path'));
         $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('ssh://host.xz:65536/path'));
@@ -718,6 +740,7 @@ return [
         $t->same($fixture['expectedOversizedRemoteRejected'], $summary['oversizedRemoteRejected']);
         $t->same($fixture['expectedMalformedBracketedRemoteRejected'], $summary['malformedBracketedRemoteRejected']);
         $t->same($fixture['expectedInvalidUtf8RemoteRejected'], $summary['invalidUtf8RemoteRejected']);
+        $t->same($fixture['expectedHostlessFtpRemoteRejected'], $summary['hostlessFtpRemoteRejected']);
         $t->same($fixture['expectedFetchPrefixes'], array_column($summary['fetch'], 'prefix'));
         $t->same($fixture['expectedFetchExpandedPrefixes'], array_column($summary['fetch'], 'expandedPrefixes'));
         $t->same($fixture['expectedPushPrefixes'], array_column($summary['push'], 'prefix'));

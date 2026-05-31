@@ -37,6 +37,11 @@ final class MergeBaseFinder
     private array $generationCache = [];
 
     /**
+     * @var array<string, ?int>
+     */
+    private array $commitGraphGenerationCache = [];
+
+    /**
      * @var array<string, int>
      */
     private array $commitTimeCache = [];
@@ -323,7 +328,7 @@ final class MergeBaseFinder
             return PHP_INT_MAX;
         }
 
-        return $this->commitGeneration($oid);
+        return $this->graphWalkGeneration($oid);
     }
 
     /**
@@ -548,7 +553,7 @@ final class MergeBaseFinder
     private function walkPriority(string $oid): array
     {
         return [
-            $this->useCommitGraphGenerations ? $this->commitGeneration($oid) : 0,
+            $this->useCommitGraphGenerations ? $this->graphWalkGeneration($oid) : 0,
             $this->commitTime($oid),
             $oid,
         ];
@@ -571,8 +576,32 @@ final class MergeBaseFinder
             return $this->commitTime($right) <=> $this->commitTime($left);
         }
 
-        return $this->commitGeneration($right) <=> $this->commitGeneration($left)
+        return $this->graphWalkGeneration($right) <=> $this->graphWalkGeneration($left)
             ?: $this->commitTime($right) <=> $this->commitTime($left);
+    }
+
+    private function graphWalkGeneration(string $oid): int
+    {
+        if ($this->commitGraphGeneration !== null) {
+            return $this->providedCommitGraphGeneration($oid) ?? PHP_INT_MAX;
+        }
+
+        return $this->commitGeneration($oid);
+    }
+
+    private function providedCommitGraphGeneration(string $oid): ?int
+    {
+        $oid = strtolower($oid);
+        if (array_key_exists($oid, $this->commitGraphGenerationCache)) {
+            return $this->commitGraphGenerationCache[$oid];
+        }
+
+        $generation = ($this->commitGraphGeneration)($oid);
+        if ($generation !== null && (!is_int($generation) || $generation < 0)) {
+            throw new \InvalidArgumentException('Commit graph generation provider must return a non-negative integer or null');
+        }
+
+        return $this->commitGraphGenerationCache[$oid] = $generation;
     }
 
     private function commitGeneration(string $oid): int
@@ -580,17 +609,6 @@ final class MergeBaseFinder
         $oid = strtolower($oid);
         if (isset($this->generationCache[$oid])) {
             return $this->generationCache[$oid];
-        }
-
-        if ($this->commitGraphGeneration !== null) {
-            $generation = ($this->commitGraphGeneration)($oid);
-            if ($generation !== null) {
-                if (!is_int($generation) || $generation < 0) {
-                    throw new \InvalidArgumentException('Commit graph generation provider must return a non-negative integer or null');
-                }
-
-                return $this->generationCache[$oid] = $generation;
-            }
         }
 
         $hashLength = self::assertObjectId($oid);

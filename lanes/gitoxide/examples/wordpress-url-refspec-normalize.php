@@ -49,6 +49,12 @@ try {
 } catch (InvalidArgumentException) {
     $invalidUtf8RemoteRejected = true;
 }
+$hostlessFtpRemoteRejected = false;
+try {
+    GitUrl::parse($fixture['hostlessFtpRemoteUrl']);
+} catch (InvalidArgumentException) {
+    $hostlessFtpRemoteRejected = true;
+}
 
 $summary = [
     'remote' => $remote->toArray(),
@@ -64,6 +70,7 @@ $summary = [
     'oversizedRemoteRejected' => $oversizedRemoteRejected,
     'malformedBracketedRemoteRejected' => $malformedBracketedRemoteRejected,
     'invalidUtf8RemoteRejected' => $invalidUtf8RemoteRejected,
+    'hostlessFtpRemoteRejected' => $hostlessFtpRemoteRejected,
     'deploymentRemoteSafe' => $remote->userArgumentSafe() === $fixture['expectedRemoteUser']
         && $remote->hostArgumentSafe() === $fixture['expectedRemoteHost']
         && $remote->pathArgumentSafe() === $fixture['expectedRemotePath'],
@@ -130,6 +137,9 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if ($summary['invalidUtf8RemoteRejected'] !== $fixture['expectedInvalidUtf8RemoteRejected']) {
         throw new RuntimeException('Unexpected invalid UTF-8 remote URL preflight result');
+    }
+    if ($summary['hostlessFtpRemoteRejected'] !== $fixture['expectedHostlessFtpRemoteRejected']) {
+        throw new RuntimeException('Unexpected hostless FTP remote URL preflight result');
     }
 }
 

@@ -1076,7 +1076,10 @@ final class CssBundler
             return $this->cssStringTokenValue(substr($source, $offset, $end - $offset));
         }
 
-        $specifier = trim($source);
+        $specifier = $this->trimWhitespaceAndComments($source);
+        if ($this->containsUnescapedCommentStart($specifier)) {
+            $this->throwInvalidImportSource($file, $loc);
+        }
         $this->validateUnquotedImportUrlSource($specifier, $file, $loc);
 
         return $this->decodeCssEscapes($specifier);
@@ -2333,6 +2336,63 @@ final class CssBundler
         }
 
         return $offset;
+    }
+
+    private function trimWhitespaceAndComments(string $value): string
+    {
+        $start = $this->skipWhitespaceAndComments($value, 0);
+        $cursor = $start;
+        $lastNonTriviaEnd = $start;
+        $length = strlen($value);
+
+        while ($cursor < $length) {
+            if (ctype_space($value[$cursor])) {
+                $cursor++;
+                continue;
+            }
+
+            if ($value[$cursor] === '/' && ($value[$cursor + 1] ?? '') === '*') {
+                $end = strpos($value, '*/', $cursor + 2);
+                if ($end === false) {
+                    throw new CssBundleException('parser-error', 'CSS contains an unbalanced comment');
+                }
+
+                $cursor = $end + 2;
+                continue;
+            }
+
+            if ($value[$cursor] === '\\') {
+                $cursor = $this->cssEscapeEndOffset($value, $cursor) + 1;
+                $lastNonTriviaEnd = $cursor;
+                continue;
+            }
+
+            $cursor++;
+            $lastNonTriviaEnd = $cursor;
+        }
+
+        return substr($value, $start, $lastNonTriviaEnd - $start);
+    }
+
+    private function containsUnescapedCommentStart(string $value): bool
+    {
+        $cursor = 0;
+        $length = strlen($value);
+
+        while ($cursor < $length) {
+            if ($value[$cursor] === '\\') {
+                $cursor = $this->cssEscapeEndOffset($value, $cursor) + 1;
+                continue;
+            }
+
+            if ($value[$cursor] === '/' && ($value[$cursor + 1] ?? '') === '*') {
+                return true;
+            }
+
+            $cursor++;
+        }
+
+        return false;
     }
 
     private function startsAtKeyword(string $css, int $offset, string $keyword): bool

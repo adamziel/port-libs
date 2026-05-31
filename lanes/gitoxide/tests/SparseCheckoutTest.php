@@ -235,6 +235,98 @@ return [
             ),
         );
     },
+    'pathspec sparse checkout applies gitoxide environment defaults' => static function (TestRunner $t): void {
+        $literalWins = SparseCheckoutSpec::fromPathspecsWithEnvironment(
+            [':(glob)wp-content/plugins/*.php', ':'],
+            [
+                'GIT_LITERAL_PATHSPECS' => 'yes',
+                'GIT_ICASE_PATHSPECS' => '+10',
+                'GIT_GLOB_PATHSPECS' => "yesn't",
+                'GIT_NOGLOB_PATHSPECS' => 'true',
+            ],
+        );
+
+        $t->same(true, $literalWins->includesPath(':(GLOB)WP-CONTENT/PLUGINS/*.PHP', false));
+        $t->same(true, $literalWins->includesPath(':', false));
+        $t->same(false, $literalWins->includesPath('wp-content/plugins/gutenberg.php', false));
+        $t->same(false, $literalWins->includesPath('wp-admin/admin.php', false));
+
+        $globDefault = SparseCheckoutSpec::fromPathspecsWithEnvironment(
+            ['wp-content/plugins/*.php'],
+            ['GIT_GLOB_PATHSPECS' => '1'],
+        );
+        $t->same(true, $globDefault->includesPath('wp-content/plugins/gutenberg.php', false));
+        $t->same(false, $globDefault->includesPath('wp-content/plugins/nested/plugin.php', false));
+        $t->same(true, $globDefault->includesPath('wp-content/plugins', true));
+
+        $noGlobDefault = SparseCheckoutSpec::fromPathspecsWithEnvironment(
+            ['wp-content/plugins/*.php', ':(glob)wp-content/mu-plugins/*.php'],
+            ['GIT_NOGLOB_PATHSPECS' => 'on'],
+        );
+        $t->same(true, $noGlobDefault->includesPath('wp-content/plugins/*.php', false));
+        $t->same(false, $noGlobDefault->includesPath('wp-content/plugins/gutenberg.php', false));
+        $t->same(true, $noGlobDefault->includesPath('wp-content/mu-plugins/loader.php', false));
+        $t->same(false, $noGlobDefault->includesPath('wp-content/mu-plugins/nested/loader.php', false));
+
+        $inheritedIcase = SparseCheckoutSpec::fromPathspecsWithEnvironment(
+            ['plugins/*.php'],
+            ['GIT_ICASE_PATHSPECS' => '-1'],
+            prefix: 'WP-CONTENT',
+        );
+        $t->same(true, $inheritedIcase->includesPath('WP-CONTENT/plugins/Loader.PHP', false));
+        $t->same(true, $inheritedIcase->includesPath('WP-CONTENT/plugins/loader.php', false));
+        $t->same(false, $inheritedIcase->includesPath('wp-content/plugins/Loader.PHP', false));
+        $t->same(true, $inheritedIcase->includesPath('WP-CONTENT', true));
+        $t->same(false, $inheritedIcase->includesPath('wp-content', true));
+
+        $emptyGlobDefault = SparseCheckoutSpec::fromPathspecsWithEnvironment(
+            ['wp-content/plugins/*.php'],
+            ['GIT_GLOB_PATHSPECS' => ''],
+        );
+        $t->same(true, $emptyGlobDefault->includesPath('wp-content/plugins/nested/plugin.php', false));
+
+        $falseNoGlobDefault = SparseCheckoutSpec::fromPathspecsWithEnvironment(
+            ['wp-content/plugins/*.php'],
+            ['GIT_NOGLOB_PATHSPECS' => '0'],
+        );
+        $t->same(true, $falseNoGlobDefault->includesPath('wp-content/plugins/*.php', false));
+        $t->same(false, $falseNoGlobDefault->includesPath('wp-content/plugins/gutenberg.php', false));
+
+        $globOverriddenByFalseNoGlob = SparseCheckoutSpec::fromPathspecsWithEnvironment(
+            ['wp-content/plugins/*.php'],
+            [
+                'GIT_GLOB_PATHSPECS' => 'true',
+                'GIT_NOGLOB_PATHSPECS' => 'false',
+            ],
+        );
+        $t->same(true, $globOverriddenByFalseNoGlob->includesPath('wp-content/plugins/*.php', false));
+        $t->same(false, $globOverriddenByFalseNoGlob->includesPath('wp-content/plugins/gutenberg.php', false));
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => SparseCheckoutSpec::fromPathspecsWithEnvironment(
+                ['wp-content/plugins/*.php'],
+                [
+                    'GIT_GLOB_PATHSPECS' => 'true',
+                    'GIT_NOGLOB_PATHSPECS' => 'true',
+                ],
+            ),
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => SparseCheckoutSpec::fromPathspecsWithEnvironment(
+                ['wp-content/plugins/*.php'],
+                ['GIT_ICASE_PATHSPECS' => "yesn't"],
+            ),
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => SparseCheckoutSpec::fromPathspecsWithEnvironment(
+                ['wp-content/plugins/*.php'],
+                ['GIT_LITERAL_PATHSPECS' => '9223372036854775808'],
+            ),
+        );
+    },
     'pathspec sparse checkout treats unknown exact directory only matches as files' => static function (TestRunner $t): void {
         $directory = SparseCheckoutSpec::fromPathspecs(['wp-content/cache/']);
 

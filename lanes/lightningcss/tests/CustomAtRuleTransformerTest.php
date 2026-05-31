@@ -1241,7 +1241,7 @@ CSS;
             ],
         ]);
 
-        $t->same('@media (prefers-color-scheme:dark){html:not([theme=light]) body{background:#000}}html[theme="dark"] body{background:#000}', $result);
+        $t->same('@media (prefers-color-scheme:dark){html:not([theme=light]) body{background:#000}}html[theme=dark] body{background:#000}', $result);
         $t->same('prefers-color-scheme', $seenFeature['name'] ?? null);
         $t->same('dark', $seenFeature['value']['value'] ?? null);
     },

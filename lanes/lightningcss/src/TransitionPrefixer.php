@@ -286,6 +286,7 @@ final class TransitionPrefixer
         $borderRadiusChanged = $this->rewriteBorderRadiusPrefixEntries($entries, $targetOptions);
         $borderImageChanged = $this->rewriteBorderImagePrefixEntries($entries, $targetOptions);
         $imageSetChanged = $this->rewriteImageSetPrefixEntries($entries, $targetOptions);
+        $gradientPrefixChanged = $this->rewriteGradientPrefixEntries($entries, $targetOptions);
         $sizingKeywordChanged = $this->rewriteSizingKeywordPrefixEntries($entries, $targetOptions);
         $clampChanged = $this->rewriteClampFallbackEntries($entries, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
@@ -329,7 +330,7 @@ final class TransitionPrefixer
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
         $selectorVariants = $this->selectorPrefixVariants($selectors, $targetOptions);
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $lengthTargetChanged || $selectorVariants !== null) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $gradientPrefixChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $lengthTargetChanged || $selectorVariants !== null) {
             return $this->serializeRulesForSelectors($selectorVariants ?? [$selectors], $entries) . implode('', $supportRules);
         }
 
@@ -1126,6 +1127,12 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'samsung', [4], [17]),
             'gradientNeedsOldWebkit' => ($chrome !== null && $chrome <= $this->encodedTargetVersion(8))
                 || ($safari !== null && $safari < $this->encodedTargetVersion(5, 1)),
+            'gradientNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [4], [25])
+                || $this->targetInRange($normalized, 'ios_saf', [3, 2], [6])
+                || $this->targetInRange($normalized, 'safari', [4], [6]),
+            'gradientNeedsMoz' => $this->targetInRange($normalized, 'firefox', [3, 6], [15]),
+            'gradientNeedsO' => $this->targetInRange($normalized, 'opera', [11], [12]),
             'imageSetNeedsWebkit' => !isset($normalized['ie']) && (
                 $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [21], [112])
@@ -6894,6 +6901,385 @@ final class TransitionPrefixer
             $this->entryWithValue($entry, '-webkit-gradient(linear,0 0,0 100%,from(' . $from . '),to(' . $to . '))'),
             $this->entryWithValue($entry, '-webkit-linear-gradient(top,' . $from . ',' . $to . ')'),
         ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteGradientPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $needsOldWebkit = $targetOptions['gradientNeedsOldWebkit'] ?? false;
+        $needsWebkit = $targetOptions['gradientNeedsWebkit'] ?? false;
+        $needsMoz = $targetOptions['gradientNeedsMoz'] ?? false;
+        $needsO = $targetOptions['gradientNeedsO'] ?? false;
+        $needsAnyPrefix = $needsOldWebkit || $needsWebkit || $needsMoz || $needsO;
+
+        $modernGradients = [];
+        $existingValues = [];
+        foreach ($entries as $entry) {
+            if ($entry['important'] || $entry['property'] !== 'background-image') {
+                continue;
+            }
+            if ($this->linearGradientPrefixingHasAdvancedColorStack($entry['value'])) {
+                return false;
+            }
+
+            $existingValues[$entry['value']] = true;
+            if ($this->isUnprefixedLinearGradientValue($entry['value'])) {
+                $modernGradients[$this->canonicalGradientValue($entry['value'])] = true;
+            }
+        }
+
+        if (!$needsAnyPrefix && $modernGradients === []) {
+            return false;
+        }
+
+        $changed = false;
+        $rewritten = [];
+        foreach ($entries as $entry) {
+            if ($entry['important'] || $entry['property'] !== 'background-image') {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $modernEquivalent = $this->linearGradientModernEquivalent($entry['value']);
+            if (!$needsAnyPrefix
+                && $modernEquivalent !== null
+                && !$this->isUnprefixedLinearGradientValue($entry['value'])
+                && isset($modernGradients[$this->canonicalGradientValue($modernEquivalent)])
+            ) {
+                $changed = true;
+                continue;
+            }
+
+            if (!$this->isUnprefixedLinearGradientValue($entry['value'])) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if ($needsOldWebkit) {
+                $legacy = $this->legacyLinearGradientValue($entry['value']);
+                if ($legacy !== null && !isset($existingValues[$legacy])) {
+                    $rewritten[] = $this->entryWithValue($entry, $legacy);
+                    $existingValues[$legacy] = true;
+                    $changed = true;
+                }
+            }
+
+            foreach ([['-webkit', $needsWebkit], ['-moz', $needsMoz], ['-o', $needsO]] as [$prefix, $needed]) {
+                if (!$needed) {
+                    continue;
+                }
+
+                $prefixed = $this->prefixedLinearGradientValue($entry['value'], $prefix);
+                if ($prefixed === null || isset($existingValues[$prefixed])) {
+                    continue;
+                }
+
+                $rewritten[] = $this->entryWithValue($entry, $prefixed);
+                $existingValues[$prefixed] = true;
+                $changed = true;
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        $entries = $rewritten;
+
+        return $changed;
+    }
+
+    private function isUnprefixedLinearGradientValue(string $value): bool
+    {
+        $value = trim($value);
+        if (preg_match('/^linear-gradient\(/i', $value) !== 1) {
+            return false;
+        }
+
+        [, $offset] = $this->readFunctionRaw($value, 0);
+
+        return $offset === strlen($value) - 1;
+    }
+
+    private function linearGradientPrefixingHasAdvancedColorStack(string $value): bool
+    {
+        return preg_match('/\b(?:color|lab|lch|oklab|oklch|var)\(/i', $value) === 1;
+    }
+
+    private function canonicalGradientValue(string $value): string
+    {
+        return strtolower(trim($value));
+    }
+
+    private function linearGradientModernEquivalent(string $value): ?string
+    {
+        $value = trim($value);
+        if ($this->isUnprefixedLinearGradientValue($value)) {
+            return $value;
+        }
+
+        if (preg_match('/^-(webkit|moz|o)-linear-gradient\((.*)\)$/is', $value, $matches) === 1) {
+            $args = $this->splitTopLevel($matches[2], ',');
+            if ($args === []) {
+                return null;
+            }
+
+            $direction = $this->modernLinearGradientDirectionFromPrefixed($args[0]);
+            if ($direction !== null) {
+                array_shift($args);
+            } elseif ($this->looksLikePrefixedLinearGradientDirection($args[0])) {
+                return null;
+            } else {
+                $direction = 'to top';
+            }
+
+            if (count($args) < 2) {
+                return null;
+            }
+
+            $parts = $direction === '' ? $args : array_merge([$direction], $args);
+
+            return 'linear-gradient(' . implode(',', $parts) . ')';
+        }
+
+        if (preg_match('/^-webkit-gradient\(\s*linear\s*,(.*)\)$/is', $value, $matches) === 1) {
+            $args = $this->splitTopLevel($matches[1], ',');
+            if (count($args) < 4) {
+                return null;
+            }
+
+            $direction = $this->modernLinearGradientDirectionFromLegacyPoints($args[0], $args[1]);
+            if ($direction === null) {
+                return null;
+            }
+
+            $from = $this->legacyWebkitGradientStopValue($args[2], 'from');
+            $to = $this->legacyWebkitGradientStopValue($args[count($args) - 1], 'to');
+            if ($from === null || $to === null) {
+                return null;
+            }
+
+            $parts = $direction === '' ? [$from, $to] : [$direction, $from, $to];
+
+            return 'linear-gradient(' . implode(',', $parts) . ')';
+        }
+
+        return null;
+    }
+
+    private function legacyLinearGradientValue(string $value): ?string
+    {
+        $parts = $this->parseModernLinearGradient($value);
+        if ($parts === null || count($parts['stops']) !== 2) {
+            return null;
+        }
+
+        $points = $this->legacyWebkitGradientPoints($parts['direction']);
+        if ($points === null) {
+            return null;
+        }
+
+        return '-webkit-gradient(linear,'
+            . $points[0]
+            . ','
+            . $points[1]
+            . ',from('
+            . $parts['stops'][0]
+            . '),to('
+            . $parts['stops'][1]
+            . '))';
+    }
+
+    private function prefixedLinearGradientValue(string $value, string $prefix): ?string
+    {
+        $parts = $this->parseModernLinearGradient($value);
+        if ($parts === null) {
+            return null;
+        }
+
+        $direction = $this->prefixedLinearGradientDirection($parts['direction']);
+        if ($direction === null) {
+            return null;
+        }
+
+        $args = $direction === '' ? $parts['stops'] : array_merge([$direction], $parts['stops']);
+
+        return $prefix . '-linear-gradient(' . implode(',', $args) . ')';
+    }
+
+    /**
+     * @return array{direction:string|null,stops:list<string>}|null
+     */
+    private function parseModernLinearGradient(string $value): ?array
+    {
+        if (preg_match('/^linear-gradient\((.*)\)$/is', trim($value), $matches) !== 1) {
+            return null;
+        }
+
+        $args = $this->splitTopLevel($matches[1], ',');
+        if (count($args) < 2) {
+            return null;
+        }
+
+        $direction = null;
+        $first = strtolower(trim($args[0]));
+        if (str_starts_with($first, 'to ')) {
+            $direction = $first;
+            array_shift($args);
+        } elseif (preg_match('/^-?(?:\d+|\d*\.\d+)deg$/', $first) === 1) {
+            $direction = $first;
+            array_shift($args);
+        }
+
+        if (count($args) < 2) {
+            return null;
+        }
+
+        return [
+            'direction' => $direction,
+            'stops' => array_values($args),
+        ];
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function legacyWebkitGradientPoints(?string $direction): ?array
+    {
+        return match ($direction) {
+            null, 'to bottom' => ['0 0', '0 100%'],
+            'to right' => ['0 0', '100% 0'],
+            'to left' => ['100% 0', '0 0'],
+            'to top' => ['0 100%', '0 0'],
+            'to bottom right', 'to right bottom' => ['0 0', '100% 100%'],
+            'to bottom left', 'to left bottom' => ['100% 0', '0 100%'],
+            'to top right', 'to right top' => ['0 100%', '100% 0'],
+            'to top left', 'to left top' => ['100% 100%', '0 0'],
+            default => null,
+        };
+    }
+
+    private function prefixedLinearGradientDirection(?string $direction): ?string
+    {
+        if ($direction === null || $direction === 'to bottom') {
+            return 'top';
+        }
+
+        if (preg_match('/^(-?(?:\d+|\d*\.\d+))deg$/', $direction, $matches) === 1) {
+            $angle = 90 - (float) $matches[1];
+
+            return $this->formatGradientAngle($angle);
+        }
+
+        if (!str_starts_with($direction, 'to ')) {
+            return null;
+        }
+
+        $tokens = preg_split('/\s+/', trim(substr($direction, 3))) ?: [];
+        $converted = [];
+        foreach ($tokens as $token) {
+            $converted[] = match ($token) {
+                'top' => 'bottom',
+                'right' => 'left',
+                'bottom' => 'top',
+                'left' => 'right',
+                default => null,
+            };
+            if ($converted[array_key_last($converted)] === null) {
+                return null;
+            }
+        }
+
+        return implode(' ', $converted);
+    }
+
+    private function modernLinearGradientDirectionFromPrefixed(string $direction): ?string
+    {
+        $direction = strtolower(trim($direction));
+
+        return match ($direction) {
+            'top' => '',
+            'left' => 'to right',
+            'right' => 'to left',
+            'bottom' => 'to top',
+            'top left', 'left top' => 'to bottom right',
+            'top right', 'right top' => 'to bottom left',
+            'bottom left', 'left bottom' => 'to top right',
+            'bottom right', 'right bottom' => 'to top left',
+            default => $this->modernLinearGradientDirectionFromPrefixedAngle($direction),
+        };
+    }
+
+    private function modernLinearGradientDirectionFromPrefixedAngle(string $direction): ?string
+    {
+        if (preg_match('/^(-?(?:\d+|\d*\.\d+))deg$/', $direction, $matches) !== 1) {
+            return null;
+        }
+
+        $angle = 90 - (float) $matches[1];
+
+        return $this->formatGradientAngle($angle);
+    }
+
+    private function looksLikePrefixedLinearGradientDirection(string $value): bool
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, [
+            'top',
+            'left',
+            'right',
+            'bottom',
+            'top left',
+            'left top',
+            'top right',
+            'right top',
+            'bottom left',
+            'left bottom',
+            'bottom right',
+            'right bottom',
+        ], true) || preg_match('/^-?(?:\d+|\d*\.\d+)deg$/', $value) === 1;
+    }
+
+    private function modernLinearGradientDirectionFromLegacyPoints(string $start, string $end): ?string
+    {
+        $start = trim(strtolower($start));
+        $end = trim(strtolower($end));
+
+        return match ($start . '|' . $end) {
+            '0 0|0 100%' => '',
+            '0 0|100% 0' => 'to right',
+            '100% 0|0 0' => 'to left',
+            '0 100%|0 0' => 'to top',
+            '0 0|100% 100%' => 'to bottom right',
+            '100% 0|0 100%' => 'to bottom left',
+            '0 100%|100% 0' => 'to top right',
+            '100% 100%|0 0' => 'to top left',
+            default => null,
+        };
+    }
+
+    private function legacyWebkitGradientStopValue(string $value, string $name): ?string
+    {
+        $value = trim($value);
+        if (preg_match('/^' . preg_quote($name, '/') . '\((.*)\)$/is', $value, $matches) !== 1) {
+            return null;
+        }
+
+        return trim($matches[1]);
+    }
+
+    private function formatGradientAngle(float $angle): string
+    {
+        $angle = fmod($angle, 360.0);
+        if ($angle < 0) {
+            $angle += 360.0;
+        }
+
+        $formatted = rtrim(rtrim(sprintf('%.6F', $angle), '0'), '.');
+
+        return ($formatted === '' ? '0' : $formatted) . 'deg';
     }
 
     /**

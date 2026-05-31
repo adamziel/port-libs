@@ -102,6 +102,54 @@ $actual = [
         '@layer theme.blocks { @media (hover) and (not (200px <= width < 500px)) { .wp-block-query.is-not-middle-hover { color: yellow; } } }',
         ['chrome' => 95]
     ),
+    'upstreamIntervalPrefixFallbacks' => $prefixer->prefixForTargets(
+        <<<'CSS'
+@layer theme.blocks {
+  @media not (100px <= width <= 200px) {
+    .wp-block-query.is-not-compact-range {
+      color: yellow;
+    }
+  }
+
+  @media (hover) and (100px <= width <= 200px) {
+    .wp-block-query.is-hover-compact-range {
+      color: yellow;
+    }
+  }
+
+  @media (100px < width < 200px) {
+    .wp-block-query.is-open-range {
+      color: yellow;
+    }
+  }
+
+  @media not (100px < width < 200px) {
+    .wp-block-query.is-not-open-range {
+      color: yellow;
+    }
+  }
+
+  @media (200px >= width >= 100px) {
+    .wp-block-query.is-descending-range {
+      color: yellow;
+    }
+  }
+
+  @media (color > 2) {
+    .wp-block-query.is-rich-color {
+      color: yellow;
+    }
+  }
+
+  @media (color < 2) {
+    .wp-block-query.is-low-color {
+      color: yellow;
+    }
+  }
+}
+CSS,
+        ['include' => ['MediaRangeSyntax', 'MediaIntervalSyntax']]
+    ),
 ];
 
 try {
@@ -168,6 +216,7 @@ $expected = [
     'xResolutionIntervalPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query.is-low-density-window{color:#ff0}}}',
     'negatedRangeGroup' => '@layer theme.blocks{@media not (((min-width:100px) and (max-width:200px)) or (hover)){.wp-block-query.is-not-compact-hover{color:#ff0}}}',
     'negatedIntervalWithHover' => '@layer theme.blocks{@media (hover) and (not ((min-width:200px) and (not (min-width:500px)))){.wp-block-query.is-not-middle-hover{color:#ff0}}}',
+    'upstreamIntervalPrefixFallbacks' => '@layer theme.blocks{@media not ((min-width:100px) and (max-width:200px)){.wp-block-query.is-not-compact-range{color:#ff0}}@media (hover) and (min-width:100px) and (max-width:200px){.wp-block-query.is-hover-compact-range{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:200px)){.wp-block-query.is-open-range{color:#ff0}}@media not ((not (max-width:100px)) and (not (min-width:200px))){.wp-block-query.is-not-open-range{color:#ff0}}@media (max-width:200px) and (min-width:100px){.wp-block-query.is-descending-range{color:#ff0}}@media not (max-color:2){.wp-block-query.is-rich-color{color:#ff0}}@media not (min-color:2){.wp-block-query.is-low-color{color:#ff0}}}',
     'invalidRangeGuard' => 'invalid-media-query',
     'invalidIntervalGuard' => 'invalid-media-query',
     'invalidFunctionGuard' => 'invalid-media-query',

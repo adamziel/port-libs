@@ -261,7 +261,7 @@ final class GitUrl
         $path = $pathStart === false ? '' : self::percentDecodeUtf8(substr($afterScheme, $pathStart), 'path');
 
         [$user, $password, $host, $port] = self::parseAuthority($authority, true);
-        if (in_array($scheme, [self::SCHEME_HTTP, self::SCHEME_HTTPS, self::SCHEME_GIT, self::SCHEME_SSH], true) && $host === null) {
+        if (self::schemeRequiresHost($scheme) && $host === null) {
             throw new \InvalidArgumentException('Git URL scheme requires a host');
         }
 
@@ -481,6 +481,18 @@ final class GitUrl
             'ssh+git', 'git+ssh' => self::SCHEME_SSH,
             default => $scheme,
         };
+    }
+
+    private static function schemeRequiresHost(string $scheme): bool
+    {
+        return in_array($scheme, [
+            self::SCHEME_HTTP,
+            self::SCHEME_HTTPS,
+            self::SCHEME_GIT,
+            self::SCHEME_SSH,
+            'ftp',
+            'ftps',
+        ], true);
     }
 
     private static function assertScheme(string $scheme): void

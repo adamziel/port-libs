@@ -1961,6 +1961,76 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walFullSyncPaddingRows(int $count = 1000): array
+    {
+        if ($count < 1) {
+            throw new \InvalidArgumentException('SQLite WAL full-sync padding dynamic rows require a positive count');
+        }
+
+        $pageSize = 512;
+        $frameSize = 24 + $pageSize;
+        $sectorExpectations = [
+            ['section' => 'wal-17.1', 'sector_size' => 128, 'upstream_total_frames' => 172],
+            ['section' => 'wal-17.2', 'sector_size' => 256, 'upstream_total_frames' => 172],
+            ['section' => 'wal-17.3', 'sector_size' => 512, 'upstream_total_frames' => 172],
+            ['section' => 'wal-17.4', 'sector_size' => 1024, 'upstream_total_frames' => 172],
+            ['section' => 'wal-17.5', 'sector_size' => 2048, 'upstream_total_frames' => 172],
+            ['section' => 'wal-17.6', 'sector_size' => 4096, 'upstream_total_frames' => 176],
+            ['section' => 'wal-17.7', 'sector_size' => 8192, 'upstream_total_frames' => 184],
+        ];
+
+        $rows = [];
+        foreach (range(1, $count) as $case) {
+            $sector = $sectorExpectations[intdiv($case - 1, 41) % count($sectorExpectations)];
+            $transactionFrameCount = 155 + (($case - 1) % 41);
+            $transactionEndBytes = self::walFileSize($transactionFrameCount, $pageSize);
+            $transactionEndSector = intdiv($transactionEndBytes - 1, $sector['sector_size']);
+            $paddingFrames = 0;
+            while (intdiv($transactionEndBytes + ($paddingFrames * $frameSize), $sector['sector_size']) <= $transactionEndSector) {
+                $paddingFrames++;
+            }
+
+            $totalFrames = $transactionFrameCount + $paddingFrames;
+            $databasePageCount = $transactionFrameCount + 3 + ($case % 9);
+            $matchesUpstreamExample = $transactionFrameCount === 171;
+
+            $rows[] = [
+                'upstream' => sprintf('wal.test %s synchronous FULL padding dynamic case %04d', $sector['section'], $case),
+                'script' => 'wal.test',
+                'case' => $case,
+                'section' => $sector['section'],
+                'page_size' => $pageSize,
+                'sector_size' => $sector['sector_size'],
+                'synchronous' => 'full',
+                'journal_mode' => 'wal',
+                'auto_vacuum' => 0,
+                'cache_size' => -2000,
+                'transaction_frame_count' => $transactionFrameCount,
+                'padding_frame_count' => $paddingFrames,
+                'total_frame_count' => $totalFrames,
+                'database_page_count' => $databasePageCount,
+                'transaction_end_bytes' => $transactionEndBytes,
+                'transaction_end_sector' => $transactionEndSector,
+                'next_transaction_start_bytes' => self::walFileSize($totalFrames, $pageSize),
+                'next_transaction_start_sector' => intdiv(self::walFileSize($totalFrames, $pageSize), $sector['sector_size']),
+                'upstream_transaction_frame_count' => 171,
+                'upstream_total_frames_for_171' => $sector['upstream_total_frames'],
+                'matches_upstream_wal17_example' => $matchesUpstreamExample,
+                'upstream_log_bytes_for_171' => self::walFileSize($sector['upstream_total_frames'], $pageSize),
+                'dependencies' => [
+                    'real-upstream-corpus-wal-test',
+                    'sqlite-wal-full-sync-padding',
+                    'sqlite-pager-wal-dynamic-corpus',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array

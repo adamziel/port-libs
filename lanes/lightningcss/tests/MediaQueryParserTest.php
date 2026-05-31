@@ -302,6 +302,11 @@ return [
         $t->same('(min-monochrome:1) and (max-monochrome:4)', $parser->lowerRangeSyntaxList('(1 <= monochrome <= 4)'));
         $t->same('(max-device-width:480px)', $parser->lowerRangeSyntaxList('(device-width <= 480px)'));
         $t->same('(min-horizontal-viewport-segments:2)', $parser->lowerRangeSyntaxList('(horizontal-viewport-segments >= 2)'));
+        $t->same('not (max-color:2)', $parser->lowerRangeSyntaxList('(color > 2)'));
+        $t->same('not (min-color:2)', $parser->lowerRangeSyntaxList('(color < 2)'));
+        $t->same('not ((min-width:100px) and (max-width:200px))', $parser->lowerRangeSyntaxList('not (100px <= width <= 200px)'));
+        $t->same('(not (max-width:100px)) and (not (min-width:200px))', $parser->lowerRangeSyntaxList('(100px < width < 200px)'));
+        $t->same('not ((not (max-width:100px)) and (not (min-width:200px)))', $parser->lowerRangeSyntaxList('not (100px < width < 200px)'));
         $t->same('(width:240px)', $parser->lowerRangeSyntaxList('(width = 240px)'));
         $t->same('(width:240px)', $parser->lowerRangeSyntaxList('(240px = width)'));
         $t->same('(theme-state:expanded)', $parser->lowerRangeSyntaxList('(theme-state = expanded)'));

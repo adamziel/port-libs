@@ -111,6 +111,15 @@ CSS
             $minifier->minify('.foo { --selector: .bar::before; } .foo::before { color: red; }')
         );
     },
+    'css minifier maps upstream attribute selector value compaction' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('[foo=baz]{color:red}', $minifier->minify('[foo="baz"] { color: red }'));
+        $t->same('[foo=foo\\ bar]{color:red}', $minifier->minify('[foo="foo bar"] { color: red }'));
+        $t->same('[foo="foo bar baz"]{color:red}', $minifier->minify('[foo="foo bar baz"] { color: red }'));
+        $t->same('[foo=""]{color:red}', $minifier->minify('[foo=""] { color: red }'));
+        $t->same('.test:not([foo=bar]){color:red}', $minifier->minify('.test:not([foo="bar"]) { color: red }'));
+    },
     'css minifier shortens upstream color keywords in declaration values' => static function (TestRunner $t): void {
         $css = '.foo { color: yellow; background: linear-gradient(blue, white); border-color: black; }';
         $t->same('.foo{color:#ff0;background:linear-gradient(#00f,#fff);border-color:#000}', (new CssMinifier())->minify($css));

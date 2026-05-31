@@ -19,6 +19,8 @@ return [
     'expectedMalformedBracketedRemoteRejected' => true,
     'invalidUtf8RemoteUrl' => 'https://git.example.test/%FF/wp-content/site.git',
     'expectedInvalidUtf8RemoteRejected' => true,
+    'hostlessFtpRemoteUrl' => 'ftp:///wp-content/site.git',
+    'expectedHostlessFtpRemoteRejected' => true,
     'localMirrorUrl' => 'file://Deploy@[::1]/var/cache/wp-content/site.git',
     'expectedLocalMirrorUrl' => 'file://Deploy@[::1]/var/cache/wp-content/site.git',
     'expectedLocalMirrorScheme' => 'file',

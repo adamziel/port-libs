@@ -349,6 +349,32 @@ $duplicateColumnNegativeMap->addVlqMap(
 );
 $duplicateColumnNegativeMap->offsetColumns(0, 5, -5);
 
+$unsortedRawVlqMap = new SourceMap();
+$unsortedRawVlqMap->addVlqMap(
+    'UAAAA,RACAC',
+    ['wp-content/themes/example/source-map-unsorted-columns.css'],
+    ['.wp-block-unsorted-columns{}'],
+    ['later-rule', 'earlier-rule']
+);
+
+$unsortedRawVlqPositiveOffsetMap = new SourceMap();
+$unsortedRawVlqPositiveOffsetMap->addVlqMap(
+    'UAAAA,RACAC',
+    ['wp-content/themes/example/source-map-unsorted-columns.css'],
+    ['.wp-block-unsorted-columns{}'],
+    ['later-rule', 'earlier-rule']
+);
+$unsortedRawVlqPositiveOffsetMap->offsetColumns(0, 5, 3);
+
+$unsortedRawVlqNegativeOffsetMap = new SourceMap();
+$unsortedRawVlqNegativeOffsetMap->addVlqMap(
+    'UAAAA,RACAC',
+    ['wp-content/themes/example/source-map-unsorted-columns.css'],
+    ['.wp-block-unsorted-columns{}'],
+    ['later-rule', 'earlier-rule']
+);
+$unsortedRawVlqNegativeOffsetMap->offsetColumns(0, 10, -8);
+
 $duplicateLookupInputMap = SourceMap::fromJson(
     '{"version":3,"mappings":"AAAAAA","sources":["wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{}"],"names":["duplicate-lookup-rule"]}'
 );
@@ -520,6 +546,9 @@ $actual = [
     'streamingRawVlqMap' => $streamingRawVlqMap->toJson(null, false),
     'duplicateColumnPositiveMap' => $duplicateColumnPositiveMap->toJson(null, false),
     'duplicateColumnNegativeMap' => $duplicateColumnNegativeMap->toJson(null, false),
+    'unsortedRawVlqMap' => $unsortedRawVlqMap->toJson(null, false),
+    'unsortedRawVlqPositiveOffsetMap' => $unsortedRawVlqPositiveOffsetMap->toJson(null, false),
+    'unsortedRawVlqNegativeOffsetMap' => $unsortedRawVlqNegativeOffsetMap->toJson(null, false),
     'duplicateLookupExact' => $duplicateLookupExact,
     'duplicateLookupAfterLast' => $duplicateLookupAfterLast,
     'duplicateLookupExtendedMap' => $duplicateLookupExtendedMap->toJson(null, false),
@@ -571,6 +600,9 @@ if (($argv[1] ?? null) === '--self-test') {
         'streamingRawVlqMap' => '{"version":3,"mappings":";;IAAAA,A;K","sources":["wp-content/themes/example/source-map-stream.css"],"sourcesContent":[".wp-block-source-map-stream{}"],"names":["stream-rule"]}',
         'duplicateColumnPositiveMap' => '{"version":3,"mappings":"AAAAA,K,C","sources":["wp-content/themes/example/source-map-duplicate-column.css"],"sourcesContent":[".wp-block-duplicate-column{}"],"names":["duplicate-column-rule"]}',
         'duplicateColumnNegativeMap' => '{"version":3,"mappings":"AAAAA,A","sources":["wp-content/themes/example/source-map-duplicate-column.css"],"sourcesContent":[".wp-block-duplicate-column{}"],"names":["duplicate-column-rule"]}',
+        'unsortedRawVlqMap' => '{"version":3,"mappings":"EACAC,QADAD","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',
+        'unsortedRawVlqPositiveOffsetMap' => '{"version":3,"mappings":"EACAC,WADAD","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',
+        'unsortedRawVlqNegativeOffsetMap' => '{"version":3,"mappings":"EAAAA","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',
         'duplicateLookupExact' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
         'duplicateLookupAfterLast' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0],
         'duplicateLookupExtendedMap' => '{"version":3,"mappings":"A","sources":["wp-content/cache/duplicate-lookup.css","wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{color:red}",".wp-block-duplicate-lookup{}"],"names":["compiled-duplicate-lookup","duplicate-lookup-rule"]}',

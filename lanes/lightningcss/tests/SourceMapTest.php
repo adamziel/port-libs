@@ -392,6 +392,54 @@ return [
         $t->same([0, null], array_column($negativeDecoded, 'sourceIndex'));
         $t->same([0, null], array_column($negativeDecoded, 'nameIndex'));
     },
+    'source map sorts out-of-order raw vlq generated columns before offsets' => static function (TestRunner $t): void {
+        $raw = new SourceMap();
+        $raw->addVlqMap(
+            'UAAAA,RACAC',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['later', 'earlier']
+        );
+        $decoded = SourceMap::decodeVlq($raw->writeVlq());
+
+        $t->same('EACAC,QADAD', $raw->writeVlq());
+        $t->same([2, 10], array_column($decoded, 'generatedColumn'));
+        $t->same([1, 0], array_column($decoded, 'originalLine'));
+        $t->same([1, 0], array_column($decoded, 'nameIndex'));
+        $t->same(['later', 'earlier'], $raw->toArray(null, false)['names']);
+
+        $positive = new SourceMap();
+        $positive->addVlqMap(
+            'UAAAA,RACAC',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['later', 'earlier']
+        );
+        $positive->offsetColumns(0, 5, 3);
+        $positiveDecoded = SourceMap::decodeVlq($positive->writeVlq());
+
+        $t->same('EACAC,WADAD', $positive->writeVlq());
+        $t->same([2, 13], array_column($positiveDecoded, 'generatedColumn'));
+        $t->same([1, 0], array_column($positiveDecoded, 'nameIndex'));
+
+        $negative = new SourceMap();
+        $negative->addVlqMap(
+            'UAAAA,RACAC',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['later', 'earlier']
+        );
+        $negative->offsetColumns(0, 10, -8);
+        $negativeDecoded = SourceMap::decodeVlq($negative->writeVlq());
+        $negativeData = $negative->toArray(null, false);
+
+        $t->same('EAAAA', $negative->writeVlq());
+        $t->same([2], array_column($negativeDecoded, 'generatedColumn'));
+        $t->same([0], array_column($negativeDecoded, 'originalLine'));
+        $t->same([0], array_column($negativeDecoded, 'nameIndex'));
+        $t->same(['later', 'earlier'], $negativeData['names']);
+        $t->same(['.compiled{}'], $negativeData['sourcesContent']);
+    },
     'source map closest lookup follows upstream duplicate generated-column search' => static function (TestRunner $t): void {
         $inputMap = SourceMap::fromJson(
             '{"version":3,"mappings":"AAAAAA","sources":["compiled.css"],"sourcesContent":[".compiled{}"],"names":["rule"]}'

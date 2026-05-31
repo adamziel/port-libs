@@ -81,6 +81,47 @@ $literalDefaultPathspec = SparseCheckoutSpec::fromPathspecs(
     [':(glob)wp-content/plugins/*.php', ':'],
     literalDefault: true,
 );
+$environmentLiteralPathspec = SparseCheckoutSpec::fromPathspecsWithEnvironment(
+    [':(glob)wp-content/plugins/*.php', ':'],
+    [
+        'GIT_LITERAL_PATHSPECS' => 'yes',
+        'GIT_ICASE_PATHSPECS' => '+10',
+        'GIT_GLOB_PATHSPECS' => "yesn't",
+        'GIT_NOGLOB_PATHSPECS' => 'true',
+    ],
+);
+$environmentGlobPathspec = SparseCheckoutSpec::fromPathspecsWithEnvironment(
+    ['wp-content/plugins/*.php'],
+    ['GIT_GLOB_PATHSPECS' => '1'],
+);
+$environmentNoGlobPathspec = SparseCheckoutSpec::fromPathspecsWithEnvironment(
+    ['wp-content/plugins/*.php', ':(glob)wp-content/mu-plugins/*.php'],
+    ['GIT_NOGLOB_PATHSPECS' => 'on'],
+);
+$environmentFalseNoGlobPathspec = SparseCheckoutSpec::fromPathspecsWithEnvironment(
+    ['wp-content/plugins/*.php'],
+    [
+        'GIT_GLOB_PATHSPECS' => 'true',
+        'GIT_NOGLOB_PATHSPECS' => 'false',
+    ],
+);
+$environmentIcasePathspec = SparseCheckoutSpec::fromPathspecsWithEnvironment(
+    ['plugins/*.php'],
+    ['GIT_ICASE_PATHSPECS' => '-1'],
+    prefix: 'WP-CONTENT',
+);
+$environmentConflictRejected = false;
+try {
+    SparseCheckoutSpec::fromPathspecsWithEnvironment(
+        ['wp-content/plugins/*.php'],
+        [
+            'GIT_GLOB_PATHSPECS' => 'true',
+            'GIT_NOGLOB_PATHSPECS' => 'true',
+        ],
+    );
+} catch (InvalidArgumentException) {
+    $environmentConflictRejected = true;
+}
 $directoryOnlyUnknownPathspec = SparseCheckoutSpec::fromPathspecs([
     'wp-content/cache/',
 ]);
@@ -174,6 +215,16 @@ return [
     'literalDefaultMagicTextIncluded' => $literalDefaultPathspec->includesPath(':(glob)wp-content/plugins/*.php', false),
     'literalDefaultColonIsLiteral' => $literalDefaultPathspec->includesPath(':', false),
     'literalDefaultAdminSkipped' => $literalDefaultPathspec->skipWorktree('wp-admin/admin.php', false),
+    'environmentLiteralIcaseMagicTextIncluded' => $environmentLiteralPathspec->includesPath(':(GLOB)WP-CONTENT/PLUGINS/*.PHP', false),
+    'environmentLiteralColonIncluded' => $environmentLiteralPathspec->includesPath(':', false),
+    'environmentGlobNestedPluginSkipped' => $environmentGlobPathspec->skipWorktree('wp-content/plugins/nested/plugin.php', false),
+    'environmentNoGlobLiteralPluginIncluded' => $environmentNoGlobPathspec->includesPath('wp-content/plugins/*.php', false),
+    'environmentNoGlobMagicOverrideIncluded' => $environmentNoGlobPathspec->includesPath('wp-content/mu-plugins/loader.php', false),
+    'environmentFalseNoGlobLiteralIncluded' => $environmentFalseNoGlobPathspec->includesPath('wp-content/plugins/*.php', false),
+    'environmentFalseNoGlobPluginSkipped' => $environmentFalseNoGlobPathspec->skipWorktree('wp-content/plugins/gutenberg.php', false),
+    'environmentIcaseUpperPrefixIncluded' => $environmentIcasePathspec->includesPath('WP-CONTENT/plugins/Loader.PHP', false),
+    'environmentIcaseLowerPrefixSkipped' => $environmentIcasePathspec->skipWorktree('wp-content/plugins/Loader.PHP', false),
+    'environmentGlobNoGlobConflictRejected' => $environmentConflictRejected,
     'directoryOnlyUnknownExactSkipped' => $directoryOnlyUnknownPathspec->skipWorktree('wp-content/cache', null),
     'directoryOnlyUnknownDescendantIncluded' => $directoryOnlyUnknownPathspec->includesPath('wp-content/cache/page.html', null),
     'prefixedEmptyUnknownPrefixSkipped' => $prefixedEmptyPathspec->skipWorktree('wp-content/themes', null),

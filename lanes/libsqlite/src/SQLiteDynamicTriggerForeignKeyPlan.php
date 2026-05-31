@@ -5478,6 +5478,129 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @param array{parent_table?:string,child_table?:string,parent_key?:string,child_key?:string,copy_order?:list<string>,foreign_keys?:bool,page_count_before?:int,page_count_after?:int} $statement
+     * @return array<string,mixed>
+     */
+    public static function fkey2VacuumForeignKeyBypassPlan(array $parents, array $children, array $statement = []): array
+    {
+        $parentTable = self::identifier((string) ($statement['parent_table'] ?? 'parent_records'), 'vacuum parent table');
+        $childTable = self::identifier((string) ($statement['child_table'] ?? 'child_records'), 'vacuum child table');
+        $parentKey = self::identifier((string) ($statement['parent_key'] ?? 'c'), 'vacuum parent key');
+        $childKey = self::identifier((string) ($statement['child_key'] ?? 'a'), 'vacuum child key');
+        $copyOrder = $statement['copy_order'] ?? ['child', 'parent'];
+        if ($copyOrder === []) {
+            throw new \InvalidArgumentException('SQLite fkey2-6 VACUUM copy order cannot be empty');
+        }
+
+        $copyOrder = array_values(array_map(static function (string $target): string {
+            $target = strtolower(trim($target));
+            if (!in_array($target, ['parent', 'child'], true)) {
+                throw new \InvalidArgumentException('SQLite fkey2-6 VACUUM copy target is unsupported');
+            }
+
+            return $target;
+        }, $copyOrder));
+        if (!in_array('parent', $copyOrder, true) || !in_array('child', $copyOrder, true)) {
+            throw new \InvalidArgumentException('SQLite fkey2-6 VACUUM copy order must include parent and child tables');
+        }
+
+        foreach ($parents as $row) {
+            if (!array_key_exists($parentKey, $row)) {
+                throw new \InvalidArgumentException("SQLite fkey2-6 parent row is missing {$parentKey}");
+            }
+        }
+        foreach ($children as $row) {
+            if (!array_key_exists($childKey, $row)) {
+                throw new \InvalidArgumentException("SQLite fkey2-6 child row is missing {$childKey}");
+            }
+        }
+
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $foreignKeys = (bool) ($statement['foreign_keys'] ?? true);
+        $beforeViolations = self::foreignKeyViolations($parents, $children, $parentKey, $childKey);
+        $scratchParents = [];
+        $scratchChildren = [];
+        $phases = [];
+        $transientViolationCount = 0;
+        $wouldFailWithBypassRemoved = false;
+
+        foreach ($copyOrder as $index => $target) {
+            if ($target === 'parent') {
+                $scratchParents = $parents;
+                $rowsCopied = count($parents);
+            } else {
+                $scratchChildren = $children;
+                $rowsCopied = count($children);
+            }
+
+            $transientViolations = self::foreignKeyViolations($scratchParents, $scratchChildren, $parentKey, $childKey);
+            $phaseWouldFail = $foreignKeys && $transientViolations !== [];
+            $transientViolationCount += count($transientViolations);
+            $wouldFailWithBypassRemoved = $wouldFailWithBypassRemoved || $phaseWouldFail;
+
+            $phases[] = [
+                'step' => $index + 1,
+                'copy' => $target,
+                'table' => $target === 'parent' ? $parentTable : $childTable,
+                'rows_copied' => $rowsCopied,
+                'parent_rows_visible' => count($scratchParents),
+                'child_rows_visible' => count($scratchChildren),
+                'foreign_key_processing_enabled' => false,
+                'connection_foreign_keys_requested' => $foreignKeys ? 1 : 0,
+                'transient_violation_count_without_bypass' => count($transientViolations),
+                'would_fail_with_vacuum_bypass_removed' => $phaseWouldFail,
+                'status' => 'copied',
+            ];
+        }
+
+        $finalViolations = self::foreignKeyViolations($parents, $children, $parentKey, $childKey);
+        $pageCountBefore = (int) ($statement['page_count_before'] ?? max(2, count($parents) + count($children)));
+        $pageCountAfter = (int) ($statement['page_count_after'] ?? $pageCountBefore);
+
+        return [
+            'source' => 'fkey2.test fkey2-6.1',
+            'operation' => 'vacuum-foreign-key-processing-bypass',
+            'status' => 'commit-ok',
+            'parent_table' => $parentTable,
+            'child_table' => $childTable,
+            'parent_key' => $parentKey,
+            'child_key' => $childKey,
+            'copy_order' => $copyOrder,
+            'phase_count' => count($phases),
+            'phases' => $phases,
+            'foreign_keys_connection_setting' => $foreignKeys ? 1 : 0,
+            'vacuum_foreign_key_processing_enabled' => false,
+            'foreign_keys_restored_after_vacuum' => $foreignKeys ? 1 : 0,
+            'transient_violation_count_without_bypass' => $transientViolationCount,
+            'would_fail_with_vacuum_bypass_removed' => $wouldFailWithBypassRemoved,
+            'before_violation_count' => count($beforeViolations),
+            'final_violation_count' => count($finalViolations),
+            'before_violations' => $beforeViolations,
+            'final_violations' => $finalViolations,
+            'parent_rows_before' => self::sortRows($parents),
+            'child_rows_before' => self::sortRows($children),
+            'parent_rows_after' => self::sortRows($parents),
+            'child_rows_after' => self::sortRows($children),
+            'parent_row_count_after' => count($parents),
+            'child_row_count_after' => count($children),
+            'parent_key_values' => array_values(array_column($parents, $parentKey)),
+            'child_key_values' => array_values(array_column($children, $childKey)),
+            'page_count_before' => $pageCountBefore,
+            'page_count_after' => $pageCountAfter,
+            'database_image_rebuilt' => true,
+            'table_content_preserved' => true,
+            'dependencies' => [
+                'sqlite-fkey2-vacuum-disables-foreign-key-processing',
+                'sqlite-fkey2-vacuum-restores-connection-foreign-key-setting',
+                'sqlite-fkey2-vacuum-preserves-valid-parent-child-image',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{op:string,value?:bool,name?:string}> $actions
      * @return array<string,mixed>
      */

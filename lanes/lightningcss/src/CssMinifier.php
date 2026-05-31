@@ -1465,7 +1465,7 @@ final class CssMinifier
                 continue;
             }
 
-            if ($char === '[' && $parenDepth === 0) {
+            if ($char === '[') {
                 $close = $this->findSelectorAttributeClose($selector, $i);
                 if ($close !== null) {
                     $content = substr($selector, $i + 1, $close - $i - 1);
@@ -1517,21 +1517,71 @@ final class CssMinifier
             return $content;
         }
 
-        $name = trim($matches[1]);
+        $rawName = trim($matches[1]);
+        $hasNamespaceSyntax = str_contains($rawName, '|');
+        $name = $rawName;
         if (str_starts_with($name, '|')) {
             $name = substr($name, 1);
         }
 
-        $value = trim($matches[3]);
-        if (($value[0] ?? '') === '"' || ($value[0] ?? '') === "'") {
-            $value = $this->normalizeCssStringToken($value);
-        } elseif (preg_match('/^[-_a-zA-Z0-9]+$/', $value) === 1) {
-            $value = '"' . str_replace('"', '\\"', $value) . '"';
-        }
+        $value = $this->normalizeAttributeSelectorValue(trim($matches[3]), $hasNamespaceSyntax);
 
         $flag = isset($matches[4]) && $matches[4] !== '' ? ' ' . strtolower($matches[4]) : '';
 
         return $name . $matches[2] . $value . $flag;
+    }
+
+    private function normalizeAttributeSelectorValue(string $value, bool $hasNamespaceSyntax): string
+    {
+        if (($value[0] ?? '') === '"' || ($value[0] ?? '') === "'") {
+            $quoted = $this->normalizeCssStringToken($value);
+            if ($hasNamespaceSyntax) {
+                return $quoted;
+            }
+
+            $unquoted = $this->serializeUnquotedAttributeSelectorValue($this->cssStringTokenValue($value));
+            if ($unquoted !== null && strlen($unquoted) < strlen($quoted)) {
+                return $unquoted;
+            }
+
+            return $quoted;
+        }
+
+        if ($hasNamespaceSyntax && preg_match('/^[-_a-zA-Z0-9]+$/', $value) === 1) {
+            $value = '"' . str_replace('"', '\\"', $value) . '"';
+        }
+
+        return $value;
+    }
+
+    private function serializeUnquotedAttributeSelectorValue(string $value): ?string
+    {
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^(?:--|-?[_a-zA-Z])/', $value) !== 1) {
+            return null;
+        }
+
+        $output = '';
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if (preg_match('/[-_a-zA-Z0-9]/', $char) === 1) {
+                $output .= $char;
+                continue;
+            }
+
+            if (in_array($char, [' ', '/', '.'], true)) {
+                $output .= '\\' . $char;
+                continue;
+            }
+
+            return null;
+        }
+
+        return $output;
     }
 
     private function minifyImportStatement(string $statement): string

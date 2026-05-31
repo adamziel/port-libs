@@ -210,6 +210,55 @@ final class SparseCheckoutSpec
     }
 
     /**
+     * Build a sparse matcher using Gitoxide/Git pathspec environment defaults.
+     *
+     * @param list<string> $pathspecs
+     * @param array<string, bool|int|string|null> $environment
+     */
+    public static function fromPathspecsWithEnvironment(
+        array $pathspecs,
+        array $environment,
+        bool $ignoreCase = false,
+        string $prefix = '',
+        string $root = '',
+    ): self {
+        $literal = self::pathspecEnvironmentBoolean($environment, 'GIT_LITERAL_PATHSPECS') ?? false;
+        $ignoreCase = $ignoreCase || (self::pathspecEnvironmentBoolean($environment, 'GIT_ICASE_PATHSPECS') ?? false);
+        if ($literal) {
+            return self::fromPathspecs(
+                $pathspecs,
+                $ignoreCase,
+                $prefix,
+                $root,
+                self::PATHSPEC_SEARCH_LITERAL,
+                true,
+            );
+        }
+
+        $glob = self::pathspecEnvironmentBoolean($environment, 'GIT_GLOB_PATHSPECS');
+        $noGlob = self::pathspecEnvironmentBoolean($environment, 'GIT_NOGLOB_PATHSPECS');
+        if ($glob === true && $noGlob === true) {
+            throw new \InvalidArgumentException('Glob and no-glob pathspec settings are mutually exclusive');
+        }
+
+        $defaultSearchMode = self::PATHSPEC_SEARCH_SHELL_GLOB;
+        if ($glob === true) {
+            $defaultSearchMode = self::PATHSPEC_SEARCH_PATH_AWARE_GLOB;
+        }
+        if ($noGlob !== null) {
+            $defaultSearchMode = self::PATHSPEC_SEARCH_LITERAL;
+        }
+
+        return self::fromPathspecs(
+            $pathspecs,
+            $ignoreCase,
+            $prefix,
+            $root,
+            $defaultSearchMode,
+        );
+    }
+
+    /**
      * @return list<string>
      */
     public function recursiveDirectories(): array
@@ -1068,6 +1117,50 @@ final class SparseCheckoutSpec
         ], true)) {
             throw new \InvalidArgumentException("Unsupported pathspec search mode: {$searchMode}");
         }
+    }
+
+    /**
+     * @param array<string, bool|int|string|null> $environment
+     */
+    private static function pathspecEnvironmentBoolean(array $environment, string $name): ?bool
+    {
+        if (!array_key_exists($name, $environment) || $environment[$name] === null) {
+            return null;
+        }
+
+        $value = $environment[$name];
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_int($value)) {
+            return $value !== 0;
+        }
+
+        $text = (string) $value;
+        $lower = strtolower($text);
+        if (in_array($lower, ['yes', 'on', 'true'], true)) {
+            return true;
+        }
+        if ($text === '' || in_array($lower, ['no', 'off', 'false'], true)) {
+            return false;
+        }
+        if (preg_match('/^[+-]?\d+$/', $text) === 1) {
+            $isNegative = str_starts_with($text, '-');
+            $digits = ltrim($text, '+-');
+            $digits = ltrim($digits, '0');
+            if ($digits === '') {
+                return false;
+            }
+
+            $limit = $isNegative ? '9223372036854775808' : '9223372036854775807';
+            if (strlen($digits) > strlen($limit) || (strlen($digits) === strlen($limit) && strcmp($digits, $limit) > 0)) {
+                throw new \InvalidArgumentException("Invalid boolean value for {$name}: {$text}");
+            }
+
+            return preg_match('/^[+-]?0+$/', $text) !== 1;
+        }
+
+        throw new \InvalidArgumentException("Invalid boolean value for {$name}: {$text}");
     }
 
     private function comparisonPath(string $path): string
