@@ -55,6 +55,15 @@ $result = (new CssModulesTransformer())->transform($css, [
     'hash' => 'BlockA',
 ]);
 
+$contentHashResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.cardHash {
+  composes: reset from "./core.module.css";
+  background: white;
+}
+CSS, [
+    'pattern' => '[content-hash]-[local]',
+]);
+
 try {
     (new CssModulesTransformer())->transform(<<<'CSS'
 .card {
@@ -137,6 +146,8 @@ $actual = [
     'invalidLocalComposes' => $invalidLocalComposes,
     'pureNoCheck' => $pureNoCheck['code'],
     'pureGlobal' => $pureGlobal,
+    'contentHash' => $contentHashResult['code'],
+    'contentHashExports' => $contentHashResult['exports'],
 ];
 
 $expected = [
@@ -214,6 +225,20 @@ $expected = [
     'invalidLocalComposes' => 'rejected',
     'pureNoCheck' => '.wp-block-button{color:red}',
     'pureGlobal' => 'rejected',
+    'contentHash' => '.hePdSq-cardHash{background:#fff}',
+    'contentHashExports' => [
+        'cardHash' => [
+            'name' => 'hePdSq-cardHash',
+            'composes' => [
+                [
+                    'type' => 'dependency',
+                    'name' => 'reset',
+                    'specifier' => './core.module.css',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+    ],
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -234,3 +259,4 @@ echo 'invalid-global-list: ' . $actual['invalidGlobalList'] . PHP_EOL;
 echo 'invalid-local-composes: ' . $actual['invalidLocalComposes'] . PHP_EOL;
 echo 'pure-no-check: ' . $actual['pureNoCheck'] . PHP_EOL;
 echo 'pure-global: ' . $actual['pureGlobal'] . PHP_EOL;
+echo 'content-hash: ' . $actual['contentHash'] . PHP_EOL;

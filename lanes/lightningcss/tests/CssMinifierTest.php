@@ -243,6 +243,62 @@ CSS
             }
         }
     },
+    'css minifier maps upstream lch and oklch color-mix value normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'color-mix(in %1$s, %1$s(10%% 20 30deg), %1$s(50%% 60 70deg))' => '%1$s(30%% 40 50)',
+            'color-mix(in %1$s, %1$s(10%% 20 30deg) 25%%, %1$s(50%% 60 70deg))' => '%1$s(40%% 50 60)',
+            'color-mix(in %1$s, 25%% %1$s(10%% 20 30deg), %1$s(50%% 60 70deg))' => '%1$s(40%% 50 60)',
+            'color-mix(in %1$s, %1$s(10%% 20 30deg), 25%% %1$s(50%% 60 70deg))' => '%1$s(20%% 30 40)',
+            'color-mix(in %1$s, %1$s(10%% 20 30deg) 30%%, %1$s(50%% 60 70deg) 90%%)' => '%1$s(40%% 50 60)',
+            'color-mix(in %1$s, %1$s(10%% 20 30deg) 12.5%%, %1$s(50%% 60 70deg) 37.5%%)' => '%1$s(40%% 50 60/.5)',
+            'color-mix(in %1$s, %1$s(10%% 20 30deg) 0%%, %1$s(50%% 60 70deg))' => '%1$s(50%% 60 70)',
+            'color-mix(in %1$s, %1$s(10%% 20 30deg / .4), %1$s(50%% 60 70deg / .8))' => '%1$s(36.6667%% 46.6667 50/.6)',
+            'color-mix(in %1$s, %1$s(10%% 20 30deg / .4) 25%%, %1$s(50%% 60 70deg / .8))' => '%1$s(44.2857%% 54.2857 60/.7)',
+            'color-mix(in %1$s, %1$s(10%% 20 30deg / .4), 25%% %1$s(50%% 60 70deg / .8))' => '%1$s(26%% 36 40/.5)',
+            'color-mix(in %1$s, %1$s(10%% 20 30deg / .4) 12.5%%, %1$s(50%% 60 70deg / .8) 37.5%%)' => '%1$s(44.2857%% 54.2857 60/.35)',
+            'color-mix(in %1$s, %1$s(10%% 20 30deg / .4) 0%%, %1$s(50%% 60 70deg / .8))' => '%1$s(50%% 60 70/.8)',
+            'color-mix(in %1$s, %1$s(none none none), %1$s(none none none))' => '%1$s(none none none)',
+            'color-mix(in %1$s, %1$s(none none none), %1$s(50%% 60 70deg))' => '%1$s(50%% 60 70)',
+            'color-mix(in %1$s, %1$s(10%% 20 30deg), %1$s(none none none))' => '%1$s(10%% 20 30)',
+            'color-mix(in %1$s, %1$s(10%% 20 none), %1$s(50%% 60 70deg))' => '%1$s(30%% 40 70)',
+            'color-mix(in %1$s, %1$s(10%% 20 30deg), %1$s(50%% 60 none))' => '%1$s(30%% 40 30)',
+            'color-mix(in %1$s, %1$s(none 20 30deg), %1$s(50%% none 70deg))' => '%1$s(50%% 20 50)',
+            'color-mix(in %1$s, %1$s(10%% 20 30deg / none), %1$s(50%% 60 70deg / none))' => '%1$s(30%% 40 50/none)',
+        ];
+
+        foreach (['lch', 'oklch'] as $space) {
+            foreach ($cases as $input => $expected) {
+                $t->same(
+                    '.foo{color:' . sprintf($expected, $space) . '}',
+                    $minifier->minify('.foo { color: ' . sprintf($input, $space) . '; }')
+                );
+            }
+        }
+    },
+    'css minifier maps upstream lch and oklch color-mix hue interpolation modes' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'color-mix(in %1$s, %1$s(100%% 0 50deg), %1$s(100%% 0 330deg))' => '%1$s(100%% 0 10)',
+            'color-mix(in %1$s shorter hue, %1$s(100%% 0 20deg), %1$s(100%% 0 320deg))' => '%1$s(100%% 0 350)',
+            'color-mix(in %1$s longer hue, %1$s(100%% 0 40deg), %1$s(100%% 0 60deg))' => '%1$s(100%% 0 230)',
+            'color-mix(in %1$s longer hue, %1$s(100%% 0 20deg), %1$s(100%% 0 320deg))' => '%1$s(100%% 0 170)',
+            'color-mix(in %1$s increasing hue, %1$s(100%% 0 60deg), %1$s(100%% 0 40deg))' => '%1$s(100%% 0 230)',
+            'color-mix(in %1$s increasing hue, %1$s(100%% 0 330deg), %1$s(100%% 0 50deg))' => '%1$s(100%% 0 10)',
+            'color-mix(in %1$s decreasing hue, %1$s(100%% 0 40deg), %1$s(100%% 0 60deg))' => '%1$s(100%% 0 230)',
+            'color-mix(in %1$s decreasing hue, %1$s(100%% 0 330deg), %1$s(100%% 0 50deg))' => '%1$s(100%% 0 190)',
+            'color-mix(in %1$s specified hue, %1$s(100%% 0 50deg), %1$s(100%% 0 330deg))' => '%1$s(100%% 0 190)',
+        ];
+
+        foreach (['lch', 'oklch'] as $space) {
+            foreach ($cases as $input => $expected) {
+                $t->same(
+                    '.foo{color:' . sprintf($expected, $space) . '}',
+                    $minifier->minify('.foo { color: ' . sprintf($input, $space) . '; }')
+                );
+            }
+        }
+    },
     'css minifier maps upstream color-scheme value ordering' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -670,6 +726,76 @@ CSS
             '.foo{grid-template-areas:"a a a""b b b";grid-template-columns:repeat(3,1fr);grid-template-rows:auto 1fr}',
             $minifier->minify(
                 '.foo { grid-template-areas: "a a a" "b b b"; grid-template-columns: repeat(3, 1fr); grid-template-rows: auto 1fr; }'
+            )
+        );
+    },
+    'css minifier composes upstream grid auto-flow and placement longhands' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{grid-template:[header-top]"a a a"[header-bottom main-top]"b b b"1fr[main-bottom]/auto 1fr auto;grid-auto-rows:1fr;grid-auto-columns:1fr;grid-auto-flow:column}',
+            $minifier->minify(
+                '.foo { grid-template-areas: "a a a" "b b b"; grid-template-rows: [header-top] auto [header-bottom main-top] 1fr [main-bottom]; grid-template-columns: auto 1fr auto; grid-auto-flow: column; grid-auto-rows: 1fr; grid-auto-columns: 1fr; }'
+            )
+        );
+        $t->same(
+            '.foo{grid-template:auto 1fr/auto 1fr auto;grid-auto-rows:1fr;grid-auto-columns:1fr;grid-auto-flow:column}',
+            $minifier->minify(
+                '.foo { grid-template-rows: auto 1fr; grid-template-columns: auto 1fr auto; grid-template-areas: none; grid-auto-flow: column; grid-auto-rows: 1fr; grid-auto-columns: 1fr; }'
+            )
+        );
+        $t->same(
+            '.foo{grid:auto-flow 1fr/auto 1fr auto}',
+            $minifier->minify(
+                '.foo { grid-template-rows: none; grid-template-columns: auto 1fr auto; grid-template-areas: none; grid-auto-flow: row; grid-auto-rows: 1fr; grid-auto-columns: auto; }'
+            )
+        );
+        $t->same(
+            '.foo{grid:auto-flow dense 1fr/auto 1fr auto}',
+            $minifier->minify(
+                '.foo { grid-template-rows: none; grid-template-columns: auto 1fr auto; grid-template-areas: none; grid-auto-flow: row dense; grid-auto-rows: 1fr; grid-auto-columns: auto; }'
+            )
+        );
+        $t->same(
+            '.foo{grid:auto 1fr auto/auto-flow 1fr}',
+            $minifier->minify(
+                '.foo { grid-template-rows: auto 1fr auto; grid-template-columns: none; grid-template-areas: none; grid-auto-flow: column; grid-auto-rows: auto; grid-auto-columns: 1fr; }'
+            )
+        );
+        $t->same(
+            '.foo{grid:auto 1fr auto/auto-flow dense 1fr}',
+            $minifier->minify(
+                '.foo { grid-template-rows: auto 1fr auto; grid-template-columns: none; grid-template-areas: none; grid-auto-flow: column dense; grid-auto-rows: auto; grid-auto-columns: 1fr; }'
+            )
+        );
+        $t->same(
+            '.foo{grid:1fr 1fr 1fr/auto-flow dense 1fr}',
+            $minifier->minify(
+                '.foo { grid: auto 1fr auto / auto-flow dense 1fr; grid-template-rows: 1fr 1fr 1fr; }'
+            )
+        );
+        $t->same(
+            '.foo{grid-area:a}',
+            $minifier->minify(
+                '.foo { grid-row-start: a; grid-row-end: a; grid-column-start: a; grid-column-end: a; }'
+            )
+        );
+        $t->same(
+            '.foo{grid-area:1/3/2/4}',
+            $minifier->minify(
+                '.foo { grid-row-start: 1; grid-row-end: 2; grid-column-start: 3; grid-column-end: 4; }'
+            )
+        );
+        $t->same(
+            '.foo{grid-row:a}',
+            $minifier->minify(
+                '.foo { grid-row-start: a; grid-row-end: a; }'
+            )
+        );
+        $t->same(
+            '.foo{grid-column:a}',
+            $minifier->minify(
+                '.foo { grid-column-start: a; grid-column-end: a; }'
             )
         );
     },

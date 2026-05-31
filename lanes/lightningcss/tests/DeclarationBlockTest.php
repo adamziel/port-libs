@@ -229,6 +229,32 @@ return [
             )
         );
     },
+    'declaration block reads upstream border radius cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $radius = 'border-radius: 10px 20px 30px 40px / 1px 2px 3px 4px';
+
+        $t->same(['value' => '10px 1px', 'important' => false], $block->getProperty($radius, 'border-top-left-radius'));
+        $t->same(['value' => '20px 2px', 'important' => false], $block->getProperty($radius, 'border-top-right-radius'));
+        $t->same(['value' => '30px 3px', 'important' => false], $block->getProperty($radius, 'border-bottom-right-radius'));
+        $t->same(['value' => '40px 4px', 'important' => false], $block->getProperty($radius, 'border-bottom-left-radius'));
+        $t->same(['value' => '10px 20px 30px 40px / 1px 2px 3px 4px', 'important' => false], $block->getProperty($radius, 'border-radius'));
+        $t->same(
+            ['value' => '10px 20px / 1px 2px', 'important' => false],
+            $block->getProperty(
+                'border-top-left-radius: 10px 1px; border-top-right-radius: 20px 2px; border-bottom-right-radius: 10px 1px; border-bottom-left-radius: 20px 2px',
+                'border-radius'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                'border-top-left-radius: 10px; border-top-right-radius: 10px !important; border-bottom-right-radius: 10px; border-bottom-left-radius: 10px',
+                'border-radius'
+            )
+        );
+        $t->same(['value' => '8px', 'important' => true], $block->getProperty('-webkit-border-radius: 4px 8px !important', '-webkit-border-top-right-radius'));
+        $t->same(null, $block->getProperty('-webkit-border-radius: 4px 8px', 'border-top-right-radius'));
+    },
     'declaration block reads upstream outline cssom longhands and shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -570,6 +596,33 @@ return [
             )
         );
     },
+    'declaration block reads upstream font cssom shorthand and longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $font = 'font: italic small-caps 600 condensed 16px/1.5 "Inter", sans-serif';
+        $t->same(['value' => 'italic small-caps 600 condensed 16px/1.5 Inter, sans-serif', 'important' => false], $block->getProperty($font, 'font'));
+        $t->same(['value' => 'Inter, sans-serif', 'important' => false], $block->getProperty($font, 'font-family'));
+        $t->same(['value' => '16px', 'important' => false], $block->getProperty($font, 'font-size'));
+        $t->same(['value' => 'italic', 'important' => false], $block->getProperty($font, 'font-style'));
+        $t->same(['value' => '600', 'important' => false], $block->getProperty($font, 'font-weight'));
+        $t->same(['value' => 'condensed', 'important' => false], $block->getProperty($font, 'font-stretch'));
+        $t->same(['value' => '1.5', 'important' => false], $block->getProperty($font, 'line-height'));
+        $t->same(['value' => 'small-caps', 'important' => false], $block->getProperty($font, 'font-variant-caps'));
+        $t->same(
+            ['value' => '700 clamp(1.25rem, 2vw, 2rem)/1.2 Inter var, system-ui', 'important' => true],
+            $block->getProperty(
+                'font-family: "Inter var", system-ui !important; font-size: clamp(1.25rem, 2vw, 2rem) !important; font-style: normal !important; font-weight: 700 !important; font-stretch: normal !important; line-height: 1.2 !important; font-variant-caps: normal !important',
+                'font'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                'font-family: Inter; font-size: 16px; font-style: italic; font-weight: 600 !important; font-stretch: normal; line-height: 1.5; font-variant-caps: small-caps',
+                'font'
+            )
+        );
+    },
     'declaration block set replaces direct properties and serializes priority' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -625,6 +678,67 @@ return [
                 'padding-inline-start',
                 'var(--wp--preset--spacing--40)'
             )
+        );
+    },
+    'declaration block reads upstream logical axis cssom shorthands and longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => '1rem', 'important' => false],
+            $block->getProperty('margin-inline: 1rem 2rem', 'margin-inline-start')
+        );
+        $t->same(
+            ['value' => '2rem', 'important' => false],
+            $block->getProperty('margin-inline: 1rem 2rem', 'margin-inline-end')
+        );
+        $t->same(
+            ['value' => '1rem 2rem', 'important' => false],
+            $block->getProperty('margin-inline-start: 1rem; margin-inline-end: 2rem', 'margin-inline')
+        );
+        $t->same(
+            ['value' => 'var(--wp--preset--spacing--40)', 'important' => true],
+            $block->getProperty('padding-block: var(--wp--preset--spacing--40) !important', 'padding-block-end')
+        );
+        $t->same(
+            ['value' => '8px 16px', 'important' => false],
+            $block->getProperty('scroll-padding-inline-start: 8px; scroll-padding-inline-end: 16px', 'scroll-padding-inline')
+        );
+        $t->same(
+            ['value' => '2px 4px', 'important' => false],
+            $block->getProperty('inset-block-start: 2px; inset-block-end: 4px', 'inset-block')
+        );
+        $t->same(
+            null,
+            $block->getProperty('margin-inline-start: 1rem; margin-inline-end: 2rem !important', 'margin-inline')
+        );
+        $t->same(null, $block->getProperty('margin-inline: 1rem 2rem', 'margin-left'));
+    },
+    'declaration block sets upstream logical axis cssom longhands in existing shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'margin-inline: 3rem 2rem',
+            $block->setProperty('margin-inline: 1rem 2rem', 'margin-inline-start', '3rem')
+        );
+        $t->same(
+            'padding-block: 1rem 3rem',
+            $block->setProperty('padding-block: 1rem 2rem', 'padding-block-end', '3rem')
+        );
+        $t->same(
+            'scroll-padding-inline: 8px 24px',
+            $block->setProperty('scroll-padding-inline: 8px 16px', 'scroll-padding-inline-end', '24px')
+        );
+        $t->same(
+            'inset-block: 2px',
+            $block->setProperty('inset-block: 2px 4px', 'inset-block-end', '2px')
+        );
+        $t->same(
+            'margin-inline: 1rem 2rem; margin-left: 4rem; margin-inline-start: 3rem',
+            $block->setProperty('margin-inline: 1rem 2rem; margin-left: 4rem', 'margin-inline-start', '3rem')
+        );
+        $t->same(
+            'padding-inline-start: 3rem; padding-inline: 1rem 2rem !important',
+            $block->setProperty('padding-inline: 1rem 2rem !important', 'padding-inline-start', '3rem')
         );
     },
     'declaration block reads and writes upstream inset cssom rect shorthand' => static function (TestRunner $t): void {
@@ -992,6 +1106,30 @@ return [
             $block->setProperty('text-decoration: underline wavy red !important', 'text-decoration-color', 'blue')
         );
     },
+    'declaration block sets upstream font cssom longhands in existing shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'font: italic 700 16px/1.5 Inter, sans-serif',
+            $block->setProperty('font: italic 600 16px/1.5 "Inter", sans-serif', 'font-weight', '700')
+        );
+        $t->same(
+            'font: italic 600 16px Inter, sans-serif',
+            $block->setProperty('font: italic 600 16px/1.5 Inter, sans-serif', 'line-height', 'normal')
+        );
+        $t->same(
+            'font: italic 600 16px/1.5 Inter var, system-ui',
+            $block->setProperty('font: italic 600 16px/1.5 Inter, sans-serif', 'font-family', '"Inter var", system-ui')
+        );
+        $t->same(
+            'font: italic 600 expanded 16px/1.5 Inter, sans-serif',
+            $block->setProperty('font: italic 600 16px/1.5 Inter, sans-serif', 'font-stretch', 'expanded')
+        );
+        $t->same(
+            'font-family: Inter; font: italic 600 16px Inter !important',
+            $block->setProperty('font: italic 600 16px Inter !important', 'font-family', 'Inter')
+        );
+    },
     'declaration block sets upstream mask border cssom longhands in existing shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1054,6 +1192,30 @@ return [
         $t->same(
             'outline-color: blue; outline: 2px solid red !important',
             $block->setProperty('outline: 2px solid red !important', 'outline-color', 'blue')
+        );
+    },
+    'declaration block sets upstream border radius cssom longhands in existing shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'border-radius: 20px 10px 10px / 30px 10px 10px',
+            $block->setProperty('border-radius: 10px', 'border-top-left-radius', '20px 30px')
+        );
+        $t->same(
+            'border-radius: 8px 16px 8px 20px / 4px 12px 4px 20px',
+            $block->setProperty('border-radius: 8px 16px / 4px 12px', 'border-bottom-left-radius', '20px')
+        );
+        $t->same(
+            '-webkit-border-radius: 8px 12px 8px 8px',
+            $block->setProperty('-webkit-border-radius: 8px', '-webkit-border-top-right-radius', '12px')
+        );
+        $t->same(
+            'border-top-left-radius: 12px; border-radius: 8px !important',
+            $block->setProperty('border-radius: 8px !important', 'border-top-left-radius', '12px')
+        );
+        $t->same(
+            'border-radius: 8px; border-start-start-radius: 12px; border-top-left-radius: 16px',
+            $block->setProperty('border-radius: 8px; border-start-start-radius: 12px', 'border-top-left-radius', '16px')
         );
     },
     'declaration block remove drops direct properties and preserves neighbors' => static function (TestRunner $t): void {
@@ -1309,6 +1471,30 @@ return [
             $block->removeProperty('scroll-padding: 1rem !important; scroll-padding-top: 2rem; color: red', 'scroll-padding-top')
         );
     },
+    'declaration block removes upstream logical axis cssom longhands and shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'margin-inline-end: 2rem',
+            $block->removeProperty('margin-inline: 1rem 2rem', 'margin-inline-start')
+        );
+        $t->same(
+            'padding-block-start: 1rem',
+            $block->removeProperty('padding-block: 1rem', 'padding-block-end')
+        );
+        $t->same(
+            'margin: 1rem; color: red',
+            $block->removeProperty('margin: 1rem; margin-inline-start: 2rem; margin-inline-end: 3rem; color: red', 'margin-inline')
+        );
+        $t->same(
+            'scroll-padding-inline-start: 8px',
+            $block->removeProperty('scroll-padding-inline: 8px 16px', 'scroll-padding-inline-end')
+        );
+        $t->same(
+            'color: red; inset-block-end: 2px !important',
+            $block->removeProperty('inset-block: 2px !important; inset-block-start: 4px; color: red', 'inset-block-start')
+        );
+    },
     'declaration block removes upstream animation cssom longhands and shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1428,6 +1614,29 @@ return [
             $block->removeProperty('text-decoration: underline wavy red 2px !important; color: red; text-decoration-line: overline', 'text-decoration-line')
         );
     },
+    'declaration block removes upstream font cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'font-family: Inter, sans-serif; font-style: italic; font-weight: 600; font-stretch: condensed; line-height: 1.5; font-variant-caps: small-caps',
+            $block->removeProperty('font: italic small-caps 600 condensed 16px/1.5 Inter, sans-serif', 'font-size')
+        );
+        $t->same(
+            'font-family: Inter, sans-serif; font-size: 16px; font-style: italic; font-weight: 600; font-stretch: normal; font-variant-caps: normal',
+            $block->removeProperty('font: italic 600 16px/1.5 Inter, sans-serif', 'line-height')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty(
+                'font: italic 600 16px/1.5 Inter, sans-serif; font-size: 18px; color: red',
+                'font'
+            )
+        );
+        $t->same(
+            'color: red; font-size: 16px !important; font-style: italic !important; font-weight: 600 !important; font-stretch: normal !important; line-height: 1.5 !important; font-variant-caps: normal !important',
+            $block->removeProperty('font: italic 600 16px/1.5 Inter !important; color: red; font-family: system-ui', 'font-family')
+        );
+    },
     'declaration block removes upstream mask border cssom longhands and shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1466,6 +1675,26 @@ return [
         $t->same(
             'color: red; border-image-slice: 25 !important; border-image-width: 1 !important; border-image-outset: 0 !important; border-image-repeat: stretch !important',
             $block->removeProperty('border-image: url(frame.svg) 25 !important; color: red; border-image-source: url(new-frame.svg)', 'border-image-source')
+        );
+    },
+    'declaration block removes upstream border radius cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'border-top-right-radius: 20px 2px; border-bottom-right-radius: 30px 3px; border-bottom-left-radius: 40px 4px',
+            $block->removeProperty('border-radius: 10px 20px 30px 40px / 1px 2px 3px 4px', 'border-top-left-radius')
+        );
+        $t->same(
+            'border-start-start-radius: 12px; color: red',
+            $block->removeProperty('border-radius: 8px; border-top-left-radius: 10px; border-start-start-radius: 12px; color: red', 'border-radius')
+        );
+        $t->same(
+            '-webkit-border-top-left-radius: 8px; -webkit-border-bottom-right-radius: 8px; -webkit-border-bottom-left-radius: 8px',
+            $block->removeProperty('-webkit-border-radius: 8px 12px 8px 8px', '-webkit-border-top-right-radius')
+        );
+        $t->same(
+            'color: red; border-top-right-radius: 8px !important; border-bottom-right-radius: 8px !important; border-bottom-left-radius: 8px !important',
+            $block->removeProperty('border-radius: 8px !important; color: red; border-top-left-radius: 12px', 'border-top-left-radius')
         );
     },
     'declaration block removes upstream outline cssom longhands and shorthand' => static function (TestRunner $t): void {

@@ -152,6 +152,39 @@ final class DeclarationBlock
         'dashed',
         'wavy',
     ];
+    private const FONT_LONGHANDS = [
+        'font-family',
+        'font-size',
+        'font-style',
+        'font-weight',
+        'font-stretch',
+        'line-height',
+        'font-variant-caps',
+    ];
+    private const FONT_STYLES = ['normal', 'italic', 'oblique'];
+    private const FONT_STRETCH_KEYWORDS = [
+        'normal',
+        'ultra-condensed',
+        'extra-condensed',
+        'condensed',
+        'semi-condensed',
+        'semi-expanded',
+        'expanded',
+        'extra-expanded',
+        'ultra-expanded',
+    ];
+    private const FONT_SIZE_KEYWORDS = [
+        'xx-small',
+        'x-small',
+        'small',
+        'medium',
+        'large',
+        'x-large',
+        'xx-large',
+        'xxx-large',
+        'smaller',
+        'larger',
+    ];
     private const BORDER_IMAGE_LONGHANDS = [
         'border-image-source',
         'border-image-slice',
@@ -170,6 +203,18 @@ final class DeclarationBlock
     ];
     private const MASK_BORDER_REPEAT_KEYWORDS = ['stretch', 'repeat', 'round', 'space'];
     private const MASK_BORDER_MODE_KEYWORDS = ['alpha', 'luminance'];
+    private const BORDER_RADIUS_CORNERS = [
+        'top-left' => 'border-top-left-radius',
+        'top-right' => 'border-top-right-radius',
+        'bottom-right' => 'border-bottom-right-radius',
+        'bottom-left' => 'border-bottom-left-radius',
+    ];
+    private const LOGICAL_BORDER_RADIUS_LONGHANDS = [
+        'border-start-start-radius',
+        'border-start-end-radius',
+        'border-end-end-radius',
+        'border-end-start-radius',
+    ];
 
     /**
      * @return array<string, string>
@@ -233,6 +278,13 @@ final class DeclarationBlock
         if ($boxValue !== null) {
             return $boxValue;
         }
+        $logicalBoxValue = $this->getLogicalBoxProperty($entries, $property);
+        if ($logicalBoxValue !== null) {
+            return $logicalBoxValue;
+        }
+        if ($this->isLogicalBoxProperty($property)) {
+            return null;
+        }
         $backgroundValue = $this->getBackgroundProperty($entries, $property);
         if ($backgroundValue !== null) {
             return $backgroundValue;
@@ -283,6 +335,13 @@ final class DeclarationBlock
         if ($maskBorderValue !== null) {
             return $maskBorderValue;
         }
+        $borderRadiusValue = $this->getBorderRadiusProperty($entries, $property);
+        if ($borderRadiusValue !== null) {
+            return $borderRadiusValue;
+        }
+        if ($this->isBorderRadiusProperty($property)) {
+            return null;
+        }
         $gridValue = $this->getGridProperty($entries, $property);
         if ($gridValue !== null) {
             return $gridValue;
@@ -320,6 +379,13 @@ final class DeclarationBlock
             return $textDecorationValue;
         }
         if ($this->isTextDecorationProperty($property)) {
+            return null;
+        }
+        $fontValue = $this->getFontProperty($entries, $property);
+        if ($fontValue !== null) {
+            return $fontValue;
+        }
+        if ($this->isFontProperty($property)) {
             return null;
         }
 
@@ -1214,6 +1280,310 @@ final class DeclarationBlock
     private function isDefaultMaskBorderMode(string $value): bool
     {
         return strcasecmp(trim($value), 'alpha') === 0;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getBorderRadiusProperty(array $entries, string $property): ?array
+    {
+        $prefix = $this->borderRadiusPrefixForProperty($property);
+        $base = $this->baseBorderRadiusProperty($property);
+        if ($prefix === null || $base === null) {
+            return null;
+        }
+
+        $longhands = $this->borderRadiusLonghandsForPrefix($prefix);
+        $components = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $this->borderRadiusProperty($prefix, 'border-radius')) {
+                $parsed = $this->parseBorderRadiusComponents($entry['value'], $prefix);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach ($longhands as $longhand) {
+                    $components[$longhand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($this->isBorderRadiusLonghandForPrefix($entry['property'], $prefix)) {
+                $components[$entry['property']] = [
+                    'value' => $this->normalizeBorderRadiusCornerValue($entry['value']),
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($base !== 'border-radius') {
+            return $components[$property] ?? null;
+        }
+
+        foreach ($longhands as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->composeBorderRadiusShorthandValue([
+                'top-left' => $components[$this->borderRadiusProperty($prefix, 'border-top-left-radius')]['value'],
+                'top-right' => $components[$this->borderRadiusProperty($prefix, 'border-top-right-radius')]['value'],
+                'bottom-right' => $components[$this->borderRadiusProperty($prefix, 'border-bottom-right-radius')]['value'],
+                'bottom-left' => $components[$this->borderRadiusProperty($prefix, 'border-bottom-left-radius')]['value'],
+            ]),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setBorderRadiusLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        $prefix = $this->borderRadiusPrefixForProperty($property);
+        if ($prefix === null || !$this->isBorderRadiusLonghandForPrefix($property, $prefix)) {
+            return null;
+        }
+
+        $value = $this->normalizeBorderRadiusCornerValue($value);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($this->isLogicalBorderRadiusLonghand($entries[$index]['property'])) {
+                break;
+            }
+
+            if ($entries[$index]['property'] !== $this->borderRadiusProperty($prefix, 'border-radius')) {
+                continue;
+            }
+            if ($entries[$index]['important'] !== $important) {
+                return null;
+            }
+
+            $components = $this->parseBorderRadiusComponents($entries[$index]['value'], $prefix);
+            if ($components === null) {
+                continue;
+            }
+
+            $components[$property] = $value;
+            $entries[$index] = [
+                'property' => $this->borderRadiusProperty($prefix, 'border-radius'),
+                'value' => $this->composeBorderRadiusShorthandValue([
+                    'top-left' => $components[$this->borderRadiusProperty($prefix, 'border-top-left-radius')],
+                    'top-right' => $components[$this->borderRadiusProperty($prefix, 'border-top-right-radius')],
+                    'bottom-right' => $components[$this->borderRadiusProperty($prefix, 'border-bottom-right-radius')],
+                    'bottom-left' => $components[$this->borderRadiusProperty($prefix, 'border-bottom-left-radius')],
+                ]),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, string>|null
+     */
+    private function parseBorderRadiusComponents(string $value, string $prefix): ?array
+    {
+        $parts = array_map('trim', $this->splitTopLevel($value, '/'));
+        if ($parts === [] || count($parts) > 2) {
+            return null;
+        }
+
+        $horizontal = $this->expandBorderRadiusSideList($parts[0]);
+        if ($horizontal === null) {
+            return null;
+        }
+
+        $vertical = count($parts) === 2 ? $this->expandBorderRadiusSideList($parts[1]) : $horizontal;
+        if ($vertical === null) {
+            return null;
+        }
+
+        $components = [];
+        foreach (array_keys(self::BORDER_RADIUS_CORNERS) as $index => $corner) {
+            $components[$this->borderRadiusProperty($prefix, self::BORDER_RADIUS_CORNERS[$corner])] =
+                $this->composeBorderRadiusCornerValue($horizontal[$index], $vertical[$index]);
+        }
+
+        return $components;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function expandBorderRadiusSideList(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === [] || count($tokens) > 4) {
+            return null;
+        }
+
+        return match (count($tokens)) {
+            1 => [$tokens[0], $tokens[0], $tokens[0], $tokens[0]],
+            2 => [$tokens[0], $tokens[1], $tokens[0], $tokens[1]],
+            3 => [$tokens[0], $tokens[1], $tokens[2], $tokens[1]],
+            4 => $tokens,
+        };
+    }
+
+    /**
+     * @param array{top-left:string,top-right:string,bottom-right:string,bottom-left:string} $components
+     */
+    private function composeBorderRadiusShorthandValue(array $components): string
+    {
+        $horizontal = [];
+        $vertical = [];
+        foreach (array_keys(self::BORDER_RADIUS_CORNERS) as $corner) {
+            $parsed = $this->parseBorderRadiusCornerValue($components[$corner]);
+            if ($parsed === null) {
+                return implode(' ', $components);
+            }
+
+            $horizontal[$corner] = $parsed[0];
+            $vertical[$corner] = $parsed[1];
+        }
+
+        $horizontalValue = $this->compressBoxShorthand([
+            'top' => $horizontal['top-left'],
+            'right' => $horizontal['top-right'],
+            'bottom' => $horizontal['bottom-right'],
+            'left' => $horizontal['bottom-left'],
+        ]);
+        $verticalValue = $this->compressBoxShorthand([
+            'top' => $vertical['top-left'],
+            'right' => $vertical['top-right'],
+            'bottom' => $vertical['bottom-right'],
+            'left' => $vertical['bottom-left'],
+        ]);
+
+        return $horizontalValue === $verticalValue ? $horizontalValue : $horizontalValue . ' / ' . $verticalValue;
+    }
+
+    private function normalizeBorderRadiusCornerValue(string $value): string
+    {
+        $corner = $this->parseBorderRadiusCornerValue($value);
+        if ($corner === null) {
+            return trim($value);
+        }
+
+        return $this->composeBorderRadiusCornerValue($corner[0], $corner[1]);
+    }
+
+    /**
+     * @return array{0:string,1:string}|null
+     */
+    private function parseBorderRadiusCornerValue(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === [] || count($tokens) > 2) {
+            return null;
+        }
+
+        return [$tokens[0], $tokens[1] ?? $tokens[0]];
+    }
+
+    private function composeBorderRadiusCornerValue(string $horizontal, string $vertical): string
+    {
+        return $horizontal === $vertical ? $horizontal : $horizontal . ' ' . $vertical;
+    }
+
+    private function isBorderRadiusProperty(string $property): bool
+    {
+        return $this->isBorderRadiusShorthand($property)
+            || ($this->borderRadiusPrefixForProperty($property) !== null && $this->baseBorderRadiusProperty($property) !== null);
+    }
+
+    private function isBorderRadiusShorthand(string $property): bool
+    {
+        $prefix = $this->borderRadiusPrefixForProperty($property);
+
+        return $prefix !== null && $property === $this->borderRadiusProperty($prefix, 'border-radius');
+    }
+
+    private function isBorderRadiusLonghandForPrefix(string $property, string $prefix): bool
+    {
+        return in_array($property, $this->borderRadiusLonghandsForPrefix($prefix), true);
+    }
+
+    private function isBorderRadiusLonghand(string $property): bool
+    {
+        $prefix = $this->borderRadiusPrefixForProperty($property);
+
+        return $prefix !== null && $this->isBorderRadiusLonghandForPrefix($property, $prefix);
+    }
+
+    private function isLogicalBorderRadiusLonghand(string $property): bool
+    {
+        return in_array($property, self::LOGICAL_BORDER_RADIUS_LONGHANDS, true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function borderRadiusLonghandsForPrefix(string $prefix): array
+    {
+        return array_map(
+            fn (string $longhand): string => $this->borderRadiusProperty($prefix, $longhand),
+            array_values(self::BORDER_RADIUS_CORNERS)
+        );
+    }
+
+    private function borderRadiusPrefixForProperty(string $property): ?string
+    {
+        if (str_starts_with($property, '-webkit-border-')) {
+            return '-webkit-';
+        }
+        if (str_starts_with($property, '-moz-border-')) {
+            return '-moz-';
+        }
+        if (str_starts_with($property, 'border-')) {
+            return '';
+        }
+
+        return null;
+    }
+
+    private function baseBorderRadiusProperty(string $property): ?string
+    {
+        $prefix = $this->borderRadiusPrefixForProperty($property);
+        if ($prefix === null) {
+            return null;
+        }
+
+        $base = $prefix === '' ? $property : substr($property, strlen($prefix));
+        if ($base === 'border-radius' || in_array($base, array_values(self::BORDER_RADIUS_CORNERS), true)) {
+            return $base;
+        }
+
+        return null;
+    }
+
+    private function borderRadiusProperty(string $prefix, string $base): string
+    {
+        return $prefix . $base;
     }
 
     /**
@@ -4722,6 +5092,550 @@ final class DeclarationBlock
         return preg_match('/^(?:[+-]?(?:\d+|\d*\.\d+)(?:[a-z%]+)?|(?:calc|clamp|min|max|var)\()/i', $token) === 1;
     }
 
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getFontProperty(array $entries, string $property): ?array
+    {
+        if (!$this->isFontProperty($property)) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'font') {
+                $parsed = $this->parseFontComponents($entry['value']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach (self::FONT_LONGHANDS as $longhand) {
+                    $components[$longhand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($this->isFontLonghand($entry['property'])) {
+                $components[$entry['property']] = [
+                    'value' => $this->normalizeFontLonghandValue($entry['property'], $entry['value']),
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($property !== 'font') {
+            return $components[$property] ?? null;
+        }
+
+        foreach (self::FONT_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->serializeFontComponents([
+                'font-family' => $components['font-family']['value'],
+                'font-size' => $components['font-size']['value'],
+                'font-style' => $components['font-style']['value'],
+                'font-weight' => $components['font-weight']['value'],
+                'font-stretch' => $components['font-stretch']['value'],
+                'line-height' => $components['line-height']['value'],
+                'font-variant-caps' => $components['font-variant-caps']['value'],
+            ]),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setFontLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!$this->isFontLonghand($property)) {
+            return null;
+        }
+
+        $value = $this->normalizeFontLonghandValue($property, $value);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'font') {
+                continue;
+            }
+
+            $components = $this->parseFontComponents($entries[$index]['value']);
+            if ($components === null) {
+                continue;
+            }
+
+            $components[$property] = $value;
+            $entries[$index] = [
+                'property' => 'font',
+                'value' => $this->serializeFontComponents($components),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeFontLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'font') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->parseFontComponents($entry['value']);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach (self::FONT_LONGHANDS as $longhand) {
+                if ($longhand === $property) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
+                    'value' => $components[$longhand],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @return array{
+     *     font-family:string,
+     *     font-size:string,
+     *     font-style:string,
+     *     font-weight:string,
+     *     font-stretch:string,
+     *     line-height:string,
+     *     font-variant-caps:string
+     * }|null
+     */
+    private function parseFontComponents(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $components = [
+            'font-family' => null,
+            'font-size' => null,
+            'font-style' => 'normal',
+            'font-weight' => 'normal',
+            'font-stretch' => 'normal',
+            'line-height' => 'normal',
+            'font-variant-caps' => 'normal',
+        ];
+        $preSizeCount = 0;
+        $familyStart = null;
+
+        for ($index = 0; $index < count($tokens); $index++) {
+            $token = $tokens[$index];
+            $slash = $this->findTopLevelCharacter($token, '/');
+            $fontSizeToken = $slash === null ? $token : substr($token, 0, $slash);
+            if ($fontSizeToken !== '' && $this->isFontSizeToken($fontSizeToken)) {
+                $components['font-size'] = $this->normalizeFontLonghandValue('font-size', $fontSizeToken);
+                if ($slash !== null) {
+                    $lineHeight = substr($token, $slash + 1);
+                    if ($lineHeight === '') {
+                        $index++;
+                        $lineHeight = $tokens[$index] ?? '';
+                    }
+                    if ($lineHeight === '') {
+                        return null;
+                    }
+                    $components['line-height'] = $this->normalizeFontLonghandValue('line-height', $lineHeight);
+                } elseif (($tokens[$index + 1] ?? null) === '/') {
+                    $index += 2;
+                    if (!isset($tokens[$index])) {
+                        return null;
+                    }
+                    $components['line-height'] = $this->normalizeFontLonghandValue('line-height', $tokens[$index]);
+                } elseif (isset($tokens[$index + 1]) && str_starts_with($tokens[$index + 1], '/')) {
+                    $lineHeight = substr($tokens[++$index], 1);
+                    if ($lineHeight === '') {
+                        $index++;
+                        $lineHeight = $tokens[$index] ?? '';
+                    }
+                    if ($lineHeight === '') {
+                        return null;
+                    }
+                    $components['line-height'] = $this->normalizeFontLonghandValue('line-height', $lineHeight);
+                }
+                $familyStart = $index + 1;
+                break;
+            }
+
+            if (!$this->applyFontPreSizeToken($components, $tokens, $index, $preSizeCount)) {
+                return null;
+            }
+            if ($preSizeCount > 4) {
+                return null;
+            }
+        }
+
+        if ($components['font-size'] === null || $familyStart === null || $familyStart >= count($tokens)) {
+            return null;
+        }
+
+        $family = implode(' ', array_slice($tokens, $familyStart));
+        $components['font-family'] = $this->normalizeFontFamilyList($family);
+        if ($components['font-family'] === '') {
+            return null;
+        }
+
+        return [
+            'font-family' => $components['font-family'],
+            'font-size' => $components['font-size'],
+            'font-style' => $components['font-style'],
+            'font-weight' => $components['font-weight'],
+            'font-stretch' => $components['font-stretch'],
+            'line-height' => $components['line-height'],
+            'font-variant-caps' => $components['font-variant-caps'],
+        ];
+    }
+
+    /**
+     * @param array<string, string|null> $components
+     * @param list<string> $tokens
+     */
+    private function applyFontPreSizeToken(array &$components, array $tokens, int &$index, int &$count): bool
+    {
+        $token = $tokens[$index];
+        $lower = strtolower(trim($token));
+        if ($lower === 'normal') {
+            $count++;
+
+            return true;
+        }
+
+        if ($components['font-style'] === 'normal' && in_array($lower, self::FONT_STYLES, true)) {
+            $style = $lower;
+            while (isset($tokens[$index + 1]) && $this->isFontStyleAngleToken($tokens[$index + 1])) {
+                $style .= ' ' . trim($tokens[++$index]);
+            }
+            $components['font-style'] = $style;
+            $count++;
+
+            return true;
+        }
+
+        if ($components['font-weight'] === 'normal' && $this->isFontWeightToken($lower)) {
+            $components['font-weight'] = $this->normalizeFontLonghandValue('font-weight', $token);
+            $count++;
+
+            return true;
+        }
+
+        if ($components['font-variant-caps'] === 'normal' && $lower === 'small-caps') {
+            $components['font-variant-caps'] = $lower;
+            $count++;
+
+            return true;
+        }
+
+        if ($components['font-stretch'] === 'normal' && $this->isFontStretchToken($lower)) {
+            $components['font-stretch'] = $this->normalizeFontLonghandValue('font-stretch', $token);
+            $count++;
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{
+     *     font-family:string,
+     *     font-size:string,
+     *     font-style:string,
+     *     font-weight:string,
+     *     font-stretch:string,
+     *     line-height:string,
+     *     font-variant-caps:string
+     * } $components
+     */
+    private function serializeFontComponents(array $components): string
+    {
+        $parts = [];
+        $style = $this->normalizeFontLonghandValue('font-style', $components['font-style']);
+        $variant = $this->normalizeFontLonghandValue('font-variant-caps', $components['font-variant-caps']);
+        $weight = $this->normalizeFontLonghandValue('font-weight', $components['font-weight']);
+        $stretch = $this->normalizeFontLonghandValue('font-stretch', $components['font-stretch']);
+        $size = $this->normalizeFontLonghandValue('font-size', $components['font-size']);
+        $lineHeight = $this->normalizeFontLonghandValue('line-height', $components['line-height']);
+
+        if ($style !== 'normal') {
+            $parts[] = $style;
+        }
+        if ($variant !== 'normal') {
+            $parts[] = $variant;
+        }
+        if ($weight !== 'normal') {
+            $parts[] = $weight;
+        }
+        if ($stretch !== 'normal') {
+            $parts[] = $stretch;
+        }
+
+        $sizePart = $size;
+        if ($lineHeight !== 'normal') {
+            $sizePart .= '/' . $lineHeight;
+        }
+        $parts[] = $sizePart;
+        $parts[] = $this->normalizeFontFamilyList($components['font-family']);
+
+        return implode(' ', array_values(array_filter($parts, static fn (string $part): bool => $part !== '')));
+    }
+
+    private function normalizeFontLonghandValue(string $property, string $value): string
+    {
+        $value = trim($value);
+
+        return match ($property) {
+            'font-family' => $this->normalizeFontFamilyList($value),
+            'font-style' => $this->normalizeFontStyleValue($value),
+            'font-weight' => $this->normalizeFontWeightValue($value),
+            'font-stretch' => $this->normalizeFontStretchValue($value),
+            'font-variant-caps' => strtolower($value),
+            'font-size', 'line-height' => $this->normalizeFontNumericValue($value),
+            default => $value,
+        };
+    }
+
+    private function normalizeFontStyleValue(string $value): string
+    {
+        $parts = $this->splitWhitespaceTopLevel($value);
+        if ($parts === []) {
+            return '';
+        }
+        $parts[0] = strtolower($parts[0]);
+
+        return implode(' ', $parts);
+    }
+
+    private function normalizeFontWeightValue(string $value): string
+    {
+        $value = strtolower(trim($value));
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))\.0+$/', $value, $matches) === 1) {
+            return $matches[1];
+        }
+
+        return $value;
+    }
+
+    private function normalizeFontStretchValue(string $value): string
+    {
+        $value = strtolower(trim($value));
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))\.0+%$/', $value, $matches) === 1) {
+            return $matches[1] . '%';
+        }
+
+        return $value;
+    }
+
+    private function normalizeFontNumericValue(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))\.0+([a-z%]+)?$/i', $value, $matches) === 1) {
+            return $matches[1] . strtolower($matches[2] ?? '');
+        }
+
+        return strtolower($value) === 'normal' ? 'normal' : $value;
+    }
+
+    private function normalizeFontFamilyList(string $value): string
+    {
+        return implode(', ', array_map(
+            fn (string $family): string => $this->normalizeFontFamilyName($family),
+            array_values(array_filter(
+                array_map('trim', $this->splitTopLevel($value, ',')),
+                static fn (string $family): bool => $family !== ''
+            ))
+        ));
+    }
+
+    private function normalizeFontFamilyName(string $family): string
+    {
+        $family = trim($family);
+        if ($family === '') {
+            return '';
+        }
+
+        if ($this->isQuotedStringToken($family)) {
+            $family = substr($family, 1, -1);
+        }
+        $family = trim(preg_replace('/\s+/', ' ', $family) ?? $family);
+        $lower = strtolower($family);
+        if ($this->isGenericFontFamily($lower)) {
+            return $lower;
+        }
+        if ($this->canSerializeUnquotedFontFamily($family)) {
+            return $family;
+        }
+
+        return '"' . str_replace('"', '\\"', $family) . '"';
+    }
+
+    private function canSerializeUnquotedFontFamily(string $family): bool
+    {
+        $parts = preg_split('/\s+/', $family) ?: [];
+        if ($parts === []) {
+            return false;
+        }
+
+        foreach ($parts as $part) {
+            if (preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $part) !== 1) {
+                return false;
+            }
+        }
+
+        return !in_array(strtolower($parts[0]), $this->reservedFontFamilyNames(), true);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function reservedFontFamilyNames(): array
+    {
+        return [
+            'default',
+            'inherit',
+            'initial',
+            'revert',
+            'revert-layer',
+            'unset',
+        ];
+    }
+
+    private function isGenericFontFamily(string $family): bool
+    {
+        return in_array($family, [
+            'serif',
+            'sans-serif',
+            'monospace',
+            'cursive',
+            'fantasy',
+            'system-ui',
+            'emoji',
+            'math',
+            'fangsong',
+        ], true);
+    }
+
+    private function isFontStyleAngleToken(string $token): bool
+    {
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:deg|grad|rad|turn)$/i', trim($token)) === 1;
+    }
+
+    private function isFontWeightToken(string $value): bool
+    {
+        return in_array($value, ['normal', 'bold', 'bolder', 'lighter'], true)
+            || preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) === 1;
+    }
+
+    private function isFontStretchToken(string $value): bool
+    {
+        return in_array($value, self::FONT_STRETCH_KEYWORDS, true)
+            || preg_match('/^[+-]?(?:\d+|\d*\.\d+)%$/', $value) === 1;
+    }
+
+    private function isFontSizeToken(string $value): bool
+    {
+        $value = trim($value);
+        $lower = strtolower($value);
+        if (in_array($lower, self::FONT_SIZE_KEYWORDS, true)) {
+            return true;
+        }
+
+        return preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)[a-z%]+|(?:calc|clamp|min|max|var)\()/i', $value) === 1;
+    }
+
+    private function isFontProperty(string $property): bool
+    {
+        return $property === 'font' || $this->isFontLonghand($property);
+    }
+
+    private function isFontLonghand(string $property): bool
+    {
+        return in_array($property, self::FONT_LONGHANDS, true);
+    }
+
+    private function findTopLevelCharacter(string $value, string $character): ?int
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+            if ($char === $character && $depth === 0) {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
     private function isQuotedStringToken(string $token): bool
     {
         return preg_match('/^([\'"]).*\1$/s', trim($token)) === 1;
@@ -4809,6 +5723,10 @@ final class DeclarationBlock
         if ($maskBorderValue !== null) {
             return $this->parseEntries($maskBorderValue);
         }
+        $borderRadiusValue = $this->setBorderRadiusLonghand($entries, $property, $value, $important);
+        if ($borderRadiusValue !== null) {
+            return $this->parseEntries($borderRadiusValue);
+        }
         $gridValue = $this->setGridPlacementLonghand($entries, $property, $value, $important);
         if ($gridValue !== null) {
             return $this->parseEntries($gridValue);
@@ -4836,6 +5754,10 @@ final class DeclarationBlock
         $textDecorationValue = $this->setTextDecorationLonghand($entries, $property, $value, $important);
         if ($textDecorationValue !== null) {
             return $this->parseEntries($textDecorationValue);
+        }
+        $fontValue = $this->setFontLonghand($entries, $property, $value, $important);
+        if ($fontValue !== null) {
+            return $this->parseEntries($fontValue);
         }
 
         $lastMatch = null;
@@ -5535,23 +6457,39 @@ final class DeclarationBlock
      */
     private function setLogicalBoxProperty(array $entries, string $property, string $value, bool $important): ?string
     {
-        $shorthand = $this->boxShorthandForLogicalProperty($property);
-        if ($shorthand === null) {
+        $parts = $this->logicalBoxLonghandParts($property);
+        if ($parts === null) {
             return null;
         }
 
         for ($index = count($entries) - 1; $index >= 0; $index--) {
-            if ($this->isPhysicalBoxPropertyFor($entries[$index]['property'], $shorthand)) {
+            if ($this->isPhysicalBoxPropertyFor($entries[$index]['property'], $parts['shorthand'])) {
                 break;
             }
 
-            if ($entries[$index]['property'] !== $property) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== $parts['axisShorthand']) {
                 continue;
             }
 
+            $expanded = $this->expandLogicalBoxAxisShorthand($entries[$index]['value']);
+            if ($expanded === null) {
+                continue;
+            }
+
+            $expanded[$parts['side']] = $value;
             $entries[$index] = [
-                'property' => $property,
-                'value' => $value,
+                'property' => $parts['axisShorthand'],
+                'value' => $this->compressLogicalBoxAxisShorthand($expanded['start'], $expanded['end']),
                 'important' => $important,
             ];
 
@@ -5565,6 +6503,28 @@ final class DeclarationBlock
         ];
 
         return $this->serializeEntries($entries);
+    }
+
+    /**
+     * @return array{start:string, end:string}|null
+     */
+    private function expandLogicalBoxAxisShorthand(string $value): ?array
+    {
+        $parts = $this->splitWhitespaceTopLevel($value);
+        $count = count($parts);
+        if ($count < 1 || $count > 2) {
+            return null;
+        }
+
+        return [
+            'start' => $parts[0],
+            'end' => $parts[1] ?? $parts[0],
+        ];
+    }
+
+    private function compressLogicalBoxAxisShorthand(string $start, string $end): string
+    {
+        return $start === $end ? $start : $start . ' ' . $end;
     }
 
     /**
@@ -5712,6 +6672,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isLogicalBoxLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeLogicalBoxLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeLogicalBoxLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isBorderComponentLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeBorderComponentLonghand($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeBorderComponentLonghand($importantEntries, $property));
@@ -5754,6 +6720,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isBorderRadiusLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeBorderRadiusLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeBorderRadiusLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isGridPlacementProperty($property)) {
             $normalEntries = $this->parseEntries($this->removeGridPlacementProperty($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeGridPlacementProperty($importantEntries, $property));
@@ -5787,6 +6759,12 @@ final class DeclarationBlock
         if ($this->isTextDecorationLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeTextDecorationLonghand($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeTextDecorationLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
+        if ($this->isFontLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeFontLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeFontLonghand($importantEntries, $property));
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
@@ -5855,6 +6833,11 @@ final class DeclarationBlock
      */
     private function cssomShorthandLonghands(string $property): ?array
     {
+        $logicalBoxLonghands = $this->logicalBoxAxisLonghands($property);
+        if ($logicalBoxLonghands !== null) {
+            return $logicalBoxLonghands;
+        }
+
         $borderLonghands = $this->borderShorthandLonghands($property);
         if ($borderLonghands !== null) {
             return $borderLonghands;
@@ -5886,6 +6869,10 @@ final class DeclarationBlock
             return self::OUTLINE_LONGHANDS;
         }
 
+        if ($this->isBorderRadiusShorthand($property)) {
+            return $this->borderRadiusLonghandsForPrefix($this->borderRadiusPrefixForProperty($property) ?? '');
+        }
+
         if ($property === 'gap') {
             return self::GAP_LONGHANDS;
         }
@@ -5898,7 +6885,11 @@ final class DeclarationBlock
             return self::LIST_STYLE_LONGHANDS;
         }
 
-        return $property === 'text-decoration' ? self::TEXT_DECORATION_LONGHANDS : null;
+        if ($property === 'text-decoration') {
+            return self::TEXT_DECORATION_LONGHANDS;
+        }
+
+        return $property === 'font' ? self::FONT_LONGHANDS : null;
     }
 
     /**
@@ -6137,6 +7128,49 @@ final class DeclarationBlock
             }
 
             foreach (self::MASK_BORDER_LONGHANDS as $longhand) {
+                if ($longhand === $property) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
+                    'value' => $components[$longhand],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeBorderRadiusLonghand(array $entries, string $property): string
+    {
+        $prefix = $this->borderRadiusPrefixForProperty($property);
+        if ($prefix === null || !$this->isBorderRadiusLonghandForPrefix($property, $prefix)) {
+            return $this->serializeEntries($entries);
+        }
+
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== $this->borderRadiusProperty($prefix, 'border-radius')) {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->parseBorderRadiusComponents($entry['value'], $prefix);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach ($this->borderRadiusLonghandsForPrefix($prefix) as $longhand) {
                 if ($longhand === $property) {
                     continue;
                 }
@@ -6477,6 +7511,135 @@ final class DeclarationBlock
 
     /**
      * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getLogicalBoxProperty(array $entries, string $property): ?array
+    {
+        $axis = $this->logicalBoxAxisForShorthand($property);
+        if ($axis !== null) {
+            $sides = $this->resolveLogicalBoxAxis($entries, $axis['shorthand'], $axis['axis']);
+            if ($sides['start'] === null || $sides['end'] === null) {
+                return null;
+            }
+            if ($sides['start']['important'] !== $sides['end']['important']) {
+                return null;
+            }
+
+            return [
+                'value' => $this->compressLogicalBoxAxisShorthand($sides['start']['value'], $sides['end']['value']),
+                'important' => $sides['start']['important'],
+            ];
+        }
+
+        $longhand = $this->logicalBoxLonghandParts($property);
+        if ($longhand === null) {
+            return null;
+        }
+
+        $sides = $this->resolveLogicalBoxAxis($entries, $longhand['shorthand'], $longhand['axis']);
+
+        return $sides[$longhand['side']];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{
+     *     start:array{value:string, important:bool}|null,
+     *     end:array{value:string, important:bool}|null
+     * }
+     */
+    private function resolveLogicalBoxAxis(array $entries, string $shorthand, string $axis): array
+    {
+        $sides = [
+            'start' => null,
+            'end' => null,
+        ];
+        $axisShorthand = $shorthand . '-' . $axis;
+        $startProperty = $axisShorthand . '-start';
+        $endProperty = $axisShorthand . '-end';
+
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $axisShorthand) {
+                $expanded = $this->expandLogicalBoxAxisShorthand($entry['value']);
+                if ($expanded === null) {
+                    continue;
+                }
+
+                $sides['start'] = [
+                    'value' => $expanded['start'],
+                    'important' => $entry['important'],
+                ];
+                $sides['end'] = [
+                    'value' => $expanded['end'],
+                    'important' => $entry['important'],
+                ];
+                continue;
+            }
+
+            if ($entry['property'] === $startProperty) {
+                $sides['start'] = [
+                    'value' => $entry['value'],
+                    'important' => $entry['important'],
+                ];
+                continue;
+            }
+
+            if ($entry['property'] === $endProperty) {
+                $sides['end'] = [
+                    'value' => $entry['value'],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $sides;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeLogicalBoxLonghand(array $entries, string $property): string
+    {
+        $parts = $this->logicalBoxLonghandParts($property);
+        if ($parts === null) {
+            return $this->serializeEntries($entries);
+        }
+
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== $parts['axisShorthand']) {
+                $result[] = $entry;
+                continue;
+            }
+
+            $expanded = $this->expandLogicalBoxAxisShorthand($entry['value']);
+            if ($expanded === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach (['start', 'end'] as $side) {
+                if ($side === $parts['side']) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $parts['shorthand'] . '-' . $parts['axis'] . '-' . $side,
+                    'value' => $expanded[$side],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
      * @return array{
      *     top:array{value:string, important:bool}|null,
      *     right:array{value:string, important:bool}|null,
@@ -6660,15 +7823,76 @@ final class DeclarationBlock
         ], true);
     }
 
-    private function boxShorthandForLogicalProperty(string $property): ?string
+    /**
+     * @return array{shorthand:string, axis:string, axisShorthand:string}|null
+     */
+    private function logicalBoxAxisForShorthand(string $property): ?array
     {
         foreach (array_keys(self::BOX_SHORTHANDS) as $shorthand) {
-            if ($this->isLogicalBoxPropertyFor($property, $shorthand)) {
-                return $shorthand;
+            foreach (['block', 'inline'] as $axis) {
+                $axisShorthand = $shorthand . '-' . $axis;
+                if ($property === $axisShorthand) {
+                    return [
+                        'shorthand' => $shorthand,
+                        'axis' => $axis,
+                        'axisShorthand' => $axisShorthand,
+                    ];
+                }
             }
         }
 
         return null;
+    }
+
+    /**
+     * @return array{shorthand:string, axis:string, side:string, axisShorthand:string}|null
+     */
+    private function logicalBoxLonghandParts(string $property): ?array
+    {
+        foreach (array_keys(self::BOX_SHORTHANDS) as $shorthand) {
+            foreach (['block', 'inline'] as $axis) {
+                $axisShorthand = $shorthand . '-' . $axis;
+                foreach (['start', 'end'] as $side) {
+                    if ($property === $axisShorthand . '-' . $side) {
+                        return [
+                            'shorthand' => $shorthand,
+                            'axis' => $axis,
+                            'side' => $side,
+                            'axisShorthand' => $axisShorthand,
+                        ];
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function logicalBoxAxisLonghands(string $property): ?array
+    {
+        $axis = $this->logicalBoxAxisForShorthand($property);
+        if ($axis === null) {
+            return null;
+        }
+
+        return [
+            $axis['axisShorthand'] . '-start',
+            $axis['axisShorthand'] . '-end',
+        ];
+    }
+
+    private function isLogicalBoxProperty(string $property): bool
+    {
+        return $this->logicalBoxAxisForShorthand($property) !== null
+            || $this->logicalBoxLonghandParts($property) !== null;
+    }
+
+    private function isLogicalBoxLonghand(string $property): bool
+    {
+        return $this->logicalBoxLonghandParts($property) !== null;
     }
 
     private function boxShorthandForLonghand(string $property): ?string

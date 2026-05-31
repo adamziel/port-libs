@@ -409,6 +409,50 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules maps upstream hash and content-hash patterns through composes exports' => static function (TestRunner $t) use ($export, $dependency): void {
+        $patterned = (new CssModulesTransformer())->transform('.foo { color: red }', [
+            'pattern' => 'test-[hash]-[local]',
+        ]);
+
+        $t->same('.test-EgL3uq-foo{color:red}', $patterned['code']);
+        $t->same([
+            'foo' => $export('test-EgL3uq-foo'),
+        ], $patterned['exports']);
+
+        $projectRootSameFile = (new CssModulesTransformer())->transform('.foo { color: red }', [
+            'filename' => '/foo/bar/test.css',
+            'projectRoot' => '/foo/bar',
+        ]);
+
+        $t->same('.EgL3uq_foo{color:red}', $projectRootSameFile['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+        ], $projectRootSameFile['exports']);
+
+        $projectRoot = (new CssModulesTransformer())->transform('.foo { color: red }', [
+            'filename' => '/foo/bar/baz/test.css',
+            'projectRoot' => '/foo/bar',
+        ]);
+
+        $t->same('.xLEkNW_foo{color:red}', $projectRoot['code']);
+        $t->same([
+            'foo' => $export('xLEkNW_foo'),
+        ], $projectRoot['exports']);
+
+        $contentSource = "\n      .test {\n        composes: foo bar from \"foo.css\";\n        background: white;\n      }\n    ";
+        $contentHash = (new CssModulesTransformer())->transform($contentSource, [
+            'pattern' => '[content-hash]-[local]',
+        ]);
+
+        $t->same('._5h2kwG-test{background:#fff}', $contentHash['code']);
+        $t->same([
+            'test' => $export('_5h2kwG-test', [
+                $dependency('foo', 'foo.css'),
+                $dependency('bar', 'foo.css'),
+            ]),
+        ], $contentHash['exports']);
+        $t->same([], $contentHash['references']);
+    },
     'css modules deduplicates repeated composes references from simple class selectors' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
         $css = <<<'CSS'
 .test {

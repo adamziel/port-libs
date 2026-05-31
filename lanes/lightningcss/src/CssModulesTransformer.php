@@ -7,8 +7,13 @@ namespace PortLibs\LightningCSS;
 final class CssModulesTransformer
 {
     private const PURE_NO_CHECK_MARKER = '/*__lightningcss-cssmodules-pure-no-check__*/';
+    private const HASH_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_-';
+    private const U32_MASK = 0xffffffff;
+    private const U32_BASE = 4294967296;
 
     private string $hash = 'EgL3uq';
+    private string $contentHash = '';
+    private string $filename = 'test.css';
     private string $pattern = '[hash]_[local]';
     private bool $dashedIdents = false;
     private bool $pure = false;
@@ -30,12 +35,20 @@ final class CssModulesTransformer
      *   references:array<string, array{type:string, name:string, specifier:string}>
      * }
      *
-     * @param array{hash?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, pure?:bool} $options
+     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, pure?:bool} $options
      */
     public function transform(string $css, array $options = []): array
     {
-        $this->hash = $options['hash'] ?? 'EgL3uq';
         $this->pattern = $options['pattern'] ?? '[hash]_[local]';
+        $this->filename = $options['filename'] ?? 'test.css';
+        $this->hash = $options['hash'] ?? self::hashCssModuleString(
+            self::relativeFilenameForHash($this->filename, $options['projectRoot'] ?? null),
+            $this->patternStartsWithSegment('[hash]')
+        );
+        $this->contentHash = $options['contentHash']
+            ?? (str_contains($this->pattern, '[content-hash]')
+                ? self::hashCssModuleString($css, $this->patternStartsWithSegment('[content-hash]'))
+                : '');
         $this->dashedIdents = ($options['dashedIdents'] ?? $options['dashed_idents'] ?? false) === true;
         $this->pure = ($options['pure'] ?? false) === true;
         $this->exports = [];
@@ -969,9 +982,232 @@ final class CssModulesTransformer
     private function scopedName(string $local): string
     {
         return strtr($this->pattern, [
+            '[name]' => $this->patternFileName(),
             '[hash]' => $this->hash,
+            '[content-hash]' => $this->contentHash,
             '[local]' => $local,
         ]);
+    }
+
+    private function patternStartsWithSegment(string $segment): bool
+    {
+        return str_starts_with($this->pattern, $segment);
+    }
+
+    private function patternFileName(): string
+    {
+        $path = str_replace('\\', '/', $this->filename);
+        $base = basename($path);
+        $dot = strrpos($base, '.');
+        $stem = $dot === false ? $base : substr($base, 0, $dot);
+
+        return str_replace('.', '-', $stem);
+    }
+
+    private static function hashCssModuleString(string $value, bool $atStart = false): string
+    {
+        [$low] = self::sipHashString13($value);
+        $hash = self::base64CssModuleHash($low);
+
+        if ($atStart && preg_match('/^[0-9]/', $hash) === 1) {
+            return '_' . $hash;
+        }
+
+        return $hash;
+    }
+
+    private static function relativeFilenameForHash(string $filename, ?string $projectRoot): string
+    {
+        $filename = str_replace('\\', '/', $filename);
+        if ($projectRoot === null || $projectRoot === '') {
+            return $filename;
+        }
+
+        $projectRoot = rtrim(str_replace('\\', '/', $projectRoot), '/');
+        if ($projectRoot === '') {
+            return $filename;
+        }
+
+        if ($filename === $projectRoot) {
+            return basename($filename);
+        }
+
+        $prefix = $projectRoot . '/';
+        if (str_starts_with($filename, $prefix)) {
+            return substr($filename, strlen($prefix));
+        }
+
+        return $filename;
+    }
+
+    /**
+     * Rust's Hash implementation for strings appends a 0xff delimiter before
+     * feeding SipHasher13. LightningCSS truncates that 64-bit result to u32.
+     *
+     * @return array{0:int,1:int}
+     */
+    private static function sipHashString13(string $value): array
+    {
+        $value .= "\xff";
+
+        $v0 = [0x70736575, 0x736f6d65];
+        $v1 = [0x6e646f6d, 0x646f7261];
+        $v2 = [0x6e657261, 0x6c796765];
+        $v3 = [0x79746573, 0x74656462];
+
+        $length = strlen($value);
+        $offset = 0;
+        while ($offset + 8 <= $length) {
+            $message = [
+                ord($value[$offset])
+                    | (ord($value[$offset + 1]) << 8)
+                    | (ord($value[$offset + 2]) << 16)
+                    | (ord($value[$offset + 3]) << 24),
+                ord($value[$offset + 4])
+                    | (ord($value[$offset + 5]) << 8)
+                    | (ord($value[$offset + 6]) << 16)
+                    | (ord($value[$offset + 7]) << 24),
+            ];
+
+            $v3 = self::u64Xor($v3, $message);
+            self::sipRound($v0, $v1, $v2, $v3);
+            $v0 = self::u64Xor($v0, $message);
+            $offset += 8;
+        }
+
+        $last = [0, ($length & 0xff) << 24];
+        $shift = 0;
+        for ($i = $offset; $i < $length; $i++, $shift += 8) {
+            if ($shift < 32) {
+                $last[0] = ($last[0] | (ord($value[$i]) << $shift)) & self::U32_MASK;
+            } else {
+                $last[1] = ($last[1] | (ord($value[$i]) << ($shift - 32))) & self::U32_MASK;
+            }
+        }
+
+        $v3 = self::u64Xor($v3, $last);
+        self::sipRound($v0, $v1, $v2, $v3);
+        $v0 = self::u64Xor($v0, $last);
+        $v2 = self::u64Xor($v2, [0xff, 0]);
+
+        self::sipRound($v0, $v1, $v2, $v3);
+        self::sipRound($v0, $v1, $v2, $v3);
+        self::sipRound($v0, $v1, $v2, $v3);
+
+        return self::u64Xor(self::u64Xor($v0, $v1), self::u64Xor($v2, $v3));
+    }
+
+    private static function base64CssModuleHash(int $value): string
+    {
+        $bytes = [
+            $value & 0xff,
+            ($value >> 8) & 0xff,
+            ($value >> 16) & 0xff,
+            ($value >> 24) & 0xff,
+        ];
+        $output = '';
+
+        for ($i = 0; $i < 4; $i += 3) {
+            $remaining = min(3, 4 - $i);
+            $chunk = 0;
+            for ($j = 0; $j < $remaining; $j++) {
+                $chunk = ($chunk << 8) | $bytes[$i + $j];
+            }
+            $chunk <<= (3 - $remaining) * 8;
+
+            for ($j = 0; $j < $remaining + 1; $j++) {
+                $output .= self::HASH_ALPHABET[($chunk >> (18 - (6 * $j))) & 0x3f];
+            }
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param array{0:int,1:int} $v0
+     * @param array{0:int,1:int} $v1
+     * @param array{0:int,1:int} $v2
+     * @param array{0:int,1:int} $v3
+     */
+    private static function sipRound(array &$v0, array &$v1, array &$v2, array &$v3): void
+    {
+        $v0 = self::u64Add($v0, $v1);
+        $v1 = self::u64RotateLeft($v1, 13);
+        $v1 = self::u64Xor($v1, $v0);
+        $v0 = self::u64RotateLeft($v0, 32);
+        $v2 = self::u64Add($v2, $v3);
+        $v3 = self::u64RotateLeft($v3, 16);
+        $v3 = self::u64Xor($v3, $v2);
+        $v0 = self::u64Add($v0, $v3);
+        $v3 = self::u64RotateLeft($v3, 21);
+        $v3 = self::u64Xor($v3, $v0);
+        $v2 = self::u64Add($v2, $v1);
+        $v1 = self::u64RotateLeft($v1, 17);
+        $v1 = self::u64Xor($v1, $v2);
+        $v2 = self::u64RotateLeft($v2, 32);
+    }
+
+    /**
+     * @param array{0:int,1:int} $left
+     * @param array{0:int,1:int} $right
+     *
+     * @return array{0:int,1:int}
+     */
+    private static function u64Add(array $left, array $right): array
+    {
+        $lowSum = $left[0] + $right[0];
+        $low = $lowSum & self::U32_MASK;
+        $carry = intdiv($lowSum, self::U32_BASE);
+
+        return [
+            $low,
+            ($left[1] + $right[1] + $carry) & self::U32_MASK,
+        ];
+    }
+
+    /**
+     * @param array{0:int,1:int} $left
+     * @param array{0:int,1:int} $right
+     *
+     * @return array{0:int,1:int}
+     */
+    private static function u64Xor(array $left, array $right): array
+    {
+        return [
+            ($left[0] ^ $right[0]) & self::U32_MASK,
+            ($left[1] ^ $right[1]) & self::U32_MASK,
+        ];
+    }
+
+    /**
+     * @param array{0:int,1:int} $value
+     *
+     * @return array{0:int,1:int}
+     */
+    private static function u64RotateLeft(array $value, int $shift): array
+    {
+        $shift %= 64;
+        if ($shift === 0) {
+            return $value;
+        }
+
+        if ($shift === 32) {
+            return [$value[1], $value[0]];
+        }
+
+        if ($shift < 32) {
+            return [
+                (($value[0] << $shift) | ($value[1] >> (32 - $shift))) & self::U32_MASK,
+                (($value[1] << $shift) | ($value[0] >> (32 - $shift))) & self::U32_MASK,
+            ];
+        }
+
+        $shift -= 32;
+
+        return [
+            (($value[1] << $shift) | ($value[0] >> (32 - $shift))) & self::U32_MASK,
+            (($value[0] << $shift) | ($value[1] >> (32 - $shift))) & self::U32_MASK,
+        ];
     }
 
     private function scopeCustomIdent(string $local): string

@@ -643,6 +643,19 @@ CSS,
             '--inline-size' => $moduleDashed('--entry_inline-size', true),
         ], $result['exports']);
     },
+    'css bundler maps upstream css module content-hash imports' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
+        $result = $bundleModules([
+            '/a.css' => "\n          @import \"b.css\";\n          .a { color: red }\n        ",
+            '/b.css' => "\n          .a { color: green }\n        ",
+        ], '/a.css', null, [
+            'pattern' => '[content-hash]-[local]',
+        ]);
+
+        $t->same('.do5n2W-a{color:green}.pP97eq-a{color:red}', $result['code']);
+        $t->same([
+            'a' => $moduleExport('pP97eq-a'),
+        ], $result['exports']);
+    },
     'css bundler omits unresolved upstream css module dependency exports' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
         $result = $bundleModules([
             '/entry.css' => <<<'CSS'

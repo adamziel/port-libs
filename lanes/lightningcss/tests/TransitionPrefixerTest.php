@@ -1086,6 +1086,54 @@ CSS;
             $prefixer->prefixLegacySafari('.foo { mask: linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364)) 40px var(--foo) }')
         );
     },
+    'transition prefixer maps upstream mask WebKit browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-mask-image:linear-gradient(red,green);mask-image:linear-gradient(red,green)}',
+            $prefixer->prefixForTargets('.foo { mask-image: linear-gradient(red, green); }', ['chrome' => 119])
+        );
+        $t->same(
+            '.foo{mask-image:linear-gradient(red,green)}',
+            $prefixer->prefixForTargets('.foo { mask-image: linear-gradient(red, green); }', ['chrome' => 120])
+        );
+        $t->same(
+            '.foo{-webkit-mask-box-image:url(border-mask.png) 25/35px/12px space;mask-border:url(border-mask.png) 25/35px/12px space luminance}',
+            $prefixer->prefixForTargets('.foo { mask-border: url(border-mask.png) 25 / 35px / 12px space luminance; }', ['edge' => 119])
+        );
+        $t->same(
+            '.foo{mask-border:url(border-mask.png) 25/35px/12px space luminance}',
+            $prefixer->prefixForTargets('.foo { mask-border: url(border-mask.png) 25 / 35px / 12px space luminance; }', ['edge' => 120])
+        );
+        $t->same(
+            '.foo{-webkit-mask-source-type:luminance;mask-mode:luminance}',
+            $prefixer->prefixForTargets('.foo { mask-mode: luminance; }', ['safari' => 15])
+        );
+        $t->same(
+            '.foo{mask-mode:luminance}',
+            $prefixer->prefixForTargets('.foo { mask-mode: luminance; }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{transition:-webkit-mask .2s,mask .2s}',
+            $prefixer->prefixForTargets('.foo { transition: mask 200ms; }', ['opera' => 105])
+        );
+        $t->same(
+            '.foo{transition:mask .2s}',
+            $prefixer->prefixForTargets('.foo { transition: mask 200ms; }', ['opera' => 106])
+        );
+        $t->same(
+            '.foo{transition-property:-webkit-mask-composite,mask-composite,-webkit-mask-source-type,mask-mode}',
+            $prefixer->prefixForTargets('.foo { transition-property: mask-composite, mask-mode; }', ['samsung' => 24])
+        );
+        $t->same(
+            '.foo{transition-property:mask-composite,mask-mode}',
+            $prefixer->prefixForTargets('.foo { transition-property: mask-composite, mask-mode; }', ['samsung' => 25])
+        );
+        $t->same(
+            '.foo{mask-image:linear-gradient(red,green)}',
+            $prefixer->prefixForTargets('.foo { -webkit-mask-image: linear-gradient(red, green); mask-image: linear-gradient(red, green); }', ['chrome' => 120])
+        );
+    },
     'transition prefixer maps upstream background advanced color fallback layers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

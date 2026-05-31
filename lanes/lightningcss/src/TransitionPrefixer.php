@@ -214,10 +214,10 @@ final class TransitionPrefixer
         $hasInlineTransition = $hasLtrInlineTransition || $hasRtlInlineTransition;
 
         if ($hasInlineTransition) {
-            $this->rewritePrefixedTransitionEntries($ltrEntries);
-            $this->rewritePrefixedTransitionEntries($rtlEntries);
-            $this->rewriteMaskPrefixEntries($ltrEntries);
-            $this->rewriteMaskPrefixEntries($rtlEntries);
+            $this->rewritePrefixedTransitionEntries($ltrEntries, $targetOptions);
+            $this->rewritePrefixedTransitionEntries($rtlEntries, $targetOptions);
+            $this->rewriteMaskPrefixEntries($ltrEntries, $targetOptions);
+            $this->rewriteMaskPrefixEntries($rtlEntries, $targetOptions);
 
             return $this->selectorVariant($selectors, 'ltr-webkit') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
                 . $this->selectorVariant($selectors, 'ltr-modern') . '{' . $this->serializeDeclarations($ltrEntries) . '}'
@@ -233,7 +233,7 @@ final class TransitionPrefixer
             }
         }
 
-        $transitionChanged = $this->rewritePrefixedTransitionEntries($entries);
+        $transitionChanged = $this->rewritePrefixedTransitionEntries($entries, $targetOptions);
         $supportRules = [];
         $displayFlexChanged = $this->rewriteDisplayFlexPrefixEntries($entries, $targetOptions);
         $flexChanged = $this->rewriteFlexPrefixEntries($entries, $targetOptions);
@@ -243,7 +243,7 @@ final class TransitionPrefixer
         $textCompatibilityPrefixChanged = $this->rewriteTextCompatibilityPrefixEntries($entries, $targetOptions);
         $positionStickyChanged = $this->rewritePositionStickyPrefixEntries($entries, $targetOptions);
         $backgroundClipChanged = $this->rewriteBackgroundClipPrefixEntries($entries, $targetOptions);
-        $maskChanged = $this->rewriteMaskPrefixEntries($entries, $selectors, $supportRules);
+        $maskChanged = $this->rewriteMaskPrefixEntries($entries, $targetOptions, $selectors, $supportRules);
         $filterChanged = $this->rewriteFilterPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
         $boxShadowChanged = $this->rewriteBoxShadowPrefixEntries($entries, $selectors, $supportRules, $targetOptions);
         $textShadowChanged = $insideAdvancedColorSupports
@@ -876,6 +876,13 @@ final class TransitionPrefixer
                 || $this->targetAtLeast($normalized, 'opera', [15])
                 || $this->targetAtLeast($normalized, 'safari', [6, 1])
                 || $this->targetAtLeast($normalized, 'samsung', [4]),
+            'maskNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [4], [119])
+                || $this->targetInRange($normalized, 'edge', [79], [119])
+                || $this->targetInRange($normalized, 'ios_saf', [3, 2], [15])
+                || $this->targetInRange($normalized, 'opera', [15], [105])
+                || $this->targetInRange($normalized, 'safari', [4], [15])
+                || $this->targetInRange($normalized, 'samsung', [4], [24]),
             'stickyNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [6], [12, 2])
                 || $this->targetInRange($normalized, 'safari', [6, 1], [12, 1]),
             'backgroundClipNeedsWebkit' => $this->targetInRange($normalized, 'android', [4], [4, 4, 3])
@@ -1929,8 +1936,9 @@ final class TransitionPrefixer
 
     /**
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
      */
-    private function rewritePrefixedTransitionEntries(array &$entries): bool
+    private function rewritePrefixedTransitionEntries(array &$entries, array $targetOptions): bool
     {
         $changed = false;
         $rewritten = [];
@@ -1942,7 +1950,7 @@ final class TransitionPrefixer
             }
 
             if ($entry['property'] === 'transition') {
-                [$value, $entryChanged, $needsPrefixedTransition] = $this->rewritePrefixedTransitionShorthand($entry['value']);
+                [$value, $entryChanged, $needsPrefixedTransition] = $this->rewritePrefixedTransitionShorthand($entry['value'], $targetOptions);
                 if ($entryChanged) {
                     if ($needsPrefixedTransition) {
                         $rewritten[] = [
@@ -1960,7 +1968,7 @@ final class TransitionPrefixer
             }
 
             if ($entry['property'] === 'transition-property') {
-                [$value, $entryChanged, $needsPrefixedTransition] = $this->rewritePrefixedTransitionPropertyList($entry['value']);
+                [$value, $entryChanged, $needsPrefixedTransition] = $this->rewritePrefixedTransitionPropertyList($entry['value'], $targetOptions);
                 if ($entryChanged) {
                     if ($needsPrefixedTransition) {
                         $rewritten[] = [
@@ -3716,10 +3724,13 @@ final class TransitionPrefixer
 
     /**
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     * @param list<string> $supportRules
      */
-    private function rewriteMaskPrefixEntries(array &$entries, ?string $supportSelector = null, array &$supportRules = []): bool
+    private function rewriteMaskPrefixEntries(array &$entries, array $targetOptions, ?string $supportSelector = null, array &$supportRules = []): bool
     {
-        $changed = false;
+        $needsWebkit = $targetOptions['maskNeedsWebkit'] ?? false;
+        $changed = !$needsWebkit && $this->dropUnneededMaskPrefixEntries($entries);
         $drop = [];
         $insertions = [];
 
@@ -3730,8 +3741,8 @@ final class TransitionPrefixer
             $hasWebkitMaskImage = $hasWebkitMaskImage || $entry['property'] === '-webkit-mask-image';
         }
 
-        foreach (['modern', 'webkit'] as $family) {
-            $plan = $this->planMaskBorderComposition($entries, $family);
+        foreach ($needsWebkit ? ['modern', 'webkit'] : ['modern'] as $family) {
+            $plan = $this->planMaskBorderComposition($entries, $family, $needsWebkit);
             if ($plan === null) {
                 continue;
             }
@@ -3743,7 +3754,7 @@ final class TransitionPrefixer
             $changed = true;
         }
 
-        $plan = $this->planMaskLayerComposition($entries);
+        $plan = $this->planMaskLayerComposition($entries, $needsWebkit);
         if ($plan !== null) {
             foreach ($plan['drop'] as $index) {
                 $drop[$index] = true;
@@ -3762,7 +3773,7 @@ final class TransitionPrefixer
                 continue;
             }
 
-            $result = $this->rewriteSingleMaskPrefixEntry($entry, $hasWebkitMask, $hasWebkitMaskImage);
+            $result = $this->rewriteSingleMaskPrefixEntry($entry, $hasWebkitMask, $hasWebkitMaskImage, $needsWebkit);
             [$mapped, $entryChanged] = $result;
             $supportEntries = $result[2] ?? [];
             if ($supportSelector !== null && $supportEntries !== []) {
@@ -3775,6 +3786,61 @@ final class TransitionPrefixer
         $entries = $rewritten;
 
         return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function dropUnneededMaskPrefixEntries(array &$entries): bool
+    {
+        $unprefixed = [];
+        foreach ($entries as $entry) {
+            if (!$entry['important']) {
+                $unprefixed[$entry['property']] = true;
+            }
+        }
+
+        $rewritten = [];
+        $changed = false;
+        foreach ($entries as $entry) {
+            $baseProperty = $this->unprefixedMaskPropertyForWebkit($entry['property']);
+            if ($baseProperty !== null && !$entry['important'] && isset($unprefixed[$baseProperty])) {
+                $changed = true;
+                continue;
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+
+        return true;
+    }
+
+    private function unprefixedMaskPropertyForWebkit(string $property): ?string
+    {
+        return match ($property) {
+            '-webkit-mask' => 'mask',
+            '-webkit-mask-image' => 'mask-image',
+            '-webkit-mask-position' => 'mask-position',
+            '-webkit-mask-size' => 'mask-size',
+            '-webkit-mask-repeat' => 'mask-repeat',
+            '-webkit-mask-origin' => 'mask-origin',
+            '-webkit-mask-clip' => 'mask-clip',
+            '-webkit-mask-composite' => 'mask-composite',
+            '-webkit-mask-source-type' => 'mask-mode',
+            '-webkit-mask-box-image' => 'mask-border',
+            '-webkit-mask-box-image-source' => 'mask-border-source',
+            '-webkit-mask-box-image-slice' => 'mask-border-slice',
+            '-webkit-mask-box-image-width' => 'mask-border-width',
+            '-webkit-mask-box-image-outset' => 'mask-border-outset',
+            '-webkit-mask-box-image-repeat' => 'mask-border-repeat',
+            default => null,
+        };
     }
 
     /**
@@ -5228,7 +5294,7 @@ final class TransitionPrefixer
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
      * @return array{replaceAt:int,drop:list<int>,entries:list<array{property:string,name:string,value:string,important:bool}>}|null
      */
-    private function planMaskLayerComposition(array $entries): ?array
+    private function planMaskLayerComposition(array $entries, bool $needsWebkit): ?array
     {
         $map = [
             'mask-image' => 'image',
@@ -5279,7 +5345,7 @@ final class TransitionPrefixer
 
         $planned = [];
         foreach ($componentSets as $componentSet) {
-            array_push($planned, ...$this->maskLayerEntries($componentSet));
+            array_push($planned, ...$this->maskLayerEntries($componentSet, $needsWebkit));
         }
 
         return [
@@ -5293,7 +5359,7 @@ final class TransitionPrefixer
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
      * @return array{replaceAt:int,drop:list<int>,entries:list<array{property:string,name:string,value:string,important:bool}>}|null
      */
-    private function planMaskBorderComposition(array $entries, string $family): ?array
+    private function planMaskBorderComposition(array $entries, string $family, bool $needsWebkit): ?array
     {
         $map = $family === 'modern'
             ? [
@@ -5345,7 +5411,9 @@ final class TransitionPrefixer
 
         $planned = [];
         foreach ($componentSets as $componentSet) {
-            $planned[] = $this->maskEntry('-webkit-mask-box-image', $this->composeMaskBorderValue($componentSet, false));
+            if ($needsWebkit) {
+                $planned[] = $this->maskEntry('-webkit-mask-box-image', $this->composeMaskBorderValue($componentSet, false));
+            }
             if ($family === 'modern') {
                 $planned[] = $this->maskEntry('mask-border', $this->composeMaskBorderValue($componentSet, true));
             }
@@ -5362,7 +5430,7 @@ final class TransitionPrefixer
      * @param array{property:string,name:string,value:string,important:bool} $entry
      * @return array{0:list<array{property:string,name:string,value:string,important:bool}>,1:bool,2?:list<array{property:string,name:string,value:string,important:bool}>}
      */
-    private function rewriteSingleMaskPrefixEntry(array $entry, bool $hasWebkitMask, bool $hasWebkitMaskImage): array
+    private function rewriteSingleMaskPrefixEntry(array $entry, bool $hasWebkitMask, bool $hasWebkitMaskImage, bool $needsWebkit): array
     {
         if ($entry['important']) {
             return [[$entry], false];
@@ -5393,16 +5461,16 @@ final class TransitionPrefixer
                         && $this->containsCustomPropertyReference($modern)
                     ) {
                         $mapped = [];
-                        if (!$hasWebkitMask) {
+                        if ($needsWebkit && !$hasWebkitMask) {
                             $mapped[] = $this->maskEntry('-webkit-mask', $prefixedFallback);
                         }
                         $mapped[] = $this->maskEntry('mask', $modernFallback);
 
                         $supportEntries = [];
-                        if (!$hasWebkitMask) {
+                        if ($needsWebkit && !$hasWebkitMask) {
                             $supportEntries[] = $this->maskEntry('-webkit-mask', $prefixedLab);
                         }
-                        if ($mode !== null && strtolower($mode) !== 'alpha') {
+                        if ($needsWebkit && $mode !== null && strtolower($mode) !== 'alpha') {
                             $supportEntries[] = $this->maskEntry('-webkit-mask-source-type', strtolower($mode));
                         }
                         $supportEntries[] = $this->maskEntry('mask', $modernLab);
@@ -5412,14 +5480,14 @@ final class TransitionPrefixer
 
                     $entry['value'] = $modern;
                     $mapped = [];
-                    if (!$hasWebkitMask) {
+                    if ($needsWebkit && !$hasWebkitMask) {
                         $mapped[] = $this->maskEntry('-webkit-mask', $prefixedFallback);
                     }
                     $mapped[] = $this->maskEntry('mask', $modernFallback);
-                    if (!$hasWebkitMask) {
+                    if ($needsWebkit && !$hasWebkitMask) {
                         $mapped[] = $this->maskEntry('-webkit-mask', $prefixed);
                     }
-                    if ($mode !== null && strtolower($mode) !== 'alpha') {
+                    if ($needsWebkit && $mode !== null && strtolower($mode) !== 'alpha') {
                         $mapped[] = $this->maskEntry('-webkit-mask-source-type', strtolower($mode));
                     }
                     $mapped[] = $entry;
@@ -5433,10 +5501,12 @@ final class TransitionPrefixer
 
                 $entry['value'] = $modern;
                 $mapped = [];
-                if (!$hasWebkitMask) {
+                if ($needsWebkit && !$hasWebkitMask) {
                     $mapped[] = $this->maskEntry('-webkit-mask', $prefixed);
                 }
-                $mapped[] = $this->maskEntry('-webkit-mask-source-type', strtolower($mode));
+                if ($needsWebkit) {
+                    $mapped[] = $this->maskEntry('-webkit-mask-source-type', strtolower($mode));
+                }
                 $mapped[] = $entry;
 
                 return [$mapped, true];
@@ -5459,11 +5529,11 @@ final class TransitionPrefixer
                 $fallback = $this->advancedColorFallbackValue($entry['value']);
                 if ($fallback !== null) {
                     $mapped = [];
-                    if (!$hasWebkitMaskImage) {
+                    if ($needsWebkit && !$hasWebkitMaskImage) {
                         $mapped[] = $this->maskEntry('-webkit-mask-image', $fallback);
                     }
                     $mapped[] = $this->maskEntry('mask-image', $fallback);
-                    if (!$hasWebkitMaskImage) {
+                    if ($needsWebkit && !$hasWebkitMaskImage) {
                         $mapped[] = $this->maskEntry('-webkit-mask-image', $entry['value']);
                     }
                     $mapped[] = $entry;
@@ -5472,7 +5542,7 @@ final class TransitionPrefixer
                 }
 
                 return [
-                    $hasWebkitMaskImage ? [$entry] : [$this->maskEntry('-webkit-mask-image', $entry['value']), $entry],
+                    ($needsWebkit && !$hasWebkitMaskImage) ? [$this->maskEntry('-webkit-mask-image', $entry['value']), $entry] : [$entry],
                     true,
                 ];
 
@@ -5491,30 +5561,30 @@ final class TransitionPrefixer
                         && $this->containsCustomPropertyReference($modern)
                     ) {
                         return [
-                            [
-                                $this->maskEntry('-webkit-mask-box-image', $prefixedFallback),
+                            array_values(array_filter([
+                                $needsWebkit ? $this->maskEntry('-webkit-mask-box-image', $prefixedFallback) : null,
                                 $this->maskEntry('mask-border', $modernFallback),
-                            ],
+                            ])),
                             true,
-                            [
-                                $this->maskEntry('-webkit-mask-box-image', $prefixedLab),
+                            array_values(array_filter([
+                                $needsWebkit ? $this->maskEntry('-webkit-mask-box-image', $prefixedLab) : null,
                                 $this->maskEntry('mask-border', $modernLab),
-                            ],
+                            ])),
                         ];
                     }
 
                     return [
-                        [
-                            $this->maskEntry('-webkit-mask-box-image', $prefixedFallback),
+                        array_values(array_filter([
+                            $needsWebkit ? $this->maskEntry('-webkit-mask-box-image', $prefixedFallback) : null,
                             $this->maskEntry('mask-border', $modernFallback),
-                            $this->maskEntry('-webkit-mask-box-image', $prefixed),
+                            $needsWebkit ? $this->maskEntry('-webkit-mask-box-image', $prefixed) : null,
                             $entry,
-                        ],
+                        ])),
                         true,
                     ];
                 }
 
-                return [[$this->maskEntry('-webkit-mask-box-image', $prefixed), $entry], true];
+                return [$needsWebkit ? [$this->maskEntry('-webkit-mask-box-image', $prefixed), $entry] : [$entry], true];
 
             case 'mask-border-source':
                 $value = $this->normalizeMaskBorderComponent('source', $entry['value']);
@@ -5522,47 +5592,47 @@ final class TransitionPrefixer
                 $fallback = $this->advancedColorFallbackValue($value);
                 if ($fallback !== null) {
                     return [
-                        [
-                            $this->maskEntry('-webkit-mask-box-image-source', $fallback),
+                        array_values(array_filter([
+                            $needsWebkit ? $this->maskEntry('-webkit-mask-box-image-source', $fallback) : null,
                             $this->maskEntry('mask-border-source', $fallback),
-                            $this->maskEntry('-webkit-mask-box-image-source', $value),
+                            $needsWebkit ? $this->maskEntry('-webkit-mask-box-image-source', $value) : null,
                             $entry,
-                        ],
+                        ])),
                         true,
                     ];
                 }
 
-                return [[$this->maskEntry('-webkit-mask-box-image-source', $value), $entry], true];
+                return [$needsWebkit ? [$this->maskEntry('-webkit-mask-box-image-source', $value), $entry] : [$entry], true];
 
             case 'mask-border-slice':
                 $value = $this->normalizeMaskBorderComponent('slice', $entry['value']);
                 $entry['value'] = $value;
 
-                return [[$this->maskEntry('-webkit-mask-box-image-slice', $value), $entry], true];
+                return [$needsWebkit ? [$this->maskEntry('-webkit-mask-box-image-slice', $value), $entry] : [$entry], true];
 
             case 'mask-border-width':
                 $value = $this->normalizeMaskBorderComponent('width', $entry['value']);
                 $entry['value'] = $value;
 
-                return [[$this->maskEntry('-webkit-mask-box-image-width', $value), $entry], true];
+                return [$needsWebkit ? [$this->maskEntry('-webkit-mask-box-image-width', $value), $entry] : [$entry], true];
 
             case 'mask-border-outset':
                 $value = $this->normalizeMaskBorderComponent('outset', $entry['value']);
                 $entry['value'] = $value;
 
-                return [[$this->maskEntry('-webkit-mask-box-image-outset', $value), $entry], true];
+                return [$needsWebkit ? [$this->maskEntry('-webkit-mask-box-image-outset', $value), $entry] : [$entry], true];
 
             case 'mask-border-repeat':
                 $value = $this->normalizeMaskBorderComponent('repeat', $entry['value']);
                 $entry['value'] = $value;
 
-                return [[$this->maskEntry('-webkit-mask-box-image-repeat', $value), $entry], true];
+                return [$needsWebkit ? [$this->maskEntry('-webkit-mask-box-image-repeat', $value), $entry] : [$entry], true];
 
             case 'mask-composite':
-                return [[$this->maskEntry('-webkit-mask-composite', $this->mapWebkitMaskComposite($entry['value'])), $entry], true];
+                return [$needsWebkit ? [$this->maskEntry('-webkit-mask-composite', $this->mapWebkitMaskComposite($entry['value'])), $entry] : [$entry], $needsWebkit];
 
             case 'mask-mode':
-                return [[$this->maskEntry('-webkit-mask-source-type', strtolower(trim($entry['value']))), $entry], true];
+                return [$needsWebkit ? [$this->maskEntry('-webkit-mask-source-type', strtolower(trim($entry['value']))), $entry] : [$entry], $needsWebkit];
         }
 
         return [[$entry], false];
@@ -5572,13 +5642,16 @@ final class TransitionPrefixer
      * @param array<string,string> $components
      * @return list<array{property:string,name:string,value:string,important:bool}>
      */
-    private function maskLayerEntries(array $components): array
+    private function maskLayerEntries(array $components, bool $needsWebkit): array
     {
-        $entries = [$this->maskEntry('-webkit-mask', $this->composeMaskLayerValue($components, false))];
-        if (isset($components['composite'])) {
+        $entries = [];
+        if ($needsWebkit) {
+            $entries[] = $this->maskEntry('-webkit-mask', $this->composeMaskLayerValue($components, false));
+        }
+        if ($needsWebkit && isset($components['composite'])) {
             $entries[] = $this->maskEntry('-webkit-mask-composite', $this->mapWebkitMaskComposite($components['composite']));
         }
-        if (isset($components['mode']) && strtolower($components['mode']) !== 'alpha') {
+        if ($needsWebkit && isset($components['mode']) && strtolower($components['mode']) !== 'alpha') {
             $entries[] = $this->maskEntry('-webkit-mask-source-type', strtolower($components['mode']));
         }
         $entries[] = $this->maskEntry('mask', $this->composeMaskLayerValue($components, true));
@@ -6260,15 +6333,23 @@ final class TransitionPrefixer
     /**
      * @return array{0:string,1:bool,2:bool}
      */
-    private function rewritePrefixedTransitionPropertyList(string $value): array
+    private function rewritePrefixedTransitionPropertyList(string $value, array $targetOptions): array
     {
         $changed = false;
         $needsPrefixedTransition = false;
         $parts = [];
+        $seen = [];
         foreach ($this->splitTopLevel($value, ',') as $part) {
             $part = trim($part);
-            $expansion = $this->prefixedTransitionPropertyExpansion($part);
+            $expansion = $this->prefixedTransitionPropertyExpansion($part, $targetOptions);
             foreach ($expansion['properties'] as $property) {
+                $key = strtolower($property);
+                if (isset($seen[$key])) {
+                    $changed = true;
+                    continue;
+                }
+
+                $seen[$key] = true;
                 $parts[] = $property;
             }
             $changed = $changed || $expansion['properties'] !== [$part];
@@ -6281,28 +6362,45 @@ final class TransitionPrefixer
     /**
      * @return array{0:string,1:bool,2:bool}
      */
-    private function rewritePrefixedTransitionShorthand(string $value): array
+    private function rewritePrefixedTransitionShorthand(string $value, array $targetOptions): array
     {
         $changed = false;
         $needsPrefixedTransition = false;
         $layers = [];
+        $seenLayers = [];
         foreach ($this->splitTopLevel($value, ',') as $layer) {
             $tokens = $this->splitWhitespaceTopLevel($layer);
             $propertyIndex = $this->transitionPropertyTokenIndex($tokens);
             if ($propertyIndex !== null) {
-                $expansion = $this->prefixedTransitionPropertyExpansion($tokens[$propertyIndex]);
+                $expansion = $this->prefixedTransitionPropertyExpansion($tokens[$propertyIndex], $targetOptions);
                 if ($expansion['properties'] !== [$tokens[$propertyIndex]]) {
                     foreach ($expansion['properties'] as $property) {
                         $expanded = $tokens;
                         $expanded[$propertyIndex] = $property;
-                        $layers[] = implode(' ', $expanded);
+                        $serialized = implode(' ', $expanded);
+                        $key = strtolower($serialized);
+                        if (isset($seenLayers[$key])) {
+                            continue;
+                        }
+
+                        $seenLayers[$key] = true;
+                        $layers[] = $serialized;
                     }
                     $changed = true;
                     $needsPrefixedTransition = $needsPrefixedTransition || $expansion['needsPrefixedTransition'];
                     continue;
                 }
             }
-            $layers[] = implode(' ', $tokens);
+
+            $serialized = implode(' ', $tokens);
+            $key = strtolower($serialized);
+            if (isset($seenLayers[$key])) {
+                $changed = true;
+                continue;
+            }
+
+            $seenLayers[$key] = true;
+            $layers[] = $serialized;
         }
 
         return [implode(',', $layers), $changed, $needsPrefixedTransition];
@@ -6311,30 +6409,37 @@ final class TransitionPrefixer
     /**
      * @return array{properties:non-empty-list<string>,needsPrefixedTransition:bool}
      */
-    private function prefixedTransitionPropertyExpansion(string $property): array
+    private function prefixedTransitionPropertyExpansion(string $property, array $targetOptions): array
     {
         $trimmed = trim($property);
+        $needsMaskWebkit = $targetOptions['maskNeedsWebkit'] ?? false;
 
-        return match (strtolower($trimmed)) {
+        $maskProperties = [
+            'mask' => '-webkit-mask',
+            'mask-border' => '-webkit-mask-box-image',
+            'mask-composite' => '-webkit-mask-composite',
+            'mask-mode' => '-webkit-mask-source-type',
+        ];
+        $lower = strtolower($trimmed);
+        foreach ($maskProperties as $unprefixed => $prefixed) {
+            if ($lower === $unprefixed) {
+                return [
+                    'properties' => $needsMaskWebkit ? [$prefixed, $unprefixed] : [$unprefixed],
+                    'needsPrefixedTransition' => false,
+                ];
+            }
+            if ($lower === $prefixed) {
+                return [
+                    'properties' => $needsMaskWebkit ? [$prefixed] : [$unprefixed],
+                    'needsPrefixedTransition' => false,
+                ];
+            }
+        }
+
+        return match ($lower) {
             'transform' => [
                 'properties' => ['-webkit-transform', 'transform'],
                 'needsPrefixedTransition' => true,
-            ],
-            'mask' => [
-                'properties' => ['-webkit-mask', 'mask'],
-                'needsPrefixedTransition' => false,
-            ],
-            'mask-border' => [
-                'properties' => ['-webkit-mask-box-image', 'mask-border'],
-                'needsPrefixedTransition' => false,
-            ],
-            'mask-composite' => [
-                'properties' => ['-webkit-mask-composite', 'mask-composite'],
-                'needsPrefixedTransition' => false,
-            ],
-            'mask-mode' => [
-                'properties' => ['-webkit-mask-source-type', 'mask-mode'],
-                'needsPrefixedTransition' => false,
             ],
             default => [
                 'properties' => [$trimmed],

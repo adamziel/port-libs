@@ -7786,9 +7786,68 @@ final class CssMinifier
             return $body;
         }
 
+        $this->rewriteGridShorthandRowOverrideGroup($entries);
         $this->rewriteGridTemplateGroup($entries);
+        $this->rewriteGridPlacementGroups($entries);
 
         return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteGridShorthandRowOverrideGroup(array &$entries): void
+    {
+        $lastGrid = null;
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            if ($entry['property'] === 'grid') {
+                $lastGrid = $index;
+            }
+        }
+
+        if ($lastGrid === null) {
+            return;
+        }
+
+        $latestRows = null;
+        $rowIndexes = [];
+        for ($index = $lastGrid + 1, $count = count($entries); $index < $count; $index++) {
+            $entry = $entries[$index];
+            if ($entry['drop']) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            if ($entry['property'] === 'grid-template-rows') {
+                $latestRows = $index;
+                $rowIndexes[] = $index;
+                continue;
+            }
+            if (in_array($entry['property'], ['grid', 'grid-template', 'grid-template-areas', 'grid-template-columns'], true)) {
+                return;
+            }
+        }
+
+        if ($latestRows === null) {
+            return;
+        }
+
+        $parts = $this->splitTopLevel($entries[$lastGrid]['value'], '/');
+        if (count($parts) !== 2) {
+            return;
+        }
+
+        $entries[$lastGrid]['value'] = trim($entries[$latestRows]['value']) . '/' . trim($parts[1]);
+        foreach ($rowIndexes as $index) {
+            $entries[$index]['drop'] = true;
+        }
     }
 
     /**
@@ -7851,10 +7910,19 @@ final class CssMinifier
             return;
         }
 
-        $useGridShorthand = isset($latestAuto['flow'], $latestAuto['rows'], $latestAuto['columns'])
-            && strtolower(trim($entries[$latestAuto['flow']]['value'])) === 'row'
-            && strtolower(trim($entries[$latestAuto['rows']]['value'])) === 'auto'
-            && strtolower(trim($entries[$latestAuto['columns']]['value'])) === 'auto';
+        $gridShorthand = null;
+        if (isset($latestAuto['flow'], $latestAuto['rows'], $latestAuto['columns'])) {
+            $gridShorthand = $this->serializeGridShorthandWithAutoTracks(
+                $shorthand,
+                $entries[$latest['areas']]['value'],
+                $entries[$latest['rows']]['value'],
+                $entries[$latest['columns']]['value'],
+                $entries[$latestAuto['flow']]['value'],
+                $entries[$latestAuto['rows']]['value'],
+                $entries[$latestAuto['columns']]['value'],
+            );
+        }
+        $useGridShorthand = $gridShorthand !== null;
 
         $included = array_values($latest);
         if ($useGridShorthand) {
@@ -7874,7 +7942,215 @@ final class CssMinifier
         $entries[$replaceAt] = [
             'property' => $useGridShorthand ? 'grid' : 'grid-template',
             'name' => $useGridShorthand ? 'grid' : 'grid-template',
-            'value' => $shorthand,
+            'value' => $gridShorthand ?? $shorthand,
+            'important' => false,
+            'drop' => false,
+        ];
+
+        if (!$useGridShorthand) {
+            $this->moveGridAutoFlowAfterAutoTracks($entries, $latestAuto);
+        }
+    }
+
+    private function serializeGridShorthandWithAutoTracks(
+        string $templateShorthand,
+        string $areas,
+        string $rows,
+        string $columns,
+        string $flow,
+        string $autoRows,
+        string $autoColumns
+    ): ?string {
+        $flow = $this->canonicalGridAutoFlowForComposition($flow);
+        if ($flow === null) {
+            return null;
+        }
+
+        $areas = trim($areas);
+        $rows = trim($rows);
+        $columns = trim($columns);
+        $autoRows = trim($autoRows);
+        $autoColumns = trim($autoColumns);
+        $autoRowsIsDefault = strcasecmp($autoRows, 'auto') === 0;
+        $autoColumnsIsDefault = strcasecmp($autoColumns, 'auto') === 0;
+
+        if ($flow === 'row' && $autoRowsIsDefault && $autoColumnsIsDefault) {
+            return $templateShorthand;
+        }
+
+        if (strcasecmp($areas, 'none') !== 0) {
+            return null;
+        }
+
+        if (($flow === 'row' || $flow === 'dense')
+            && strcasecmp($rows, 'none') === 0
+            && $autoColumnsIsDefault
+        ) {
+            $autoFlow = $flow === 'dense' ? 'auto-flow dense' : 'auto-flow';
+            if (!$autoRowsIsDefault) {
+                $autoFlow .= ' ' . $autoRows;
+            }
+
+            return $autoFlow . '/' . $columns;
+        }
+
+        if (($flow === 'column' || $flow === 'column dense')
+            && strcasecmp($columns, 'none') === 0
+            && $autoRowsIsDefault
+        ) {
+            $autoFlow = $flow === 'column dense' ? 'auto-flow dense' : 'auto-flow';
+            if (!$autoColumnsIsDefault) {
+                $autoFlow .= ' ' . $autoColumns;
+            }
+
+            return $rows . '/' . $autoFlow;
+        }
+
+        return null;
+    }
+
+    private function canonicalGridAutoFlowForComposition(string $value): ?string
+    {
+        $tokens = array_map(static fn (string $token): string => strtolower($token), $this->splitWhitespaceTopLevel(trim($value)));
+        if ($tokens === []) {
+            return null;
+        }
+
+        foreach ($tokens as $token) {
+            if (!in_array($token, ['row', 'column', 'dense'], true)) {
+                return null;
+            }
+        }
+
+        $hasDense = in_array('dense', $tokens, true);
+        if (in_array('column', $tokens, true)) {
+            return $hasDense ? 'column dense' : 'column';
+        }
+
+        return $hasDense ? 'dense' : 'row';
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     * @param array<string, int> $latestAuto
+     */
+    private function moveGridAutoFlowAfterAutoTracks(array &$entries, array $latestAuto): void
+    {
+        if (!isset($latestAuto['flow'], $latestAuto['rows'], $latestAuto['columns'])) {
+            return;
+        }
+
+        $indices = [$latestAuto['flow'], $latestAuto['rows'], $latestAuto['columns']];
+        sort($indices);
+        if ($indices[2] - $indices[0] !== 2) {
+            return;
+        }
+
+        $rows = $entries[$latestAuto['rows']];
+        $columns = $entries[$latestAuto['columns']];
+        $flow = $entries[$latestAuto['flow']];
+
+        $entries[$indices[0]] = $rows;
+        $entries[$indices[1]] = $columns;
+        $entries[$indices[2]] = $flow;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteGridPlacementGroups(array &$entries): void
+    {
+        foreach ($entries as $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            if (in_array($entry['property'], ['grid-area', 'grid-row', 'grid-column'], true)) {
+                return;
+            }
+        }
+
+        $latest = [];
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if (in_array($entry['property'], ['grid-row-start', 'grid-row-end', 'grid-column-start', 'grid-column-end'], true)) {
+                $latest[$entry['property']] = $index;
+            }
+        }
+
+        if (isset($latest['grid-row-start'], $latest['grid-row-end'], $latest['grid-column-start'], $latest['grid-column-end'])) {
+            $included = [
+                $latest['grid-row-start'],
+                $latest['grid-row-end'],
+                $latest['grid-column-start'],
+                $latest['grid-column-end'],
+            ];
+            $replaceAt = min($included);
+            foreach ($entries as $index => $entry) {
+                if (in_array($entry['property'], ['grid-row-start', 'grid-row-end', 'grid-column-start', 'grid-column-end'], true)) {
+                    $entries[$index]['drop'] = true;
+                }
+            }
+            $entries[$replaceAt] = [
+                'property' => 'grid-area',
+                'name' => 'grid-area',
+                'value' => $this->minifyGridAreaValue(
+                    $entries[$latest['grid-row-start']]['value']
+                        . '/'
+                        . $entries[$latest['grid-column-start']]['value']
+                        . '/'
+                        . $entries[$latest['grid-row-end']]['value']
+                        . '/'
+                        . $entries[$latest['grid-column-end']]['value']
+                ),
+                'important' => false,
+                'drop' => false,
+            ];
+
+            return;
+        }
+
+        $this->rewriteGridAxisPlacementGroup($entries, 'grid-row', 'grid-row-start', 'grid-row-end');
+        $this->rewriteGridAxisPlacementGroup($entries, 'grid-column', 'grid-column-start', 'grid-column-end');
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteGridAxisPlacementGroup(array &$entries, string $shorthand, string $start, string $end): void
+    {
+        $latestStart = null;
+        $latestEnd = null;
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if ($entry['property'] === $start) {
+                $latestStart = $index;
+            } elseif ($entry['property'] === $end) {
+                $latestEnd = $index;
+            }
+        }
+
+        if ($latestStart === null || $latestEnd === null) {
+            return;
+        }
+
+        $replaceAt = min($latestStart, $latestEnd);
+        foreach ($entries as $index => $entry) {
+            if ($entry['property'] === $start || $entry['property'] === $end) {
+                $entries[$index]['drop'] = true;
+            }
+        }
+
+        $entries[$replaceAt] = [
+            'property' => $shorthand,
+            'name' => $shorthand,
+            'value' => $this->minifyGridLineShorthandValue($entries[$latestStart]['value'] . '/' . $entries[$latestEnd]['value']),
             'important' => false,
             'drop' => false,
         ];
@@ -11185,6 +11461,12 @@ final class CssMinifier
                 $lower = strtolower($identifier);
                 $previous = $value[$i - 1] ?? '';
                 $next = $value[$i + strlen($identifier)] ?? '';
+                if ($lower === 'color-mix' && $next === '(') {
+                    [$function, $offset] = $this->readFunctionRaw($value, $i);
+                    $output .= $function;
+                    $i = $offset;
+                    continue;
+                }
                 if ($next === '(' && in_array($lower, ['hsl', 'hsla', 'hwb', 'rgb', 'rgba', 'lab', 'lch', 'oklab', 'oklch', 'color'], true)) {
                     [$function, $offset] = $this->readFunctionRaw($value, $i);
                     $output .= $this->minifyColorFunction($function)
@@ -11300,16 +11582,57 @@ final class CssMinifier
             return null;
         }
 
-        $space = strtolower(trim($parts[0]));
-        if ($space === 'in srgb') {
+        $interpolation = $this->parseColorMixInterpolationSpace($parts[0]);
+        if ($interpolation === null) {
+            return null;
+        }
+
+        $space = $interpolation['space'];
+        if ($space === 'srgb' && $interpolation['hueMethod'] === null) {
             return $this->minifySrgbColorMixParts($parts[1], $parts[2]);
         }
 
-        if ($space === 'in lab' || $space === 'in oklab') {
-            return $this->minifyRectangularColorMixParts(substr($space, 3), $parts[1], $parts[2]);
+        if (($space === 'lab' || $space === 'oklab') && $interpolation['hueMethod'] === null) {
+            return $this->minifyRectangularColorMixParts($space, $parts[1], $parts[2]);
+        }
+
+        if ($space === 'lch' || $space === 'oklch') {
+            return $this->minifyPolarColorMixParts($space, $interpolation['hueMethod'] ?? 'shorter', $parts[1], $parts[2]);
         }
 
         return null;
+    }
+
+    /**
+     * @return array{space:string,hueMethod:?string}|null
+     */
+    private function parseColorMixInterpolationSpace(string $space): ?array
+    {
+        $tokens = preg_split('/\s+/', strtolower(trim($space))) ?: [];
+        if (count($tokens) < 2 || $tokens[0] !== 'in') {
+            return null;
+        }
+
+        $colorSpace = $tokens[1];
+        $hueMethod = null;
+        if (count($tokens) === 4 && $tokens[3] === 'hue') {
+            $method = $tokens[2];
+            if (!in_array($method, ['shorter', 'longer', 'increasing', 'decreasing', 'specified'], true)) {
+                return null;
+            }
+            $hueMethod = $method;
+        } elseif (count($tokens) !== 2) {
+            return null;
+        }
+
+        if (!in_array($colorSpace, ['srgb', 'lab', 'lch', 'oklab', 'oklch'], true)) {
+            return null;
+        }
+
+        return [
+            'space' => $colorSpace,
+            'hueMethod' => $hueMethod,
+        ];
     }
 
     private function minifySrgbColorMixParts(string $leftStop, string $rightStop): ?string
@@ -11378,6 +11701,56 @@ final class CssMinifier
         }
 
         return $this->serializeRectangularColorMixResult($space, $components, $resultAlpha);
+    }
+
+    private function minifyPolarColorMixParts(string $space, string $hueMethod, string $leftStop, string $rightStop): ?string
+    {
+        $left = $this->parsePolarColorMixStop($leftStop, $space);
+        $right = $this->parsePolarColorMixStop($rightStop, $space);
+        if ($left === null || $right === null) {
+            return null;
+        }
+
+        [$leftWeight, $rightWeight] = $this->normalizedColorMixWeights($left['weight'], $right['weight']);
+        if ($leftWeight === null || $rightWeight === null) {
+            return null;
+        }
+
+        [$leftAlpha, $rightAlpha, $resultAlpha] = $this->resolveRectangularColorMixAlphas(
+            $left['color']['alpha'],
+            $right['color']['alpha'],
+            $leftWeight,
+            $rightWeight,
+        );
+        $componentAlpha = ($leftAlpha * $leftWeight) + ($rightAlpha * $rightWeight);
+
+        $lightness = $this->mixRectangularColorComponent(
+            $left['color']['lightness'],
+            $right['color']['lightness'],
+            $leftWeight,
+            $rightWeight,
+            $leftAlpha,
+            $rightAlpha,
+            $componentAlpha,
+        );
+        $chroma = $this->mixRectangularColorComponent(
+            $left['color']['chroma'],
+            $right['color']['chroma'],
+            $leftWeight,
+            $rightWeight,
+            $leftAlpha,
+            $rightAlpha,
+            $componentAlpha,
+        );
+        $hue = $this->mixPolarHueComponent(
+            $left['color']['hue'],
+            $right['color']['hue'],
+            $leftWeight,
+            $rightWeight,
+            $hueMethod,
+        );
+
+        return $this->serializePolarColorMixResult($space, $lightness, $chroma, $hue, $resultAlpha);
     }
 
     private function serializeUnresolvedSrgbColorMixFunction(string $left, string $right): string
@@ -11491,6 +11864,50 @@ final class CssMinifier
     }
 
     /**
+     * @return array{color:array{lightness:?float,chroma:?float,hue:?float,alpha:?float},weight:?float}|null
+     */
+    private function parsePolarColorMixStop(string $stop, string $space): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($stop));
+        if ($tokens === []) {
+            return null;
+        }
+
+        $weight = null;
+        $firstWeight = $this->parseColorMixPercentage($tokens[0]);
+        if ($firstWeight !== null) {
+            $weight = $firstWeight;
+            array_shift($tokens);
+        }
+
+        if ($tokens !== []) {
+            $lastIndex = count($tokens) - 1;
+            $lastWeight = $this->parseColorMixPercentage($tokens[$lastIndex]);
+            if ($lastWeight !== null) {
+                if ($weight !== null) {
+                    return null;
+                }
+                $weight = $lastWeight;
+                array_pop($tokens);
+            }
+        }
+
+        if (count($tokens) !== 1) {
+            return null;
+        }
+
+        $color = $this->parsePolarColorMixColor($tokens[0], $space);
+        if ($color === null) {
+            return null;
+        }
+
+        return [
+            'color' => $color,
+            'weight' => $weight,
+        ];
+    }
+
+    /**
      * @return array{components:list<?float>,alpha:?float}|null
      */
     private function parseRectangularColorMixColor(string $token, string $space): ?array
@@ -11524,6 +11941,37 @@ final class CssMinifier
         ];
     }
 
+    /**
+     * @return array{lightness:?float,chroma:?float,hue:?float,alpha:?float}|null
+     */
+    private function parsePolarColorMixColor(string $token, string $space): ?array
+    {
+        if (preg_match('/^' . preg_quote($space, '/') . '\((.*)\)$/is', trim($token), $matches) !== 1) {
+            return null;
+        }
+
+        $parts = $this->parseAdvancedColorFunctionParts($matches[1]);
+        if ($parts === null || count($parts['components']) !== 3) {
+            return null;
+        }
+
+        $lightness = $this->parsePolarColorMixLightnessComponent($parts['components'][0], $space);
+        $chroma = $this->parsePolarColorMixChromaComponent($parts['components'][1], $space);
+        $hue = $this->parsePolarColorMixHueComponent($parts['components'][2]);
+        $alpha = $this->parseRectangularColorMixAlpha($parts['alpha']);
+
+        if ($lightness === false || $chroma === false || $hue === false || $alpha === false) {
+            return null;
+        }
+
+        return [
+            'lightness' => $lightness,
+            'chroma' => $chroma,
+            'hue' => $hue,
+            'alpha' => $alpha,
+        ];
+    }
+
     private function parseRectangularColorMixComponent(string $token, int $index, string $space): float|false|null
     {
         $token = trim($token);
@@ -11553,6 +12001,58 @@ final class CssMinifier
         }
 
         return $number['value'];
+    }
+
+    private function parsePolarColorMixLightnessComponent(string $token, string $space): float|false|null
+    {
+        $token = trim($token);
+        if (strcasecmp($token, 'none') === 0) {
+            return null;
+        }
+
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return false;
+        }
+
+        if ($space === 'oklch' && !$number['isPercentage']) {
+            return $number['value'] * 100;
+        }
+
+        return $number['value'];
+    }
+
+    private function parsePolarColorMixChromaComponent(string $token, string $space): float|false|null
+    {
+        $token = trim($token);
+        if (strcasecmp($token, 'none') === 0) {
+            return null;
+        }
+
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return false;
+        }
+
+        if ($space === 'lch' && $number['isPercentage']) {
+            return $number['value'] * 1.5;
+        }
+
+        if ($space === 'oklch' && $number['isPercentage']) {
+            return $number['value'] * 0.004;
+        }
+
+        return $number['value'];
+    }
+
+    private function parsePolarColorMixHueComponent(string $token): float|false|null
+    {
+        $token = trim($token);
+        if (strcasecmp($token, 'none') === 0) {
+            return null;
+        }
+
+        return $this->parseHueDegrees($token) ?? false;
     }
 
     private function parseRectangularColorMixAlpha(?string $alpha): float|false|null
@@ -11618,6 +12118,80 @@ final class CssMinifier
         return (($left * $leftAlpha * $leftWeight) + ($right * $rightAlpha * $rightWeight)) / $componentAlpha;
     }
 
+    private function mixPolarHueComponent(
+        ?float $left,
+        ?float $right,
+        float $leftWeight,
+        float $rightWeight,
+        string $hueMethod
+    ): ?float {
+        if ($left === null && $right === null) {
+            return null;
+        }
+
+        if ($left === null) {
+            return $right;
+        }
+
+        if ($right === null) {
+            return $left;
+        }
+
+        $weightSum = $leftWeight + $rightWeight;
+        if ($weightSum <= 0.000000001) {
+            return 0.0;
+        }
+
+        [$leftHue, $rightHue] = $this->adjustPolarHuePair($left, $right, $hueMethod);
+        $hue = (($leftHue * $leftWeight) + ($rightHue * $rightWeight)) / $weightSum;
+
+        return $this->normalizeMixedHue($hue);
+    }
+
+    /**
+     * @return array{0:float,1:float}
+     */
+    private function adjustPolarHuePair(float $left, float $right, string $hueMethod): array
+    {
+        $left = $this->normalizeMixedHue($left);
+        $right = $this->normalizeMixedHue($right);
+        $delta = $right - $left;
+
+        if ($hueMethod === 'shorter') {
+            if ($delta > 180.0) {
+                $left += 360.0;
+            } elseif ($delta < -180.0) {
+                $right += 360.0;
+            }
+        } elseif ($hueMethod === 'longer') {
+            if ($delta > 0.0 && $delta < 180.0) {
+                $left += 360.0;
+            } elseif ($delta < 0.0 && $delta > -180.0) {
+                $right += 360.0;
+            }
+        } elseif ($hueMethod === 'increasing') {
+            if ($right < $left) {
+                $right += 360.0;
+            }
+        } elseif ($hueMethod === 'decreasing') {
+            if ($left < $right) {
+                $left += 360.0;
+            }
+        }
+
+        return [$left, $right];
+    }
+
+    private function normalizeMixedHue(float $hue): float
+    {
+        $hue = fmod($hue, 360.0);
+        if ($hue < 0.0) {
+            $hue += 360.0;
+        }
+
+        return abs($hue - 360.0) < 0.000000001 ? 0.0 : $hue;
+    }
+
     /**
      * @param list<?float> $components
      */
@@ -11635,6 +12209,22 @@ final class CssMinifier
         }
 
         return $space . '(' . implode(' ', $serialized) . $this->serializeRectangularColorMixAlpha($alpha) . ')';
+    }
+
+    private function serializePolarColorMixResult(
+        string $space,
+        ?float $lightness,
+        ?float $chroma,
+        ?float $hue,
+        ?float $alpha
+    ): string {
+        $components = [
+            $lightness === null ? 'none' : $this->minifyColorNumber($lightness, 4) . '%',
+            $chroma === null ? 'none' : $this->minifyColorNumber($chroma, 4),
+            $hue === null ? 'none' : $this->minifyColorNumber($hue, 4),
+        ];
+
+        return $space . '(' . implode(' ', $components) . $this->serializeRectangularColorMixAlpha($alpha) . ')';
     }
 
     private function serializeRectangularColorMixAlpha(?float $alpha): string
