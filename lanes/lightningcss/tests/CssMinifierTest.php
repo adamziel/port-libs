@@ -437,6 +437,34 @@ CSS
             $t->same($expected, $minifier->minify($input));
         }
     },
+    'css minifier maps upstream relative color function same-space colors' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'color(from color(%1$s 0.7 0.5 0.3) %1$s r g b)' => 'color(%1$s .7 .5 .3)',
+            'color(from color(%1$s 0.7 0.5 0.3 / 40%%) %1$s r g b / alpha)' => 'color(%1$s .7 .5 .3/.4)',
+            'color(from color(from color(%1$s 0.7 0.5 0.3) %1$s r g b) %1$s r g b)' => 'color(%1$s .7 .5 .3)',
+            'color(from color(%1$s 0.7 0.5 0.3) %1$s 0 g b / alpha)' => 'color(%1$s 0 .5 .3)',
+            'color(from color(%1$s 0.7 0.5 0.3) %1$s 20%% g b / 20%%)' => 'color(%1$s .2 .5 .3/.2)',
+            'color(from color(%1$s 0.7 0.5 0.3) %1$s 2 3 4 / 5)' => 'color(%1$s 2 3 4)',
+            'color(from color(%1$s 0.7 0.5 0.3) %1$s -2 -3 -4 / -5)' => 'color(%1$s -2 -3 -4/0)',
+            'color(from color(%1$s 0.7 0.5 0.3) %1$s g b r)' => 'color(%1$s .5 .3 .7)',
+            'color(from color(%1$s 0.7 0.5 0.3) %1$s b alpha r / g)' => 'color(%1$s .3 1 .7/.5)',
+            'color(from color(%1$s 0.7 0.5 0.3 / 40%%) %1$s b alpha r / g)' => 'color(%1$s .3 .4 .7/.5)',
+            'color(from color(%1$s 0.7 0.5 0.3 / 40%%) %1$s calc(r) calc(g) calc(b) / calc(alpha))' => 'color(%1$s .7 .5 .3/.4)',
+            'color(from color(%1$s 0.7 0.5 0.3) %1$s none none none / none)' => 'color(%1$s none none none/none)',
+            'color(from color(%1$s none none none / none) %1$s r g b / alpha)' => 'color(%1$s 0 0 0/0)',
+            'color(from color(%1$s 0.7 none 0.3) %1$s r g b)' => 'color(%1$s .7 0 .3)',
+        ];
+
+        foreach (['srgb', 'srgb-linear', 'a98-rgb', 'rec2020', 'prophoto-rgb'] as $space) {
+            foreach ($cases as $input => $expected) {
+                $t->same(
+                    '.foo{color:' . sprintf($expected, $space) . '}',
+                    $minifier->minify('.foo { color: ' . sprintf($input, $space) . '; }')
+                );
+            }
+        }
+    },
     'css minifier maps upstream lab and oklab relative same-space colors' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $cases = [

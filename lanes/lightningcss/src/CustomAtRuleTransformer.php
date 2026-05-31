@@ -3794,7 +3794,7 @@ final class CustomAtRuleTransformer
             $entries = $this->applyDeclarationVisitorConfig($entries, $this->declarationExitVisitorConfig);
         }
 
-        return $entries;
+        return $this->orderVendorOverflowScrollingEntries($entries);
     }
 
     /**
@@ -3909,6 +3909,7 @@ final class CustomAtRuleTransformer
     private function visitorDeclarationToEntry(array $declaration, array $fallback): array
     {
         $property = (string) ($declaration['property'] ?? $fallback['property']);
+        $raw = $declaration['raw'] ?? null;
         $value = $declaration['value'] ?? $fallback['value'];
         if ($property === 'unparsed' && is_array($value)) {
             $propertyId = $value['propertyId'] ?? null;
@@ -3922,9 +3923,33 @@ final class CustomAtRuleTransformer
 
         return [
             'property' => strtolower($property),
-            'value' => $this->serializeDeclarationVisitorValue($value),
+            'value' => is_string($raw)
+                ? $this->decodeCssEscapes($raw)
+                : $this->serializeDeclarationVisitorValue($value),
             'important' => (bool) ($declaration['important'] ?? $fallback['important']),
         ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function orderVendorOverflowScrollingEntries(array $entries): array
+    {
+        for ($index = 1, $count = count($entries); $index < $count; $index++) {
+            $property = strtolower((string) ($entries[$index]['property'] ?? ''));
+            $previousProperty = strtolower((string) ($entries[$index - 1]['property'] ?? ''));
+            if (
+                $property === '-webkit-overflow-scrolling'
+                && in_array($previousProperty, ['overflow', 'overflow-x', 'overflow-y'], true)
+            ) {
+                $entry = $entries[$index];
+                $entries[$index] = $entries[$index - 1];
+                $entries[$index - 1] = $entry;
+            }
+        }
+
+        return $entries;
     }
 
     private function serializeDeclarationVisitorValue(mixed $value): string

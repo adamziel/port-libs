@@ -2626,6 +2626,22 @@ CSS;
             '@layer blocks{@media (not (-webkit-max-device-pixel-ratio:2)) and (not (-webkit-min-device-pixel-ratio:4)),(not (max-resolution:2dppx)) and (not (min-resolution:4dppx)){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (resolution > 2dppx) and (resolution < 4dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15])
         );
+        $t->same(
+            '@layer blocks{@media (-webkit-min-device-pixel-ratio:.5),(min--moz-device-pixel-ratio:.5),(min-resolution:.5dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (resolution >= 0.5dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@layer blocks{@media not (-webkit-max-device-pixel-ratio:.5),not (max-resolution:.5dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (resolution > 0.5dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15])
+        );
+        $t->same(
+            '@layer blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (0.5dppx <= resolution <= 1.5dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@media only screen and (-webkit-min-device-pixel-ratio:.5),only screen and (min--moz-device-pixel-ratio:.5),only screen and (min-resolution:48dpi){.foo{color:#ff0}}',
+            $prefixer->prefixForTargets('@media only screen and (min-resolution: 48dpi) { .foo { color: yellow; } }', ['safari' => 15, 'firefox' => 10])
+        );
     },
     'transition prefixer maps upstream resolution x unit serialization inside layers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();

@@ -527,7 +527,7 @@ final class SourceMap
 
     /**
      * @param list<string> $sources
-     * @param list<string|null> $sourcesContent
+     * @param list<string> $sourcesContent
      * @param list<string> $names
      */
     public function addVlqMap(
@@ -552,12 +552,12 @@ final class SourceMap
         }
 
         foreach ($sourcesContent as $index => $content) {
-            if (!array_key_exists($index, $sourceIndexes) || $content === null) {
-                continue;
+            if (!is_string($content)) {
+                throw new InvalidArgumentException('Source map sourcesContent entries must be strings.');
             }
 
-            if (!is_string($content)) {
-                throw new InvalidArgumentException('Source map sourcesContent entries must be strings or null.');
+            if (!array_key_exists($index, $sourceIndexes)) {
+                continue;
             }
 
             $this->setSourceContent($sourceIndexes[$index], $content);
@@ -642,7 +642,7 @@ final class SourceMap
             throw new InvalidArgumentException('Source map mappings must be a string.');
         }
 
-        $sources = self::listOfStrings($data['sources'] ?? [], 'sources');
+        $sources = self::listOfStrings($data['sources'] ?? null, 'sources');
         $rawSourcesContent = self::listOfNullableStrings($data['sourcesContent'] ?? [], 'sourcesContent');
         $sourcesContent = [];
         foreach ($sources as $index => $_source) {
@@ -652,7 +652,7 @@ final class SourceMap
             }
         }
 
-        $names = self::listOfStrings($data['names'] ?? [], 'names');
+        $names = self::listOfStrings($data['names'] ?? null, 'names');
 
         $map = new self($projectRoot);
         $map->addVlqMap($data['mappings'], $sources, $sourcesContent, $names);
@@ -672,7 +672,7 @@ final class SourceMap
             throw new InvalidArgumentException('Source map mappings must be a string.');
         }
 
-        $sources = self::listOfStrings($data->sources ?? [], 'sources');
+        $sources = self::listOfStrings($data->sources ?? null, 'sources');
         $rawSourcesContent = self::listOfNullableStrings($data->sourcesContent ?? [], 'sourcesContent');
         $sourcesContent = [];
         foreach ($sources as $index => $_source) {
@@ -682,7 +682,7 @@ final class SourceMap
             }
         }
 
-        $names = self::listOfStrings($data->names ?? [], 'names');
+        $names = self::listOfStrings($data->names ?? null, 'names');
 
         $map = new self($projectRoot);
         $map->addVlqMap($mappings, $sources, $sourcesContent, $names);

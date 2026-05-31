@@ -330,6 +330,28 @@ foreach ([
     }
 }
 
+$missingVlqVectorGuard = true;
+foreach ([
+    static fn (): SourceMap => SourceMap::fromJson('{"version":3,"mappings":"A","names":[]}'),
+    static fn (): SourceMap => SourceMap::fromJson('{"version":3,"mappings":"A","sources":[]}'),
+    static fn (): SourceMap => SourceMap::fromArray(['mappings' => 'A', 'names' => []]),
+    static fn (): SourceMap => SourceMap::fromArray(['mappings' => 'A', 'sources' => []]),
+    static function (): SourceMap {
+        $map = new SourceMap();
+        $map->addVlqMap('A', ['wp-content/themes/example/style.css'], [null], []);
+
+        return $map;
+    },
+] as $missingVlqVector) {
+    try {
+        $missingVlqVector();
+        $missingVlqVectorGuard = false;
+        break;
+    } catch (InvalidArgumentException) {
+        continue;
+    }
+}
+
 $lookup = [
     'sourceIndexes' => $projectRootMap->addSources([
         '/srv/www/example/wp-content/themes/example/style.css',
@@ -381,6 +403,7 @@ $actual = [
     'maxUnsignedVlqDecode' => $maxUnsignedVlqDecode,
     'invalidRelativeVlqGuard' => $invalidRelativeVlqGuard,
     'invalidVlqVectorGuard' => $invalidVlqVectorGuard,
+    'missingVlqVectorGuard' => $missingVlqVectorGuard,
     'lookup' => $lookup,
 ];
 
@@ -419,6 +442,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'maxUnsignedVlqDecode' => 4294967295,
         'invalidRelativeVlqGuard' => true,
         'invalidVlqVectorGuard' => true,
+        'missingVlqVectorGuard' => true,
         'lookup' => [
             'sourceIndexes' => [0, 1, 2],
             'blockIndex' => 1,

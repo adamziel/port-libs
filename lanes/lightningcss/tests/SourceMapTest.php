@@ -432,6 +432,30 @@ return [
             });
         }
     },
+    'source map rejects upstream missing json vectors and null direct vlq contents' => static function (TestRunner $t): void {
+        foreach ([
+            '{"version":3,"mappings":"A","names":[]}',
+            '{"version":3,"mappings":"A","sources":[]}',
+        ] as $json) {
+            $t->throws(InvalidArgumentException::class, static function () use ($json): void {
+                SourceMap::fromJson($json);
+            });
+        }
+
+        foreach ([
+            ['mappings' => 'A', 'names' => []],
+            ['mappings' => 'A', 'sources' => []],
+        ] as $data) {
+            $t->throws(InvalidArgumentException::class, static function () use ($data): void {
+                SourceMap::fromArray($data);
+            });
+        }
+
+        $t->throws(InvalidArgumentException::class, static function (): void {
+            $map = new SourceMap();
+            $map->addVlqMap('A', ['file.css'], [null], []);
+        });
+    },
     'source map rejects upstream invalid relative vlq decode offsets' => static function (TestRunner $t): void {
         $t->same(4294967295, SourceMap::decodeVlq('+/////H')[0]['generatedColumn']);
 

@@ -15041,6 +15041,12 @@ final class CssMinifier
                 return $relative;
             }
         }
+        if ($name === 'color') {
+            $relative = $this->minifyRelativeColorSpaceFunction($matches[2]);
+            if ($relative !== null) {
+                return $relative;
+            }
+        }
 
         $parts = $this->parseAdvancedColorFunctionParts($matches[2]);
         if ($parts === null) {
@@ -15185,6 +15191,218 @@ final class CssMinifier
             . $this->serializeRelativePolarHue($hue)
             . $this->serializeRelativeAdvancedAlpha($alpha)
             . ')';
+    }
+
+    private function minifyRelativeColorSpaceFunction(string $arguments): ?string
+    {
+        $parsed = $this->parseRelativeColorSpaceArguments($arguments);
+        if ($parsed === null) {
+            return null;
+        }
+
+        $red = $this->evaluateRelativeColorSpaceComponent($parsed['components'][0], $parsed['origin']);
+        $green = $this->evaluateRelativeColorSpaceComponent($parsed['components'][1], $parsed['origin']);
+        $blue = $this->evaluateRelativeColorSpaceComponent($parsed['components'][2], $parsed['origin']);
+        if ($red === null || $green === null || $blue === null) {
+            return null;
+        }
+
+        $alpha = $parsed['alpha'] === null
+            ? ['type' => 'number', 'value' => 1.0]
+            : $this->evaluateRelativeColorSpaceComponent($parsed['alpha'], $parsed['origin']);
+        if ($alpha === null) {
+            return null;
+        }
+
+        return 'color('
+            . $parsed['space'] . ' '
+            . $this->serializeRelativeColorSpaceComponent($red) . ' '
+            . $this->serializeRelativeColorSpaceComponent($green) . ' '
+            . $this->serializeRelativeColorSpaceComponent($blue)
+            . $this->serializeRelativeColorSpaceAlpha($alpha)
+            . ')';
+    }
+
+    /**
+     * @return array{
+     *   space:string,
+     *   origin:array{r:float,g:float,b:float,alpha:float},
+     *   components:list<string>,
+     *   alpha:?string
+     * }|null
+     */
+    private function parseRelativeColorSpaceArguments(string $arguments): ?array
+    {
+        $slashParts = $this->splitTopLevel(trim($arguments), '/');
+        if ($slashParts === [] || count($slashParts) > 2) {
+            return null;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($slashParts[0]);
+        if (count($tokens) !== 6 || strcasecmp($tokens[0], 'from') !== 0) {
+            return null;
+        }
+
+        $space = strtolower($tokens[2]);
+        if (!in_array($space, ['srgb', 'srgb-linear', 'a98-rgb', 'rec2020', 'prophoto-rgb'], true)) {
+            return null;
+        }
+
+        $origin = $this->parseRelativeColorSpaceOrigin($space, $tokens[1]);
+        if ($origin === null) {
+            return null;
+        }
+
+        return [
+            'space' => $space,
+            'origin' => $origin,
+            'components' => array_slice($tokens, 3, 3),
+            'alpha' => isset($slashParts[1]) ? trim($slashParts[1]) : null,
+        ];
+    }
+
+    /**
+     * @return array{r:float,g:float,b:float,alpha:float}|null
+     */
+    private function parseRelativeColorSpaceOrigin(string $space, string $origin): ?array
+    {
+        $serialized = $this->minifyAdvancedColorFunction(trim($origin)) ?? trim($origin);
+        if (preg_match('/^color\((.*)\)$/is', $serialized, $matches) !== 1) {
+            return null;
+        }
+
+        $parts = $this->parseAdvancedColorFunctionParts($matches[1]);
+        if ($parts === null || count($parts['components']) !== 4) {
+            return null;
+        }
+
+        if (strtolower($parts['components'][0]) !== $space) {
+            return null;
+        }
+
+        $red = $this->parseRelativeColorSpaceOriginComponent($parts['components'][1]);
+        $green = $this->parseRelativeColorSpaceOriginComponent($parts['components'][2]);
+        $blue = $this->parseRelativeColorSpaceOriginComponent($parts['components'][3]);
+        $alpha = $this->parseRelativeColorSpaceOriginAlpha($parts['alpha']);
+        if ($red === null || $green === null || $blue === null || $alpha === null) {
+            return null;
+        }
+
+        return [
+            'r' => $red,
+            'g' => $green,
+            'b' => $blue,
+            'alpha' => $alpha,
+        ];
+    }
+
+    private function parseRelativeColorSpaceOriginComponent(string $token): ?float
+    {
+        if (strcasecmp(trim($token), 'none') === 0) {
+            return 0.0;
+        }
+
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return null;
+        }
+
+        return $number['isPercentage'] ? $number['value'] / 100 : $number['value'];
+    }
+
+    private function parseRelativeColorSpaceOriginAlpha(?string $token): ?float
+    {
+        if ($token === null || trim($token) === '') {
+            return 1.0;
+        }
+
+        if (strcasecmp(trim($token), 'none') === 0) {
+            return 0.0;
+        }
+
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return null;
+        }
+
+        $value = $number['isPercentage'] ? $number['value'] / 100 : $number['value'];
+
+        return min(1.0, max(0.0, $value));
+    }
+
+    /**
+     * @param array{r:float,g:float,b:float,alpha:float} $origin
+     * @return array{type:'none'}|array{type:'number',value:float}|null
+     */
+    private function evaluateRelativeColorSpaceComponent(string $token, array $origin): ?array
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return null;
+        }
+
+        if (strcasecmp($token, 'none') === 0) {
+            return ['type' => 'none'];
+        }
+
+        $channel = $this->relativeColorChannelValue($token, $origin);
+        if ($channel !== null) {
+            return [
+                'type' => 'number',
+                'value' => $channel,
+            ];
+        }
+
+        if (preg_match('/^calc\((.*)\)$/is', $token, $matches) === 1) {
+            $value = $this->evaluateRelativeColorCalcExpression($matches[1], $origin, 0.01);
+            if ($value === null) {
+                return null;
+            }
+
+            return [
+                'type' => 'number',
+                'value' => $value,
+            ];
+        }
+
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return null;
+        }
+
+        return [
+            'type' => 'number',
+            'value' => $number['isPercentage'] ? $number['value'] / 100 : $number['value'],
+        ];
+    }
+
+    /**
+     * @param array{type:'none'}|array{type:'number',value:float} $component
+     */
+    private function serializeRelativeColorSpaceComponent(array $component): string
+    {
+        if ($component['type'] === 'none') {
+            return 'none';
+        }
+
+        return $this->minifyColorNumber($component['value']);
+    }
+
+    /**
+     * @param array{type:'none'}|array{type:'number',value:float} $component
+     */
+    private function serializeRelativeColorSpaceAlpha(array $component): string
+    {
+        if ($component['type'] === 'none') {
+            return '/none';
+        }
+
+        $alpha = min(1.0, max(0.0, $component['value']));
+        if (abs($alpha - 1.0) < 0.0000001) {
+            return '';
+        }
+
+        return '/' . $this->minifyColorNumber($alpha);
     }
 
     /**

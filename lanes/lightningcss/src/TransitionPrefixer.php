@@ -450,7 +450,7 @@ final class TransitionPrefixer
 
     private function resolutionValueToDevicePixelRatio(string $value): ?string
     {
-        if (preg_match('/^([0-9]+(?:\.[0-9]+)?)(dppx|dpi|dpcm)$/i', trim($value), $matches) !== 1) {
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(dppx|dpi|dpcm)$/i', trim($value), $matches) !== 1) {
             return null;
         }
 
@@ -465,9 +465,23 @@ final class TransitionPrefixer
             return null;
         }
 
-        $formatted = rtrim(rtrim(sprintf('%.5f', round($ratio, 5)), '0'), '.');
+        return $this->formatDevicePixelRatioNumber($ratio);
+    }
 
-        return $formatted === '-0' ? '0' : $formatted;
+    private function formatDevicePixelRatioNumber(float $ratio): string
+    {
+        $formatted = rtrim(rtrim(sprintf('%.5f', round($ratio, 5)), '0'), '.');
+        if ($formatted === '' || $formatted === '-0') {
+            return '0';
+        }
+        if (str_starts_with($formatted, '0.')) {
+            return substr($formatted, 1);
+        }
+        if (str_starts_with($formatted, '-0.')) {
+            return '-' . substr($formatted, 2);
+        }
+
+        return $formatted;
     }
 
     /**

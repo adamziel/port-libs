@@ -901,6 +901,31 @@ CSS;
         $t->same('all', $seenQuery['mediaType']);
         $t->same('hover', $seenQuery['condition']['value']['name'] ?? null);
     },
+    'custom at-rules map upstream Declaration raw overflow-scrolling visitor' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitOverflow = static function (array $declaration) use (&$seen): array {
+            $seen[] = $declaration['property'];
+
+            return [
+                $declaration,
+                [
+                    'property' => '-webkit-overflow-scrolling',
+                    'raw' => 'touch',
+                ],
+            ];
+        };
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { overflow: auto; }', [], [
+            'Declaration' => [
+                'overflow' => $visitOverflow,
+                'overflow-x' => $visitOverflow,
+                'overflow-y' => $visitOverflow,
+            ],
+        ]);
+
+        $t->same('.foo{-webkit-overflow-scrolling:touch;overflow:auto}', $result);
+        $t->same(['overflow'], $seen);
+    },
     'custom at-rules clone upstream native media plain-feature visitor rules' => static function (TestRunner $t): void {
         $seenFeature = null;
         $css = <<<'CSS'
