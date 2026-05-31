@@ -2628,12 +2628,93 @@ final class CustomAtRuleTransformer
     /**
      * @return array{matched:bool,value:mixed}
      */
+    private function tryCustomLengthPercentagePreludeAst(string $prelude): array
+    {
+        $length = $this->tryCustomLengthPreludeAst($prelude);
+        if ($length['matched']) {
+            return [
+                'matched' => true,
+                'value' => [
+                    'type' => 'length-percentage',
+                    'value' => [
+                        'type' => 'dimension',
+                        'value' => $length['value']['value']['value'],
+                    ],
+                ],
+            ];
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $prelude, $matches) === 1) {
+            return [
+                'matched' => true,
+                'value' => [
+                    'type' => 'length-percentage',
+                    'value' => [
+                        'type' => 'percentage',
+                        'value' => (float) $matches[1] / 100,
+                    ],
+                ],
+            ];
+        }
+
+        if (preg_match('/^calc\\(/i', $prelude) === 1) {
+            $open = stripos($prelude, '(');
+            if ($open !== false && $this->findMatchingParen($prelude, $open) === strlen($prelude) - 1) {
+                return [
+                    'matched' => true,
+                    'value' => [
+                        'type' => 'length-percentage',
+                        'value' => [
+                            'type' => 'calc',
+                            'value' => [
+                                'type' => 'raw',
+                                'value' => trim(substr($prelude, $open + 1, -1)),
+                            ],
+                        ],
+                    ],
+                ];
+            }
+        }
+
+        return ['matched' => false, 'value' => null];
+    }
+
+    /**
+     * @return array{unit:string,value:float}|null
+     */
+    private function tryEvaluateSameUnitLengthCalc(string $prelude): ?array
+    {
+        if (preg_match('/^calc\\((.+)\\)$/i', trim($prelude), $matches) !== 1) {
+            return null;
+        }
+
+        $expression = trim($matches[1]);
+        if (preg_match('/^([+-]?(?:\\d+|\\d*\\.\\d+))([a-zA-Z]+)\\s*([+-])\\s*([+-]?(?:\\d+|\\d*\\.\\d+))\\2$/', $expression, $parts) !== 1) {
+            return null;
+        }
+
+        $left = (float) $parts[1];
+        $right = (float) $parts[4];
+        $value = $parts[3] === '-' ? $left - $right : $left + $right;
+
+        return [
+            'unit' => strtolower($parts[2]),
+            'value' => $value,
+        ];
+    }
+
+    /**
+     * @return array{matched:bool,value:mixed}
+     */
     private function tryCustomSyntaxComponentAst(string $prelude, string $grammar): array
     {
         $grammar = trim($grammar);
         if (preg_match('/^<([a-z-]+)>([+#]?)$/i', $grammar, $matches) === 1) {
             $type = strtolower($matches[1]);
             $multiplier = $matches[2] ?? '';
+            if ($type === 'transform-list' && $multiplier !== '') {
+                return ['matched' => false, 'value' => null];
+            }
             if ($multiplier === '+') {
                 return $this->tryRepeatedCustomSyntaxAst($prelude, $type, 'space');
             }
@@ -2713,6 +2794,7 @@ final class CustomAtRuleTransformer
                 ? ['matched' => true, 'value' => ['type' => 'dashed-ident', 'value' => $value]]
                 : ['matched' => false, 'value' => null],
             'length' => $this->tryCustomLengthPreludeAst($value),
+            'length-percentage' => $this->tryCustomLengthPercentagePreludeAst($value),
             'number' => preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) === 1
                 ? ['matched' => true, 'value' => ['type' => 'number', 'value' => (float) $value]]
                 : ['matched' => false, 'value' => null],
@@ -2727,6 +2809,12 @@ final class CustomAtRuleTransformer
                 ? ['matched' => true, 'value' => ['type' => 'color', 'value' => $color]]
                 : ['matched' => false, 'value' => null],
             'url' => $this->tryCustomUrlPreludeAst($value),
+            'image' => $this->tryCustomImagePreludeAst($value),
+            'angle' => $this->tryCustomAnglePreludeAst($value),
+            'time' => $this->tryCustomTimePreludeAst($value),
+            'resolution' => $this->tryCustomResolutionPreludeAst($value),
+            'transform-function' => $this->tryCustomTransformFunctionPreludeAst($value),
+            'transform-list' => $this->tryCustomTransformListPreludeAst($value),
             default => ['matched' => false, 'value' => null],
         };
     }
@@ -2736,7 +2824,7 @@ final class CustomAtRuleTransformer
      */
     private function tryCustomLengthPreludeAst(string $prelude): array
     {
-        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z%]+)$/', $prelude, $matches) === 1) {
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z]+)$/', $prelude, $matches) === 1) {
             return [
                 'matched' => true,
                 'value' => [
@@ -2747,6 +2835,19 @@ final class CustomAtRuleTransformer
                             'unit' => strtolower($matches[2]),
                             'value' => (float) $matches[1],
                         ],
+                    ],
+                ],
+            ];
+        }
+
+        if (($length = $this->tryEvaluateSameUnitLengthCalc($prelude)) !== null) {
+            return [
+                'matched' => true,
+                'value' => [
+                    'type' => 'length',
+                    'value' => [
+                        'type' => 'value',
+                        'value' => $length,
                     ],
                 ],
             ];
@@ -2806,6 +2907,161 @@ final class CustomAtRuleTransformer
             'value' => [
                 'type' => 'url',
                 'value' => $this->parseUrlValue($matches[1], $prelude),
+            ],
+        ];
+    }
+
+    /**
+     * @return array{matched:bool,value:mixed}
+     */
+    private function tryCustomImagePreludeAst(string $prelude): array
+    {
+        if (strtolower($prelude) === 'none') {
+            return [
+                'matched' => true,
+                'value' => [
+                    'type' => 'image',
+                    'value' => ['type' => 'none'],
+                ],
+            ];
+        }
+
+        $url = $this->tryCustomUrlPreludeAst($prelude);
+        if ($url['matched']) {
+            return [
+                'matched' => true,
+                'value' => [
+                    'type' => 'image',
+                    'value' => [
+                        'type' => 'url',
+                        'value' => $url['value']['value'],
+                    ],
+                ],
+            ];
+        }
+
+        if (preg_match('/^(?:repeating-)?(?:linear|radial|conic)-gradient\\(/i', $prelude) === 1) {
+            $open = strpos($prelude, '(');
+            if ($open !== false && $this->findMatchingParen($prelude, $open) === strlen($prelude) - 1) {
+                return [
+                    'matched' => true,
+                    'value' => [
+                        'type' => 'image',
+                        'value' => [
+                            'type' => 'gradient',
+                            'value' => ['raw' => $prelude],
+                        ],
+                    ],
+                ];
+            }
+        }
+
+        return ['matched' => false, 'value' => null];
+    }
+
+    /**
+     * @return array{matched:bool,value:mixed}
+     */
+    private function tryCustomAnglePreludeAst(string $prelude): array
+    {
+        if (preg_match('/^([+-]?(?:\\d+|\\d*\\.\\d+))(deg|rad|grad|turn)$/i', $prelude, $matches) !== 1) {
+            return ['matched' => false, 'value' => null];
+        }
+
+        return [
+            'matched' => true,
+            'value' => [
+                'type' => 'angle',
+                'value' => [
+                    'type' => strtolower($matches[2]),
+                    'value' => (float) $matches[1],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array{matched:bool,value:mixed}
+     */
+    private function tryCustomTimePreludeAst(string $prelude): array
+    {
+        if (preg_match('/^([+-]?(?:\\d+|\\d*\\.\\d+))(ms|s)$/i', $prelude, $matches) !== 1) {
+            return ['matched' => false, 'value' => null];
+        }
+
+        return [
+            'matched' => true,
+            'value' => [
+                'type' => 'time',
+                'value' => [
+                    'type' => strtolower($matches[2]) === 'ms' ? 'milliseconds' : 'seconds',
+                    'value' => (float) $matches[1],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array{matched:bool,value:mixed}
+     */
+    private function tryCustomResolutionPreludeAst(string $prelude): array
+    {
+        if (preg_match('/^([+-]?(?:\\d+|\\d*\\.\\d+))(dpi|dpcm|dppx)$/i', $prelude, $matches) !== 1) {
+            return ['matched' => false, 'value' => null];
+        }
+
+        return [
+            'matched' => true,
+            'value' => [
+                'type' => 'resolution',
+                'value' => [
+                    'type' => strtolower($matches[2]),
+                    'value' => (float) $matches[1],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array{matched:bool,value:mixed}
+     */
+    private function tryCustomTransformFunctionPreludeAst(string $prelude): array
+    {
+        $transforms = $this->parseTransformFunctionListForVisitor($prelude);
+        if (count($transforms) !== 1 || ($transforms[0]['type'] ?? null) === 'raw') {
+            return ['matched' => false, 'value' => null];
+        }
+
+        return [
+            'matched' => true,
+            'value' => [
+                'type' => 'transform-function',
+                'value' => $transforms[0],
+            ],
+        ];
+    }
+
+    /**
+     * @return array{matched:bool,value:mixed}
+     */
+    private function tryCustomTransformListPreludeAst(string $prelude): array
+    {
+        $transforms = $this->parseTransformFunctionListForVisitor($prelude);
+        if ($transforms === []) {
+            return ['matched' => false, 'value' => null];
+        }
+
+        foreach ($transforms as $transform) {
+            if (($transform['type'] ?? null) === 'raw') {
+                return ['matched' => false, 'value' => null];
+            }
+        }
+
+        return [
+            'matched' => true,
+            'value' => [
+                'type' => 'transform-list',
+                'value' => $transforms,
             ],
         ];
     }
@@ -4599,6 +4855,24 @@ final class CustomAtRuleTransformer
                     'type' => 'translateX',
                     'value' => $this->parseTransformArgumentForVisitor($arguments),
                 ];
+            } elseif (in_array(strtolower($name), ['rotate', 'rotatex', 'rotatey', 'rotatez'], true)) {
+                $angle = $this->tryCustomAnglePreludeAst($arguments);
+                if (!$angle['matched']) {
+                    $transforms[] = [
+                        'type' => 'raw',
+                        'value' => $name . '(' . $arguments . ')',
+                    ];
+                } else {
+                    $transforms[] = [
+                        'type' => match (strtolower($name)) {
+                            'rotatex' => 'rotateX',
+                            'rotatey' => 'rotateY',
+                            'rotatez' => 'rotateZ',
+                            default => 'rotate',
+                        },
+                        'value' => $angle['value']['value'],
+                    ];
+                }
             } else {
                 $transforms[] = [
                     'type' => 'raw',
@@ -5551,6 +5825,28 @@ final class CustomAtRuleTransformer
         if ($type === 'translateX') {
             return 'translateX(' . $this->serializeTransformArgument($value['value'] ?? '') . ')';
         }
+        if (in_array($type, ['rotate', 'rotateX', 'rotateY', 'rotateZ'], true)) {
+            return $type . '(' . $this->serializeUnitVariantValue($value['value'] ?? []) . ')';
+        }
+        if ($type === 'transform-function' && isset($value['value'])) {
+            return $this->serializeVisitorValue($value['value']);
+        }
+        if ($type === 'transform-list' && isset($value['value']) && is_array($value['value'])) {
+            return implode(' ', array_map(fn (mixed $transform): string => $this->serializeVisitorValue($transform), $value['value']));
+        }
+        if ($type === 'repeated' && isset($value['value']) && is_array($value['value'])) {
+            $components = $value['value']['components'] ?? [];
+            if (!is_array($components)) {
+                $components = [];
+            }
+            $multiplier = $value['value']['multiplier']['type'] ?? 'space';
+            $separator = $multiplier === 'comma' ? ',' : ' ';
+
+            return implode($separator, array_map(fn (mixed $component): string => $this->serializeVisitorValue($component), $components));
+        }
+        if ($type === 'literal') {
+            return (string) ($value['value'] ?? '');
+        }
         if ($type === 'calc') {
             return $this->serializeCalcValue($value['value'] ?? '');
         }
@@ -5568,6 +5864,12 @@ final class CustomAtRuleTransformer
         }
         if ($type === 'length-percentage' && isset($value['value']) && is_array($value['value'])) {
             return $this->serializeVisitorValue($value['value']);
+        }
+        if (in_array($type, ['angle', 'time', 'resolution'], true) && isset($value['value']) && is_array($value['value'])) {
+            return $this->serializeUnitVariantValue($value['value']);
+        }
+        if ($type === 'image' && isset($value['value']) && is_array($value['value'])) {
+            return $this->serializeImageValue($value['value']);
         }
         if ($type === 'stretch') {
             $prefixes = $value['vendorPrefix'] ?? [];
@@ -5656,6 +5958,45 @@ final class CustomAtRuleTransformer
         }
 
         return (string) ($value['value'] ?? '');
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function serializeUnitVariantValue(array $value): string
+    {
+        $type = strtolower((string) ($value['type'] ?? ''));
+        $number = $value['value'] ?? null;
+        if (!is_int($number) && !is_float($number)) {
+            return '';
+        }
+
+        $unit = match ($type) {
+            'seconds' => 's',
+            'milliseconds' => 'ms',
+            default => $type,
+        };
+
+        return $this->formatNumber($number) . $unit;
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function serializeImageValue(array $value): string
+    {
+        $type = strtolower((string) ($value['type'] ?? ''));
+        if ($type === 'none') {
+            return 'none';
+        }
+        if ($type === 'url' && isset($value['value']) && is_array($value['value'])) {
+            return $this->serializeUrlValue($value['value']);
+        }
+        if (($type === 'gradient' || $type === 'image-set') && isset($value['value']) && is_array($value['value'])) {
+            return $this->serializeVisitorValue($value['value']);
+        }
+
+        return $this->serializeVisitorValue($value['value'] ?? '');
     }
 
     private function serializeTransformArgument(mixed $value): string

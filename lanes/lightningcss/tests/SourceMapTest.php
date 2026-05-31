@@ -1111,6 +1111,22 @@ return [
             $map->addVlqMap('A', [], [], [], 0, $maxUnsigned32 + 1);
         });
     },
+    'source map rejects shifted generated-column overflow before mutation' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('theme.css');
+        $maxUnsigned32 = 4294967295;
+        $map->addMapping(0, 2, $sourceIndex, 0, 0, 'safeRule');
+        $map->addMapping(0, $maxUnsigned32, $sourceIndex, 1, 0, 'maxRule');
+
+        $beforeMappings = $map->getMappings();
+        $beforeVlq = $map->writeVlq();
+
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->offsetColumns(0, 0, 1);
+        });
+        $t->same($beforeMappings, $map->getMappings());
+        $t->same($beforeVlq, $map->writeVlq());
+    },
     'source map extends generated mappings through upstream input maps' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $compiled = $map->addSource('cache/compiled.css');

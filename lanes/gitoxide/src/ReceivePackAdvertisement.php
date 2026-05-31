@@ -6,6 +6,8 @@ namespace PortLibs\Gitoxide;
 
 final class ReceivePackAdvertisement
 {
+    private const MAX_PACKET_LINE_LENGTH = 65520;
+
     /**
      * @param list<RemoteRef> $refs
      */
@@ -139,6 +141,9 @@ final class ReceivePackAdvertisement
         }
         if ($length < 4) {
             throw new \InvalidArgumentException("receive-pack advertisement: invalid packet line length {$header}");
+        }
+        if ($length > self::MAX_PACKET_LINE_LENGTH) {
+            throw new \InvalidArgumentException("receive-pack advertisement: packet line exceeds maximum length {$header}");
         }
 
         $payloadLength = $length - 4;

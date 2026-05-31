@@ -1721,6 +1721,246 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function savepointFaultRecoveryRows(int $count = 1200): array
+    {
+        if ($count < 1) {
+            throw new \InvalidArgumentException('SQLite savepoint fault dynamic rows require a positive count');
+        }
+
+        $scenarios = [
+            [
+                'script' => 'savepoint4.test',
+                'section' => 'savepoint4-1 nested crash rollback',
+                'phase' => 'crash-during-rollback-to-outer-savepoint',
+                'journal_mode' => 'delete',
+                'cache_size' => 20,
+                'initial_rows' => 1024,
+                'expected_rows' => 1024,
+                'schema_count_after' => 1,
+                'rollback_target' => 'one',
+                'released_target' => 'one',
+                'inner_savepoint' => 'two',
+                'crash_target' => 'test.db-journal',
+                'fault_kind' => 'crashsql-delay',
+                'query_aborted' => false,
+                'expected_message' => 'signature preserved',
+                'uses_incremental_vacuum' => false,
+                'memory_journal' => false,
+            ],
+            [
+                'script' => 'savepoint4.test',
+                'section' => 'savepoint4-2 indexed crash rollback',
+                'phase' => 'crash-during-indexed-savepoint-release',
+                'journal_mode' => 'delete',
+                'cache_size' => 10,
+                'initial_rows' => 256,
+                'expected_rows' => 256,
+                'schema_count_after' => 2,
+                'rollback_target' => 'three',
+                'released_target' => 'one',
+                'inner_savepoint' => 'four',
+                'crash_target' => 'test.db',
+                'fault_kind' => 'crashsql-delay',
+                'query_aborted' => false,
+                'expected_message' => 'signature preserved',
+                'uses_incremental_vacuum' => false,
+                'memory_journal' => false,
+            ],
+            [
+                'script' => 'savepoint5.test',
+                'section' => 'savepoint5-1.1..1.3 empty database restart',
+                'phase' => 'empty-database-schema-reset-after-rollback',
+                'journal_mode' => 'delete',
+                'cache_size' => 10,
+                'initial_rows' => 1,
+                'expected_rows' => 1,
+                'schema_count_after' => 1,
+                'rollback_target' => 'sp1',
+                'released_target' => 'sp1',
+                'inner_savepoint' => null,
+                'crash_target' => null,
+                'fault_kind' => 'none',
+                'query_aborted' => false,
+                'expected_message' => 'sqlite_master empty before recreate',
+                'uses_incremental_vacuum' => false,
+                'memory_journal' => false,
+            ],
+            [
+                'script' => 'savepoint6.test',
+                'section' => 'savepoint6 random incremental-vacuum stack',
+                'phase' => 'random-savepoint-incremental-vacuum-parity',
+                'journal_mode' => 'wal',
+                'cache_size' => 10,
+                'initial_rows' => 44,
+                'expected_rows' => 44,
+                'schema_count_after' => 3,
+                'rollback_target' => 'two',
+                'released_target' => 'one',
+                'inner_savepoint' => 'three',
+                'crash_target' => null,
+                'fault_kind' => 'random-savepoint-op',
+                'query_aborted' => false,
+                'expected_message' => 'array mirror matches database',
+                'uses_incremental_vacuum' => true,
+                'memory_journal' => false,
+            ],
+            [
+                'script' => 'savepoint7.test',
+                'section' => 'savepoint7-1.1..1.3 release keeps pending query alive',
+                'phase' => 'release-inner-savepoint-keeps-pending-query',
+                'journal_mode' => 'delete',
+                'cache_size' => 10,
+                'initial_rows' => 3,
+                'expected_rows' => 3,
+                'schema_count_after' => 3,
+                'rollback_target' => null,
+                'released_target' => 'x2',
+                'inner_savepoint' => 'x2',
+                'crash_target' => null,
+                'fault_kind' => 'none',
+                'query_aborted' => false,
+                'expected_message' => 'pending query continues after RELEASE',
+                'uses_incremental_vacuum' => false,
+                'memory_journal' => false,
+            ],
+            [
+                'script' => 'savepoint7.test',
+                'section' => 'savepoint7-2.1..2.2 rollback aborts pending query',
+                'phase' => 'rollback-inner-savepoint-aborts-pending-query',
+                'journal_mode' => 'delete',
+                'cache_size' => 10,
+                'initial_rows' => 3,
+                'expected_rows' => 0,
+                'schema_count_after' => 4,
+                'rollback_target' => 'x2',
+                'released_target' => 'x1',
+                'inner_savepoint' => 'x2',
+                'crash_target' => null,
+                'fault_kind' => 'none',
+                'query_aborted' => true,
+                'expected_message' => 'abort due to ROLLBACK',
+                'uses_incremental_vacuum' => false,
+                'memory_journal' => false,
+            ],
+            [
+                'script' => 'savepoint7.test',
+                'section' => 'savepoint7-3.248..3.253 in-memory journal rollback',
+                'phase' => 'memory-journal-large-rollback-keeps-row-count',
+                'journal_mode' => 'memory',
+                'cache_size' => 10,
+                'initial_rows' => 248,
+                'expected_rows' => 248,
+                'schema_count_after' => 1,
+                'rollback_target' => 'twoB',
+                'released_target' => 'one',
+                'inner_savepoint' => 'twoB',
+                'crash_target' => null,
+                'fault_kind' => 'memory-journal',
+                'query_aborted' => false,
+                'expected_message' => 'row count unchanged after rollback',
+                'uses_incremental_vacuum' => false,
+                'memory_journal' => true,
+            ],
+            [
+                'script' => 'savepointfault.test',
+                'section' => 'savepointfault-1 malloc nested rollback',
+                'phase' => 'malloc-fault-nested-savepoint-rollback',
+                'journal_mode' => 'delete',
+                'cache_size' => 10,
+                'initial_rows' => 1,
+                'expected_rows' => 2,
+                'schema_count_after' => 1,
+                'rollback_target' => 'two',
+                'released_target' => 'one',
+                'inner_savepoint' => 'two',
+                'crash_target' => null,
+                'fault_kind' => 'malloc',
+                'query_aborted' => false,
+                'expected_message' => 'outer insert survives inner rollback',
+                'uses_incremental_vacuum' => false,
+                'memory_journal' => false,
+            ],
+            [
+                'script' => 'savepointfault.test',
+                'section' => 'savepointfault-3 ioerr cleanup savepoint',
+                'phase' => 'ioerr-cleanup-savepoint-release',
+                'journal_mode' => 'delete',
+                'cache_size' => 10,
+                'initial_rows' => 2,
+                'expected_rows' => 2,
+                'schema_count_after' => 1,
+                'rollback_target' => 'one',
+                'released_target' => 'one',
+                'inner_savepoint' => 'one',
+                'crash_target' => null,
+                'fault_kind' => 'ioerr',
+                'query_aborted' => false,
+                'expected_message' => 'cleanup SAVEPOINT one; RELEASE one succeeds',
+                'uses_incremental_vacuum' => false,
+                'memory_journal' => false,
+            ],
+            [
+                'script' => 'savepointfault.test',
+                'section' => 'savepointfault-4 incremental vacuum rollback',
+                'phase' => 'malloc-fault-incremental-vacuum-rollback',
+                'journal_mode' => 'delete',
+                'cache_size' => 1000,
+                'initial_rows' => 3,
+                'expected_rows' => 3,
+                'schema_count_after' => 2,
+                'rollback_target' => 'abc',
+                'released_target' => 'abc',
+                'inner_savepoint' => 'abc',
+                'crash_target' => null,
+                'fault_kind' => 'malloc',
+                'query_aborted' => false,
+                'expected_message' => 'incremental vacuum page movement rolls back',
+                'uses_incremental_vacuum' => true,
+                'memory_journal' => false,
+            ],
+        ];
+
+        $rows = [];
+        $pageSizes = [512, 1024, 2048, 4096];
+        foreach (range(1, $count) as $case) {
+            $scenario = $scenarios[($case - 1) % count($scenarios)];
+            $pageSize = $pageSizes[($case - 1) % count($pageSizes)];
+            $rollbackFrame = 1 + ($case % 3);
+            $writeCount = max($rollbackFrame + 1, 3 + ($case % 7));
+            $discardedFrameCount = $scenario['rollback_target'] === null ? 0 : max(1, $writeCount - $rollbackFrame);
+            $expectedRows = (int) $scenario['expected_rows'];
+            if ($scenario['phase'] === 'memory-journal-large-rollback-keeps-row-count') {
+                $expectedRows = 248 + (($case - 1) % 6);
+            }
+
+            $rows[] = array_replace($scenario, [
+                'upstream' => sprintf('%s %s dynamic savepoint case %04d', $scenario['script'], $scenario['section'], $case),
+                'case' => $case,
+                'page_size' => $pageSize,
+                'write_count' => $writeCount,
+                'rollback_frame' => $rollbackFrame,
+                'discarded_wal_frame_count' => $discardedFrameCount,
+                'expected_rows' => $expectedRows,
+                'expected_signature' => hash('sha256', $scenario['script'] . '|' . $scenario['phase'] . '|' . $expectedRows),
+                'integrity_check' => 'ok',
+                'transaction_active_after' => true,
+                'requires_pager_savepoint_playback' => $scenario['rollback_target'] !== null,
+                'requires_statement_abort' => (bool) $scenario['query_aborted'],
+                'dependencies' => [
+                    'real-upstream-corpus-' . str_replace('.test', '', $scenario['script']),
+                    'sqlite-pager-savepoint-playback',
+                    'sqlite-savepoint-fault-recovery',
+                    'sqlite-real-upstream-pager-wal-dynamic',
+                ],
+            ]);
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array

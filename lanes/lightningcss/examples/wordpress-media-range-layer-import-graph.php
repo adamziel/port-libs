@@ -33,5 +33,33 @@ if ($bundle !== $expected) {
     exit(1);
 }
 
+$conjunctionBundle = (new CssBundler())->bundle('/conjunction.css', [
+    '/conjunction.css' => <<<'CSS'
+@import "query.css" layer(theme.blocks) all;
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/query.css' => <<<'CSS'
+@import "wide.css" only screen;
+.wp-block-query {
+  color: blue;
+}
+CSS,
+    '/wide.css' => <<<'CSS'
+.wp-block-query-card {
+  color: green;
+}
+CSS,
+]);
+
+$expectedConjunction = '@media only screen{@layer theme.blocks{.wp-block-query-card{color:green}}}@layer theme.blocks{.wp-block-query{color:#00f}}.wp-site-blocks{color:red}';
+
+if ($conjunctionBundle !== $expectedConjunction) {
+    fwrite(STDERR, "Unexpected media query conjunction import graph output:\n{$conjunctionBundle}\n");
+    exit(1);
+}
+
 echo $bundle . PHP_EOL;
+echo $conjunctionBundle . PHP_EOL;
 echo 'media-range-layer-import-graph: bundled' . PHP_EOL;

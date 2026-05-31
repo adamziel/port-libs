@@ -358,7 +358,7 @@ Focused smart HTTP proxy credential lifecycle inventory inspected on 2026-05-22:
 - 9 selected `gix-transport` smart HTTP source/test paths were listed under `gix-transport/src/client/blocking_io/http` and `gix-transport/tests/client/blocking_io/http`.
 - 12 Rust `#[test]` attributes were counted in `gix-transport/tests/client/blocking_io/http/mod.rs`.
 - `gix-transport/src/client/blocking_io/http/mod.rs` defines `Options::proxy_authenticate` as the proxy credential callback boundary.
-- `gix-transport/src/client/blocking_io/http/curl/remote.rs` contains the mapped credential lifecycle: after obtaining proxy credentials, the curl backend calls the next credential action with `store()` when the request finishes with HTTP 200 and `erase()` when the transfer fails or the final status is not accepted.
+- `gix-transport/src/client/blocking_io/http/curl/remote.rs` contains the mapped credential lifecycle: after obtaining proxy credentials, the curl backend calls the next credential action with `store()` when the request finishes with an accepted status such as HTTP 200 or an accepted initial 304 discovery response, and `erase()` when the transfer fails or the final status is not accepted.
 - The PHP slice maps that lifecycle with `proxyCredentialStore` and `proxyCredentialErase` callbacks for credentials returned by `proxyCredentialHelper`, while continuing to keep `Proxy-Authorization` out of origin request headers.
 
 Focused smart HTTP proxy username-helper inventory inspected on 2026-05-31:

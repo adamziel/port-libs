@@ -73,5 +73,17 @@ return [
         ],
         $fixture['unexpectedStatusErasures']
     ),
+    'notModifiedProxyResponseSuccessful' => $fixture['notModifiedProxyResponseSuccessful'],
+    'notModifiedProxyHelperCalls' => $fixture['notModifiedProxyHelperCalls'],
+    'notModifiedProxyCredentialsStored' => array_map(
+        static fn (array $entry): array => [
+            'proxyUrl' => $entry[0],
+            'requestHost' => $entry[1],
+            'username' => $entry[2]['username'],
+        ],
+        $fixture['notModifiedProxyStores']
+    ),
+    'notModifiedProxyCredentialsErased' => $fixture['notModifiedProxyErasures'],
+    'notModifiedProxyPostCookieHeader' => $fixture['notModifiedProxyPostCookieHeader'],
     'wordpressUse' => $fixture['wordpressUse'],
 ];

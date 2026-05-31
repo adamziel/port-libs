@@ -81,6 +81,22 @@ final class MediaQueryParser
         return true;
     }
 
+    public function andQuery(string $left, string $right): string
+    {
+        $left = $this->parseSingleQueryForConjunction($left);
+        $right = $this->parseSingleQueryForConjunction($right);
+        [$qualifier, $type] = $this->combineMediaTypeForAnd($left, $right);
+
+        $condition = $left['condition'];
+        if ($right['condition'] !== null) {
+            $condition = $condition === null || $condition === $right['condition']
+                ? $right['condition']
+                : $this->combineMediaConditionsForAnd($condition, $right['condition']);
+        }
+
+        return $this->serializeMediaQueryForCombination($qualifier, $type, $condition);
+    }
+
     private function minifyQuery(string $query, bool $allowCompactedNegation): string
     {
         $query = trim($query);
@@ -1208,6 +1224,106 @@ final class MediaQueryParser
         }
 
         return $this->collapseSingleFeatureWrapper($query);
+    }
+
+    /**
+     * @return array{qualifier:?string,type:string,condition:?string}
+     */
+    private function parseSingleQueryForConjunction(string $query): array
+    {
+        $queries = $this->splitTopLevel($this->minifyList($query, true), ',');
+        if (count($queries) !== 1) {
+            throw new \InvalidArgumentException('Media query conjunction only supports single queries');
+        }
+
+        $query = $queries[0];
+        if (preg_match('/^(?:(not|only)\s+)?(' . $this->cssIdentifierPattern() . ')(?:\s+and\s+(.+))?$/i', $query, $matches) === 1) {
+            return [
+                'qualifier' => isset($matches[1]) && $matches[1] !== '' ? strtolower($matches[1]) : null,
+                'type' => $this->canonicalMediaIdentifier($matches[2]),
+                'condition' => isset($matches[3]) && trim($matches[3]) !== '' ? trim($matches[3]) : null,
+            ];
+        }
+
+        return [
+            'qualifier' => null,
+            'type' => 'all',
+            'condition' => $query,
+        ];
+    }
+
+    /**
+     * @param array{qualifier:?string,type:string,condition:?string} $left
+     * @param array{qualifier:?string,type:string,condition:?string} $right
+     * @return array{?string,string}
+     */
+    private function combineMediaTypeForAnd(array $left, array $right): array
+    {
+        if (($left['qualifier'] === 'not' && $left['type'] === 'all') || ($right['qualifier'] === 'not' && $right['type'] === 'all')) {
+            return ['not', 'all'];
+        }
+
+        if ($left['qualifier'] === 'not' && $right['qualifier'] === 'not') {
+            if ($left['type'] === $right['type']) {
+                return ['not', $left['type']];
+            }
+
+            throw new \InvalidArgumentException('Unsupported media query boolean logic');
+        }
+
+        if ($left['type'] === 'all') {
+            return [$right['qualifier'], $right['type']];
+        }
+        if ($right['type'] === 'all') {
+            return [$left['qualifier'], $left['type']];
+        }
+        if ($left['qualifier'] === 'not') {
+            return [$right['qualifier'], $right['type']];
+        }
+        if ($right['qualifier'] === 'not') {
+            return [$left['qualifier'], $left['type']];
+        }
+        if ($left['type'] !== $right['type']) {
+            return ['not', 'all'];
+        }
+
+        return [null, $left['type']];
+    }
+
+    private function combineMediaConditionsForAnd(string $left, string $right): string
+    {
+        return $this->wrapMediaConditionForAnd($left) . ' and ' . $this->wrapMediaConditionForAnd($right);
+    }
+
+    private function wrapMediaConditionForAnd(string $condition): string
+    {
+        return $this->containsTopLevelKeyword($condition, 'or') ? '(' . $condition . ')' : $condition;
+    }
+
+    private function serializeMediaQueryForCombination(?string $qualifier, string $type, ?string $condition): string
+    {
+        $prefix = '';
+        if ($qualifier !== null) {
+            $prefix .= $qualifier . ' ';
+        }
+
+        if ($type !== 'all' || $qualifier !== null || $condition === null) {
+            $prefix .= $type;
+        }
+
+        if ($condition === null) {
+            return trim($prefix);
+        }
+
+        if ($prefix === '') {
+            return $condition;
+        }
+
+        if ($this->containsTopLevelKeyword($condition, 'or')) {
+            $condition = '(' . $condition . ')';
+        }
+
+        return trim($prefix) . ' and ' . $condition;
     }
 
     private function collapseAllMediaConditionWrapper(string $condition): string

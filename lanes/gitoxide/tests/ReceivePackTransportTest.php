@@ -6,6 +6,7 @@ use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\GitDaemonReceivePackTransport;
 use PortLibs\Gitoxide\PushRefStatus;
 use PortLibs\Gitoxide\ReceivePackClient;
+use PortLibs\Gitoxide\ReceivePackAdvertisement;
 use PortLibs\Gitoxide\SendPackSession;
 use PortLibs\Gitoxide\SmartHttpReceivePackTransport;
 use PortLibs\Gitoxide\SshReceivePackTransport;
@@ -485,6 +486,30 @@ return [
             fclose($read);
             fclose($write);
         }
+    },
+    'receive-pack transport rejects packet lines beyond upstream gix-packetline limit' => static function (TestRunner $t) use ($streamWith): void {
+        $streamRejected = false;
+        try {
+            (new StreamReceivePackTransport($streamWith('ffff'), $streamWith('')))->readAdvertisement();
+        } catch (InvalidArgumentException $exception) {
+            $t->contains('advertisement packet line exceeds maximum length ffff', $exception->getMessage());
+            $streamRejected = true;
+        }
+        $t->same(true, $streamRejected);
+
+        $parserRejected = false;
+        try {
+            ReceivePackAdvertisement::fromV1PacketLines('ffff');
+        } catch (InvalidArgumentException $exception) {
+            $t->contains('packet line exceeds maximum length ffff', $exception->getMessage());
+            $parserRejected = true;
+        }
+        $t->same(true, $parserRejected);
+
+        $transport = new StreamReceivePackTransport($streamWith('0000ffff'), $streamWith(''));
+        $t->same('0000', $transport->readAdvertisement());
+        $transport->writeRequest('0000');
+        $t->throws(InvalidArgumentException::class, static fn () => $transport->readResponse());
     },
     'git-daemon receive-pack transport sends service request and delegates client flow' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
@@ -2390,6 +2415,75 @@ return [
         $t->same([], $unexpectedStatusStores);
         $t->same([['http://proxy.example.test:8080', 'git.example.test', ['username' => 'unexpected-user', 'password' => 'unexpected-pass']]], $unexpectedStatusErasures);
 
+        $notModifiedRequests = [];
+        $notModifiedHelperCalls = [];
+        $notModifiedStores = [];
+        $notModifiedErasures = [];
+        $notModifiedBlob = new GitObject('blob', 'WordPress smart HTTP 304 proxy cookie payload');
+        $notModifiedClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$notModifiedRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $notModifiedRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 304,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'not_modified_gate=opened; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'proxy' => 'http://proxy.example.test:8080',
+                    'proxyCredentialHelper' => static function (string $proxyUrl, string $requestHost) use (&$notModifiedHelperCalls): array {
+                        $notModifiedHelperCalls[] = [$proxyUrl, $requestHost];
+
+                        return ['username' => 'not-modified-user', 'password' => 'not-modified-pass'];
+                    },
+                    'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$notModifiedStores): void {
+                        $notModifiedStores[] = [$proxyUrl, $requestHost, $credentials];
+                    },
+                    'proxyCredentialErase' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$notModifiedErasures): void {
+                        $notModifiedErasures[] = [$proxyUrl, $requestHost, $credentials];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $notModifiedSession = $notModifiedClient->handshake();
+        $notModifiedSession->createOrUpdate('refs/heads/main', $notModifiedBlob->oid());
+        $notModifiedRequest = $notModifiedSession->buildRequest([$notModifiedBlob]);
+
+        $notModifiedResponse = $notModifiedClient->send($notModifiedRequest);
+
+        $t->same(true, $notModifiedResponse->isSuccessful());
+        $t->same([['http://proxy.example.test:8080', 'git.example.test'], ['http://proxy.example.test:8080', 'git.example.test']], $notModifiedHelperCalls);
+        $t->same(2, count($notModifiedStores));
+        $t->same('not-modified-user', $notModifiedStores[0][2]['username']);
+        $t->same('not-modified-user', $notModifiedStores[1][2]['username']);
+        $t->same([], $notModifiedErasures);
+        $t->same('not_modified_gate=opened', $notModifiedRequests[1]['headers']['Cookie']);
+        $t->same($notModifiedRequest->requestBytes(), $notModifiedRequests[1]['body']);
+
         $helperControlByteTransport = new SmartHttpReceivePackTransport(
             'https://git.example.test/wp-content.git',
             static fn (): array => ['status' => 500, 'headers' => [], 'body' => 'should not run'],
@@ -2939,6 +3033,17 @@ return [
             'path' => 'wp-content.git',
         ], SshReceivePackTransport::parseRepositoryUrl('deploy@-git-proxy.example.test:wp-content.git'));
         $t->same([
+            'host' => 'host.xz',
+            'user' => 'user@name',
+            'port' => null,
+            'path' => 'wp-content.git',
+        ], SshReceivePackTransport::parseRepositoryUrl('user@name@host.xz:wp-content.git'));
+        $scpAtUserContext = SshReceivePackTransport::connectorContext('user@name@host.xz:wp-content.git', ['protocolVersion' => 2]);
+        $t->same('user@name', $scpAtUserContext['user']);
+        $t->same('host.xz', $scpAtUserContext['host']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'user@name@host.xz'], $scpAtUserContext['sshArguments']);
+        $t->same("path=wp-content.git\nprotocol=ssh\nhost=host.xz\nusername=user@name\n", $scpAtUserContext['credentialContext']->storageBytes());
+        $t->same([
             'host' => '-arg',
             'user' => 'user',
             'port' => null,
@@ -3040,6 +3145,7 @@ return [
         $t->same(true, $fixture['unsafeSmartHttpRawProxyControlByteRejected']);
         $t->same(true, $fixture['smartHttpAdvertisementWithoutServiceHeaderAccepted']);
         $t->same(true, $fixture['advertisementErrorReported']);
+        $t->same(true, $fixture['oversizeAdvertisementRejected']);
         $t->same(true, $fixture['unsafeSshHostDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshUserDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshScpIpv6UserRejected']);
@@ -3050,6 +3156,9 @@ return [
         $t->same('~wp-content.git', $fixture['sshScpLikeHomeTarget']['path']);
         $t->same('-git-proxy.example.test', $fixture['sshOptionLikeHostWithUserTarget']['host']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@-git-proxy.example.test'], $fixture['sshOptionLikeHostWithUserContext']['sshArguments']);
+        $t->same('user@name', $fixture['sshScpLikeAtUserTarget']['user']);
+        $t->same('host.xz', $fixture['sshScpLikeAtUserTarget']['host']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'user@name@host.xz'], $fixture['sshScpLikeAtUserContext']['sshArguments']);
         $t->same('plink', $fixture['sshPlinkContext']['programKind']);
         $t->same(['-P', '2222', 'deploy@git.example.test'], $fixture['sshPlinkContext']['sshArguments']);
         $t->same('tortoiseplink.exe', $fixture['sshTortoisePlinkContext']['sshCommand']);
@@ -3137,6 +3246,26 @@ return [
         $t->same(true, $fixture['unexpectedStatusRejected']);
         $t->same([], $fixture['unexpectedStatusStores']);
         $t->same([['http://wp-proxy.example.test:8080', 'git.example.test', ['username' => 'stale-proxy-user', 'password' => 'stale-proxy-pass']]], $fixture['unexpectedStatusErasures']);
+        $t->same(true, $fixture['notModifiedProxyResponseSuccessful']);
+        $t->same([['http://wp-proxy.example.test:8080', 'git.example.test'], ['http://wp-proxy.example.test:8080', 'git.example.test']], $fixture['notModifiedProxyHelperCalls']);
+        $t->same(2, count($fixture['notModifiedProxyStores']));
+        $t->same([], $fixture['notModifiedProxyErasures']);
+        $t->same('not_modified_gate=opened', $fixture['notModifiedProxyPostCookieHeader']);
+        $t->same($fixture['notModifiedProxyHelperCalls'], $summary['notModifiedProxyHelperCalls']);
+        $t->same([
+            [
+                'proxyUrl' => 'http://wp-proxy.example.test:8080',
+                'requestHost' => 'git.example.test',
+                'username' => 'not-modified-proxy-user',
+            ],
+            [
+                'proxyUrl' => 'http://wp-proxy.example.test:8080',
+                'requestHost' => 'git.example.test',
+                'username' => 'not-modified-proxy-user',
+            ],
+        ], $summary['notModifiedProxyCredentialsStored']);
+        $t->same([], $summary['notModifiedProxyCredentialsErased']);
+        $t->same('not_modified_gate=opened', $summary['notModifiedProxyPostCookieHeader']);
         $t->contains('refs/heads/main', $fixture['advertisementBytes']);
         $t->contains('refs/heads/main', $fixture['usernameOnlyProxyAdvertisementBytes']);
     },

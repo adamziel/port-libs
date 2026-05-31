@@ -79,7 +79,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         $this->advertisementRead = true;
-        $response = $this->request('GET', self::infoRefsUrl($this->repositoryUrl), $this->advertisementHeaders(), null, true);
+        $response = $this->request('GET', self::infoRefsUrl($this->repositoryUrl), $this->advertisementHeaders(), null, true, [200, 304]);
         self::assertStatus($response, [200, 304], 'smart HTTP receive-pack advertisement');
         self::assertContentType($response, 'application/x-git-receive-pack-advertisement', 'smart HTTP receive-pack advertisement');
         $this->rememberCookies(
@@ -120,6 +120,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             $this->requestHeaders(strlen($this->requestBytes)),
             $this->requestBytes,
             false,
+            [200],
         );
         self::assertStatus($response, [200], 'smart HTTP receive-pack result');
         self::assertContentType($response, 'application/x-git-receive-pack-result', 'smart HTTP receive-pack result');
@@ -212,9 +213,10 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param array<string, string> $headers
+     * @param list<int> $acceptedCredentialStatuses
      * @return array{status: int, headers: array<string, string|list<string>>, body: string}
      */
-    private function request(string $method, string $url, array $headers, ?string $body, bool $followInitialRedirects): array
+    private function request(string $method, string $url, array $headers, ?string $body, bool $followInitialRedirects, array $acceptedCredentialStatuses): array
     {
         $redirectsRemaining = $this->redirectLimit($followInitialRedirects);
         $callerCookieHeader = self::headerValue($this->extraHeaders, 'cookie');
@@ -245,7 +247,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
                 ) {
                     throw new \RuntimeException('smart HTTP receive-pack requester returned an invalid response shape');
                 }
-                $this->completeProxyCredentialAction($proxyCredentialAction, $response['status']);
+                $this->completeProxyCredentialAction($proxyCredentialAction, $response['status'], $acceptedCredentialStatuses);
             } catch (\Throwable $throwable) {
                 $this->eraseProxyCredentialAction($proxyCredentialAction);
 
@@ -678,14 +680,15 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param ?array{proxyUrl: string, requestHost: string, credentials: array{username: string, password: string}} $credentialAction
+     * @param list<int> $acceptedStatuses
      */
-    private function completeProxyCredentialAction(?array $credentialAction, int $status): void
+    private function completeProxyCredentialAction(?array $credentialAction, int $status, array $acceptedStatuses): void
     {
         if ($credentialAction === null || self::isRedirectStatus($status)) {
             return;
         }
 
-        $callback = $status === 200
+        $callback = in_array($status, $acceptedStatuses, true)
             ? $this->httpOptions['proxyCredentialStore']
             : $this->httpOptions['proxyCredentialErase'];
         if ($callback === null) {

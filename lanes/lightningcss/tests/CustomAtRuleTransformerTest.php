@@ -353,6 +353,88 @@ CSS;
             ],
         ]));
     },
+    'custom at-rules parse upstream extended SyntaxString component preludes' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@motion calc(25px + 25px);
+@space calc(100% - 25px);
+@tilt 90deg;
+@delay 250ms;
+@density 2dppx;
+@move translateX(10px);
+@chain translateX(10px) rotate(45deg);
+@hero url(hero.png);
+@palette red blue;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $definitions = [
+            'motion' => ['prelude' => '<length>'],
+            'space' => ['prelude' => '<length-percentage>'],
+            'tilt' => ['prelude' => '<angle>'],
+            'delay' => ['prelude' => '<time>'],
+            'density' => ['prelude' => '<resolution>'],
+            'move' => ['prelude' => '<transform-function>'],
+            'chain' => ['prelude' => '<transform-list>'],
+            'hero' => ['prelude' => '<image>'],
+            'palette' => ['prelude' => 'foo | <color>+ | <integer>'],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform($css, $definitions, [
+            'Rule' => [
+                'custom' => static function (array $rule) use (&$seen): array {
+                    $seen[$rule['name']] = $rule['preludeAst'];
+
+                    return [];
+                },
+            ],
+        ]);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same(['unit' => 'px', 'value' => 50.0], $seen['motion']['value']['value']);
+        $t->same(['type' => 'calc', 'value' => ['type' => 'raw', 'value' => '100% - 25px']], $seen['space']['value']);
+        $t->same(['type' => 'deg', 'value' => 90.0], $seen['tilt']['value']);
+        $t->same(['type' => 'milliseconds', 'value' => 250.0], $seen['delay']['value']);
+        $t->same(['type' => 'dppx', 'value' => 2.0], $seen['density']['value']);
+        $t->same('translateX', $seen['move']['value']['type']);
+        $t->same(['unit' => 'px', 'value' => 10.0], $seen['move']['value']['value']['value']);
+        $t->same(['translateX', 'rotate'], array_column($seen['chain']['value'], 'type'));
+        $t->same(['type' => 'deg', 'value' => 45.0], $seen['chain']['value'][1]['value']);
+        $t->same('url', $seen['hero']['value']['type']);
+        $t->same('hero.png', $seen['hero']['value']['value']['url']);
+        $t->same('repeated', $seen['palette']['type']);
+        $t->same('space', $seen['palette']['value']['multiplier']['type']);
+        $t->same([255, 0, 0], [
+            $seen['palette']['value']['components'][0]['value']['r'],
+            $seen['palette']['value']['components'][0]['value']['g'],
+            $seen['palette']['value']['components'][0]['value']['b'],
+        ]);
+        $t->same([0, 0, 255], [
+            $seen['palette']['value']['components'][1]['value']['r'],
+            $seen['palette']['value']['components'][1]['value']['g'],
+            $seen['palette']['value']['components'][1]['value']['b'],
+        ]);
+
+        $transformer = new CustomAtRuleTransformer();
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@chain translateX(10px), rotate(45deg);', [
+            'chain' => [
+                'prelude' => '<transform-list>#',
+            ],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@size calc(100% - 25px);', [
+            'size' => [
+                'prelude' => '<length> | <percentage>',
+            ],
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform('@motion 50%;', [
+            'motion' => [
+                'prelude' => '<length>',
+            ],
+        ]));
+    },
     'custom at-rules map upstream bundler mixin visitor after import resolution' => static function (TestRunner $t) use ($customDefinitions, $mixinVisitor): void {
         $mixins = [];
         $result = (new CustomAtRuleTransformer())->bundle('/apply.css', [

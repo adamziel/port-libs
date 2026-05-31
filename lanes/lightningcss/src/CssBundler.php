@@ -805,7 +805,7 @@ final class CssBundler
                 $raw = substr($css, $cursor, $statementEnd - $cursor + 1);
                 if ($this->startsAtKeyword($css, $cursor, '@import')) {
                     if (!$importsAllowed) {
-                        $loc = $this->sourceLocation($css, $cursor + strlen('@import'));
+                        $loc = $this->sourceLocation($css, $this->atKeywordEndOffset($css, $cursor, '@import') ?? $cursor + strlen('@import'));
                         throw new CssBundleException(
                             'parser-error',
                             '@import rules must precede all rules aside from @charset and @layer statements',
@@ -852,7 +852,7 @@ final class CssBundler
                 if ($trailing !== '') {
                     if ($this->startsAtKeyword($css, $cursor, '@import')) {
                         if (!$importsAllowed) {
-                            $loc = $this->sourceLocation($css, $cursor + strlen('@import'));
+                            $loc = $this->sourceLocation($css, $this->atKeywordEndOffset($css, $cursor, '@import') ?? $cursor + strlen('@import'));
                             throw new CssBundleException(
                                 'parser-error',
                                 '@import rules must precede all rules aside from @charset and @layer statements',
@@ -890,7 +890,7 @@ final class CssBundler
 
             if ($this->startsAtKeyword($css, $cursor, '@import')) {
                 if (!$importsAllowed) {
-                    $loc = $this->sourceLocation($css, $cursor + strlen('@import'));
+                    $loc = $this->sourceLocation($css, $this->atKeywordEndOffset($css, $cursor, '@import') ?? $cursor + strlen('@import'));
                     throw new CssBundleException(
                         'parser-error',
                         '@import rules must precede all rules aside from @charset and @layer statements',
@@ -929,7 +929,8 @@ final class CssBundler
      */
     private function validateCharsetStatement(string $statement, string $file, array $loc): void
     {
-        $rest = trim(substr(rtrim(trim($statement), ';'), strlen('@charset')));
+        $statement = rtrim(trim($statement), ';');
+        $rest = trim(substr($statement, $this->atKeywordEndOffset($statement, 0, '@charset') ?? strlen('@charset')));
         $offset = $this->skipWhitespaceAndComments($rest, 0);
         $quote = $rest[$offset] ?? '';
         if ($quote !== '"' && $quote !== "'") {
@@ -990,7 +991,8 @@ final class CssBundler
      */
     private function parseImportStatement(string $statement, array $loc, string $file): array
     {
-        $rest = trim(substr(rtrim(trim($statement), ';'), strlen('@import')));
+        $statement = rtrim(trim($statement), ';');
+        $rest = trim(substr($statement, $this->atKeywordEndOffset($statement, 0, '@import') ?? strlen('@import')));
         $offset = $this->skipWhitespaceAndComments($rest, 0);
         $specifier = null;
 
@@ -1375,58 +1377,9 @@ final class CssBundler
      */
     private function andMediaQuery(string $a, string $b, string $file, array $loc): string
     {
-        $a = $this->parseMediaQueryForCombination($a);
-        $b = $this->parseMediaQueryForCombination($b);
-        [$qualifier, $type] = $this->combineMediaTypeForAnd($a, $b, $file, $loc);
-
-        $condition = $a['condition'];
-        if ($b['condition'] !== null) {
-            $condition = $condition === null || $condition === $b['condition']
-                ? $b['condition']
-                : $this->combineMediaConditionsForAnd($condition, $b['condition']);
-        }
-
-        return $this->serializeMediaQueryForCombination($qualifier, $type, $condition);
-    }
-
-    /**
-     * @return array{qualifier:?string,type:string,condition:?string}
-     */
-    private function parseMediaQueryForCombination(string $query): array
-    {
-        $query = (new MediaQueryParser())->minifyList($query, true);
-        if (preg_match('/^(?:(not|only)\s+)?([_a-zA-Z-][_a-zA-Z0-9-]*)(?:\s+and\s+(.+))?$/i', $query, $matches) === 1) {
-            return [
-                'qualifier' => isset($matches[1]) && $matches[1] !== '' ? strtolower($matches[1]) : null,
-                'type' => strtolower($matches[2]),
-                'condition' => isset($matches[3]) && trim($matches[3]) !== '' ? trim($matches[3]) : null,
-            ];
-        }
-
-        return [
-            'qualifier' => null,
-            'type' => 'all',
-            'condition' => $query,
-        ];
-    }
-
-    /**
-     * @param array{qualifier:?string,type:string,condition:?string} $a
-     * @param array{qualifier:?string,type:string,condition:?string} $b
-     * @param array{line:int,column:int} $loc
-     * @return array{?string,string}
-     */
-    private function combineMediaTypeForAnd(array $a, array $b, string $file, array $loc): array
-    {
-        if (($a['qualifier'] === 'not' && $a['type'] === 'all') || ($b['qualifier'] === 'not' && $b['type'] === 'all')) {
-            return ['not', 'all'];
-        }
-
-        if ($a['qualifier'] === 'not' && $b['qualifier'] === 'not') {
-            if ($a['type'] === $b['type']) {
-                return ['not', $a['type']];
-            }
-
+        try {
+            return (new MediaQueryParser())->andQuery($a, $b);
+        } catch (\InvalidArgumentException) {
             throw new CssBundleException(
                 'unsupported-media-boolean-logic',
                 'Unsupported boolean logic in @import media query',
@@ -1435,117 +1388,6 @@ final class CssBundler
                 $loc['column'],
             );
         }
-
-        if ($a['type'] === 'all') {
-            return [$b['qualifier'], $b['type']];
-        }
-        if ($b['type'] === 'all') {
-            return [$a['qualifier'], $a['type']];
-        }
-        if ($a['qualifier'] === 'not') {
-            return [$b['qualifier'], $b['type']];
-        }
-        if ($b['qualifier'] === 'not') {
-            return [$a['qualifier'], $a['type']];
-        }
-        if ($a['type'] !== $b['type']) {
-            return ['not', 'all'];
-        }
-
-        return [null, $a['type']];
-    }
-
-    private function combineMediaConditionsForAnd(string $a, string $b): string
-    {
-        return $this->wrapMediaConditionForAnd($a) . ' and ' . $this->wrapMediaConditionForAnd($b);
-    }
-
-    private function wrapMediaConditionForAnd(string $condition): string
-    {
-        return $this->containsTopLevelMediaOperator($condition, 'or') ? '(' . $condition . ')' : $condition;
-    }
-
-    private function serializeMediaQueryForCombination(?string $qualifier, string $type, ?string $condition): string
-    {
-        $prefix = '';
-        if ($qualifier !== null) {
-            $prefix .= $qualifier . ' ';
-        }
-
-        if ($type !== 'all' || $qualifier !== null || $condition === null) {
-            $prefix .= $type;
-        }
-
-        if ($condition === null) {
-            return trim($prefix);
-        }
-
-        if ($prefix === '') {
-            return $condition;
-        }
-
-        if ($this->containsTopLevelMediaOperator($condition, 'or')) {
-            $condition = '(' . $condition . ')';
-        }
-
-        return trim($prefix) . ' and ' . $condition;
-    }
-
-    private function containsTopLevelMediaOperator(string $condition, string $operator): bool
-    {
-        $quote = null;
-        $parenDepth = 0;
-        $length = strlen($condition);
-
-        for ($i = 0; $i < $length; $i++) {
-            $char = $condition[$i];
-            if ($quote !== null) {
-                if ($char === '\\') {
-                    $i++;
-                    continue;
-                }
-                if ($char === $quote) {
-                    $quote = null;
-                }
-                continue;
-            }
-
-            if ($char === '"' || $char === "'") {
-                $quote = $char;
-                continue;
-            }
-
-            if ($char === '(') {
-                $parenDepth++;
-                continue;
-            }
-            if ($char === ')') {
-                $parenDepth = max(0, $parenDepth - 1);
-                continue;
-            }
-
-            if ($parenDepth !== 0 || !ctype_alpha($char)) {
-                continue;
-            }
-
-            $start = $i;
-            while ($i < $length && preg_match('/[-_a-zA-Z0-9]/', $condition[$i]) === 1) {
-                $i++;
-            }
-            $identifier = substr($condition, $start, $i - $start);
-            $previous = $condition[$start - 1] ?? '';
-            $next = $condition[$i] ?? '';
-            if (strcasecmp($identifier, $operator) === 0
-                && ($previous === '' || preg_match('/[-_a-zA-Z0-9]/', $previous) !== 1)
-                && ($next === '' || preg_match('/[-_a-zA-Z0-9]/', $next) !== 1)
-            ) {
-                return true;
-            }
-
-            $i--;
-        }
-
-        return false;
     }
 
     private function combineSupportsAnd(?string $parent, ?string $child): ?string
@@ -1796,12 +1638,13 @@ final class CssBundler
 
     private function rewriteLayerStatement(string $raw, ?string $parentLayer): string
     {
+        $statement = rtrim(trim($raw), ';');
+        $keywordEnd = $this->atKeywordEndOffset($statement, 0, '@layer') ?? strlen('@layer');
+        $names = trim(substr($statement, $keywordEnd));
         if ($parentLayer === null || $parentLayer === '') {
-            return $raw;
+            return $keywordEnd === strlen('@layer') ? $raw : '@layer' . ($names === '' ? '' : ' ' . $names) . ';';
         }
 
-        $statement = rtrim(trim($raw), ';');
-        $names = trim(substr($statement, strlen('@layer')));
         if ($names === '') {
             return $raw;
         }
@@ -2494,14 +2337,34 @@ final class CssBundler
 
     private function startsAtKeyword(string $css, int $offset, string $keyword): bool
     {
-        $length = strlen($keyword);
-        if (strncasecmp(substr($css, $offset, $length), $keyword, $length) !== 0) {
+        $token = $this->readAtKeywordToken($css, $offset);
+        if ($token === null || strcasecmp($token['name'], ltrim($keyword, '@')) !== 0) {
             return false;
         }
 
-        $next = $css[$offset + $length] ?? '';
+        return true;
+    }
 
-        return $next === '' || !$this->isIdentifierChar($next);
+    private function atKeywordEndOffset(string $css, int $offset, string $keyword): ?int
+    {
+        $token = $this->readAtKeywordToken($css, $offset);
+        if ($token === null || strcasecmp($token['name'], ltrim($keyword, '@')) !== 0) {
+            return null;
+        }
+
+        return $token['end'];
+    }
+
+    /**
+     * @return array{name:string,end:int}|null
+     */
+    private function readAtKeywordToken(string $css, int $offset): ?array
+    {
+        if (($css[$offset] ?? '') !== '@') {
+            return null;
+        }
+
+        return $this->readCssIdentifierToken($css, $offset + 1);
     }
 
     private function startsFunction(string $value, int $offset, string $name): bool

@@ -130,6 +130,87 @@ return [
         $t->same('.foo{-moz-backface-visibility:hidden;backface-visibility:hidden}', $prefixer->prefixForTargets('.foo { backface-visibility: hidden; }', ['firefox' => 15]));
         $t->same('.foo{backface-visibility:hidden}', $prefixer->prefixForTargets('.foo { backface-visibility: hidden; }', ['firefox' => 16]));
     },
+    'transition prefixer maps upstream selector target prefix browser boundaries' => static function (TestRunner $t) use ($rtlLangs): void {
+        $prefixer = new TransitionPrefixer();
+        $rtlLangList = 'ae,ar,arc,bcc,bqi,ckb,dv,fa,glk,he,ku,mzn,nqo,pnb,ps,sd,ug,ur,yi';
+
+        $t->same(
+            '.test:not(:-webkit-any(.foo,.bar)){color:red}.test:not(:is(.foo,.bar)){color:red}',
+            $prefixer->prefixForTargets('.test:not(.foo, .bar) { color: red; }', ['safari' => 8])
+        );
+        $t->same(
+            '.test:not(.foo,.bar){color:red}',
+            $prefixer->prefixForTargets('.test:not(.foo, .bar) { color: red; }', ['safari' => 11])
+        );
+        $t->same(
+            'a:-webkit-any(.foo,.bar){color:red}a:-moz-any(.foo,.bar){color:red}a:is(.foo,.bar){color:red}',
+            $prefixer->prefixForTargets('a:is(.foo, .bar) { color: red; }', ['safari' => 11, 'firefox' => 50])
+        );
+        $t->same(
+            'a:is(.foo>.bar){color:red}',
+            $prefixer->prefixForTargets('a:is(.foo > .bar) { color: red; }', ['safari' => 11, 'firefox' => 50])
+        );
+        $t->same(
+            'a:-webkit-any(:lang(en),:lang(fr)){color:red}a:-moz-any(:lang(en),:lang(fr)){color:red}a:is(:lang(en),:lang(fr)){color:red}',
+            $prefixer->prefixForTargets('a:lang(en, fr) { color: red; }', ['safari' => 11, 'firefox' => 50])
+        );
+        $t->same(
+            'a:is(:lang(en),:lang(fr)){color:red}',
+            $prefixer->prefixForTargets('a:lang(en, fr) { color: red; }', ['safari' => 14, 'firefox' => 88])
+        );
+        $t->same(
+            'a:lang(en,fr){color:red}',
+            $prefixer->prefixForTargets('a:lang(en, fr) { color: red; }', ['safari' => 14])
+        );
+        $t->same(
+            'a:-webkit-any(' . $rtlLangs . '){color:red}a:-moz-any(' . $rtlLangs . '){color:red}a:is(' . $rtlLangs . '){color:red}',
+            $prefixer->prefixForTargets('a:dir(rtl) { color: red; }', ['safari' => 11, 'firefox' => 50])
+        );
+        $t->same(
+            'a:not(:-webkit-any(' . $rtlLangs . ')){color:red}a:not(:-moz-any(' . $rtlLangs . ')){color:red}a:not(:is(' . $rtlLangs . ')){color:red}',
+            $prefixer->prefixForTargets('a:dir(ltr) { color: red; }', ['safari' => 11, 'firefox' => 50])
+        );
+        $t->same(
+            'a:is(' . $rtlLangs . '){color:red}',
+            $prefixer->prefixForTargets('a:dir(rtl) { color: red; }', ['safari' => 14, 'firefox' => 88])
+        );
+        $t->same(
+            'a:not(' . $rtlLangs . '){color:red}',
+            $prefixer->prefixForTargets('a:dir(ltr) { color: red; }', ['safari' => 14, 'firefox' => 88])
+        );
+        $t->same(
+            'a:lang(' . $rtlLangList . '){color:red}',
+            $prefixer->prefixForTargets('a:dir(rtl) { color: red; }', ['safari' => 14])
+        );
+        $t->same(
+            'a:not(:lang(' . $rtlLangList . ')){color:red}',
+            $prefixer->prefixForTargets('a:dir(ltr) { color: red; }', ['safari' => 14])
+        );
+        $t->same(
+            'a:lang(' . $rtlLangList . '){color:red}',
+            $prefixer->prefixForTargets('a:is(:dir(rtl)) { color: red; }', ['safari' => 14])
+        );
+        $t->same(
+            'a:where(:lang(' . $rtlLangList . ')){color:red}',
+            $prefixer->prefixForTargets('a:where(:dir(rtl)) { color: red; }', ['safari' => 14])
+        );
+        $t->same(
+            'a:has(:lang(' . $rtlLangList . ')){color:red}',
+            $prefixer->prefixForTargets('a:has(:dir(rtl)) { color: red; }', ['safari' => 14])
+        );
+        $t->same(
+            'a:not(:lang(' . $rtlLangList . ')){color:red}',
+            $prefixer->prefixForTargets('a:not(:dir(rtl)) { color: red; }', ['safari' => 14])
+        );
+        $t->same(
+            'a:lang(' . $rtlLangList . '):after{color:red}',
+            $prefixer->prefixForTargets('a:dir(rtl)::after { color: red; }', ['safari' => 14])
+        );
+        $t->same(
+            'a:lang(' . $rtlLangList . ') div{color:red}',
+            $prefixer->prefixForTargets('a:dir(rtl) div { color: red; }', ['safari' => 14])
+        );
+    },
     'transition prefixer maps upstream intrinsic sizing keyword target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

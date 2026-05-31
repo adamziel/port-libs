@@ -357,6 +357,69 @@ try {
     $unexpectedStatusRejected = true;
 }
 
+$notModifiedProxyRequests = [];
+$notModifiedProxyHelperCalls = [];
+$notModifiedProxyStores = [];
+$notModifiedProxyErasures = [];
+$notModifiedProxyBlob = new GitObject('blob', 'WordPress smart HTTP 304 proxy cookie payload');
+$notModifiedProxyResponseBytes = $packet("\x01" . $packet("unpack ok\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $flush)
+    . $flush;
+$notModifiedProxyClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://git.example.test/wp-content.git',
+        static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$notModifiedProxyRequests, $packet, $flush, $advertisementBytes, $notModifiedProxyResponseBytes): array {
+            $notModifiedProxyRequests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'timeout' => $timeout,
+                'httpOptions' => $httpOptions,
+            ];
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 304,
+                    'headers' => [
+                        'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                        'Set-Cookie' => 'not_modified_gate=opened; Path=/; Secure',
+                    ],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $notModifiedProxyResponseBytes,
+            ];
+        },
+        [],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+        [
+            'proxy' => 'http://wp-proxy.example.test:8080',
+            'proxyCredentialHelper' => static function (string $proxyUrl, string $requestHost) use (&$notModifiedProxyHelperCalls): array {
+                $notModifiedProxyHelperCalls[] = [$proxyUrl, $requestHost];
+
+                return ['username' => 'not-modified-proxy-user', 'password' => 'not-modified-proxy-pass'];
+            },
+            'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$notModifiedProxyStores): void {
+                $notModifiedProxyStores[] = [$proxyUrl, $requestHost, $credentials];
+            },
+            'proxyCredentialErase' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$notModifiedProxyErasures): void {
+                $notModifiedProxyErasures[] = [$proxyUrl, $requestHost, $credentials];
+            },
+        ],
+    ),
+    'port-libs/wordpress',
+);
+$notModifiedProxySession = $notModifiedProxyClient->handshake();
+$notModifiedProxySession->createOrUpdate('refs/heads/main', $notModifiedProxyBlob->oid());
+$notModifiedProxyResponse = $notModifiedProxyClient->send($notModifiedProxySession->buildRequest([$notModifiedProxyBlob]));
+
 return [
     'advertisementBytes' => $advertisement,
     'helperCalls' => $helperCalls,
@@ -398,7 +461,12 @@ return [
     'unexpectedStatusRejected' => $unexpectedStatusRejected,
     'unexpectedStatusStores' => $unexpectedStatusStores,
     'unexpectedStatusErasures' => $unexpectedStatusErasures,
+    'notModifiedProxyResponseSuccessful' => $notModifiedProxyResponse->isSuccessful(),
+    'notModifiedProxyHelperCalls' => $notModifiedProxyHelperCalls,
+    'notModifiedProxyStores' => $notModifiedProxyStores,
+    'notModifiedProxyErasures' => $notModifiedProxyErasures,
+    'notModifiedProxyPostCookieHeader' => $notModifiedProxyRequests[1]['headers']['Cookie'] ?? null,
     'proxyAuthorizationSent' => $requests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'originProxyHeaderLeaked' => isset($requests[0]['headers']['Proxy-Authorization']),
-    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, reuse one helper credential action across a safe smart HTTP redirect, store it only after the final HTTP 200 request, and erase helper credentials after unexpected proxy/origin statuses.',
+    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
 ];

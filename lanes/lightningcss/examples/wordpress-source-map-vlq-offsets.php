@@ -361,6 +361,19 @@ $duplicateLookupExtendedMap->addMapping(0, 0, $duplicateLookupCompiled, 0, 0, 'c
 $duplicateLookupExtendedMap->extendWithSourceMap($duplicateLookupInputMap);
 
 $maxUnsignedVlqDecode = SourceMap::decodeVlq('+/////H')[0]['generatedColumn'];
+$shiftedColumnOverflowMap = new SourceMap();
+$shiftedColumnOverflowSource = $shiftedColumnOverflowMap->addSource('wp-content/themes/example/source-map-shifted-column-overflow.css');
+$shiftedColumnOverflowMap->setSourceContent($shiftedColumnOverflowSource, ".wp-block-shifted-column-overflow{}\n");
+$shiftedColumnOverflowMap->addMapping(0, 2, $shiftedColumnOverflowSource, 0, 0, 'safe-shifted-column');
+$shiftedColumnOverflowMap->addMapping(0, 4294967295, $shiftedColumnOverflowSource, 1, 0, 'max-shifted-column');
+$shiftedColumnOverflowBeforeGuard = $shiftedColumnOverflowMap->toJson(null, false);
+$shiftedColumnOverflowGuard = false;
+try {
+    $shiftedColumnOverflowMap->offsetColumns(0, 0, 1);
+} catch (InvalidArgumentException) {
+    $shiftedColumnOverflowGuard = true;
+}
+
 $invalidRelativeVlqGuard = true;
 foreach (['D', 'ADAA', 'AADA', 'AAAD', 'AAAAD', 'ggggggI', '//////////////D'] as $invalidVlqMapping) {
     try {
@@ -517,6 +530,7 @@ $actual = [
     'duplicateLookupAfterLast' => $duplicateLookupAfterLast,
     'duplicateLookupExtendedMap' => $duplicateLookupExtendedMap->toJson(null, false),
     'maxUnsignedVlqDecode' => $maxUnsignedVlqDecode,
+    'shiftedColumnOverflowGuard' => $shiftedColumnOverflowGuard && $shiftedColumnOverflowBeforeGuard === $shiftedColumnOverflowMap->toJson(null, false),
     'invalidRelativeVlqGuard' => $invalidRelativeVlqGuard,
     'invalidVlqVectorGuard' => $invalidVlqVectorGuard,
     'missingVlqVectorGuard' => $missingVlqVectorGuard,
@@ -567,6 +581,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'duplicateLookupAfterLast' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0],
         'duplicateLookupExtendedMap' => '{"version":3,"mappings":"A","sources":["wp-content/cache/duplicate-lookup.css","wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{color:red}",".wp-block-duplicate-lookup{}"],"names":["compiled-duplicate-lookup","duplicate-lookup-rule"]}',
         'maxUnsignedVlqDecode' => 4294967295,
+        'shiftedColumnOverflowGuard' => true,
         'invalidRelativeVlqGuard' => true,
         'invalidVlqVectorGuard' => true,
         'missingVlqVectorGuard' => true,

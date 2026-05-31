@@ -449,6 +449,16 @@ final class SourceMap
             }
         }
 
+        if ($generatedColumnOffset > 0) {
+            foreach (array_keys($shiftIndexes) as $index) {
+                self::offsetUnsigned32(
+                    $this->mappings[$index]['generatedColumn'],
+                    $generatedColumnOffset,
+                    'generated column + column offset'
+                );
+            }
+        }
+
         $updated = [];
         foreach ($this->mappings as $index => $mapping) {
             if (isset($removeIndexes[$index])) {

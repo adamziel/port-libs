@@ -226,6 +226,25 @@ if ($escapedImportKeywordBundle !== '@supports (display:grid){@media screen{@lay
 
 echo 'escaped-import-identifiers: resolved' . PHP_EOL;
 
+$escapedAtKeywordBundle = (new CssBundler())->bundle('/escaped-at-keywords.css', [
+    '/escaped-at-keywords.css' => <<<'CSS'
+@\63harset "UTF-8";
+@\6c ayer reset, theme.blocks;
+@\69mport "tokens.css" \6c ayer(theme.tokens) s\75pports(display: grid) screen;
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/tokens.css' => ':root { --wp--preset--spacing--block-gap: 1rem; }',
+]);
+
+if ($escapedAtKeywordBundle !== '@layer reset,theme.blocks;@supports (display:grid){@media screen{@layer theme.tokens{:root{--wp--preset--spacing--block-gap:1rem}}}}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected escaped @charset, @layer, and @import at-keywords to resolve before bundling\n");
+    exit(1);
+}
+
+echo 'escaped-at-keyword-import: resolved' . PHP_EOL;
+
 $escapedSpaceUrlBundle = (new CssBundler())->bundle('/escaped-space-url.css', [
     '/escaped-space-url.css' => '@import url(blocks/card\ hero.css); .wp-site-blocks { color: red; }',
     '/blocks/card hero.css' => '.wp-block-card { color: green; }',

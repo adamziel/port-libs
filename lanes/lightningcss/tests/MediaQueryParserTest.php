@@ -145,6 +145,31 @@ return [
         $t->same('only screen and ((color) or (hover))', $parser->minifyList('only screen and ((color) or (hover))'));
         $t->same('(hover) and (color) and (test)', $parser->minifyList('(hover) and ((color) and (test))'));
     },
+    'media query parser maps upstream media query conjunction semantics' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        $t->same('(width>=250px) and (color)', $parser->andQuery('(min-width: 250px)', '(color)'));
+        $t->same('((width>=250px) or (color)) and (orientation:landscape)', $parser->andQuery('(min-width: 250px) or (color)', '(orientation: landscape)'));
+        $t->same('(width>=250px) and (color) and (orientation:landscape)', $parser->andQuery('(min-width: 250px) and (color)', '(orientation: landscape)'));
+        $t->same('print', $parser->andQuery('all', 'print'));
+        $t->same('print', $parser->andQuery('print', 'all'));
+        $t->same('not print', $parser->andQuery('all', 'not print'));
+        $t->same('not print', $parser->andQuery('not print', 'all'));
+        $t->same('not all', $parser->andQuery('not all', 'print'));
+        $t->same('not all', $parser->andQuery('print', 'not all'));
+        $t->same('not all', $parser->andQuery('print', 'screen'));
+        $t->same('screen', $parser->andQuery('not print', 'screen'));
+        $t->same('print', $parser->andQuery('print', 'not screen'));
+        $t->same('print', $parser->andQuery('not screen', 'print'));
+        $t->same('not all', $parser->andQuery('not screen', 'not all'));
+        $t->same('print and (width>=250px)', $parser->andQuery('print', '(min-width: 250px)'));
+        $t->same('print and (width>=250px)', $parser->andQuery('(min-width: 250px)', 'print'));
+        $t->same('print and (width>=250px) and (color)', $parser->andQuery('print and (min-width: 250px)', '(color)'));
+        $t->same('only screen', $parser->andQuery('all', 'only screen'));
+        $t->same('only screen', $parser->andQuery('only screen', 'all'));
+        $t->same('print', $parser->andQuery('print', 'print'));
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->andQuery('not print', 'not screen'));
+    },
     'media query parser folds simple same-unit calc values' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 

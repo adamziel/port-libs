@@ -569,6 +569,49 @@ CSS,
             ['tokens.css', '/entry.css'],
         ], $resolved);
     },
+    'css bundler parses escaped top-level at-keywords before import graph resolution' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
+        $code = $bundle([
+            '/entry.css' => <<<'CSS'
+@\63harset "UTF-8";
+@\6c ayer reset, theme.blocks;
+@\69mport u\72l(pkg:tokens.css) \6c ayer(theme.tokens) s\75pports(display: grid) screen;
+.entry { color: red }
+CSS,
+            '/vendor/tokens.css' => ':root { --gap: 1rem }',
+        ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+            $resolved[] = [$specifier, $originatingFile];
+
+            if ($specifier !== 'pkg:tokens.css') {
+                throw new RuntimeException("Unexpected escaped at-keyword import specifier {$specifier}");
+            }
+
+            return '/vendor/tokens.css';
+        });
+
+        $t->same(
+            '@layer reset,theme.blocks;@supports (display:grid){@media screen{@layer theme.tokens{:root{--gap:1rem}}}}.entry{color:red}',
+            $code
+        );
+        $t->same([['pkg:tokens.css', '/entry.css']], $resolved);
+
+        try {
+            $bundle([
+                '/entry.css' => '.entry { color: red } @\69mport "tokens.css";',
+                '/tokens.css' => ':root { --gap: 1rem }',
+            ], '/entry.css');
+        } catch (CssBundleException $exception) {
+            $t->same('parser-error', $exception->kind);
+            $t->same('@import rules must precede all rules aside from @charset and @layer statements', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(32, $exception->sourceColumn);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected escaped late @import diagnostic');
+    },
     'css bundler resolves escaped url delimiters in import graph like upstream' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '.close{color:#00f}.open{color:green}.entry{color:red}',

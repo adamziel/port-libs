@@ -1293,6 +1293,34 @@ CSS
         $t->same('.foo{grid-area:a/b/c}', $minifier->minify('.foo { grid-area: a / b / c / b; }'));
         $t->same('.foo{grid-area:1/1/1/1}', $minifier->minify('.foo { grid-area: 1 / 1 / 1 / 1; }'));
     },
+    'css minifier maps upstream explicit grid track list compaction' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            '.foo { grid-template-columns: 150px 1fr; }' => '.foo{grid-template-columns:150px 1fr}',
+            '.foo { grid-template-columns: repeat(4, 1fr); }' => '.foo{grid-template-columns:repeat(4,1fr)}',
+            '.foo { grid-template-columns: repeat(2, [e] 40px); }' => '.foo{grid-template-columns:repeat(2,[e]40px)}',
+            '.foo { grid-template-columns: repeat(4, [col-start] 60% [col-end]); }' => '.foo{grid-template-columns:repeat(4,[col-start]60%[col-end])}',
+            '.foo { grid-template-columns: repeat(4, [col-start] 1fr [col-end]); }' => '.foo{grid-template-columns:repeat(4,[col-start]1fr[col-end])}',
+            '.foo { grid-template-columns: repeat(4, [col-start] min-content [col-end]); }' => '.foo{grid-template-columns:repeat(4,[col-start]min-content[col-end])}',
+            '.foo { grid-template-columns: repeat(4, [col-start] max-content [col-end]); }' => '.foo{grid-template-columns:repeat(4,[col-start]max-content[col-end])}',
+            '.foo { grid-template-columns: repeat(4, [col-start] auto [col-end]); }' => '.foo{grid-template-columns:repeat(4,[col-start]auto[col-end])}',
+            '.foo { grid-template-columns: repeat(4, [col-start] minmax(100px, 1fr) [col-end]); }' => '.foo{grid-template-columns:repeat(4,[col-start]minmax(100px,1fr)[col-end])}',
+            '.foo { grid-template-columns: repeat(4, [col-start] fit-content(200px) [col-end]); }' => '.foo{grid-template-columns:repeat(4,[col-start]fit-content(200px)[col-end])}',
+            '.foo { grid-template-columns: repeat(4, 10px [col-start] 30% [col-middle] auto [col-end]); }' => '.foo{grid-template-columns:repeat(4,10px[col-start]30%[col-middle]auto[col-end])}',
+            '.foo { grid-template-columns: repeat(5, auto); }' => '.foo{grid-template-columns:repeat(5,auto)}',
+            '.foo { grid-template-columns: repeat(auto-fill, 250px); }' => '.foo{grid-template-columns:repeat(auto-fill,250px)}',
+            '.foo { grid-template-columns: repeat(auto-fit, 250px); }' => '.foo{grid-template-columns:repeat(auto-fit,250px)}',
+            '.foo { grid-template-columns: repeat(auto-fill, [col-start] 250px [col-end]); }' => '.foo{grid-template-columns:repeat(auto-fill,[col-start]250px[col-end])}',
+            '.foo { grid-template-columns: minmax(min-content, 1fr); }' => '.foo{grid-template-columns:minmax(min-content,1fr)}',
+            '.foo { grid-template-columns: 200px repeat(auto-fill, 100px) 300px; }' => '.foo{grid-template-columns:200px repeat(auto-fill,100px) 300px}',
+            '.foo { grid-template-columns: [linename1 linename2] 100px repeat(auto-fit, [linename1] 300px) [linename3]; }' => '.foo{grid-template-columns:[linename1 linename2]100px repeat(auto-fit,[linename1]300px)[linename3]}',
+            '.foo { grid-template-rows: [linename1 linename2] 100px repeat(auto-fit, [linename1] 300px) [linename3]; }' => '.foo{grid-template-rows:[linename1 linename2]100px repeat(auto-fit,[linename1]300px)[linename3]}',
+        ];
+
+        foreach ($cases as $css => $expected) {
+            $t->same($expected, $minifier->minify($css));
+        }
+    },
     'css minifier composes upstream grid template longhands' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

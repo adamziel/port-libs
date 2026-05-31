@@ -314,8 +314,9 @@ final class TransitionPrefixer
         if ($logicalTextAlignFallback !== null) {
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged) {
-            return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
+        $selectorVariants = $this->selectorPrefixVariants($selectors, $targetOptions);
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $selectorVariants !== null) {
+            return $this->serializeRulesForSelectors($selectorVariants ?? [$selectors], $entries) . implode('', $supportRules);
         }
 
         return $selectors . '{' . $body . '}';
@@ -907,6 +908,30 @@ final class TransitionPrefixer
             || $this->targetInRange($normalized, 'safari', [4], [8]);
         $animationNeedsMoz = $this->targetInRange($normalized, 'firefox', [5], [15]);
         $animationNeedsO = $this->targetInRange($normalized, 'opera', [12], [12]);
+        $anyPseudoNeedsWebkit = $this->targetInRange($normalized, 'chrome', [12], [87])
+            || $this->targetInRange($normalized, 'edge', [79], [87])
+            || $this->targetInRange($normalized, 'ios_saf', [5], [13])
+            || $this->targetInRange($normalized, 'opera', [14], [73])
+            || $this->targetInRange($normalized, 'safari', [5], [13])
+            || $this->targetInRange($normalized, 'samsung', [1], [14]);
+        $anyPseudoNeedsMoz = $this->targetInRange($normalized, 'firefox', [4], [78]);
+        $selectorLangListNeedsFallback = isset($normalized['android'])
+            || isset($normalized['chrome'])
+            || isset($normalized['edge'])
+            || isset($normalized['firefox'])
+            || isset($normalized['ie'])
+            || isset($normalized['opera'])
+            || isset($normalized['samsung'])
+            || $this->targetInRange($normalized, 'ios_saf', [0], [10, 2, 255])
+            || $this->targetInRange($normalized, 'safari', [0], [10, 0, 255]);
+        $selectorDirNeedsLangFallback = $this->targetInRange($normalized, 'android', [0], [24, 255, 255])
+            || $this->targetInRange($normalized, 'chrome', [0], [119, 255, 255])
+            || $this->targetInRange($normalized, 'edge', [0], [119, 255, 255])
+            || $this->targetInRange($normalized, 'firefox', [0], [48, 255, 255])
+            || $this->targetInRange($normalized, 'ios_saf', [0], [16, 3, 255])
+            || $this->targetInRange($normalized, 'opera', [0], [105, 255, 255])
+            || $this->targetInRange($normalized, 'safari', [0], [16, 3, 255])
+            || isset($normalized['ie']);
 
         return [
             'boxShadowNeedsWebkit' => $needsWebkitBoxShadow,
@@ -1184,6 +1209,19 @@ final class TransitionPrefixer
                 'safari' => [3, 1],
                 'samsung' => [1],
             ])),
+            'anyPseudoNeedsWebkit' => $anyPseudoNeedsWebkit,
+            'anyPseudoNeedsMoz' => $anyPseudoNeedsMoz,
+            'selectorListNotNeedsFallback' => $this->targetInRange($normalized, 'android', [0], [144, 255, 255])
+                || $this->targetInRange($normalized, 'chrome', [0], [87, 255, 255])
+                || $this->targetInRange($normalized, 'edge', [0], [87, 255, 255])
+                || $this->targetInRange($normalized, 'firefox', [0], [83, 255, 255])
+                || $this->targetInRange($normalized, 'ios_saf', [0], [8, 255, 255])
+                || $this->targetInRange($normalized, 'opera', [0], [74, 255, 255])
+                || $this->targetInRange($normalized, 'safari', [0], [8, 255, 255])
+                || $this->targetInRange($normalized, 'samsung', [0], [14, 255, 255]),
+            'selectorLangListNeedsFallback' => $selectorLangListNeedsFallback,
+            'selectorDirNeedsLangFallback' => $selectorDirNeedsLangFallback,
+            'selectorDirFallbackNeedsIsWrapper' => $selectorLangListNeedsFallback,
             'lightDarkNeedsFallback' => !$lightDarkExcluded && (
                 ($chrome !== null && !$this->targetAtLeast($normalized, 'chrome', [123]))
                 || (isset($normalized['edge']) && !$this->targetAtLeast($normalized, 'edge', [123]))
@@ -1932,6 +1970,356 @@ final class TransitionPrefixer
             static fn (array $entry): string => $entry['name'] . ':' . $entry['value'] . ($entry['important'] ? '!important' : ''),
             $entries
         ));
+    }
+
+    /**
+     * @param list<string> $selectors
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function serializeRulesForSelectors(array $selectors, array $entries): string
+    {
+        $declarations = $this->serializeDeclarations($entries);
+        $rules = '';
+        foreach ($selectors as $selector) {
+            $rules .= $selector . '{' . $declarations . '}';
+        }
+
+        return $rules;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<string>|null
+     */
+    private function selectorPrefixVariants(string $selectors, array $targetOptions): ?array
+    {
+        if (count($this->splitTopLevel($selectors, ',')) !== 1) {
+            return null;
+        }
+
+        $variants = [$selectors];
+        $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewriteIsSelectorVariants($selector, $targetOptions));
+        $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewriteLangSelectorVariants($selector, $targetOptions));
+        $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewriteDirSelectorVariants($selector, $targetOptions));
+        $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewriteNotSelectorVariants($selector, $targetOptions));
+        $variants = array_values(array_unique($variants));
+
+        return $variants === [$selectors] ? null : $variants;
+    }
+
+    /**
+     * @param list<string> $variants
+     * @return list<string>
+     */
+    private function expandSelectorVariants(array $variants, callable $rewriter): array
+    {
+        $expanded = [];
+        foreach ($variants as $variant) {
+            foreach ($rewriter($variant) as $rewritten) {
+                if (!in_array($rewritten, $expanded, true)) {
+                    $expanded[] = $rewritten;
+                }
+            }
+        }
+
+        return $expanded;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<string>
+     */
+    private function rewriteIsSelectorVariants(string $selector, array $targetOptions): array
+    {
+        if (!(($targetOptions['anyPseudoNeedsWebkit'] ?? false) || ($targetOptions['anyPseudoNeedsMoz'] ?? false))
+            || !$this->selectorContainsSimpleListFunction($selector, 'is', true)
+        ) {
+            return [$selector];
+        }
+
+        $variants = [];
+        if ($targetOptions['anyPseudoNeedsWebkit'] ?? false) {
+            $variants[] = $this->replaceSimpleListFunction($selector, 'is', '-webkit-any', true);
+        }
+        if ($targetOptions['anyPseudoNeedsMoz'] ?? false) {
+            $variants[] = $this->replaceSimpleListFunction($selector, 'is', '-moz-any', true);
+        }
+        $variants[] = $selector;
+
+        return array_values(array_unique($variants));
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<string>
+     */
+    private function rewriteNotSelectorVariants(string $selector, array $targetOptions): array
+    {
+        if (!($targetOptions['selectorListNotNeedsFallback'] ?? false)
+            || !$this->selectorContainsSimpleListFunction($selector, 'not', true)
+        ) {
+            return [$selector];
+        }
+
+        $variants = [];
+        if ($targetOptions['anyPseudoNeedsWebkit'] ?? false) {
+            $variants[] = $this->replaceSimpleListFunction($selector, 'not', 'not:-webkit-any', true);
+        }
+        if ($targetOptions['anyPseudoNeedsMoz'] ?? false) {
+            $variants[] = $this->replaceSimpleListFunction($selector, 'not', 'not:-moz-any', true);
+        }
+        $variants[] = $this->replaceSimpleListFunction($selector, 'not', 'not:is', true);
+
+        return array_values(array_unique($variants));
+    }
+
+    private function selectorContainsSimpleListFunction(string $selector, string $name, bool $requiresList): bool
+    {
+        if (preg_match_all('/:' . preg_quote($name, '/') . '\(([^()]*)\)/i', $selector, $matches) !== false) {
+            foreach ($matches[1] as $argument) {
+                if ((!$requiresList || count($this->splitTopLevel($argument, ',')) > 1)
+                    && $this->selectorArgumentCanUseAny($argument)
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function replaceSimpleListFunction(string $selector, string $name, string $replacement, bool $requiresList): string
+    {
+        return preg_replace_callback(
+            '/:' . preg_quote($name, '/') . '\(([^()]*)\)/i',
+            function (array $matches) use ($replacement, $requiresList): string {
+                $argument = $this->normalizeSelectorListArgument($matches[1]);
+                if (($requiresList && count($this->splitTopLevel($argument, ',')) < 2)
+                    || !$this->selectorArgumentCanUseAny($argument)
+                ) {
+                    return $matches[0];
+                }
+
+                return match ($replacement) {
+                    'not:-webkit-any' => ':not(:-webkit-any(' . $argument . '))',
+                    'not:-moz-any' => ':not(:-moz-any(' . $argument . '))',
+                    'not:is' => ':not(:is(' . $argument . '))',
+                    default => ':' . $replacement . '(' . $argument . ')',
+                };
+            },
+            $selector
+        ) ?? $selector;
+    }
+
+    private function selectorArgumentCanUseAny(string $argument): bool
+    {
+        foreach ($this->splitTopLevel($argument, ',') as $part) {
+            if ($part === '' || $this->selectorHasTopLevelCombinator($part)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function selectorHasTopLevelCombinator(string $selector): bool
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($selector);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif (($char === ' ' || $char === '>' || $char === '+' || $char === '~') && $parenDepth === 0 && $bracketDepth === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizeSelectorListArgument(string $argument): string
+    {
+        return implode(',', array_map('trim', $this->splitTopLevel($argument, ',')));
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<string>
+     */
+    private function rewriteLangSelectorVariants(string $selector, array $targetOptions): array
+    {
+        if (!($targetOptions['selectorLangListNeedsFallback'] ?? false) || !$this->selectorHasMultiLangPseudo($selector)) {
+            return [$selector];
+        }
+
+        $variants = [];
+        if ($targetOptions['anyPseudoNeedsWebkit'] ?? false) {
+            $variants[] = $this->replaceLangListPseudo($selector, '-webkit-any');
+        }
+        if ($targetOptions['anyPseudoNeedsMoz'] ?? false) {
+            $variants[] = $this->replaceLangListPseudo($selector, '-moz-any');
+        }
+        $variants[] = $this->replaceLangListPseudo($selector, 'is');
+
+        return array_values(array_unique($variants));
+    }
+
+    private function selectorHasMultiLangPseudo(string $selector): bool
+    {
+        if (preg_match_all('/:lang\(([^()]*)\)/i', $selector, $matches) === false) {
+            return false;
+        }
+
+        foreach ($matches[1] as $argument) {
+            if (count($this->splitTopLevel($argument, ',')) > 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function replaceLangListPseudo(string $selector, string $function): string
+    {
+        return preg_replace_callback(
+            '/:lang\(([^()]*)\)/i',
+            function (array $matches) use ($function): string {
+                $pseudoList = $this->langPseudoListFromArgument($matches[1]);
+                if ($pseudoList === null) {
+                    return $matches[0];
+                }
+
+                return ':' . $function . '(' . $pseudoList . ')';
+            },
+            $selector
+        ) ?? $selector;
+    }
+
+    private function langPseudoListFromArgument(string $argument): ?string
+    {
+        $languages = array_values(array_filter(
+            array_map('trim', $this->splitTopLevel($argument, ',')),
+            static fn (string $language): bool => $language !== ''
+        ));
+        if (count($languages) < 2) {
+            return null;
+        }
+
+        return implode(',', array_map(
+            static fn (string $language): string => ':lang(' . trim($language, '\'"') . ')',
+            $languages
+        ));
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<string>
+     */
+    private function rewriteDirSelectorVariants(string $selector, array $targetOptions): array
+    {
+        if (!($targetOptions['selectorDirNeedsLangFallback'] ?? false)
+            || preg_match('/:dir\(\s*(?:rtl|ltr)\s*\)/i', $selector) !== 1
+        ) {
+            return [$selector];
+        }
+
+        $variants = [];
+        if ($targetOptions['anyPseudoNeedsWebkit'] ?? false) {
+            $variants[] = $this->replaceDirPseudo($selector, 'webkit', $targetOptions);
+        }
+        if ($targetOptions['anyPseudoNeedsMoz'] ?? false) {
+            $variants[] = $this->replaceDirPseudo($selector, 'moz', $targetOptions);
+        }
+        $variants[] = $this->replaceDirPseudo(
+            $selector,
+            (($targetOptions['anyPseudoNeedsWebkit'] ?? false) || ($targetOptions['anyPseudoNeedsMoz'] ?? false)) ? 'modern-any' : 'modern',
+            $targetOptions
+        );
+
+        return array_values(array_unique($variants));
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function replaceDirPseudo(string $selector, string $mode, array $targetOptions): string
+    {
+        $rewritten = preg_replace_callback(
+            '/:dir\(\s*(rtl|ltr)\s*\)/i',
+            function (array $matches) use ($mode, $targetOptions): string {
+                return $this->dirPseudoReplacement(strtolower($matches[1]), $mode, $targetOptions);
+            },
+            $selector
+        ) ?? $selector;
+
+        if ($mode === 'modern' && !($targetOptions['selectorDirFallbackNeedsIsWrapper'] ?? false)) {
+            return $this->collapseSingleIsLangSelector($rewritten);
+        }
+
+        return $rewritten;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function dirPseudoReplacement(string $direction, string $mode, array $targetOptions): string
+    {
+        $pseudoList = $this->rtlLangPseudoList();
+        $langList = implode(',', self::RTL_LANGS);
+
+        if ($mode === 'webkit') {
+            return $direction === 'rtl'
+                ? ':-webkit-any(' . $pseudoList . ')'
+                : ':not(:-webkit-any(' . $pseudoList . '))';
+        }
+        if ($mode === 'moz') {
+            return $direction === 'rtl'
+                ? ':-moz-any(' . $pseudoList . ')'
+                : ':not(:-moz-any(' . $pseudoList . '))';
+        }
+        if ($mode === 'modern-any' || ($targetOptions['selectorDirFallbackNeedsIsWrapper'] ?? false)) {
+            return $direction === 'rtl'
+                ? ':is(' . $pseudoList . ')'
+                : ($mode === 'modern-any' ? ':not(:is(' . $pseudoList . '))' : ':not(' . $pseudoList . ')');
+        }
+
+        return $direction === 'rtl'
+            ? ':lang(' . $langList . ')'
+            : ':not(:lang(' . $langList . '))';
+    }
+
+    private function rtlLangPseudoList(): string
+    {
+        return implode(',', array_map(
+            static fn (string $language): string => ':lang(' . $language . ')',
+            self::RTL_LANGS
+        ));
+    }
+
+    private function collapseSingleIsLangSelector(string $selector): string
+    {
+        return preg_replace('/:is\((:lang\([^)]*\))\)/i', '$1', $selector) ?? $selector;
     }
 
     /**

@@ -210,21 +210,35 @@ final class SshReceivePackTransport implements ReceivePackTransport
      */
     private static function parseScpLikeUrl(string $url): array
     {
-        if (preg_match('/^(?:(?<user>[^@\/:]+)@)?(?<host>\[[^\]]+\]|[^\/:]+):(?<path>.+)$/', $url, $matches) !== 1) {
+        $colon = self::scpLikePathDelimiterPosition($url);
+        if ($colon === null) {
             throw new \InvalidArgumentException('SSH receive-pack transport expects an ssh:// URL or scp-like SSH URL');
         }
-        if (isset($matches['user']) && $matches['user'] !== '' && str_starts_with($matches['host'], '[')) {
+
+        $authority = substr($url, 0, $colon);
+        $pathPart = substr($url, $colon + 1);
+        $hostPart = $authority;
+        $userPart = null;
+        if (!str_starts_with($authority, '[')) {
+            $at = strrpos($authority, '@');
+            if ($at !== false) {
+                $userPart = substr($authority, 0, $at);
+                $hostPart = substr($authority, $at + 1);
+            }
+        }
+
+        if ($userPart !== null && str_starts_with($hostPart, '[')) {
             throw new \InvalidArgumentException('SCP-like SSH receive-pack URL does not support bracketed IPv6 hosts with a user');
         }
 
-        $host = self::normalizeHost(self::decodeComponent($matches['host'], 'host'));
+        $host = self::normalizeHost(self::decodeComponent($hostPart, 'host'));
 
-        $user = isset($matches['user']) && $matches['user'] !== ''
-            ? self::decodeComponent($matches['user'], 'user')
+        $user = $userPart !== null
+            ? self::decodeComponent($userPart, 'user')
             : null;
-        $path = self::normalizeSshPath(self::decodeComponent($matches['path'], 'repository path'));
+        $path = self::normalizeSshPath(self::decodeComponent($pathPart, 'repository path'));
 
-        self::validateUser($user);
+        self::validateUser($user, true);
         self::validateHost($host, $user);
         self::validateRepositoryPath($path);
 
@@ -234,6 +248,24 @@ final class SshReceivePackTransport implements ReceivePackTransport
             'port' => null,
             'path' => $path,
         ];
+    }
+
+    private static function scpLikePathDelimiterPosition(string $url): ?int
+    {
+        if (str_starts_with($url, '[')) {
+            $bracketEnd = strpos($url, ']');
+            $colon = $bracketEnd === false
+                ? strpos($url, ':')
+                : strpos($url, ':', $bracketEnd + 1);
+        } else {
+            $colon = strpos($url, ':');
+        }
+
+        if ($colon === false) {
+            return null;
+        }
+
+        return str_contains(substr($url, 0, $colon), '/') ? null : $colon;
     }
 
     private static function normalizeSshPath(string $path): string
@@ -282,13 +314,17 @@ final class SshReceivePackTransport implements ReceivePackTransport
         }
     }
 
-    private static function validateUser(?string $user): void
+    private static function validateUser(?string $user, bool $allowAtSign = false): void
     {
         if ($user !== null && ($user === '' || self::hasControlBytes($user))) {
             throw new \InvalidArgumentException('SSH receive-pack user must be non-empty and must not contain control bytes');
         }
-        if ($user !== null && preg_match('/[\s\/\\\\@:]/', $user) === 1) {
-            throw new \InvalidArgumentException('SSH receive-pack user must not contain whitespace, slash, backslash, at-sign, or colon delimiters');
+        $delimiterPattern = $allowAtSign ? '/[\s\/\\\\:]/' : '/[\s\/\\\\@:]/';
+        if ($user !== null && preg_match($delimiterPattern, $user) === 1) {
+            $message = $allowAtSign
+                ? 'SSH receive-pack user must not contain whitespace, slash, backslash, or colon delimiters'
+                : 'SSH receive-pack user must not contain whitespace, slash, backslash, at-sign, or colon delimiters';
+            throw new \InvalidArgumentException($message);
         }
         if ($user !== null && str_starts_with($user, '-')) {
             throw new \InvalidArgumentException('SSH receive-pack user is ambiguous as an SSH command argument');

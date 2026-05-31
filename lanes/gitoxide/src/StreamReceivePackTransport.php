@@ -6,6 +6,8 @@ namespace PortLibs\Gitoxide;
 
 final class StreamReceivePackTransport implements ReceivePackTransport
 {
+    private const MAX_PACKET_LINE_LENGTH = 65520;
+
     private bool $advertisementRead = false;
     private bool $requestWritten = false;
     private bool $responseRead = false;
@@ -84,6 +86,9 @@ final class StreamReceivePackTransport implements ReceivePackTransport
             }
             if ($length < 4) {
                 throw new \InvalidArgumentException("receive-pack transport: invalid {$label} packet length {$header}");
+            }
+            if ($length > self::MAX_PACKET_LINE_LENGTH) {
+                throw new \InvalidArgumentException("receive-pack transport: {$label} packet line exceeds maximum length {$header}");
             }
 
             $bytes .= self::readExactly($this->readStream, $length - 4, "{$label} packet payload");
