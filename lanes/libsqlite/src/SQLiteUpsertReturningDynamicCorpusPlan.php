@@ -879,6 +879,71 @@ final class SQLiteUpsertReturningDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{upstream:string,source:string,seed:int,incoming:list<int>,after:list<array{x:int,cnt:int}>,returning:list<array{x:int,cnt:int,event:string,ordinal:int}>,events:list<string>,changes:int,dependencies:list<string>}>
+     */
+    public static function upsert4TriggerHistogramReturningDynamicCases(int $caseCount = 1000): array
+    {
+        if ($caseCount < 1) {
+            throw new \InvalidArgumentException('SQLite upstream UPSERT trigger histogram corpus case count must be positive');
+        }
+
+        $cases = [];
+        for ($seed = 1; $seed <= $caseCount; ++$seed) {
+            $incoming = [];
+            $distinct = 3 + ($seed % 5);
+            $base = ($seed * 17) % 997;
+            $length = 8 + ($seed % 9);
+            for ($i = 0; $i < $length; ++$i) {
+                $slot = (($i * (($seed % 3) + 1)) + intdiv($i, 3) + $seed) % $distinct;
+                $incoming[] = $base + $slot;
+            }
+            if (!in_array($base, $incoming, true)) {
+                $incoming[] = $base;
+            }
+
+            $histogram = [];
+            $returning = [];
+            $events = [];
+            foreach ($incoming as $offset => $value) {
+                $event = array_key_exists($value, $histogram) ? 'update' : 'insert';
+                $histogram[$value] = ($histogram[$value] ?? 0) + 1;
+                $events[] = $event;
+                $returning[] = [
+                    'x' => $value,
+                    'cnt' => $histogram[$value],
+                    'event' => $event,
+                    'ordinal' => $offset + 1,
+                ];
+            }
+
+            ksort($histogram);
+            $after = [];
+            foreach ($histogram as $value => $count) {
+                $after[] = ['x' => (int) $value, 'cnt' => $count];
+            }
+
+            $cases[] = [
+                'upstream' => 'upsert4.test-9.1-trigger-histogram-dynamic-' . sprintf('%04d', $seed),
+                'source' => 'upsert4.test',
+                'seed' => $seed,
+                'incoming' => $incoming,
+                'after' => $after,
+                'returning' => $returning,
+                'events' => $events,
+                'changes' => count($incoming),
+                'dependencies' => [
+                    'upsert4.test-9.0',
+                    'upsert4.test-9.1',
+                    'sqlite-trigger-body-upsert',
+                    'sqlite-upsert-returning-changed-row-stream',
+                ],
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
      * @param list<string> $order
      * @return list<array<string,mixed>>
      */

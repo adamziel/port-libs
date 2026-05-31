@@ -956,4 +956,81 @@ for ($seed = 1; $seed <= 250; $seed++) {
     }
 }
 
+$select9TablesFor = static function (int $seed): array {
+    $left = [];
+    $right = [];
+    for ($index = 0; $index < 14; $index++) {
+        $left[] = ['a' => (($seed * 7) + ($index * 3)) % 29];
+        $right[] = ['d' => (($seed * 11) + ($index * 5) + 4) % 29];
+    }
+
+    return [
+        't1' => $left,
+        't2' => $right,
+    ];
+};
+
+$select9ExpectedCompoundValues = static function (array $tables, string $operator, bool $descending, int $limit, int $offset): array {
+    $left = array_map(static fn (array $row): int => (int) $row['a'], $tables['t1']);
+    $right = array_map(static fn (array $row): int => (int) $row['d'], $tables['t2']);
+
+    if ($operator === 'UNION ALL') {
+        $values = array_merge($left, $right);
+    } elseif ($operator === 'UNION') {
+        $values = array_values(array_unique(array_merge($left, $right), SORT_REGULAR));
+    } elseif ($operator === 'INTERSECT') {
+        $rightSet = array_flip($right);
+        $values = [];
+        foreach (array_unique($left, SORT_REGULAR) as $value) {
+            if (isset($rightSet[$value])) {
+                $values[] = $value;
+            }
+        }
+    } elseif ($operator === 'EXCEPT') {
+        $rightSet = array_flip($right);
+        $values = [];
+        foreach (array_unique($left, SORT_REGULAR) as $value) {
+            if (!isset($rightSet[$value])) {
+                $values[] = $value;
+            }
+        }
+    } else {
+        throw new InvalidArgumentException('Unsupported select9 compound operator');
+    }
+
+    sort($values);
+    if ($descending) {
+        $values = array_reverse($values);
+    }
+
+    return array_slice($values, $offset, $limit < 0 ? null : $limit);
+};
+
+foreach (range(1, 150) as $seed) {
+    $tables = $select9TablesFor($seed);
+    foreach (['UNION ALL', 'UNION', 'INTERSECT', 'EXCEPT'] as $operator) {
+        foreach ([[false, 5, 0], [false, 3, 2], [true, 4, 1], [true, -1, 3]] as [$descending, $limit, $offset]) {
+            $direction = $descending ? 'DESC' : 'ASC';
+            $limitSql = $limit < 0 ? '-1' : (string) $limit;
+            $expected = $select9ExpectedCompoundValues($tables, $operator, $descending, $limit, $offset);
+            $caseName = sprintf(
+                'real upstream corpus select9.test dynamic compound %s seed %d order %s limit %s offset %d',
+                strtolower(str_replace(' ', '-', $operator)),
+                $seed,
+                strtolower($direction),
+                $limitSql,
+                $offset,
+            );
+
+            $tests[$caseName] = static function (TestRunner $t) use ($select9TablesFor, $select9ExpectedCompoundValues, $seed, $operator, $descending, $direction, $limit, $limitSql, $offset, $expected, $assertFlatValues, $flatValues): void {
+                $sql = "SELECT a FROM t1 {$operator} SELECT d FROM t2 ORDER BY a {$direction} LIMIT {$limitSql} OFFSET {$offset}";
+                $assertFlatValues($t, $expected, SQLiteSelectSql::execute($sql, $select9TablesFor($seed)), $flatValues);
+                $t->contains('select9.test', "select9.test dynamic compound {$operator}");
+                $t->contains('ORDER BY', $sql);
+                $t->same($expected, $select9ExpectedCompoundValues($select9TablesFor($seed), $operator, $descending, $limit, $offset));
+            };
+        }
+    }
+}
+
 return $tests;

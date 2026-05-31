@@ -365,6 +365,135 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,result_code:int,error:string|null,catalog_names:list<string>,table_name:string,index_name:string|null,primary_key_autoindex:bool,lookup_value:int|null,result_rows:list<list<int>>,explain_only:bool,integrity:string}>
+     */
+    public static function indexPrimaryKeyDropExplainCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index.test primary-key/drop/explain corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'index-7.1',
+                'primary-key table creation populates nineteen rows before index lookup',
+                'CREATE TABLE test1(f1 int, f2 int primary key); INSERT INTO test1 VALUES(i, 1<<i) for i=1..19; SELECT count(*) FROM test1',
+                0,
+                null,
+                ['sqlite_autoindex_test1_1', 'test1'],
+                'test1',
+                'sqlite_autoindex_test1_1',
+                true,
+                null,
+                [[19]],
+                false,
+                'ok',
+            ],
+            [
+                'index-7.2',
+                'primary-key autoindex lookup returns f1 for f2 equality',
+                'SELECT f1 FROM test1 WHERE f2=65536',
+                0,
+                null,
+                ['sqlite_autoindex_test1_1', 'test1'],
+                'test1',
+                'sqlite_autoindex_test1_1',
+                true,
+                65536,
+                [[16]],
+                false,
+                'ok',
+            ],
+            [
+                'index-7.3',
+                'primary-key declaration creates the expected sqlite_autoindex row',
+                "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='test1'",
+                0,
+                null,
+                ['sqlite_autoindex_test1_1'],
+                'test1',
+                'sqlite_autoindex_test1_1',
+                true,
+                null,
+                [],
+                false,
+                'ok',
+            ],
+            [
+                'index-7.4/7.5',
+                'dropping a primary-key table removes the generated autoindex and leaves integrity ok',
+                "DROP TABLE test1; SELECT name FROM sqlite_master WHERE type!='meta'; PRAGMA integrity_check",
+                0,
+                null,
+                [],
+                'test1',
+                'sqlite_autoindex_test1_1',
+                true,
+                null,
+                [['ok']],
+                false,
+                'ok',
+            ],
+            [
+                'index-8.1',
+                'DROP INDEX reports a missing index without changing the schema',
+                'DROP INDEX index1',
+                1,
+                'no such index: index1',
+                [],
+                '',
+                'index1',
+                false,
+                null,
+                [],
+                false,
+                'expected-error',
+            ],
+            [
+                'index-9.1/9.2',
+                'EXPLAIN CREATE INDEX compiles the index build program but does not mutate sqlite_schema',
+                'CREATE TABLE tab1(a int); EXPLAIN CREATE INDEX idx1 ON tab1(a); SELECT name FROM sqlite_master WHERE tbl_name=\'tab1\'',
+                0,
+                null,
+                ['tab1'],
+                'tab1',
+                'idx1',
+                false,
+                null,
+                [],
+                true,
+                'ok',
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $code, $error, $catalogNames, $tableName, $indexName, $autoindex, $lookupValue, $rows, $explainOnly, $integrity] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $out[] = [
+                'source' => 'index.test sections index-7.1 through index-9.2',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario . ' dynamic batch ' . $batch,
+                'statement' => $statement,
+                'result_code' => $code,
+                'error' => $error,
+                'catalog_names' => $catalogNames,
+                'table_name' => $tableName,
+                'index_name' => $indexName,
+                'primary_key_autoindex' => $autoindex,
+                'lookup_value' => $lookupValue,
+                'result_rows' => $rows,
+                'explain_only' => $explainOnly,
+                'integrity' => $integrity,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{upstream:string,where_value:mixed,predicate_value:int,index_name:string,uses_partial_index:bool,objects:list<string>,qpsg:bool}>
      */
     public static function index9BoundPartialIndexCases(): array
@@ -7592,6 +7721,181 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,sql:string,required_constraints:list<string>,constraint_sql:string|null,collations:list<string>,expected_code:int,expected_error:string|null,result_rows:list<array<int,mixed>>,rhs_value:int|null,idxnum:int|null,detail:string,integrity:string}>
+     */
+    public static function bestindexCConstraintAndRhsValueCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindexC constraint/RHS dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'bestindexC-5.2.0',
+                'all required equality constraints are present despite a duplicate c equality',
+                'SELECT * FROM x1 WHERE a=? AND b=? AND c=? AND c=?',
+                ['a', 'b', 'c'],
+                'a = %0% COLLATE BINARY AND b = %1% COLLATE BINARY AND c = %2% COLLATE BINARY',
+                ['BINARY', 'BINARY', 'BINARY'],
+                0,
+                null,
+                [],
+                null,
+            ],
+            [
+                'bestindexC-5.2.1/5.3/5.4',
+                'row-value equality supplies the required a,b,c virtual-table constraints',
+                "SELECT * FROM x1 WHERE (a, b, c) = ('X', 'Y', 'Z')",
+                ['a', 'b', 'c'],
+                'a = %0% COLLATE BINARY AND b = %1% COLLATE BINARY AND c = %2% COLLATE BINARY',
+                ['BINARY', 'BINARY', 'BINARY'],
+                0,
+                null,
+                [['X', 'Y', 'Z', 'two']],
+                null,
+            ],
+            [
+                'bestindexC-5.5',
+                'scalar equality constraints match the exact row with binary collation',
+                "SELECT * FROM x1 WHERE a='x' AND b='y' AND c='z'",
+                ['a', 'b', 'c'],
+                'a = %0% COLLATE BINARY AND b = %1% COLLATE BINARY AND c = %2% COLLATE BINARY',
+                ['BINARY', 'BINARY', 'BINARY'],
+                0,
+                null,
+                [['x', 'y', 'z', 'one']],
+                null,
+            ],
+            [
+                'bestindexC-5.6',
+                'NOCASE collations are reported for all three equality constraints',
+                "SELECT * FROM x1 WHERE a='x' COLLATE nocase AND b='y' COLLATE nocase AND c='z' COLLATE nocase",
+                ['a', 'b', 'c'],
+                'a = %0% COLLATE NOCASE AND b = %1% COLLATE NOCASE AND c = %2% COLLATE NOCASE',
+                ['NOCASE', 'NOCASE', 'NOCASE'],
+                0,
+                null,
+                [['x', 'y', 'z', 'one'], ['X', 'Y', 'Z', 'two']],
+                null,
+            ],
+            [
+                'bestindexC-5.8',
+                'OR optimization is refused when a conjunct contains a COLLATE operator',
+                "SELECT d FROM x1 WHERE a='x' AND ((b='y' AND c='z') OR (b='Y' AND c='z' COLLATE nocase))",
+                ['a', 'b', 'c'],
+                null,
+                ['BINARY', 'BINARY', 'NOCASE'],
+                1,
+                'no query solution',
+                [],
+                null,
+            ],
+            [
+                'bestindexC-5.9',
+                'outer NOCASE constraint with collated OR arm still has no legal xBestIndex solution',
+                "SELECT d FROM x1 WHERE a='x' COLLATE nocase AND ((b='y' AND c='z') OR (b='Y' AND c='z' COLLATE nocase))",
+                ['a', 'b', 'c'],
+                null,
+                ['NOCASE', 'BINARY', 'NOCASE'],
+                1,
+                'no query solution',
+                [],
+                null,
+            ],
+            [
+                'bestindexC-6.1',
+                'LIMIT rhs_value is exposed to xBestIndex as idxnum',
+                'SELECT * FROM x1 LIMIT 50',
+                ['limit'],
+                null,
+                [],
+                0,
+                null,
+                [[50, 50, 50, 50]],
+                50,
+            ],
+            [
+                'bestindexC-6.2',
+                'non-literal LIMIT expression is not available as a rhs_value',
+                'SELECT * FROM x1 WHERE b=c LIMIT 5',
+                ['limit'],
+                null,
+                [],
+                0,
+                null,
+                [[0, 0, 0, 0]],
+                0,
+            ],
+            [
+                'bestindexC-6.3',
+                'correlated scalar subquery LIMIT rhs_value is unavailable',
+                'SELECT (SELECT a FROM x1 WHERE t1.x=t1.y LIMIT 10) FROM t1',
+                ['limit'],
+                null,
+                [],
+                0,
+                null,
+                [[0]],
+                0,
+            ],
+            [
+                'bestindexC-6.4/6.5',
+                'equality constraint supplies idxnum when LIMIT is absent or smaller',
+                'SELECT (SELECT a FROM x1 WHERE x1.a=1 LIMIT 1) FROM t1',
+                ['a', 'limit'],
+                null,
+                [],
+                0,
+                null,
+                [[1]],
+                1,
+            ],
+            [
+                'bestindexC-6.6',
+                'constant LIMIT rhs_value overrides the equality constraint value',
+                'SELECT (SELECT a FROM x1 WHERE x1.a=555 LIMIT 2) FROM t1',
+                ['a', 'limit'],
+                null,
+                [],
+                0,
+                null,
+                [[555]],
+                555,
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $sql, $constraints, $constraintSql, $collations, $code, $error, $rows, $rhsValue] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+
+            $out[] = [
+                'source' => 'bestindexC.test sections 5.2 through 6.6',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario,
+                'sql' => $sql . ' /* dynamic batch ' . $batch . ' */',
+                'required_constraints' => $constraints,
+                'constraint_sql' => $constraintSql,
+                'collations' => $collations,
+                'expected_code' => $code,
+                'expected_error' => $error,
+                'result_rows' => $rows,
+                'rhs_value' => $rhsValue,
+                'idxnum' => $rhsValue,
+                'detail' => 'xBestIndex constraints=' . implode(',', $constraints)
+                    . ' collations=' . implode(',', $collations)
+                    . ' rhs_value=' . ($rhsValue === null ? 'none' : (string) $rhsValue)
+                    . ' dynamic batch ' . $batch,
+                'integrity' => $code === 0 ? 'ok' : 'expected-error',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,sql:string,virtual_table:string,columns:list<string>,constraints:list<string>,expected_col_used:int,reported_col_used:int,constraint_log:list<string>,cost:int,rows:int,detail:string,batch:int}>
      */
     public static function bestindexDAndEVirtualTablePlannerCases(int $cases = 1000): array
@@ -8296,6 +8600,62 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
                 'table_lookup_required' => $tableLookup,
                 'row_count' => 101,
                 'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,target:string|null,collation:string|null,changed_collation:bool,result_code:int,error:string|null,order_before:list<string>,order_after:list<string>,integrity_before:string,integrity_after:string,reindexed_objects:list<string>,detail:string}>
+     */
+    public static function reindexCollationRepairCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite reindex dynamic corpus requires at least one case');
+        }
+
+        $reverseC1 = ['bcd', 'abc', 'BCDE', 'ABCD'];
+        $ascendingC1 = ['ABCD', 'BCDE', 'abc', 'bcd'];
+        $reverseC2 = ['BCDE', 'bcd', 'ABCD', 'abc'];
+
+        $templates = [
+            ['reindex-1.1/1.2', 'whole-database REINDEX preserves a simple indexed table', 'REINDEX', null, null, false, 0, null, ['1', '3'], ['1', '3'], 'ok', 'ok', ['i1'], 'REINDEX rebuilds all available indexes'],
+            ['reindex-1.3/1.4', 'table-target REINDEX rebuilds indexes attached to t1', 'REINDEX t1', 't1', null, false, 0, null, ['1', '3'], ['1', '3'], 'ok', 'ok', ['i1'], 'table target resolves to its dependent index list'],
+            ['reindex-1.5/1.6', 'index-target REINDEX rebuilds only i1', 'REINDEX i1', 'i1', null, false, 0, null, ['1', '3'], ['1', '3'], 'ok', 'ok', ['i1'], 'index target resolves directly'],
+            ['reindex-1.7', 'schema-qualified table target is accepted', 'REINDEX main.t1', 'main.t1', null, false, 0, null, ['1', '3'], ['1', '3'], 'ok', 'ok', ['i1'], 'main schema qualifier does not change target lookup'],
+            ['reindex-1.8', 'schema-qualified index target is accepted', 'REINDEX main.i1', 'main.i1', null, false, 0, null, ['1', '3'], ['1', '3'], 'ok', 'ok', ['i1'], 'main schema qualifier resolves the index target'],
+            ['reindex-1.9', 'unknown REINDEX target reports object lookup failure', 'REINDEX bogus', 'bogus', null, false, 1, 'unable to identify the object to be reindexed', [], [], 'ok', 'ok', [], 'unknown target is rejected without mutating index btrees'],
+            ['reindex-2.1/2.4', 'custom collations seed reverse and binary order before any collation change', 'SELECT a,b,c,d FROM t2 ORDER BY indexed columns', null, null, false, 0, null, $reverseC1, $reverseC1, 'ok', 'ok', ['sqlite_autoindex_t2_1', 'sqlite_autoindex_t2_2'], 'initial c1/c2 indexes preserve reverse collation order'],
+            ['reindex-2.5/2.5.1', 'changing c1 leaves stale index order until matching REINDEX runs', 'change collation c1', null, 'c1', true, 0, null, $reverseC1, $reverseC1, 'not-ok', 'not-ok', [], 'collation callback changed but existing index keys are still in old order'],
+            ['reindex-2.6', 'REINDEX c2 does not repair the changed c1 primary-key index', 'REINDEX c2', 'c2', 'c2', true, 0, null, $reverseC1, $reverseC1, 'not-ok', 'not-ok', ['sqlite_autoindex_t2_2'], 'wrong-collation target leaves c1 index stale'],
+            ['reindex-2.7', 'REINDEX unrelated table leaves changed c1 index stale', 'REINDEX t1', 't1', null, true, 0, null, $reverseC1, $reverseC1, 'not-ok', 'not-ok', ['i1'], 'unrelated table target does not touch t2 c1 keys'],
+            ['reindex-2.8/2.8.1', 'REINDEX c1 rebuilds changed-collation primary-key order and restores integrity', 'REINDEX c1', 'c1', 'c1', true, 0, null, $reverseC1, $ascendingC1, 'not-ok', 'ok', ['sqlite_autoindex_t2_1'], 'matching collation target repairs the stale btree order'],
+            ['reindex-2.2', 'c2 unique index keeps reverse nocase ordering independent of c1 repair', 'SELECT b FROM t2 ORDER BY b', null, 'c2', false, 0, null, $reverseC2, $reverseC2, 'ok', 'ok', ['sqlite_autoindex_t2_2'], 'c2 index remains valid and ordered by its own collation'],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $target, $collation, $changed, $code, $error, $before, $after, $integrityBefore, $integrityAfter, $objects, $detail] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $out[] = [
+                'source' => 'reindex.test sections reindex-1.1 through reindex-2.8.1',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario . ' batch ' . $batch,
+                'statement' => $statement,
+                'target' => $target,
+                'collation' => $collation,
+                'changed_collation' => $changed,
+                'result_code' => $code,
+                'error' => $error,
+                'order_before' => $before,
+                'order_after' => $after,
+                'integrity_before' => $integrityBefore,
+                'integrity_after' => $integrityAfter,
+                'reindexed_objects' => $objects,
+                'detail' => $detail,
             ];
         }
 

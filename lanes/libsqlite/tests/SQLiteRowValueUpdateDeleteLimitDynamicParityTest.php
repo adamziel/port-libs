@@ -2375,4 +2375,72 @@ foreach ($truthPredicateCases as $name => [$callback, $expected]) {
     };
 }
 
+$rowValueScalarSubqueryCases = [
+    'update equals ordered scalar subquery offset window' => [
+        "UPDATE app_settings SET state = 'scalar_subquery_eq' WHERE (tenant_id, key_name) = (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT 1 OFFSET 2) RETURNING setting_id, tenant_id, key_name, state, (tenant_id, key_name) = (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT 1 OFFSET 2) AS tuple_match ORDER BY setting_id LIMIT -1",
+        [5],
+        'state',
+        ['scalar_subquery_eq'],
+        'tuple_match',
+        [1],
+    ],
+    'delete equals ordered scalar subquery comma limit' => [
+        "DELETE FROM app_settings WHERE (tenant_id, key_name) = (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT 3, 1) RETURNING setting_id, tenant_id, key_name, (tenant_id, key_name) = (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT 3, 1) AS tuple_match ORDER BY setting_id LIMIT -1",
+        [3],
+        null,
+        null,
+        'tuple_match',
+        [1],
+    ],
+    'update not equals scalar subquery outer limit' => [
+        "UPDATE app_settings SET state = 'scalar_subquery_ne' WHERE (tenant_id, key_name) <> (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT 1 OFFSET 0) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT 3 OFFSET 1",
+        [2, 3, 4],
+        'state',
+        ['scalar_subquery_ne', 'scalar_subquery_ne', 'scalar_subquery_ne'],
+        null,
+        null,
+    ],
+    'delete greater than scalar subquery ordered window' => [
+        "DELETE FROM app_settings WHERE (tenant_id, key_name) > (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT 1 OFFSET 1) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT 2 OFFSET 0",
+        [3, 4],
+        null,
+        null,
+        null,
+        null,
+    ],
+    'update less equal scalar subquery ordered window' => [
+        "UPDATE app_settings SET state = 'scalar_subquery_le' WHERE (tenant_id, key_name) <= (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT 1 OFFSET 3) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1",
+        [1, 2, 3],
+        'state',
+        ['scalar_subquery_le', 'scalar_subquery_le', 'scalar_subquery_le'],
+        null,
+        null,
+    ],
+];
+
+foreach ($rowValueScalarSubqueryCases as $name => [$sql, $expectedIds, $column, $expectedColumnValues, $flagColumn, $expectedFlags]) {
+    $tests['rowvalue update delete limit dynamic parity rowvalue4 scalar subquery ' . $name] =
+        static function (TestRunner $t) use ($execute, $sql, $expectedIds, $column, $expectedColumnValues, $flagColumn, $expectedFlags): void {
+            $result = $execute($sql);
+            $t->same($expectedIds, $result['plan']->selectedIds);
+            $t->same($expectedIds, array_column($result['returning'], 'setting_id'));
+            if (is_string($column)) {
+                $t->same($expectedColumnValues, array_column($result['returning'], $column));
+            } else {
+                $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expectedIds)), array_column($result['tables']['app_settings'], 'setting_id'));
+            }
+            if (is_string($flagColumn)) {
+                $t->same($expectedFlags, array_column($result['returning'], $flagColumn));
+            }
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+        };
+}
+
+$tests['rowvalue update delete limit dynamic parity rowvalue4 scalar subquery arity mismatch rejected'] =
+    static function (TestRunner $t) use ($execute): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => $execute(
+            "UPDATE app_settings SET state = 'bad' WHERE (tenant_id, key_name) = (SELECT tenant_id, key_name, priority FROM app_setting_targets ORDER BY priority DESC LIMIT 1) RETURNING setting_id"
+        ));
+    };
+
 return $tests;

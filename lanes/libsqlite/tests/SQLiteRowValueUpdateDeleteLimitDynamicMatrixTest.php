@@ -165,4 +165,54 @@ $tests['rowvalue dynamic delete rejects offset without limit'] = static function
     ));
 };
 
+for ($seed = 1; $seed <= 12; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = ($seed + 1) % 3;
+    $formatFunction = $seed % 2 === 0 ? 'printf' : 'format';
+    $offsetFunction = $seed % 2 === 0 ? 'format' : 'printf';
+    $sql = "UPDATE app_settings SET (state, value_size) = ('formatted', value_size + {$seed}) WHERE state = 'queued' RETURNING setting_id, state, value_size ORDER BY value_size ASC LIMIT {$formatFunction}('%d', {$limitValue}) OFFSET {$offsetFunction}('%02d', {$offsetValue})";
+    $expectedIds = array_slice([1, 2, 4, 6, 7, 8, 10, 12, 13, 14, 16, 18], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue dynamic update printf format outer limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($settingTables, $unique, $sql, $expectedIds, $limitValue, $offsetValue): void {
+            $result = SQLiteUpdateDeleteReturningSql::execute($sql, $settingTables(), 'setting_id', $unique);
+
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expectedIds, $result['plan']->selectedIds);
+            $t->same($expectedIds, array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($expectedIds), 'formatted'), array_column($result['returning'], 'state'));
+            $t->true(str_contains('/home/claude/port-libs/.upstream-cache/libsqlite/test/printf.test', '/test/printf.test'));
+        };
+}
+
+for ($seed = 1; $seed <= 12; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 2) % 4;
+    $formatFunction = $seed % 2 === 0 ? 'printf' : 'format';
+    $offsetFunction = $seed % 2 === 0 ? 'format' : 'printf';
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_batches WHERE batch_name = 'cleanup' ORDER BY priority DESC, key_name ASC LIMIT {$formatFunction}('%d', {$limitValue}) OFFSET {$offsetFunction}('%d', {$offsetValue})) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id";
+    $expectedIds = $expectedSettingIds($tupleWindow('cleanup', $limitValue, $offsetValue));
+
+    $tests[sprintf('rowvalue dynamic delete printf format tuple limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($settingTables, $unique, $expectedRemainingIds, $sql, $expectedIds): void {
+            $result = SQLiteUpdateDeleteReturningSql::execute($sql, $settingTables(), 'setting_id', $unique);
+
+            $t->same($expectedIds, $result['plan']->selectedIds);
+            $t->same($expectedIds, array_column($result['returning'], 'setting_id'));
+            $t->same($expectedRemainingIds($expectedIds), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->same(count($expectedIds), count($result['returning']));
+            $t->true(str_contains('/home/claude/port-libs/.upstream-cache/libsqlite/test/printf.test', '/test/printf.test'));
+        };
+}
+
+$tests['rowvalue dynamic delete rejects malformed printf limit format'] = static function (TestRunner $t) use ($settingTables, $unique): void {
+    $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute(
+        "DELETE FROM app_settings WHERE state = 'queued' RETURNING setting_id LIMIT printf('%d %d', 2)",
+        $settingTables(),
+        'setting_id',
+        $unique,
+    ));
+};
+
 return $tests;

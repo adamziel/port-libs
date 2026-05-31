@@ -842,7 +842,7 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : self::textLength((string) $value);
         }
-        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|ceil|ceiling|floor|trunc|sqrt|pow|power|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode|quote|typeof|iif|if|likely|unlikely|likelihood)\s*\((.*)\)$/is', $expression, $match) === 1) {
+        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|ceil|ceiling|floor|trunc|sqrt|pow|power|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode|quote|typeof|printf|format|iif|if|likely|unlikely|likelihood)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }
         $predicate = self::evaluateLimitPredicateExpression($expression);
@@ -1128,6 +1128,9 @@ final class SQLiteUpdateDeleteReturningSql
         if (($function === 'quote' || $function === 'typeof') && count($parts) !== 1) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
         }
+        if (($function === 'printf' || $function === 'format') && count($parts) < 1) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs a format argument");
+        }
         if (($function === 'iif' || $function === 'if') && count($parts) !== 3) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs three arguments");
         }
@@ -1273,6 +1276,9 @@ final class SQLiteUpdateDeleteReturningSql
         if ($function === 'typeof') {
             return self::typeofLimitValue($values[0]);
         }
+        if ($function === 'printf' || $function === 'format') {
+            return self::formatLimitValue($function, $values);
+        }
         if ($function === 'round') {
             if ($values[0] === null) {
                 return null;
@@ -1348,6 +1354,30 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return 'text';
+    }
+
+    /**
+     * @param list<int|float|string|null> $values
+     */
+    private static function formatLimitValue(string $function, array $values): string
+    {
+        $format = array_shift($values);
+        if ($format === null) {
+            return '';
+        }
+        if (!is_int($format) && !is_float($format) && !is_string($format)) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() format must be scalar");
+        }
+
+        $phpFormat = str_replace(['%i', '%q', '%Q'], ['%d', '%s', '%s'], (string) $format);
+        try {
+            return sprintf($phpFormat, ...array_map(
+                static fn (int|float|string|null $value): int|float|string => $value ?? 0,
+                $values,
+            ));
+        } catch (\ArgumentCountError|\ValueError $exception) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() format is malformed", 0, $exception);
+        }
     }
 
     private static function integerFunctionArgument(int|float|string $value, string $function, string $name): int
@@ -1692,21 +1722,21 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^\(([^()]+)\)\s+IS\s+(NOT\s+)?\((.*)\)$/is', $term, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
-            $right = self::rowValueExpressions($match[3], $row);
+            $right = self::rowValueExpressions($match[3], $row, $tables);
             $result = self::rowValueIs($left, $right);
 
             return isset($match[2]) && trim($match[2]) !== '' ? !$result : $result;
         }
         if (preg_match('/^\(([^()]+)\)\s+IS\s+(NOT\s+)?DISTINCT\s+FROM\s*\((.*)\)$/is', $term, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
-            $right = self::rowValueExpressions($match[3], $row);
+            $right = self::rowValueExpressions($match[3], $row, $tables);
             $result = self::rowValueIsDistinctFrom($left, $right);
 
             return isset($match[2]) && trim($match[2]) !== '' ? !$result : $result;
         }
         if (preg_match('/^\(([^()]+)\)\s*(=|<>|!=|>=|<=|>|<)\s*\((.*)\)$/s', $term, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
-            $right = self::rowValueExpressions($match[3], $row);
+            $right = self::rowValueExpressions($match[3], $row, $tables);
             if ($match[2] === '=' || $match[2] === '<>' || $match[2] === '!=') {
                 $equals = self::rowValueEqualsNullable($left, $right);
 
@@ -1841,7 +1871,7 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^\(([^()]+)\)\s*(=|<>|!=|>=|<=|>|<)\s*\((.*)\)$/s', $expression, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
-            $right = self::rowValueExpressions($match[3], $row);
+            $right = self::rowValueExpressions($match[3], $row, $tables);
             if ($match[2] === '=' || $match[2] === '<>' || $match[2] === '!=') {
                 $equals = self::rowValueEqualsNullable($left, $right);
                 $result = match ($match[2]) {
@@ -1874,7 +1904,7 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^\(([^()]+)\)\s+IS\s+(NOT\s+)?\((.*)\)$/is', $expression, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
-            $right = self::rowValueExpressions($match[3], $row);
+            $right = self::rowValueExpressions($match[3], $row, $tables);
             $result = self::rowValueIs($left, $right);
             if (isset($match[2]) && trim($match[2]) !== '') {
                 $result = !$result;
@@ -1884,7 +1914,7 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^\(([^()]+)\)\s+IS\s+(NOT\s+)?DISTINCT\s+FROM\s*\((.*)\)$/is', $expression, $match) === 1) {
             $left = self::rowValue($row, self::rowValueColumns($match[1]));
-            $right = self::rowValueExpressions($match[3], $row);
+            $right = self::rowValueExpressions($match[3], $row, $tables);
             $result = self::rowValueIsDistinctFrom($left, $right);
             if (isset($match[2]) && trim($match[2]) !== '') {
                 $result = !$result;
@@ -2296,8 +2326,15 @@ final class SQLiteUpdateDeleteReturningSql
      * @param array<string,mixed> $row
      * @return list<mixed>
      */
-    private static function rowValueExpressions(string $sql, array $row): array
+    private static function rowValueExpressions(string $sql, array $row, array $tables = []): array
     {
+        $sql = trim($sql);
+        if (preg_match('/^SELECT\b/is', $sql) === 1) {
+            $tuples = self::rowValueSimpleSelectTupleList($sql, $tables);
+
+            return $tuples[0] ?? [];
+        }
+
         $values = array_map(
             static fn (string $expression): mixed => self::evaluateExpression(trim($expression), $row),
             self::splitComma($sql),

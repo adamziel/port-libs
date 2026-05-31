@@ -77,6 +77,7 @@ $cases = [
     'temp store numeric zero maps default' => static fn (): mixed => (new SQLitePragmaEncodingPageTempStoreState(['main' => ['temp_store' => 1]]))->execute('PRAGMA temp_store=0')['effective'],
     'temp store numeric one maps file' => static fn (): mixed => (new SQLitePragmaEncodingPageTempStoreState())->execute('PRAGMA temp_store=1')['effective'],
     'temp store numeric two maps memory' => static fn (): mixed => (new SQLitePragmaEncodingPageTempStoreState())->execute('PRAGMA temp_store=2')['effective'],
+    'temp store numeric three maps default' => static fn (): mixed => (new SQLitePragmaEncodingPageTempStoreState(['main' => ['temp_store' => 2]]))->execute('PRAGMA temp_store=3')['effective'],
     'temp store parenthesized assignment' => static fn (): mixed => (new SQLitePragmaEncodingPageTempStoreState())->execute('PRAGMA temp_store(MEMORY)')['effective'],
     'temp store changed true' => static fn (): mixed => (new SQLitePragmaEncodingPageTempStoreState())->execute('PRAGMA temp_store=MEMORY')['changed'],
     'temp store changed false on same value' => static fn (): mixed => (new SQLitePragmaEncodingPageTempStoreState(['main' => ['temp_store' => 2]]))->execute('PRAGMA temp_store=MEMORY')['changed'],
@@ -91,7 +92,7 @@ $cases = [
         $state->execute('PRAGMA aux.temp_store=FILE');
         return [$state->execute('PRAGMA aux.temp_store')['effective'], $state->execute('PRAGMA main.temp_store')['effective']];
     },
-    'temp store invalid numeric rejected' => static fn (): mixed => $rejects(static fn () => (new SQLitePragmaEncodingPageTempStoreState())->execute('PRAGMA temp_store=3')),
+    'temp store invalid numeric rejected' => static fn (): mixed => $rejects(static fn () => (new SQLitePragmaEncodingPageTempStoreState())->execute('PRAGMA temp_store=4')),
     'temp store invalid keyword rejected' => static fn (): mixed => $rejects(static fn () => (new SQLitePragmaEncodingPageTempStoreState())->execute('PRAGMA temp_store=RAM')),
     'temp store rows use sqlite column name' => static fn (): mixed => array_keys((new SQLitePragmaEncodingPageTempStoreState())->execute('PRAGMA temp_store')['rows'][0]),
     'parse page size schema assignment' => static fn (): mixed => SQLitePragmaEncodingPageTempStoreState::parse('PRAGMA aux.page_size=8192'),
@@ -156,6 +157,7 @@ $expected = [
     'temp store numeric zero maps default' => 0,
     'temp store numeric one maps file' => 1,
     'temp store numeric two maps memory' => 2,
+    'temp store numeric three maps default' => 0,
     'temp store parenthesized assignment' => 2,
     'temp store changed true' => true,
     'temp store changed false on same value' => false,

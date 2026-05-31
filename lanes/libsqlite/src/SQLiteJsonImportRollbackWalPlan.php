@@ -546,6 +546,100 @@ final class SQLiteJsonImportRollbackWalPlan
     /**
      * @return list<array<string,mixed>>
      */
+    public static function dynamicDuplicateInsertedSettingRollbackScenarios(int $scenarioCount = 18): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL duplicate inserted-setting dynamic parity requires at least one scenario');
+        }
+
+        $scenarios = [];
+        for ($seed = 1; $seed <= $scenarioCount; $seed++) {
+            $pageSize = $seed % 2 === 0 ? 1024 : 512;
+            $tenantId = 5100 + $seed;
+            $basePage = 34 + ($seed % 7);
+            $existingInsertIdPage = 310 + $seed;
+            $duplicateInsertPage = 390 + $seed;
+            $walFramesBefore = 3 + ($seed % 6);
+            $duplicateSettingId = $seed * 6000 + 2;
+
+            $rows = [
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 6000 + 1,
+                    'key_name' => 'duplicate_insert_base_payload_' . $seed,
+                    'key_value' => json_encode(['enabled' => false, 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'yes',
+                    'page_number' => $basePage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $duplicateSettingId,
+                    'key_name' => 'duplicate_insert_existing_payload_' . $seed,
+                    'key_value' => json_encode(['reserved' => true, 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'no',
+                    'page_number' => $existingInsertIdPage,
+                ],
+            ];
+
+            $mutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'duplicate_insert_enable_base_' . $seed,
+                    'key_name' => 'duplicate_insert_base_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'duplicate_insert_conflict_' . $seed,
+                    'key_name' => 'duplicate_insert_new_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.source',
+                    'value' => 'discarded-' . $seed,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $duplicateSettingId,
+                    'insert_load_policy' => 'no',
+                    'initial_value' => '{}',
+                    'page_number' => $duplicateInsertPage,
+                    'wal_frame_index' => 2,
+                ],
+            ];
+
+            $databaseBytes = self::scenarioDatabaseBytes($pageSize, max($duplicateInsertPage, $existingInsertIdPage, $basePage));
+            $walBytes = self::scenarioWalBytes($pageSize, $walFramesBefore, 0x8600 + $seed, 0x8700 + $seed);
+            $plan = self::plan($rows, $mutations, [
+                'database_bytes' => $databaseBytes,
+                'page_size' => $pageSize,
+                'wal_bytes' => $walBytes,
+                'transaction' => 'application_duplicate_insert_json_import_' . $seed,
+                'savepoint' => 'duplicate_insert_json_batch_' . $seed,
+            ]);
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $tenantId,
+                'page_size' => $pageSize,
+                'duplicate_setting_id' => $duplicateSettingId,
+                'existing_insert_id_page' => $existingInsertIdPage,
+                'duplicate_insert_page' => $duplicateInsertPage,
+                'wal_frames_before' => $walFramesBefore,
+                'expected_restored_pages' => [$basePage],
+                'expected_failed_statement' => 'duplicate_insert_conflict_' . $seed,
+                'expected_error' => 'SQLite Application JSON import inserted setting_id already exists: ' . $duplicateSettingId,
+                'database_bytes' => $databaseBytes,
+                'wal_bytes' => $walBytes,
+                'plan' => $plan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
     public static function dynamicDeferredFailureScenarios(int $scenarioCount = 16): array
     {
         if ($scenarioCount < 1) {

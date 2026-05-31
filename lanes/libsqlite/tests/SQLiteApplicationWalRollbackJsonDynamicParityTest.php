@@ -9,6 +9,7 @@ $scenarios = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(24);
 $preexistingWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalScenarios(24);
 $tenantCollisionScenarios = SQLiteJsonImportRollbackWalPlan::dynamicTenantCollisionScenarios(24);
 $insertedSettingScenarios = SQLiteJsonImportRollbackWalPlan::dynamicInsertedSettingRollbackScenarios(24);
+$duplicateInsertedSettingScenarios = SQLiteJsonImportRollbackWalPlan::dynamicDuplicateInsertedSettingRollbackScenarios(24);
 $deferredScenarios = SQLiteJsonImportRollbackWalPlan::dynamicDeferredFailureScenarios(24);
 $retryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRetryAfterRollbackScenarios(18);
 $preexistingRetryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalRetryScenarios(18);
@@ -73,6 +74,18 @@ $tests = [
         $jsonModes = array_values(array_unique(array_column($insertedSettingScenarios, 'jsonb_mode')));
         sort($jsonModes);
         $t->same([false, true], $jsonModes);
+    },
+    'sqlite application wal rollback json dynamic parity duplicate inserted setting exposes requested scenario count' => static function (TestRunner $t) use ($duplicateInsertedSettingScenarios): void {
+        $t->same(24, count($duplicateInsertedSettingScenarios));
+    },
+    'sqlite application wal rollback json dynamic parity duplicate inserted setting covers both page sizes' => static function (TestRunner $t) use ($duplicateInsertedSettingScenarios): void {
+        $pageSizes = array_values(array_unique(array_column($duplicateInsertedSettingScenarios, 'page_size')));
+        sort($pageSizes);
+        $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json dynamic parity duplicate inserted setting has unique tenant streams' => static function (TestRunner $t) use ($duplicateInsertedSettingScenarios): void {
+        $tenantIds = array_column($duplicateInsertedSettingScenarios, 'tenant_id');
+        $t->same(count($tenantIds), count(array_unique($tenantIds)));
     },
     'sqlite application wal rollback json dynamic parity deferred mode covers json text and jsonb rows' => static function (TestRunner $t) use ($deferredScenarios): void {
         $t->same([false, true], array_values(array_unique(array_column($deferredScenarios, 'jsonb_mode'))));
@@ -415,6 +428,72 @@ foreach ($insertedSettingScenarios as $scenario) {
     };
 }
 
+foreach ($duplicateInsertedSettingScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $plan = $scenario['plan'];
+    $prefix = 'sqlite application wal rollback json dynamic parity duplicate inserted setting seed ' . $seed . ' ';
+
+    $tests[$prefix . 'rolls back duplicate inserted id batch'] = static function (TestRunner $t) use ($plan): void {
+        $t->same('rolled_back_current_json_batch', $plan['status']);
+    };
+    $tests[$prefix . 'uses duplicate insert transaction name'] = static function (TestRunner $t) use ($plan, $seed): void {
+        $t->same('application_duplicate_insert_json_import_' . $seed, $plan['transaction']);
+    };
+    $tests[$prefix . 'uses duplicate insert savepoint name'] = static function (TestRunner $t) use ($plan, $seed): void {
+        $t->same('duplicate_insert_json_batch_' . $seed, $plan['savepoint']);
+    };
+    $tests[$prefix . 'applies only base row before duplicate id failure'] = static function (TestRunner $t) use ($plan): void {
+        $t->same(1, $plan['applied_statement_count']);
+    };
+    $tests[$prefix . 'records one failed duplicate id statement'] = static function (TestRunner $t) use ($plan): void {
+        $t->same(1, $plan['failed_statement_count']);
+    };
+    $tests[$prefix . 'names failed duplicate id statement'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same([$scenario['expected_failed_statement']], $plan['failed_statements']);
+    };
+    $tests[$prefix . 'reports duplicate id error'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['expected_error'], $plan['import_plan']['failed'][0]['error']);
+    };
+    $tests[$prefix . 'failure happens before statement wal frame'] = static function (TestRunner $t) use ($plan): void {
+        $t->same([], array_column($plan['import_plan']['failed'][0]['rollback']['discarded_wal_frames'], 'frame_index'));
+    };
+    $tests[$prefix . 'failure happens before statement page image'] = static function (TestRunner $t) use ($plan): void {
+        $t->same([], $plan['import_plan']['failed'][0]['rollback']['restored_page_numbers']);
+    };
+    $tests[$prefix . 'restores original database bytes'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['database_bytes'], $plan['restored_database_bytes']);
+    };
+    $tests[$prefix . 'outer rollback restores applied base page only'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['expected_restored_pages'], $plan['rollback_to_savepoint']['restored_page_numbers']);
+    };
+    $tests[$prefix . 'wal rollback discards applied base frame only'] = static function (TestRunner $t) use ($plan): void {
+        $t->same([1], array_column($plan['wal_rollback_to_savepoint']['discarded_wal_frames'], 'frame_index'));
+    };
+    $tests[$prefix . 'wal rollback discards applied base page only'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['expected_restored_pages'], $plan['wal_rollback_to_savepoint']['discarded_page_numbers']);
+    };
+    $tests[$prefix . 'duplicate insert page is not materialized'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same(false, in_array($scenario['duplicate_insert_page'], $plan['wal_rollback_to_savepoint']['discarded_page_numbers'], true));
+    };
+    $tests[$prefix . 'existing duplicate id row remains in final rows'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $rows = array_values(array_filter(
+            $plan['import_plan']['final_rows'],
+            static fn (array $row): bool => $row['setting_id'] === $scenario['duplicate_setting_id']
+        ));
+        $t->same(1, count($rows));
+        $t->same($scenario['existing_insert_id_page'], $rows[0]['page_number']);
+    };
+    $tests[$prefix . 'failed inserted key is not retained in final rows'] = static function (TestRunner $t) use ($plan, $seed): void {
+        $t->same(false, in_array('duplicate_insert_new_payload_' . $seed, array_column($plan['import_plan']['final_rows'], 'key_name'), true));
+    };
+    $tests[$prefix . 'truncates wal to header after duplicate id rollback'] = static function (TestRunner $t) use ($plan): void {
+        $t->same(32, strlen($plan['wal_bytes_after']));
+    };
+    $tests[$prefix . 'discards all original wal frames from current batch stream'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['wal_frames_before'], $plan['discarded_wal_frame_count']);
+    };
+}
+
 foreach ($deferredScenarios as $scenario) {
     $seed = (int) $scenario['seed'];
     $plan = $scenario['plan'];
@@ -728,6 +807,17 @@ $tests['sqlite application wal rollback json dynamic parity rejects zero inserte
     $t->same('rejected', 'accepted');
 };
 
+$tests['sqlite application wal rollback json dynamic parity rejects zero duplicate inserted setting scenarios'] = static function (TestRunner $t): void {
+    try {
+        SQLiteJsonImportRollbackWalPlan::dynamicDuplicateInsertedSettingRollbackScenarios(0);
+    } catch (InvalidArgumentException) {
+        $t->same('rejected', 'rejected');
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
 $tests['sqlite application wal rollback json dynamic parity rejects zero retry scenarios'] = static function (TestRunner $t): void {
     try {
         SQLiteJsonImportRollbackWalPlan::dynamicRetryAfterRollbackScenarios(0);
@@ -817,6 +907,13 @@ $tests['sqlite application wal rollback json dynamic parity inserted setting sma
     $t->same([4101, 4102, 4103], array_column($smallBatch, 'tenant_id'));
     $t->same([512, 1024, 512], array_column($smallBatch, 'page_size'));
     $t->same([[5003, 5004], [10003, 10004], [15003, 15004]], array_column($smallBatch, 'inserted_setting_ids'));
+};
+
+$tests['sqlite application wal rollback json dynamic parity duplicate inserted setting small batch remains deterministic'] = static function (TestRunner $t): void {
+    $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicDuplicateInsertedSettingRollbackScenarios(3);
+    $t->same([5101, 5102, 5103], array_column($smallBatch, 'tenant_id'));
+    $t->same([512, 1024, 512], array_column($smallBatch, 'page_size'));
+    $t->same([6002, 12002, 18002], array_column($smallBatch, 'duplicate_setting_id'));
 };
 
 $tests['sqlite application wal rollback json dynamic parity retry small batch remains deterministic'] = static function (TestRunner $t): void {

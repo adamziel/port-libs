@@ -8704,6 +8704,84 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param array{a:mixed,b:mixed,c:mixed} $insert
+     * @param array<string,mixed> $updateSet
+     * @return array<string,mixed>
+     */
+    public static function triggerCBasicOldNewLifecyclePlan(array $insert, array $updateSet = ['a' => 'a'], bool $deleteAfterUpdate = true, bool $abortDeleteTrigger = true): array
+    {
+        foreach (['a', 'b', 'c'] as $column) {
+            if (!array_key_exists($column, $insert)) {
+                throw new \InvalidArgumentException('SQLite triggerC basic lifecycle insert row is missing column ' . $column);
+            }
+        }
+
+        $row = [
+            'a' => $insert['a'],
+            'b' => $insert['b'],
+            'c' => $insert['c'],
+        ];
+        $log = [
+            self::triggerCBasicLogEntry('before', [], $row),
+            self::triggerCBasicLogEntry('after', [], $row),
+        ];
+        $rowsAfterInsert = [$row];
+
+        $old = $row;
+        foreach ($updateSet as $column => $value) {
+            $column = self::identifier((string) $column, 'triggerC basic update column');
+            if (!in_array($column, ['a', 'b', 'c'], true)) {
+                throw new \InvalidArgumentException('SQLite triggerC basic lifecycle update column is unsupported');
+            }
+            $row[$column] = $value;
+        }
+        $log[] = self::triggerCBasicLogEntry('before', $old, $row);
+        $log[] = self::triggerCBasicLogEntry('after', $old, $row);
+        $rowsAfterUpdate = [$row];
+
+        $deleteStatus = 'not-attempted';
+        $rowsAfterDelete = [$row];
+        if ($deleteAfterUpdate) {
+            $old = $row;
+            $log[] = self::triggerCBasicLogEntry('before', $old, []);
+            $log[] = self::triggerCBasicLogEntry('after', $old, []);
+            $deleteStatus = 'commit-ok';
+            $rowsAfterDelete = [];
+        }
+
+        $abortDelete = [
+            'attempted' => $abortDeleteTrigger,
+            'status' => $abortDeleteTrigger ? 'constraint-failed' : 'not-attempted',
+            'error' => $abortDeleteTrigger ? 'delete is not supported' : null,
+            'rows_after_statement' => [['a' => 1, 'b' => 2]],
+            'rolled_back' => $abortDeleteTrigger,
+        ];
+
+        return [
+            'source' => 'triggerC.test triggerC-1.2..1.10',
+            'operation' => 'basic-before-after-old-new-lifecycle',
+            'status' => 'commit-ok',
+            'inserted_row' => $insert,
+            'updated_row' => $row,
+            'delete_after_update' => $deleteAfterUpdate,
+            'delete_status' => $deleteStatus,
+            'rows_after_insert' => $rowsAfterInsert,
+            'rows_after_update' => $rowsAfterUpdate,
+            'rows_after_delete' => $rowsAfterDelete,
+            'log' => $log,
+            'log_text' => array_values(array_map(static fn (array $entry): string => $entry['text'], $log)),
+            'log_count' => count($log),
+            'abort_delete' => $abortDelete,
+            'dependencies' => [
+                'sqlite-triggerC-before-insert-sees-new-row-only',
+                'sqlite-triggerC-update-feeds-old-and-new-row-images',
+                'sqlite-triggerC-delete-feeds-old-row-only',
+                'sqlite-triggerC-raise-abort-delete-preserves-row',
+            ],
+        ];
+    }
+
+    /**
      * @param list<int> $values
      * @param list<int> $allowed
      * @return list<int>
@@ -8791,6 +8869,37 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         $formatted = rtrim(rtrim(sprintf('%.12F', $value), '0'), '.');
 
         return str_contains($formatted, '.') ? $formatted : $formatted . '.0';
+    }
+
+    /**
+     * @param array<string,mixed> $old
+     * @param array<string,mixed> $new
+     * @return array{phase:string,old_a:mixed,old_b:mixed,old_c:mixed,new_a:mixed,new_b:mixed,new_c:mixed,text:string}
+     */
+    private static function triggerCBasicLogEntry(string $phase, array $old, array $new): array
+    {
+        $oldA = $old['a'] ?? null;
+        $oldB = $old['b'] ?? null;
+        $oldC = $old['c'] ?? null;
+        $newA = $new['a'] ?? null;
+        $newB = $new['b'] ?? null;
+        $newC = $new['c'] ?? null;
+
+        return [
+            'phase' => $phase,
+            'old_a' => $oldA,
+            'old_b' => $oldB,
+            'old_c' => $oldC,
+            'new_a' => $newA,
+            'new_b' => $newB,
+            'new_c' => $newC,
+            'text' => $phase . ':' . self::triggerCBasicText($oldA) . ':' . self::triggerCBasicText($oldB) . ':' . self::triggerCBasicText($oldC) . ':' . self::triggerCBasicText($newA) . ':' . self::triggerCBasicText($newB) . ':' . self::triggerCBasicText($newC),
+        ];
+    }
+
+    private static function triggerCBasicText(mixed $value): string
+    {
+        return $value === null ? '{}' : (string) $value;
     }
 
     /**

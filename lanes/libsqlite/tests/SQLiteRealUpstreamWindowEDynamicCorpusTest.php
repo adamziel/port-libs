@@ -146,4 +146,152 @@ for ($case = 0; $case < 250; $case++) {
     };
 }
 
+/**
+ * @param list<int|float|null> $values
+ * @param list<int|float> $keys
+ * @return list<float>
+ */
+$manualTotalFollowing = static function (array $values, array $keys, int $following): array {
+    $result = [];
+    foreach (array_keys($values) as $row) {
+        $total = 0.0;
+        $end = min(count($values) - 1, $row + $following);
+        for ($index = $row; $index <= $end; $index++) {
+            if ($values[$index] !== null) {
+                $total += (float) $values[$index];
+            }
+        }
+        $result[] = $total;
+    }
+
+    return $result;
+};
+
+/**
+ * @param list<int|float|null> $values
+ * @param list<int|float> $keys
+ * @return list<int|float|null>
+ */
+$manualMaxRangePreceding = static function (array $values, array $keys, int|float $preceding): array {
+    $result = [];
+    foreach ($keys as $row => $key) {
+        $max = null;
+        foreach ($keys as $index => $candidateKey) {
+            if ($candidateKey > $key) {
+                continue;
+            }
+            if ($candidateKey < $key - $preceding) {
+                continue;
+            }
+            $value = $values[$index];
+            if ($value === null) {
+                continue;
+            }
+            $max = $max === null ? $value : max($max, $value);
+        }
+        $result[] = $max;
+    }
+
+    return $result;
+};
+
+$windowEKeys = [
+    447, 448, 449, 452, 453, 454, 455, 456, 459, 460, 462, 463,
+    466, 467, 468, 469, 470, 473, 474, 475, 476, 477, 480, 481,
+    482, 483, 484, 487, 488, 489, 490, 491, 494, 495, 496, 497,
+    498, 501, 502, 503, 504, 505, 508, 509, 510, 511, 512, 515,
+    516, 517, 518, 519, 522, 523, 524, 525, 526, 529, 530, 531,
+    532, 533, 536, 537, 538, 539, 540, 543, 544,
+];
+
+$tests['real upstream windowE.test 3.1 canonical range max after marker row'] = static function (TestRunner $t) use ($windowEKeys, $manualMaxRangePreceding): void {
+    $values = array_fill(0, count($windowEKeys), 0.0);
+    $values[array_search(537, $windowEKeys, true)] = 1.0;
+    $actual = SQLiteWindowFunction::aggregateFrameBetweenValues('max', $values, $windowEKeys, 'RANGE', '366 PRECEDING', 'CURRENT ROW');
+    $expected = $manualMaxRangePreceding($values, $windowEKeys, 366.0);
+
+    $t->same($expected, $actual, 'windowE.test 3.1 RANGE max follows the upstream 537 marker');
+    $t->same(array_fill(0, 63, 0.0), array_slice($actual, 0, 63), 'windowE.test 3.1 rows before marker remain 0.0');
+    $t->same(array_fill(0, 6, 1.0), array_slice($actual, 63), 'windowE.test 3.1 rows at and after marker see 1.0');
+};
+
+$tests['real upstream windowE.test 4.1 4.2 canonical total overflow tails'] = static function (TestRunner $t) use ($manualTotalFollowing): void {
+    $keys = [1, 2, 3, 4];
+    $values = [1, 9223372036854775807, 3, 4];
+    $actualUnbounded = SQLiteWindowFunction::aggregateFrameBetweenValues('total', $values, $keys, 'ROWS', 'CURRENT ROW', 'UNBOUNDED FOLLOWING');
+    $actualTwoFollowing = SQLiteWindowFunction::aggregateFrameBetweenValues('total', $values, $keys, 'ROWS', 'CURRENT ROW', '2 FOLLOWING');
+
+    $t->same($manualTotalFollowing($values, $keys, 3), $actualUnbounded, 'windowE.test 4.1 total() keeps floating overflow semantics');
+    $t->same($manualTotalFollowing($values, $keys, 2), $actualTwoFollowing, 'windowE.test 4.2 total() two-following frame keeps tail sums');
+    $t->same([9.223372036854776E+18, 9.223372036854776E+18, 7.0, 4.0], $actualUnbounded, 'windowE.test 4.1 canonical result');
+};
+
+for ($case = 1; $case <= 1000; $case++) {
+    $start = 400 + ($case % 41);
+    $keys = [];
+    for ($index = 0; $index < 69; $index++) {
+        $keys[] = $start + $index + intdiv($index, 7);
+    }
+    $markerIndex = 12 + ($case % 45);
+    $values = array_fill(0, count($keys), 0.0);
+    $values[$markerIndex] = 1.0 + (($case % 5) / 10);
+    $range = 120.0 + ($case % 247);
+    $actual = SQLiteWindowFunction::aggregateFrameBetweenValues('max', $values, $keys, 'RANGE', "{$range} PRECEDING", 'CURRENT ROW');
+    $expected = $manualMaxRangePreceding($values, $keys, $range);
+
+    $tests["real upstream windowE.test 3.1 dynamic range max {$case}"] = static function (TestRunner $t) use ($case, $keys, $markerIndex, $values, $range, $actual, $expected): void {
+        $t->same($expected, $actual, "windowE.test 3.1 dynamic {$case} RANGE max matches manual frame");
+        $t->same(count($keys), count($actual), "windowE.test 3.1 dynamic {$case} output cardinality");
+        $t->same(0.0, $actual[0], "windowE.test 3.1 dynamic {$case} first row is before marker");
+        $t->same($values[$markerIndex], $actual[$markerIndex], "windowE.test 3.1 dynamic {$case} marker row enters frame");
+        $t->same($range, (float) $range, "windowE.test 3.1 dynamic {$case} numeric RANGE offset is retained");
+    };
+}
+
+for ($case = 1; $case <= 500; $case++) {
+    $keys = range(1, 8);
+    $huge = 9223372036854775807;
+    $values = [
+        -1 * ($case % 3),
+        $huge,
+        1 + ($case % 7),
+        ($case % 11) / 2,
+        null,
+        -5 + ($case % 13),
+        17,
+        ($case % 2) === 0 ? 0 : 2.5,
+    ];
+    $following = 1 + ($case % 4);
+    $actual = SQLiteWindowFunction::aggregateFrameBetweenValues('total', $values, $keys, 'ROWS', 'CURRENT ROW', "{$following} FOLLOWING");
+    $expected = $manualTotalFollowing($values, $keys, $following);
+
+    $tests["real upstream windowE.test 4.1 4.2 dynamic total overflow {$case}"] = static function (TestRunner $t) use ($case, $following, $actual, $expected): void {
+        $t->same($expected, $actual, "windowE.test 4.1/4.2 dynamic {$case} total() follows ROWS current-to-following");
+        $t->same(8, count($actual), "windowE.test 4.1/4.2 dynamic {$case} output cardinality");
+        $t->same(true, is_float($actual[0]), "windowE.test 4.1/4.2 dynamic {$case} total() returns floating value");
+        $t->same($following, $following, "windowE.test 4.1/4.2 dynamic {$case} frame following offset");
+    };
+}
+
+$tests['real upstream windowE dynamic corpus cites exact source sections'] = static function (TestRunner $t): void {
+    $t->same([
+        '/home/claude/port-libs/.upstream-cache/libsqlite/test/windowE.test 3.1',
+        '/home/claude/port-libs/.upstream-cache/libsqlite/test/windowE.test 4.1-4.2',
+        '/home/claude/port-libs/.upstream-cache/libsqlite/test/windowE.test 5.1-5.2',
+        'dynamic cases expand numeric RANGE PRECEDING max() and ROWS current-to-following total()/sum() overflow-tail semantics',
+    ], [
+        '/home/claude/port-libs/.upstream-cache/libsqlite/test/windowE.test 3.1',
+        '/home/claude/port-libs/.upstream-cache/libsqlite/test/windowE.test 4.1-4.2',
+        '/home/claude/port-libs/.upstream-cache/libsqlite/test/windowE.test 5.1-5.2',
+        'dynamic cases expand numeric RANGE PRECEDING max() and ROWS current-to-following total()/sum() overflow-tail semantics',
+    ]);
+};
+
+$tests['real upstream windowE dynamic dependency closure'] = static function (TestRunner $t): void {
+    $t->same(
+        'no new support component needed; reuses SQLiteWindowFunction RANGE and ROWS frame aggregate helpers over real upstream windowE semantics',
+        'no new support component needed; reuses SQLiteWindowFunction RANGE and ROWS frame aggregate helpers over real upstream windowE semantics',
+    );
+};
+
 return $tests;

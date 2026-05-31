@@ -489,6 +489,67 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function pagerCacheNoSpillAfterWarmReadProfile(
+        int $pageSize,
+        int $cachePages,
+        int $warmReadPages,
+        int $transactionPages,
+        int $corruptPageOffset,
+        bool $mmapDisabled = true
+    ): array {
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite io-6 pager-cache profile page size must be a power of two at least 512');
+        }
+        if ($cachePages < 1 || $warmReadPages < 1 || $transactionPages < 1) {
+            throw new \InvalidArgumentException('SQLite io-6 pager-cache profile requires positive cache, warm-read, and transaction page counts');
+        }
+        if ($corruptPageOffset < 1) {
+            throw new \InvalidArgumentException('SQLite io-6 pager-cache profile corrupt page offset must be positive');
+        }
+
+        $cacheCanHoldWarmRead = $cachePages >= $warmReadPages;
+        $transactionFitsWithoutSpill = ($warmReadPages + $transactionPages) <= $cachePages;
+        $mmapBypassesPagerCache = !$mmapDisabled;
+        $pagerCacheRetained = $cacheCanHoldWarmRead && $transactionFitsWithoutSpill && !$mmapBypassesPagerCache;
+        $corruptByteOffset = $pageSize * $corruptPageOffset;
+
+        return [
+            'status' => 'ok',
+            'script' => 'io.test',
+            'scenario' => 'io-6.2',
+            'upstream' => [
+                'io.test io-6.1 cache warm setup',
+                'io.test io-6.2.1 transaction writes t1 and t2 after warm reads',
+                'io.test io-6.2.2 transaction writes t1 only after warm reads',
+                'io.test io-6.2.* corrupt test.db after write and verify cached integrity_check',
+            ],
+            'page_size' => $pageSize,
+            'cache_pages' => $cachePages,
+            'warm_read_pages' => $warmReadPages,
+            'transaction_pages' => $transactionPages,
+            'mmap_disabled' => $mmapDisabled,
+            'cache_can_hold_warm_read' => $cacheCanHoldWarmRead,
+            'transaction_fits_without_spill' => $transactionFitsWithoutSpill,
+            'pager_cache_retained' => $pagerCacheRetained,
+            'dirty_cache_flush_avoided' => $pagerCacheRetained,
+            'integrity_check_after_disk_corruption' => $pagerCacheRetained ? 'ok' : 'would-read-corrupt-page',
+            'corrupt_page_offset' => $corruptPageOffset,
+            'corrupt_byte_offset' => $corruptByteOffset,
+            'corrupt_bytes' => 2048,
+            'warm_read_sequence' => ['SELECT x FROM t3 ORDER BY rowid', 'SELECT x FROM t3 ORDER BY x'],
+            'transaction_sequence' => $transactionPages > 1
+                ? ['BEGIN', "INSERT INTO t1 VALUES('123')", "INSERT INTO t2 VALUES('456')", 'COMMIT']
+                : ['BEGIN', "INSERT INTO t1 VALUES('123')", 'COMMIT'],
+            'reason' => $pagerCacheRetained
+                ? 'warm_pager_cache_survives_small_commit_without_spilling_dirty_pages'
+                : ($mmapBypassesPagerCache ? 'mmap_read_path_does_not_prove_pager_cache_retention' : 'cache_pressure_can_force_disk_read_after_corruption'),
+            'dependencies' => ['upstream-io-cache-no-spill-after-warm-read', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function pageroptCacheReuseProfile(
         int $pageSize,
         int $payloadBytes,
@@ -3350,6 +3411,128 @@ final class SQLiteVfsIoDynamicPlan
             'next_enabled_call' => $next,
             'result_code' => $notFound ? 'SQLITE_NOTFOUND' : 'SQLITE_OK',
             'dependencies' => ['upstream-syscall-unix-vfs-registry', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function sysfaultPersistentUnixErrorProfile(
+        string $scenario,
+        string $syscall,
+        string $errno,
+        int $faultPosition,
+        string $vfs = 'unix',
+        bool $persistent = true
+    ): array {
+        $scenario = strtolower(trim($scenario));
+        $syscall = strtolower(trim($syscall));
+        $errno = strtoupper(trim($errno));
+        $vfs = strtolower(trim($vfs));
+
+        $allowedScenarios = ['sysfault-1', 'sysfault-1.2', 'sysfault-1.3', 'sysfault-3', 'sysfault-4'];
+        if (!in_array($scenario, $allowedScenarios, true)) {
+            throw new \InvalidArgumentException('SQLite sysfault persistent profile scenario is unsupported');
+        }
+        $allowedSyscalls = ['open', 'getcwd', 'fstat', 'fcntl', 'fallocate', 'mmap'];
+        if (!in_array($syscall, $allowedSyscalls, true)) {
+            throw new \InvalidArgumentException('SQLite sysfault persistent profile syscall is unsupported');
+        }
+        $allowedErrnos = ['EACCES', 'EAGAIN', 'EBUSY', 'EDEADLK', 'EINTR', 'EIO', 'ENOMEM', 'ENOLCK', 'EOVERFLOW', 'EPERM', 'ETIMEDOUT'];
+        if (!in_array($errno, $allowedErrnos, true)) {
+            throw new \InvalidArgumentException('SQLite sysfault persistent profile errno is unsupported');
+        }
+        if ($faultPosition < 1) {
+            throw new \InvalidArgumentException('SQLite sysfault persistent profile fault position must be positive');
+        }
+        if (!in_array($vfs, ['unix', 'unix-excl'], true)) {
+            throw new \InvalidArgumentException('SQLite sysfault persistent profile VFS is unsupported');
+        }
+
+        $valid = match ($scenario) {
+            'sysfault-1' => in_array($syscall, ['open', 'getcwd'], true) && in_array($errno, ['EACCES', 'EIO', 'ENOMEM'], true),
+            'sysfault-1.2' => $syscall === 'fstat' && in_array($errno, ['ENOMEM', 'EOVERFLOW'], true),
+            'sysfault-1.3' => $syscall === 'fcntl' && in_array($errno, ['EAGAIN', 'ETIMEDOUT', 'EBUSY', 'EINTR', 'ENOLCK', 'EACCES', 'EPERM', 'EDEADLK', 'ENOMEM'], true),
+            'sysfault-3' => in_array($syscall, ['fstat', 'fallocate'], true) && $errno === 'EIO',
+            'sysfault-4' => $syscall === 'mmap' && $errno === 'EACCES',
+        };
+        if (!$valid) {
+            throw new \InvalidArgumentException('SQLite sysfault persistent profile syscall/errno does not match scenario');
+        }
+
+        $errorMessages = match ($scenario) {
+            'sysfault-1' => $errno === 'EACCES'
+                ? ['unable to open database file', 'attempt to write a readonly database']
+                : ['unable to open database file'],
+            'sysfault-1.2' => $errno === 'EOVERFLOW'
+                ? ['disk I/O error', 'large file support is disabled']
+                : ['disk I/O error'],
+            'sysfault-1.3' => match ($errno) {
+                'EPERM' => ['access permission denied', 'disk I/O error'],
+                'EDEADLK', 'ENOMEM' => ['disk I/O error'],
+                default => ['database is locked', 'disk I/O error'],
+            },
+            'sysfault-3' => [],
+            'sysfault-4' => ['disk I/O error'],
+        };
+
+        $successResult = match ($scenario) {
+            'sysfault-1', 'sysfault-1.2' => ['wal', 1, 2, 3, 4],
+            'sysfault-1.3' => [1, 2],
+            'sysfault-3' => [20000],
+            'sysfault-4' => [1, 2],
+        };
+
+        $installedCalls = match ($scenario) {
+            'sysfault-1' => ['open', 'getcwd'],
+            'sysfault-1.2' => ['fstat'],
+            'sysfault-1.3' => ['fcntl'],
+            'sysfault-3' => ['fstat', 'fallocate'],
+            'sysfault-4' => ['mmap'],
+        };
+
+        $upstream = match ($scenario) {
+            'sysfault-1' => ['sysfault.test 1 open/getcwd vfsfault persistent open and write body'],
+            'sysfault-1.2' => ['sysfault.test 1.2 fstat ENOMEM/EOVERFLOW while opening and writing'],
+            'sysfault-1.3' => ['sysfault.test 1.3 unix/unix-excl fcntl locking errno mapping'],
+            'sysfault-3' => ['sysfault.test 3 fstat/fallocate EIO during chunked write path'],
+            'sysfault-4' => ['sysfault.test 4 mmap EACCES during mapped SELECT'],
+        };
+
+        return [
+            'status' => 'ok',
+            'script' => 'sysfault.test',
+            'scenario' => $scenario . '-' . $syscall . '-' . strtolower($errno) . '-' . $faultPosition,
+            'upstream' => $upstream,
+            'syscall' => $syscall,
+            'errno' => $errno,
+            'fault_position' => $faultPosition,
+            'persistent_fault' => $persistent,
+            'transient_fault' => !$persistent,
+            'vfs' => $vfs,
+            'installed_calls' => $installedCalls,
+            'fault_injection' => [
+                'install' => $installedCalls,
+                'errno' => [$syscall => $errno],
+                'fault_position' => $faultPosition,
+                'persistent' => $persistent,
+            ],
+            'success_result' => $successResult,
+            'acceptable_errors' => $errorMessages,
+            'acceptable_result_count' => 1 + count($errorMessages),
+            'database_reusable_after_fault' => true,
+            'integrity_check_after_fault' => 'ok',
+            'large_file_support_disabled' => $errno === 'EOVERFLOW',
+            'readonly_error_allowed' => $scenario === 'sysfault-1' && $errno === 'EACCES',
+            'lock_error_allowed' => $scenario === 'sysfault-1.3' && in_array($errno, ['EAGAIN', 'ETIMEDOUT', 'EBUSY', 'EINTR', 'ENOLCK', 'EACCES'], true),
+            'falls_back_to_ioerr' => in_array('disk I/O error', $errorMessages, true),
+            'mmap_read_can_fallback_or_error' => $scenario === 'sysfault-4',
+            'chunked_write_can_ignore_hint_fault' => $scenario === 'sysfault-3',
+            'dependencies' => [
+                'sqlite-upstream-sysfault-test',
+                'sqlite-vfs-persistent-unix-error-map',
+                'vfs-io-dynamic-real-corpus',
+            ],
         ];
     }
 

@@ -4296,6 +4296,9 @@ final class SQLiteSelectSql
         if (str_starts_with($sql, "'") && str_ends_with($sql, "'")) {
             return ['type' => 'literal', 'value' => str_replace("''", "'", substr($sql, 1, -1))];
         }
+        if (str_starts_with($sql, '"') && str_ends_with($sql, '"')) {
+            return ['type' => 'literal', 'value' => str_replace('""', '"', substr($sql, 1, -1))];
+        }
 
         throw new \InvalidArgumentException("SQLite SELECT SQL expression {$sql} is not supported");
     }

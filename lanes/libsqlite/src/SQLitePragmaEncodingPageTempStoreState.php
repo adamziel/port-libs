@@ -499,6 +499,10 @@ final class SQLitePragmaEncodingPageTempStoreState
                 default => -1,
             };
 
+        if ($normalized === 3) {
+            return 0;
+        }
+
         if (!in_array($normalized, [0, 1, 2], true)) {
             throw new \InvalidArgumentException('Unsupported SQLite temp_store mode');
         }
