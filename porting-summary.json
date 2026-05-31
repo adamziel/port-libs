@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 00:06:16 UTC",
-    "sourceCommit": "32286ff4726696d165ff39a282ad3ea1e0a11e82",
-    "sourceCommitShort": "32286ff47266",
+    "generated": "2026-05-31 00:11:53 UTC",
+    "sourceCommit": "927141c76faf96977dd3788a22fb5cc9999b44dc",
+    "sourceCommitShort": "927141c76faf",
     "sourceBranch": "unknown",
-    "dashboardCommit": "32286ff4726696d165ff39a282ad3ea1e0a11e82",
-    "dashboardCommitShort": "32286ff47266",
+    "dashboardCommit": "927141c76faf96977dd3788a22fb5cc9999b44dc",
+    "dashboardCommitShort": "927141c76faf",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "1292330 pass / 0 fail",
+            "php": "1298986 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "real upstream corpus admission, source-neutral cleanup,...",
-            "audit": "Accepted thirtieth current-corpus batch a...",
-            "currentWork": "Published source f1a6cbba1cd2bb1014ab11b8f7c56263fd030e38 with a thirtieth current-base l...",
-            "nextTarget": "Continue integrating fresh current-base high-yield handoffs from the live 10-11 worker po...",
-            "blocker": "Selected thirtieth corpus gates pass.",
-            "commit": "f1a6cbb"
+            "audit": "Accepted thirty-first current-corpus batc...",
+            "currentWork": "Published source 6322e3640b1d297176738ebf758f5adb4c8b5860 with a thirty-first current-bas...",
+            "nextTarget": "Continue integrating fresh current-base high-yield libsqlite handoffs from the live 10-11...",
+            "blocker": "Selected thirty-first corpus gates pass.",
+            "commit": "6322e36"
         },
         {
             "library": "LightningCSS",
