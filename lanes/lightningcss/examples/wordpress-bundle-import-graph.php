@@ -329,6 +329,54 @@ if (
 
 echo 'css-modules: dependency graph resolved' . PHP_EOL;
 
+$withTempFiles([
+    'modules/card.css' => <<<'CSS'
+@import "../base.css" layer(theme.blocks);
+
+.wp-block-card {
+  composes: token from "pkg:tokens.css";
+  color: red;
+}
+CSS,
+    'vendor/tokens.css' => <<<'CSS'
+.token {
+  color: blue;
+}
+CSS,
+    'base.css' => '.wp-block-base { color: yellow; }',
+], static function (string $root): void {
+    $entry = $root . '/modules/card.css';
+    $tokens = $root . '/vendor/tokens.css';
+    $base = $root . '/base.css';
+    $bundle = (new CssBundler())->bundleCssModulesFile(
+        $entry,
+        static function (string $specifier, string $originatingFile) use ($root): string {
+            if (str_starts_with($specifier, 'pkg:')) {
+                return $root . '/vendor/' . substr($specifier, strlen('pkg:'));
+            }
+
+            return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+        },
+        [
+            'hashes' => [
+                $entry => 'card',
+                $tokens => 'tok',
+                $base => 'base',
+            ],
+        ]
+    );
+
+    if (
+        $bundle['code'] !== '.tok_token{color:#00f}@layer theme.blocks{.base_wp-block-base{color:#ff0}}.card_wp-block-card{color:red}'
+        || ($bundle['exports']['wp-block-card']['composes'][0]['name'] ?? null) !== 'tok_token'
+    ) {
+        fwrite(STDERR, "Unexpected file-backed CSS Modules bundle graph output\n");
+        exit(1);
+    }
+});
+
+echo 'css-modules-file: resolved' . PHP_EOL;
+
 $rootedA = (new CssBundler())->bundleCssModules('/themes/one/blocks/card.css', [
     '/themes/one/blocks/card.css' => <<<'CSS'
 @import "../tokens.css";

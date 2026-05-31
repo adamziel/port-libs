@@ -107,6 +107,20 @@ final class CssBundler
      *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
      * }
      *
+     * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
+     */
+    public function bundleCssModulesFile(string $entry, ?callable $resolver = null, array $options = []): array
+    {
+        return $this->bundleInternal($entry, [], $resolver, true, $options, null, true);
+    }
+
+    /**
+     * @return array{
+     *   code:string,
+     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
+     * }
+     *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
      * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,container?:bool,projectRoot?:string,project_root?:string} $cssModuleOptions

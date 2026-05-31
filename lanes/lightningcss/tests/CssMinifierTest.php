@@ -262,6 +262,14 @@ CSS
         $t->same('.foo{--d:color(display-p3 .43313 .50108 .3)}', $minifier->minify('.foo { --d: color(display-p3 0.43313 0.50108 calc(0.1 + 0.2)); }'));
         $t->same('.foo{--e:gray}', $minifier->minify('.foo { --e: rgb(calc(255 / 2), calc(255 / 2), calc(255 / 2)); }'));
     },
+    'css minifier maps upstream aspect-ratio value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{aspect-ratio:auto}', $minifier->minify('.foo { aspect-ratio: auto }'));
+        $t->same('.foo{aspect-ratio:2/3}', $minifier->minify('.foo { aspect-ratio: 2 / 3 }'));
+        $t->same('.foo{aspect-ratio:auto 2/3}', $minifier->minify('.foo { aspect-ratio: auto 2 / 3 }'));
+        $t->same('.foo{aspect-ratio:auto 2/3}', $minifier->minify('.foo { aspect-ratio: 2 / 3 auto }'));
+    },
     'css minifier maps upstream srgb color-mix value normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -414,6 +422,24 @@ CSS
             'color-mix(in hsl increasing hue, hsl(60deg 50% 50%), hsl(40deg 50% 50%))' => '#4055bf',
             'color-mix(in hsl decreasing hue, hsl(40deg 50% 50%), hsl(60deg 50% 50%))' => '#4055bf',
             'color-mix(in hsl specified hue, hsl(50deg 50% 50%), hsl(330deg 50% 50%))' => '#40aabf',
+        ];
+
+        foreach ($cases as $input => $expected) {
+            $t->same('.foo{color:' . $expected . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
+        }
+    },
+    'css minifier maps upstream hwb color-mix value normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'color-mix(in hwb, hwb(120deg 10% 20%), hwb(30deg 30% 40%))' => '#93b334',
+            'color-mix(in hwb, hwb(120deg 10% 20%) 25%, hwb(30deg 30% 40%))' => '#a69940',
+            'color-mix(in hwb, 25% hwb(120deg 10% 20%), hwb(30deg 30% 40%))' => '#a69940',
+            'color-mix(in hwb, hwb(120deg 10% 20%), 25% hwb(30deg 30% 40%))' => '#60bf27',
+            'color-mix(in hwb, hwb(120deg 10% 20%), hwb(30deg 30% 40%) 25%)' => '#60bf27',
+            'color-mix(in hwb, hwb(120deg 10% 20%) 25%, hwb(30deg 30% 40%) 75%)' => '#a69940',
+            'color-mix(in hwb, hwb(120deg 10% 20%) 30%, hwb(30deg 30% 40%) 90%)' => '#a69940',
+            'color-mix(in hwb, hwb(120deg 10% 20%) 12.5%, hwb(30deg 30% 40%) 37.5%)' => '#a6994080',
+            'color-mix(in hwb, hwb(120deg 10% 20%) 0%, hwb(30deg 30% 40%))' => '#99734d',
         ];
 
         foreach ($cases as $input => $expected) {

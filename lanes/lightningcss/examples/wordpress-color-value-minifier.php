@@ -53,6 +53,12 @@ $css = <<<'CSS'
   border-color: color-mix(in hsl longer hue, hsl(40deg 50% 50%), hsl(60deg 50% 50%));
 }
 
+.wp-block-cover.has-hwb-mixed-overlay {
+  color: color-mix(in hwb, hwb(120deg 10% 20%), hwb(30deg 30% 40%));
+  background-color: color-mix(in hwb, hwb(120deg 10% 20%) 12.5%, hwb(30deg 30% 40%) 37.5%);
+  border-color: color-mix(in hwb, hwb(120deg 10% 20%), 25% hwb(30deg 30% 40%));
+}
+
 .wp-block-cover.has-polar-mixed-overlay {
   color: color-mix(in lch, lch(10% 20 30deg), lch(50% 60 70deg));
   background-color: color-mix(in oklch longer hue, oklch(100% 0 40deg), oklch(100% 0 60deg));
@@ -60,7 +66,7 @@ $css = <<<'CSS'
 }
 CSS;
 
-$expected = '.wp-block-cover.has-hwb-overlay{color:#00c4ff80;background:linear-gradient(#80e1ff,#006280);border-color:buttonborder}.wp-block-button .wp-element-button{color:#fff;outline-color:#000}.wp-block-cover.has-relative-overlay{color:#639;background-color:#360c;border-color:#66660a}.wp-block-cover.has-calculated-overlay{--wp-cover-overlay:#80808080;--wp-cover-halo:#40bfbf;--wp-cover-gamut:color(display-p3 .43313 .50108 .3);color:var(--wp-cover-overlay)}.wp-block-cover.has-wide-gamut-overlay{background:linear-gradient(lch(29.2345% 66.3 27),color(display-p3 1 .5 0/.2));outline-color:oklab(40.101% .1147 .0453)}.wp-block-cover.has-mixed-overlay{color:#8080ff;background-color:#89760053}.wp-block-cover.has-perceptual-mixed-overlay{color:lab(40% 50 60);background-color:oklab(36.6667% 46.6667 56.6667/.6);outline-color:lab(30% 40 70)}.wp-block-cover.has-hsl-mixed-overlay{color:#545c3d;background-color:#5f694199;border-color:#4055bf}.wp-block-cover.has-polar-mixed-overlay{color:lch(30% 40 50);background-color:oklch(100% 0 230);outline-color:lch(50% 20 50)}';
+$expected = '.wp-block-cover.has-hwb-overlay{color:#00c4ff80;background:linear-gradient(#80e1ff,#006280);border-color:buttonborder}.wp-block-button .wp-element-button{color:#fff;outline-color:#000}.wp-block-cover.has-relative-overlay{color:#639;background-color:#360c;border-color:#66660a}.wp-block-cover.has-calculated-overlay{--wp-cover-overlay:#80808080;--wp-cover-halo:#40bfbf;--wp-cover-gamut:color(display-p3 .43313 .50108 .3);color:var(--wp-cover-overlay)}.wp-block-cover.has-wide-gamut-overlay{background:linear-gradient(lch(29.2345% 66.3 27),color(display-p3 1 .5 0/.2));outline-color:oklab(40.101% .1147 .0453)}.wp-block-cover.has-mixed-overlay{color:#8080ff;background-color:#89760053}.wp-block-cover.has-perceptual-mixed-overlay{color:lab(40% 50 60);background-color:oklab(36.6667% 46.6667 56.6667/.6);outline-color:lab(30% 40 70)}.wp-block-cover.has-hsl-mixed-overlay{color:#545c3d;background-color:#5f694199;border-color:#4055bf}.wp-block-cover.has-hwb-mixed-overlay{color:#93b334;background-color:#a6994080;border-color:#60bf27}.wp-block-cover.has-polar-mixed-overlay{color:lch(30% 40 50);background-color:oklch(100% 0 230);outline-color:lch(50% 20 50)}';
 $actual = (new CssMinifier())->minify($css);
 
 if ($actual !== $expected) {

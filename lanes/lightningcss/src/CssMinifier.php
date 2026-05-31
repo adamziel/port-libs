@@ -2478,6 +2478,7 @@ final class CssMinifier
         $value = $this->minifyListStyleValue($property, $value);
         $value = $this->minifyContainerDeclarationValue($property, $value);
         $value = $this->minifyBorderRadiusValue($property, $value);
+        $value = $this->minifyAspectRatioValue($property, $value);
         $value = $this->minifyGridValue($property, $value);
         $value = $this->minifyFontValue($property, $value);
         $value = $this->minifyColorSchemeValue($property, $value);
@@ -2527,6 +2528,62 @@ final class CssMinifier
         }
 
         return $horizontal . '/' . $vertical;
+    }
+
+    private function minifyAspectRatioValue(string $property, string $value): string
+    {
+        if (strtolower($property) !== 'aspect-ratio') {
+            return $value;
+        }
+
+        $value = trim($value);
+        if ($value === '') {
+            return $value;
+        }
+
+        $parts = $this->splitTopLevel($value, '/');
+        if (count($parts) === 1) {
+            $tokens = $this->splitWhitespaceTopLevel($value);
+            if (count($tokens) === 1) {
+                return strtolower($tokens[0]) === 'auto'
+                    ? 'auto'
+                    : $this->minifyPlainNumberToken($tokens[0]);
+            }
+
+            return $value;
+        }
+
+        if (count($parts) !== 2) {
+            return $value;
+        }
+
+        $leftTokens = $this->splitWhitespaceTopLevel($parts[0]);
+        $rightTokens = $this->splitWhitespaceTopLevel($parts[1]);
+        if ($leftTokens === [] || $rightTokens === []) {
+            return $value;
+        }
+
+        $hasAuto = false;
+        if (strtolower($leftTokens[0]) === 'auto') {
+            $hasAuto = true;
+            array_shift($leftTokens);
+        }
+        if ($rightTokens !== [] && strtolower($rightTokens[array_key_last($rightTokens)]) === 'auto') {
+            if ($hasAuto) {
+                return $value;
+            }
+
+            $hasAuto = true;
+            array_pop($rightTokens);
+        }
+
+        if (count($leftTokens) !== 1 || count($rightTokens) !== 1) {
+            return $value;
+        }
+
+        $ratio = $this->minifyPlainNumberToken($leftTokens[0]) . '/' . $this->minifyPlainNumberToken($rightTokens[0]);
+
+        return $hasAuto ? 'auto ' . $ratio : $ratio;
     }
 
     private function minifyGridValue(string $property, string $value): string
@@ -11830,6 +11887,10 @@ final class CssMinifier
             return $this->minifyHslColorMixParts($interpolation['hueMethod'] ?? 'shorter', $parts[1], $parts[2]);
         }
 
+        if ($space === 'hwb') {
+            return $this->minifyHwbColorMixParts($interpolation['hueMethod'] ?? 'shorter', $parts[1], $parts[2]);
+        }
+
         if ($space === 'lch' || $space === 'oklch') {
             return $this->minifyPolarColorMixParts($space, $interpolation['hueMethod'] ?? 'shorter', $parts[1], $parts[2]);
         }
@@ -11859,7 +11920,7 @@ final class CssMinifier
             return null;
         }
 
-        if (!in_array($colorSpace, ['srgb', 'hsl', 'lab', 'lch', 'oklab', 'oklch'], true)) {
+        if (!in_array($colorSpace, ['srgb', 'hsl', 'hwb', 'lab', 'lch', 'oklab', 'oklch'], true)) {
             return null;
         }
 
@@ -12039,6 +12100,58 @@ final class CssMinifier
             $saturation ?? 0.0,
             $lightness ?? 0.0,
         );
+
+        return $this->serializeColorBytes($red, $green, $blue, $resultAlpha ?? 0.0);
+    }
+
+    private function minifyHwbColorMixParts(string $hueMethod, string $leftStop, string $rightStop): ?string
+    {
+        $left = $this->parseHwbColorMixStop($leftStop);
+        $right = $this->parseHwbColorMixStop($rightStop);
+        if ($left === null || $right === null) {
+            return null;
+        }
+
+        [$leftWeight, $rightWeight] = $this->normalizedColorMixWeights($left['weight'], $right['weight']);
+        if ($leftWeight === null || $rightWeight === null) {
+            return null;
+        }
+
+        [$leftAlpha, $rightAlpha, $resultAlpha] = $this->resolveRectangularColorMixAlphas(
+            $left['color']['alpha'],
+            $right['color']['alpha'],
+            $leftWeight,
+            $rightWeight,
+        );
+        $componentAlpha = ($leftAlpha * $leftWeight) + ($rightAlpha * $rightWeight);
+
+        $hue = $this->mixPolarHueComponent(
+            $left['color']['hue'],
+            $right['color']['hue'],
+            $leftWeight,
+            $rightWeight,
+            $hueMethod,
+        );
+        $white = $this->mixRectangularColorComponent(
+            $left['color']['white'],
+            $right['color']['white'],
+            $leftWeight,
+            $rightWeight,
+            $leftAlpha,
+            $rightAlpha,
+            $componentAlpha,
+        );
+        $black = $this->mixRectangularColorComponent(
+            $left['color']['black'],
+            $right['color']['black'],
+            $leftWeight,
+            $rightWeight,
+            $leftAlpha,
+            $rightAlpha,
+            $componentAlpha,
+        );
+
+        [$red, $green, $blue] = $this->hwbColorMixToRgbBytes($hue ?? 0.0, $white ?? 0.0, $black ?? 0.0);
 
         return $this->serializeColorBytes($red, $green, $blue, $resultAlpha ?? 0.0);
     }
@@ -12242,6 +12355,50 @@ final class CssMinifier
     }
 
     /**
+     * @return array{color:array{hue:?float,white:?float,black:?float,alpha:?float},weight:?float}|null
+     */
+    private function parseHwbColorMixStop(string $stop): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($stop));
+        if ($tokens === []) {
+            return null;
+        }
+
+        $weight = null;
+        $firstWeight = $this->parseColorMixPercentage($tokens[0]);
+        if ($firstWeight !== null) {
+            $weight = $firstWeight;
+            array_shift($tokens);
+        }
+
+        if ($tokens !== []) {
+            $lastIndex = count($tokens) - 1;
+            $lastWeight = $this->parseColorMixPercentage($tokens[$lastIndex]);
+            if ($lastWeight !== null) {
+                if ($weight !== null) {
+                    return null;
+                }
+                $weight = $lastWeight;
+                array_pop($tokens);
+            }
+        }
+
+        if (count($tokens) !== 1) {
+            return null;
+        }
+
+        $color = $this->parseHwbColorMixColor($tokens[0]);
+        if ($color === null) {
+            return null;
+        }
+
+        return [
+            'color' => $color,
+            'weight' => $weight,
+        ];
+    }
+
+    /**
      * @return array{components:list<?float>,alpha:?float}|null
      */
     private function parseRectangularColorMixColor(string $token, string $space): ?array
@@ -12333,6 +12490,37 @@ final class CssMinifier
             'hue' => $hue,
             'saturation' => $saturation,
             'lightness' => $lightness,
+            'alpha' => $alpha,
+        ];
+    }
+
+    /**
+     * @return array{hue:?float,white:?float,black:?float,alpha:?float}|null
+     */
+    private function parseHwbColorMixColor(string $token): ?array
+    {
+        if (preg_match('/^hwb\((.*)\)$/is', trim($token), $matches) !== 1) {
+            return null;
+        }
+
+        $parts = $this->parseColorFunctionParts($matches[1]);
+        if ($parts === null || count($parts['components']) !== 3) {
+            return null;
+        }
+
+        $hue = $this->parseHslColorMixHueComponent($parts['components'][0]);
+        $white = $this->parseHslColorMixPercentageComponent($parts['components'][1]);
+        $black = $this->parseHslColorMixPercentageComponent($parts['components'][2]);
+        $alpha = $this->parseRectangularColorMixAlpha($parts['alpha']);
+
+        if ($hue === false || $white === false || $black === false || $alpha === false) {
+            return null;
+        }
+
+        return [
+            'hue' => $hue,
+            'white' => $white,
+            'black' => $black,
             'alpha' => $alpha,
         ];
     }
@@ -13474,6 +13662,53 @@ final class CssMinifier
             (int) round(($green * $factor + $white) * 255 + 0.000000001),
             (int) round(($blue * $factor + $white) * 255 + 0.000000001),
         ];
+    }
+
+    /**
+     * @return array{0:int,1:int,2:int}
+     */
+    private function hwbColorMixToRgbBytes(float $hue, float $white, float $black): array
+    {
+        $white = min(1.0, max(0.0, $white));
+        $black = min(1.0, max(0.0, $black));
+        $sum = $white + $black;
+        if ($sum >= 1.0) {
+            $gray = $sum <= 0.0 ? 0.0 : $white / $sum;
+
+            return [
+                (int) round($gray * 255),
+                (int) round($gray * 255),
+                (int) round($gray * 255),
+            ];
+        }
+
+        $hue = $this->normalizeMixedHue($hue);
+        $x = 1 - abs(fmod($hue / 60, 2) - 1);
+        [$red, $green, $blue] = match (true) {
+            $hue < 60 => [1.0, $x, 0.0],
+            $hue < 120 => [$x, 1.0, 0.0],
+            $hue < 180 => [0.0, 1.0, $x],
+            $hue < 240 => [0.0, $x, 1.0],
+            $hue < 300 => [$x, 0.0, 1.0],
+            default => [1.0, 0.0, $x],
+        };
+        $factor = 1.0 - $white - $black;
+
+        return [
+            $this->hwbColorMixChannelToByte($red, $factor, $white),
+            $this->hwbColorMixChannelToByte($green, $factor, $white),
+            $this->hwbColorMixChannelToByte($blue, $factor, $white),
+        ];
+    }
+
+    private function hwbColorMixChannelToByte(float $hueChannel, float $factor, float $white): int
+    {
+        $value = ($hueChannel * $factor + $white) * 255;
+        if (abs($hueChannel) < 0.000000001 && $white > 0.0) {
+            return $this->clampColorByte((int) ceil($value + 0.000000001));
+        }
+
+        return $this->clampColorByte((int) round($value + 0.000000001));
     }
 
     private function serializeColorBytes(int $red, int $green, int $blue, float $alpha): string

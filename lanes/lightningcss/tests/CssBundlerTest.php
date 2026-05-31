@@ -980,6 +980,63 @@ CSS,
             'entry' => $moduleExport('entry_entry'),
         ], $disabled['exports']);
     },
+    'css bundler maps upstream file-backed css modules import graph' => static function (TestRunner $t) use ($withTempFiles, $moduleExport, $moduleLocal): void {
+        $withTempFiles([
+            'theme/card.module.css' => <<<'CSS'
+@import "../base.css" layer(theme.base);
+
+.card {
+  composes: token from "pkg:tokens.module.css";
+  color: red;
+}
+CSS,
+            'vendor/tokens.module.css' => <<<'CSS'
+.token {
+  color: blue;
+}
+CSS,
+            'base.css' => <<<'CSS'
+.base {
+  color: yellow;
+}
+CSS,
+        ], static function (string $root) use ($t, $moduleExport, $moduleLocal): void {
+            $entry = $root . '/theme/card.module.css';
+            $tokens = $root . '/vendor/tokens.module.css';
+            $base = $root . '/base.css';
+            $resolved = [];
+
+            $result = (new CssBundler())->bundleCssModulesFile(
+                $entry,
+                static function (string $specifier, string $originatingFile) use ($root, &$resolved): string {
+                    $resolved[] = [$specifier, $originatingFile];
+                    if (str_starts_with($specifier, 'pkg:')) {
+                        return $root . '/vendor/' . substr($specifier, strlen('pkg:'));
+                    }
+
+                    return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+                },
+                [
+                    'hashes' => [
+                        $entry => 'card',
+                        $tokens => 'tok',
+                        $base => 'base',
+                    ],
+                ]
+            );
+
+            $t->same('.tok_token{color:#00f}@layer theme.base{.base_base{color:#ff0}}.card_card{color:red}', $result['code']);
+            $t->same([
+                'card' => $moduleExport('card_card', [
+                    $moduleLocal('tok_token'),
+                ]),
+            ], $result['exports']);
+            $t->same([
+                ['pkg:tokens.module.css', $entry],
+                ['../base.css', $entry],
+            ], $resolved);
+        });
+    },
     'css bundler omits unresolved upstream css module dependency exports' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
         $result = $bundleModules([
             '/entry.css' => <<<'CSS'

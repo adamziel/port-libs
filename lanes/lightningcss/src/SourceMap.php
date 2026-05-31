@@ -566,27 +566,21 @@ final class SourceMap
                 continue;
             }
 
-            $start = $i;
-            while ($i < $length && $mappings[$i] !== ';' && $mappings[$i] !== ',') {
-                $i++;
-            }
-
-            $values = self::decodeVlqSegment(substr($mappings, $start, $i - $start));
-            if ($values === [] || count($values) === 2 || count($values) === 3 || count($values) > 5) {
-                throw new InvalidArgumentException('Invalid source map segment: ' . substr($mappings, $start, $i - $start));
-            }
-
-            $generatedColumn = $this->offsetNonNegative($generatedColumn, $values[0], 'generated column + column offset');
+            $generatedColumn = $this->offsetNonNegative(
+                $generatedColumn,
+                self::readVlqValue($mappings, $i),
+                'generated column + column offset'
+            );
 
             $sourceIndex = null;
             $mappedOriginalLine = null;
             $mappedOriginalColumn = null;
             $mappedName = null;
 
-            if (count($values) >= 4) {
-                $source = $this->offsetNonNegative($source, $values[1], 'source index');
-                $originalLine = $this->offsetNonNegative($originalLine, $values[2], 'original line');
-                $originalColumn = $this->offsetNonNegative($originalColumn, $values[3], 'original column');
+            if ($i < $length && !self::isMappingSeparator($mappings[$i])) {
+                $source = $this->offsetNonNegative($source, self::readVlqValue($mappings, $i), 'source index');
+                $originalLine = $this->offsetNonNegative($originalLine, self::readVlqValue($mappings, $i), 'original line');
+                $originalColumn = $this->offsetNonNegative($originalColumn, self::readVlqValue($mappings, $i), 'original column');
                 if (!array_key_exists($source, $sourceIndexes)) {
                     throw new OutOfBoundsException('Source map segment references unknown source index: ' . $source);
                 }
@@ -595,8 +589,8 @@ final class SourceMap
                 $mappedOriginalLine = $originalLine;
                 $mappedOriginalColumn = $originalColumn;
 
-                if (count($values) === 5) {
-                    $name = $this->offsetNonNegative($name, $values[4], 'name index');
+                if ($i < $length && !self::isMappingSeparator($mappings[$i])) {
+                    $name = $this->offsetNonNegative($name, self::readVlqValue($mappings, $i), 'name index');
                     if (!array_key_exists($name, $nameIndexes)) {
                         throw new OutOfBoundsException('Source map segment references unknown name index: ' . $name);
                     }
@@ -830,48 +824,49 @@ final class SourceMap
         $previousOriginalColumn = 0;
         $previousName = 0;
 
-        foreach (explode(';', $mappings) as $generatedLine => $line) {
-            if ($line === '') {
+        $generatedLine = 0;
+        $generatedColumn = 0;
+        $length = strlen($mappings);
+
+        for ($i = 0; $i < $length;) {
+            $char = $mappings[$i];
+            if ($char === ';') {
+                $generatedLine++;
+                $generatedColumn = 0;
+                $i++;
                 continue;
             }
 
-            $generatedColumn = 0;
-            foreach (explode(',', $line) as $segment) {
-                if ($segment === '') {
-                    continue;
-                }
+            if ($char === ',') {
+                $i++;
+                continue;
+            }
 
-                $values = self::decodeVlqSegment($segment);
-                if ($values === [] || count($values) === 2 || count($values) === 3 || count($values) > 5) {
-                    throw new InvalidArgumentException('Invalid source map segment: ' . $segment);
-                }
+            $generatedColumn = self::offsetUnsigned32($generatedColumn, self::readVlqValue($mappings, $i), 'generated column');
+            $entry = [
+                'generatedLine' => $generatedLine,
+                'generatedColumn' => $generatedColumn,
+                'sourceIndex' => null,
+                'originalLine' => null,
+                'originalColumn' => null,
+                'nameIndex' => null,
+            ];
 
-                $generatedColumn = self::offsetUnsigned32($generatedColumn, $values[0], 'generated column');
-                $entry = [
-                    'generatedLine' => $generatedLine,
-                    'generatedColumn' => $generatedColumn,
-                    'sourceIndex' => null,
-                    'originalLine' => null,
-                    'originalColumn' => null,
-                    'nameIndex' => null,
-                ];
+            if ($i < $length && !self::isMappingSeparator($mappings[$i])) {
+                $previousSource = self::offsetUnsigned32($previousSource, self::readVlqValue($mappings, $i), 'source index');
+                $previousOriginalLine = self::offsetUnsigned32($previousOriginalLine, self::readVlqValue($mappings, $i), 'original line');
+                $previousOriginalColumn = self::offsetUnsigned32($previousOriginalColumn, self::readVlqValue($mappings, $i), 'original column');
+                $entry['sourceIndex'] = $previousSource;
+                $entry['originalLine'] = $previousOriginalLine;
+                $entry['originalColumn'] = $previousOriginalColumn;
 
-                if (count($values) >= 4) {
-                    $previousSource = self::offsetUnsigned32($previousSource, $values[1], 'source index');
-                    $previousOriginalLine = self::offsetUnsigned32($previousOriginalLine, $values[2], 'original line');
-                    $previousOriginalColumn = self::offsetUnsigned32($previousOriginalColumn, $values[3], 'original column');
-                    $entry['sourceIndex'] = $previousSource;
-                    $entry['originalLine'] = $previousOriginalLine;
-                    $entry['originalColumn'] = $previousOriginalColumn;
-                }
-
-                if (count($values) === 5) {
-                    $previousName = self::offsetUnsigned32($previousName, $values[4], 'name index');
+                if ($i < $length && !self::isMappingSeparator($mappings[$i])) {
+                    $previousName = self::offsetUnsigned32($previousName, self::readVlqValue($mappings, $i), 'name index');
                     $entry['nameIndex'] = $previousName;
                 }
-
-                $decoded[] = $entry;
             }
+
+            $decoded[] = $entry;
         }
 
         return $decoded;
@@ -894,22 +889,20 @@ final class SourceMap
         return $encoded;
     }
 
-    /**
-     * @return list<int>
-     */
-    private static function decodeVlqSegment(string $segment): array
+    private static function readVlqValue(string $mappings, int &$offset): int
     {
-        $values = [];
         $value = 0;
         $shift = 0;
-        $length = strlen($segment);
+        $length = strlen($mappings);
 
-        for ($i = 0; $i < $length; $i++) {
-            $digit = strpos(self::BASE64, $segment[$i]);
+        while ($offset < $length) {
+            $char = $mappings[$offset];
+            $digit = strpos(self::BASE64, $char);
             if ($digit === false) {
-                throw new InvalidArgumentException('Invalid base64 VLQ character: ' . $segment[$i]);
+                throw new InvalidArgumentException('Invalid base64 VLQ character: ' . $char);
             }
 
+            $offset++;
             $continuation = ($digit & 32) !== 0;
             $digit &= 31;
             $value += $digit << $shift;
@@ -921,16 +914,15 @@ final class SourceMap
 
             $negative = ($value & 1) === 1;
             $decoded = $value >> 1;
-            $values[] = $negative ? -$decoded : $decoded;
-            $value = 0;
-            $shift = 0;
+            return $negative ? -$decoded : $decoded;
         }
 
-        if ($shift !== 0) {
-            throw new InvalidArgumentException('Unterminated base64 VLQ segment: ' . $segment);
-        }
+        throw new InvalidArgumentException('Unterminated base64 VLQ segment.');
+    }
 
-        return $values;
+    private static function isMappingSeparator(string $char): bool
+    {
+        return $char === ';' || $char === ',';
     }
 
     private function assertSourceIndex(int $sourceIndex): void

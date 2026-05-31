@@ -269,6 +269,43 @@ return [
         $t->same(['.prelude{}', '.wp-block-cover{}'], $data['sourcesContent']);
         $t->same(['prelude-rule', 'block-rule'], $data['names']);
     },
+    'source map imports upstream raw vlq byte-stream mappings without comma separators' => static function (TestRunner $t): void {
+        $map = SourceMap::fromJson(
+            '{"version":3,"mappings":"AAAAAA","sources":["compiled.css"],"sourcesContent":[".compiled{}"],"names":["rule"]}'
+        );
+
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $streamDecoded = SourceMap::decodeVlq('AAAAAA');
+        $data = $map->toArray(null, false);
+
+        $t->same('AAAAA,A', $map->writeVlq());
+        $t->same([0, 0], array_column($decoded, 'generatedLine'));
+        $t->same([0, 0], array_column($decoded, 'generatedColumn'));
+        $t->same([0, null], array_column($decoded, 'sourceIndex'));
+        $t->same([0, null], array_column($decoded, 'originalLine'));
+        $t->same([0, null], array_column($decoded, 'originalColumn'));
+        $t->same([0, null], array_column($decoded, 'nameIndex'));
+        $t->same($decoded, $streamDecoded);
+        $t->same(['compiled.css'], $data['sources']);
+        $t->same(['.compiled{}'], $data['sourcesContent']);
+        $t->same(['rule'], $data['names']);
+
+        $offsetMap = new SourceMap();
+        $offsetMap->addVlqMap(
+            'AAAAAA;C',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['rule'],
+            2,
+            4
+        );
+        $offsetDecoded = SourceMap::decodeVlq($offsetMap->writeVlq());
+
+        $t->same(';;IAAAA,A;K', $offsetMap->writeVlq());
+        $t->same([2, 2, 3], array_column($offsetDecoded, 'generatedLine'));
+        $t->same([4, 4, 5], array_column($offsetDecoded, 'generatedColumn'));
+        $t->same([0, null, null], array_column($offsetDecoded, 'sourceIndex'));
+    },
     'source map rejects invalid raw vlq map indexes' => static function (TestRunner $t): void {
         $map = new SourceMap();
 
