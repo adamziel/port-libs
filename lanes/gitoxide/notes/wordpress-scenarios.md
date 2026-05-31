@@ -218,6 +218,10 @@ The example now also writes a deployment commit object through the object databa
 
 `examples/wordpress-commit-signature-consuming.php` parses deterministic WordPress importer and reviewer signature bytes through native `CommitSignature::parseConsuming()`. It separates the Git actor identity and lenient timestamp from local audit suffix bytes, preserves the caller-visible remainder, and rejects malformed signatures without invoking `git log`, reading live repository/account state, opening remotes, reading process environments, or touching credential stores. This maps Gitoxide's `SignatureRef::from_bytes_consuming()` boundary for import/deploy tooling that receives commit actor bytes embedded in larger audit records.
 
+## WordPress Protocol Fetch And Push Examples
+
+`examples/wordpress-protocol-v2-fetch-response.php` now records protocol v2 `sideband-all` responses so deployment tooling can keep progress/error channels separate from pack data before the pack arrives. `examples/wordpress-protocol-v1-push-response.php` now records a proc-receive deployment hook rewriting a review ref with SHA-256 old/new object IDs in report-status-v2 output.
+
 ## Next Task
 
 Broaden protocol/transport runner evidence with a controlled focused crate probe, deepen mmap-specific packed-ref race parity beyond metadata/hash invalidation if needed, or map another focused `gix-merge` tree fixture.

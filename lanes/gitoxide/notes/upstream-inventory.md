@@ -1006,3 +1006,9 @@ Combined Gitoxide batch accepted on 2026-05-31:
 - Source commit `ac468c29fbc15270b3521495abfb078f30270ac4` integrates six current-base handoffs without taking the conflicting shared metadata edits from the worker worktrees. The accepted source slices cover object database commit writes, recursive tree merge multiple-merge-base fixture shape, pack and multi-pack-index validation, packed-reference peeled transactions, smart HTTP chained redirect cookie recomputation, and SSH receive-pack protocol-v2/auth boundary context through caller-injected connectors.
 - Native PHP verification in the integration worktree is green: `php -l` over 22 changed PHP files, `git diff --check -- lanes/gitoxide`, focused tests `7 files / 1582 assertions / 0 failures`, full Gitoxide lane tests `32 files / 2963 assertions / 0 failures`, and six touched examples exiting 0.
 - The mapped denominator moves from `1485 / 2886` to `1491 / 2886` for the six distinct upstream-backed behavior slices. This is not full workspace parity: full Cargo workspace tests were not run because they would hydrate and build the large feature-heavy workspace beyond the current VM cap.
+
+Protocol batch accepted on 2026-05-31:
+
+- Source commit `e5a23effae900e9187f890104ede8f77a0d81319` adds protocol v2 sideband-all fetch response parsing and send-pack report-status-v2 SHA-256/proc-receive status handling without taking stale worker metadata edits.
+- Native PHP verification in the integration worktree is green: `php -l` over changed Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused protocol/transport tests `4 files / 557 assertions / 0 failures`, full Gitoxide lane tests `32 files / 2989 assertions / 0 failures`, and two touched protocol examples exiting 0.
+- The mapped denominator moves from `1491 / 2886` to `1493 / 2886` for the two distinct protocol slices. Full Cargo workspace tests were not run for this slice.

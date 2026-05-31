@@ -51,6 +51,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (mixed batch sample 08:32 UTC):
+  Source commit `e5a23effae900e9187f890104ede8f77a0d81319`
+  (`integrate libsqlite trigger and gitoxide protocol batch`) landed one
+  libsqlite trigger/FK current-base handoff and two Gitoxide protocol handoffs.
+  Libsqlite accepted real upstream `e_fkey-52`/`e_fkey-53` parent-key
+  distinctness before ON UPDATE action dispatch; selected public evidence moves
+  from `2831909` to `2832911 pass / 0 fail`, a net `+1002` PASS cases, with
+  mapped coverage still `1589 / 1589`. Gitoxide accepted protocol v2
+  sideband-all fetch response parsing and send-pack report-status-v2
+  SHA-256/proc-receive status handling; full lane evidence moves from `2963`
+  to `2989 pass / 0 fail`, and mapped coverage moves from `1491 / 2886` to
+  `1493 / 2886`. Verification passed PHP lint for changed PHP files,
+  `git diff --check -- lanes/libsqlite lanes/gitoxide`, libsqlite related
+  guard `3 files / 13982 assertions / 0 failures`, Gitoxide focused protocol
+  guard `4 files / 557 assertions / 0 failures`, full Gitoxide lane `32 files
+  / 2989 assertions / 0 failures`, and the touched Gitoxide examples. The
+  note-only upsert blocked marker from this intake was parked and not counted.
+
 - 2026-05-31 supervisor continuation (Gitoxide batch sample 08:25 UTC):
   Gitoxide source commit `ac468c29fbc15270b3521495abfb078f30270ac4`
   (`gitoxide: integrate transport object pack ref merge batch`) landed from
