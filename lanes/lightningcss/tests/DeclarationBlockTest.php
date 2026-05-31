@@ -173,6 +173,48 @@ return [
             )
         );
     },
+    'declaration block reads upstream mask cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $mask = 'mask: url("mask.svg") 25% 75% / cover no-repeat content-box padding-box subtract luminance';
+
+        $t->same(['value' => 'url(mask.svg)', 'important' => false], $block->getProperty($mask, 'mask-image'));
+        $t->same(['value' => '25% 75%', 'important' => false], $block->getProperty($mask, 'mask-position'));
+        $t->same(['value' => 'cover', 'important' => false], $block->getProperty($mask, 'mask-size'));
+        $t->same(['value' => 'no-repeat', 'important' => false], $block->getProperty($mask, 'mask-repeat'));
+        $t->same(['value' => 'content-box', 'important' => false], $block->getProperty($mask, 'mask-origin'));
+        $t->same(['value' => 'padding-box', 'important' => false], $block->getProperty($mask, 'mask-clip'));
+        $t->same(['value' => 'subtract', 'important' => false], $block->getProperty($mask, 'mask-composite'));
+        $t->same(['value' => 'luminance', 'important' => false], $block->getProperty($mask, 'mask-mode'));
+        $t->same(
+            ['value' => 'url(mask.svg) 25% 75% / cover no-repeat content-box padding-box subtract luminance', 'important' => false],
+            $block->getProperty($mask, 'mask')
+        );
+        $t->same(
+            ['value' => 'url(/wp-content/themes/acme/assets/fade.svg)', 'important' => false],
+            $block->getProperty('mask: url("/wp-content/themes/acme/assets/fade.svg") 50% 50% / cover no-repeat content-box padding-box luminance', 'mask-image')
+        );
+        $t->same(['value' => '0 0', 'important' => true], $block->getProperty('mask: url(mask.svg) !important', 'mask-position'));
+        $t->same(['value' => 'auto', 'important' => true], $block->getProperty('mask: url(mask.svg) !important', 'mask-size'));
+        $t->same(['value' => 'repeat', 'important' => true], $block->getProperty('mask: url(mask.svg) !important', 'mask-repeat'));
+        $t->same(['value' => 'border-box', 'important' => true], $block->getProperty('mask: url(mask.svg) !important', 'mask-origin'));
+        $t->same(['value' => 'border-box', 'important' => true], $block->getProperty('mask: url(mask.svg) !important', 'mask-clip'));
+        $t->same(['value' => 'add', 'important' => true], $block->getProperty('mask: url(mask.svg) !important', 'mask-composite'));
+        $t->same(['value' => 'match-source', 'important' => true], $block->getProperty('mask: url(mask.svg) !important', 'mask-mode'));
+        $t->same(
+            ['value' => 'url(mask.svg) 50% 50% / cover no-repeat content-box padding-box subtract luminance', 'important' => false],
+            $block->getProperty(
+                'mask-image: url("mask.svg"); mask-position: 50% 50%; mask-size: cover; mask-repeat: no-repeat; mask-origin: content-box; mask-clip: padding-box; mask-composite: subtract; mask-mode: luminance',
+                'mask'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                'mask-image: url(mask.svg); mask-position: 50% 50%; mask-size: cover !important; mask-repeat: no-repeat; mask-origin: content-box; mask-clip: padding-box; mask-composite: subtract; mask-mode: luminance',
+                'mask'
+            )
+        );
+    },
     'declaration block reads upstream border cssom shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -627,6 +669,30 @@ return [
             )
         );
     },
+    'declaration block reads upstream text emphasis cssom shorthand and longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $emphasis = 'text-emphasis: dot var(--wp--preset--color--accent)';
+        $t->same(['value' => 'dot var(--wp--preset--color--accent)', 'important' => false], $block->getProperty($emphasis, 'text-emphasis'));
+        $t->same(['value' => 'dot', 'important' => false], $block->getProperty($emphasis, 'text-emphasis-style'));
+        $t->same(['value' => 'var(--wp--preset--color--accent)', 'important' => false], $block->getProperty($emphasis, 'text-emphasis-color'));
+        $t->same(
+            ['value' => 'open sesame #123456', 'important' => true],
+            $block->getProperty(
+                'text-emphasis-style: sesame open !important; text-emphasis-color: #123456 !important',
+                'text-emphasis'
+            )
+        );
+        $t->same(['value' => 'open dot', 'important' => false], $block->getProperty('text-emphasis: dot open red', 'text-emphasis-style'));
+        $t->same(['value' => 'red', 'important' => false], $block->getProperty('text-emphasis: dot open red', 'text-emphasis-color'));
+        $t->same(
+            null,
+            $block->getProperty('text-emphasis-style: dot; text-emphasis-color: red !important', 'text-emphasis')
+        );
+        $t->same(['value' => 'open circle blue', 'important' => false], $block->getProperty('-webkit-text-emphasis: open circle blue', '-webkit-text-emphasis'));
+        $t->same(null, $block->getProperty('-webkit-text-emphasis: open circle blue', 'text-emphasis'));
+        $t->same(['value' => 'over left', 'important' => false], $block->getProperty('text-emphasis-position: over left', 'text-emphasis-position'));
+    },
     'declaration block reads upstream font cssom shorthand and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -994,6 +1060,23 @@ return [
             $block->setProperty('overflow: hidden !important', 'overflow-x', 'scroll')
         );
     },
+    'declaration block sets upstream text emphasis cssom longhands in existing shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same('text-emphasis: dot blue', $block->setProperty('text-emphasis: dot red', 'text-emphasis-color', 'blue'));
+        $t->same('text-emphasis: open dot red', $block->setProperty('text-emphasis: dot red', 'text-emphasis-style', 'open dot'));
+        $t->same('text-emphasis: none', $block->setProperty('text-emphasis: dot red', 'text-emphasis-style', 'none'));
+        $t->same('text-emphasis: dot', $block->setProperty('text-emphasis: dot red', 'text-emphasis-color', 'currentColor'));
+        $t->same(
+            'text-emphasis-style: open dot; text-emphasis: dot red !important',
+            $block->setProperty('text-emphasis: dot red !important', 'text-emphasis-style', 'open dot')
+        );
+        $t->same('-webkit-text-emphasis: dot blue', $block->setProperty('-webkit-text-emphasis: dot red', '-webkit-text-emphasis-color', 'blue'));
+        $t->same(
+            'text-emphasis-style: open circle; text-emphasis-color: red',
+            $block->setProperty('text-emphasis-style: dot; text-emphasis-color: red', 'text-emphasis-style', 'open circle')
+        );
+    },
     'declaration block sets upstream scroll snap cssom rect longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1244,6 +1327,39 @@ return [
         $t->same(
             'mask-border-source: url(new-frame.svg); mask-border: url(old-frame.svg) 25 !important',
             $block->setProperty('mask-border: url(old-frame.svg) 25 !important', 'mask-border-source', 'url(new-frame.svg)')
+        );
+    },
+    'declaration block sets upstream mask cssom longhands in existing shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $mask = 'mask: url(mask.svg) 25% 75% / cover no-repeat content-box padding-box subtract luminance';
+
+        $t->same(
+            'mask: url(new-mask.svg) 25% 75% / cover no-repeat content-box padding-box subtract luminance',
+            $block->setProperty($mask, 'mask-image', 'url("new-mask.svg")')
+        );
+        $t->same(
+            'mask: url(mask.svg) 25% 75% no-repeat content-box padding-box subtract luminance',
+            $block->setProperty($mask, 'mask-size', 'auto')
+        );
+        $t->same(
+            'mask: url(mask.svg) border-box padding-box',
+            $block->setProperty('mask: url(mask.svg)', 'mask-clip', 'padding-box')
+        );
+        $t->same(
+            'mask: url(a.svg), url(b.svg); mask-repeat: no-repeat',
+            $block->setProperty('mask: url(a.svg), url(b.svg)', 'mask-repeat', 'no-repeat')
+        );
+        $t->same(
+            'mask-image: url(new-mask.svg); mask: url(mask.svg) !important',
+            $block->setProperty('mask: url(mask.svg) !important', 'mask-image', 'url(new-mask.svg)')
+        );
+        $t->same(
+            'mask: url(a.svg) 10px 20px / 50% 25% no-repeat, url(b.svg) 50% 50% / cover repeat-x',
+            $block->setProperty(
+                'mask: url(a.svg) 10px 20px / 50% 25% no-repeat, url(b.svg) 50% 50% / contain repeat-x',
+                'mask-size',
+                '50% 25%, cover'
+            )
         );
     },
     'declaration block sets upstream border image cssom longhands in existing shorthands' => static function (TestRunner $t): void {
@@ -1725,6 +1841,31 @@ return [
             $block->removeProperty('text-decoration: underline wavy red 2px !important; color: red; text-decoration-line: overline', 'text-decoration-line')
         );
     },
+    'declaration block removes upstream text emphasis cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same('text-emphasis-color: red', $block->removeProperty('text-emphasis: open dot red', 'text-emphasis-style'));
+        $t->same('text-emphasis-style: open dot', $block->removeProperty('text-emphasis: open dot red', 'text-emphasis-color'));
+        $t->same(
+            'text-emphasis-position: over left; color: green',
+            $block->removeProperty(
+                'text-emphasis: dot red; text-emphasis-style: open circle; text-emphasis-color: blue; text-emphasis-position: over left; color: green',
+                'text-emphasis'
+            )
+        );
+        $t->same(
+            '-webkit-text-emphasis-color: red; text-emphasis: open dot blue',
+            $block->removeProperty('-webkit-text-emphasis: open dot red; text-emphasis: open dot blue', '-webkit-text-emphasis-style')
+        );
+        $t->same(
+            '-webkit-text-emphasis: open dot red',
+            $block->removeProperty('-webkit-text-emphasis: open dot red', 'text-emphasis-style')
+        );
+        $t->same(
+            'color: green; text-emphasis-style: dot !important',
+            $block->removeProperty('text-emphasis: dot red !important; text-emphasis-color: blue; color: green', 'text-emphasis-color')
+        );
+    },
     'declaration block removes upstream font cssom longhands and shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1790,6 +1931,27 @@ return [
         $t->same(
             'color: red; mask-border-slice: 25 !important; mask-border-width: 1 !important; mask-border-outset: 0 !important; mask-border-repeat: stretch !important; mask-border-mode: alpha !important',
             $block->removeProperty('mask-border: url(frame.svg) 25 !important; color: red; mask-border-source: url(new-frame.svg)', 'mask-border-source')
+        );
+    },
+    'declaration block removes upstream mask cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $mask = 'mask: url(mask.svg) 25% 75% / cover no-repeat content-box padding-box subtract luminance';
+
+        $t->same(
+            'mask-position: 25% 75%; mask-size: cover; mask-repeat: no-repeat; mask-origin: content-box; mask-clip: padding-box; mask-composite: subtract; mask-mode: luminance',
+            $block->removeProperty($mask, 'mask-image')
+        );
+        $t->same(
+            'mask-image: url(mask.svg); mask-position: 25% 75%; mask-repeat: no-repeat; mask-origin: content-box; mask-clip: padding-box; mask-composite: subtract; mask-mode: luminance',
+            $block->removeProperty($mask, 'mask-size')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('mask: url(mask.svg); mask-image: url(other.svg); color: red; mask-mode: luminance', 'mask')
+        );
+        $t->same(
+            'color: red; mask-position: 0 0 !important; mask-size: auto !important; mask-repeat: repeat !important; mask-origin: border-box !important; mask-clip: border-box !important; mask-composite: add !important; mask-mode: match-source !important',
+            $block->removeProperty('mask: url(mask.svg) !important; color: red; mask-image: url(other.svg)', 'mask-image')
         );
     },
     'declaration block removes upstream border image cssom longhands and shorthand' => static function (TestRunner $t): void {

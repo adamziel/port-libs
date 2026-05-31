@@ -90,6 +90,8 @@ This isolated CSS Modules micro-slice extends the same build-free block delivery
 
 `examples/wordpress-custom-at-rules-transformer.php` now also models a build-free block stylesheet that collects custom design tokens through composed visitors only: `token()` replacement is supplied by a composed `Function` visitor, an unknown `@token --wp-ring #056ef0` at-rule exposes a dashed-ident prelude consumed by a later `Token.at-keyword` visitor for `@--wp-ring`, and a composed `Declaration.custom.size` visitor expands a `size: 48px` block utility into width/height declarations before the `Length` visitor converts them to rem values. Dependency closure: no new support component is needed; this uses the bounded `CustomAtRuleTransformer`, declaration parser, minifier, and native scanner helpers already in the LightningCSS lane.
 
+This isolated filter-boundary run updates `examples/wordpress-filter-prefixer.php` to model a sticky glass header compiled for Chrome 52/Safari 14 versus Chrome 53/Safari 14: `backdrop-filter` still gets the Safari `-webkit-` guard, while `filter` drops its stale WebKit prefix exactly at the Chrome 53 upstream boundary. No new support component is needed; it reuses `TransitionPrefixer` target-version routing and declaration scanning.
+
 ## Next Task
 
 Continue current-base LightningCSS handoffs for remaining CSSOM shorthand splitting/removal parity, custom at-rule parser/visitor parity, target-prefix browser boundaries, media-query range/layer handling, property-value color/font/grid coverage, and source-map/bundler integration. Reject status-only markers and avoid repeating the accepted CSSOM priority-bucket or this background CSSOM read/write slice.

@@ -2466,6 +2466,7 @@ final class CssMinifier
 
     private function minifyDeclarationValue(string $property, string $value): string
     {
+        $customPropertyColorCalc = str_starts_with($property, '--') && $this->containsColorFunctionCalc($value);
         $value = $this->minifyMathFunctions($this->normalizeMathFunctionOperators($value));
         $value = $this->minifyTransformValue($property, $value);
         $value = $this->minifyAnimationLonghandValue($property, $value);
@@ -2482,13 +2483,22 @@ final class CssMinifier
         $value = $this->minifyColorSchemeValue($property, $value);
         $value = $this->minifyImageSetFunctions($value);
         $value = $this->minifyBoxLengthListValue($property, $value);
-        if (!str_starts_with($property, '--') && !$this->isFontFamilySensitiveProperty($property)) {
+        if (str_starts_with($property, '--')) {
+            if ($customPropertyColorCalc) {
+                $value = $this->minifyColorFunctionsAndHex($value);
+            }
+        } elseif (!$this->isFontFamilySensitiveProperty($property)) {
             $value = $this->minifyColorKeywords($value);
             $value = $this->minifySrgbColorMixFunctions($value);
             $value = $this->minifyLightDarkFunctions($value);
         }
 
         return $value;
+    }
+
+    private function containsColorFunctionCalc(string $value): bool
+    {
+        return preg_match('/\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\([^;{}]*\bcalc\(/i', $value) === 1;
     }
 
     private function minifyBorderRadiusValue(string $property, string $value): string
@@ -11631,6 +11641,20 @@ final class CssMinifier
             'white' => '#fff',
             'yellow' => '#ff0',
         ];
+
+        return $this->minifyColorTokens($value, $colors, true);
+    }
+
+    private function minifyColorFunctionsAndHex(string $value): string
+    {
+        return $this->minifyColorTokens($value, [], false);
+    }
+
+    /**
+     * @param array<string,string> $colors
+     */
+    private function minifyColorTokens(string $value, array $colors, bool $minifyKeywords): string
+    {
         $output = '';
         $quote = null;
         $length = strlen($value);
@@ -11687,7 +11711,7 @@ final class CssMinifier
                     continue;
                 }
 
-                $output .= $colors[$lower] ?? $this->minifySystemColorKeyword($identifier);
+                $output .= $minifyKeywords ? ($colors[$lower] ?? $this->minifySystemColorKeyword($identifier)) : $identifier;
                 $i += strlen($identifier) - 1;
                 continue;
             }

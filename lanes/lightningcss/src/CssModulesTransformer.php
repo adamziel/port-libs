@@ -17,6 +17,7 @@ final class CssModulesTransformer
     private string $pattern = '[hash]_[local]';
     private bool $dashedIdents = false;
     private bool $animation = true;
+    private bool $customIdents = true;
     private bool $pure = false;
 
     /**
@@ -36,7 +37,7 @@ final class CssModulesTransformer
      *   references:array<string, array{type:string, name:string, specifier:string}>
      * }
      *
-     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, pure?:bool} $options
+     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, customIdents?:bool, custom_idents?:bool, pure?:bool} $options
      */
     public function transform(string $css, array $options = []): array
     {
@@ -52,6 +53,7 @@ final class CssModulesTransformer
                 : '');
         $this->dashedIdents = ($options['dashedIdents'] ?? $options['dashed_idents'] ?? false) === true;
         $this->animation = ($options['animation'] ?? true) !== false;
+        $this->customIdents = ($options['customIdents'] ?? $options['custom_idents'] ?? true) !== false;
         $this->pure = ($options['pure'] ?? false) === true;
         $this->exports = [];
         $this->references = [];
@@ -138,12 +140,39 @@ final class CssModulesTransformer
             return $this->rewriteKeyframesPrelude($prelude);
         }
 
+        if ($this->customIdents && preg_match('/^@counter-style\b/i', $trimmedPrelude) === 1) {
+            return $this->rewriteCounterStylePrelude($prelude);
+        }
+
         return $prelude;
     }
 
     private function rewriteKeyframesPrelude(string $prelude): string
     {
         if (preg_match('/^(\s*@(?:-[a-z]+-)?keyframes\b)(\s*)(.*)$/is', $prelude, $matches) !== 1) {
+            return $prelude;
+        }
+
+        $nameSource = $matches[3];
+        $leading = strspn($nameSource, " \t\r\n\f");
+        $token = $this->readCssIdentifierToken($nameSource, $leading);
+        if ($token === null) {
+            return $prelude;
+        }
+
+        $name = $token['decoded'];
+        $this->ensureExport($name);
+
+        return $matches[1]
+            . $matches[2]
+            . substr($nameSource, 0, $leading)
+            . $this->escapeCssIdentifier($this->scopedName($name))
+            . substr($nameSource, $token['end']);
+    }
+
+    private function rewriteCounterStylePrelude(string $prelude): string
+    {
+        if (preg_match('/^(\s*@counter-style\b)(\s*)(.*)$/is', $prelude, $matches) !== 1) {
             return $prelude;
         }
 
@@ -333,6 +362,8 @@ final class CssModulesTransformer
         return match ($property) {
             'animation' => $this->animation ? $this->rewriteAnimationShorthandValue($value) : null,
             'animation-name' => $this->animation ? $this->rewriteAnimationNameValue($value) : null,
+            'list-style' => $this->rewriteListStyleValue($value),
+            'list-style-type' => $this->rewriteListStyleTypeValue($value),
             'view-transition-name' => $this->rewriteViewTransitionNameValue($value),
             'view-transition-class' => $this->rewriteViewTransitionIdentList($value, ['none']),
             'view-transition-group' => $this->rewriteViewTransitionNameValue($value, ['contain']),
@@ -440,6 +471,140 @@ final class CssModulesTransformer
         }
 
         return str_contains($token, '(');
+    }
+
+    private function rewriteListStyleTypeValue(string $value): ?string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '' || $this->isCssWideKeyword($trimmed) || $this->isBuiltInListStyleType($trimmed)) {
+            return null;
+        }
+
+        return $this->rewriteCounterStyleReference($trimmed);
+    }
+
+    private function rewriteListStyleValue(string $value): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        $typeSeen = false;
+
+        foreach ($tokens as $token) {
+            $lower = strtolower($token);
+            if ($this->isCssWideKeyword($token) || $lower === 'inside' || $lower === 'outside' || $this->isListStyleImageToken($token)) {
+                $rewritten[] = $token;
+                continue;
+            }
+
+            if (!$typeSeen) {
+                if ($this->isBuiltInListStyleType($token)) {
+                    $typeSeen = true;
+                    $rewritten[] = $token;
+                    continue;
+                }
+
+                $reference = $this->rewriteCounterStyleReference($token);
+                if ($reference !== null) {
+                    $typeSeen = true;
+                    $rewritten[] = $reference;
+                    $changed = $changed || $reference !== $token;
+                    continue;
+                }
+            }
+
+            $rewritten[] = $token;
+        }
+
+        return $changed ? implode(' ', $rewritten) : null;
+    }
+
+    private function rewriteCounterStyleReference(string $token): ?string
+    {
+        $decoded = $this->decodeCssIdentifierToken($token);
+        if ($decoded === null || $decoded === '' || $this->isCssWideKeyword($decoded) || $this->isBuiltInListStyleType($decoded)) {
+            return null;
+        }
+
+        $this->ensureExport($decoded);
+        $this->exports[$decoded]['isReferenced'] = true;
+
+        return $this->customIdents ? $this->escapeCssIdentifier($this->scopedName($decoded)) : $token;
+    }
+
+    private function isCssWideKeyword(string $token): bool
+    {
+        return in_array(strtolower($token), ['initial', 'inherit', 'unset', 'default', 'revert', 'revert-layer'], true);
+    }
+
+    private function isListStyleImageToken(string $token): bool
+    {
+        return preg_match('/^(?:url|image|image-set|cross-fade|linear-gradient|radial-gradient|conic-gradient|var)\(/i', $token) === 1;
+    }
+
+    private function isBuiltInListStyleType(string $token): bool
+    {
+        return in_array(strtolower($token), [
+            'none',
+            'disc',
+            'circle',
+            'square',
+            'decimal',
+            'decimal-leading-zero',
+            'disclosure-open',
+            'disclosure-closed',
+            'lower-alpha',
+            'lower-latin',
+            'lower-roman',
+            'upper-alpha',
+            'upper-latin',
+            'upper-roman',
+            'arabic-indic',
+            'armenian',
+            'bengali',
+            'cambodian',
+            'cjk-decimal',
+            'cjk-earthly-branch',
+            'cjk-heavenly-stem',
+            'cjk-ideographic',
+            'devanagari',
+            'ethiopic-numeric',
+            'georgian',
+            'gujarati',
+            'gurmukhi',
+            'hebrew',
+            'hiragana',
+            'hiragana-iroha',
+            'japanese-formal',
+            'japanese-informal',
+            'kannada',
+            'katakana',
+            'katakana-iroha',
+            'khmer',
+            'korean-hangul-formal',
+            'korean-hanja-formal',
+            'korean-hanja-informal',
+            'lao',
+            'lower-armenian',
+            'malayalam',
+            'mongolian',
+            'myanmar',
+            'oriya',
+            'persian',
+            'simp-chinese-formal',
+            'simp-chinese-informal',
+            'tamil',
+            'telugu',
+            'thai',
+            'tibetan',
+            'trad-chinese-formal',
+            'trad-chinese-informal',
+            'upper-armenian',
+        ], true);
     }
 
     /**

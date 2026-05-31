@@ -1282,7 +1282,7 @@ CSS;
 
         $t->same(
             '.foo{-webkit-filter:blur(5px);filter:blur(5px)}',
-            $prefixer->prefixLegacySafari('.foo { filter: blur(5px) }')
+            $prefixer->prefixForTargets('.foo { filter: blur(5px) }', ['chrome' => 20])
         );
         $t->same(
             '.foo{-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px)}',
@@ -1294,12 +1294,28 @@ CSS;
         );
         $t->same(
             '.foo{-webkit-filter:var(--foo);filter:var(--foo)}',
-            $prefixer->prefixLegacySafari('.foo { filter: var(--foo) }')
+            $prefixer->prefixForTargets('.foo { filter: var(--foo) }', ['chrome' => 20])
         );
         $t->same(
             '.foo{backdrop-filter:blur(5px)}',
             $prefixer->prefixForTargets('.foo { backdrop-filter: blur(5px) }', ['chrome' => 80])
         );
+    },
+    'transition prefixer maps upstream filter WebKit browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $prefixed = '.foo{-webkit-filter:blur(5px);filter:blur(5px)}';
+        $modern = '.foo{filter:blur(5px)}';
+
+        $t->same($modern, $prefixer->prefixForTargets('.foo { filter: blur(5px); }', ['chrome' => 17]));
+        $t->same($prefixed, $prefixer->prefixForTargets('.foo { filter: blur(5px); }', ['chrome' => 18]));
+        $t->same($prefixed, $prefixer->prefixForTargets('.foo { filter: blur(5px); }', ['chrome' => 52]));
+        $t->same($modern, $prefixer->prefixForTargets('.foo { -webkit-filter: blur(5px); filter: blur(5px); }', ['chrome' => 53]));
+        $t->same($prefixed, $prefixer->prefixForTargets('.foo { filter: blur(5px); }', ['safari' => 9]));
+        $t->same($modern, $prefixer->prefixForTargets('.foo { -webkit-filter: blur(5px); filter: blur(5px); }', ['safari' => 10]));
+        $t->same($prefixed, $prefixer->prefixForTargets('.foo { filter: blur(5px); }', ['ios_saf' => 9]));
+        $t->same($modern, $prefixer->prefixForTargets('.foo { -webkit-filter: blur(5px); filter: blur(5px); }', ['ios_saf' => 10]));
+        $t->same($prefixed, $prefixer->prefixForTargets('.foo { filter: blur(5px); }', ['samsung' => '6.2']));
+        $t->same($modern, $prefixer->prefixForTargets('.foo { -webkit-filter: blur(5px); filter: blur(5px); }', ['samsung' => '6.3']));
     },
     'transition prefixer maps upstream backdrop-filter supports conditions' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
@@ -1326,11 +1342,11 @@ CSS;
 
         $t->same(
             '.foo{-webkit-filter:drop-shadow(16px 16px 20px #b32323);filter:drop-shadow(16px 16px 20px #b32323);filter:drop-shadow(16px 16px 20px lab(40% 56.6 39))}',
-            $prefixer->prefixLegacySafari('.foo { filter: drop-shadow(16px 16px 20px lab(40% 56.6 39)) }')
+            $prefixer->prefixForTargets('.foo { filter: drop-shadow(16px 16px 20px lab(40% 56.6 39)) }', ['chrome' => 20])
         );
         $t->same(
-            '.foo{-webkit-filter:var(--foo) drop-shadow(16px 16px 20px #b32323);filter:var(--foo) drop-shadow(16px 16px 20px #b32323)}@supports (color:lab(0% 0 0)){.foo{-webkit-filter:var(--foo) drop-shadow(16px 16px 20px lab(40% 56.6 39));filter:var(--foo) drop-shadow(16px 16px 20px lab(40% 56.6 39))}}',
-            $prefixer->prefixLegacySafari('.foo { filter: var(--foo) drop-shadow(16px 16px 20px lab(40% 56.6 39)) }')
+            '.foo{filter:var(--foo) drop-shadow(16px 16px 20px #b32323)}@supports (color:lab(0% 0 0)){.foo{filter:var(--foo) drop-shadow(16px 16px 20px lab(40% 56.6 39))}}',
+            $prefixer->prefixForTargets('.foo { filter: var(--foo) drop-shadow(16px 16px 20px lab(40% 56.6 39)) }', ['chrome' => 4])
         );
     },
     'transition prefixer maps upstream target-specific box-shadow prefixes and fallbacks' => static function (TestRunner $t): void {
@@ -1937,7 +1953,7 @@ CSS;
             (new TransitionPrefixer())->prefixLegacySafari($css)
         );
     },
-    'wordpress sticky header filters get legacy WebKit prefixes without node' => static function (TestRunner $t): void {
+    'wordpress sticky header filters get target-boundary WebKit prefixes without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .wp-block-template-part.is-style-glass-header {
   backdrop-filter: blur(8px);
@@ -1947,7 +1963,11 @@ CSS;
 
         $t->same(
             '.wp-block-template-part.is-style-glass-header{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);-webkit-filter:var(--wp--custom--header-filter);filter:var(--wp--custom--header-filter)}',
-            (new TransitionPrefixer())->prefixLegacySafari($css)
+            (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 52, 'safari' => 14])
+        );
+        $t->same(
+            '.wp-block-template-part.is-style-glass-header{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);filter:var(--wp--custom--header-filter)}',
+            (new TransitionPrefixer())->prefixForTargets($css, ['chrome' => 53, 'safari' => 14])
         );
     },
     'wordpress query card shadows get target-specific WebKit and color fallbacks without node' => static function (TestRunner $t): void {

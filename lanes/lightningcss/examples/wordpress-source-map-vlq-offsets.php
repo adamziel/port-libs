@@ -145,6 +145,25 @@ $dataUrlMap->addMapping(1, 1, $dataUrlSource, 0, 0, 'critical-rule');
 $dataUrl = $dataUrlMap->toDataUrl('/');
 $dataUrlRoundTrip = SourceMap::fromDataUrl($dataUrl, '/srv/www/example');
 
+$negativeOffsetRawMap = new SourceMap();
+$negativeOffsetRawMap->addVlqMap(
+    'AAEIA;ACGEC',
+    [
+        'wp-content/themes/example/source-map-prelude.css',
+        'wp-content/themes/example/blocks/cover.css',
+    ],
+    [
+        '.prelude{}',
+        '.wp-block-cover{}',
+    ],
+    [
+        'prelude-rule',
+        'cover-rule',
+    ],
+    -1,
+    4
+);
+
 $lookup = [
     'sourceIndexes' => $projectRootMap->addSources([
         '/srv/www/example/wp-content/themes/example/style.css',
@@ -172,6 +191,7 @@ $actual = [
     'projectRootMap' => $projectRootMap->toJson(null, false),
     'dataUrl' => $dataUrl,
     'dataUrlRoundTrip' => $dataUrlRoundTrip->toJson('/'),
+    'negativeOffsetRawMap' => $negativeOffsetRawMap->toJson(null, false),
     'lookup' => $lookup,
 ];
 
@@ -187,6 +207,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'projectRootMap' => '{"version":3,"mappings":"AACAA,0BCIAC;ACLAC","sources":["wp-content/themes/example/style.css","wp-content/themes/example/blocks.css","theme://generated/editor.css"],"sourcesContent":["@import \"blocks.css\";\n.theme-footer {\n  color: green;\n}","/*! Theme package license */\n/*!\n * Block editor stylesheet generated from theme.json\n * Keep comments for distribution compliance.\n */\n.wp-block-cover {\n  color: yellow;\n}\n.wp-block-cover .wp-block-button {\n  margin: 1rem;\n}",".wp-block-cover{outline:2px solid currentColor}"],"names":["theme-footer","block-cover","virtual-editor-rule"]}',
         'dataUrl' => 'data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiLyIsIm1hcHBpbmdzIjoiO0NBQUFBIiwic291cmNlcyI6WyJ3cC1jb250ZW50L3RoZW1lcy9leGFtcGxlL2lubGluZS1jcml0aWNhbC5jc3MiXSwic291cmNlc0NvbnRlbnQiOlsiLmNyaXRpY2Fse2Rpc3BsYXk6YmxvY2t9XG4iXSwibmFtZXMiOlsiY3JpdGljYWwtcnVsZSJdfQ==',
         'dataUrlRoundTrip' => '{"version":3,"sourceRoot":"/","mappings":";CAAAA","sources":["wp-content/themes/example/inline-critical.css"],"sourcesContent":[".critical{display:block}\n"],"names":["critical-rule"]}',
+        'negativeOffsetRawMap' => '{"version":3,"mappings":"ICKMC","sources":["wp-content/themes/example/source-map-prelude.css","wp-content/themes/example/blocks/cover.css"],"sourcesContent":[".prelude{}",".wp-block-cover{}"],"names":["prelude-rule","cover-rule"]}',
         'lookup' => [
             'sourceIndexes' => [0, 1, 2],
             'blockIndex' => 1,

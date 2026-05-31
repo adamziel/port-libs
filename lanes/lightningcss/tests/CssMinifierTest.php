@@ -253,6 +253,15 @@ CSS
             $t->same($expected, $minifier->minify($input));
         }
     },
+    'css minifier maps upstream color calc components in custom property values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{--a:#80808080}', $minifier->minify('.foo { --a: rgb(50% 50% 50% / calc(100% / 2)); }'));
+        $t->same('.foo{--b:#40bfbf}', $minifier->minify('.foo { --b: hsl(calc(360deg / 2) 50% 50%); }'));
+        $t->same('.foo{--c:oklab(40.101% .3 .0453)}', $minifier->minify('.foo { --c: oklab(40.101% calc(0.1 + 0.2) 0.0453); }'));
+        $t->same('.foo{--d:color(display-p3 .43313 .50108 .3)}', $minifier->minify('.foo { --d: color(display-p3 0.43313 0.50108 calc(0.1 + 0.2)); }'));
+        $t->same('.foo{--e:gray}', $minifier->minify('.foo { --e: rgb(calc(255 / 2), calc(255 / 2), calc(255 / 2)); }'));
+    },
     'css minifier maps upstream srgb color-mix value normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

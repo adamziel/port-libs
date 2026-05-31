@@ -16,6 +16,11 @@ $dependency = static fn (string $name, string $specifier): array => [
     'name' => $name,
     'specifier' => $specifier,
 ];
+$referenced = static fn (string $name): array => [
+    'name' => $name,
+    'composes' => [],
+    'isReferenced' => true,
+];
 $dashed = static fn (string $name, bool $isReferenced = false): array => [
     'name' => $name,
     'composes' => [],
@@ -665,6 +670,74 @@ CSS);
                 'isReferenced' => true,
             ],
         ], $quoted['exports']);
+    },
+    'css modules scopes upstream counter styles and list-style references with composes exports' => static function (TestRunner $t) use ($export, $referenced, $dependency): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+@counter-style circles {
+  symbols: A B C;
+}
+
+.list {
+  list-style: circles outside;
+  composes: base from "tokens.css";
+}
+
+.item {
+  list-style-type: circles;
+}
+
+.builtin {
+  list-style-type: disc;
+}
+
+.none {
+  list-style: none;
+}
+CSS);
+
+        $t->same('@counter-style EgL3uq_circles{symbols:A B C}.EgL3uq_list{list-style:EgL3uq_circles}.EgL3uq_item{list-style-type:EgL3uq_circles}.EgL3uq_builtin{list-style-type:disc}.EgL3uq_none{list-style:none}', $result['code']);
+        $t->same([
+            'circles' => $referenced('EgL3uq_circles'),
+            'list' => $export('EgL3uq_list', [$dependency('base', 'tokens.css')]),
+            'item' => $export('EgL3uq_item'),
+            'builtin' => $export('EgL3uq_builtin'),
+            'none' => $export('EgL3uq_none'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $customIdentsDisabled = (new CssModulesTransformer())->transform(<<<'CSS'
+@counter-style circles {
+  symbols: A B C;
+}
+
+.list {
+  list-style-type: circles;
+}
+CSS, [
+            'customIdents' => false,
+        ]);
+
+        $t->same('@counter-style circles{symbols:A B C}.EgL3uq_list{list-style-type:circles}', $customIdentsDisabled['code']);
+        $t->same([
+            'list' => $export('EgL3uq_list'),
+            'circles' => $referenced('EgL3uq_circles'),
+        ], $customIdentsDisabled['exports']);
+
+        $builtInTypeWins = (new CssModulesTransformer())->transform(<<<'CSS'
+@counter-style circles {
+  symbols: A B C;
+}
+
+.list {
+  list-style: square circles;
+}
+CSS);
+
+        $t->same('@counter-style EgL3uq_circles{symbols:A B C}.EgL3uq_list{list-style:square circles}', $builtInTypeWins['code']);
+        $t->same([
+            'circles' => $export('EgL3uq_circles'),
+            'list' => $export('EgL3uq_list'),
+        ], $builtInTypeWins['exports']);
     },
     'css modules scopes upstream dashed idents and records dependency references' => static function (TestRunner $t) use ($export, $dashed): void {
         $css = <<<'CSS'

@@ -157,6 +157,12 @@ final class DeclarationBlock
         'dashed',
         'wavy',
     ];
+    private const TEXT_EMPHASIS_LONGHANDS = [
+        'text-emphasis-style',
+        'text-emphasis-color',
+    ];
+    private const TEXT_EMPHASIS_FILLS = ['filled', 'open'];
+    private const TEXT_EMPHASIS_SHAPES = ['dot', 'circle', 'double-circle', 'triangle', 'sesame'];
     private const FONT_LONGHANDS = [
         'font-family',
         'font-size',
@@ -218,6 +224,27 @@ final class DeclarationBlock
     ];
     private const MASK_BORDER_REPEAT_KEYWORDS = ['stretch', 'repeat', 'round', 'space'];
     private const MASK_BORDER_MODE_KEYWORDS = ['alpha', 'luminance'];
+    private const MASK_LONGHANDS = [
+        'mask-image',
+        'mask-position',
+        'mask-size',
+        'mask-repeat',
+        'mask-origin',
+        'mask-clip',
+        'mask-composite',
+        'mask-mode',
+    ];
+    private const MASK_GEOMETRY_BOXES = [
+        'border-box',
+        'padding-box',
+        'content-box',
+        'margin-box',
+        'fill-box',
+        'stroke-box',
+        'view-box',
+    ];
+    private const MASK_COMPOSITE_KEYWORDS = ['add', 'subtract', 'intersect', 'exclude'];
+    private const MASK_MODE_KEYWORDS = ['alpha', 'luminance', 'match-source'];
     private const BORDER_RADIUS_CORNERS = [
         'top-left' => 'border-top-left-radius',
         'top-right' => 'border-top-right-radius',
@@ -346,6 +373,13 @@ final class DeclarationBlock
         if ($this->isTransitionProperty($property)) {
             return null;
         }
+        $maskValue = $this->getMaskProperty($entries, $property);
+        if ($maskValue !== null) {
+            return $maskValue;
+        }
+        if ($this->isMaskProperty($property)) {
+            return null;
+        }
         $maskBorderValue = $this->getMaskBorderProperty($entries, $property);
         if ($maskBorderValue !== null) {
             return $maskBorderValue;
@@ -394,6 +428,13 @@ final class DeclarationBlock
             return $textDecorationValue;
         }
         if ($this->isTextDecorationProperty($property)) {
+            return null;
+        }
+        $textEmphasisValue = $this->getTextEmphasisProperty($entries, $property);
+        if ($textEmphasisValue !== null) {
+            return $textEmphasisValue;
+        }
+        if ($this->isTextEmphasisProperty($property)) {
             return null;
         }
         $fontValue = $this->getFontProperty($entries, $property);
@@ -601,6 +642,59 @@ final class DeclarationBlock
             ]),
             'important' => $important,
         ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setMaskLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!$this->isMaskLonghand($property)) {
+            return null;
+        }
+
+        $value = $this->normalizeMaskLonghandValue($property, $value);
+        $valueParts = array_map(
+            static fn (string $part): string => trim($part),
+            $this->splitTopLevel($value, ',')
+        );
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'mask') {
+                continue;
+            }
+            if ($entries[$index]['important'] !== $important) {
+                return null;
+            }
+
+            $layers = $this->parseMaskLayers($entries[$index]['value']);
+            if (count($valueParts) !== count($layers)) {
+                return null;
+            }
+
+            foreach ($layers as $layerIndex => $_layer) {
+                $layers[$layerIndex][$property] = $this->normalizeMaskLonghandValue($property, $valueParts[$layerIndex]);
+            }
+
+            $entries[$index] = [
+                'property' => 'mask',
+                'value' => $this->composeMaskLayers($layers),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
     }
 
     /**
@@ -919,6 +1013,442 @@ final class DeclarationBlock
     private function isDefaultBorderImageRepeat(string $value): bool
     {
         return strcasecmp(trim($value), 'stretch') === 0;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getMaskProperty(array $entries, string $property): ?array
+    {
+        if (!$this->isMaskProperty($property)) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'mask') {
+                foreach ($this->maskComponentsFromShorthand($entry['value'], $entry['important']) as $longhand => $component) {
+                    $components[$longhand] = $component;
+                }
+                continue;
+            }
+
+            if ($this->isMaskLonghand($entry['property'])) {
+                $components[$entry['property']] = [
+                    'value' => $this->normalizeMaskLonghandValue($entry['property'], $entry['value']),
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($property !== 'mask') {
+            return $components[$property] ?? null;
+        }
+
+        foreach (self::MASK_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        $value = $this->composeMaskShorthandValue($components);
+        if ($value === null) {
+            return null;
+        }
+
+        return [
+            'value' => $value,
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @return array<string, array{value:string, important:bool}>
+     */
+    private function maskComponentsFromShorthand(string $value, bool $important): array
+    {
+        $layers = $this->parseMaskLayers($value);
+        $components = [
+            'mask' => ['value' => $this->composeMaskLayers($layers), 'important' => $important],
+        ];
+
+        foreach (self::MASK_LONGHANDS as $longhand) {
+            $components[$longhand] = [
+                'value' => implode(', ', array_map(
+                    static fn (array $layer): string => $layer[$longhand],
+                    $layers
+                )),
+                'important' => $important,
+            ];
+        }
+
+        return $components;
+    }
+
+    /**
+     * @return list<array{
+     *     mask-image:string,
+     *     mask-position:string,
+     *     mask-size:string,
+     *     mask-repeat:string,
+     *     mask-origin:string,
+     *     mask-clip:string,
+     *     mask-composite:string,
+     *     mask-mode:string
+     * }>
+     */
+    private function parseMaskLayers(string $value): array
+    {
+        $layers = [];
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            $layers[] = $this->parseMaskLayer($layer);
+        }
+
+        return $layers === [] ? [$this->defaultMaskLayer()] : $layers;
+    }
+
+    /**
+     * @return array{
+     *     mask-image:string,
+     *     mask-position:string,
+     *     mask-size:string,
+     *     mask-repeat:string,
+     *     mask-origin:string,
+     *     mask-clip:string,
+     *     mask-composite:string,
+     *     mask-mode:string
+     * }
+     */
+    private function parseMaskLayer(string $layer): array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($layer);
+        $parsed = $this->defaultMaskLayer();
+        $positionTokens = [];
+        $origin = null;
+        $clip = null;
+
+        for ($i = 0; $i < count($tokens); $i++) {
+            $token = $tokens[$i];
+            $lower = strtolower(trim($token));
+
+            $slash = $this->findTopLevelCharacter($token, '/');
+            if ($token === '/' || $slash !== null) {
+                $after = '';
+                if ($token !== '/') {
+                    $before = substr($token, 0, $slash);
+                    $after = substr($token, $slash + 1);
+                    if ($before !== '') {
+                        $positionTokens[] = $before;
+                    }
+                }
+
+                $sizeTokens = [];
+                if ($after !== '') {
+                    $sizeTokens[] = $after;
+                }
+                while (($tokens[$i + 1] ?? null) !== null) {
+                    $next = $tokens[$i + 1];
+                    if ($this->isMaskLayerComponentBoundary($next)) {
+                        break;
+                    }
+                    $sizeTokens[] = $next;
+                    $i++;
+                }
+                if ($sizeTokens !== []) {
+                    $parsed['mask-size'] = $this->normalizeMaskLonghandValue('mask-size', implode(' ', $sizeTokens));
+                }
+                continue;
+            }
+
+            if ($this->isMaskImageToken($token) && $parsed['mask-image'] === 'none') {
+                $parsed['mask-image'] = $this->normalizeMaskLonghandValue('mask-image', $token);
+                continue;
+            }
+
+            if ($this->isBackgroundRepeatToken($lower)) {
+                $parsed['mask-repeat'] = $this->normalizeMaskLonghandValue(
+                    'mask-repeat',
+                    $this->consumeBackgroundRepeat($tokens, $i)
+                );
+                continue;
+            }
+
+            if ($this->isMaskGeometryBox($lower)) {
+                if ($origin === null) {
+                    $origin = $lower;
+                } elseif ($clip === null) {
+                    $clip = $lower;
+                } else {
+                    $positionTokens[] = $token;
+                }
+                continue;
+            }
+
+            if ($this->isMaskClipValue($lower)) {
+                $clip = $lower;
+                continue;
+            }
+
+            if (in_array($lower, self::MASK_COMPOSITE_KEYWORDS, true)) {
+                $parsed['mask-composite'] = $lower;
+                continue;
+            }
+
+            if (in_array($lower, self::MASK_MODE_KEYWORDS, true)) {
+                $parsed['mask-mode'] = $lower;
+                continue;
+            }
+
+            $positionTokens[] = $token;
+        }
+
+        if ($positionTokens !== []) {
+            $parsed['mask-position'] = $this->normalizeMaskLonghandValue('mask-position', implode(' ', $positionTokens));
+        }
+        if ($origin !== null) {
+            $parsed['mask-origin'] = $origin;
+        }
+        if ($clip === null && $origin !== null) {
+            $clip = $origin;
+        }
+        if ($clip !== null) {
+            $parsed['mask-clip'] = $clip;
+        }
+
+        return $parsed;
+    }
+
+    /**
+     * @return array{
+     *     mask-image:string,
+     *     mask-position:string,
+     *     mask-size:string,
+     *     mask-repeat:string,
+     *     mask-origin:string,
+     *     mask-clip:string,
+     *     mask-composite:string,
+     *     mask-mode:string
+     * }
+     */
+    private function defaultMaskLayer(): array
+    {
+        return [
+            'mask-image' => 'none',
+            'mask-position' => '0 0',
+            'mask-size' => 'auto',
+            'mask-repeat' => 'repeat',
+            'mask-origin' => 'border-box',
+            'mask-clip' => 'border-box',
+            'mask-composite' => 'add',
+            'mask-mode' => 'match-source',
+        ];
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}> $components
+     */
+    private function composeMaskShorthandValue(array $components): ?string
+    {
+        $lists = [];
+        $layerCount = null;
+        foreach (self::MASK_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+
+            $values = array_map(
+                static fn (string $part): string => trim($part),
+                $this->splitTopLevel($components[$longhand]['value'], ',')
+            );
+            if ($values === []) {
+                return null;
+            }
+            if ($layerCount === null) {
+                $layerCount = count($values);
+            } elseif (count($values) !== $layerCount) {
+                return null;
+            }
+            $lists[$longhand] = $values;
+        }
+
+        $layers = [];
+        for ($i = 0; $i < $layerCount; $i++) {
+            $layer = [];
+            foreach (self::MASK_LONGHANDS as $longhand) {
+                $layer[$longhand] = $this->normalizeMaskLonghandValue($longhand, $lists[$longhand][$i]);
+            }
+            $layers[] = $layer;
+        }
+
+        return $this->composeMaskLayers($layers);
+    }
+
+    /**
+     * @param list<array{
+     *     mask-image:string,
+     *     mask-position:string,
+     *     mask-size:string,
+     *     mask-repeat:string,
+     *     mask-origin:string,
+     *     mask-clip:string,
+     *     mask-composite:string,
+     *     mask-mode:string
+     * }> $layers
+     */
+    private function composeMaskLayers(array $layers): string
+    {
+        return implode(', ', array_map(
+            fn (array $layer): string => $this->composeMaskLayer($layer),
+            $layers
+        ));
+    }
+
+    /**
+     * @param array{
+     *     mask-image:string,
+     *     mask-position:string,
+     *     mask-size:string,
+     *     mask-repeat:string,
+     *     mask-origin:string,
+     *     mask-clip:string,
+     *     mask-composite:string,
+     *     mask-mode:string
+     * } $layer
+     */
+    private function composeMaskLayer(array $layer): string
+    {
+        $parts = [$this->normalizeMaskLonghandValue('mask-image', $layer['mask-image'])];
+        $position = $this->normalizeMaskLonghandValue('mask-position', $layer['mask-position']);
+        $size = $this->normalizeMaskLonghandValue('mask-size', $layer['mask-size']);
+        $repeat = $this->normalizeMaskLonghandValue('mask-repeat', $layer['mask-repeat']);
+        $origin = $this->normalizeMaskLonghandValue('mask-origin', $layer['mask-origin']);
+        $clip = $this->normalizeMaskLonghandValue('mask-clip', $layer['mask-clip']);
+        $composite = $this->normalizeMaskLonghandValue('mask-composite', $layer['mask-composite']);
+        $mode = $this->normalizeMaskLonghandValue('mask-mode', $layer['mask-mode']);
+
+        if (!$this->isDefaultMaskPosition($position) || !$this->isDefaultMaskSize($size)) {
+            $parts[] = $position;
+            if (!$this->isDefaultMaskSize($size)) {
+                $parts[] = '/';
+                $parts[] = $size;
+            }
+        }
+        if (!$this->isDefaultMaskRepeat($repeat)) {
+            $parts[] = $repeat;
+        }
+        if (!$this->isDefaultMaskOrigin($origin) || !$this->isDefaultMaskClip($clip)) {
+            $parts[] = $origin;
+            if ($clip !== $origin) {
+                $parts[] = $clip;
+            }
+        }
+        if (!$this->isDefaultMaskComposite($composite)) {
+            $parts[] = $composite;
+        }
+        if (!$this->isDefaultMaskMode($mode)) {
+            $parts[] = $mode;
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function normalizeMaskLonghandValue(string $property, string $value): string
+    {
+        $value = trim($value);
+
+        return match ($property) {
+            'mask-image' => $this->normalizeMaskImageValue($value),
+            'mask-repeat' => $this->compressBackgroundRepeat(strtolower($value)),
+            'mask-origin', 'mask-clip', 'mask-composite', 'mask-mode' => strtolower($value),
+            default => $value,
+        };
+    }
+
+    private function normalizeMaskImageValue(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^url\(/i', $value) === 1) {
+            return $this->normalizeCssUrlToken($value);
+        }
+
+        return strtolower($value) === 'none' ? 'none' : $value;
+    }
+
+    private function isMaskLayerComponentBoundary(string $token): bool
+    {
+        $lower = strtolower(trim($token));
+
+        return $this->isBackgroundRepeatToken($lower)
+            || $this->isMaskGeometryBox($lower)
+            || $this->isMaskClipValue($lower)
+            || in_array($lower, self::MASK_COMPOSITE_KEYWORDS, true)
+            || in_array($lower, self::MASK_MODE_KEYWORDS, true);
+    }
+
+    private function isMaskImageToken(string $token): bool
+    {
+        return strtolower(trim($token)) === 'none' || $this->isBackgroundImageToken($token);
+    }
+
+    private function isMaskGeometryBox(string $value): bool
+    {
+        return in_array($value, self::MASK_GEOMETRY_BOXES, true);
+    }
+
+    private function isMaskClipValue(string $value): bool
+    {
+        return $value === 'no-clip';
+    }
+
+    private function isDefaultMaskPosition(string $value): bool
+    {
+        return in_array(strtolower(trim($value)), ['0', '0 0', '0% 0%', 'left top'], true);
+    }
+
+    private function isDefaultMaskSize(string $value): bool
+    {
+        return $this->isDefaultBackgroundSize($value);
+    }
+
+    private function isDefaultMaskRepeat(string $value): bool
+    {
+        return strtolower(trim($value)) === 'repeat';
+    }
+
+    private function isDefaultMaskOrigin(string $value): bool
+    {
+        return strtolower(trim($value)) === 'border-box';
+    }
+
+    private function isDefaultMaskClip(string $value): bool
+    {
+        return strtolower(trim($value)) === 'border-box';
+    }
+
+    private function isDefaultMaskComposite(string $value): bool
+    {
+        return strtolower(trim($value)) === 'add';
+    }
+
+    private function isDefaultMaskMode(string $value): bool
+    {
+        return strtolower(trim($value)) === 'match-source';
+    }
+
+    private function isMaskProperty(string $property): bool
+    {
+        return $property === 'mask' || $this->isMaskLonghand($property);
+    }
+
+    private function isMaskLonghand(string $property): bool
+    {
+        return in_array($property, self::MASK_LONGHANDS, true);
     }
 
     /**
@@ -5367,6 +5897,360 @@ final class DeclarationBlock
      * @param list<array{property:string, value:string, important:bool}> $entries
      * @return array{value:string, important:bool}|null
      */
+    private function getTextEmphasisProperty(array $entries, string $property): ?array
+    {
+        $prefix = $this->textEmphasisPrefixForProperty($property);
+        $base = $this->baseTextEmphasisProperty($property);
+        if ($prefix === null || $base === null) {
+            return null;
+        }
+
+        $components = [];
+        foreach ($entries as $entry) {
+            $entryPrefix = $this->textEmphasisPrefixForProperty($entry['property']);
+            $entryBase = $this->baseTextEmphasisProperty($entry['property']);
+            if ($entryPrefix !== $prefix || $entryBase === null) {
+                continue;
+            }
+
+            if ($entryBase === 'text-emphasis') {
+                $parsed = $this->parseTextEmphasisComponents($entry['value']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach (self::TEXT_EMPHASIS_LONGHANDS as $longhand) {
+                    $components[$longhand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            $components[$entryBase] = [
+                'value' => $this->normalizeTextEmphasisLonghandValue($entryBase, $entry['value']),
+                'important' => $entry['important'],
+            ];
+        }
+
+        if ($base !== 'text-emphasis') {
+            return $components[$base] ?? null;
+        }
+
+        foreach (self::TEXT_EMPHASIS_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->serializeTextEmphasisComponents([
+                'text-emphasis-style' => $components['text-emphasis-style']['value'],
+                'text-emphasis-color' => $components['text-emphasis-color']['value'],
+            ]),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setTextEmphasisLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        $prefix = $this->textEmphasisPrefixForProperty($property);
+        $base = $this->baseTextEmphasisProperty($property);
+        if ($prefix === null || $base === null || !in_array($base, self::TEXT_EMPHASIS_LONGHANDS, true)) {
+            return null;
+        }
+
+        $value = $this->normalizeTextEmphasisLonghandValue($base, $value);
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            $entryPrefix = $this->textEmphasisPrefixForProperty($entries[$index]['property']);
+            $entryBase = $this->baseTextEmphasisProperty($entries[$index]['property']);
+            if ($entryPrefix !== $prefix || $entryBase !== 'text-emphasis') {
+                continue;
+            }
+
+            $components = $this->parseTextEmphasisComponents($entries[$index]['value']);
+            if ($components === null) {
+                continue;
+            }
+
+            $components[$base] = $value;
+            $entries[$index] = [
+                'property' => $this->textEmphasisProperty($prefix, 'text-emphasis'),
+                'value' => $this->serializeTextEmphasisComponents($components),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeTextEmphasisLonghand(array $entries, string $property): string
+    {
+        $prefix = $this->textEmphasisPrefixForProperty($property);
+        $base = $this->baseTextEmphasisProperty($property);
+        if ($prefix === null || $base === null || !in_array($base, self::TEXT_EMPHASIS_LONGHANDS, true)) {
+            return $this->serializeEntries($entries);
+        }
+
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            $entryPrefix = $this->textEmphasisPrefixForProperty($entry['property']);
+            $entryBase = $this->baseTextEmphasisProperty($entry['property']);
+            if ($entryPrefix !== $prefix || $entryBase !== 'text-emphasis') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->parseTextEmphasisComponents($entry['value']);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach (self::TEXT_EMPHASIS_LONGHANDS as $longhand) {
+                if ($longhand === $base) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $this->textEmphasisProperty($prefix, $longhand),
+                    'value' => $components[$longhand],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @return array{text-emphasis-style:string, text-emphasis-color:string}|null
+     */
+    private function parseTextEmphasisComponents(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $styleTokens = [];
+        $color = null;
+        foreach ($tokens as $token) {
+            if ($this->isTextEmphasisStyleToken($token)) {
+                $styleTokens[] = $token;
+                continue;
+            }
+
+            if ($color !== null) {
+                return null;
+            }
+            $color = $this->normalizeTextEmphasisColorValue($token);
+        }
+
+        $style = $styleTokens === [] ? 'none' : $this->parseTextEmphasisStyleTokens($styleTokens);
+        if ($style === null) {
+            return null;
+        }
+
+        return [
+            'text-emphasis-style' => $style,
+            'text-emphasis-color' => $color ?? 'currentColor',
+        ];
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function parseTextEmphasisStyleTokens(array $tokens): ?string
+    {
+        if (count($tokens) === 1 && $this->isQuotedStringToken($tokens[0])) {
+            return $this->normalizeCssStringToken($tokens[0]);
+        }
+
+        $fill = null;
+        $shape = null;
+        foreach ($tokens as $token) {
+            if ($this->isQuotedStringToken($token)) {
+                return null;
+            }
+
+            $lower = strtolower(trim($token));
+            if ($lower === 'none') {
+                return count($tokens) === 1 ? 'none' : null;
+            }
+            if (in_array($lower, self::TEXT_EMPHASIS_FILLS, true)) {
+                if ($fill !== null) {
+                    return null;
+                }
+                $fill = $lower;
+                continue;
+            }
+            if (in_array($lower, self::TEXT_EMPHASIS_SHAPES, true)) {
+                if ($shape !== null) {
+                    return null;
+                }
+                $shape = $lower;
+                continue;
+            }
+
+            return null;
+        }
+
+        if ($fill === null && $shape === null) {
+            return null;
+        }
+        if ($shape === null) {
+            return $fill;
+        }
+
+        return $fill === 'open' ? "open {$shape}" : $shape;
+    }
+
+    /**
+     * @param array{text-emphasis-style:string, text-emphasis-color:string} $components
+     */
+    private function serializeTextEmphasisComponents(array $components): string
+    {
+        $style = $this->normalizeTextEmphasisStyleValue($components['text-emphasis-style']);
+        $color = $this->normalizeTextEmphasisColorValue($components['text-emphasis-color']);
+        if (strcasecmp($style, 'none') === 0) {
+            return 'none';
+        }
+
+        return strcasecmp($color, 'currentColor') === 0 ? $style : "{$style} {$color}";
+    }
+
+    private function normalizeTextEmphasisLonghandValue(string $property, string $value): string
+    {
+        return match ($property) {
+            'text-emphasis-style' => $this->normalizeTextEmphasisStyleValue($value),
+            'text-emphasis-color' => $this->normalizeTextEmphasisColorValue($value),
+            default => trim($value),
+        };
+    }
+
+    private function normalizeTextEmphasisStyleValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        return $this->parseTextEmphasisStyleTokens($tokens) ?? trim($value);
+    }
+
+    private function normalizeTextEmphasisColorValue(string $value): string
+    {
+        $value = trim($value);
+
+        return strcasecmp($value, 'currentcolor') === 0 ? 'currentColor' : $value;
+    }
+
+    private function isTextEmphasisProperty(string $property): bool
+    {
+        return $this->baseTextEmphasisProperty($property) !== null;
+    }
+
+    private function isTextEmphasisLonghand(string $property): bool
+    {
+        $base = $this->baseTextEmphasisProperty($property);
+
+        return $base !== null && in_array($base, self::TEXT_EMPHASIS_LONGHANDS, true);
+    }
+
+    private function isTextEmphasisStyleToken(string $token): bool
+    {
+        if ($this->isQuotedStringToken($token)) {
+            return true;
+        }
+
+        $lower = strtolower(trim($token));
+
+        return $lower === 'none'
+            || in_array($lower, self::TEXT_EMPHASIS_FILLS, true)
+            || in_array($lower, self::TEXT_EMPHASIS_SHAPES, true);
+    }
+
+    private function textEmphasisPrefixForProperty(string $property): ?string
+    {
+        if ($property === '-webkit-text-emphasis' || str_starts_with($property, '-webkit-text-emphasis-')) {
+            return $this->baseTextEmphasisProperty($property) === null ? null : '-webkit-';
+        }
+        if ($property === 'text-emphasis' || str_starts_with($property, 'text-emphasis-')) {
+            return $this->baseTextEmphasisProperty($property) === null ? null : '';
+        }
+
+        return null;
+    }
+
+    private function baseTextEmphasisProperty(string $property): ?string
+    {
+        if ($property === '-webkit-text-emphasis' || str_starts_with($property, '-webkit-text-emphasis-')) {
+            $property = substr($property, strlen('-webkit-'));
+        }
+
+        return match ($property) {
+            'text-emphasis',
+            'text-emphasis-style',
+            'text-emphasis-color' => $property,
+            default => null,
+        };
+    }
+
+    private function textEmphasisProperty(string $prefix, string $base): string
+    {
+        return "{$prefix}{$base}";
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function textEmphasisShorthandLonghands(string $property): ?array
+    {
+        $prefix = $this->textEmphasisPrefixForProperty($property);
+        $base = $this->baseTextEmphasisProperty($property);
+        if ($prefix === null || $base !== 'text-emphasis') {
+            return null;
+        }
+
+        return array_map(
+            fn (string $longhand): string => $this->textEmphasisProperty($prefix, $longhand),
+            self::TEXT_EMPHASIS_LONGHANDS
+        );
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
     private function getFontProperty(array $entries, string $property): ?array
     {
         if (!$this->isFontProperty($property)) {
@@ -6183,6 +7067,10 @@ final class DeclarationBlock
         if ($animationValue !== null) {
             return $this->parseEntries($animationValue);
         }
+        $maskValue = $this->setMaskLonghand($entries, $property, $value, $important);
+        if ($maskValue !== null) {
+            return $this->parseEntries($maskValue);
+        }
         $borderImageValue = $this->setBorderImageLonghand($entries, $property, $value, $important);
         if ($borderImageValue !== null) {
             return $this->parseEntries($borderImageValue);
@@ -6222,6 +7110,10 @@ final class DeclarationBlock
         $textDecorationValue = $this->setTextDecorationLonghand($entries, $property, $value, $important);
         if ($textDecorationValue !== null) {
             return $this->parseEntries($textDecorationValue);
+        }
+        $textEmphasisValue = $this->setTextEmphasisLonghand($entries, $property, $value, $important);
+        if ($textEmphasisValue !== null) {
+            return $this->parseEntries($textEmphasisValue);
         }
         $fontValue = $this->setFontLonghand($entries, $property, $value, $important);
         if ($fontValue !== null) {
@@ -7281,6 +8173,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isMaskLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeMaskLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeMaskLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isBorderImageLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeBorderImageLonghand($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeBorderImageLonghand($importantEntries, $property));
@@ -7332,6 +8230,12 @@ final class DeclarationBlock
         if ($this->isTextDecorationLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeTextDecorationLonghand($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeTextDecorationLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
+        if ($this->isTextEmphasisLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeTextEmphasisLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeTextEmphasisLonghand($importantEntries, $property));
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
@@ -7440,6 +8344,10 @@ final class DeclarationBlock
             return self::BORDER_IMAGE_LONGHANDS;
         }
 
+        if ($property === 'mask') {
+            return self::MASK_LONGHANDS;
+        }
+
         if ($property === 'mask-border') {
             return self::MASK_BORDER_LONGHANDS;
         }
@@ -7466,6 +8374,11 @@ final class DeclarationBlock
 
         if ($property === 'text-decoration') {
             return self::TEXT_DECORATION_LONGHANDS;
+        }
+
+        $textEmphasisLonghands = $this->textEmphasisShorthandLonghands($property);
+        if ($textEmphasisLonghands !== null) {
+            return $textEmphasisLonghands;
         }
 
         if ($property === 'font') {
@@ -7586,6 +8499,39 @@ final class DeclarationBlock
                 $result[] = [
                     'property' => $this->flexProperty($prefix, $longhand),
                     'value' => $components[$name],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeMaskLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'mask') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->maskComponentsFromShorthand($entry['value'], $entry['important']);
+            foreach (self::MASK_LONGHANDS as $longhand) {
+                if ($longhand === $property) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
+                    'value' => $components[$longhand]['value'],
                     'important' => $entry['important'],
                 ];
             }

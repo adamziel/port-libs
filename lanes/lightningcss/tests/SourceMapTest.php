@@ -221,6 +221,31 @@ return [
         $t->same(1, $closest['sourceIndex'] ?? null);
         $t->same(null, $map->findClosestMapping(2, 0));
     },
+    'source map imports negative-offset raw vlq maps after skipped-line deltas' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $map->addVlqMap(
+            'AAEIA;ACGEC',
+            ['prelude.css', 'block.css'],
+            ['.prelude{}', '.wp-block-cover{}'],
+            ['prelude-rule', 'block-rule'],
+            -1,
+            4
+        );
+
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $data = $map->toArray(null, false);
+
+        $t->same('ICKMC', $map->writeVlq());
+        $t->same([0], array_column($decoded, 'generatedLine'));
+        $t->same([4], array_column($decoded, 'generatedColumn'));
+        $t->same([1], array_column($decoded, 'sourceIndex'));
+        $t->same([5], array_column($decoded, 'originalLine'));
+        $t->same([6], array_column($decoded, 'originalColumn'));
+        $t->same([1], array_column($decoded, 'nameIndex'));
+        $t->same(['prelude.css', 'block.css'], $data['sources']);
+        $t->same(['.prelude{}', '.wp-block-cover{}'], $data['sourcesContent']);
+        $t->same(['prelude-rule', 'block-rule'], $data['names']);
+    },
     'source map rejects invalid raw vlq map indexes' => static function (TestRunner $t): void {
         $map = new SourceMap();
 

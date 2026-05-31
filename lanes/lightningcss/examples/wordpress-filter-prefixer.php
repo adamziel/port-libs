@@ -6,6 +6,7 @@ use PortLibs\LightningCSS\TransitionPrefixer;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
+$prefixer = new TransitionPrefixer();
 $css = <<<'CSS'
 .wp-block-template-part.is-style-glass-header {
   backdrop-filter: blur(8px);
@@ -13,4 +14,19 @@ $css = <<<'CSS'
 }
 CSS;
 
-echo (new TransitionPrefixer())->prefixLegacySafari($css) . PHP_EOL;
+$actual = [
+    'chrome52_safari14' => $prefixer->prefixForTargets($css, ['chrome' => 52, 'safari' => 14]),
+    'chrome53_safari14' => $prefixer->prefixForTargets($css, ['chrome' => 53, 'safari' => 14]),
+];
+
+$expected = [
+    'chrome52_safari14' => '.wp-block-template-part.is-style-glass-header{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);-webkit-filter:var(--wp--custom--header-filter);filter:var(--wp--custom--header-filter)}',
+    'chrome53_safari14' => '.wp-block-template-part.is-style-glass-header{-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);filter:var(--wp--custom--header-filter)}',
+];
+
+if ($actual !== $expected) {
+    fwrite(STDERR, "Unexpected filter target-boundary output:\n" . var_export($actual, true) . "\n");
+    exit(1);
+}
+
+echo implode(PHP_EOL, $actual) . PHP_EOL;

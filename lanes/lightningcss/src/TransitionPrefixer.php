@@ -826,8 +826,12 @@ final class TransitionPrefixer
             'advancedColorNeedsSrgbFallback' => $needsSrgbFallback,
             'advancedColorUsesP3Fallback' => $usesP3Fallback,
             'alphaHexNeedsRgbaFallback' => $alphaHexNeedsRgbaFallback,
-            'filterNeedsWebkit' => $this->targetInRange($normalized, 'chrome', [0], [20])
-                || $this->targetInRange($normalized, 'safari', [0], [14]),
+            'filterNeedsWebkit' => $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [18], [52])
+                || $this->targetInRange($normalized, 'ios_saf', [6], [9])
+                || $this->targetInRange($normalized, 'opera', [15], [39])
+                || $this->targetInRange($normalized, 'safari', [6], [9])
+                || $this->targetInRange($normalized, 'samsung', [4], [6, 2]),
             'backdropFilterNeedsWebkit' => $this->targetInRange($normalized, 'edge', [17], [18])
                 || $this->targetInRange($normalized, 'safari', [9], [17, 6])
                 || $this->targetInRange($normalized, 'ios_saf', [9], [17, 6]),

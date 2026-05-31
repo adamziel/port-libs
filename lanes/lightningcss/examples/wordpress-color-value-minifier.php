@@ -24,6 +24,13 @@ $css = <<<'CSS'
   border-color: rgb(from rebeccapurple r calc(g * 2) 10);
 }
 
+.wp-block-cover.has-calculated-overlay {
+  --wp-cover-overlay: rgb(50% 50% 50% / calc(100% / 2));
+  --wp-cover-halo: hsl(calc(360deg / 2) 50% 50%);
+  --wp-cover-gamut: color(display-p3 0.43313 0.50108 calc(0.1 + 0.2));
+  color: var(--wp-cover-overlay);
+}
+
 .wp-block-cover.has-wide-gamut-overlay {
   background: linear-gradient(lch(29.2345% 44.2% 27deg), color(display-p3 100% 50% 0 / 20%));
   outline-color: oklab(.40101 0.1147 0.0453);
@@ -47,7 +54,7 @@ $css = <<<'CSS'
 }
 CSS;
 
-$expected = '.wp-block-cover.has-hwb-overlay{color:#00c4ff80;background:linear-gradient(#80e1ff,#006280);border-color:buttonborder}.wp-block-button .wp-element-button{color:#fff;outline-color:#000}.wp-block-cover.has-relative-overlay{color:#639;background-color:#360c;border-color:#66660a}.wp-block-cover.has-wide-gamut-overlay{background:linear-gradient(lch(29.2345% 66.3 27),color(display-p3 1 .5 0/.2));outline-color:oklab(40.101% .1147 .0453)}.wp-block-cover.has-mixed-overlay{color:#8080ff;background-color:#89760053}.wp-block-cover.has-perceptual-mixed-overlay{color:lab(40% 50 60);background-color:oklab(36.6667% 46.6667 56.6667/.6);outline-color:lab(30% 40 70)}.wp-block-cover.has-polar-mixed-overlay{color:lch(30% 40 50);background-color:oklch(100% 0 230);outline-color:lch(50% 20 50)}';
+$expected = '.wp-block-cover.has-hwb-overlay{color:#00c4ff80;background:linear-gradient(#80e1ff,#006280);border-color:buttonborder}.wp-block-button .wp-element-button{color:#fff;outline-color:#000}.wp-block-cover.has-relative-overlay{color:#639;background-color:#360c;border-color:#66660a}.wp-block-cover.has-calculated-overlay{--wp-cover-overlay:#80808080;--wp-cover-halo:#40bfbf;--wp-cover-gamut:color(display-p3 .43313 .50108 .3);color:var(--wp-cover-overlay)}.wp-block-cover.has-wide-gamut-overlay{background:linear-gradient(lch(29.2345% 66.3 27),color(display-p3 1 .5 0/.2));outline-color:oklab(40.101% .1147 .0453)}.wp-block-cover.has-mixed-overlay{color:#8080ff;background-color:#89760053}.wp-block-cover.has-perceptual-mixed-overlay{color:lab(40% 50 60);background-color:oklab(36.6667% 46.6667 56.6667/.6);outline-color:lab(30% 40 70)}.wp-block-cover.has-polar-mixed-overlay{color:lch(30% 40 50);background-color:oklch(100% 0 230);outline-color:lch(50% 20 50)}';
 $actual = (new CssMinifier())->minify($css);
 
 if ($actual !== $expected) {

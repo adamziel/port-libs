@@ -40,6 +40,17 @@ $css = <<<'CSS'
   text-decoration: none;
 }
 
+@counter-style card-steps {
+  system: cyclic;
+  symbols: A B C;
+  suffix: ". ";
+}
+
+.cardSteps {
+  list-style: card-steps inside;
+  composes: card;
+}
+
 @media (min-width: 600px) {
   .cardCompact {
     composes: card;
@@ -157,7 +168,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '.BlockA_card{background:#fff;view-transition-name:BlockA_card-enter;view-transition-class:BlockA_card BlockA_page;animation:.24s ease-out BlockA_card-pop}.BlockA_card .BlockA_cardIcon{color:#ff0}.wp-block-button .BlockA_card{border-radius:4px}.BlockA_cardTitle{color:#ff0}.BlockA_card\:featured{outline:1px solid #ff0}.wp-block-button .legacyButton .BlockA_cardTitle{text-decoration:none}@media (width>=600px){.BlockA_cardCompact{gap:8px}}@view-transition{types:BlockA_card-enter BlockA_page}@keyframes BlockA_card-pop{0%{opacity:0}to{opacity:1}}',
+    'code' => '.BlockA_card{background:#fff;view-transition-name:BlockA_card-enter;view-transition-class:BlockA_card BlockA_page;animation:.24s ease-out BlockA_card-pop}.BlockA_card .BlockA_cardIcon{color:#ff0}.wp-block-button .BlockA_card{border-radius:4px}.BlockA_cardTitle{color:#ff0}.BlockA_card\:featured{outline:1px solid #ff0}.wp-block-button .legacyButton .BlockA_cardTitle{text-decoration:none}@counter-style BlockA_card-steps{system:cyclic;symbols:A B C;suffix:". "}.BlockA_cardSteps{list-style:inside BlockA_card-steps}@media (width>=600px){.BlockA_cardCompact{gap:8px}}@view-transition{types:BlockA_card-enter BlockA_page}@keyframes BlockA_card-pop{0%{opacity:0}to{opacity:1}}',
     'exports' => [
         'card' => [
             'name' => 'BlockA_card',
@@ -215,6 +226,21 @@ $expected = [
                 [
                     'type' => 'global',
                     'name' => 'wp:alignwide',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+        'card-steps' => [
+            'name' => 'BlockA_card-steps',
+            'composes' => [],
+            'isReferenced' => true,
+        ],
+        'cardSteps' => [
+            'name' => 'BlockA_cardSteps',
+            'composes' => [
+                [
+                    'type' => 'local',
+                    'name' => 'BlockA_card',
                 ],
             ],
             'isReferenced' => false,
