@@ -152,8 +152,8 @@ final class SshReceivePackTransport implements ReceivePackTransport
         $path = self::normalizeSshPath(self::decodeComponent($parts['path'], 'repository path'));
         $port = isset($parts['port']) ? (int) $parts['port'] : null;
 
-        self::validateHost($host);
         self::validateUser($user);
+        self::validateHost($host, $user);
         self::validatePort($port);
         self::validateRepositoryPath($path);
 
@@ -181,8 +181,8 @@ final class SshReceivePackTransport implements ReceivePackTransport
             : null;
         $path = self::normalizeSshPath(self::decodeComponent($matches['path'], 'repository path'));
 
-        self::validateHost($host);
         self::validateUser($user);
+        self::validateHost($host, $user);
         self::validateRepositoryPath($path);
 
         return [
@@ -226,7 +226,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
         return $decoded;
     }
 
-    private static function validateHost(string $host): void
+    private static function validateHost(string $host, ?string $user): void
     {
         if ($host === '' || self::hasControlBytes($host)) {
             throw new \InvalidArgumentException('SSH receive-pack host must be non-empty and must not contain control bytes');
@@ -234,7 +234,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
         if (preg_match('/[\s\/\\\\]/', $host) === 1) {
             throw new \InvalidArgumentException('SSH receive-pack host must not contain whitespace, slash, or backslash delimiters');
         }
-        if (str_starts_with($host, '-')) {
+        if ($user === null && str_starts_with($host, '-')) {
             throw new \InvalidArgumentException('SSH receive-pack host is ambiguous as an SSH command argument');
         }
     }

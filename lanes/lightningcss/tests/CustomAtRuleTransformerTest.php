@@ -1456,4 +1456,39 @@ CSS;
         $t->same('type', $seenNth['of'][0][0]['type'] ?? null);
         $t->same('a', $seenNth['of'][0][0]['name'] ?? null);
     },
+    'custom at-rules compose upstream Url visitors in declaration values' => static function (TestRunner $t): void {
+        $seenUrls = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Url' => static function (array $url) use (&$seenUrls): array {
+                    $seenUrls[] = [
+                        'url' => $url['url'],
+                        'raw' => $url['raw'],
+                    ];
+                    $url['url'] = 'https://mywebsite.com/' . $url['url'];
+
+                    return $url;
+                },
+            ],
+            [
+                'Url' => static function (array $url) use (&$seenUrls): array {
+                    $seenUrls[] = [
+                        'url' => $url['url'],
+                        'raw' => $url['raw'],
+                    ];
+                    $url['url'] = str_replace('/foo.png', '/assets/foo.png', $url['url']);
+
+                    return $url;
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.foo { background: url(foo.png); }', [], $visitor);
+
+        $t->same('.foo{background:url(https://mywebsite.com/assets/foo.png)}', $result);
+        $t->same([
+            ['url' => 'foo.png', 'raw' => 'url(foo.png)'],
+            ['url' => 'https://mywebsite.com/foo.png', 'raw' => 'url(foo.png)'],
+        ], $seenUrls);
+    },
 ];

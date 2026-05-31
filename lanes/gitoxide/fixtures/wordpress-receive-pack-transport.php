@@ -75,10 +75,15 @@ return [
     'sshLegacySchemeTarget' => SshReceivePackTransport::parseRepositoryUrl('ssh+git://deploy@git.example.test:2222/~/wp-content.git'),
     'sshLegacyGitSchemeTarget' => SshReceivePackTransport::parseRepositoryUrl('git+ssh://git.example.test:/~wp-content.git'),
     'sshScpLikeHomeTarget' => SshReceivePackTransport::parseRepositoryUrl('git.example.test:/~wp-content.git'),
+    'sshOptionLikeHostWithUserTarget' => SshReceivePackTransport::parseRepositoryUrl('deploy@-git-proxy.example.test:wp-content.git'),
     'sshCommand' => SshReceivePackTransport::receivePackCommand('wp-content.git'),
     'sshHomeCommand' => SshReceivePackTransport::receivePackCommand('~/wp-content.git'),
     'sshProtocolV2Context' => SshReceivePackTransport::connectorContext(
         'ssh://deploy@git.example.test:2222/var/www/wp-content.git',
+        ['protocolVersion' => 2],
+    ),
+    'sshOptionLikeHostWithUserContext' => SshReceivePackTransport::connectorContext(
+        'deploy@-git-proxy.example.test:wp-content.git',
         ['protocolVersion' => 2],
     ),
     'gitDaemonServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytes('/wp-content.git', 'git.example.test', 9418, ['version=2']),
@@ -377,5 +382,5 @@ return [
 
         return false;
     })(),
-    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, accept smart HTTP receive-pack advertisements with or without the optional service announcement, surface receive-pack advertisement ERR packets before ref parsing, preflight SSH targets including bracketed IPv6 URLs and legacy ssh+git/git+ssh receive-pack URLs before handing streams to a caller-approved SSH adapter, normalize scp-like /~ repository paths before remote git-receive-pack command construction, pass protocol-v2 GIT_PROTOCOL and redacted credential-helper context metadata to an opted-in adapter without owning live SSH authentication, reject decoded SSH host/user delimiters including encoded at-sign or colon username delimiters, reject unsupported SSH URL passwords, reject legacy SSH hosts that look like command-line options, reject decoded smart HTTP credential control bytes, URL/proxy/no-proxy host delimiters, raw URL/proxy control bytes, encoded URL path control bytes, Git-Protocol extra-parameter control bytes, and caller header control bytes, and construct git-daemon service requests from validated git:// URLs or explicit absolute repository URL paths with decoded URL components, upstream-style value-only or key=value extra parameters, no control bytes, decoded host delimiters, or malformed extra parameters, while preserving bracketed IPv6 virtual-host targets.',
+    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, accept smart HTTP receive-pack advertisements with or without the optional service announcement, surface receive-pack advertisement ERR packets before ref parsing, preflight SSH targets including bracketed IPv6 URLs and legacy ssh+git/git+ssh receive-pack URLs before handing streams to a caller-approved SSH adapter, normalize scp-like /~ repository paths before remote git-receive-pack command construction, pass protocol-v2 GIT_PROTOCOL and redacted credential-helper context metadata to an opted-in adapter without owning live SSH authentication, allow option-looking SSH hosts only when an explicit user makes the combined user@host argument safe, reject decoded SSH host/user delimiters including encoded at-sign or colon username delimiters, reject unsupported SSH URL passwords, reject legacy SSH hosts that look like command-line options without an explicit user, reject decoded smart HTTP credential control bytes, URL/proxy/no-proxy host delimiters, raw URL/proxy control bytes, encoded URL path control bytes, Git-Protocol extra-parameter control bytes, and caller header control bytes, and construct git-daemon service requests from validated git:// URLs or explicit absolute repository URL paths with decoded URL components, upstream-style value-only or key=value extra parameters, no control bytes, decoded host delimiters, or malformed extra parameters, while preserving bracketed IPv6 virtual-host targets.',
 ];

@@ -894,6 +894,48 @@ CSS;
             ],
         ], $result['references']);
     },
+    'css modules scopes upstream dashed property and font palette idents while preserving composes' => static function (TestRunner $t) use ($export, $dashed, $dependency): void {
+        $css = <<<'CSS'
+@property --foo {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: yellow;
+}
+
+@font-palette-values --Cooler {
+  font-family: Bixa;
+  base-palette: 1;
+  override-colors: 1 #7EB7E4;
+}
+
+.foo {
+  --foo: red;
+  font-palette: --Cooler;
+  composes: base from "tokens.css";
+  color: var(--foo);
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('@property --EgL3uq_foo{syntax:"<color>";inherits:false;initial-value:#ff0}@font-palette-values --EgL3uq_Cooler{font-family:Bixa;base-palette:1;override-colors:1 #7eb7e4}.EgL3uq_foo{--EgL3uq_foo:red;font-palette:--EgL3uq_Cooler;color:var(--EgL3uq_foo)}', $result['code']);
+        $t->same([
+            '--foo' => $dashed('--EgL3uq_foo', true),
+            '--Cooler' => $dashed('--EgL3uq_Cooler', true),
+            'foo' => $export('EgL3uq_foo', [$dependency('base', 'tokens.css')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $disabled = (new CssModulesTransformer())->transform($css);
+        $t->contains('@property --foo', $disabled['code']);
+        $t->contains('@font-palette-values --Cooler', $disabled['code']);
+        $t->contains('font-palette:--Cooler', $disabled['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo', [$dependency('base', 'tokens.css')]),
+        ], $disabled['exports']);
+    },
     'css modules scopes upstream view transition declaration idents' => static function (TestRunner $t) use ($export): void {
         $css = <<<'CSS'
 .card {

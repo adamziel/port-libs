@@ -459,6 +459,30 @@ CSS
             $t->same('.foo{color:' . $expected . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
         }
     },
+    'css minifier maps upstream color function color-mix value normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $spaces = [
+            'srgb-linear' => 'srgb-linear',
+            'xyz' => 'xyz',
+            'xyz-d50' => 'xyz-d50',
+            'xyz-d65' => 'xyz',
+        ];
+
+        foreach ($spaces as $inputSpace => $outputSpace) {
+            $cases = [
+                "color-mix(in {$inputSpace}, color({$inputSpace} .1 .2 .3), color({$inputSpace} .5 .6 .7))" => "color({$outputSpace} .3 .4 .5)",
+                "color-mix(in {$inputSpace}, color({$inputSpace} .1 .2 .3) 25%, color({$inputSpace} .5 .6 .7))" => "color({$outputSpace} .4 .5 .6)",
+                "color-mix(in {$inputSpace}, color({$inputSpace} .1 .2 .3), color({$inputSpace} .5 .6 .7) 25%)" => "color({$outputSpace} .2 .3 .4)",
+                "color-mix(in {$inputSpace}, color({$inputSpace} .1 .2 .3 / .5), color({$inputSpace} .5 .6 .7 / .8))" => "color({$outputSpace} .346154 .446154 .546154/.65)",
+                "color-mix(in {$inputSpace}, color({$inputSpace} .1 .2 .3) 12.5%, color({$inputSpace} .5 .6 .7) 37.5%)" => "color({$outputSpace} .4 .5 .6/.5)",
+                "color-mix(in {$inputSpace}, color({$inputSpace} none none none), color({$inputSpace} .5 .6 .7))" => "color({$outputSpace} .5 .6 .7)",
+            ];
+
+            foreach ($cases as $input => $expected) {
+                $t->same('.foo{color:' . $expected . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
+            }
+        }
+    },
     'css minifier maps upstream color-scheme value ordering' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

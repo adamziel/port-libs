@@ -1830,6 +1830,18 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media screen and (width > max(10px, 1rem)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
+            '@layer blocks{@media not (max-width:calc(1px + 1rem)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width > calc(1px + 1rem)) { .wp-block-query { color: yellow; } } }', ['chrome' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media (width>calc(1px + 1rem)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width > calc(1px + 1rem)) { .wp-block-query { color: yellow; } } }', ['firefox' => 64])
+        );
+        $t->same(
+            '@layer blocks{@media (not (max-width:100px)) and (not (min-width:calc(100vw - 50px))){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (100px < width < calc(100vw - 50px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
             '@layer blocks{@media (min-width:240px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media all and (width >= 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
@@ -1959,6 +1971,14 @@ CSS;
         $t->same(
             '@media only screen and (-webkit-min-device-pixel-ratio:1.3),only screen and (min--moz-device-pixel-ratio:1.3),only screen and (min-resolution:124.8dpi){.foo{color:#ff0}}',
             $prefixer->prefixForTargets('@media only screen and (min-resolution: 124.8dpi) { .foo { color: yellow; } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@layer blocks{@media (-webkit-min-device-pixel-ratio:2) and (-webkit-max-device-pixel-ratio:3),(min--moz-device-pixel-ratio:2) and (max--moz-device-pixel-ratio:3),(min-resolution:2dppx) and (max-resolution:3dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) and (max-resolution: 3dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@layer blocks{@media (not (-webkit-max-device-pixel-ratio:2)) and (not (-webkit-min-device-pixel-ratio:4)),(not (max-resolution:2dppx)) and (not (min-resolution:4dppx)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (resolution > 2dppx) and (resolution < 4dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15])
         );
     },
     'transition prefixer maps upstream resolution x unit serialization inside layers' => static function (TestRunner $t): void {

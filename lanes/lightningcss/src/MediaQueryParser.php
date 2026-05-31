@@ -504,7 +504,11 @@ final class MediaQueryParser
     private function foldSimpleCalc(string $value): string
     {
         if (preg_match('/^calc\(\s*([+-]?[0-9]+(?:\.[0-9]+)?)([a-zA-Z%]+)\s*([+-])\s*([0-9]+(?:\.[0-9]+)?)\2\s*\)$/', $value, $matches) !== 1) {
-            return preg_replace_callback('/^calc\(\s*(.+)\s*\)$/', static fn (array $m): string => 'calc(' . trim($m[1]) . ')', $value) ?? $value;
+            return preg_replace_callback(
+                '/^calc\(\s*(.+)\s*\)$/',
+                fn (array $m): string => 'calc(' . $this->normalizeCalcOperatorSpacing(trim($m[1])) . ')',
+                $value
+            ) ?? $value;
         }
 
         $left = (float) $matches[1];
@@ -512,6 +516,89 @@ final class MediaQueryParser
         $result = $matches[3] === '+' ? $left + $right : $left - $right;
 
         return $this->trimNumber((string) $result) . strtolower($matches[2]);
+    }
+
+    private function normalizeCalcOperatorSpacing(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $parenDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                $output = rtrim($output);
+                $output .= $char;
+                continue;
+            }
+
+            if ($parenDepth === 0 && ($char === '+' || $char === '-') && $this->isBinaryCalcAdditiveOperator($value, $i)) {
+                $output = rtrim($output) . ' ' . $char . ' ';
+                while (isset($value[$i + 1]) && ctype_space($value[$i + 1])) {
+                    $i++;
+                }
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $this->normalizeWhitespace($output);
+    }
+
+    private function isBinaryCalcAdditiveOperator(string $value, int $offset): bool
+    {
+        $previous = null;
+        for ($i = $offset - 1; $i >= 0; $i--) {
+            if (!ctype_space($value[$i])) {
+                $previous = $value[$i];
+                break;
+            }
+        }
+
+        $next = null;
+        for ($i = $offset + 1, $length = strlen($value); $i < $length; $i++) {
+            if (!ctype_space($value[$i])) {
+                $next = $value[$i];
+                break;
+            }
+        }
+
+        if ($previous === null || $next === null || str_contains('(,*/+-', $previous)) {
+            return false;
+        }
+
+        if (($previous === 'e' || $previous === 'E') && preg_match('/[0-9.]/', $value[$offset - 2] ?? '') === 1 && ctype_digit($next)) {
+            return false;
+        }
+
+        return true;
     }
 
     private function oppositeComparison(string $operator): string

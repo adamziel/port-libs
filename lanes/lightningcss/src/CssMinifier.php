@@ -12270,6 +12270,10 @@ final class CssMinifier
             return $this->minifyRectangularColorMixParts($space, $parts[1], $parts[2]);
         }
 
+        if (in_array($space, ['srgb-linear', 'xyz', 'xyz-d50', 'xyz-d65'], true) && $interpolation['hueMethod'] === null) {
+            return $this->minifyColorFunctionColorMixParts($space, $parts[1], $parts[2]);
+        }
+
         if ($space === 'hsl') {
             return $this->minifyHslColorMixParts($interpolation['hueMethod'] ?? 'shorter', $parts[1], $parts[2]);
         }
@@ -12307,7 +12311,7 @@ final class CssMinifier
             return null;
         }
 
-        if (!in_array($colorSpace, ['srgb', 'hsl', 'hwb', 'lab', 'lch', 'oklab', 'oklch'], true)) {
+        if (!in_array($colorSpace, ['srgb', 'srgb-linear', 'hsl', 'hwb', 'lab', 'lch', 'oklab', 'oklch', 'xyz', 'xyz-d50', 'xyz-d65'], true)) {
             return null;
         }
 
@@ -12383,6 +12387,42 @@ final class CssMinifier
         }
 
         return $this->serializeRectangularColorMixResult($space, $components, $resultAlpha);
+    }
+
+    private function minifyColorFunctionColorMixParts(string $space, string $leftStop, string $rightStop): ?string
+    {
+        $left = $this->parseColorFunctionColorMixStop($leftStop, $space);
+        $right = $this->parseColorFunctionColorMixStop($rightStop, $space);
+        if ($left === null || $right === null) {
+            return null;
+        }
+
+        [$leftWeight, $rightWeight] = $this->normalizedColorMixWeights($left['weight'], $right['weight']);
+        if ($leftWeight === null || $rightWeight === null) {
+            return null;
+        }
+
+        [$leftAlpha, $rightAlpha, $resultAlpha] = $this->resolveRectangularColorMixAlphas(
+            $left['color']['alpha'],
+            $right['color']['alpha'],
+            $leftWeight,
+            $rightWeight,
+        );
+        $componentAlpha = ($leftAlpha * $leftWeight) + ($rightAlpha * $rightWeight);
+        $components = [];
+        for ($index = 0; $index < 3; $index++) {
+            $components[] = $this->mixRectangularColorComponent(
+                $left['color']['components'][$index],
+                $right['color']['components'][$index],
+                $leftWeight,
+                $rightWeight,
+                $leftAlpha,
+                $rightAlpha,
+                $componentAlpha,
+            );
+        }
+
+        return $this->serializeColorFunctionColorMixResult($this->normalizeColorSpaceName($space), $components, $resultAlpha);
     }
 
     private function minifyPolarColorMixParts(string $space, string $hueMethod, string $leftStop, string $rightStop): ?string
@@ -12654,6 +12694,50 @@ final class CssMinifier
     }
 
     /**
+     * @return array{color:array{components:list<?float>,alpha:?float},weight:?float}|null
+     */
+    private function parseColorFunctionColorMixStop(string $stop, string $space): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($stop));
+        if ($tokens === []) {
+            return null;
+        }
+
+        $weight = null;
+        $firstWeight = $this->parseColorMixPercentage($tokens[0]);
+        if ($firstWeight !== null) {
+            $weight = $firstWeight;
+            array_shift($tokens);
+        }
+
+        if ($tokens !== []) {
+            $lastIndex = count($tokens) - 1;
+            $lastWeight = $this->parseColorMixPercentage($tokens[$lastIndex]);
+            if ($lastWeight !== null) {
+                if ($weight !== null) {
+                    return null;
+                }
+                $weight = $lastWeight;
+                array_pop($tokens);
+            }
+        }
+
+        if (count($tokens) !== 1) {
+            return null;
+        }
+
+        $color = $this->parseColorFunctionColorMixColor($tokens[0], $space);
+        if ($color === null) {
+            return null;
+        }
+
+        return [
+            'color' => $color,
+            'weight' => $weight,
+        ];
+    }
+
+    /**
      * @return array{color:array{lightness:?float,chroma:?float,hue:?float,alpha:?float},weight:?float}|null
      */
     private function parsePolarColorMixStop(string $stop, string $space): ?array
@@ -12802,6 +12886,45 @@ final class CssMinifier
         $components = [];
         foreach ($parts['components'] as $index => $component) {
             $value = $this->parseRectangularColorMixComponent($component, $index, $space);
+            if ($value === false) {
+                return null;
+            }
+            $components[] = $value;
+        }
+
+        $alpha = $this->parseRectangularColorMixAlpha($parts['alpha']);
+        if ($alpha === false) {
+            return null;
+        }
+
+        return [
+            'components' => $components,
+            'alpha' => $alpha,
+        ];
+    }
+
+    /**
+     * @return array{components:list<?float>,alpha:?float}|null
+     */
+    private function parseColorFunctionColorMixColor(string $token, string $space): ?array
+    {
+        if (preg_match('/^color\((.*)\)$/is', trim($token), $matches) !== 1) {
+            return null;
+        }
+
+        $parts = $this->parseAdvancedColorFunctionParts($matches[1]);
+        if ($parts === null || count($parts['components']) !== 4) {
+            return null;
+        }
+
+        $actualSpace = $this->normalizeColorSpaceName($parts['components'][0]);
+        if ($actualSpace !== $this->normalizeColorSpaceName($space)) {
+            return null;
+        }
+
+        $components = [];
+        foreach (array_slice($parts['components'], 1) as $component) {
+            $value = $this->parseColorFunctionColorMixComponent($component);
             if ($value === false) {
                 return null;
             }
@@ -13028,6 +13151,21 @@ final class CssMinifier
         return $this->parseAlphaComponent($alpha) ?? false;
     }
 
+    private function parseColorFunctionColorMixComponent(string $token): float|false|null
+    {
+        $token = trim($token);
+        if (strcasecmp($token, 'none') === 0) {
+            return null;
+        }
+
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return false;
+        }
+
+        return $number['isPercentage'] ? $number['value'] / 100 : $number['value'];
+    }
+
     /**
      * @return array{0:float,1:float,2:?float}
      */
@@ -13169,6 +13307,19 @@ final class CssMinifier
         }
 
         return $space . '(' . implode(' ', $serialized) . $this->serializeRectangularColorMixAlpha($alpha) . ')';
+    }
+
+    /**
+     * @param list<?float> $components
+     */
+    private function serializeColorFunctionColorMixResult(string $space, array $components, ?float $alpha): string
+    {
+        $serialized = [];
+        foreach ($components as $component) {
+            $serialized[] = $component === null ? 'none' : $this->minifyColorNumber($component, 6);
+        }
+
+        return 'color(' . $space . ' ' . implode(' ', $serialized) . $this->serializeRectangularColorMixAlpha($alpha) . ')';
     }
 
     private function serializePolarColorMixResult(

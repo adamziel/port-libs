@@ -69,6 +69,9 @@ final class CustomAtRuleTransformer
     /** @var callable|null */
     private $lengthVisitor = null;
 
+    /** @var callable|null */
+    private $urlVisitor = null;
+
     /** @var array<string, callable> */
     private array $tokenVisitors = [];
 
@@ -463,6 +466,24 @@ final class CustomAtRuleTransformer
 
                 return $changed ? $value : null;
             },
+            'Url' => static function (array $url, self $transformer) use ($visitors): mixed {
+                $value = $url;
+                $changed = false;
+                foreach ($visitors as $visitor) {
+                    $callback = self::urlVisitorCallback($visitor);
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($value, $transformer);
+                    if ($replacement !== null) {
+                        $value = $transformer->normalizeUrlVisitorValue($replacement, $value);
+                        $changed = true;
+                    }
+                }
+
+                return $changed ? $value : null;
+            },
         ];
     }
 
@@ -709,6 +730,7 @@ final class CustomAtRuleTransformer
         }
 
         $this->lengthVisitor = is_callable($visitor['Length'] ?? null) ? $visitor['Length'] : null;
+        $this->urlVisitor = is_callable($visitor['Url'] ?? null) ? $visitor['Url'] : null;
 
         $this->tokenVisitors = [];
         $this->genericTokenVisitor = null;
@@ -2597,6 +2619,16 @@ final class CustomAtRuleTransformer
         return is_callable($lengthConfig) ? $lengthConfig : null;
     }
 
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function urlVisitorCallback(array $visitor): ?callable
+    {
+        $urlConfig = $visitor['Url'] ?? null;
+
+        return is_callable($urlConfig) ? $urlConfig : null;
+    }
+
     private static function isUnknownRuleReplacement(mixed $replacement): bool
     {
         return is_array($replacement)
@@ -3360,6 +3392,16 @@ final class CustomAtRuleTransformer
             return $replacement === null ? null : $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
         }
 
+        if ($lower === 'url' && $this->urlVisitor !== null) {
+            $url = $this->parseUrlValue($argumentsCss, $raw);
+            $replacement = ($this->urlVisitor)($url, $this);
+
+            return $replacement === null ? null : [
+                'type' => 'url',
+                'value' => $this->normalizeUrlVisitorValue($replacement, $url),
+            ];
+        }
+
         return null;
     }
 
@@ -3532,6 +3574,9 @@ final class CustomAtRuleTransformer
         }
         if ($type === 'env') {
             return $this->serializeEnvironmentVariableValue(is_array($value['value'] ?? null) ? $value['value'] : $value);
+        }
+        if ($type === 'url') {
+            return $this->serializeUrlValue(is_array($value['value'] ?? null) ? $value['value'] : $value);
         }
         if ($type === 'function' && isset($value['value']) && is_array($value['value'])) {
             $function = $value['value'];
@@ -3764,6 +3809,58 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @return array{url:string,raw:string,loc:array{line:int,column:int}}
+     */
+    private function parseUrlValue(string $argumentsCss, string $raw): array
+    {
+        $url = trim($argumentsCss);
+        if (
+            strlen($url) >= 2
+            && (($url[0] === '"' && $url[strlen($url) - 1] === '"') || ($url[0] === "'" && $url[strlen($url) - 1] === "'"))
+        ) {
+            $url = stripcslashes(substr($url, 1, -1));
+        }
+
+        return [
+            'url' => $url,
+            'raw' => $raw,
+            'loc' => [
+                'line' => 1,
+                'column' => 1,
+            ],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $fallback
+     * @return array{url:string,raw?:string,loc?:array<string, int>}
+     */
+    private function normalizeUrlVisitorValue(mixed $replacement, array $fallback): array
+    {
+        if (is_string($replacement)) {
+            return array_replace($fallback, ['url' => $replacement]);
+        }
+
+        if (!is_array($replacement)) {
+            throw new \InvalidArgumentException('Url visitor must return a URL array, string, or null');
+        }
+
+        if (($replacement['type'] ?? null) === 'url' && is_array($replacement['value'] ?? null)) {
+            $replacement = $replacement['value'];
+        }
+
+        $url = $replacement['url'] ?? $fallback['url'] ?? '';
+        if (!is_string($url)) {
+            throw new \InvalidArgumentException('Url visitor replacement must contain a string url');
+        }
+
+        $normalized = array_replace($fallback, $replacement);
+        $normalized['url'] = $url;
+
+        return $normalized;
+    }
+
+    /**
      * @param array<string, mixed> $environmentVariable
      */
     private static function environmentVariableCallbackName(array $environmentVariable): string
@@ -3993,6 +4090,23 @@ final class CustomAtRuleTransformer
         }
 
         return 'env(' . $name . ',' . implode(',', array_map(fn (mixed $value): string => $this->serializeVisitorValue($value), $fallback)) . ')';
+    }
+
+    /**
+     * @param array<string, mixed> $url
+     */
+    private function serializeUrlValue(array $url): string
+    {
+        $value = (string) ($url['url'] ?? '');
+        if ($value === '') {
+            return 'url()';
+        }
+
+        if (preg_match('/[\s"\'()]/', $value) === 1) {
+            return 'url("' . addcslashes($value, "\\\"") . '")';
+        }
+
+        return 'url(' . $value . ')';
     }
 
     private function formatNumber(int|float $value): string

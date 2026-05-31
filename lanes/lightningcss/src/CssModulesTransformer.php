@@ -146,6 +146,14 @@ final class CssModulesTransformer
             return $this->rewriteCounterStylePrelude($prelude);
         }
 
+        if ($this->dashedIdents && preg_match('/^@property\b/i', $trimmedPrelude) === 1) {
+            return $this->rewriteDashedIdentAtRulePrelude($prelude, '@property');
+        }
+
+        if ($this->dashedIdents && preg_match('/^@font-palette-values\b/i', $trimmedPrelude) === 1) {
+            return $this->rewriteDashedIdentAtRulePrelude($prelude, '@font-palette-values');
+        }
+
         if ($this->container && $this->customIdents && preg_match('/^@container\b/i', $trimmedPrelude) === 1) {
             return $this->rewriteContainerPrelude($prelude);
         }
@@ -200,6 +208,29 @@ final class CssModulesTransformer
             . $matches[2]
             . substr($nameSource, 0, $leading)
             . $this->escapeCssIdentifier($this->scopedName($name))
+            . substr($nameSource, $token['end']);
+    }
+
+    private function rewriteDashedIdentAtRulePrelude(string $prelude, string $keyword): string
+    {
+        if (preg_match('/^(\s*' . preg_quote($keyword, '/') . '\b)(\s*)(.*)$/is', $prelude, $matches) !== 1) {
+            return $prelude;
+        }
+
+        $nameSource = $matches[3];
+        $leading = strspn($nameSource, " \t\r\n\f");
+        $token = $this->readCssIdentifierToken($nameSource, $leading);
+        if ($token === null || !str_starts_with($token['decoded'], '--')) {
+            return $prelude;
+        }
+
+        $name = $token['decoded'];
+        $this->ensureDashedExport($name, false);
+
+        return $matches[1]
+            . $matches[2]
+            . substr($nameSource, 0, $leading)
+            . $this->escapeCssIdentifier($this->scopedDashedName($name))
             . substr($nameSource, $token['end']);
     }
 
@@ -496,6 +527,7 @@ final class CssModulesTransformer
             'view-transition-name' => $this->rewriteViewTransitionNameValue($value),
             'view-transition-class' => $this->rewriteViewTransitionIdentList($value, ['none']),
             'view-transition-group' => $this->rewriteViewTransitionNameValue($value, ['contain']),
+            'font-palette' => $this->dashedIdents ? $this->rewriteFontPaletteValue($value) : null,
             default => null,
         };
     }
@@ -663,6 +695,21 @@ final class CssModulesTransformer
         $this->exports[$decoded]['isReferenced'] = true;
 
         return $this->customIdents ? $this->escapeCssIdentifier($this->scopedName($decoded)) : $token;
+    }
+
+    private function rewriteFontPaletteValue(string $value): ?string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '' || $this->isCssWideKeyword($trimmed) || in_array(strtolower($trimmed), ['normal', 'light', 'dark'], true)) {
+            return null;
+        }
+
+        $token = $this->readCssIdentifierToken($trimmed, 0);
+        if ($token === null || $token['end'] !== strlen($trimmed) || !str_starts_with($token['decoded'], '--')) {
+            return null;
+        }
+
+        return $this->escapeCssIdentifier($this->scopeDashedIdent($token['decoded'], true));
     }
 
     private function isCssWideKeyword(string $token): bool

@@ -94,6 +94,30 @@ CSS, [
     'pattern' => '[content-hash]-[local]',
 ]);
 
+$dashedIdentResult = (new CssModulesTransformer())->transform(<<<'CSS'
+@property --card-accent {
+  syntax: '<color>';
+  inherits: false;
+  initial-value: yellow;
+}
+
+@font-palette-values --card-palette {
+  font-family: Bixa;
+  base-palette: 1;
+  override-colors: 1 #7EB7E4;
+}
+
+.paletteCard {
+  --card-accent: red;
+  font-palette: --card-palette;
+  composes: card from "./cards.module.css";
+  color: var(--card-accent);
+}
+CSS, [
+    'hash' => 'BlockA',
+    'dashedIdents' => true,
+]);
+
 try {
     (new CssModulesTransformer())->transform(<<<'CSS'
 .card {
@@ -178,6 +202,8 @@ $actual = [
     'pureGlobal' => $pureGlobal,
     'contentHash' => $contentHashResult['code'],
     'contentHashExports' => $contentHashResult['exports'],
+    'dashedIdents' => $dashedIdentResult['code'],
+    'dashedIdentExports' => $dashedIdentResult['exports'],
 ];
 
 $expected = [
@@ -309,6 +335,30 @@ $expected = [
             'isReferenced' => false,
         ],
     ],
+    'dashedIdents' => '@property --BlockA_card-accent{syntax:"<color>";inherits:false;initial-value:#ff0}@font-palette-values --BlockA_card-palette{font-family:Bixa;base-palette:1;override-colors:1 #7eb7e4}.BlockA_paletteCard{--BlockA_card-accent:red;font-palette:--BlockA_card-palette;color:var(--BlockA_card-accent)}',
+    'dashedIdentExports' => [
+        '--card-accent' => [
+            'name' => '--BlockA_card-accent',
+            'composes' => [],
+            'isReferenced' => true,
+        ],
+        '--card-palette' => [
+            'name' => '--BlockA_card-palette',
+            'composes' => [],
+            'isReferenced' => true,
+        ],
+        'paletteCard' => [
+            'name' => 'BlockA_paletteCard',
+            'composes' => [
+                [
+                    'type' => 'dependency',
+                    'name' => 'card',
+                    'specifier' => './cards.module.css',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+    ],
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -330,3 +380,4 @@ echo 'invalid-local-composes: ' . $actual['invalidLocalComposes'] . PHP_EOL;
 echo 'pure-no-check: ' . $actual['pureNoCheck'] . PHP_EOL;
 echo 'pure-global: ' . $actual['pureGlobal'] . PHP_EOL;
 echo 'content-hash: ' . $actual['contentHash'] . PHP_EOL;
+echo 'dashed-idents: ' . $actual['dashedIdents'] . PHP_EOL;

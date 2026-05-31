@@ -87,7 +87,11 @@ return [
 
         $t->same('(width>=240px)', $parser->minifyList('(min-width: calc(200px + 40px))'));
         $t->same('(width>=calc(1em + 5px))', $parser->minifyList('(min-width: calc(1em + 5px))'));
+        $t->same('(width>=calc(1em + 5px))', $parser->minifyList('(min-width: calc(1em+5px))'));
         $t->same('(width>=6px)', $parser->minifyList('(width >= calc(2px + 4px))'));
+        $t->same('(width>calc(1px + 1rem))', $parser->minifyList('(width > calc(1px+1rem))'));
+        $t->same('not (max-width:calc(1px + 1rem))', $parser->lowerRangeSyntaxList('(width > calc(1px+1rem))'));
+        $t->same('(not (max-width:100px)) and (not (min-width:calc(100vw - 50px)))', $parser->lowerRangeSyntaxList('(100px < width < calc(100vw-50px))'));
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('&test, speech'));
     },
     'media query parser rejects upstream invalid range and feature syntax' => static function (TestRunner $t): void {

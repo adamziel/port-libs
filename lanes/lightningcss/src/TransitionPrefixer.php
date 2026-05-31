@@ -351,32 +351,23 @@ final class TransitionPrefixer
      */
     private function resolutionMediaQueryVariants(string $query, bool $needsWebkit, bool $needsMoz): array
     {
-        $match = $this->matchResolutionCondition($query);
-        if ($match === null) {
-            return [$query];
-        }
-
-        $ratio = $this->resolutionValueToDevicePixelRatio($match['value']);
-        if ($ratio === null) {
+        $matches = $this->matchResolutionConditions($query);
+        if ($matches === []) {
             return [$query];
         }
 
         $variants = [];
         if ($needsWebkit) {
-            $variants[] = substr_replace(
-                $query,
-                $this->resolutionPrefixCondition($match['bound'], $ratio, 'webkit', $match['negated']),
-                $match['offset'],
-                $match['length']
-            );
+            $variant = $this->replaceResolutionMediaQueryConditions($query, $matches, 'webkit');
+            if ($variant !== null) {
+                $variants[] = $variant;
+            }
         }
         if ($needsMoz) {
-            $variants[] = substr_replace(
-                $query,
-                $this->resolutionPrefixCondition($match['bound'], $ratio, 'moz', $match['negated']),
-                $match['offset'],
-                $match['length']
-            );
+            $variant = $this->replaceResolutionMediaQueryConditions($query, $matches, 'moz');
+            if ($variant !== null) {
+                $variants[] = $variant;
+            }
         }
         $variants[] = $query;
 
@@ -384,31 +375,51 @@ final class TransitionPrefixer
     }
 
     /**
-     * @return array{offset:int,length:int,bound:string,value:string,negated:bool}|null
+     * @return list<array{offset:int,length:int,bound:string,value:string,negated:bool}>
      */
-    private function matchResolutionCondition(string $query): ?array
+    private function matchResolutionConditions(string $query): array
     {
-        if (preg_match('/not \((min|max)-resolution:([^)]+)\)/i', $query, $matches, PREG_OFFSET_CAPTURE) === 1) {
-            return [
-                'offset' => $matches[0][1],
-                'length' => strlen($matches[0][0]),
-                'bound' => strtolower($matches[1][0]),
-                'value' => trim($matches[2][0]),
-                'negated' => true,
-            ];
+        if (preg_match_all('/not\s+\((min|max)-resolution:([^)]+)\)|\((min|max)-resolution:([^)]+)\)/i', $query, $all, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) !== false) {
+            $matches = [];
+            foreach ($all as $match) {
+                $negated = ($match[1][1] ?? -1) >= 0 && $match[1][0] !== '';
+                $matches[] = [
+                    'offset' => $match[0][1],
+                    'length' => strlen($match[0][0]),
+                    'bound' => strtolower($negated ? $match[1][0] : $match[3][0]),
+                    'value' => trim($negated ? $match[2][0] : $match[4][0]),
+                    'negated' => $negated,
+                ];
+            }
+
+            return $matches;
         }
 
-        if (preg_match('/\((min|max)-resolution:([^)]+)\)/i', $query, $matches, PREG_OFFSET_CAPTURE) !== 1) {
-            return null;
+        return [];
+    }
+
+    /**
+     * @param list<array{offset:int,length:int,bound:string,value:string,negated:bool}> $matches
+     */
+    private function replaceResolutionMediaQueryConditions(string $query, array $matches, string $vendor): ?string
+    {
+        $rewritten = $query;
+        for ($i = count($matches) - 1; $i >= 0; $i--) {
+            $match = $matches[$i];
+            $ratio = $this->resolutionValueToDevicePixelRatio($match['value']);
+            if ($ratio === null) {
+                return null;
+            }
+
+            $rewritten = substr_replace(
+                $rewritten,
+                $this->resolutionPrefixCondition($match['bound'], $ratio, $vendor, $match['negated']),
+                $match['offset'],
+                $match['length']
+            );
         }
 
-        return [
-            'offset' => $matches[0][1],
-            'length' => strlen($matches[0][0]),
-            'bound' => strtolower($matches[1][0]),
-            'value' => trim($matches[2][0]),
-            'negated' => false,
-        ];
+        return $rewritten;
     }
 
     private function resolutionPrefixCondition(string $bound, string $ratio, string $vendor, bool $negated): string

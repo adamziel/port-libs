@@ -2396,6 +2396,11 @@ return [
         $t->same(['LANG' => 'C', 'LC_ALL' => 'C'], $v1Context['environment']);
         $t->same(['deploy@git.example.test'], $v1Context['sshArguments']);
         $t->same('ssh://deploy@git.example.test/wp-content.git', $v1Context['credentialContext']->toUrl());
+        $optionLikeHostContext = SshReceivePackTransport::connectorContext('deploy@-git-proxy.example.test:wp-content.git', ['protocolVersion' => 2]);
+        $t->same('-git-proxy.example.test', $optionLikeHostContext['host']);
+        $t->same('deploy', $optionLikeHostContext['user']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@-git-proxy.example.test'], $optionLikeHostContext['sshArguments']);
+        $t->same("path=wp-content.git\nprotocol=ssh\nhost=-git-proxy.example.test\nusername=deploy\n", $optionLikeHostContext['credentialContext']->storageBytes());
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://example.test/repo.git', ['protocolVersion' => 0]));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://example.test/repo.git', ['protocolVersion' => 3]));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy:secret@git.example.test/repo.git'));
@@ -2443,6 +2448,18 @@ return [
             'port' => null,
             'path' => '~wp-content.git',
         ], SshReceivePackTransport::parseRepositoryUrl('git.example.test:/~wp-content.git'));
+        $t->same([
+            'host' => '-git-proxy.example.test',
+            'user' => 'deploy',
+            'port' => null,
+            'path' => 'wp-content.git',
+        ], SshReceivePackTransport::parseRepositoryUrl('deploy@-git-proxy.example.test:wp-content.git'));
+        $t->same([
+            'host' => '-arg',
+            'user' => 'user',
+            'port' => null,
+            'path' => '/p',
+        ], SshReceivePackTransport::parseRepositoryUrl('ssh://user@-arg/p'));
         $t->same('~/wp-content.git', SshReceivePackTransport::parseRepositoryUrl('ssh://git.example.test/~/wp-content.git')['path']);
         $t->same("git-receive-pack '~/wp-content.git'", SshReceivePackTransport::receivePackCommand('~/wp-content.git'));
         $t->same("git-receive-pack 'wp content/repo'\\''s.git'", SshReceivePackTransport::receivePackCommand("wp content/repo's.git"));
@@ -2454,7 +2471,6 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl("ssh://example.test/repo.git\n"));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://example.test/repo.git?service=git-receive-pack'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://-oProxyCommand=open$IFS-aCalculator/repo.git'));
-        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('user@-oProxyCommand=open$IFS-aCalculator:repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://-deploy@example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://bad%20host.example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://bad%2fhost.example.test/repo.git'));
@@ -2543,6 +2559,8 @@ return [
         $t->same('~/wp-content.git', $fixture['sshLegacySchemeTarget']['path']);
         $t->same('~wp-content.git', $fixture['sshLegacyGitSchemeTarget']['path']);
         $t->same('~wp-content.git', $fixture['sshScpLikeHomeTarget']['path']);
+        $t->same('-git-proxy.example.test', $fixture['sshOptionLikeHostWithUserTarget']['host']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@-git-proxy.example.test'], $fixture['sshOptionLikeHostWithUserContext']['sshArguments']);
         $t->same(true, $fixture['unsafeSshLegacyHostRejected']);
         $t->same(['GIT_PROTOCOL' => 'version=2', 'LANG' => 'C', 'LC_ALL' => 'C'], $fixture['sshProtocolV2Context']['environment']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@git.example.test'], $fixture['sshProtocolV2Context']['sshArguments']);
