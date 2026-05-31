@@ -18,6 +18,10 @@ Native loose Git object storage with canonical object headers, loose-header enco
 
 `examples/wordpress-commit-signature.php` parses a WordPress import/deploy commit body with author and committer actors, actor-only identity bytes, timezone offsets, `encoding`, a multiline signature header, extra-header position/count lookup, upstream-ordered commit token types, embedded release merge-tag header parsed as a native annotated tag object, commit summary/body, Signed-off-by/Co-authored-by/Acked-by/Reviewed-by/Tested-by trailers, standalone body trailer parsing, and signature-stripped signed payload bytes. The parser now also rejects commit bytes that never reach Gitoxide's required header/message separator, preventing truncated deployment provenance from being treated as an empty-message commit. Focused trailer coverage now follows Gitoxide's vertical-tab handling for blank trailer separators, folded trailer continuations, and leading/trailing value trim, so odd imported commit metadata is parsed consistently with upstream instead of PHP locale behavior. The BodyRef-style helpers expose direct trailer parsing for review notes that are not full commit objects, including sole-body trailers and cherry-pick markers that affect footer detection without becoming parsed trailers. The example now emits Gitoxide-style commit storage bytes, exact size, commit object bytes, and storage/object SHA-1 hashes for provenance roundtrips. It also preflights malformed imported commits by rejecting reordered actor headers and treating late `parent`/`encoding` lines as extra headers, matching `gix-object` instead of silently accepting ambiguous provenance. The fixture covers legacy raw actor offsets such as `+051800` and malformed `--700`, preserving the raw commit bytes while exposing Gitoxide-style parsed time access for review tools. The latest identity slice exposes `name <email>` bytes separately from timestamp parsing so migration review tools can compare importer identities without conflating timezone anomalies. This models migration and deployment tooling that needs `git log`-style provenance, signed-commit metadata, structured commit token inspection, release-tag target/kind/tagger/message provenance, importer/reviewer/tester attribution, actor identity comparison, standalone migration-review trailer parsing, malformed-import and timestamp preflight, and canonical commit object hashing without invoking the Git binary.
 
+The commit signature example now also records whitespace-preserving multiline
+`gpgsig` signed-data stripping and old multi-`gpgsig` header round trips, keeping
+the native verifier boundary aligned with Gitoxide commit parsing.
+
 ## WordPress Annotated Tag Example
 
 `examples/wordpress-annotated-tag.php` parses, tokenizes, sizes, hashes, and roundtrips a signed WordPress release tag as native tag object bytes. It now preflights a draft release name with `GitTag::isValidName()`, sanitizes it with gix-validate tag-name rules, and proves the sanitized name is writable before constructing a release tag. This models deployment tooling that needs to reject or normalize invalid import/export labels, prepare valid release tags, verify release-tag provenance, and compare object identity without invoking `git tag`, `git cat-file`, or ad hoc tag-body regexes.
@@ -151,6 +155,13 @@ release-candidate ref into a packed tag object and peels it to the release
 commit. This models release tooling resolving symbolic deployment refs through
 packed tags without invoking Git.
 
+## WordPress Reflog Audit Example
+
+`examples/wordpress-reflog-audit.php` appends and parses deployment reflog
+entries forward and newest-first, including committer trimming and rollback
+message inspection. This models deployment audit tooling that would otherwise
+shell out to `git reflog`.
+
 The same example now keeps a long-lived path-backed reference store open while another process replaces and removes `packed-refs`. The store refreshes its parsed packed-ref buffer before subsequent lookups, so a WordPress deployment worker does not keep publishing decisions from stale compacted refs after another deploy process rewrites the packed ref file.
 
 ## WordPress Tree Merge Example
@@ -190,6 +201,13 @@ The merge fixture mapping now includes the upstream multiple-merge-bases shape. 
 The sparse-checkout example now also covers bounded Gitoxide pathspec rules, so
 deployment tooling can include, exclude, and case-match WordPress content paths
 without invoking the Git binary.
+
+## WordPress Index Cache-Tree Example
+
+`examples/wordpress-index-cache-tree.php` writes and reads a native checkout
+index with a `TREE` cache extension, sparse checkout skip-worktree flags, and
+cache-tree entry counts. This models WordPress package checkout tooling keeping
+index metadata consistent without invoking Git.
 
 ## WordPress Config Include Example
 

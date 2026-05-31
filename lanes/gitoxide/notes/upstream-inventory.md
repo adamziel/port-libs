@@ -1045,3 +1045,19 @@ Loose-integrity/packed-peeling batch accepted on 2026-05-31:
 - The mapped denominator moves from `1498 / 2886` to `1500 / 2886` for the two
   distinct upstream-backed behavior slices. Full Cargo workspace tests were not
   run for this slice.
+
+Gpgsig/reflog/index batch accepted on 2026-05-31:
+
+- Source commit `377ff7d844d678bb02008f1be07734052779cde3` integrates three
+  Gitoxide handoffs without taking their stale shared metadata edits. The
+  accepted source slices cover commit `gpgsig` signed-data range stripping,
+  reflog append/parse parity including SHA-256 entries, and index/cache-tree
+  round-trip plus sparse checkout skip-worktree flags.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  commit/reflog/index tests `4 files / 695 assertions / 0 failures`, full
+  Gitoxide lane tests `36 files / 3273 assertions / 0 failures`, and three
+  touched examples exiting 0.
+- The mapped denominator moves from `1500 / 2886` to `1503 / 2886` for the
+  three distinct upstream-backed behavior slices. Full Cargo workspace tests
+  were not run for this slice.

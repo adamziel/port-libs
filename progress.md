@@ -51,6 +51,19 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (Gitoxide batch sample 09:02 UTC):
+  Gitoxide source commit `377ff7d844d678bb02008f1be07734052779cde3`
+  (`gitoxide: add reflog index and gpgsig slices`) landed three handoffs after
+  excluding stale shared metadata: commit `gpgsig` signed-data range stripping,
+  reflog append/parse parity including SHA-256 entries, and index/cache-tree
+  round-trip plus sparse checkout skip-worktree flags. Verification passed PHP
+  lint for changed Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused commit/reflog/index tests `4 files / 695 assertions / 0 failures`,
+  full Gitoxide lane `36 files / 3273 assertions / 0 failures`, and three
+  touched examples. Public Gitoxide evidence should move from `3161` to `3273
+  pass / 0 fail`; mapped coverage moves from `1500 / 2886` to `1503 / 2886`.
+  This is still not full Cargo workspace pass parity.
+
 - 2026-05-31 supervisor continuation (Gitoxide batch sample 08:55 UTC):
   Gitoxide source commit `d47dc133c424b595a26aa0ce415c78f1aa11abeb`
   (`gitoxide: add loose integrity and packed ref peeling`) landed two handoffs
