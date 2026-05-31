@@ -52,6 +52,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS integration 14:30 UTC):
+  source commit `de2bdca74cebaa7aa23bfc409149ef9c4d7bb1d4`
+  (`ports: add lightningcss media grid flex parity`) landed four verified
+  LightningCSS handoffs after excluding stale shared
+  status/manifest/progress metadata. LightningCSS full lane evidence moves
+  from `1683` to `1759 pass / 0 fail`, with conservative mapped coverage
+  moving from `1175 / 3532` to `1232 / 3532`: +16 invalid media
+  range/condition validation cases, +8 grid-template longhand composition
+  cases, and +33 flex longhand/box-alignment target-prefix cases. The typed
+  media-query validation handoff is verified but counted inside the same
+  invalid-media cluster to avoid double-counting. Verification passed PHP lint
+  on changed/new LightningCSS PHP files, diff checks, focused LightningCSS
+  gate `3 files / 1177 assertions / 0 failures`, full LightningCSS lane `13
+  files / 1759 assertions / 0 failures`, and four touched examples. Full
+  upstream LightningCSS Rust/Node runners were not run for this isolated
+  batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS integration 14:18 UTC):
   source commit `2dc30de6add1847dadae8185f66c50e6a6668ac1`
   (`ports: add lightningcss cssom color modules parity`) landed four verified
