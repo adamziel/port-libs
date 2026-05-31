@@ -54,6 +54,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS modules/CSSOM/maps plus
+  Gitoxide transport batch 19:34 UTC): source commit
+  `f0935a5090aca2b325dcf9c7061212b30d29143b` (`ports: extend lightningcss
+  modules cssom maps and gitoxide transport`) landed six screened
+  LightningCSS handoffs and two Gitoxide handoffs. LightningCSS now reports
+  `3764 pass / 0 fail`, with conservative mapped coverage moving from `1961 /
+  3532` to `1965 / 3532`: one SourceMap empty generated-line negative
+  column-offset no-op behavior plus three overflow shorthand target-boundary
+  helper cases; CSS Modules composes-only exports, MS-prefixed transition
+  CSSOM, raw resolver filesystem path identity, and custom at-rule
+  parser/visitor composition deepen already represented clusters. Gitoxide now
+  reports `5294 pass / 0 fail`, with mapped coverage moving from `1621 / 2886`
+  to `1623 / 2886` on smart HTTP proxy credential/header scoping parity and
+  SSH receive-pack protocol-v2 auth-boundary context behavior. Verification
+  passed PHP lint on 25 changed/new PHP files, `git diff --check`, no
+  WordPress/WP/wp_ symbols in changed lane `src` trees, eight touched example
+  smoke runs, full LightningCSS lane `13 files / 3764 assertions / 0
+  failures`, and full Gitoxide lane `39 files / 5294 assertions / 0 failures`.
+  Full upstream Rust/Node/WASM/Cargo runners were not executed for this
+  isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS CSSOM/media/prefix plus
   Gitoxide transport batch 19:26 UTC): source commit
   `433042179d9051240c50e68e81ce9dcd5745a707` (`ports: extend lightningcss
