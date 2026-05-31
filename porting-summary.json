@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-31 11:37:43 UTC",
-    "sourceCommit": "ee5f118ab55ca11585062e478bb905d900e93d0b",
-    "sourceCommitShort": "ee5f118ab55c",
+    "generated": "2026-05-31 11:43:59 UTC",
+    "sourceCommit": "1f61e41049a254ab4c49cf409de971c1a3ce8d4c",
+    "sourceCommitShort": "1f61e41049a2",
     "sourceBranch": "main",
-    "dashboardCommit": "c56f8523c284716efec9d56d97cfa61a3c8c467c",
-    "dashboardCommitShort": "c56f8523c284",
-    "averageProgressPercent": "86.3",
+    "dashboardCommit": "aefc01918dd1f636205e8b5a29345b5a92cbc070",
+    "dashboardCommitShort": "aefc01918dd1",
+    "averageProgressPercent": "86.4",
     "lanes": [
         {
             "library": "difftastic",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "72.0",
+            "progressPercent": "74.0",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "927",
-            "coverage": "927 / 3532",
-            "php": "1088 pass / 0 fail",
+            "mapped": "948",
+            "coverage": "948 / 3532",
+            "php": "1154 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "static upstream inventory plus upstream Rust/Node/WASM...",
-            "audit": "audited 2026-05-26",
-            "currentWork": "Native custom-media transformation now treats CSS comments as inert while collecting, del...",
-            "nextTarget": "Continue custom-media transformer parity around remaining preserve-mode and diagnostic ed...",
+            "audit": "audited 2026-05-31",
+            "currentWork": "Native LightningCSS now implements focused upstream bundle/import graph behavior, CSS Mod...",
+            "nextTarget": "Continue current-base LightningCSS handoffs for CSSOM declaration read/write, custom at-r...",
             "blocker": "No current LightningCSS implementation blocker for this slice.",
-            "commit": "cd2e8a0"
+            "commit": "1f61e41"
         },
         {
             "library": "markerPDF",
