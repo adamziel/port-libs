@@ -205,6 +205,31 @@ $withScenarios(
 );
 
 $withScenarios(
+    static fn (): array => SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledReopenedPrefixSuccessScenarios(4),
+    static function (array $scenarios) use (&$summary): void {
+        $summary['rollbackDisabledReopenedPrefixSuccessScenarioCount'] = count($scenarios);
+        $summary['rollbackDisabledReopenedPrefixSuccessStatuses'] = array_map(static fn (array $scenario): string => $scenario['reopened_success_plan']['status'], $scenarios);
+        $summary['rollbackDisabledReopenedPrefixSuccessWalFramesBefore'] = array_map(static fn (array $scenario): int => $scenario['reopened_success_plan']['wal_frame_count_before'], $scenarios);
+        $summary['rollbackDisabledReopenedPrefixSuccessWalFramesAfter'] = array_map(static fn (array $scenario): int => $scenario['reopened_success_plan']['wal_frame_count_after'], $scenarios);
+        $summary['rollbackDisabledReopenedPrefixSuccessMaterializedFrames'] = array_map(static fn (array $scenario): int => $scenario['reopened_success_plan']['materialized_wal_frame_count'], $scenarios);
+        $summary['rollbackDisabledReopenedPrefixSuccessPages'] = array_map(static fn (array $scenario): array => array_column($scenario['reopened_success_plan']['import_plan']['applied'], 'page_number'), $scenarios);
+        $summary['rollbackDisabledReopenedPrefixSuccessInsertedKeys'] = array_map(static fn (array $scenario): string => $scenario['reopened_success_plan']['import_plan']['applied'][1]['key_name'], $scenarios);
+        $summary['rollbackDisabledReopenedPrefixSuccessPreviousRecoveryKeysRetained'] = array_map(
+            static fn (array $scenario): bool => in_array($scenario['expected_previous_recovery_inserted_key'], array_column($scenario['reopened_success_plan']['import_plan']['final_rows'], 'key_name'), true),
+            $scenarios
+        );
+        $summary['rollbackDisabledReopenedPrefixSuccessPriorTailKeysRetained'] = array_map(
+            static fn (array $scenario): bool => in_array($scenario['rejected_prior_tail_inserted_key'], array_column($scenario['reopened_success_plan']['import_plan']['final_rows'], 'key_name'), true),
+            $scenarios
+        );
+        $summary['rollbackDisabledReopenedPrefixSuccessPostTailKeysRetained'] = array_map(
+            static fn (array $scenario): bool => in_array($scenario['rejected_post_recovery_tail_inserted_key'], array_column($scenario['reopened_success_plan']['import_plan']['final_rows'], 'key_name'), true),
+            $scenarios
+        );
+    }
+);
+
+$withScenarios(
     static fn (): array => SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupScenarios(4),
     static function (array $scenarios) use (&$summary): void {
         $summary['rollbackDisabledFollowupScenarioCount'] = count($scenarios);
@@ -316,6 +341,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['fullRunMaterializedWalScenarioCount'] === 4);
     assert($summary['committedPrefixFailureScenarioCount'] === 4);
     assert($summary['rollbackDisabledMaterializedWalScenarioCount'] === 4);
+    assert($summary['rollbackDisabledReopenedPrefixSuccessScenarioCount'] === 4);
     assert($summary['rollbackDisabledFollowupScenarioCount'] === 4);
     assert($summary['rollbackDisabledFollowupFailureScenarioCount'] === 4);
     assert($summary['rollbackDisabledFollowupRecoveryScenarioCount'] === 4);
@@ -364,6 +390,15 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['rollbackDisabledMaterializedWalFramesAfter'] === [4, 5, 6, 3]);
     assert($summary['rollbackDisabledMaterializedWalAppliedPages'][0] === [63, 1321]);
     assert($summary['rollbackDisabledMaterializedWalFailedStatements'][0] === ['disabled_rollback_broken_payload_1']);
+    assert($summary['rollbackDisabledReopenedPrefixSuccessStatuses'] === array_fill(0, 4, 'ready'));
+    assert($summary['rollbackDisabledReopenedPrefixSuccessWalFramesBefore'] === [10, 11, 12, 9]);
+    assert($summary['rollbackDisabledReopenedPrefixSuccessWalFramesAfter'] === [13, 14, 15, 12]);
+    assert($summary['rollbackDisabledReopenedPrefixSuccessMaterializedFrames'] === array_fill(0, 4, 3));
+    assert($summary['rollbackDisabledReopenedPrefixSuccessPages'][0] === [1321, 2121, 1921]);
+    assert($summary['rollbackDisabledReopenedPrefixSuccessInsertedKeys'][0] === 'disabled_reopened_prefix_success_payload_1');
+    assert($summary['rollbackDisabledReopenedPrefixSuccessPreviousRecoveryKeysRetained'] === array_fill(0, 4, true));
+    assert($summary['rollbackDisabledReopenedPrefixSuccessPriorTailKeysRetained'] === array_fill(0, 4, false));
+    assert($summary['rollbackDisabledReopenedPrefixSuccessPostTailKeysRetained'] === array_fill(0, 4, false));
     assert($summary['rollbackDisabledFollowupStatuses'] === array_fill(0, 4, 'ready'));
     assert($summary['rollbackDisabledFollowupWalFramesBefore'] === [4, 5, 6, 3]);
     assert($summary['rollbackDisabledFollowupWalFramesAfter'] === [6, 7, 8, 5]);

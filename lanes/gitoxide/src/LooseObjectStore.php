@@ -89,10 +89,7 @@ final class LooseObjectStore
 
         $this->assertWithinAllocationLimit($compressed, strtolower($oid));
 
-        $bytes = gzuncompress($compressed);
-        if ($bytes === false) {
-            throw new \RuntimeException("Unable to inflate loose object: {$oid}");
-        }
+        $bytes = self::inflateStorageBytesExactly($compressed, strtolower($oid));
 
         return GitObject::fromStorageBytes($bytes);
     }
@@ -344,6 +341,69 @@ final class LooseObjectStore
         }
 
         throw new \InvalidArgumentException('Did not find 0 byte in header');
+    }
+
+    private static function inflateStorageBytesExactly(string $compressed, string $oid): string
+    {
+        if ($compressed === '') {
+            throw new \RuntimeException("Unable to inflate loose object: {$oid}");
+        }
+
+        $context = inflate_init(ZLIB_ENCODING_DEFLATE);
+        if ($context === false) {
+            throw new \RuntimeException('Unable to initialize zlib inflate context');
+        }
+
+        $inflated = '';
+        $expectedLength = null;
+        $offset = 0;
+        $length = strlen($compressed);
+        while ($offset < $length) {
+            $remainingInflated = $expectedLength === null ? self::HEADER_MAX_SIZE : $expectedLength - strlen($inflated);
+            $chunkSize = $remainingInflated <= self::HEADER_MAX_SIZE ? 16 : 8192;
+            $chunk = substr($compressed, $offset, $chunkSize);
+            $offset += strlen($chunk);
+            $decoded = @inflate_add($context, $chunk, $offset >= $length ? ZLIB_FINISH : ZLIB_NO_FLUSH);
+            if ($decoded === false) {
+                throw new \RuntimeException("Unable to inflate loose object: {$oid}");
+            }
+
+            if ($decoded === '') {
+                continue;
+            }
+
+            $inflated .= $decoded;
+            if ($expectedLength === null) {
+                $nul = strpos($inflated, "\0");
+                if ($nul === false) {
+                    if (strlen($inflated) >= self::HEADER_MAX_SIZE) {
+                        throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
+                    }
+                    continue;
+                }
+                if ($nul + 1 > self::HEADER_MAX_SIZE) {
+                    throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
+                }
+
+                $header = GitObject::decodeLooseHeader(substr($inflated, 0, $nul + 1));
+                $expectedLength = $header['headerLength'] + $header['size'];
+            }
+
+            if ($expectedLength !== null && strlen($inflated) > $expectedLength) {
+                throw new \RuntimeException("Loose object inflated size mismatch: expected {$expectedLength}, got " . strlen($inflated));
+            }
+        }
+
+        if ($expectedLength === null) {
+            throw new \InvalidArgumentException('Did not find 0 byte in header');
+        }
+
+        $actualLength = strlen($inflated);
+        if ($actualLength !== $expectedLength) {
+            throw new \RuntimeException("Loose object inflated size mismatch: expected {$expectedLength}, got {$actualLength}");
+        }
+
+        return $inflated;
     }
 
     private static function decodeForIntegrity(GitObject $object, string $oid): void

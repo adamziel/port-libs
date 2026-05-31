@@ -999,6 +999,78 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
     }
 
     /** @return array<string,mixed> */
+    public static function trigger1RaiseDatatypeCorpus(): array
+    {
+        $cases = [];
+        foreach (range(1, 250) as $seed) {
+            $acceptedKey = $seed + 1000;
+            $textKey = 'abc-' . $seed;
+            $initialRow = ['a' => $acceptedKey, 'b' => $seed + 2, 'c' => $seed + 3];
+            $acceptedInsertRow = ['a' => $acceptedKey + 1, 'b' => $seed + 4, 'c' => $seed + 5];
+            $rejectedInsertRow = ['a' => $textKey, 'b' => $seed + 6, 'c' => $seed + 7];
+
+            $cases[] = [
+                'case' => 'trigger1-11.1/15.1/15.2-' . $seed,
+                'source' => 'trigger1.test',
+                'variant' => $seed,
+                'scenarios' => ['trigger1-11.1', 'trigger1-15.1', 'trigger1-15.2'],
+                'raise_outside_trigger' => [
+                    'statement' => "SELECT raise(abort,'message')",
+                    'ok' => false,
+                    'error' => 'RAISE() may only be used within a trigger-program',
+                    'trigger_program_context_required' => true,
+                    'side_effect_count' => 0,
+                ],
+                'before_update_integer_primary_key' => [
+                    'table' => 'tA',
+                    'trigger' => 'tA_trigger',
+                    'trigger_timing' => 'BEFORE UPDATE',
+                    'trigger_body' => 'SELECT 1',
+                    'old_row' => $initialRow,
+                    'assignment' => ['a' => $textKey],
+                    'ok' => false,
+                    'status' => 'datatype-mismatch',
+                    'error' => 'datatype mismatch',
+                    'integer_primary_key_column' => 'a',
+                    'trigger_installed' => true,
+                    'statement_rolled_back' => true,
+                    'row_after_statement' => $initialRow,
+                    'trigger_side_effect_count' => 0,
+                    'text_key_rejected_before_storage' => true,
+                ],
+                'insert_integer_primary_key' => [
+                    'table' => 'tA',
+                    'trigger' => 'tA_trigger',
+                    'trigger_timing' => 'BEFORE UPDATE',
+                    'trigger_body' => 'SELECT 1',
+                    'accepted_integer_row' => $acceptedInsertRow,
+                    'rejected_text_row' => $rejectedInsertRow,
+                    'ok' => false,
+                    'status' => 'datatype-mismatch',
+                    'error' => 'datatype mismatch',
+                    'integer_insert_visible' => true,
+                    'text_insert_visible' => false,
+                    'rows_after_statement' => [$initialRow, $acceptedInsertRow],
+                    'trigger_side_effect_count' => 0,
+                    'text_key_rejected_before_storage' => true,
+                ],
+            ];
+        }
+
+        return [
+            'source' => 'trigger1.test',
+            'scenarios' => ['trigger1-11.1', 'trigger1-15.1', 'trigger1-15.2'],
+            'cases' => $cases,
+            'dependencies' => [
+                'sqlite-upstream-trigger1-raise-only-inside-trigger-program',
+                'sqlite-upstream-trigger1-before-update-does-not-mask-ipk-datatype-mismatch',
+                'sqlite-upstream-trigger1-before-insert-does-not-mask-ipk-datatype-mismatch',
+                'sqlite-upstream-trigger1-datatype-mismatch-preserves-row-images',
+            ],
+        ];
+    }
+
+    /** @return array<string,mixed> */
     public static function trigger2ConflictPropagation(): array
     {
         $insertCases = [

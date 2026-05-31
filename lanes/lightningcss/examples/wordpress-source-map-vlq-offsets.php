@@ -73,10 +73,17 @@ $themeJsonMap->addEmptyMap(
     1
 );
 
+$inlineEditorMap = new SourceMap();
+$inlineEditorSource = $inlineEditorMap->addSource('wp-content/themes/example/editor-inline.css');
+$inlineEditorMap->setSourceContent($inlineEditorSource, ".wp-block-spacer {\n  margin-top: 1rem;\n}\n");
+$inlineEditorMap->addMapping(0, 0, $inlineEditorSource, 0, 0);
+$inlineEditorMap->offsetLines(1, 2);
+
 $actual = [
     'css' => $code,
     'map' => $map->toJson(null, false),
     'emptyMap' => $themeJsonMap->toJson(null, false),
+    'lineSpanMap' => $inlineEditorMap->toJson(null, false),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -84,6 +91,7 @@ if (($argv[1] ?? null) === '--self-test') {
         'css' => $code,
         'map' => '{"version":3,"mappings":";;;;;oBCKA,2BAGA,8CDPA","sources":["wp-content/themes/example/style.css","wp-content/themes/example/blocks.css"],"sourcesContent":["@import \"blocks.css\";\n.theme-footer {\n  color: green;\n}","/*! Theme package license */\n/*!\n * Block editor stylesheet generated from theme.json\n * Keep comments for distribution compliance.\n */\n.wp-block-cover {\n  color: yellow;\n}\n.wp-block-cover .wp-block-button {\n  margin: 1rem;\n}"],"names":[]}',
         'emptyMap' => '{"version":3,"mappings":";AAAA;AACA;AACA","sources":["wp-content/themes/example/theme-json.css"],"sourcesContent":[":root {\n  --wp--style--global--content-size: 720px;\n}\n"],"names":[]}',
+        'lineSpanMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/editor-inline.css"],"sourcesContent":[".wp-block-spacer {\n  margin-top: 1rem;\n}\n"],"names":[]}',
     ];
 
     if ($actual !== $expected) {

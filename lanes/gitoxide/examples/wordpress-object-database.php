@@ -85,6 +85,25 @@ try {
         && str_contains($exception->getMessage(), 'Loose object path is not a regular file');
 }
 
+$sizeMismatchGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-size-mismatch-' . bin2hex(random_bytes(4)) . '/.git';
+$sizeMismatchOid = hash('sha1', "blob 3\0abc");
+$sizeMismatchPath = $sizeMismatchGitDir . '/objects/' . substr($sizeMismatchOid, 0, 2) . '/' . substr($sizeMismatchOid, 2);
+if (!mkdir(dirname($sizeMismatchPath), 0777, true) && !is_dir(dirname($sizeMismatchPath))) {
+    throw new RuntimeException("Unable to create loose object size-mismatch directory: " . dirname($sizeMismatchPath));
+}
+$sizeMismatchBytes = gzcompress("blob 3\0abcdef");
+if ($sizeMismatchBytes === false) {
+    throw new RuntimeException('Unable to compress loose object size-mismatch fixture');
+}
+file_put_contents($sizeMismatchPath, $sizeMismatchBytes);
+$looseIntegritySizeMismatchRejected = false;
+try {
+    (new ObjectDatabase($sizeMismatchGitDir))->verifyLooseIntegrity();
+} catch (RuntimeException $exception) {
+    $looseIntegritySizeMismatchRejected = str_contains($exception->getMessage(), "Loose object {$sizeMismatchOid} could not be read exactly")
+        && str_contains($exception->getMessage(), 'Loose object inflated size mismatch');
+}
+
 return [
     'packedObjects' => $database->packedObjectCount(),
     'totalIterableObjects' => count($database->objectIds()),
@@ -119,4 +138,5 @@ return [
     'sha256LooseIntegrityObjects' => $sha256Integrity[0]['statistics']['numObjects'],
     'sha256LooseIntegrityVerified' => in_array($sha256Oid, $sha256Integrity[0]['statistics']['verifiedObjectIds'], true),
     'looseIntegrityDirectoryBlockerRejected' => $looseIntegrityDirectoryBlockerRejected,
+    'looseIntegritySizeMismatchRejected' => $looseIntegritySizeMismatchRejected,
 ];

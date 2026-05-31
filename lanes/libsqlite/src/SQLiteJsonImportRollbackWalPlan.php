@@ -2379,6 +2379,122 @@ final class SQLiteJsonImportRollbackWalPlan
     /**
      * @return list<array<string,mixed>>
      */
+    public static function dynamicRollbackDisabledReopenedPrefixSuccessScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL rollback-disabled reopened-prefix success dynamic parity requires at least one scenario');
+        }
+
+        return self::dynamicRollbackDisabledReopenedPrefixSuccessScenariosFrom(
+            self::dynamicRollbackDisabledPostRecoveryRecoveryScenarios($scenarioCount)
+        );
+    }
+
+    /**
+     * @param list<array<string,mixed>> $baseScenarios
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicRollbackDisabledReopenedPrefixSuccessScenariosFrom(array $baseScenarios): array
+    {
+        if ($baseScenarios === []) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL rollback-disabled reopened-prefix success dynamic parity requires base scenarios');
+        }
+
+        $scenarios = [];
+        foreach ($baseScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $tenantId = (int) $base['tenant_id'];
+            $pageSize = (int) $base['page_size'];
+            $jsonbMode = (bool) $base['jsonb_mode'];
+            $previousRecoveryPlan = $base['post_recovery_recovery_plan'];
+            $committedPrefixFrameCount = (int) $previousRecoveryPlan['wal_frame_count_after'];
+            $catalogPage = (int) $base['expected_recovery_pages'][0];
+            $previousRecoveryInsertPage = (int) $base['expected_recovery_pages'][1];
+            $reopenedInsertPage = 2120 + $seed;
+            $reopenedFrameStart = $committedPrefixFrameCount + 1;
+            $committedPrefixPages = array_merge(
+                $base['committed_prefix_pages'],
+                $base['expected_recovery_pages']
+            );
+
+            $reopenedRows = $previousRecoveryPlan['import_plan']['final_rows'];
+            $reopenedMutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_reopened_success_catalog_' . $seed,
+                    'key_name' => 'disabled_rollback_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.reopened_success',
+                    'value' => 'committed-after-reopened-prefix-' . $seed,
+                    'wal_frame_index' => $reopenedFrameStart,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_reopened_success_insert_' . $seed,
+                    'key_name' => 'disabled_reopened_prefix_success_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.committed',
+                    'value' => true,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $seed * 10000 + 9,
+                    'insert_load_policy' => 'auto',
+                    'initial_value' => '{}',
+                    'page_number' => $reopenedInsertPage,
+                    'wal_frame_index' => $reopenedFrameStart + 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_reopened_success_previous_recovery_' . $seed,
+                    'key_name' => $base['expected_recovery_inserted_key'],
+                    'function' => 'json_set',
+                    'path' => '$.reopened_success_seen',
+                    'value' => true,
+                    'page_number' => $previousRecoveryInsertPage,
+                    'wal_frame_index' => $reopenedFrameStart + 2,
+                ],
+            ];
+
+            $reopenedSuccessPlan = self::plan($reopenedRows, $reopenedMutations, [
+                'database_bytes' => (string) $previousRecoveryPlan['database_bytes_after_import'],
+                'page_size' => $pageSize,
+                'wal_bytes' => (string) $previousRecoveryPlan['wal_bytes_after'],
+                'transaction' => 'application_disabled_reopened_success_json_import_' . $seed,
+                'savepoint' => 'disabled_reopened_success_json_batch_' . $seed,
+                'pre_savepoint_wal_pages' => $committedPrefixPages,
+                'materialize_success_wal_frames' => true,
+            ]);
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $tenantId,
+                'page_size' => $pageSize,
+                'jsonb_mode' => $jsonbMode,
+                'preexisting_frames' => $base['preexisting_frames'],
+                'partial_frame_count' => $base['partial_frame_count'],
+                'committed_prefix_frame_count' => $committedPrefixFrameCount,
+                'committed_prefix_pages' => $committedPrefixPages,
+                'expected_reopened_pages' => [$catalogPage, $reopenedInsertPage, $previousRecoveryInsertPage],
+                'expected_reopened_inserted_key' => 'disabled_reopened_prefix_success_payload_' . $seed,
+                'expected_reopened_inserted_id' => $seed * 10000 + 9,
+                'expected_previous_recovery_inserted_key' => $base['expected_recovery_inserted_key'],
+                'rejected_prior_tail_inserted_key' => $base['rejected_prior_tail_inserted_key'],
+                'rejected_post_recovery_tail_inserted_key' => $base['rejected_post_recovery_tail_inserted_key'],
+                'status_chain' => $base['status_chain'] + [
+                    'post_recovery_recovery' => $previousRecoveryPlan['status'],
+                ],
+                'previous_recovery_database_hash' => hash('sha256', (string) $previousRecoveryPlan['database_bytes_after_import']),
+                'previous_recovery_wal_hash' => hash('sha256', (string) $previousRecoveryPlan['wal_bytes_after']),
+                'previous_recovery_final_row_count' => count($previousRecoveryPlan['import_plan']['final_rows']),
+                'reopened_success_plan' => $reopenedSuccessPlan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
     public static function dynamicRollbackDisabledPostRecoveryRecoveryScenarios(int $scenarioCount = 16): array
     {
         if ($scenarioCount < 1) {

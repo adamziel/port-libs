@@ -29,6 +29,11 @@ final class MediaQueryParser
         ));
     }
 
+    public function useXResolutionUnitList(string $queryList): string
+    {
+        return $this->convertDppxResolutionUnits($queryList);
+    }
+
     private function minifyQuery(string $query): string
     {
         $query = trim($query);
@@ -316,6 +321,22 @@ final class MediaQueryParser
         }
 
         return $value;
+    }
+
+    private function convertDppxResolutionUnits(string $queryList): string
+    {
+        $number = '([+-]?(?:\d+|\d*\.\d+))';
+        $queryList = preg_replace_callback(
+            '/(\b(?:min-|max-)?resolution\s*(?::|[<>]=?|=)\s*)' . $number . 'dppx\b/i',
+            fn (array $matches): string => $matches[1] . $this->trimNumber($matches[2]) . 'x',
+            $queryList
+        ) ?? $queryList;
+
+        return preg_replace_callback(
+            '/' . $number . 'dppx(\s*(?:[<>]=?|=)\s*resolution\b)/i',
+            fn (array $matches): string => $this->trimNumber($matches[1]) . 'x' . $matches[2],
+            $queryList
+        ) ?? $queryList;
     }
 
     private function foldSimpleCalc(string $value): string

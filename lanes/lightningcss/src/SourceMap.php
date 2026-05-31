@@ -39,6 +39,8 @@ final class SourceMap
      */
     private array $mappings = [];
 
+    private int $generatedLineCount = 0;
+
     public function addSource(string $source): int
     {
         if (isset($this->sourceIndexes[$source])) {
@@ -178,12 +180,16 @@ final class SourceMap
             ];
         }
 
-        if ($childMaxLine === null) {
+        $childLineCount = max(
+            $sourceMap->generatedLineCount,
+            $childMaxLine === null ? 0 : $childMaxLine + 1
+        );
+        if ($childLineCount === 0) {
             return;
         }
 
         $replaceLines = [];
-        for ($line = 0; $line <= $childMaxLine; $line++) {
+        for ($line = 0; $line < $childLineCount; $line++) {
             $targetLine = $line + $lineOffset;
             if ($targetLine >= 0) {
                 $replaceLines[$targetLine] = true;
@@ -205,6 +211,10 @@ final class SourceMap
         }
 
         $this->mappings = $this->renumberMappings($updated);
+        $targetEndLine = $lineOffset + $childLineCount - 1;
+        if ($targetEndLine >= 0) {
+            $this->generatedLineCount = max($this->generatedLineCount, $targetEndLine + 1);
+        }
     }
 
     public function offsetColumns(int $generatedLine, int $generatedColumn, int $generatedColumnOffset): void
@@ -252,7 +262,7 @@ final class SourceMap
     {
         $this->assertNonNegative($generatedLine, 'generated line');
 
-        if ($generatedLineOffset === 0 || $this->mappings === []) {
+        if ($generatedLineOffset === 0 || $this->generatedLineCount === 0) {
             return;
         }
 
@@ -278,6 +288,19 @@ final class SourceMap
         }
 
         $this->mappings = $this->renumberMappings($updated);
+        $absoluteOffset = abs($generatedLineOffset);
+        if ($generatedLineOffset > 0) {
+            $this->generatedLineCount = $generatedLine > $this->generatedLineCount
+                ? $generatedLine + $absoluteOffset + 1
+                : $this->generatedLineCount + $absoluteOffset;
+
+            return;
+        }
+
+        if ($startLine < $this->generatedLineCount) {
+            $removeEnd = min($generatedLine, $this->generatedLineCount);
+            $this->generatedLineCount -= max(0, $removeEnd - $startLine);
+        }
     }
 
     public function addEmptyMap(string $source, string $sourceContent, int $lineOffset = 0): void
@@ -479,7 +502,7 @@ final class SourceMap
 
     public function writeVlq(): string
     {
-        if ($this->mappings === []) {
+        if ($this->mappings === [] && $this->generatedLineCount === 0) {
             return '';
         }
 
@@ -491,7 +514,7 @@ final class SourceMap
         );
 
         $byLine = [];
-        $maxLine = 0;
+        $maxLine = max(0, $this->generatedLineCount - 1);
         foreach ($mappings as $mapping) {
             $byLine[$mapping['generatedLine']][] = $mapping;
             $maxLine = max($maxLine, $mapping['generatedLine']);
@@ -721,6 +744,7 @@ final class SourceMap
             'nameIndex' => $nameIndex,
             'order' => count($this->mappings),
         ];
+        $this->generatedLineCount = max($this->generatedLineCount, $generatedLine + 1);
     }
 
     private function assertNonNegative(int $value, string $label): void

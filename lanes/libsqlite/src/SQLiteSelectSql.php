@@ -553,7 +553,7 @@ final class SQLiteSelectSql
         }
 
         $lastIndex = count($parts['arms']) - 1;
-        $finalArmWasValues = preg_match('/^values\s+/i', trim($parts['arms'][$lastIndex])) === 1;
+        $finalArmWasValues = preg_match('/^values(?:\s+|\()/i', trim($parts['arms'][$lastIndex])) === 1;
         [$lastSql, $orderSql, $limitSql] = self::stripCompoundTailClauses($parts['arms'][$lastIndex]);
         if ($finalArmWasValues && ($orderSql !== null || $limitSql !== null)) {
             throw new \InvalidArgumentException('SQLite SELECT SQL compound ORDER BY/LIMIT is not supported after a final VALUES arm');
@@ -583,6 +583,18 @@ final class SQLiteSelectSql
                 $arm = self::expandCorrelatedPlan($arm, $tables, $outerRow);
             }
             $arms[] = $arm;
+        }
+        $expectedColumnCount = null;
+        foreach ($arms as $index => $arm) {
+            $columnCount = count(self::compoundOutputColumns($arm));
+            if ($expectedColumnCount === null) {
+                $expectedColumnCount = $columnCount;
+                continue;
+            }
+            if ($columnCount !== $expectedColumnCount) {
+                $operator = strtoupper((string) ($parts['operators'][$index - 1] ?? 'compound'));
+                throw new \InvalidArgumentException("SELECTs to the left and right of {$operator} do not have the same number of result columns");
+            }
         }
 
         $plan = [
@@ -916,6 +928,7 @@ final class SQLiteSelectSql
 
         $rows = null;
         $columns = null;
+        $setCollations = self::compoundSetCollations($compound['arms']);
         foreach ($compound['arms'] as $index => $arm) {
             if (!is_array($arm)) {
                 throw new \InvalidArgumentException('SQLite SELECT SQL compound arm plan is malformed');
@@ -932,13 +945,13 @@ final class SQLiteSelectSql
             if ($rows === [] && $armRows === []) {
                 continue;
             }
-            $rows = SQLiteSelectCompound::combine($rows, $armRows, (string) $compound['operators'][$index - 1], self::compoundSelectCollations($compound['arms'][0]));
+            $rows = SQLiteSelectCompound::combine($rows, $armRows, (string) $compound['operators'][$index - 1], $setCollations);
         }
 
         $rows ??= [];
         if (self::compoundUsesDistinctSetOrder($compound['operators'])) {
             $setOrderBy = [];
-            $collations = is_array($compound['arms'][0] ?? null) ? self::compoundSelectCollations($compound['arms'][0]) : [];
+            $collations = $setCollations;
             foreach ($columns ?? [] as $column) {
                 $term = ['column' => $column];
                 if (isset($collations[$column]) && is_string($collations[$column])) {
@@ -1066,10 +1079,39 @@ final class SQLiteSelectSql
     }
 
     /**
-     * @param array<string,mixed> $arm
+     * @param list<mixed> $arms
      * @return array<string,string>
      */
-    private static function compoundSelectCollations(array $arm): array
+    private static function compoundSetCollations(array $arms): array
+    {
+        $firstArm = $arms[0] ?? null;
+        if (!is_array($firstArm)) {
+            return [];
+        }
+
+        $columns = self::compoundOutputColumns($firstArm);
+        $collations = [];
+        foreach ($arms as $arm) {
+            if (!is_array($arm)) {
+                continue;
+            }
+            foreach (self::compoundSelectCollationsByOrdinal($arm) as $ordinal => $collation) {
+                $column = $columns[$ordinal - 1] ?? null;
+                if ($column === null || isset($collations[$column])) {
+                    continue;
+                }
+                $collations[$column] = $collation;
+            }
+        }
+
+        return $collations;
+    }
+
+    /**
+     * @param array<string,mixed> $arm
+     * @return array<int,string>
+     */
+    private static function compoundSelectCollationsByOrdinal(array $arm): array
     {
         $select = $arm['select'] ?? null;
         if (!is_array($select) || !array_is_list($select)) {
@@ -1077,16 +1119,37 @@ final class SQLiteSelectSql
         }
 
         $collations = [];
-        foreach ($select as $index => $term) {
-            if (!is_array($term) || ($term['type'] ?? null) !== 'collate' || !isset($term['collation']) || !is_string($term['collation'])) {
+        $ordinal = 1;
+        foreach ($select as $term) {
+            if (!is_array($term)) {
                 continue;
             }
-            foreach (self::compoundProjectionColumns($term, $index + 1) as $column) {
-                $collations[$column] = strtoupper($term['collation']);
+            $columns = self::compoundProjectionColumns($term, $ordinal);
+            $collation = self::compoundTermCollation($term);
+            foreach ($columns as $_column) {
+                if ($collation !== null) {
+                    $collations[$ordinal] = $collation;
+                }
+                $ordinal++;
             }
         }
 
         return $collations;
+    }
+
+    /**
+     * @param array<string,mixed> $term
+     */
+    private static function compoundTermCollation(array $term): ?string
+    {
+        if (($term['type'] ?? null) === 'collate' && isset($term['collation']) && is_string($term['collation']) && $term['collation'] !== '') {
+            return strtoupper($term['collation']);
+        }
+        if (isset($term['sourceExpression']) && is_array($term['sourceExpression'])) {
+            return self::compoundTermCollation($term['sourceExpression']);
+        }
+
+        return null;
     }
 
     /**

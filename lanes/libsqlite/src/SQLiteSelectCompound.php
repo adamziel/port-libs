@@ -137,14 +137,18 @@ final class SQLiteSelectCompound
     private static function distinctRows(array $rows, array $columns, array $collations = []): array
     {
         $seen = [];
-        $result = [];
+        $order = [];
         foreach ($rows as $row) {
             $key = self::rowKey($row, $columns, $collations);
-            if (isset($seen[$key])) {
-                continue;
+            if (!isset($seen[$key])) {
+                $order[] = $key;
             }
-            $seen[$key] = true;
-            $result[] = $row;
+            $seen[$key] = $row;
+        }
+
+        $result = [];
+        foreach ($order as $key) {
+            $result[] = $seen[$key];
         }
 
         return $result;

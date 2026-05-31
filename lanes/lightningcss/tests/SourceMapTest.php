@@ -282,6 +282,45 @@ return [
             $map->offsetLines(1, -2);
         });
     },
+    'source map preserves empty generated-line spans from upstream line offsets' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('theme.css');
+        $map->addMapping(0, 0, $sourceIndex, 0, 0);
+
+        $map->offsetLines(1, 2);
+
+        $t->same('AAAA;;', $map->writeVlq());
+        $t->same([0], array_column(SourceMap::decodeVlq($map->writeVlq()), 'generatedLine'));
+
+        $map->offsetLines(3, -1);
+        $t->same('AAAA;', $map->writeVlq());
+
+        $map->offsetLines(2, -1);
+        $t->same('AAAA', $map->writeVlq());
+    },
+    'source map replaces parent mappings with empty child lines from nested maps' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $entry = $parent->addSource('entry.css');
+        foreach ([0, 1, 2, 3, 4] as $line) {
+            $parent->addMapping($line, 0, $entry, $line, 0, 'parent' . $line);
+        }
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('child.css');
+        $child->addMapping(0, 3, $childSource, 7, 1, 'childRule');
+        $child->offsetLines(1, 2);
+
+        $parent->addSourceMap($child, 1);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+
+        $t->same([0, 1, 4], array_column($decoded, 'generatedLine'));
+        $t->same([0, 3, 0], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 7, 4], array_column($decoded, 'originalLine'));
+        $t->same(['parent0', 'parent1', 'parent2', 'parent3', 'parent4', 'childRule'], $data['names']);
+        $t->same(5, $decoded[1]['nameIndex']);
+    },
     'source map adds upstream empty line maps with line offsets' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $map->addEmptyMap('theme.css', ".wp-block-cover {}\n\n.wp-block-button {}\n", 2);

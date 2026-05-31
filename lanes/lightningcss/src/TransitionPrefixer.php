@@ -288,9 +288,10 @@ final class TransitionPrefixer
     {
         $lowerSimpleRanges = $targetOptions['mediaRangeSimpleNeedsFallback'] ?? false;
         $lowerIntervalRanges = $targetOptions['mediaRangeIntervalNeedsFallback'] ?? false;
+        $usesXResolutionUnit = $targetOptions['mediaResolutionUsesXUnit'] ?? false;
         $needsResolutionPrefixes = ($targetOptions['mediaResolutionNeedsWebkitPrefix'] ?? false)
             || ($targetOptions['mediaResolutionNeedsMozPrefix'] ?? false);
-        if ((!$lowerSimpleRanges && !$lowerIntervalRanges && !$needsResolutionPrefixes) || preg_match('/^@media\b/i', $prelude) !== 1) {
+        if ((!$lowerSimpleRanges && !$lowerIntervalRanges && !$needsResolutionPrefixes && !$usesXResolutionUnit) || preg_match('/^@media\b/i', $prelude) !== 1) {
             return $prelude;
         }
 
@@ -299,9 +300,13 @@ final class TransitionPrefixer
             return $prelude;
         }
 
-        $condition = (new MediaQueryParser())->lowerRangeSyntaxList($condition, $lowerSimpleRanges, $lowerIntervalRanges);
+        $parser = new MediaQueryParser();
+        $condition = $parser->lowerRangeSyntaxList($condition, $lowerSimpleRanges, $lowerIntervalRanges);
         if ($needsResolutionPrefixes) {
             $condition = $this->prefixResolutionMediaQueries($condition, $targetOptions);
+        }
+        if ($usesXResolutionUnit) {
+            $condition = $parser->useXResolutionUnitList($condition);
         }
 
         return '@media ' . $condition;
@@ -943,6 +948,7 @@ final class TransitionPrefixer
             'mediaResolutionNeedsWebkitPrefix' => $this->targetInRange($normalized, 'safari', [0], [15])
                 || $this->targetInRange($normalized, 'ios_saf', [0], [15]),
             'mediaResolutionNeedsMozPrefix' => $this->targetInRange($normalized, 'firefox', [0], [15]),
+            'mediaResolutionUsesXUnit' => $this->targetsSupportXResolutionUnit($normalized),
             'keyframesNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [42])
                 || $this->targetInRange($normalized, 'ios_saf', [3], [8, 0])
@@ -1015,6 +1021,33 @@ final class TransitionPrefixer
     {
         return isset($targets[$browser])
             && $targets[$browser] >= $this->encodedTargetVersion($minimum[0], $minimum[1] ?? 0, $minimum[2] ?? 0);
+    }
+
+    /**
+     * @param array<string, int> $targets
+     */
+    private function targetsSupportXResolutionUnit(array $targets): bool
+    {
+        if ($targets === []) {
+            return false;
+        }
+
+        foreach ($targets as $browser => $version) {
+            $minimum = match ($browser) {
+                'android', 'chrome' => [68],
+                'edge' => [79],
+                'firefox' => [62],
+                'opera' => [48],
+                'safari', 'ios_saf' => [16],
+                'samsung' => [10],
+                default => null,
+            };
+            if ($minimum === null || $version < $this->encodedTargetVersion($minimum[0], $minimum[1] ?? 0, $minimum[2] ?? 0)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function encodedTargetVersion(int $major, int $minor = 0, int $patch = 0): int

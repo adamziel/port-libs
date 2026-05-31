@@ -1467,6 +1467,26 @@ CSS;
             $prefixer->prefixForTargets('@media only screen and (min-resolution: 124.8dpi) { .foo { color: yellow; } }', ['safari' => 15, 'firefox' => 10])
         );
     },
+    'transition prefixer maps upstream resolution x unit serialization inside layers' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@media (resolution:1dppx){body{background:red}}',
+            $prefixer->prefixForTargets('@media (resolution: 1dppx) { body { background: red; } }', ['chrome' => 50])
+        );
+        $t->same(
+            '@media (resolution:1x){body{background:red}}',
+            $prefixer->prefixForTargets('@media (resolution: 1dppx) { body { background: red; } }', ['chrome' => 95])
+        );
+        $t->same(
+            '@layer blocks{@media (resolution:1x){.wp-block-query{background:red}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (resolution: 1dppx) { .wp-block-query { background: red; } } }', ['chrome' => 95])
+        );
+        $t->same(
+            '@layer blocks{@media (min-resolution:2x){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['chrome' => 95])
+        );
+    },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .foo {

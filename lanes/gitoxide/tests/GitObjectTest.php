@@ -128,7 +128,14 @@ return [
             'size' => 12,
             'headerLength' => 8,
         ], $store->readHeader($shortOid));
-        $t->throws(InvalidArgumentException::class, static fn () => $store->read($shortOid));
+        try {
+            $store->read($shortOid);
+            throw new RuntimeException('Expected short loose object body to fail exact inflation');
+        } catch (RuntimeException $exception) {
+            $t->contains('Loose object inflated size mismatch', $exception->getMessage());
+            $t->contains('expected 20', $exception->getMessage());
+            $t->contains('got 13', $exception->getMessage());
+        }
         $t->same(null, $store->tryReadHeader(str_repeat('c', 40)));
 
         $longHeaderOid = str_repeat('d', 40);
@@ -175,8 +182,8 @@ return [
         try {
             $unboundedStore->read($oversizedOid);
             throw new RuntimeException('Expected unbounded loose object read to fail on exact body length');
-        } catch (InvalidArgumentException $exception) {
-            $t->same('Git object body length mismatch: expected 1000, got 4', $exception->getMessage());
+        } catch (RuntimeException $exception) {
+            $t->same('Loose object inflated size mismatch: expected 1010, got 14', $exception->getMessage());
         }
 
         $t->throws(InvalidArgumentException::class, static fn () => LooseObjectStore::fromObjectsDirectory($objectsDirectory, allocationLimitBytes: -1));
@@ -244,7 +251,7 @@ return [
             throw new RuntimeException('Expected short loose object body to be rejected');
         } catch (RuntimeException $exception) {
             $t->contains("Loose object {$shortOid} could not be read exactly", $exception->getMessage());
-            $t->contains('Git object body length mismatch: expected 12, got 5', $exception->getMessage());
+            $t->contains('Loose object inflated size mismatch: expected 20, got 13', $exception->getMessage());
         }
     },
     'loose object integrity visits directory candidates instead of silently skipping them' => static function (TestRunner $t) use ($looseObjectPath): void {

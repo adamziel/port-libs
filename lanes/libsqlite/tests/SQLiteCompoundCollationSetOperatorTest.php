@@ -31,17 +31,17 @@ $network = [
 ];
 
 return [
-    'unions nocase duplicate text with left arm row retained' => static function (TestRunner $t) use ($left): void {
+    'unions nocase duplicate text with latest duplicate row retained' => static function (TestRunner $t) use ($left): void {
         $rows = SQLiteSelectCompound::combine([['name' => 'siteurl']], [['name' => 'SiteURL']], 'UNION', ['name' => 'NOCASE']);
-        $t->same(['siteurl'], array_column($rows, 'name'));
+        $t->same(['SiteURL'], array_column($rows, 'name'));
     },
     'unions binary text without folding case' => static function (TestRunner $t): void {
         $rows = SQLiteSelectCompound::combine([['name' => 'siteurl']], [['name' => 'SiteURL']], 'UNION', ['name' => 'BINARY']);
         $t->same(['siteurl', 'SiteURL'], array_column($rows, 'name'));
     },
-    'unions rtrim duplicate text with left arm row retained' => static function (TestRunner $t): void {
+    'unions rtrim duplicate text with latest duplicate row retained' => static function (TestRunner $t): void {
         $rows = SQLiteSelectCompound::combine([['name' => 'home']], [['name' => 'home  ']], 'UNION', ['name' => 'RTRIM']);
-        $t->same(['home'], array_column($rows, 'name'));
+        $t->same(['home  '], array_column($rows, 'name'));
     },
     'unions rtrim still keeps different case distinct' => static function (TestRunner $t): void {
         $rows = SQLiteSelectCompound::combine([['name' => 'HOME ']], [['name' => 'home']], 'UNION', ['name' => 'RTRIM']);
@@ -81,11 +81,11 @@ return [
     },
     'select sql union honors projected nocase collation' => static function (TestRunner $t) use ($options, $network): void {
         $rows = SQLiteSelectSql::execute("SELECT option_name COLLATE NOCASE AS name FROM wp_options WHERE option_id = 1 UNION SELECT option_name AS name FROM network_options WHERE option_id = 10", ['wp_options' => $options, 'network_options' => $network]);
-        $t->same(['siteurl'], array_column($rows, 'name'));
+        $t->same(['SiteURL'], array_column($rows, 'name'));
     },
     'select sql union honors projected rtrim collation' => static function (TestRunner $t) use ($options, $network): void {
         $rows = SQLiteSelectSql::execute("SELECT option_name COLLATE RTRIM AS name FROM wp_options WHERE option_id = 3 UNION SELECT option_name AS name FROM network_options WHERE option_id = 12", ['wp_options' => $options, 'network_options' => $network]);
-        $t->same(['blogname'], array_column($rows, 'name'));
+        $t->same(['blogname '], array_column($rows, 'name'));
     },
     'select sql intersect honors projected nocase collation' => static function (TestRunner $t) use ($options, $network): void {
         $rows = SQLiteSelectSql::execute("SELECT option_name COLLATE NOCASE AS name FROM wp_options WHERE option_id = 1 INTERSECT SELECT option_name AS name FROM network_options WHERE option_id = 10", ['wp_options' => $options, 'network_options' => $network]);
@@ -101,7 +101,7 @@ return [
     },
     'select sql compound order by nulls last with projected collation' => static function (TestRunner $t) use ($options, $network): void {
         $rows = SQLiteSelectSql::execute("SELECT option_name COLLATE NOCASE AS name FROM wp_options UNION SELECT option_name AS name FROM network_options ORDER BY name COLLATE NOCASE NULLS LAST LIMIT 5", ['wp_options' => $options, 'network_options' => $network]);
-        $t->same(['blogname', 'blogname ', 'home', 'HOME ', 'siteurl'], array_column($rows, 'name'));
+        $t->same(['blogname', 'blogname ', 'home', 'HOME ', 'SiteURL'], array_column($rows, 'name'));
     },
     'select sql compound comma limit follows collated duplicate removal' => static function (TestRunner $t) use ($options, $network): void {
         $rows = SQLiteSelectSql::execute("SELECT option_name COLLATE NOCASE AS name FROM wp_options UNION SELECT option_name AS name FROM network_options ORDER BY name COLLATE NOCASE NULLS LAST LIMIT 1, 2", ['wp_options' => $options, 'network_options' => $network]);
@@ -111,13 +111,13 @@ return [
         $rows = SQLiteSelectSql::execute("SELECT option_name COLLATE NOCASE AS name FROM wp_options UNION SELECT option_name AS name FROM network_options ORDER BY name COLLATE NOCASE NULLS LAST LIMIT 2 OFFSET 2", ['wp_options' => $options, 'network_options' => $network]);
         $t->same(['home', 'HOME '], array_column($rows, 'name'));
     },
-    'left arm binary collation remains binary even when right arm is nocase' => static function (TestRunner $t) use ($options, $network): void {
-        $rows = SQLiteSelectSql::execute("SELECT option_name AS name FROM wp_options WHERE option_id = 1 UNION SELECT option_name COLLATE NOCASE AS name FROM network_options WHERE option_id = 10 ORDER BY name", ['wp_options' => $options, 'network_options' => $network]);
+    'left arm explicit binary collation remains binary even when right arm is nocase' => static function (TestRunner $t) use ($options, $network): void {
+        $rows = SQLiteSelectSql::execute("SELECT option_name COLLATE BINARY AS name FROM wp_options WHERE option_id = 1 UNION SELECT option_name COLLATE NOCASE AS name FROM network_options WHERE option_id = 10 ORDER BY name", ['wp_options' => $options, 'network_options' => $network]);
         $t->same(['SiteURL', 'siteurl'], array_column($rows, 'name'));
     },
-    'left arm nocase collation drives chained union comparisons' => static function (TestRunner $t) use ($options, $network): void {
+    'left arm nocase collation folds chained union comparisons with latest duplicate row' => static function (TestRunner $t) use ($options, $network): void {
         $rows = SQLiteSelectSql::execute("SELECT option_name COLLATE NOCASE AS name FROM wp_options WHERE option_id = 1 UNION ALL SELECT option_name AS name FROM network_options WHERE option_id = 10 UNION SELECT 'SITEURL' AS name ORDER BY name COLLATE NOCASE", ['wp_options' => $options, 'network_options' => $network]);
-        $t->same(['siteurl'], array_column($rows, 'name'));
+        $t->same(['SITEURL'], array_column($rows, 'name'));
     },
     'projected collate expression preserves result column name' => static function (TestRunner $t) use ($options, $network): void {
         $rows = SQLiteSelectSql::execute("SELECT option_name COLLATE NOCASE AS name FROM wp_options WHERE option_id = 1 UNION SELECT option_name AS name FROM network_options WHERE option_id = 10", ['wp_options' => $options, 'network_options' => $network]);

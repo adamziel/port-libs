@@ -80,6 +80,17 @@ final class SQLiteRealExpressionAffinityCorpusPlan
         };
     }
 
+    public static function castTextBlobWithEncoding(mixed $value, string $target, int|string $textEncoding): mixed
+    {
+        $encoding = self::textEncodingCode($textEncoding);
+
+        return match (strtoupper($target)) {
+            'TEXT' => self::castTextWithEncoding($value, $encoding),
+            'BLOB' => self::castBlobWithEncoding($value, $encoding),
+            default => throw new \InvalidArgumentException("SQLite encoding-sensitive CAST target {$target} is not supported"),
+        };
+    }
+
     public static function unaryNumeric(mixed $value, int $minusCount = 0): mixed
     {
         $numeric = self::castNumeric($value);
@@ -554,6 +565,36 @@ final class SQLiteRealExpressionAffinityCorpusPlan
         return $text === null ? null : new SQLiteBlobValue($text);
     }
 
+    private static function castTextWithEncoding(mixed $value, int $encoding): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            if ($encoding === 1) {
+                return $value->bytes;
+            }
+
+            return SQLiteEncodingCollationSourceCursor::decodeText($value->bytes, $encoding);
+        }
+
+        return self::castText($value);
+    }
+
+    private static function castBlobWithEncoding(mixed $value, int $encoding): ?SQLiteBlobValue
+    {
+        if ($value === null) {
+            return null;
+        }
+        if ($value instanceof SQLiteBlobValue) {
+            return new SQLiteBlobValue($value->bytes);
+        }
+
+        $text = self::castText($value);
+
+        return $text === null ? null : new SQLiteBlobValue(SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding));
+    }
+
     private static function castInteger(mixed $value): ?int
     {
         if ($value === null) {
@@ -652,6 +693,24 @@ final class SQLiteRealExpressionAffinityCorpusPlan
         $text = sprintf('%.15G', $value);
 
         return str_contains($text, 'E') ? str_replace('E', 'e', $text) : $text;
+    }
+
+    private static function textEncodingCode(int|string $encoding): int
+    {
+        if (is_int($encoding)) {
+            if (in_array($encoding, [1, 2, 3], true)) {
+                return $encoding;
+            }
+
+            throw new \InvalidArgumentException('SQLite text encoding must be UTF-8, UTF-16LE, or UTF-16BE');
+        }
+
+        return match (strtoupper(str_replace('_', '-', $encoding))) {
+            'UTF-8', 'UTF8' => 1,
+            'UTF-16LE', 'UTF16LE' => 2,
+            'UTF-16BE', 'UTF16BE' => 3,
+            default => throw new \InvalidArgumentException('SQLite text encoding must be UTF-8, UTF-16LE, or UTF-16BE'),
+        };
     }
 
     private static function realUlp(float $value): float

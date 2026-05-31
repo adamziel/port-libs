@@ -58,6 +58,17 @@ $writeWordPressMultiPackFixture = static function (bool $omitMediaPack = false):
 };
 
 $looseObjectPath = static fn (string $gitDir, string $oid): string => $gitDir . '/objects/' . substr($oid, 0, 2) . '/' . substr($oid, 2);
+$writeCompressedLooseBytes = static function (string $gitDir, string $oid, string $bytes) use ($looseObjectPath): void {
+    $path = $looseObjectPath($gitDir, $oid);
+    if (!is_dir(dirname($path)) && !mkdir(dirname($path), 0777, true) && !is_dir(dirname($path))) {
+        throw new RuntimeException("Unable to create loose object fixture directory: " . dirname($path));
+    }
+    $compressed = gzcompress($bytes);
+    if ($compressed === false) {
+        throw new RuntimeException('Unable to compress loose object fixture');
+    }
+    file_put_contents($path, $compressed);
+};
 
 return [
     'object database reads packed delta and loose objects' => static function (TestRunner $t) use ($writeWordPressPackFixture): void {
@@ -351,6 +362,57 @@ return [
 
         $t->throws(InvalidArgumentException::class, static fn () => new ObjectDatabase($gitDir, looseObjectAllocationLimitBytes: -1));
     },
+    'object database loose integrity rejects inflated size mismatches before hash verification' => static function (TestRunner $t) use ($writeCompressedLooseBytes): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-size-mismatch-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateGitDir = $root . '/shared-cache/.git';
+        $alternateObjectsDir = $alternateGitDir . '/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+
+        $overrunOid = hash('sha1', "blob 3\0abc");
+        $writeCompressedLooseBytes($gitDir, $overrunOid, "blob 3\0abcdef");
+        $underrunOid = hash('sha1', "blob 6\0abcdef");
+        $writeCompressedLooseBytes($alternateGitDir, $underrunOid, "blob 6\0abc");
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $database = new ObjectDatabase($gitDir);
+        $overrunHeader = $database->readHeader($overrunOid);
+        $t->same('blob', $overrunHeader['type']);
+        $t->same(3, $overrunHeader['size']);
+        $t->same('loose', $overrunHeader['source']);
+        try {
+            $database->read($overrunOid);
+            throw new RuntimeException('Expected overrun loose object to fail exact inflation');
+        } catch (RuntimeException $exception) {
+            $t->contains('Loose object inflated size mismatch', $exception->getMessage());
+            $t->contains('expected 10', $exception->getMessage());
+            $t->contains('got 13', $exception->getMessage());
+        }
+
+        $underrunHeader = $database->readHeader($underrunOid);
+        $t->same('blob', $underrunHeader['type']);
+        $t->same(6, $underrunHeader['size']);
+        $t->same('loose', $underrunHeader['source']);
+        try {
+            $database->read($underrunOid);
+            throw new RuntimeException('Expected underrun loose object to fail exact inflation');
+        } catch (RuntimeException $exception) {
+            $t->contains('Loose object inflated size mismatch', $exception->getMessage());
+            $t->contains('expected 13', $exception->getMessage());
+            $t->contains('got 10', $exception->getMessage());
+        }
+
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected loose object inflated size mismatch to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$overrunOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Loose object inflated size mismatch', $exception->getMessage());
+        }
+    },
     'object database reads object headers across packed loose and replacement stores' => static function (TestRunner $t) use ($writeWordPressPackFixture): void {
         [$gitDir, $fixture] = $writeWordPressPackFixture();
         $loose = new LooseObjectStore($gitDir);
@@ -478,5 +540,6 @@ return [
         $t->same(1, $summary['sha256LooseIntegrityObjects']);
         $t->same(true, $summary['sha256LooseIntegrityVerified']);
         $t->same(true, $summary['looseIntegrityDirectoryBlockerRejected']);
+        $t->same(true, $summary['looseIntegritySizeMismatchRejected']);
     },
 ];

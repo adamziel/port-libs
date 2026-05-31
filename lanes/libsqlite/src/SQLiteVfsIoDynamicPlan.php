@@ -1774,6 +1774,159 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function syncPragmaTrafficProfile(
+        string $scenario,
+        string $journalMode,
+        string $synchronous,
+        bool $attachedDatabase = false,
+        bool $schemaSetup = false,
+        bool $walFirstTransaction = false,
+        bool $walCheckpoint = false,
+        int $rowCount = 1,
+        bool $directorySync = true
+    ): array {
+        $scenario = trim($scenario);
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite sync pragma traffic scenario is required');
+        }
+
+        $journalMode = strtolower(trim($journalMode));
+        if (!in_array($journalMode, ['delete', 'wal'], true)) {
+            throw new \InvalidArgumentException('SQLite sync pragma traffic journal mode is unsupported');
+        }
+
+        $synchronous = strtolower(trim($synchronous));
+        if ($synchronous === 'on') {
+            $synchronous = 'normal';
+        }
+        if (!in_array($synchronous, ['off', 'normal', 'full'], true)) {
+            throw new \InvalidArgumentException('SQLite sync pragma traffic synchronous mode is unsupported');
+        }
+
+        if ($rowCount < 1) {
+            throw new \InvalidArgumentException('SQLite sync pragma traffic row count must be positive');
+        }
+        if ($walCheckpoint && $journalMode !== 'wal') {
+            throw new \InvalidArgumentException('SQLite sync pragma WAL checkpoint requires WAL journal mode');
+        }
+        if ($schemaSetup && (!$attachedDatabase || $journalMode !== 'delete')) {
+            throw new \InvalidArgumentException('SQLite sync pragma attached schema setup requires delete journal mode and an attached database');
+        }
+
+        $targets = [];
+        $reason = 'synchronous_off_disables_vfs_syncs';
+
+        if ($schemaSetup) {
+            $targets = [
+                'main_directory',
+                'main_rollback_journal_pages',
+                'main_rollback_journal_header',
+                'main_database',
+                'attached_directory',
+                'attached_rollback_journal_pages',
+                'attached_rollback_journal_header',
+                'attached_database',
+            ];
+            $reason = 'attached_schema_setup_syncs_each_database';
+        } elseif ($synchronous !== 'off' && $walCheckpoint) {
+            $targets = ['wal', 'database'];
+            $reason = 'wal_checkpoint_syncs_wal_and_database';
+        } elseif ($synchronous !== 'off' && $journalMode === 'wal') {
+            if ($synchronous === 'full') {
+                $targets = $walFirstTransaction
+                    ? ['directory', 'wal_header', 'wal_frames']
+                    : ['wal_frames'];
+                $reason = $walFirstTransaction
+                    ? 'wal_full_first_transaction_syncs_directory_header_and_frames'
+                    : 'wal_full_subsequent_transaction_syncs_frames';
+            } elseif ($walFirstTransaction) {
+                $targets = ['directory', 'wal_header'];
+                $reason = 'wal_normal_first_transaction_syncs_directory_and_header';
+            } else {
+                $targets = [];
+                $reason = 'wal_normal_subsequent_transaction_defers_sync_until_checkpoint';
+            }
+        } elseif ($synchronous !== 'off' && $attachedDatabase) {
+            $targets = $synchronous === 'full'
+                ? [
+                    'main_rollback_journal_pages',
+                    'main_rollback_journal_header',
+                    'attached_rollback_journal_pages',
+                    'attached_rollback_journal_header',
+                    'master_journal',
+                    'main_rollback_journal_master_name',
+                    'attached_rollback_journal_master_name',
+                    'main_database',
+                    'attached_database',
+                    'directory',
+                    'master_journal_directory',
+                ]
+                : [
+                    'main_rollback_journal_pages',
+                    'attached_rollback_journal_pages',
+                    'master_journal',
+                    'main_rollback_journal_master_name',
+                    'attached_rollback_journal_master_name',
+                    'main_database',
+                    'attached_database',
+                    'directory',
+                    'master_journal_directory',
+                ];
+            $reason = $synchronous === 'full'
+                ? 'attached_full_commit_syncs_both_journal_headers_and_master_journal'
+                : 'attached_normal_commit_omits_extra_journal_header_syncs';
+        } elseif ($synchronous !== 'off') {
+            $targets = $synchronous === 'full'
+                ? ['directory', 'rollback_journal_pages', 'rollback_journal_header', 'database']
+                : ['directory', 'rollback_journal_pages', 'database'];
+            $reason = $synchronous === 'full'
+                ? 'delete_full_syncs_directory_journal_header_and_database'
+                : 'delete_normal_omits_second_journal_header_sync';
+        }
+
+        if (!$directorySync) {
+            $targets = array_values(array_filter(
+                $targets,
+                static fn (string $target): bool => !str_contains($target, 'directory')
+            ));
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => str_starts_with($scenario, 'sync-') ? 'sync.test' : 'sync2.test',
+            'scenario' => $scenario,
+            'journal_mode' => $journalMode,
+            'synchronous' => $synchronous,
+            'pragma_synchronous_value' => match ($synchronous) {
+                'off' => 0,
+                'normal' => 1,
+                'full' => 2,
+            },
+            'attached_database' => $attachedDatabase,
+            'schema_setup' => $schemaSetup,
+            'wal_first_transaction' => $walFirstTransaction,
+            'wal_checkpoint' => $walCheckpoint,
+            'row_count' => $rowCount,
+            'directory_sync' => $directorySync,
+            'sync_count' => count($targets),
+            'sync_targets' => $targets,
+            'sync_disabled' => count($targets) === 0,
+            'durability_barrier' => count($targets) > 0,
+            'reason' => $reason,
+            'upstream' => [self::syncPragmaUpstream($scenario)],
+            'dependencies' => [
+                'upstream-sync-test',
+                'vfs-sync-count-pragmas',
+                'vfs-io-dynamic-real-corpus',
+            ],
+            'dependency_closure' => 'no new support component needed; reuses bounded VFS sync-count modeling',
+            'non_overlap' => 'does not repeat io.test sync matrix, VFS sync flag planning, sync apply, rollback-journal apply, WAL checkpoint transaction, or lock-state clusters',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function walCheckpointInterruptProfile(int $writeFailCountdown, bool $oomBeforeInterrupt): array
     {
         if ($writeFailCountdown < 1) {
@@ -5909,6 +6062,57 @@ final class SQLiteVfsIoDynamicPlan
             'journal2-2.1-2.4' => ['journal2.test journal2-2.1', 'journal2.test journal2-2.2', 'journal2.test journal2-2.3', 'journal2.test journal2-2.4'],
             default => throw new \InvalidArgumentException("Unsupported SQLite SAFE_DELETE journal2 scenario: {$scenario}"),
         };
+    }
+
+    private static function syncPragmaUpstream(string $scenario): string
+    {
+        if (str_starts_with($scenario, 'sync2-1.1-delete-default')) {
+            return 'sync2.test 1.1 delete journal default/full transaction';
+        }
+        if (str_starts_with($scenario, 'sync2-1.2.3-delete-normal')) {
+            return 'sync2.test 1.2.3 delete journal synchronous=NORMAL transaction';
+        }
+        if (str_starts_with($scenario, 'sync2-1.3.3-delete-off')) {
+            return 'sync2.test 1.3.3 delete journal synchronous=OFF transaction';
+        }
+        if (str_starts_with($scenario, 'sync2-1.4.3-delete-full')) {
+            return 'sync2.test 1.4.3 delete journal synchronous=FULL transaction';
+        }
+        if (str_starts_with($scenario, 'sync2-1.6-wal-full-first')) {
+            return 'sync2.test 1.6 WAL synchronous=FULL first transaction';
+        }
+        if (str_starts_with($scenario, 'sync2-1.7-wal-full-subsequent')) {
+            return 'sync2.test 1.7 WAL synchronous=FULL subsequent transaction';
+        }
+        if (str_starts_with($scenario, 'sync2-1.8.3-wal-normal-subsequent')) {
+            return 'sync2.test 1.8.3 WAL synchronous=NORMAL subsequent transaction';
+        }
+        if (str_starts_with($scenario, 'sync2-1.9-wal-checkpoint-normal')) {
+            return 'sync2.test 1.9 WAL checkpoint syncs WAL and database';
+        }
+        if (str_starts_with($scenario, 'sync2-1.10.3-wal-off')) {
+            return 'sync2.test 1.10.3 WAL synchronous=OFF transaction';
+        }
+        if (str_starts_with($scenario, 'sync2-1.11.1-default-wal-first-normal')) {
+            return 'sync2.test 1.11.1 default WAL synchronous=NORMAL first transaction';
+        }
+        if (str_starts_with($scenario, 'sync2-1.11.2-default-wal-subsequent-normal')) {
+            return 'sync2.test 1.11.2 default WAL synchronous=NORMAL subsequent transaction';
+        }
+        if (str_starts_with($scenario, 'sync-1.1-attach-schema-setup')) {
+            return 'sync.test sync-1.1 main plus attached schema setup';
+        }
+        if (str_starts_with($scenario, 'sync-1.2-attached-on')) {
+            return 'sync.test sync-1.2 attached synchronous=ON multi-database commit';
+        }
+        if (str_starts_with($scenario, 'sync-1.3-attached-full')) {
+            return 'sync.test sync-1.3 attached synchronous=FULL multi-database commit';
+        }
+        if (str_starts_with($scenario, 'sync-1.4-attached-off')) {
+            return 'sync.test sync-1.4 attached synchronous=OFF multi-database commit';
+        }
+
+        throw new \InvalidArgumentException("Unsupported SQLite sync pragma scenario: {$scenario}");
     }
 
     /**
