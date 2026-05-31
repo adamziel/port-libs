@@ -52,6 +52,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS worker refill and
+  integration 13:41 UTC): visible LightningCSS tmux pool was refilled from 21
+  to 25 workers using `gpt-5.5` xhigh with priority service tier. Source
+  commit `0cbdb423cd7e75b535aebff61b698de758d44cd2` (`ports: add
+  lightningcss cssom module parity`) landed two verified LightningCSS handoffs
+  after excluding stale shared status/manifest/progress metadata. LightningCSS
+  full lane evidence moves from `1556` to `1576 pass / 0 fail`, with
+  conservative mapped coverage moving from `1133 / 3532` to `1141 / 3532`: +8
+  CSS Modules view-transition scoping checks for declarations,
+  `@view-transition` types, `:active-view-transition-type()`, and
+  `::view-transition-*()` selector arguments. CSSOM list-style
+  shorthand/longhand read/write/remove behavior is verified but counted inside
+  the existing DeclarationBlock CSSOM cluster. Verification passed PHP lint on
+  changed/new LightningCSS PHP files, diff checks, focused LightningCSS gate `2
+  files / 239 assertions / 0 failures`, full LightningCSS lane `13 files /
+  1576 assertions / 0 failures`, and two touched examples. Root aggregate and
+  full upstream LightningCSS Rust/Node runners were not run for this isolated
+  batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS/Gitoxide integration 13:48
   UTC): source commit `e0d5eca0c9fba672ca865172f6c0396119cdbb51`
   (`ports: add css source maps and gitoxide object parity`) landed six
