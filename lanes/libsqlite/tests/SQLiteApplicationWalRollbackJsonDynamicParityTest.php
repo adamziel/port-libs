@@ -499,4 +499,58 @@ $tests['sqlite application wal rollback json dynamic parity preexisting retry sm
     $t->same([2, 3, 4], array_column($smallBatch, 'preexisting_frames'));
 };
 
+$tests['sqlite application wal rollback json dynamic parity rejects wal header page size mismatch'] = static function (TestRunner $t) use ($scenarios): void {
+    $scenario = $scenarios[0];
+    $walBytes = substr_replace(
+        $scenario['wal_bytes'],
+        pack('N', 1024),
+        8,
+        4
+    );
+
+    try {
+        SQLiteJsonImportRollbackWalPlan::plan(
+            [],
+            [],
+            [
+                'database_bytes' => $scenario['database_bytes'],
+                'page_size' => 512,
+                'wal_bytes' => $walBytes,
+            ]
+        );
+    } catch (InvalidArgumentException $exception) {
+        $t->same('SQLite Application JSON import rollback WAL page size must match the database page size', $exception->getMessage());
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
+$tests['sqlite application wal rollback json dynamic parity rejects invalid wal magic'] = static function (TestRunner $t) use ($scenarios): void {
+    $scenario = $scenarios[0];
+    $walBytes = substr_replace(
+        $scenario['wal_bytes'],
+        pack('N', 0x12345678),
+        0,
+        4
+    );
+
+    try {
+        SQLiteJsonImportRollbackWalPlan::plan(
+            [],
+            [],
+            [
+                'database_bytes' => $scenario['database_bytes'],
+                'page_size' => $scenario['page_size'],
+                'wal_bytes' => $walBytes,
+            ]
+        );
+    } catch (InvalidArgumentException $exception) {
+        $t->same('SQLite Application JSON import rollback WAL bytes require a valid WAL header', $exception->getMessage());
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
 return $tests;

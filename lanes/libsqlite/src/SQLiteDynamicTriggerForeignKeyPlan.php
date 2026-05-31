@@ -663,6 +663,154 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     /**
      * @param list<array<string,mixed>> $parents
      * @param list<array<string,mixed>> $children
+     * @param list<array{case:string,operation:string,row?:array<string,mixed>,where?:array<string,mixed>,deferred_violation?:bool,rollback?:bool}> $operations
+     * @return array<string,mixed>
+     */
+    public static function foreignKeyCounterScanPlan(array $parents, array $children, array $operations): array
+    {
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $deferredViolationCount = 0;
+        $trace = [];
+
+        foreach ($operations as $operation) {
+            $kind = strtolower(trim($operation['operation']));
+            $beforeViolationCount = $deferredViolationCount;
+            $searchCount = 0;
+            $foundCount = 0;
+            $rolledBack = false;
+
+            if ($kind === 'insert-parent') {
+                $parents[] = $operation['row'] ?? throw new \InvalidArgumentException('SQLite fkey2-15 parent insert row is required');
+                if ($deferredViolationCount > 0) {
+                    $searchCount = 1;
+                    $foundCount = 1;
+                }
+            } elseif ($kind === 'insert-child') {
+                $children[] = $operation['row'] ?? throw new \InvalidArgumentException('SQLite fkey2-15 child insert row is required');
+                if (($operation['deferred_violation'] ?? false) === true) {
+                    $deferredViolationCount++;
+                    $searchCount = 1;
+                    $foundCount = 1;
+                }
+            } elseif ($kind === 'delete-child') {
+                $where = $operation['where'] ?? throw new \InvalidArgumentException('SQLite fkey2-15 child delete predicate is required');
+                $children = array_values(array_filter(
+                    $children,
+                    static fn (array $row): bool => !self::rowMatches($row, $where)
+                ));
+                if ($deferredViolationCount > 0) {
+                    $deferredViolationCount = max(0, $deferredViolationCount - 1);
+                    $searchCount = 1;
+                }
+            } elseif ($kind === 'delete-parent') {
+                $where = $operation['where'] ?? throw new \InvalidArgumentException('SQLite fkey2-15 parent delete predicate is required');
+                $parents = array_values(array_filter(
+                    $parents,
+                    static fn (array $row): bool => !self::rowMatches($row, $where)
+                ));
+                $searchCount = 1;
+                if (($operation['deferred_violation'] ?? false) === true) {
+                    $deferredViolationCount++;
+                    $foundCount = 1;
+                }
+            } elseif ($kind === 'rollback') {
+                $rolledBack = true;
+                $searchCount = $deferredViolationCount > 0 ? 1 : 0;
+                $foundCount = $deferredViolationCount > 0 ? 1 : 0;
+                $deferredViolationCount = 0;
+            } else {
+                throw new \InvalidArgumentException('SQLite fkey2-15 counter scan operation is unsupported');
+            }
+
+            $trace[] = [
+                'case' => (string) $operation['case'],
+                'operation' => $kind,
+                'search_count' => $searchCount,
+                'found_count' => $foundCount,
+                'combined_scan_count' => $searchCount + $foundCount,
+                'deferred_violation_count_before' => $beforeViolationCount,
+                'deferred_violation_count_after' => $deferredViolationCount,
+                'rolled_back' => $rolledBack,
+                'parent_count' => count($parents),
+                'child_count' => count($children),
+            ];
+        }
+
+        return [
+            'source' => 'fkey2.test fkey2-15.1.1..15.1.7',
+            'operation' => 'foreign-key-counter-scan-elision',
+            'parents' => $parents,
+            'children' => $children,
+            'trace' => $trace,
+            'deferred_violation_count' => $deferredViolationCount,
+            'dependencies' => [
+                'sqlite-fkey2-zero-deferred-counter-elides-parent-insert-scan',
+                'sqlite-fkey2-nonzero-deferred-counter-keeps-parent-insert-scan',
+                'sqlite-fkey2-rollback-scans-when-deferred-counter-nonzero',
+            ],
+        ];
+    }
+
+    /**
+     * @param array{primary_key:string,foreign_key:string} $schema
+     * @param list<array<string,mixed>> $updates
+     * @return array<string,mixed>
+     */
+    public static function selfReferentialForeignKeyPlan(array $schema, mixed $initialKey, mixed $initialReference, array $updates): array
+    {
+        $primaryKey = self::identifier($schema['primary_key'] ?? '', 'primary key');
+        $foreignKey = self::identifier($schema['foreign_key'] ?? '', 'foreign key');
+        $row = [$primaryKey => $initialKey, $foreignKey => $initialReference];
+        $trace = [];
+
+        foreach ($updates as $update) {
+            $next = $row;
+            foreach ($update as $column => $value) {
+                $column = self::identifier((string) $column, 'update column');
+                if ($column !== $primaryKey && $column !== $foreignKey) {
+                    throw new \InvalidArgumentException('SQLite fkey2-16 self-reference update column is unsupported');
+                }
+                $next[$column] = $value;
+            }
+
+            $ok = $next[$foreignKey] === null || $next[$foreignKey] === $next[$primaryKey];
+            if ($ok) {
+                $row = $next;
+            }
+            $trace[] = [
+                'update' => $update,
+                'ok' => $ok,
+                'error' => $ok ? null : 'FOREIGN KEY constraint failed',
+                'row_after' => $row,
+            ];
+        }
+
+        $deleteOk = $row[$foreignKey] === null || $row[$foreignKey] === $row[$primaryKey];
+
+        return [
+            'source' => 'fkey2.test fkey2-16.1.*',
+            'operation' => 'self-referential-foreign-key-row',
+            'schema' => ['primary_key' => $primaryKey, 'foreign_key' => $foreignKey],
+            'initial_row' => [$primaryKey => $initialKey, $foreignKey => $initialReference],
+            'trace' => $trace,
+            'final_row' => $row,
+            'delete_self_reference_ok' => $deleteOk,
+            'orphan_insert' => [
+                'ok' => false,
+                'error' => 'FOREIGN KEY constraint failed',
+            ],
+            'dependencies' => [
+                'sqlite-fkey2-self-reference-insert-is-valid',
+                'sqlite-fkey2-self-reference-update-must-remain-self-consistent',
+                'sqlite-fkey2-self-reference-delete-is-valid',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
      * @return array<string,mixed>
      */
     public static function deferredRestrictDeleteTriggerRepair(
@@ -4320,6 +4468,98 @@ final class SQLiteDynamicTriggerForeignKeyPlan
                 'sqlite-fkey3-self-referential-row-matches-itself-after-insert',
                 'sqlite-fkey3-integer-primary-key-null-is-assigned-before-fk-check',
                 'sqlite-fkey3-composite-parent-key-order-follows-fk-declaration',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @param array{parent_key?:string,child_key?:string,old:mixed,new:mixed,on_update?:string} $statement
+     * @return array<string,mixed>
+     */
+    public static function parentUpdateForeignKeyAction(array $parents, array $children, array $statement): array
+    {
+        $parentKey = self::identifier((string) ($statement['parent_key'] ?? 'x'), 'parent key');
+        $childKey = self::identifier((string) ($statement['child_key'] ?? 'y'), 'child key');
+        $onUpdate = strtolower(trim((string) ($statement['on_update'] ?? 'set null')));
+        if (!in_array($onUpdate, ['set null', 'cascade', 'no action'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey3 parent update action is unsupported');
+        }
+
+        $oldValue = $statement['old'] ?? null;
+        $newValue = $statement['new'] ?? null;
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $matchedParentRows = 0;
+        $actionRows = [];
+
+        foreach ($parents as $index => $parent) {
+            if (($parent[$parentKey] ?? null) !== $oldValue) {
+                continue;
+            }
+
+            $parents[$index][$parentKey] = $newValue;
+            ++$matchedParentRows;
+        }
+
+        foreach ($children as $index => $child) {
+            if (($child[$childKey] ?? null) !== $oldValue) {
+                continue;
+            }
+
+            if ($onUpdate === 'set null') {
+                $children[$index][$childKey] = null;
+            } elseif ($onUpdate === 'cascade') {
+                $children[$index][$childKey] = $newValue;
+            }
+
+            $actionRows[] = [
+                'child_index' => $index,
+                'old_child_key' => $oldValue,
+                'new_child_key' => $children[$index][$childKey] ?? null,
+                'action' => $onUpdate,
+            ];
+        }
+
+        $parentValues = array_values(array_map(static fn (array $row): mixed => $row[$parentKey] ?? null, $parents));
+        $violations = [];
+        foreach ($children as $index => $child) {
+            $value = $child[$childKey] ?? null;
+            if ($value === null || in_array($value, $parentValues, true)) {
+                continue;
+            }
+
+            $violations[] = [
+                'child_index' => $index,
+                'child_key' => $value,
+                'parent_key' => $parentKey,
+                'phase' => 'statement',
+            ];
+        }
+
+        return [
+            'source' => 'fkey3.test fkey3-2.1',
+            'operation' => 'parent-update-foreign-key-action',
+            'status' => $violations === [] ? 'commit-ok' : 'constraint-failed',
+            'parent_key' => $parentKey,
+            'child_key' => $childKey,
+            'old_parent_key' => $oldValue,
+            'new_parent_key' => $newValue,
+            'on_update' => $onUpdate,
+            'matched_parent_rows' => $matchedParentRows,
+            'action_count' => count($actionRows),
+            'action_rows' => $actionRows,
+            'parent_rows' => self::sortRows($parents),
+            'child_rows' => self::sortRows($children),
+            'parent_key_values' => $parentValues,
+            'child_key_values' => array_values(array_map(static fn (array $row): mixed => $row[$childKey] ?? null, $children)),
+            'violation_count' => count($violations),
+            'violations' => $violations,
+            'dependencies' => [
+                'sqlite-fkey3-parent-update-set-null-child-key-rewrite',
+                'sqlite-fkey3-parent-update-cascade-child-key-rewrite',
+                'sqlite-fkey3-parent-update-no-action-statement-check',
             ],
         ];
     }

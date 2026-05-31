@@ -1544,4 +1544,63 @@ foreach ($stringPositionMalformed as $name => $sql) {
     };
 }
 
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $condition = match ($seed % 4) {
+        0 => '1',
+        1 => '0.5',
+        2 => "'1english'",
+        default => "'0'",
+    };
+    $limitExpr = "iif({$condition}, {$limitValue}, {$limitValue})";
+    $offsetExpr = $seed % 2 === 0
+        ? "if(FALSE, 9, {$offsetValue})"
+        : "iif(NULL, 9, {$offsetValue})";
+    $sql = "UPDATE app_settings SET state = 'iif_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update iif expression window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitCondition = $seed % 2 === 0 ? 'TRUE' : "'2'";
+    $offsetCondition = $seed % 3 === 0 ? '0' : 'NULL';
+    $limitExpr = "iif({$limitCondition}, {$limitValue}, 8)";
+    $offsetExpr = "if({$offsetCondition}, 8, {$offsetValue})";
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue iif subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+$iifMalformed = [
+    'malformed iif arity rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT iif(TRUE, 1)",
+    'malformed if arity rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT if(TRUE, 1)",
+    'malformed iif null selected branch rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT iif(TRUE, NULL, 1)",
+    'malformed if nonintegral selected branch rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT if(FALSE, 1, 2.5)",
+];
+
+foreach ($iifMalformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
+    };
+}
+
 return $tests;

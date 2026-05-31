@@ -9,6 +9,13 @@ final class SQLitePragmaEncodingPageTempStoreState
     /** @var array<string, array{encoding:string,page_size:int,page_count:int,max_page_count:int,application_id:int,temp_store:int,auto_vacuum:int,pending_auto_vacuum:int|null,database_empty:bool,temporary:bool}> */
     private array $schemas = [];
 
+    /** @var array<string, list<array<string, int|string|null>>> */
+    private array $tempTables = [];
+
+    private bool $tempTransactionActive = false;
+
+    private bool $tempScanActive = false;
+
     /**
      * @param array<string, array{encoding?:string|int,page_size?:int|string,page_count?:int|string,max_page_count?:int|string,application_id?:int|string,temp_store?:int|string,auto_vacuum?:int|string,pending_auto_vacuum?:int|string|null,database_empty?:bool,temporary?:bool}> $schemas
      */
@@ -91,6 +98,101 @@ final class SQLitePragmaEncodingPageTempStoreState
     public function schemas(): array
     {
         return $this->schemas;
+    }
+
+    /**
+     * @param list<array<string, int|string|null>> $rows
+     * @return array{status:string,table:string,rows:int,temp_store:int}
+     */
+    public function beginTempTransaction(string $tableName, array $rows = []): array
+    {
+        if ($this->tempTransactionActive) {
+            throw new \InvalidArgumentException('SQLite temp_store transaction is already active');
+        }
+
+        $table = self::normalizeIdentifier($tableName, 'SQLite temp table name');
+        $this->tempTransactionActive = true;
+        $this->tempTables[$table] = array_values($rows);
+
+        return [
+            'status' => 'temp_transaction_active',
+            'table' => $table,
+            'rows' => count($this->tempTables[$table]),
+            'temp_store' => $this->schemas['main']['temp_store'],
+        ];
+    }
+
+    /**
+     * @param array<string, int|string|null> $row
+     * @return array{status:string,table:string,rows:int}
+     */
+    public function insertTempRow(string $tableName, array $row): array
+    {
+        if (!$this->tempTransactionActive) {
+            throw new \InvalidArgumentException('SQLite temp_store insert requires an active transaction');
+        }
+
+        $table = self::normalizeIdentifier($tableName, 'SQLite temp table name');
+        $this->tempTables[$table] ??= [];
+        $this->tempTables[$table][] = $row;
+
+        return [
+            'status' => 'temp_row_inserted',
+            'table' => $table,
+            'rows' => count($this->tempTables[$table]),
+        ];
+    }
+
+    /**
+     * @return array{status:string,tables:list<string>,temp_store:int}
+     */
+    public function commitTempTransaction(): array
+    {
+        if (!$this->tempTransactionActive) {
+            throw new \InvalidArgumentException('SQLite temp_store transaction is not active');
+        }
+
+        $this->tempTransactionActive = false;
+
+        return [
+            'status' => 'temp_transaction_committed',
+            'tables' => array_keys($this->tempTables),
+            'temp_store' => $this->schemas['main']['temp_store'],
+        ];
+    }
+
+    /**
+     * @return array{status:string,table:string,rows:list<array<string, int|string|null>>,temp_store:int}
+     */
+    public function beginTempScan(string $tableName): array
+    {
+        if ($this->tempScanActive) {
+            throw new \InvalidArgumentException('SQLite temp_store scan is already active');
+        }
+
+        $table = self::normalizeIdentifier($tableName, 'SQLite temp table name');
+        $this->tempScanActive = true;
+
+        return [
+            'status' => 'temp_scan_active',
+            'table' => $table,
+            'rows' => $this->tempTables[$table] ?? [],
+            'temp_store' => $this->schemas['main']['temp_store'],
+        ];
+    }
+
+    /**
+     * @return array{status:string}
+     */
+    public function endTempScan(): array
+    {
+        if (!$this->tempScanActive) {
+            throw new \InvalidArgumentException('SQLite temp_store scan is not active');
+        }
+
+        $this->tempScanActive = false;
+
+        return ['status' => 'temp_scan_finished'];
     }
 
     /**
@@ -291,6 +393,10 @@ final class SQLitePragmaEncodingPageTempStoreState
         $effective = $before;
 
         if ($requested !== null) {
+            if ($this->tempTransactionActive || $this->tempScanActive) {
+                throw new \RuntimeException('temporary storage cannot be changed from within a transaction');
+            }
+
             $effective = self::normalizeTempStore($requested);
             $this->schemas[$schema]['temp_store'] = $effective;
         }
@@ -398,6 +504,16 @@ final class SQLitePragmaEncodingPageTempStoreState
         }
 
         return $normalized;
+    }
+
+    private static function normalizeIdentifier(string $value, string $message): string
+    {
+        $identifier = strtolower(trim($value));
+        if (!preg_match('/^[a-z_][a-z0-9_]*$/', $identifier)) {
+            throw new \InvalidArgumentException($message);
+        }
+
+        return $identifier;
     }
 
     private static function normalizeAutoVacuum(int|string $value): int

@@ -1261,6 +1261,231 @@ final class SQLiteRealUpstreamPagerWalDynamicPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walNoShmExclusiveModeCases(): array
+    {
+        $baseCases = [
+            [
+                'source_file' => 'walnoshm.test',
+                'upstream' => 'walnoshm.test 1.2',
+                'phase' => 'version1-vfs-normal-mode-refuses-wal-conversion',
+                'vfs_version' => 1,
+                'locking_mode_before' => 'normal',
+                'requested_locking_mode' => null,
+                'journal_mode_before' => 'delete',
+                'requested_journal_mode' => 'wal',
+                'journal_mode_after' => 'delete',
+                'locking_mode_after' => 'normal',
+                'wal_exists' => false,
+                'shm_primitives' => false,
+                'heap_wal_index' => false,
+                'rows_visible' => [[1, 2]],
+                'result_code' => 0,
+                'message' => 'delete',
+            ],
+            [
+                'source_file' => 'walnoshm.test',
+                'upstream' => 'walnoshm.test 1.4',
+                'phase' => 'exclusive-mode-allows-wal-without-shm-primitives',
+                'vfs_version' => 1,
+                'locking_mode_before' => 'normal',
+                'requested_locking_mode' => 'exclusive',
+                'journal_mode_before' => 'delete',
+                'requested_journal_mode' => 'wal',
+                'journal_mode_after' => 'wal',
+                'locking_mode_after' => 'exclusive',
+                'wal_exists' => true,
+                'shm_primitives' => false,
+                'heap_wal_index' => true,
+                'rows_visible' => [[1, 2]],
+                'result_code' => 0,
+                'message' => 'exclusive wal',
+            ],
+            [
+                'source_file' => 'walnoshm.test',
+                'upstream' => 'walnoshm.test 1.7',
+                'phase' => 'heap-wal-index-keeps-exclusive-mode-until-rollback-mode',
+                'vfs_version' => 1,
+                'locking_mode_before' => 'exclusive',
+                'requested_locking_mode' => 'normal',
+                'journal_mode_before' => 'wal',
+                'requested_journal_mode' => null,
+                'journal_mode_after' => 'wal',
+                'locking_mode_after' => 'exclusive',
+                'wal_exists' => true,
+                'shm_primitives' => false,
+                'heap_wal_index' => true,
+                'rows_visible' => [[1, 2], [3, 4]],
+                'result_code' => 0,
+                'message' => 'exclusive',
+            ],
+            [
+                'source_file' => 'walnoshm.test',
+                'upstream' => 'walnoshm.test 1.8 1.9 1.10',
+                'phase' => 'delete-mode-releases-heap-wal-index-exclusive-lock',
+                'vfs_version' => 1,
+                'locking_mode_before' => 'exclusive',
+                'requested_locking_mode' => 'normal',
+                'journal_mode_before' => 'wal',
+                'requested_journal_mode' => 'delete',
+                'journal_mode_after' => 'delete',
+                'locking_mode_after' => 'normal',
+                'wal_exists' => false,
+                'shm_primitives' => false,
+                'heap_wal_index' => false,
+                'rows_visible' => [[1, 2], [3, 4]],
+                'result_code' => 0,
+                'message' => 'delete normal',
+            ],
+            [
+                'source_file' => 'walnoshm.test',
+                'upstream' => 'walnoshm.test 2.1.3 2.1.4',
+                'phase' => 'copy-open-without-exclusive-cannot-read-heap-wal-index',
+                'vfs_version' => 1,
+                'locking_mode_before' => 'normal',
+                'requested_locking_mode' => null,
+                'journal_mode_before' => 'wal',
+                'requested_journal_mode' => null,
+                'journal_mode_after' => 'wal',
+                'locking_mode_after' => 'normal',
+                'wal_exists' => true,
+                'shm_primitives' => false,
+                'heap_wal_index' => true,
+                'rows_visible' => [],
+                'result_code' => 1,
+                'message' => 'unable to open database file',
+            ],
+            [
+                'source_file' => 'walnoshm.test',
+                'upstream' => 'walnoshm.test 2.1.5',
+                'phase' => 'exclusive-copy-converts-heap-wal-database-to-delete',
+                'vfs_version' => 1,
+                'locking_mode_before' => 'normal',
+                'requested_locking_mode' => 'exclusive',
+                'journal_mode_before' => 'wal',
+                'requested_journal_mode' => 'delete',
+                'journal_mode_after' => 'delete',
+                'locking_mode_after' => 'exclusive',
+                'wal_exists' => false,
+                'shm_primitives' => false,
+                'heap_wal_index' => false,
+                'rows_visible' => [['a', 'b'], ['c', 'd'], ['e', 'f'], ['g', 'h']],
+                'result_code' => 0,
+                'message' => 'exclusive delete',
+            ],
+            [
+                'source_file' => 'walnoshm.test',
+                'upstream' => 'walnoshm.test 2.2.2',
+                'phase' => 'exclusive-conversion-fails-while-shm-reader-holds-lock',
+                'vfs_version' => 1,
+                'locking_mode_before' => 'normal',
+                'requested_locking_mode' => 'exclusive',
+                'journal_mode_before' => 'wal',
+                'requested_journal_mode' => 'delete',
+                'journal_mode_after' => 'wal',
+                'locking_mode_after' => 'exclusive',
+                'wal_exists' => true,
+                'shm_primitives' => false,
+                'heap_wal_index' => true,
+                'rows_visible' => [],
+                'result_code' => 1,
+                'message' => 'database is locked',
+                'blocking_reader' => true,
+            ],
+            [
+                'source_file' => 'walnoshm.test',
+                'upstream' => 'walnoshm.test 2.2.3 2.2.5',
+                'phase' => 'failed-exclusive-conversion-does-not-leave-pending-lock',
+                'vfs_version' => 1,
+                'locking_mode_before' => 'exclusive',
+                'requested_locking_mode' => null,
+                'journal_mode_before' => 'wal',
+                'requested_journal_mode' => null,
+                'journal_mode_after' => 'wal',
+                'locking_mode_after' => 'exclusive',
+                'wal_exists' => true,
+                'shm_primitives' => true,
+                'heap_wal_index' => false,
+                'rows_visible' => [['a', 'b'], ['c', 'd'], ['e', 'f'], ['g', 'h']],
+                'result_code' => 0,
+                'message' => 'reader still opens',
+                'blocking_reader' => false,
+            ],
+            [
+                'source_file' => 'walnoshm.test',
+                'upstream' => 'walnoshm.test 3.1',
+                'phase' => 'exclusive-after-wal-open-can-return-to-normal',
+                'vfs_version' => 1,
+                'locking_mode_before' => 'normal',
+                'requested_locking_mode' => 'normal',
+                'journal_mode_before' => 'wal',
+                'requested_journal_mode' => null,
+                'journal_mode_after' => 'wal',
+                'locking_mode_after' => 'normal',
+                'wal_exists' => true,
+                'shm_primitives' => true,
+                'heap_wal_index' => false,
+                'rows_visible' => [[1, 2], [3, 4], [5, 6], [7, 8]],
+                'result_code' => 0,
+                'message' => 'normal shared-memory wal',
+            ],
+            [
+                'source_file' => 'walnoshm.test',
+                'upstream' => 'walnoshm.test 3.2',
+                'phase' => 'exclusive-before-wal-open-keeps-other-reader-locked-out',
+                'vfs_version' => 1,
+                'locking_mode_before' => 'exclusive',
+                'requested_locking_mode' => 'normal',
+                'journal_mode_before' => 'wal',
+                'requested_journal_mode' => null,
+                'journal_mode_after' => 'wal',
+                'locking_mode_after' => 'exclusive',
+                'wal_exists' => true,
+                'shm_primitives' => false,
+                'heap_wal_index' => true,
+                'rows_visible' => [],
+                'result_code' => 1,
+                'message' => 'database is locked',
+                'blocking_reader' => true,
+            ],
+        ];
+
+        $cases = [];
+        $busyPolicies = ['immediate', 'short-timeout', 'retry-then-fail', 'retry-after-release'];
+        $connectionRoles = ['writer', 'readonly-reader', 'checkpoint', 'observer'];
+        $rowAmplifiers = [1, 2, 4, 8, 16];
+        for ($i = 0; $i < 480; $i++) {
+            $base = $baseCases[$i % count($baseCases)];
+            $rowAmplifier = $rowAmplifiers[intdiv($i, count($baseCases)) % count($rowAmplifiers)];
+            $busyPolicy = $busyPolicies[intdiv($i, 5) % count($busyPolicies)];
+            $role = $connectionRoles[intdiv($i, 11) % count($connectionRoles)];
+            $blocks = ($base['result_code'] !== 0) || (bool) ($base['blocking_reader'] ?? false);
+            $usesHeapWal = (bool) $base['heap_wal_index'];
+
+            $cases[] = $base + [
+                'case' => $i + 1,
+                'busy_policy' => $busyPolicy,
+                'connection_role' => $role,
+                'row_amplifier' => $rowAmplifier,
+                'visible_row_count' => count($base['rows_visible']) * $rowAmplifier,
+                'can_open_without_shm' => $usesHeapWal && $base['locking_mode_after'] === 'exclusive' && $base['result_code'] === 0,
+                'requires_exclusive_lock' => $usesHeapWal,
+                'reader_blocked' => $blocks,
+                'lock_trace' => self::walNoShmLockTrace($base, $busyPolicy, $role),
+                'assertion_family' => 'walnoshm-exclusive-heap-wal-index',
+                'dependencies' => [
+                    'sqlite-real-upstream-pager-wal-dynamic',
+                    'sqlite-upstream-walnoshm-exclusive-mode',
+                    'sqlite-wal-heap-index-without-shm',
+                ],
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
      * @param list<array<string, mixed>> $locks
      */
     private static function countLocks(array $locks, string $op, string $level): int
@@ -1287,5 +1512,36 @@ final class SQLiteRealUpstreamPagerWalDynamicPlan
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, mixed> $case
+     * @return list<string>
+     */
+    private static function walNoShmLockTrace(array $case, string $busyPolicy, string $role): array
+    {
+        $trace = [
+            $role . ':open:vfs-version-' . $case['vfs_version'],
+            $role . ':locking-before:' . $case['locking_mode_before'],
+            $role . ':journal-before:' . $case['journal_mode_before'],
+        ];
+
+        if ($case['requested_locking_mode'] !== null) {
+            $trace[] = $role . ':request-locking:' . $case['requested_locking_mode'];
+        }
+        if ($case['requested_journal_mode'] !== null) {
+            $trace[] = $role . ':request-journal:' . $case['requested_journal_mode'];
+        }
+        if ((bool) ($case['blocking_reader'] ?? false)) {
+            $trace[] = 'peer-reader:holds:shared-wal-index';
+            $trace[] = $role . ':busy-policy:' . $busyPolicy;
+        }
+
+        $trace[] = $role . ':locking-after:' . $case['locking_mode_after'];
+        $trace[] = $role . ':journal-after:' . $case['journal_mode_after'];
+        $trace[] = $role . ':wal-file:' . ((bool) $case['wal_exists'] ? 'present' : 'absent');
+        $trace[] = $role . ':wal-index:' . ((bool) $case['heap_wal_index'] ? 'heap' : ((bool) $case['shm_primitives'] ? 'shm' : 'none'));
+
+        return $trace;
     }
 }

@@ -16,7 +16,8 @@ final class SQLiteAffinityComparison
         self::assertComparable($value);
 
         return match (self::normalizeAffinity($affinity)) {
-            'INTEGER', 'REAL', 'NUMERIC' => self::applyNumericAffinity($value),
+            'INTEGER', 'NUMERIC' => self::applyNumericAffinity($value),
+            'REAL' => self::applyRealAffinity($value),
             'TEXT' => self::applyTextAffinity($value),
             default => $value,
         };
@@ -122,6 +123,24 @@ final class SQLiteAffinityComparison
         $real = (float) $trimmed;
 
         return is_finite($real) && floor($real) === $real && preg_match('/[.eE]/', $trimmed) === 1 && self::integerLiteralFitsInt64(sprintf('%.0F', $real)) ? (int) $real : $real;
+    }
+
+    private static function applyRealAffinity(mixed $value): mixed
+    {
+        if ($value === null || is_float($value)) {
+            return $value;
+        }
+        if (is_bool($value) || is_int($value)) {
+            return (float) $value;
+        }
+
+        $text = $value instanceof SQLiteBlobValue ? $value->bytes : $value;
+        $trimmed = trim($text);
+        if (preg_match('/^[+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))(?:[eE][+-]?[0-9]+)?$/', $trimmed) !== 1) {
+            return $value;
+        }
+
+        return (float) $trimmed;
     }
 
     private static function applyTextAffinity(mixed $value): mixed

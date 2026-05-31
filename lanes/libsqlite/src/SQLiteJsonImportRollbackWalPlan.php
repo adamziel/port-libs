@@ -752,6 +752,13 @@ final class SQLiteJsonImportRollbackWalPlan
         if (strlen($walBytes) < 32) {
             throw new \InvalidArgumentException('SQLite Application JSON import rollback WAL bytes require a 32 byte header');
         }
+        $header = unpack('Nmagic/Nversion/Npage_size/Ncheckpoint/Nsalt_1/Nsalt_2/Nchecksum_1/Nchecksum_2', substr($walBytes, 0, 32));
+        if (!is_array($header) || (int) $header['magic'] !== SQLiteWalHeader::MAGIC_BIG_ENDIAN) {
+            throw new \InvalidArgumentException('SQLite Application JSON import rollback WAL bytes require a valid WAL header');
+        }
+        if ((int) $header['page_size'] !== $pageSize) {
+            throw new \InvalidArgumentException('SQLite Application JSON import rollback WAL page size must match the database page size');
+        }
 
         $frameSize = 24 + $pageSize;
         $frameBytes = strlen($walBytes) - 32;

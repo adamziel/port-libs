@@ -722,7 +722,7 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : self::textLength((string) $value);
         }
-        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode)\s*\((.*)\)$/is', $expression, $match) === 1) {
+        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode|iif|if)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }
         $predicate = self::evaluateLimitPredicateExpression($expression);
@@ -961,11 +961,22 @@ final class SQLiteUpdateDeleteReturningSql
         if ($function === 'unicode' && count($parts) !== 1) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT unicode() needs one argument');
         }
+        if (($function === 'iif' || $function === 'if') && count($parts) !== 3) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs three arguments");
+        }
         if (($function === 'upper' || $function === 'lower' || $function === 'trim' || $function === 'ltrim' || $function === 'rtrim') && count($parts) !== 1) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
         }
         if (($function === 'substr' || $function === 'substring') && count($parts) !== 2 && count($parts) !== 3) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs two or three arguments");
+        }
+
+        if ($function === 'iif' || $function === 'if') {
+            $condition = self::sqliteTruthValue(self::limitExpressionValue($parts[0]));
+
+            return $condition === true
+                ? self::limitExpressionValue($parts[1])
+                : self::limitExpressionValue($parts[2]);
         }
 
         $values = array_map(static fn (string $part): int|float|string|null => self::limitExpressionValue($part), $parts);
@@ -1776,7 +1787,9 @@ final class SQLiteUpdateDeleteReturningSql
             return $value != 0;
         }
         if (is_string($value)) {
-            $numeric = is_numeric($value) ? (float) $value : 0.0;
+            $numeric = preg_match('/^[\t\n\f\r ]*([+-]?(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+(?:[eE][+-]?\d+)?))/', $value, $match) === 1
+                ? (float) $match[1]
+                : 0.0;
 
             return $numeric != 0.0;
         }
