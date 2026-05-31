@@ -52,6 +52,22 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS integration 14:18 UTC):
+  source commit `2dc30de6add1847dadae8185f66c50e6a6668ac1`
+  (`ports: add lightningcss cssom color modules parity`) landed four verified
+  LightningCSS handoffs after excluding stale shared
+  status/manifest/progress metadata. LightningCSS full lane evidence moves
+  from `1639` to `1683 pass / 0 fail`, with conservative mapped coverage
+  moving from `1166 / 3532` to `1175 / 3532`: +8 concrete sRGB
+  `color-mix()` normalization cases and +1 CSS Modules bundle dependency
+  missing-export behavior. CSSOM animation and gap read/write/remove behavior
+  is verified but counted inside the existing DeclarationBlock CSSOM cluster.
+  Verification passed PHP lint on changed/new LightningCSS PHP files, diff
+  checks, focused LightningCSS gate `3 files / 1089 assertions / 0 failures`,
+  full LightningCSS lane `13 files / 1683 assertions / 0 failures`, and four
+  touched examples. Full upstream LightningCSS Rust/Node runners were not run
+  for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS integration 14:05 UTC):
   source commit `d3d025bf4c95aed7241ed44ebc97b3f59430410c`
   (`ports: add lightningcss visitor module sourcemap parity`) landed three
