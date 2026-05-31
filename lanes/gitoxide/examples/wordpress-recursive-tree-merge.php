@@ -117,6 +117,33 @@ $nestedPlugins = Tree::fromObject($read($nestedContent->entryNamed('plugins', tr
 $nestedPlugin = Tree::fromObject($read($nestedPlugins->entryNamed('acme-pro', true)?->oid ?? ''));
 $nestedIncludes = Tree::fromObject($read($nestedPlugin->entryNamed('includes', true)?->oid ?? ''));
 $nestedSrc = Tree::fromObject($read($nestedPlugin->entryNamed('src', true)?->oid ?? ''));
+$sameTargetBase = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('plugins', new Tree([
+            $tree('acme', $pluginTree('includes', $nestedBaseRoutes)),
+        ])),
+    ])),
+]);
+$sameTargetOurs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('plugins', new Tree([
+            $tree('acme-pro', $pluginTree('src', $nestedOursRoutes)),
+        ])),
+    ])),
+]);
+$sameTargetTheirs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('plugins', new Tree([
+            $tree('acme', $pluginTree('src', $nestedTheirsRoutes)),
+        ])),
+    ])),
+]);
+$sameTargetNestedResult = TreeMerge::mergeRecursive($sameTargetBase, $sameTargetOurs, $sameTargetTheirs, $read, $write);
+$sameTargetContent = Tree::fromObject($read($sameTargetNestedResult->tree->entryNamed('wp-content', true)?->oid ?? ''));
+$sameTargetPlugins = Tree::fromObject($read($sameTargetContent->entryNamed('plugins', true)?->oid ?? ''));
+$sameTargetPlugin = Tree::fromObject($read($sameTargetPlugins->entryNamed('acme-pro', true)?->oid ?? ''));
+$sameTargetSrc = Tree::fromObject($read($sameTargetPlugin->entryNamed('src', true)?->oid ?? ''));
+$sameTargetRoute = $read($sameTargetSrc->entryNamed('rest.php')?->oid ?? '')->body;
 $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
 $metadata = $read($contentTree->entryNamed('post.meta')?->oid ?? '');
 $demoRoot = sys_get_temp_dir() . '/port-libs-recursive-merge-' . bin2hex(random_bytes(4));
@@ -195,5 +222,27 @@ echo json_encode([
             'includes' => $read($nestedIncludes->entryNamed('rest.php')?->oid ?? '')->body,
             'src' => $read($nestedSrc->entryNamed('rest.php')?->oid ?? '')->body,
         ],
+    ],
+    'sameTargetNestedRename' => [
+        'clean' => $sameTargetNestedResult->isClean(),
+        'conflicts' => array_map(
+            static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
+            $sameTargetNestedResult->conflicts,
+        ),
+        'pluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $sameTargetPlugin->entries),
+        'srcEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $sameTargetSrc->entries),
+        'routeContainsMarkers' => str_contains($sameTargetRoute, '<<<<<<<'),
+        'expandedIndexStages' => array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'path' => $entry->path,
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+            ],
+            MergeIndexFile::entriesForResult($sameTargetNestedResult, $read),
+        ),
+        'worktreeConflictFiles' => array_map(
+            static fn ($file): string => $file->path,
+            $sameTargetNestedResult->worktreeConflictFiles($read),
+        ),
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

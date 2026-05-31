@@ -2129,7 +2129,7 @@ final class TreeMerge
             return $merge;
         }
 
-        $nested = self::nestedDirectoryRenameConflicts(
+        $sameTargetNested = self::sameTargetNestedRenameConflicts(
             $pathPrefix,
             $targetPath,
             $baseEntry,
@@ -2138,12 +2138,210 @@ final class TreeMerge
             $merge['entry'],
             $readObject,
             $writeObject,
+            $conflictStyle,
+            $bigFileThreshold,
+        );
+        $nested = self::nestedDirectoryRenameConflicts(
+            $pathPrefix,
+            $targetPath,
+            $baseEntry,
+            $ourEntry,
+            $theirEntry,
+            $sameTargetNested['entry'],
+            $readObject,
+            $writeObject,
         );
 
         return [
             'entry' => $nested['entry'],
-            'conflicts' => [...$merge['conflicts'], ...$nested['conflicts']],
+            'conflicts' => [...$merge['conflicts'], ...$sameTargetNested['conflicts'], ...$nested['conflicts']],
         ];
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     * @return array{entry:TreeEntry,conflicts:list<TreeMergeConflict>}
+     */
+    private static function sameTargetNestedRenameConflicts(
+        string $pathPrefix,
+        string $targetPath,
+        TreeEntry $baseEntry,
+        TreeEntry $ourEntry,
+        TreeEntry $theirEntry,
+        TreeEntry $mergedEntry,
+        callable $readObject,
+        callable $writeObject,
+        string $conflictStyle,
+        ?int $bigFileThreshold,
+    ): array {
+        $targetName = basename($targetPath);
+        if (
+            $ourEntry->filename !== $targetName
+            || $theirEntry->filename === $targetName
+            || !$baseEntry->isTree()
+            || !$ourEntry->isTree()
+            || !$theirEntry->isTree()
+            || !$mergedEntry->isTree()
+        ) {
+            return ['entry' => $mergedEntry, 'conflicts' => []];
+        }
+
+        $baseEntries = self::entriesByName(Tree::fromObject(self::readTypedObject($readObject, $baseEntry->oid, 'tree')));
+        $ourEntries = self::entriesByName(Tree::fromObject(self::readTypedObject($readObject, $ourEntry->oid, 'tree')));
+        $theirEntries = self::entriesByName(Tree::fromObject(self::readTypedObject($readObject, $theirEntry->oid, 'tree')));
+        $mergedEntries = self::entriesByName(Tree::fromObject(self::readTypedObject($readObject, $mergedEntry->oid, 'tree')));
+        $ourRenames = self::detectedRenames($baseEntries, $ourEntries, $readObject);
+        $theirRenames = self::detectedRenames($baseEntries, $theirEntries, $readObject);
+
+        $conflicts = [];
+        foreach ($ourRenames as $sourcePath => $ourRename) {
+            $theirRename = $theirRenames[$sourcePath] ?? null;
+            if ($theirRename === null || $theirRename['path'] !== $ourRename['path']) {
+                continue;
+            }
+
+            $nestedTarget = $ourRename['path'];
+            $baseSource = $baseEntries[$sourcePath] ?? null;
+            $ourTarget = $ourEntries[$nestedTarget] ?? null;
+            $theirTarget = $theirEntries[$nestedTarget] ?? null;
+            $mergedTarget = $mergedEntries[$nestedTarget] ?? null;
+            if (
+                $baseSource === null
+                || $ourTarget === null
+                || $theirTarget === null
+                || $mergedTarget === null
+                || !$baseSource->isTree()
+                || !$ourTarget->isTree()
+                || !$theirTarget->isTree()
+                || !$mergedTarget->isTree()
+            ) {
+                continue;
+            }
+
+            $rebased = self::mergeSameTargetRenameTreeWithoutBase(
+                Tree::fromObject(self::readTypedObject($readObject, $ourTarget->oid, 'tree')),
+                Tree::fromObject(self::readTypedObject($readObject, $mergedTarget->oid, 'tree')),
+                self::joinPath($pathPrefix, self::joinPath($targetPath, $nestedTarget)),
+                $readObject,
+                $writeObject,
+                $conflictStyle,
+                $bigFileThreshold,
+            );
+            if ($rebased['conflicts'] === []) {
+                continue;
+            }
+
+            $mergedEntries[$nestedTarget] = new TreeEntry(
+                $mergedTarget->mode,
+                $nestedTarget,
+                $writeObject($rebased['tree']->toObject()),
+            );
+            array_push($conflicts, ...$rebased['conflicts']);
+        }
+
+        if ($conflicts === []) {
+            return ['entry' => $mergedEntry, 'conflicts' => []];
+        }
+
+        $entries = array_values($mergedEntries);
+        self::sortEntries($entries);
+
+        return [
+            'entry' => new TreeEntry($mergedEntry->mode, $mergedEntry->filename, $writeObject((new Tree($entries))->toObject())),
+            'conflicts' => $conflicts,
+        ];
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     * @return array{tree:Tree,conflicts:list<TreeMergeConflict>}
+     */
+    private static function mergeSameTargetRenameTreeWithoutBase(
+        Tree $ours,
+        Tree $theirs,
+        string $pathPrefix,
+        callable $readObject,
+        callable $writeObject,
+        string $conflictStyle,
+        ?int $bigFileThreshold,
+    ): array {
+        $ourEntries = self::entriesByName($ours);
+        $theirEntries = self::entriesByName($theirs);
+        $paths = array_keys($ourEntries + $theirEntries);
+        sort($paths, SORT_STRING);
+
+        $merged = [];
+        $conflicts = [];
+        foreach ($paths as $path) {
+            $ourEntry = $ourEntries[$path] ?? null;
+            $theirEntry = $theirEntries[$path] ?? null;
+            if (self::sameEntry($ourEntry, $theirEntry)) {
+                if ($ourEntry !== null) {
+                    $merged[] = $ourEntry;
+                }
+                continue;
+            }
+            if ($ourEntry === null || $theirEntry === null) {
+                $merged[] = $ourEntry ?? $theirEntry;
+                continue;
+            }
+
+            $fullPath = self::joinPath($pathPrefix, $path);
+            if ($ourEntry->isTree() && $theirEntry->isTree()) {
+                $nested = self::mergeSameTargetRenameTreeWithoutBase(
+                    Tree::fromObject(self::readTypedObject($readObject, $ourEntry->oid, 'tree')),
+                    Tree::fromObject(self::readTypedObject($readObject, $theirEntry->oid, 'tree')),
+                    $fullPath,
+                    $readObject,
+                    $writeObject,
+                    $conflictStyle,
+                    $bigFileThreshold,
+                );
+                $merged[] = new TreeEntry($theirEntry->mode, $path, $writeObject($nested['tree']->toObject()));
+                array_push($conflicts, ...$nested['conflicts']);
+                continue;
+            }
+
+            if ($ourEntry->isBlob() && $theirEntry->isBlob()) {
+                $mergedMode = self::mergeAddedBlobMode($ourEntry, $theirEntry);
+                if ($mergedMode !== null) {
+                    $ourBlob = self::readTypedObject($readObject, $ourEntry->oid, 'blob');
+                    $theirBlob = self::readTypedObject($readObject, $theirEntry->oid, 'blob');
+                    $merge = self::shouldUseBinaryMerge('', $ourBlob->body, $theirBlob->body, $bigFileThreshold)
+                        ? BlobMerge::mergeBinary('', $ourBlob->body, $theirBlob->body)
+                        : BlobMerge::mergeText(
+                            '',
+                            $ourBlob->body,
+                            $theirBlob->body,
+                            $conflictStyle,
+                            'base/' . $fullPath,
+                            'ours/' . $fullPath,
+                            'theirs/' . $fullPath,
+                        );
+
+                    $merged[] = new TreeEntry($mergedMode, $path, $writeObject(new GitObject('blob', $merge->content)));
+                    if (!$merge->isClean()) {
+                        $conflicts[] = new TreeMergeConflict(
+                            $fullPath,
+                            'content-conflict',
+                            null,
+                            $ourEntry,
+                            $theirEntry,
+                        );
+                    }
+                    continue;
+                }
+            }
+
+            $merged[] = $ourEntry;
+            $conflicts[] = new TreeMergeConflict($fullPath, 'add-add', null, $ourEntry, $theirEntry);
+        }
+
+        self::sortEntries($merged);
+
+        return ['tree' => new Tree($merged), 'conflicts' => $conflicts];
     }
 
     /**

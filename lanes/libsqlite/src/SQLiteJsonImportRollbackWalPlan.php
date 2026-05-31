@@ -2466,6 +2466,108 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicPostRecoveryCheckpointScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL post-recovery checkpoint dynamic parity requires at least one scenario');
+        }
+
+        return self::dynamicPostRecoveryCheckpointScenariosFromRecoveryScenarios(
+            self::dynamicRollbackDisabledPostRecoveryRecoveryScenarios($scenarioCount)
+        );
+    }
+
+    /**
+     * @param list<array<string,mixed>> $baseScenarios
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicPostRecoveryCheckpointScenariosFromRecoveryScenarios(array $baseScenarios): array
+    {
+        if ($baseScenarios === []) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL post-recovery checkpoint dynamic parity requires at least one recovery scenario');
+        }
+
+        $scenarios = [];
+        foreach ($baseScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $pageSize = (int) $base['page_size'];
+            $mode = $seed % 2 === 0 ? 'truncate' : 'restart';
+            $recoveryPlan = $base['post_recovery_recovery_plan'];
+            $wal = SQLiteWal::parse((string) $recoveryPlan['wal_bytes_after'], $pageSize, false);
+            $checkpointInput = (string) $recoveryPlan['database_bytes_before'];
+            $checkpointPlan = $wal->checkpointPlan($checkpointInput);
+            $releasedCheckpoint = $wal->durableCheckpointResult($checkpointInput, $mode);
+            $readerEndFrame = max(0, (int) $checkpointPlan['last_commit_frame'] - 1);
+            $pinnedCheckpoint = $wal->durableCheckpointResult($checkpointInput, $mode, $readerEndFrame);
+
+            $latestCommittedPageImages = [];
+            $lastCommitFrame = (int) ($checkpointPlan['last_commit_frame'] ?? 0);
+            foreach ($wal->frames as $frame) {
+                if ($frame->index > $lastCommitFrame) {
+                    break;
+                }
+                $latestCommittedPageImages[$frame->pageNumber] = $frame->pageImage;
+            }
+
+            $appliedFrameIndexes = [];
+            $appliedPageNumbers = [];
+            $supersededFrameIndexes = [];
+            $supersededPageNumbers = [];
+            foreach ($checkpointPlan['frames'] as $frame) {
+                if ($frame['applied']) {
+                    $appliedFrameIndexes[] = $frame['frame_index'];
+                    $appliedPageNumbers[] = $frame['page_number'];
+                }
+                if ($frame['reason'] === 'superseded_by_later_committed_frame') {
+                    $supersededFrameIndexes[] = $frame['frame_index'];
+                    $supersededPageNumbers[] = $frame['page_number'];
+                }
+            }
+
+            $releasedMatchesExpectedPages = true;
+            foreach ($base['expected_recovery_pages'] as $pageNumber) {
+                $pageNumber = (int) $pageNumber;
+                $releasedImage = self::databasePageSlice((string) $releasedCheckpoint['database_bytes'], $pageSize, $pageNumber);
+                if ($releasedImage === null || $releasedImage !== ($latestCommittedPageImages[$pageNumber] ?? null)) {
+                    $releasedMatchesExpectedPages = false;
+                    break;
+                }
+            }
+
+            $insertedPage = (int) $base['expected_recovery_pages'][1];
+            $pinnedInsertedPageImage = self::databasePageSlice((string) $pinnedCheckpoint['database_bytes'], $pageSize, $insertedPage);
+            $pinnedMatchesCorrectedInsert = $pinnedInsertedPageImage !== null
+                && $pinnedInsertedPageImage === ($latestCommittedPageImages[$insertedPage] ?? null);
+
+            $finalKeys = array_column($recoveryPlan['import_plan']['final_rows'], 'key_name');
+
+            $scenarios[] = array_merge($base, [
+                'checkpoint_mode' => $mode,
+                'reader_end_frame' => $readerEndFrame,
+                'checkpoint_database_bytes_before_hash' => hash('sha256', $checkpointInput),
+                'checkpoint_plan' => $checkpointPlan,
+                'released_checkpoint' => $releasedCheckpoint,
+                'pinned_checkpoint' => $pinnedCheckpoint,
+                'expected_checkpoint_action' => $mode === 'truncate' ? 'truncate_wal' : 'restart_wal',
+                'expected_released_wal_bytes_length' => $mode === 'truncate' ? 0 : 32,
+                'expected_recovery_pages_checkpointed' => $releasedMatchesExpectedPages,
+                'pinned_insert_page_matches_corrected_recovery' => $pinnedMatchesCorrectedInsert,
+                'applied_frame_indexes' => $appliedFrameIndexes,
+                'applied_page_numbers' => $appliedPageNumbers,
+                'superseded_frame_indexes' => $supersededFrameIndexes,
+                'superseded_page_numbers' => array_values(array_unique($supersededPageNumbers)),
+                'recovery_inserted_key_retained' => in_array($base['expected_recovery_inserted_key'], $finalKeys, true),
+                'rejected_prior_tail_key_retained' => in_array($base['rejected_prior_tail_inserted_key'], $finalKeys, true),
+                'rejected_post_recovery_tail_key_retained' => in_array($base['rejected_post_recovery_tail_inserted_key'], $finalKeys, true),
+            ]);
+        }
+
+        return $scenarios;
+    }
+
+    /**
      * @param array<string,mixed> $importPlan
      */
     private static function assertRollbackFramesExist(array $importPlan, int $walFrameCount): void
@@ -2672,6 +2774,19 @@ final class SQLiteJsonImportRollbackWalPlan
         }
 
         return $walBytes;
+    }
+
+    private static function databasePageSlice(string $databaseBytes, int $pageSize, int $pageNumber): ?string
+    {
+        if ($pageNumber < 1) {
+            return null;
+        }
+        $offset = ($pageNumber - 1) * $pageSize;
+        if ($offset + $pageSize > strlen($databaseBytes)) {
+            return null;
+        }
+
+        return substr($databaseBytes, $offset, $pageSize);
     }
 
     /**

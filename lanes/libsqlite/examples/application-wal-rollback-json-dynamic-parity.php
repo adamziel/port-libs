@@ -282,6 +282,23 @@ $withScenarios(
     }
 );
 
+$withScenarios(
+    static fn (): array => SQLiteJsonImportRollbackWalPlan::dynamicPostRecoveryCheckpointScenarios(4),
+    static function (array $scenarios) use (&$summary): void {
+        $summary['postRecoveryCheckpointScenarioCount'] = count($scenarios);
+        $summary['postRecoveryCheckpointModes'] = array_map(static fn (array $scenario): string => $scenario['checkpoint_mode'], $scenarios);
+        $summary['postRecoveryCheckpointActions'] = array_map(static fn (array $scenario): string => $scenario['released_checkpoint']['wal_action'], $scenarios);
+        $summary['postRecoveryCheckpointReleasedWalBytes'] = array_map(static fn (array $scenario): int => $scenario['released_checkpoint']['wal_bytes_length'], $scenarios);
+        $summary['postRecoveryCheckpointPinnedBusy'] = array_map(static fn (array $scenario): bool => $scenario['pinned_checkpoint']['busy'], $scenarios);
+        $summary['postRecoveryCheckpointAppliedPages'] = array_map(static fn (array $scenario): array => $scenario['expected_recovery_pages'], $scenarios);
+        $summary['postRecoveryCheckpointPagesMaterialized'] = array_map(static fn (array $scenario): bool => $scenario['expected_recovery_pages_checkpointed'], $scenarios);
+        $summary['postRecoveryCheckpointRejectedKeysRetained'] = array_map(
+            static fn (array $scenario): bool => $scenario['rejected_prior_tail_key_retained'] || $scenario['rejected_post_recovery_tail_key_retained'],
+            $scenarios
+        );
+    }
+);
+
 if (in_array('--self-test', $argv, true)) {
     assert($summary['scenarioCount'] === 4);
     assert($summary['preexistingWalScenarioCount'] === 4);
@@ -304,6 +321,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['rollbackDisabledFollowupRecoveryScenarioCount'] === 4);
     assert($summary['rollbackDisabledPostRecoveryFailureScenarioCount'] === 4);
     assert($summary['rollbackDisabledPostRecoveryRecoveryScenarioCount'] === 4);
+    assert($summary['postRecoveryCheckpointScenarioCount'] === 4);
     assert($summary['statuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['preexistingWalStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['tenantCollisionStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
@@ -377,6 +395,13 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['rollbackDisabledPostRecoveryRecoveryInsertedKeys'][0] === 'disabled_post_recovery_recovery_payload_1');
     assert($summary['rollbackDisabledPostRecoveryRecoveryPriorTailKeysRetained'] === array_fill(0, 4, false));
     assert($summary['rollbackDisabledPostRecoveryRecoveryPostTailKeysRetained'] === array_fill(0, 4, false));
+    assert($summary['postRecoveryCheckpointModes'] === ['restart', 'truncate', 'restart', 'truncate']);
+    assert($summary['postRecoveryCheckpointActions'] === ['restart_wal', 'truncate_wal', 'restart_wal', 'truncate_wal']);
+    assert($summary['postRecoveryCheckpointReleasedWalBytes'] === [32, 0, 32, 0]);
+    assert($summary['postRecoveryCheckpointPinnedBusy'] === array_fill(0, 4, true));
+    assert($summary['postRecoveryCheckpointAppliedPages'][0] === [1321, 1921]);
+    assert($summary['postRecoveryCheckpointPagesMaterialized'] === array_fill(0, 4, true));
+    assert($summary['postRecoveryCheckpointRejectedKeysRetained'] === array_fill(0, 4, false));
     assert($summary['missingWalTailShortFrameCounts'] === [4, 6, 6, 4]);
     assert($summary['missingWalTailMessages'][0] === 'SQLite Application JSON import rollback WAL bytes are missing current batch frame(s): 5, 6');
     assert($summary['partialWalTailMessages'] === array_fill(0, 4, 'SQLite Application JSON import rollback WAL bytes have a partial frame tail'));

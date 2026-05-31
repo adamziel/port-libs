@@ -2274,6 +2274,92 @@ return [
         ));
         $t->same([], $result->worktreeConflictFiles($read));
     },
+    'maps upstream gix-merge tree-baseline rename-within-rename-2 fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $baseContent = "original\n1\n2\n3\n4\n5\n";
+        $ourContent = "1\n2\n3\n4\n5\n";
+        $theirContent = "original\n1\n2\n3\n4\n5\n6\n";
+        $mergedContent = "1\n2\n3\n4\n5\n6\n";
+        $base = new Tree([
+            $treeEntry('a', new Tree([
+                $treeEntry('sub', new Tree([
+                    $blobEntry('y.f', $baseContent),
+                    $blobEntry('z', ''),
+                ])),
+                $blobEntry('w', ''),
+                $blobEntry('x.f', $baseContent),
+            ])),
+        ]);
+        $ours = new Tree([
+            $treeEntry('a-renamed', new Tree([
+                $treeEntry('sub-renamed', new Tree([
+                    $blobEntry('y.f', $ourContent),
+                    $blobEntry('z', ''),
+                ])),
+                $blobEntry('w', ''),
+                $blobEntry('x.f', $ourContent),
+            ])),
+        ]);
+        $theirs = new Tree([
+            $treeEntry('a', new Tree([
+                $treeEntry('sub-renamed', new Tree([
+                    $blobEntry('y.f', $theirContent),
+                    $blobEntry('z', ''),
+                ])),
+                $blobEntry('w', ''),
+                $blobEntry('x.f', $theirContent),
+            ])),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $renamed = Tree::fromObject($read($result->tree->entryNamed('a-renamed', true)?->oid ?? ''));
+        $targetSub = Tree::fromObject($read($renamed->entryNamed('sub-renamed', true)?->oid ?? ''));
+        $mergedY = $read($targetSub->entryNamed('y.f')?->oid ?? '');
+        $expanded = MergeIndexFile::entriesForResult($result, $read);
+
+        $t->same(false, $result->isClean());
+        $t->same(['a-renamed'], $names($result->tree));
+        $t->same(['sub-renamed', 'w', 'x.f'], $names($renamed));
+        $t->same("1\n2\n3\n4\n5\n<<<<<<< ours/a-renamed/sub-renamed/y.f\n=======\n6\n>>>>>>> theirs/a-renamed/sub-renamed/y.f\n", $mergedY->body);
+        $t->same($mergedContent, $read($renamed->entryNamed('x.f')?->oid ?? '')->body);
+        $t->same('', $read($targetSub->entryNamed('z')?->oid ?? '')->body);
+        $t->same([
+            ['path' => 'a-renamed/sub-renamed/y.f', 'reason' => 'content-conflict', 'base' => null, 'ours' => 'y.f', 'theirs' => 'y.f'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'a-renamed/sub-renamed/y.f', 'body' => $ourContent],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'a-renamed/sub-renamed/y.f', 'body' => $mergedContent],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $expanded,
+        ));
+        $t->same(['a-renamed/sub-renamed/y.f'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
+
+        $reverse = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write);
+        $reverseRenamed = Tree::fromObject($read($reverse->tree->entryNamed('a-renamed', true)?->oid ?? ''));
+        $reverseSub = Tree::fromObject($read($reverseRenamed->entryNamed('sub-renamed', true)?->oid ?? ''));
+
+        $t->true($reverse->isClean());
+        $t->same(['a-renamed'], $names($reverse->tree));
+        $t->same(['sub-renamed', 'w', 'x.f'], $names($reverseRenamed));
+        $t->same($mergedContent, $read($reverseSub->entryNamed('y.f')?->oid ?? '')->body);
+        $t->same([], $reverse->conflicts);
+        $t->same([], $reverse->indexEntries());
+    },
     'maps upstream gix-merge tree-baseline conflicting-rename fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $baseContent = "original\n1\n2\n3\n4\n5\n";
