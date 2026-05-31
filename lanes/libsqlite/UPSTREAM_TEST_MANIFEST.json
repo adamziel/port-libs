@@ -2385,12 +2385,12 @@
             "guardedEvidence": "lanes/libsqlite/tests/SQLiteUpstreamSuiteEvidenceTest.php exercises SQLiteUpstreamSuiteEvidence::upstreamRunnerHydratedScriptMapGapClosure with these real hydrated script paths and accepted-head focused TestRunner output. Release/all parity remains unclaimed."
         },
         "latestNativePhpVerification": {
-            "sourceCommit": "b0d8a112b0f2a321e0df4cc8a588eb55c8abe338",
-            "phpPass": 2927535,
+            "sourceCommit": "c69d28af9ecab053e893decf6cdb7f41112b3ea9",
+            "phpPass": 2936779,
             "phpFail": 0,
-            "focused": "selected libsqlite corpus/guard batch: 4 files / 47097 assertions / 0 failures",
+            "focused": "selected libsqlite corpus/application-WAL/API guard batch: 10 files / 165533 assertions / 0 failures under memory_limit=2048M",
             "mapped": "1589 / 1589 unchanged",
-            "fullLane": "not rerun for this micro-batch; too large for per-batch publication and reserved for separate runner-closure evidence"
+            "fullLane": "not rerun for this micro-batch; default-memory app-WAL/pager pressure and window-frame full-runner blockers remain tracked separately"
         },
         "latestFocusedCorpusBatch20260531T1220Z": {
             "sourceCommit": "9e52b7aea6ef8f1b75a6d54ac86cd37805503fd8",
@@ -2433,6 +2433,24 @@
             ],
             "nativeVerification": "php -l on changed/new PHP files; diff checks; selected libsqlite gate 4 files / 47097 assertions / 0 failures; SQLiteNoDomainSpecificApiTest included and green",
             "upstreamEvidence": "hydrated SQLite upstream corpus source sections where7.test, e_select2.test, and trigger1.test; full release/all runner not executed for this micro-batch"
+        },
+        "latestFocusedCorpusBatch20260531T1515Z": {
+            "sourceCommit": "c69d28af9ecab053e893decf6cdb7f41112b3ea9",
+            "selectedPassIncrease": 8297,
+            "selectedPassBefore": 2928482,
+            "selectedPassAfter": 2936779,
+            "acceptedSlices": [
+                "e_select section 7 compound SELECT dynamic cases",
+                "trigger1 raise/datatype mismatch trigger/FK cases",
+                "pragma-13.1 trace PRAGMA write/execution cases",
+                "where4 IS NULL/index dynamic B-tree cases",
+                "sync.test/sync2.test VFS synchronous-pragma sync-count cases",
+                "atof1 decimal REAL affinity suffix cases",
+                "e_expr-33 encoding-sensitive TEXT/BLOB CAST cases",
+                "application WAL rollback-disabled reopened-prefix recovery cases"
+            ],
+            "nativeVerification": "php -l on changed PHP files; JSON decode; diff checks; selected libsqlite gate 10 files / 165533 assertions / 0 failures with memory_limit=2048M; application-WAL example self-test; SQLiteNoDomainSpecificApiTest included and green",
+            "upstreamEvidence": "hydrated SQLite upstream corpus source sections e_select.test, trigger1.test, pragma.test, where4.test, sync.test, sync2.test, atof1.test, e_expr.test plus application WAL recovery parity; full release/all runner not executed for this micro-batch"
         }
     },
     "nativeImplementation": {

@@ -7292,6 +7292,38 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   regressions, remaining app-WAL/row-value conflicts, and release/all-runner
   parity remain blockers before gitoxide.
 
+## Supervisor Integration 2026-05-31T15:15Z SQLite/CSS/Gitoxide Batch
+
+- Integrated source commit
+  `c69d28af9ecab053e893decf6cdb7f41112b3ea9` (`ports: add sqlite corpus and
+  css source map parity`) from 11 accepted handoffs: eight libsqlite real
+  corpus/application-WAL slices, two LightningCSS source-map/media-query slices,
+  and one Gitoxide loose-object integrity slice.
+- Public selected libsqlite evidence moves from `2928482` to `2936779 pass / 0
+  fail`, a net `+8297` PASS-line increase. Mapped libsqlite coverage remains
+  `1589 / 1589`.
+- Public LightningCSS evidence moves from `1829` to `1843 pass / 0 fail`.
+  Conservative mapped coverage moves from `1258 / 3532` to `1262 / 3532` for
+  source-map empty generated-line span behavior and media-query `x`
+  resolution-unit serialization inside `@layer`.
+- Public Gitoxide evidence moves from `4740` to `4757 pass / 0 fail`.
+  Conservative mapped coverage moves from `1584 / 2886` to `1585 / 2886` for
+  loose-object inflated body-size mismatch rejection before hash verification.
+- Verification passed PHP lint on changed PHP files, JSON metadata decode,
+  `git diff --check -- lanes/gitoxide lanes/libsqlite lanes/lightningcss`,
+  Gitoxide focused gate `2 files / 223 assertions / 0 failures`, full Gitoxide
+  lane `39 files / 4757 assertions / 0 failures`, LightningCSS focused gate
+  `3 files / 463 assertions / 0 failures`, full LightningCSS lane `13 files /
+  1843 assertions / 0 failures`, libsqlite selected gate with
+  `memory_limit=2048M` `10 files / 165533 assertions / 0 failures`, and touched
+  examples for Gitoxide, LightningCSS, and libsqlite. The default-memory
+  libsqlite selected run exhausted memory in the existing application-WAL file,
+  so the app-WAL/pager memory-pressure blocker remains explicit rather than
+  hidden.
+- Next supervision step: publish the refreshed dashboard, archive the consumed
+  handoffs, and keep the visible worker pool biased toward LightningCSS while
+  retaining bounded libsqlite full-runner closure and Gitoxide lanes.
+
 ## Supervisor Integration 2026-05-31T07:48Z Libsqlite Ninety-Third Sweep
 
 - Integrated 24 current-base libsqlite handoffs as source commit
