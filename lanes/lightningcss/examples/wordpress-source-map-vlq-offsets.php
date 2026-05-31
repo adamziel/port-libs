@@ -70,6 +70,17 @@ $map->addSourceMap($blockMap, 9);
 $consumedNestedReplayNoop = $mapBeforeConsumedReplay === $map->toJson(null, false);
 $consumedNestedMap = $blockMap->toJson(null, false);
 
+$skippedNestedParent = new SourceMap();
+$skippedNestedChild = new SourceMap();
+$skippedNestedBlock = $skippedNestedChild->addSource('wp-content/themes/example/blocks/skipped-nested.css');
+$skippedNestedUnused = $skippedNestedChild->addSource('wp-content/themes/example/blocks/unused-nested.css');
+$skippedNestedChild->setSourceContent($skippedNestedBlock, ".wp-block-skipped-nested{}\n");
+$skippedNestedChild->setSourceContent($skippedNestedUnused, ".wp-block-unused-nested{}\n");
+$skippedNestedChild->addMapping(0, 0, $skippedNestedBlock, 2, 1, 'skipped-nested-rule');
+$skippedNestedChild->addName('unused-nested-name');
+$skippedNestedParent->addSourceMap($skippedNestedChild, -1);
+$skippedNestedChildConsumed = $skippedNestedChild->toJson(null, false);
+
 $themeJsonMap = new SourceMap();
 $themeJsonMap->addEmptyMap(
     'wp-content/themes/example/theme-json.css',
@@ -319,6 +330,8 @@ $actual = [
     'map' => $map->toJson(null, false),
     'consumedNestedMap' => $consumedNestedMap,
     'consumedNestedReplayNoop' => $consumedNestedReplayNoop,
+    'skippedNestedSourceTableMap' => $skippedNestedParent->toJson(null, false),
+    'skippedNestedChildConsumed' => $skippedNestedChildConsumed,
     'emptyMap' => $themeJsonMap->toJson(null, false),
     'lineSpanMap' => $inlineEditorMap->toJson(null, false),
     'emptyLineColumnOffsetMap' => $emptyLineOffsetMap->toJson(null, false),
@@ -352,6 +365,8 @@ if (($argv[1] ?? null) === '--self-test') {
         'map' => '{"version":3,"mappings":";;;;;oBCKA,2BAGA,8CDPA","sources":["wp-content/themes/example/style.css","wp-content/themes/example/blocks.css"],"sourcesContent":["@import \"blocks.css\";\n.theme-footer {\n  color: green;\n}","/*! Theme package license */\n/*!\n * Block editor stylesheet generated from theme.json\n * Keep comments for distribution compliance.\n */\n.wp-block-cover {\n  color: yellow;\n}\n.wp-block-cover .wp-block-button {\n  margin: 1rem;\n}"],"names":[]}',
         'consumedNestedMap' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'consumedNestedReplayNoop' => true,
+        'skippedNestedSourceTableMap' => '{"version":3,"mappings":"","sources":["wp-content/themes/example/blocks/skipped-nested.css","wp-content/themes/example/blocks/unused-nested.css"],"sourcesContent":[".wp-block-skipped-nested{}\n",".wp-block-unused-nested{}\n"],"names":["skipped-nested-rule","unused-nested-name"]}',
+        'skippedNestedChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'emptyMap' => '{"version":3,"mappings":";AAAA;AACA;AACA","sources":["wp-content/themes/example/theme-json.css"],"sourcesContent":[":root {\n  --wp--style--global--content-size: 720px;\n}\n"],"names":[]}',
         'lineSpanMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/editor-inline.css"],"sourcesContent":[".wp-block-spacer {\n  margin-top: 1rem;\n}\n"],"names":[]}',
         'emptyLineColumnOffsetMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/empty-line-offset.css"],"sourcesContent":[".wp-block-empty-line-offset {}\n"],"names":[]}',

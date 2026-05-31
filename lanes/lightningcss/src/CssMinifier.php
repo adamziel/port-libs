@@ -9090,6 +9090,7 @@ final class CssMinifier
         }
 
         $gridShorthand = null;
+        $separateAreasGridShorthand = null;
         if (isset($latestAuto['flow'], $latestAuto['rows'], $latestAuto['columns'])) {
             $gridShorthand = $this->serializeGridShorthandWithAutoTracks(
                 $shorthand,
@@ -9100,8 +9101,59 @@ final class CssMinifier
                 $entries[$latestAuto['rows']]['value'],
                 $entries[$latestAuto['columns']]['value'],
             );
+            if ($gridShorthand === null) {
+                $separateAreasGridShorthand = $this->serializeGridShorthandWithSeparateAreas(
+                    $entries[$latest['areas']]['value'],
+                    $entries[$latest['rows']]['value'],
+                    $entries[$latest['columns']]['value'],
+                    $entries[$latestAuto['flow']]['value'],
+                    $entries[$latestAuto['rows']]['value'],
+                    $entries[$latestAuto['columns']]['value'],
+                );
+            }
         }
         $useGridShorthand = $gridShorthand !== null;
+
+        if ($separateAreasGridShorthand !== null) {
+            $areasValue = $entries[$latest['areas']]['value'];
+            $included = array_merge(array_values($latest), array_values($latestAuto));
+            sort($included);
+            $replaceAt = $included[0];
+            $areasAt = null;
+            foreach ($included as $index) {
+                if ($index !== $replaceAt) {
+                    $areasAt = $index;
+                    break;
+                }
+            }
+            if ($areasAt === null) {
+                return;
+            }
+
+            foreach ($templateIndices as $index) {
+                $entries[$index]['drop'] = true;
+            }
+            foreach ($autoIndices as $index) {
+                $entries[$index]['drop'] = true;
+            }
+
+            $entries[$replaceAt] = [
+                'property' => 'grid',
+                'name' => 'grid',
+                'value' => $separateAreasGridShorthand,
+                'important' => false,
+                'drop' => false,
+            ];
+            $entries[$areasAt] = [
+                'property' => 'grid-template-areas',
+                'name' => 'grid-template-areas',
+                'value' => $areasValue,
+                'important' => false,
+                'drop' => false,
+            ];
+
+            return;
+        }
 
         $included = array_values($latest);
         if ($useGridShorthand) {
@@ -9160,6 +9212,58 @@ final class CssMinifier
         if (strcasecmp($areas, 'none') !== 0) {
             return null;
         }
+
+        if (($flow === 'row' || $flow === 'dense')
+            && strcasecmp($rows, 'none') === 0
+            && $autoColumnsIsDefault
+        ) {
+            $autoFlow = $flow === 'dense' ? 'auto-flow dense' : 'auto-flow';
+            if (!$autoRowsIsDefault) {
+                $autoFlow .= ' ' . $autoRows;
+            }
+
+            return $autoFlow . '/' . $columns;
+        }
+
+        if (($flow === 'column' || $flow === 'column dense')
+            && strcasecmp($columns, 'none') === 0
+            && $autoRowsIsDefault
+        ) {
+            $autoFlow = $flow === 'column dense' ? 'auto-flow dense' : 'auto-flow';
+            if (!$autoColumnsIsDefault) {
+                $autoFlow .= ' ' . $autoColumns;
+            }
+
+            return $rows . '/' . $autoFlow;
+        }
+
+        return null;
+    }
+
+    private function serializeGridShorthandWithSeparateAreas(
+        string $areas,
+        string $rows,
+        string $columns,
+        string $flow,
+        string $autoRows,
+        string $autoColumns
+    ): ?string {
+        $flow = $this->canonicalGridAutoFlowForComposition($flow);
+        if ($flow === null) {
+            return null;
+        }
+
+        $areas = trim($areas);
+        $rows = trim($rows);
+        $columns = trim($columns);
+        $autoRows = trim($autoRows);
+        $autoColumns = trim($autoColumns);
+        if (strcasecmp($areas, 'none') === 0) {
+            return null;
+        }
+
+        $autoRowsIsDefault = strcasecmp($autoRows, 'auto') === 0;
+        $autoColumnsIsDefault = strcasecmp($autoColumns, 'auto') === 0;
 
         if (($flow === 'row' || $flow === 'dense')
             && strcasecmp($rows, 'none') === 0
@@ -14664,6 +14768,13 @@ final class CssMinifier
         }
 
         $name = strtolower($matches[1]);
+        if ($name === 'lab' || $name === 'oklab') {
+            $relative = $this->minifyRelativeRectangularColorFunction($name, $matches[2]);
+            if ($relative !== null) {
+                return $relative;
+            }
+        }
+
         $parts = $this->parseAdvancedColorFunctionParts($matches[2]);
         if ($parts === null) {
             return null;
@@ -14747,6 +14858,266 @@ final class CssMinifier
         }
 
         return 'color(' . $space . ' ' . $red . ' ' . $green . ' ' . $blue . $alpha . ')';
+    }
+
+    private function minifyRelativeRectangularColorFunction(string $space, string $arguments): ?string
+    {
+        $parsed = $this->parseRelativeRectangularColorArguments($space, $arguments);
+        if ($parsed === null) {
+            return null;
+        }
+
+        $lightness = $this->evaluateRelativeRectangularComponent($parsed['components'][0], $parsed['origin'], false);
+        $a = $this->evaluateRelativeRectangularComponent($parsed['components'][1], $parsed['origin'], false);
+        $b = $this->evaluateRelativeRectangularComponent($parsed['components'][2], $parsed['origin'], false);
+        if ($lightness === null || $a === null || $b === null) {
+            return null;
+        }
+
+        $alpha = $parsed['alpha'] === null
+            ? ['type' => 'number', 'value' => 1.0]
+            : $this->evaluateRelativeRectangularComponent($parsed['alpha'], $parsed['origin'], true);
+        if ($alpha === null) {
+            return null;
+        }
+
+        $serializedAlpha = $this->serializeRelativeAdvancedAlpha($alpha);
+
+        return $space . '('
+            . $this->serializeRelativeAdvancedLightness($lightness) . ' '
+            . $this->serializeRelativeAdvancedNumber($a) . ' '
+            . $this->serializeRelativeAdvancedNumber($b)
+            . $serializedAlpha
+            . ')';
+    }
+
+    /**
+     * @return array{
+     *   origin:array{l:float,a:float,b:float,alpha:float},
+     *   components:list<string>,
+     *   alpha:?string
+     * }|null
+     */
+    private function parseRelativeRectangularColorArguments(string $space, string $arguments): ?array
+    {
+        $slashParts = $this->splitTopLevel(trim($arguments), '/');
+        if ($slashParts === [] || count($slashParts) > 2) {
+            return null;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($slashParts[0]);
+        if (count($tokens) !== 5 || strcasecmp($tokens[0], 'from') !== 0) {
+            return null;
+        }
+
+        $origin = $this->parseRelativeRectangularColorOrigin($space, $tokens[1]);
+        if ($origin === null) {
+            return null;
+        }
+
+        return [
+            'origin' => $origin,
+            'components' => array_slice($tokens, 2, 3),
+            'alpha' => isset($slashParts[1]) ? trim($slashParts[1]) : null,
+        ];
+    }
+
+    /**
+     * @return array{l:float,a:float,b:float,alpha:float}|null
+     */
+    private function parseRelativeRectangularColorOrigin(string $space, string $origin): ?array
+    {
+        $origin = trim($origin);
+        $serialized = $this->minifyAdvancedColorFunction($origin) ?? $origin;
+        $quotedSpace = preg_quote($space, '/');
+        if (preg_match('/^' . $quotedSpace . '\((.*)\)$/is', trim($serialized), $matches) !== 1) {
+            return null;
+        }
+
+        $parts = $this->parseAdvancedColorFunctionParts($matches[1]);
+        if ($parts === null || count($parts['components']) !== 3) {
+            return null;
+        }
+
+        $lightness = $this->parseRelativeRectangularLightness($parts['components'][0], $space);
+        $a = $this->parseRelativeRectangularAxis($parts['components'][1], $space);
+        $b = $this->parseRelativeRectangularAxis($parts['components'][2], $space);
+        if ($lightness === null || $a === null || $b === null) {
+            return null;
+        }
+
+        $alpha = $parts['alpha'] === null
+            ? 1.0
+            : $this->parseRelativeRectangularAlpha($parts['alpha']);
+        if ($alpha === null) {
+            return null;
+        }
+
+        return [
+            'l' => max(0.0, $lightness),
+            'a' => $a,
+            'b' => $b,
+            'alpha' => min(1.0, max(0.0, $alpha)),
+        ];
+    }
+
+    private function parseRelativeRectangularLightness(string $token, string $space): ?float
+    {
+        if (strcasecmp(trim($token), 'none') === 0) {
+            return 0.0;
+        }
+
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return null;
+        }
+
+        if ($space === 'oklab' && !$number['isPercentage']) {
+            return $number['value'] * 100;
+        }
+
+        return $number['value'];
+    }
+
+    private function parseRelativeRectangularAxis(string $token, string $space): ?float
+    {
+        if (strcasecmp(trim($token), 'none') === 0) {
+            return 0.0;
+        }
+
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return null;
+        }
+
+        if ($space === 'lab') {
+            return $number['isPercentage'] ? $number['value'] * 1.25 : $number['value'];
+        }
+
+        return $number['isPercentage'] ? $number['value'] * 0.004 : $number['value'];
+    }
+
+    private function parseRelativeRectangularAlpha(string $token): ?float
+    {
+        $token = trim($token);
+        if (strcasecmp($token, 'none') === 0) {
+            return 0.0;
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+            return (float) $matches[1] / 100;
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) === 1) {
+            return (float) $token;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{l:float,a:float,b:float,alpha:float} $origin
+     * @return array{type:'none'}|array{type:'number',value:float}|null
+     */
+    private function evaluateRelativeRectangularComponent(string $token, array $origin, bool $alphaContext): ?array
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return null;
+        }
+
+        if (strcasecmp($token, 'none') === 0) {
+            return ['type' => 'none'];
+        }
+
+        if ($alphaContext) {
+            $value = $this->evaluateRelativeColorChannelToken($token, $origin, true);
+            if ($value === null) {
+                return null;
+            }
+
+            return [
+                'type' => 'number',
+                'value' => $value,
+            ];
+        }
+
+        $channel = $this->relativeColorChannelValue($token, $origin);
+        if ($channel !== null) {
+            return [
+                'type' => 'number',
+                'value' => $channel,
+            ];
+        }
+
+        if (preg_match('/^calc\((.*)\)$/is', $token, $matches) === 1) {
+            $value = $this->evaluateRelativeColorCalcExpression($matches[1], $origin);
+            if ($value === null) {
+                return null;
+            }
+
+            return [
+                'type' => 'number',
+                'value' => $value,
+            ];
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+            return [
+                'type' => 'number',
+                'value' => (float) $matches[1],
+            ];
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) !== 1) {
+            return null;
+        }
+
+        return [
+            'type' => 'number',
+            'value' => (float) $token,
+        ];
+    }
+
+    /**
+     * @param array{type:'none'}|array{type:'number',value:float} $component
+     */
+    private function serializeRelativeAdvancedLightness(array $component): string
+    {
+        if ($component['type'] === 'none') {
+            return 'none';
+        }
+
+        return $this->minifyColorNumber(max(0.0, $component['value'])) . '%';
+    }
+
+    /**
+     * @param array{type:'none'}|array{type:'number',value:float} $component
+     */
+    private function serializeRelativeAdvancedNumber(array $component): string
+    {
+        if ($component['type'] === 'none') {
+            return 'none';
+        }
+
+        return $this->minifyColorNumber($component['value']);
+    }
+
+    /**
+     * @param array{type:'none'}|array{type:'number',value:float} $component
+     */
+    private function serializeRelativeAdvancedAlpha(array $component): string
+    {
+        if ($component['type'] === 'none') {
+            return '/none';
+        }
+
+        $alpha = min(1.0, max(0.0, $component['value']));
+        if (abs($alpha - 1.0) < 0.0000001) {
+            return '';
+        }
+
+        return '/' . $this->minifyColorNumber($alpha);
     }
 
     /**

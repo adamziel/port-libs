@@ -17,6 +17,8 @@ final class CssBundler
 
     private bool $filesystemReads = false;
 
+    private bool $preserveResolverPaths = false;
+
     /** @var array<string, int> */
     private array $sourceIndexes = [];
 
@@ -186,6 +188,7 @@ final class CssBundler
         $this->resolver = $resolver;
         $this->reader = $reader;
         $this->filesystemReads = $filesystemReads;
+        $this->preserveResolverPaths = $reader !== null;
         $this->sourceIndexes = [];
         $this->sourceMap = $sourceMapProjectRoot === null ? null : new SourceMap($sourceMapProjectRoot);
         $this->sourceMapProjectRoot = $sourceMapProjectRoot ?? '/';
@@ -219,9 +222,11 @@ final class CssBundler
     /**
      * @param array{layer:?string,supports:?string,media:string,loc:array{line:int,column:int},file:string} $rule
      */
-    private function loadFile(string $file, array $rule): int
+    private function loadFile(string $file, array $rule, bool $normalizeFile = true): int
     {
-        $file = $this->normalizePath($file);
+        if ($normalizeFile) {
+            $file = $this->normalizePath($file);
+        }
         if (isset($this->sourceIndexes[$file])) {
             $sourceIndex = $this->sourceIndexes[$file];
             $this->mergeImportRule($sourceIndex, $rule);
@@ -290,7 +295,11 @@ final class CssBundler
                 'loc' => $dependencyLoc,
                 'file' => $file,
             ];
-            $depSourceIndex = $this->loadFile($resolved['file'], $dependencyRule);
+            $depSourceIndex = $this->loadFile(
+                $resolved['file'],
+                $dependencyRule,
+                !$this->shouldPreserveResolvedPath($resolved)
+            );
             $cssModuleDependencies[] = ['sourceIndex' => $depSourceIndex];
             $cssModuleDependencySources[$specifier] = $depSourceIndex;
         }
@@ -355,7 +364,11 @@ final class CssBundler
             ];
             $dependencies[] = [
                 'type' => 'file',
-                'sourceIndex' => $this->loadFile($resolved['file'], $dependencyRule),
+                'sourceIndex' => $this->loadFile(
+                    $resolved['file'],
+                    $dependencyRule,
+                    !$this->shouldPreserveResolvedPath($resolved)
+                ),
             ];
         }
 
@@ -983,7 +996,7 @@ final class CssBundler
 
     /**
      * @param array{line:int,column:int} $loc
-     * @return array{file:string}|array{external:string}
+     * @return array{file:string,preservePath?:bool}|array{external:string}
      */
     private function resolveImport(string $specifier, string $originatingFile, array $loc): array
     {
@@ -1013,12 +1026,12 @@ final class CssBundler
                         $this->throwUnsupportedResolveResult($originatingFile, $loc);
                     }
 
-                    return ['file' => $this->normalizePath($result['file'])];
+                    return $this->resolvedFileResult($result['file']);
                 }
             }
 
             if (is_string($result)) {
-                return ['file' => $this->normalizePath($result)];
+                return $this->resolvedFileResult($result);
             }
 
             $this->throwUnsupportedResolveResult($originatingFile, $loc);
@@ -1036,6 +1049,29 @@ final class CssBundler
         $path = ($directory === '.' || $directory === '') ? $specifier : rtrim($directory, '/') . '/' . $specifier;
 
         return ['file' => $this->normalizePath($path)];
+    }
+
+    /**
+     * @return array{file:string,preservePath?:bool}
+     */
+    private function resolvedFileResult(string $file): array
+    {
+        if ($this->preserveResolverPaths) {
+            return [
+                'file' => $file,
+                'preservePath' => true,
+            ];
+        }
+
+        return ['file' => $this->normalizePath($file)];
+    }
+
+    /**
+     * @param array{file?:string,external?:string,preservePath?:bool} $resolved
+     */
+    private function shouldPreserveResolvedPath(array $resolved): bool
+    {
+        return ($resolved['preservePath'] ?? false) === true;
     }
 
     /**

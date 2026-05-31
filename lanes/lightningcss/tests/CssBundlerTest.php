@@ -954,6 +954,51 @@ CSS,
         );
         $t->same([['root:bar.css', 'root-entry.css']], $resolved);
     },
+    'css bundler preserves resolver-returned reader paths like upstream' => static function (TestRunner $t): void {
+        $files = [
+            '/entry.css' => '@import "pkg:tokens.css"; @import "pkg:card.css"; .entry { color: red }',
+            './vendor/../vendor/tokens.css' => ':root { --brand: blue }',
+            './blocks/../blocks/card.css' => '@import "pkg:button.css"; .card { color: green }',
+            './shared/../shared/button.css' => '.button { color: blue }',
+        ];
+        $reads = [];
+        $resolved = [];
+
+        $code = (new CssBundler())->bundleWithReader(
+            '/entry.css',
+            static function (string $file) use (&$reads, $files): string {
+                $reads[] = $file;
+                if (!array_key_exists($file, $files)) {
+                    throw new RuntimeException("Missing reader source {$file}");
+                }
+
+                return $files[$file];
+            },
+            static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return match ($specifier) {
+                    'pkg:tokens.css' => './vendor/../vendor/tokens.css',
+                    'pkg:card.css' => './blocks/../blocks/card.css',
+                    'pkg:button.css' => './shared/../shared/button.css',
+                    default => throw new RuntimeException("Unexpected specifier {$specifier}"),
+                };
+            }
+        );
+
+        $t->same(':root{--brand:blue}.button{color:#00f}.card{color:green}.entry{color:red}', $code);
+        $t->same([
+            '/entry.css',
+            './vendor/../vendor/tokens.css',
+            './blocks/../blocks/card.css',
+            './shared/../shared/button.css',
+        ], $reads);
+        $t->same([
+            ['pkg:tokens.css', '/entry.css'],
+            ['pkg:card.css', '/entry.css'],
+            ['pkg:button.css', './blocks/../blocks/card.css'],
+        ], $resolved);
+    },
     'css bundler maps upstream source provider read diagnostics' => static function (TestRunner $t): void {
         $initialReadRejected = false;
         try {

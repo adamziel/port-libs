@@ -304,6 +304,26 @@ final class SourceMap
             $sourceMap->generatedLineCount,
             $childMaxLine === null ? 0 : $childMaxLine + 1
         );
+        if ($remappedByLine === []) {
+            foreach ($sourceMap->sources as $index => $source) {
+                if (array_key_exists($index, $sourceIndexes)) {
+                    continue;
+                }
+
+                $mappedIndex = $this->addSource($source);
+                $sourceIndexes[$index] = $mappedIndex;
+                if (array_key_exists($index, $sourceMap->sourcesContent)) {
+                    $this->setSourceContent($mappedIndex, $sourceMap->sourcesContent[$index]);
+                }
+            }
+
+            foreach ($sourceMap->names as $index => $name) {
+                if (!array_key_exists($index, $nameIndexes)) {
+                    $nameIndexes[$index] = $this->addName($name);
+                }
+            }
+        }
+
         if ($childLineCount === 0) {
             $this->drainSourceMap($sourceMap);
 

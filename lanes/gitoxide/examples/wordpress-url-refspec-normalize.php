@@ -32,6 +32,12 @@ try {
 } catch (InvalidArgumentException) {
     $malformedBracketedRemoteRejected = true;
 }
+$invalidUtf8RemoteRejected = false;
+try {
+    GitUrl::parse($fixture['invalidUtf8RemoteUrl']);
+} catch (InvalidArgumentException) {
+    $invalidUtf8RemoteRejected = true;
+}
 
 $summary = [
     'remote' => $remote->toArray(),
@@ -41,6 +47,7 @@ $summary = [
     'push' => $push,
     'oversizedRemoteRejected' => $oversizedRemoteRejected,
     'malformedBracketedRemoteRejected' => $malformedBracketedRemoteRejected,
+    'invalidUtf8RemoteRejected' => $invalidUtf8RemoteRejected,
     'deploymentRemoteSafe' => $remote->userArgumentSafe() === $fixture['expectedRemoteUser']
         && $remote->hostArgumentSafe() === $fixture['expectedRemoteHost']
         && $remote->pathArgumentSafe() === $fixture['expectedRemotePath'],
@@ -83,6 +90,9 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if ($summary['malformedBracketedRemoteRejected'] !== $fixture['expectedMalformedBracketedRemoteRejected']) {
         throw new RuntimeException('Unexpected malformed bracketed remote URL preflight result');
+    }
+    if ($summary['invalidUtf8RemoteRejected'] !== $fixture['expectedInvalidUtf8RemoteRejected']) {
+        throw new RuntimeException('Unexpected invalid UTF-8 remote URL preflight result');
     }
 }
 

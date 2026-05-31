@@ -9,6 +9,9 @@ final class CustomAtRuleTransformer
     /** @var array<string, array<string, mixed>> */
     private array $customAtRules = [];
 
+    /** @var callable|null */
+    private $ruleVisitor = null;
+
     /** @var array<string, callable> */
     private array $ruleVisitors = [];
 
@@ -844,9 +847,13 @@ final class CustomAtRuleTransformer
             $this->customAtRules[strtolower($name)] = $definition;
         }
 
+        $ruleConfig = $visitor['Rule'] ?? null;
+        $ruleSubVisitors = is_array($ruleConfig) ? $ruleConfig : [];
+
+        $this->ruleVisitor = is_callable($ruleConfig) ? $ruleConfig : null;
         $this->ruleVisitors = [];
         $this->genericRuleVisitor = null;
-        $customVisitors = $visitor['Rule']['custom'] ?? $visitor['custom'] ?? [];
+        $customVisitors = $ruleSubVisitors['custom'] ?? $visitor['custom'] ?? [];
         if (is_callable($customVisitors)) {
             $this->genericRuleVisitor = $customVisitors;
         } elseif (is_array($customVisitors)) {
@@ -864,7 +871,7 @@ final class CustomAtRuleTransformer
 
         $this->unknownRuleVisitors = [];
         $this->genericUnknownRuleVisitor = null;
-        $unknownVisitors = $visitor['Rule']['unknown'] ?? $visitor['unknown'] ?? [];
+        $unknownVisitors = $ruleSubVisitors['unknown'] ?? $visitor['unknown'] ?? [];
         if (is_callable($unknownVisitors)) {
             $this->genericUnknownRuleVisitor = $unknownVisitors;
         } elseif (is_array($unknownVisitors)) {
@@ -876,13 +883,13 @@ final class CustomAtRuleTransformer
         }
 
         $this->styleRuleVisitor = null;
-        $styleVisitor = $visitor['Rule']['style'] ?? $visitor['style'] ?? null;
+        $styleVisitor = $ruleSubVisitors['style'] ?? $visitor['style'] ?? null;
         if (is_callable($styleVisitor)) {
             $this->styleRuleVisitor = $styleVisitor;
         }
 
         $this->mediaRuleVisitor = null;
-        $mediaVisitor = $visitor['Rule']['media'] ?? $visitor['media'] ?? null;
+        $mediaVisitor = $ruleSubVisitors['media'] ?? $visitor['media'] ?? null;
         if (is_callable($mediaVisitor)) {
             $this->mediaRuleVisitor = $mediaVisitor;
         }
@@ -1626,6 +1633,13 @@ final class CustomAtRuleTransformer
                     $output .= $this->processCustomAtRule($prelude, $body, null);
                 } else {
                     $rule = $this->buildUnknownRule($name, $atPrelude, $body, null);
+                    $genericReplacement = $this->callAnyRuleVisitor(['type' => 'unknown', 'value' => $rule]);
+                    if ($genericReplacement !== null) {
+                        $output .= $this->emitReplacement($genericReplacement, null);
+                        $cursor = $close + 1;
+                        continue;
+                    }
+
                     $replacement = $this->callUnknownRuleVisitor($rule);
                     $output .= $replacement === null
                         ? $this->emitUnknownRule($rule, null)
@@ -1654,6 +1668,11 @@ final class CustomAtRuleTransformer
         [$name, $prelude] = $this->parseAtPrelude($statement);
         if (!$this->isCustomAtRule($name)) {
             $rule = $this->buildUnknownRule($name, $prelude, null, $parentSelectors);
+            $genericReplacement = $this->callAnyRuleVisitor(['type' => 'unknown', 'value' => $rule]);
+            if ($genericReplacement !== null) {
+                return $this->emitReplacement($genericReplacement, $parentSelectors);
+            }
+
             $replacement = $this->callUnknownRuleVisitor($rule);
 
             return $replacement === null
@@ -1662,6 +1681,11 @@ final class CustomAtRuleTransformer
         }
 
         $rule = $this->buildCustomRule($name, $prelude, null, $parentSelectors);
+        $genericReplacement = $this->callAnyRuleVisitor(['type' => 'custom', 'value' => $rule]);
+        if ($genericReplacement !== null) {
+            return $this->emitReplacement($genericReplacement, $parentSelectors);
+        }
+
         $replacement = $this->callRuleVisitor($rule);
         if ($replacement === null) {
             return $statement . ';';
@@ -1742,6 +1766,13 @@ final class CustomAtRuleTransformer
                     $output .= $this->processStyleBody($nestedBody, $nestedSelectors);
                 } else {
                     $rule = $this->buildUnknownRule($name, $atPrelude, $nestedBody, $selectors);
+                    $genericReplacement = $this->callAnyRuleVisitor(['type' => 'unknown', 'value' => $rule]);
+                    if ($genericReplacement !== null) {
+                        $output .= $this->emitReplacement($genericReplacement, $selectors);
+                        $cursor = $close + 1;
+                        continue;
+                    }
+
                     $replacement = $this->callUnknownRuleVisitor($rule);
                     $output .= $replacement === null
                         ? $this->emitUnknownRule($rule, $selectors)
@@ -1763,6 +1794,13 @@ final class CustomAtRuleTransformer
      */
     private function processMediaRule(string $query, string $body, ?array $parentSelectors): string
     {
+        if ($this->ruleVisitor !== null) {
+            $replacement = $this->callAnyRuleVisitor($this->buildMediaRule($query, $body, $parentSelectors));
+            if ($replacement !== null) {
+                return $this->emitReplacement($replacement, $parentSelectors);
+            }
+        }
+
         if ($this->mediaRuleVisitor !== null) {
             $rule = $this->buildMediaRule($query, $body, $parentSelectors);
             $replacement = ($this->mediaRuleVisitor)($rule, $this);
@@ -1803,6 +1841,11 @@ final class CustomAtRuleTransformer
     {
         [$name, $atPrelude] = $this->parseAtPrelude($prelude);
         $rule = $this->buildCustomRule($name, $atPrelude, $body, $parentSelectors);
+        $genericReplacement = $this->callAnyRuleVisitor(['type' => 'custom', 'value' => $rule]);
+        if ($genericReplacement !== null) {
+            return $this->emitReplacement($genericReplacement, $parentSelectors);
+        }
+
         $replacement = $this->callRuleVisitor($rule);
         if ($replacement === null) {
             return $prelude . '{' . $body . '}';
@@ -2249,6 +2292,18 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @param array<string, mixed> $rule
+     */
+    private function callAnyRuleVisitor(array $rule): mixed
+    {
+        if ($this->ruleVisitor === null) {
+            return null;
+        }
+
+        return ($this->ruleVisitor)($rule, $this);
+    }
+
+    /**
      * @param list<string>|null $parentSelectors
      */
     private function emitReplacement(mixed $replacement, ?array $parentSelectors): string
@@ -2275,6 +2330,9 @@ final class CustomAtRuleTransformer
         }
         if (self::isUnknownRuleReplacement($replacement)) {
             return $this->emitUnknownRule($replacement['value'], $parentSelectors);
+        }
+        if (($replacement['type'] ?? null) === 'custom' && isset($replacement['value']) && is_array($replacement['value'])) {
+            return $this->emitCustomRule($replacement['value'], $parentSelectors);
         }
         if (($replacement['type'] ?? null) === 'ignored') {
             return '';
@@ -2326,6 +2384,35 @@ final class CustomAtRuleTransformer
         }
 
         throw new \InvalidArgumentException("Unsupported custom at-rule replacement kind: {$kind}");
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     * @param list<string>|null $parentSelectors
+     */
+    private function emitCustomRule(array $rule, ?array $parentSelectors): string
+    {
+        $name = (string) ($rule['name'] ?? '');
+        if ($name === '') {
+            throw new \InvalidArgumentException('Custom at-rule replacement is missing a name');
+        }
+
+        $prelude = trim((string) ($rule['prelude'] ?? ''));
+        $head = '@' . $name . ($prelude === '' ? '' : ' ' . $prelude);
+        $bodyType = $rule['bodyType'] ?? null;
+        if ($bodyType === null) {
+            return $head . ';';
+        }
+
+        $body = (string) ($rule['body'] ?? '');
+        if ($bodyType === 'rule-list') {
+            return $head . '{' . $this->processRuleList($body) . '}';
+        }
+        if ($bodyType === 'style-block' && $parentSelectors !== null) {
+            return $head . '{' . $this->processStyleBody($body, $parentSelectors) . '}';
+        }
+
+        return $head . '{' . $body . '}';
     }
 
     /**
@@ -3760,6 +3847,13 @@ final class CustomAtRuleTransformer
                 ],
             ],
         ];
+        if ($visitStyleRule && $this->ruleVisitor !== null) {
+            $replacement = $this->callAnyRuleVisitor(array_replace($rule, ['type' => 'style']));
+            if ($replacement !== null) {
+                return $this->emitStyleRuleReplacement($replacement, $rule);
+            }
+        }
+
         if ($visitStyleRule && $this->styleRuleVisitor !== null) {
             return $this->emitStyleRuleReplacement(($this->styleRuleVisitor)($rule, $this), $rule);
         }

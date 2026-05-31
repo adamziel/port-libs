@@ -1598,6 +1598,14 @@ final class CssModulesTransformer
                     return true;
                 }
             }
+
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($selector, $i);
+                if ($escapeEnd !== null) {
+                    $i = $escapeEnd;
+                    continue;
+                }
+            }
         }
 
         return false;
@@ -1742,6 +1750,15 @@ final class CssModulesTransformer
                     $this->ensureExport($local);
                     $output .= $char . $this->escapeCssIdentifier($this->scopedName($local));
                     $i = $token['end'] - 1;
+                    continue;
+                }
+            }
+
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($selector, $i);
+                if ($escapeEnd !== null) {
+                    $output .= substr($selector, $i, $escapeEnd - $i + 1);
+                    $i = $escapeEnd;
                     continue;
                 }
             }
@@ -2435,6 +2452,15 @@ final class CssModulesTransformer
                 continue;
             }
 
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($value, $i);
+                if ($escapeEnd !== null) {
+                    $parts[array_key_last($parts)] .= substr($value, $i, $escapeEnd - $i + 1);
+                    $i = $escapeEnd;
+                    continue;
+                }
+            }
+
             if ($char === '"' || $char === "'") {
                 $quote = $char;
             } elseif ($char === '(') {
@@ -2538,6 +2564,14 @@ final class CssModulesTransformer
                 continue;
             }
 
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($css, $i);
+                if ($escapeEnd !== null) {
+                    $i = $escapeEnd;
+                    continue;
+                }
+            }
+
             if ($char === '"' || $char === "'") {
                 $quote = $char;
             } elseif ($char === '(') {
@@ -2595,6 +2629,14 @@ final class CssModulesTransformer
                 continue;
             }
 
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($css, $i);
+                if ($escapeEnd !== null) {
+                    $i = $escapeEnd;
+                    continue;
+                }
+            }
+
             if ($char === '"' || $char === "'") {
                 $quote = $char;
             } elseif ($char === '{') {
@@ -2627,6 +2669,14 @@ final class CssModulesTransformer
                     $quote = null;
                 }
                 continue;
+            }
+
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($css, $i);
+                if ($escapeEnd !== null) {
+                    $i = $escapeEnd;
+                    continue;
+                }
             }
 
             if ($char === '"' || $char === "'") {
@@ -2789,6 +2839,36 @@ final class CssModulesTransformer
             'decoded' => $this->codepointToUtf8((int) hexdec($hex)),
             'end' => $cursor,
         ];
+    }
+
+    private function cssEscapeEnd(string $value, int $offset): ?int
+    {
+        $length = strlen($value);
+        if (($value[$offset] ?? '') !== '\\' || $offset + 1 >= $length) {
+            return null;
+        }
+
+        $next = $value[$offset + 1];
+        if ($next === "\n" || $next === "\r" || $next === "\f") {
+            return null;
+        }
+
+        if (!ctype_xdigit($next)) {
+            return $offset + 1;
+        }
+
+        $cursor = $offset + 1;
+        $hexLength = 0;
+        while ($cursor < $length && $hexLength < 6 && ctype_xdigit($value[$cursor])) {
+            $cursor++;
+            $hexLength++;
+        }
+
+        if ($cursor < $length && ctype_space($value[$cursor])) {
+            $cursor++;
+        }
+
+        return $cursor - 1;
     }
 
     private function escapeCssIdentifier(string $identifier): string

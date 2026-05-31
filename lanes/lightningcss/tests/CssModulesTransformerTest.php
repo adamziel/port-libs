@@ -265,6 +265,38 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules keeps escaped selector delimiters inside local global and composes selectors' => static function (TestRunner $t) use ($export, $local): void {
+        $localResult = (new CssModulesTransformer())->transform(':local(.foo\,bar) { color: red }');
+        $t->same('.EgL3uq_foo\,bar{color:red}', $localResult['code']);
+        $t->same([
+            'foo,bar' => $export('EgL3uq_foo,bar'),
+        ], $localResult['exports']);
+        $t->same([], $localResult['references']);
+
+        $globalResult = (new CssModulesTransformer())->transform(':global(.wp\,button) .card { color: red }');
+        $t->same('.wp\,button .EgL3uq_card{color:red}', $globalResult['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+        ], $globalResult['exports']);
+        $t->same([], $globalResult['references']);
+
+        $composeResult = (new CssModulesTransformer())->transform('.foo\,bar, .baz { composes: base; color: red } .base { color: blue }');
+        $t->same('.EgL3uq_foo\,bar,.EgL3uq_baz{color:red}.EgL3uq_base{color:#00f}', $composeResult['code']);
+        $t->same([
+            'foo,bar' => $export('EgL3uq_foo,bar', [$local('EgL3uq_base')]),
+            'baz' => $export('EgL3uq_baz', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+        ], $composeResult['exports']);
+        $t->same([], $composeResult['references']);
+
+        foreach ([
+            ':global(.foo, .bar) .baz { color: red }',
+            ':local(.foo, .bar) { color: red }',
+            '.foo, :global(.bar) { composes: base; color: red }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
+        }
+    },
     'css modules pure mode enforces upstream local selector boundaries' => static function (TestRunner $t) use ($export, $local): void {
         $transformer = new CssModulesTransformer();
 

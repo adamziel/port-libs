@@ -161,6 +161,7 @@ final class GitUrl
     private static function parseUrlForm(string $input, int $protocolEnd): self
     {
         self::assertUrlPrePathWithinLimit($input, $protocolEnd);
+        self::assertValidUtf8($input, 'Git URL');
 
         if (preg_match('/\s/', $input) === 1) {
             throw new \InvalidArgumentException('Git URL contains invalid whitespace');
@@ -171,9 +172,9 @@ final class GitUrl
         $afterScheme = substr($input, $protocolEnd + 3);
         $pathStart = strpos($afterScheme, '/');
         $authority = $pathStart === false ? $afterScheme : substr($afterScheme, 0, $pathStart);
-        $path = $pathStart === false ? '' : rawurldecode(substr($afterScheme, $pathStart));
+        $path = $pathStart === false ? '' : self::percentDecodeUtf8(substr($afterScheme, $pathStart), 'path');
 
-        [$user, $password, $host, $port] = self::parseAuthority($authority);
+        [$user, $password, $host, $port] = self::parseAuthority($authority, true);
         if (in_array($scheme, [self::SCHEME_HTTP, self::SCHEME_HTTPS, self::SCHEME_GIT, self::SCHEME_SSH], true) && $host === null) {
             throw new \InvalidArgumentException('Git URL scheme requires a host');
         }
@@ -221,13 +222,15 @@ final class GitUrl
 
     private static function parseScpForm(string $input, int $colon): self
     {
+        self::assertValidUtf8($input, 'SCP-like Git URL');
+
         $hostAndUser = substr($input, 0, $colon);
         $path = substr($input, $colon + 1);
         if ($path === '') {
             throw new \InvalidArgumentException('SCP-like Git URL does not specify a repository path');
         }
 
-        [$user, , $host, $port] = self::parseAuthority($hostAndUser);
+        [$user, , $host, $port] = self::parseAuthority($hostAndUser, true);
         if ($host === null || $port !== null) {
             throw new \InvalidArgumentException('SCP-like Git URL requires a host without a port');
         }
@@ -244,6 +247,8 @@ final class GitUrl
 
     private static function parseFileUrl(string $input, int $protocolEnd): self
     {
+        self::assertValidUtf8($input, 'File Git URL');
+
         $afterScheme = substr($input, $protocolEnd + 3);
         $firstSlash = strpos($afterScheme, '/');
         if ($firstSlash === false) {
@@ -260,7 +265,7 @@ final class GitUrl
     /**
      * @return array{0: ?string, 1: ?string, 2: ?string, 3: ?int}
      */
-    private static function parseAuthority(string $authority): array
+    private static function parseAuthority(string $authority, bool $strictPercentUtf8 = false): array
     {
         if ($authority === '') {
             return [null, null, null, null];
@@ -274,8 +279,10 @@ final class GitUrl
             $userinfo = substr($authority, 0, $at);
             $hostPort = substr($authority, $at + 1);
             [$rawUser, $rawPassword] = array_pad(explode(':', $userinfo, 2), 2, null);
-            $user = rawurldecode($rawUser);
-            $password = $rawPassword === null || $rawPassword === '' ? null : rawurldecode($rawPassword);
+            $user = self::decodeAuthorityComponent($rawUser, $strictPercentUtf8, 'username');
+            $password = $rawPassword === null || $rawPassword === ''
+                ? null
+                : self::decodeAuthorityComponent($rawPassword, $strictPercentUtf8, 'password');
         }
 
         [$host, $port] = self::parseHostPort($hostPort);
@@ -288,6 +295,30 @@ final class GitUrl
         }
 
         return [$user, $password, $host, $port];
+    }
+
+    private static function decodeAuthorityComponent(string $value, bool $strictPercentUtf8, string $component): string
+    {
+        if ($strictPercentUtf8) {
+            return self::percentDecodeUtf8($value, $component);
+        }
+
+        return rawurldecode($value);
+    }
+
+    private static function percentDecodeUtf8(string $value, string $component): string
+    {
+        $decoded = rawurldecode($value);
+        self::assertValidUtf8($decoded, 'Git URL ' . $component);
+
+        return $decoded;
+    }
+
+    private static function assertValidUtf8(string $value, string $subject): void
+    {
+        if (preg_match('//u', $value) !== 1) {
+            throw new \InvalidArgumentException($subject . ' is not valid UTF-8');
+        }
     }
 
     /**

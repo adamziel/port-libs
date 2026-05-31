@@ -418,6 +418,23 @@ return [
                 'border-image'
             )
         );
+
+        $legacyBorderImage = '-webkit-border-image: url("frame.svg") 25 / 12px round !important';
+        $t->same(['value' => 'url(frame.svg)', 'important' => true], $block->getProperty($legacyBorderImage, 'border-image-source'));
+        $t->same(['value' => '25', 'important' => true], $block->getProperty($legacyBorderImage, 'border-image-slice'));
+        $t->same(['value' => '12px', 'important' => true], $block->getProperty($legacyBorderImage, 'border-image-width'));
+        $t->same(['value' => '0', 'important' => true], $block->getProperty($legacyBorderImage, 'border-image-outset'));
+        $t->same(['value' => 'round', 'important' => true], $block->getProperty($legacyBorderImage, 'border-image-repeat'));
+        $t->same(['value' => 'url(frame.svg) 25 / 12px round', 'important' => true], $block->getProperty($legacyBorderImage, '-webkit-border-image'));
+        $t->same(null, $block->getProperty($legacyBorderImage, 'border-image'));
+        $t->same(null, $block->getProperty('border-image: url(frame.svg) 25 / 12px round', '-webkit-border-image'));
+        $t->same(
+            ['value' => 'url(frame.svg) 25 / 12px round', 'important' => false],
+            $block->getProperty(
+                'border-image-source: url(frame.svg); border-image-slice: 25; border-image-width: 12px; border-image-outset: 0; border-image-repeat: round',
+                '-moz-border-image'
+            )
+        );
     },
     'declaration block reads upstream border radius cssom longhands and shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
@@ -1777,6 +1794,14 @@ return [
             $block->setProperty('border-image: url(frame.svg) 25 / 12px round', 'border-image-repeat', 'space round')
         );
         $t->same(
+            '-webkit-border-image: url(new-frame.svg) 25 / 12px round',
+            $block->setProperty('-webkit-border-image: url(frame.svg) 25 / 12px round', 'border-image-source', 'url("new-frame.svg")')
+        );
+        $t->same(
+            '-moz-border-image: url(frame.svg) 25 / 12px space round !important',
+            $block->setProperty('-moz-border-image: url(frame.svg) 25 / 12px round !important', 'border-image-repeat', 'space round', true)
+        );
+        $t->same(
             'border-image-source: url(new-frame.svg); border-image: url(old-frame.svg) 25 !important',
             $block->setProperty('border-image: url(old-frame.svg) 25 !important', 'border-image-source', 'url(new-frame.svg)')
         );
@@ -2512,6 +2537,18 @@ return [
         $t->same(
             'color: red; border-image-slice: 25 !important; border-image-width: 1 !important; border-image-outset: 0 !important; border-image-repeat: stretch !important',
             $block->removeProperty('border-image: url(frame.svg) 25 !important; color: red; border-image-source: url(new-frame.svg)', 'border-image-source')
+        );
+        $t->same(
+            'border-image-slice: 25; border-image-width: 12px; border-image-outset: 2; border-image-repeat: round',
+            $block->removeProperty('-webkit-border-image: url(frame.svg) 25 / 12px / 2 round', 'border-image-source')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('-o-border-image: url(frame.svg) 25 / 12px round; color: red', '-o-border-image')
+        );
+        $t->same(
+            'color: red; border-image-slice: 25 !important; border-image-width: 1 !important; border-image-outset: 0 !important; border-image-repeat: stretch !important',
+            $block->removeProperty('-moz-border-image: url(frame.svg) 25 !important; color: red; border-image-source: url(new-frame.svg)', 'border-image-source')
         );
     },
     'declaration block removes upstream border radius cssom longhands and shorthand' => static function (TestRunner $t): void {

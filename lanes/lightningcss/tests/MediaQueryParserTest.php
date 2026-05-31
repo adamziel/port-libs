@@ -155,6 +155,34 @@ return [
             $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList($query));
         }
     },
+    'media query parser rejects mixed boolean operators without grouping' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        $t->same('((width>1px) and (hover)) or (pointer)', $parser->minifyList('((width > 1px) and (hover)) or (pointer)'));
+        $t->same('(width>1px) and ((hover) or (pointer))', $parser->minifyList('(width > 1px) and ((hover) or (pointer))'));
+        $t->same(
+            '@layer blocks{@media ((width>1px) and (hover)) or (pointer){.wp-block-query{color:#7fff00}}}',
+            (new CssMinifier())->minify('@layer blocks { @media ((width > 1px) and (hover)) or (pointer) { .wp-block-query { color: chartreuse; } } }')
+        );
+
+        foreach ([
+            '(color) and (hover) or (pointer)',
+            '(color) or (hover) and (pointer)',
+            '(width > 1px) and (hover) or (pointer)',
+            '(width > 1px) or (hover) and (pointer)',
+            '((width > 1px) and (hover) or (pointer))',
+            '((hover) and)',
+        ] as $query) {
+            $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList($query));
+        }
+
+        foreach ([
+            '@layer blocks { @media (width > 1px) and (hover) or (pointer) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media ((width > 1px) and (hover) or (pointer)) { .wp-block-query { color: chartreuse; } } }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => (new CssMinifier())->minify($css));
+        }
+    },
     'media query parser lowers range syntax for legacy target fallbacks' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 

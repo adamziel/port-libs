@@ -85,6 +85,7 @@ final class MediaQueryParser
         $quote = null;
         $hasOperand = false;
         $waitingForOperand = false;
+        $logicalOperator = null;
         $length = strlen($query);
 
         for ($i = 0; $i < $length; $i++) {
@@ -130,7 +131,11 @@ final class MediaQueryParser
                 if (!$hasOperand || $waitingForOperand) {
                     throw new \InvalidArgumentException("Invalid media query boolean operator: {$identifier}");
                 }
+                if ($logicalOperator !== null && $logicalOperator !== $identifier) {
+                    throw new \InvalidArgumentException('Media query boolean operators must be grouped when mixing and/or');
+                }
 
+                $logicalOperator = $identifier;
                 $hasOperand = false;
                 $waitingForOperand = true;
                 $i--;
@@ -202,7 +207,10 @@ final class MediaQueryParser
         }
 
         if ($this->containsTopLevelKeyword($inner, 'and') || $this->containsTopLevelKeyword($inner, 'or')) {
-            return $this->normalizeParentheses($this->normalizeWhitespace($inner), $allowCompactedNegation);
+            $inner = $this->normalizeWhitespace($inner);
+            $this->validateTopLevelLogicalOperators($inner);
+
+            return $this->normalizeParentheses($inner, $allowCompactedNegation);
         }
 
         if (preg_match('/^not\s+(.+)$/i', $inner, $matches) === 1) {

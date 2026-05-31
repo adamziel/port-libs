@@ -241,6 +241,12 @@ final class DeclarationBlock
         'smaller',
         'larger',
     ];
+    private const BORDER_IMAGE_SHORTHANDS = [
+        'border-image',
+        '-webkit-border-image',
+        '-moz-border-image',
+        '-o-border-image',
+    ];
     private const BORDER_IMAGE_LONGHANDS = [
         'border-image-source',
         'border-image-slice',
@@ -819,9 +825,14 @@ final class DeclarationBlock
             return null;
         }
 
+        $requestedShorthand = $this->isBorderImageShorthand($property) ? $property : null;
         $components = [];
         foreach ($entries as $entry) {
-            if ($entry['property'] === 'border-image') {
+            if ($this->isBorderImageShorthand($entry['property'])) {
+                if ($requestedShorthand !== null && $entry['property'] !== $requestedShorthand) {
+                    continue;
+                }
+
                 $parsed = $this->parseBorderImageComponents($entry['value']);
                 if ($parsed === null) {
                     continue;
@@ -844,7 +855,7 @@ final class DeclarationBlock
             }
         }
 
-        if ($property !== 'border-image') {
+        if (!$this->isBorderImageShorthand($property)) {
             return $components[$property] ?? null;
         }
 
@@ -951,7 +962,7 @@ final class DeclarationBlock
                 return $this->serializeEntries($entries);
             }
 
-            if ($entries[$index]['property'] !== 'border-image') {
+            if (!$this->isBorderImageShorthand($entries[$index]['property'])) {
                 continue;
             }
             if ($entries[$index]['important'] !== $important) {
@@ -965,7 +976,7 @@ final class DeclarationBlock
 
             $components[$property] = $value;
             $entries[$index] = [
-                'property' => 'border-image',
+                'property' => $entries[$index]['property'],
                 'value' => $this->composeBorderImageShorthandValue($components),
                 'important' => $important,
             ];
@@ -1215,7 +1226,12 @@ final class DeclarationBlock
 
     private function isBorderImageProperty(string $property): bool
     {
-        return $property === 'border-image' || $this->isBorderImageLonghand($property);
+        return $this->isBorderImageShorthand($property) || $this->isBorderImageLonghand($property);
+    }
+
+    private function isBorderImageShorthand(string $property): bool
+    {
+        return in_array($property, self::BORDER_IMAGE_SHORTHANDS, true);
     }
 
     private function isBorderImageLonghand(string $property): bool
@@ -10092,7 +10108,7 @@ final class DeclarationBlock
             return array_values(self::PLACE_ALIGNMENT_SHORTHANDS[$property]);
         }
 
-        if ($property === 'border-image') {
+        if ($this->isBorderImageShorthand($property)) {
             return self::BORDER_IMAGE_LONGHANDS;
         }
 
@@ -10424,7 +10440,7 @@ final class DeclarationBlock
                 continue;
             }
 
-            if ($entry['property'] !== 'border-image') {
+            if (!$this->isBorderImageShorthand($entry['property'])) {
                 $result[] = $entry;
                 continue;
             }

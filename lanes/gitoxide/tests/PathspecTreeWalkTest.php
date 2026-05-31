@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\GitAttributes;
 use PortLibs\Gitoxide\PathspecMatch;
 use PortLibs\Gitoxide\PathspecPattern;
 use PortLibs\Gitoxide\PathspecSearch;
@@ -530,6 +531,77 @@ return [
             'wp-content/plugins/gutenberg/src/editor.js',
         ], $walkPaths($records));
     },
+    'tree walk applies attr pathspec filters like upstream gix dir traversal' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $root = new Tree([
+            $tree('wp-content', new Tree([
+                $tree('cache', new Tree([$blob('page.html')])),
+                $tree('plugins', new Tree([
+                    $tree('gutenberg', new Tree([$blob('block.json'), $blob('readme.txt')])),
+                    $tree('private', new Tree([$blob('secret.php')])),
+                ])),
+                $tree('themes', new Tree([
+                    $tree('acme', new Tree([$blob('style.css'), $blob('theme.json')])),
+                ])),
+                $tree('uploads', new Tree([$blob('logo.png')])),
+            ])),
+        ]);
+        $read = static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+            if (!isset($objects[$entry->oid])) {
+                throw new RuntimeException("Missing tree object for {$path}");
+            }
+
+            return $objects[$entry->oid];
+        };
+        $attributes = GitAttributes::fromString(
+            "wp-content/plugins/** deploy=plugin merge=union\n"
+            . "wp-content/plugins/private/** !deploy\n"
+            . "wp-content/themes/** deploy=theme\n"
+            . "wp-content/cache/** export-ignore\n",
+            withBuiltInMacros: false,
+        );
+        $search = PathspecSearch::fromSpecs([
+            ':(attr:deploy=plugin)wp-content/plugins/**',
+            ':(attr:deploy=theme)wp-content/themes/**',
+            ':!:(attr:!deploy)wp-content/plugins/private/**',
+            ':!:(attr:export-ignore)wp-content/cache/**',
+        ]);
+
+        $t->same([], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $search,
+            $read,
+            includeTrees: false,
+        )));
+
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            $search,
+            $read,
+            includeTrees: false,
+            attributes: $attributes,
+        );
+
+        $t->same([
+            'wp-content/plugins/gutenberg/block.json',
+            'wp-content/plugins/gutenberg/readme.txt',
+            'wp-content/themes/acme/style.css',
+            'wp-content/themes/acme/theme.json',
+        ], $walkPaths($records));
+        $t->same([
+            PathspecMatch::KIND_WILDCARD,
+            PathspecMatch::KIND_WILDCARD,
+            PathspecMatch::KIND_WILDCARD,
+            PathspecMatch::KIND_WILDCARD,
+        ], array_map(static fn (TreeWalkEntry $record): string => $record->matchKind, $records));
+    },
     'empty pathspecs with prefix walk only prefixed subtrees' => static function (TestRunner $t) use ($makeTreeStore, $walkPaths): void {
         [$root, $read] = $makeTreeStore();
         $records = TreePathspecWalk::breadthFirst(
@@ -589,5 +661,13 @@ return [
             'wp-content/themes/acme/theme.json',
         ], $example['siblingPrefixContentPaths']);
         $t->same(true, $example['rootEscapingPathspecRejected']);
+        $t->same([
+            'wp-content/plugins/gutenberg/block.json',
+            'wp-content/plugins/gutenberg/block.gson',
+            'wp-content/themes/acme/theme.json',
+            'wp-content/themes/acme/theme.?son',
+            'wp-content/themes/acme/style.css',
+        ], $example['attrFilteredContentPaths']);
+        $t->same(true, $example['attrFilteredWithoutProviderEmpty']);
     },
 ];

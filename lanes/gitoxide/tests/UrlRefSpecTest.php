@@ -171,6 +171,42 @@ return [
         $t->same('/ %', $percent->path());
         $t->same('https://%20@%40:example.org/%20%25', $percent->toBytes());
     },
+    'git url rejects invalid utf8 in url and scp forms while keeping raw local paths byte-safe' => static function (TestRunner $t): void {
+        $internationalPath = GitUrl::parse('https://example.com/caf%C3%A9');
+        $t->same("/caf\xC3\xA9", $internationalPath->path());
+        $t->same('https://example.com/caf%C3%A9', $internationalPath->toBytes());
+
+        foreach ([
+            'https://example.com/%FF',
+            'https://example.com/%C3%28',
+            'http://user%FF@example.com/path',
+            'http://user:p%FF@example.com/path',
+            'ssh://host.xz/%FF',
+        ] as $invalidPercentUrl) {
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn () => GitUrl::parse($invalidPercentUrl),
+                "{$invalidPercentUrl} rejects invalid percent-decoded UTF-8"
+            );
+        }
+
+        foreach ([
+            "ssh://host.xz/\xFF",
+            "bad\xFF@host.xz:repo",
+            "file://host/\xFF",
+        ] as $invalidRawUrl) {
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn () => GitUrl::parse($invalidRawUrl),
+                'URL/SCP form rejects raw invalid UTF-8 bytes'
+            );
+        }
+
+        $rawLocal = GitUrl::parse("/path/to\xFF/git");
+        $t->same(GitUrl::SCHEME_FILE, $rawLocal->scheme());
+        $t->same("/path/to\xFF/git", $rawLocal->path());
+        $t->same("/path/to\xFF/git", $rawLocal->toBytes());
+    },
     'git url normalizes ports ipv6 schemes and argument safety boundaries' => static function (TestRunner $t): void {
         $httpsIpv6 = GitUrl::parse('https://user@[2001:db8::1]:8443/repo');
         $t->same(GitUrl::SCHEME_HTTPS, $httpsIpv6->scheme());
@@ -594,6 +630,7 @@ return [
         $t->same($fixture['expectedPushNormalized'], array_column($summary['push'], 'normalized'));
         $t->same($fixture['expectedOversizedRemoteRejected'], $summary['oversizedRemoteRejected']);
         $t->same($fixture['expectedMalformedBracketedRemoteRejected'], $summary['malformedBracketedRemoteRejected']);
+        $t->same($fixture['expectedInvalidUtf8RemoteRejected'], $summary['invalidUtf8RemoteRejected']);
         $t->same($fixture['expectedFetchPrefixes'], array_column($summary['fetch'], 'prefix'));
         $t->same($fixture['expectedFetchExpandedPrefixes'], array_column($summary['fetch'], 'expandedPrefixes'));
         $t->same($fixture['expectedPushPrefixes'], array_column($summary['push'], 'prefix'));

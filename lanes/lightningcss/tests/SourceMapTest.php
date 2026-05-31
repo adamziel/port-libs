@@ -774,6 +774,29 @@ return [
         $t->same([".entry{}\n", ".child{}\n"], $firstMerge['sourcesContent']);
         $t->same(['parentRule', 'childRule'], $firstMerge['names']);
     },
+    'source map preserves child source tables when line offsets skip mappings' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+
+        $child = new SourceMap();
+        $skippedSource = $child->addSource('blocks/skipped.css');
+        $unusedSource = $child->addSource('blocks/unused.css');
+        $child->setSourceContent($skippedSource, ".skipped{}\n");
+        $child->setSourceContent($unusedSource, ".unused{}\n");
+        $child->addMapping(0, 0, $skippedSource, 2, 1, 'skippedRule');
+        $child->addName('unusedName');
+
+        $parent->addSourceMap($child, -1);
+        $data = $parent->toArray(null, false);
+
+        $t->same('', $parent->writeVlq());
+        $t->same(['blocks/skipped.css', 'blocks/unused.css'], $data['sources']);
+        $t->same([".skipped{}\n", ".unused{}\n"], $data['sourcesContent']);
+        $t->same(['skippedRule', 'unusedName'], $data['names']);
+        $t->same([], $parent->getMappings());
+        $t->same([], $child->getSources());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map adds upstream empty line maps with line offsets' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $map->addEmptyMap('theme.css', ".wp-block-cover {}\n\n.wp-block-button {}\n", 2);

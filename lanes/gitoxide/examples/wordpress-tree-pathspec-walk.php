@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../../tools/bootstrap.php';
 
+use PortLibs\Gitoxide\GitAttributes;
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\PathspecPattern;
 use PortLibs\Gitoxide\PathspecSearch;
@@ -86,6 +87,17 @@ $siblingPrefixPathspecs = PathspecSearch::fromSpecs(
     ['../themes/acme/theme.json'],
     'wp-content/plugins',
 );
+$deploymentAttributes = GitAttributes::fromString(
+    "wp-content/plugins/gutenberg/** deploy=plugin merge=union\n"
+    . "wp-content/plugins/gutenberg/build/** !deploy\n"
+    . "wp-content/themes/acme/** deploy=theme\n",
+    withBuiltInMacros: false,
+);
+$attrFilteredPathspecs = PathspecSearch::fromSpecs([
+    ':(glob,attr:deploy=plugin)wp-content/plugins/gutenberg/block.[jg]son',
+    ':(glob,attr:deploy=theme)wp-content/themes/acme/*',
+    ':!:(attr:!deploy)wp-content/plugins/gutenberg/build/**',
+]);
 $rootEscapingPathspecRejected = false;
 try {
     PathspecSearch::fromSpecs(['../../../wp-config.php'], 'wp-content/plugins');
@@ -177,6 +189,31 @@ $siblingPrefixRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$attrFilteredRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $attrFilteredPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+    attributes: $deploymentAttributes,
+);
+$attrFilteredWithoutProviderRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $attrFilteredPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 
 return [
     'matchedContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $records),
@@ -197,6 +234,8 @@ return [
     'pathAwareDefaultNestedSrcSkipped' => !$pathAwareDefaultPathspecs->isIncluded('wp-content/plugins/gutenberg/src/editor.js', false),
     'inheritedIcaseDefaultContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $inheritedIcaseRecords),
     'siblingPrefixContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $siblingPrefixRecords),
+    'attrFilteredContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $attrFilteredRecords),
+    'attrFilteredWithoutProviderEmpty' => $attrFilteredWithoutProviderRecords === [],
     'rootEscapingPathspecRejected' => $rootEscapingPathspecRejected,
     'pathAwareSlashClassSkipped' => !PathspecSearch::fromSpecs([':(glob)wp-content/plugins/foo[/]bar.php'])->isIncluded('wp-content/plugins/foo/bar.php', false),
     'shellSlashClassIncluded' => PathspecSearch::fromSpecs(['wp-content/plugins/foo[/]bar.php'])->isIncluded('wp-content/plugins/foo/bar.php', false),

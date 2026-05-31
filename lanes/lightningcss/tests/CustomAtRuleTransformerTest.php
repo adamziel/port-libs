@@ -1926,6 +1926,31 @@ CSS;
         $t->same('@keyframes prefix-test{0%{color:red}to{color:green}}.foo{animation:prefix-test}', $result);
         $t->same(['test', 'test'], $seen);
     },
+    'custom at-rules map upstream generic Rule visitor currentColor passthrough' => static function (TestRunner $t): void {
+        $seen = [];
+        $result = (new CustomAtRuleTransformer())->transform('.foo { color: currentColor; }', [], [
+            'Rule' => static function (array $rule) use (&$seen): array {
+                $seen[] = [
+                    'type' => $rule['type'] ?? null,
+                    'selector' => $rule['value']['selectors'][0][0]['name'] ?? null,
+                    'property' => $rule['value']['declarations']['declarations'][0]['property'] ?? null,
+                    'value' => $rule['value']['declarations']['declarations'][0]['value'] ?? null,
+                ];
+
+                return $rule;
+            },
+        ]);
+
+        $t->same('.foo{color:currentColor}', $result);
+        $t->same([
+            [
+                'type' => 'style',
+                'selector' => 'foo',
+                'property' => 'color',
+                'value' => 'currentColor',
+            ],
+        ], $seen);
+    },
     'custom at-rules apply upstream identifier visitors after parser replacements' => static function (TestRunner $t): void {
         $visitor = CustomAtRuleTransformer::composeVisitors([
             [

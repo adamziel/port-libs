@@ -46,6 +46,12 @@ $css = <<<'CSS'
     }
   }
 
+  @media ((width > 480px) and (hover)) or (pointer: coarse) {
+    .wp-block-query.is-adaptive {
+      color: yellow;
+    }
+  }
+
   @media (not (width < 960px)) {
     .wp-block-query.is-wide {
       color: chartreuse;
@@ -62,7 +68,7 @@ CSS;
 
 $minifier = new CssMinifier();
 $actual = $minifier->minify($css);
-$expected = '@layer theme;@layer blocks{.wp-block-query{color:red;background:#fff}.wp-block-query__empty{color:#7fff00}@media (width>=600px) and (hover) and (color){.wp-block-query{color:#ff0}}@media screen and ((color) or (hover)){.wp-block-query__screen-feature{color:#ff0}}@media (width>=960px){.wp-block-query.is-wide{color:#7fff00}}@media (width<720px){.wp-block-query.is-narrow{color:#ff0}}}@layer utilities;';
+$expected = '@layer theme;@layer blocks{.wp-block-query{color:red;background:#fff}.wp-block-query__empty{color:#7fff00}@media (width>=600px) and (hover) and (color){.wp-block-query{color:#ff0}}@media screen and ((color) or (hover)){.wp-block-query__screen-feature{color:#ff0}}@media ((width>480px) and (hover)) or (pointer:coarse){.wp-block-query.is-adaptive{color:#ff0}}@media (width>=960px){.wp-block-query.is-wide{color:#7fff00}}@media (width<720px){.wp-block-query.is-narrow{color:#ff0}}}@layer utilities;';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($actual !== $expected) {
@@ -81,6 +87,7 @@ if (($argv[1] ?? null) === '--self-test') {
         '@layer theme, blocks {}',
         '@import "blocks/query-card.css" layer(theme, blocks) {};',
         '@layer blocks { @media screen and (color) or (hover) { .wp-block-query { color: chartreuse; } } }',
+        '@layer blocks { @media (width > 480px) and (hover) or (pointer) { .wp-block-query { color: chartreuse; } } }',
         '@layer blocks { @media (hover) and { .wp-block-query { color: chartreuse; } } }',
     ] as $invalidLayerCss) {
         try {

@@ -402,6 +402,49 @@ if (
 
 echo 'reader-provider: resolved' . PHP_EOL;
 
+$rawReaderFiles = [
+    '/reader-raw-theme.css' => <<<'CSS'
+@import "pkg:presets.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    './vendor/../vendor/presets.css' => <<<'CSS'
+:root {
+  --wp--preset--color--brand: blue;
+}
+CSS,
+];
+$rawReaderReads = [];
+$rawReaderBundle = (new CssBundler())->bundleWithReader(
+    '/reader-raw-theme.css',
+    static function (string $file) use (&$rawReaderReads, $rawReaderFiles): string {
+        $rawReaderReads[] = $file;
+        if (!array_key_exists($file, $rawReaderFiles)) {
+            throw new RuntimeException("Missing reader-backed theme file {$file}");
+        }
+
+        return $rawReaderFiles[$file];
+    },
+    static function (string $specifier): string {
+        if ($specifier === 'pkg:presets.css') {
+            return './vendor/../vendor/presets.css';
+        }
+
+        throw new RuntimeException("Unexpected reader-backed specifier {$specifier}");
+    }
+);
+
+if (
+    $rawReaderBundle !== ':root{--wp--preset--color--brand:blue}.wp-site-blocks{color:red}'
+    || $rawReaderReads !== ['/reader-raw-theme.css', './vendor/../vendor/presets.css']
+) {
+    fwrite(STDERR, "Expected reader-backed resolver return path to be preserved\n");
+    exit(1);
+}
+
+echo 'reader-resolver-raw-path: preserved' . PHP_EOL;
+
 $eofImportBundle = (new CssBundler())->bundleWithReader(
     '/reader-eof.css',
     static function (string $file): string {

@@ -427,6 +427,63 @@ CSS
             $t->same($expected, $minifier->minify($input));
         }
     },
+    'css minifier maps upstream lab and oklab relative same-space colors' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            '%1$s(from %1$s(25%% 20 50) l a b)' => '%1$s(25%% 20 50)',
+            '%1$s(from %1$s(25%% 20 50) l a b / alpha)' => '%1$s(25%% 20 50)',
+            '%1$s(from %1$s(25%% 20 50 / 40%%) l a b / alpha)' => '%1$s(25%% 20 50/.4)',
+            '%1$s(from %1$s(200%% 300 400 / 500%%) l a b / alpha)' => '%1$s(200%% 300 400)',
+            '%1$s(from %1$s(-200%% -300 -400 / -500%%) l a b / alpha)' => '%1$s(0%% -300 -400/0)',
+            '%1$s(from %1$s(from %1$s(25%% 20 50) l a b) l a b)' => '%1$s(25%% 20 50)',
+            '%1$s(from %1$s(25%% 20 50) 0%% 0 0)' => '%1$s(0%% 0 0)',
+            '%1$s(from %1$s(25%% 20 50) 0%% 0 0 / 0)' => '%1$s(0%% 0 0/0)',
+            '%1$s(from %1$s(25%% 20 50) 0%% a b / alpha)' => '%1$s(0%% 20 50)',
+            '%1$s(from %1$s(25%% 20 50) l 0 b / alpha)' => '%1$s(25%% 0 50)',
+            '%1$s(from %1$s(25%% 20 50) l a 0 / alpha)' => '%1$s(25%% 20 0)',
+            '%1$s(from %1$s(25%% 20 50) l a b / 0)' => '%1$s(25%% 20 50/0)',
+            '%1$s(from %1$s(25%% 20 50 / 40%%) 0%% a b / alpha)' => '%1$s(0%% 20 50/.4)',
+            '%1$s(from %1$s(25%% 20 50 / 40%%) l 0 b / alpha)' => '%1$s(25%% 0 50/.4)',
+            '%1$s(from %1$s(25%% 20 50 / 40%%) l a 0 / alpha)' => '%1$s(25%% 20 0/.4)',
+            '%1$s(from %1$s(25%% 20 50 / 40%%) l a b / 0)' => '%1$s(25%% 20 50/0)',
+            '%1$s(from %1$s(25%% 20 50) 35%% a b / alpha)' => '%1$s(35%% 20 50)',
+            '%1$s(from %1$s(25%% 20 50) l 35 b / alpha)' => '%1$s(25%% 35 50)',
+            '%1$s(from %1$s(25%% 20 50) l a 35 / alpha)' => '%1$s(25%% 20 35)',
+            '%1$s(from %1$s(25%% 20 50) l a b / .35)' => '%1$s(25%% 20 50/.35)',
+            '%1$s(from %1$s(25%% 20 50 / 40%%) 35%% a b / alpha)' => '%1$s(35%% 20 50/.4)',
+            '%1$s(from %1$s(25%% 20 50 / 40%%) l 35 b / alpha)' => '%1$s(25%% 35 50/.4)',
+            '%1$s(from %1$s(25%% 20 50 / 40%%) l a 35 / alpha)' => '%1$s(25%% 20 35/.4)',
+            '%1$s(from %1$s(25%% 20 50 / 40%%) l a b / .35)' => '%1$s(25%% 20 50/.35)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) 200%% 300 400 / 500)' => '%1$s(200%% 300 400)',
+            '%1$s(from %1$s(70%% 45 30 / 40%%) -200%% -300 -400 / -500)' => '%1$s(0%% -300 -400/0)',
+            '%1$s(from %1$s(25%% 20 50) l b a)' => '%1$s(25%% 50 20)',
+            '%1$s(from %1$s(25%% 20 50) l a a / a)' => '%1$s(25%% 20 20)',
+            '%1$s(from %1$s(25%% 20 50 / 40%%) l b a)' => '%1$s(25%% 50 20)',
+            '%1$s(from %1$s(25%% 20 50 / 40%%) l a a / a)' => '%1$s(25%% 20 20)',
+            '%1$s(from %1$s(25%% 20 50) calc(l) calc(a) calc(b))' => '%1$s(25%% 20 50)',
+            '%1$s(from %1$s(25%% 20 50 / 40%%) calc(l) calc(a) calc(b) / calc(alpha))' => '%1$s(25%% 20 50/.4)',
+            '%1$s(from %1$s(25%% 20 50) none none none)' => '%1$s(none none none)',
+            '%1$s(from %1$s(25%% 20 50) none none none / none)' => '%1$s(none none none/none)',
+            '%1$s(from %1$s(25%% 20 50) l a none)' => '%1$s(25%% 20 none)',
+            '%1$s(from %1$s(25%% 20 50) l a none / alpha)' => '%1$s(25%% 20 none)',
+            '%1$s(from %1$s(25%% 20 50) l a b / none)' => '%1$s(25%% 20 50/none)',
+            '%1$s(from %1$s(25%% 20 50 / 40%%) l a none / alpha)' => '%1$s(25%% 20 none/.4)',
+            '%1$s(from %1$s(25%% 20 50 / 40%%) l a b / none)' => '%1$s(25%% 20 50/none)',
+            '%1$s(from %1$s(none none none) l a b)' => '%1$s(0%% 0 0)',
+            '%1$s(from %1$s(none none none / none) l a b / alpha)' => '%1$s(0%% 0 0/0)',
+            '%1$s(from %1$s(25%% none 50) l a b)' => '%1$s(25%% 0 50)',
+            '%1$s(from %1$s(25%% 20 50 / none) l a b / alpha)' => '%1$s(25%% 20 50/0)',
+        ];
+
+        foreach (['lab', 'oklab'] as $space) {
+            foreach ($cases as $input => $expected) {
+                $t->same(
+                    '.foo{color:' . sprintf($expected, $space) . '}',
+                    $minifier->minify('.foo { color: ' . sprintf($input, $space) . '; }')
+                );
+            }
+        }
+    },
     'css minifier maps upstream color calc components in custom property values' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
@@ -1115,6 +1172,18 @@ CSS
             )
         );
         $t->same(
+            '.foo{grid:auto-flow 40px/1fr 90px;grid-template-areas:"a"}',
+            $minifier->minify(
+                '.foo { grid-template-areas: "a"; grid-template-rows: none; grid-template-columns: 1fr 90px; grid-auto-flow: row; grid-auto-rows: 40px; grid-auto-columns: auto; }'
+            )
+        );
+        $t->same(
+            '.foo{grid:auto-flow dense 40px max-content/1fr;grid-template-areas:".a"}',
+            $minifier->minify(
+                '.foo { grid-template-areas: ". a"; grid-template-rows: none; grid-template-columns: 1fr; grid-auto-flow: row dense; grid-auto-rows: 40px max-content; grid-auto-columns: auto; }'
+            )
+        );
+        $t->same(
             '.foo{grid:auto 1fr auto/auto-flow 1fr}',
             $minifier->minify(
                 '.foo { grid-template-rows: auto 1fr auto; grid-template-columns: none; grid-template-areas: none; grid-auto-flow: column; grid-auto-rows: auto; grid-auto-columns: 1fr; }'
@@ -1124,6 +1193,18 @@ CSS
             '.foo{grid:auto 1fr auto/auto-flow dense 1fr}',
             $minifier->minify(
                 '.foo { grid-template-rows: auto 1fr auto; grid-template-columns: none; grid-template-areas: none; grid-auto-flow: column dense; grid-auto-rows: auto; grid-auto-columns: 1fr; }'
+            )
+        );
+        $t->same(
+            '.foo{grid:1fr 3fr/auto-flow 40px;grid-template-areas:"a"}',
+            $minifier->minify(
+                '.foo { grid-template-areas: "a"; grid-template-rows: 1fr 3fr; grid-template-columns: none; grid-auto-flow: column; grid-auto-rows: auto; grid-auto-columns: 40px; }'
+            )
+        );
+        $t->same(
+            '.foo{grid:1fr/auto-flow dense 40px max-content;grid-template-areas:".a"}',
+            $minifier->minify(
+                '.foo { grid-template-areas: ". a"; grid-template-rows: 1fr; grid-template-columns: none; grid-auto-flow: column dense; grid-auto-rows: auto; grid-auto-columns: 40px max-content; }'
             )
         );
         $t->same(

@@ -15,6 +15,7 @@ final class TreePathspecWalk
         PathspecSearch $pathspecs,
         callable $readTree,
         bool $includeTrees = true,
+        ?GitAttributes $attributes = null,
     ): array {
         $visited = [];
         $directIncludedPaths = [];
@@ -25,7 +26,7 @@ final class TreePathspecWalk
             foreach ($tree->entries as $entry) {
                 $path = $directory === '' ? $entry->filename : $directory . '/' . $entry->filename;
                 $isTree = $entry->isTree();
-                $match = $pathspecs->match($path, $isTree);
+                $match = $pathspecs->match($path, $isTree, $attributes);
                 if ($match !== null && $match->isExcluded()) {
                     continue;
                 }
