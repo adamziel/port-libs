@@ -48,6 +48,7 @@ final class MediaQueryParser
         $query = $this->normalizeParentheses($query, $allowCompactedNegation);
         $query = preg_replace('/\b(and|or)\b/i', ' $1 ', $query) ?? $query;
         $query = $this->normalizeWhitespace($query);
+        $this->validateTopLevelLogicalOperators($query);
         $this->validateTopLevelConditionFunctions($query);
         $query = $this->normalizeBooleanConditionGroups($query);
         $this->validateExplicitMediaTypeCondition($query);
@@ -61,6 +62,10 @@ final class MediaQueryParser
 
     private function validateExplicitMediaTypeCondition(string $query): void
     {
+        if (preg_match('/^(?:(not|only)\s+)?[_a-zA-Z-][_a-zA-Z0-9-]*\s+or(?:\s|$)/i', $query) === 1) {
+            throw new \InvalidArgumentException('Media query conditions after an explicit media type cannot use top-level or');
+        }
+
         $mediaPrefix = $this->extractExplicitMediaTypePrefix($query);
         if ($mediaPrefix === null) {
             return;
@@ -68,6 +73,77 @@ final class MediaQueryParser
 
         if ($this->splitTopLevelLogical($mediaPrefix['condition'], 'or') !== null) {
             throw new \InvalidArgumentException('Media query conditions after an explicit media type cannot contain top-level or');
+        }
+    }
+
+    private function validateTopLevelLogicalOperators(string $query): void
+    {
+        if (preg_match('/^(?:not|only)$/i', $query) === 1) {
+            throw new \InvalidArgumentException('Media query qualifier must be followed by a media type or condition');
+        }
+
+        $quote = null;
+        $hasOperand = false;
+        $waitingForOperand = false;
+        $length = strlen($query);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $query[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if (ctype_space($char)) {
+                continue;
+            }
+
+            if ($char === '(') {
+                $i = $this->findMatchingDelimiter($query, $i, '(', ')');
+                $hasOperand = true;
+                $waitingForOperand = false;
+                continue;
+            }
+
+            if (preg_match('/[-_a-zA-Z]/', $char) !== 1) {
+                continue;
+            }
+
+            $start = $i;
+            while ($i < $length && preg_match('/[-_a-zA-Z0-9]/', $query[$i]) === 1) {
+                $i++;
+            }
+
+            $identifier = strtolower(substr($query, $start, $i - $start));
+            if ($identifier === 'and' || $identifier === 'or') {
+                if (!$hasOperand || $waitingForOperand) {
+                    throw new \InvalidArgumentException("Invalid media query boolean operator: {$identifier}");
+                }
+
+                $hasOperand = false;
+                $waitingForOperand = true;
+                $i--;
+                continue;
+            }
+
+            $hasOperand = true;
+            $waitingForOperand = false;
+            $i--;
+        }
+
+        if ($waitingForOperand) {
+            throw new \InvalidArgumentException('Media query boolean operator must be followed by a condition');
         }
     }
 

@@ -383,6 +383,33 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler preserves upstream supports condition grouping across import graph' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@supports ((display:flex) or (display:grid)) and (color:red){.c{color:#00f}}@supports (display:flex) or (display:grid){.b{color:green}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" supports((display: flex) or (display: grid)); .a { color: red }',
+                '/b.css' => '@import "c.css" supports(color: red); .b { color: green }',
+                '/c.css' => '.c { color: blue }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@supports ((display:flex) and (color:red)) or (display:grid){.b{color:green}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" supports((display: flex) and (color: red)); @import "b.css" supports(display: grid); .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@supports (not (display:flex)) and (color:red){.b{color:green}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" supports(not (display: flex)); .a { color: red }',
+                '/b.css' => '@import "c.css" supports(color: red);',
+                '/c.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+    },
     'css bundler maps upstream url import modifiers with trailing media' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print{.b{color:green}}.a{color:red}',

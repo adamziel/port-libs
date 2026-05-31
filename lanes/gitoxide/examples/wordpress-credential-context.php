@@ -12,6 +12,7 @@ return [
     'encodedPath' => $fixture['encodedContext']['path'],
     'requestBytes' => $fixture['requestBytes'],
     'emptyQuitFalse' => $fixture['emptyQuitFalse'],
+    'rootHttpPathCleared' => $fixture['rootHttpPathCleared'],
     'redactedBytes' => $fixture['redactedBytes'],
     'secretsInCleartextLog' => str_contains($fixture['redactedBytes'], 'wp-deploy-token')
         || str_contains($fixture['redactedBytes'], 'wp-refresh-token'),

@@ -120,6 +120,68 @@ CSS));
         $t->same([], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules scopes upstream pseudo replacement classes while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:hover {
+  color: red;
+}
+
+.card:active {
+  color: yellow;
+}
+
+.card:focus {
+  color: blue;
+}
+
+:global(.wp-block-button:hover) .card:focus-visible {
+  color: purple;
+}
+
+.card:focus-within {
+  background: white;
+}
+
+.button {
+  composes: card;
+  color: green;
+}
+CSS, [
+            'pseudoClasses' => [
+                'hover' => 'is-hovered',
+                'active' => 'is-active',
+                'focus' => 'is-focused',
+                'focusVisible' => 'focus-visible',
+                'focusWithin' => 'has-focus-within',
+            ],
+        ]);
+
+        $t->same('.EgL3uq_card.EgL3uq_is-hovered{color:red}.EgL3uq_card.EgL3uq_is-active{color:#ff0}.EgL3uq_card.EgL3uq_is-focused{color:#00f}.wp-block-button.is-hovered .EgL3uq_card.EgL3uq_focus-visible{color:purple}.EgL3uq_card.EgL3uq_has-focus-within{background:#fff}.EgL3uq_button{color:green}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'is-hovered' => $export('EgL3uq_is-hovered'),
+            'is-active' => $export('EgL3uq_is-active'),
+            'is-focused' => $export('EgL3uq_is-focused'),
+            'focus-visible' => $export('EgL3uq_focus-visible'),
+            'has-focus-within' => $export('EgL3uq_has-focus-within'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $snakeCase = (new CssModulesTransformer())->transform('.foo:focus-visible, .foo:focus-within { color: red }', [
+            'pseudo_classes' => [
+                'focus_visible' => 'is-visible',
+                'focus_within' => 'is-within',
+            ],
+        ]);
+
+        $t->same('.EgL3uq_foo.EgL3uq_is-visible,.EgL3uq_foo.EgL3uq_is-within{color:red}', $snakeCase['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+            'is-visible' => $export('EgL3uq_is-visible'),
+            'is-within' => $export('EgL3uq_is-within'),
+        ], $snakeCase['exports']);
+    },
     'css modules scopes escaped local selectors and composes idents' => static function (TestRunner $t) use ($export, $local, $global): void {
         $css = <<<'CSS'
 .sm\:m-1 {

@@ -1549,10 +1549,16 @@ final class CssMinifier
         $logical = $this->splitContainerConditionByLogicalOperator($condition);
         if ($logical !== null) {
             $operator = null;
+            foreach ($logical as $item) {
+                if ($item['type'] === 'operator') {
+                    $operator = strtolower($item['value']);
+                    break;
+                }
+            }
+
             $parts = [];
             foreach ($logical as $item) {
                 if ($item['type'] === 'operator') {
-                    $operator = $operator ?? strtolower($item['value']);
                     $parts[] = strtolower($item['value']);
                     continue;
                 }
@@ -13936,6 +13942,18 @@ final class CssMinifier
                 return $relativeRgb;
             }
         }
+        if ($name === 'hsl' || $name === 'hsla') {
+            $relativeHsl = $this->minifyRelativeHslColorFunction($matches[2]);
+            if ($relativeHsl !== null) {
+                return $relativeHsl;
+            }
+        }
+        if ($name === 'hwb') {
+            $relativeHwb = $this->minifyRelativeHwbColorFunction($matches[2]);
+            if ($relativeHwb !== null) {
+                return $relativeHwb;
+            }
+        }
 
         $parts = $this->parseColorFunctionParts($matches[2]);
         if ($parts === null) {
@@ -13991,6 +14009,95 @@ final class CssMinifier
         }
 
         return $this->serializeColorBytes($red, $green, $blue, $alpha);
+    }
+
+    private function minifyRelativeHslColorFunction(string $arguments): ?string
+    {
+        $parsed = $this->parseRelativeSrgbColorArguments($arguments);
+        if ($parsed === null) {
+            return null;
+        }
+
+        $channels = $this->relativeHslChannelsFromSrgbOrigin($parsed['origin']);
+        $hue = $this->evaluateRelativeHueComponent($parsed['components'][0], $channels);
+        $saturation = $this->evaluateRelativePercentageComponent($parsed['components'][1], $channels);
+        $lightness = $this->evaluateRelativePercentageComponent($parsed['components'][2], $channels);
+        if ($hue === null || $saturation === null || $lightness === null) {
+            return null;
+        }
+
+        $alpha = $parsed['alpha'] === null
+            ? 1.0
+            : $this->evaluateRelativeAlphaComponent($parsed['alpha'], $channels);
+        if ($alpha === null) {
+            return null;
+        }
+
+        [$red, $green, $blue] = $this->hslToRgbBytes(
+            $this->normalizeMixedHue($hue),
+            min(1.0, max(0.0, $saturation / 100)),
+            min(1.0, max(0.0, $lightness / 100)),
+        );
+
+        return $this->serializeColorBytes($red, $green, $blue, $alpha);
+    }
+
+    private function minifyRelativeHwbColorFunction(string $arguments): ?string
+    {
+        $parsed = $this->parseRelativeSrgbColorArguments($arguments);
+        if ($parsed === null) {
+            return null;
+        }
+
+        $channels = $this->relativeHwbChannelsFromSrgbOrigin($parsed['origin']);
+        $hue = $this->evaluateRelativeHueComponent($parsed['components'][0], $channels);
+        $white = $this->evaluateRelativePercentageComponent($parsed['components'][1], $channels);
+        $black = $this->evaluateRelativePercentageComponent($parsed['components'][2], $channels);
+        if ($hue === null || $white === null || $black === null) {
+            return null;
+        }
+
+        $alpha = $parsed['alpha'] === null
+            ? 1.0
+            : $this->evaluateRelativeAlphaComponent($parsed['alpha'], $channels);
+        if ($alpha === null) {
+            return null;
+        }
+
+        [$red, $green, $blue] = $this->hwbToRgbBytes(
+            $this->normalizeMixedHue($hue),
+            min(1.0, max(0.0, $white / 100)),
+            min(1.0, max(0.0, $black / 100)),
+        );
+
+        return $this->serializeColorBytes($red, $green, $blue, $alpha);
+    }
+
+    /**
+     * @return array{origin:array{red:int,green:int,blue:int,alpha:float},components:list<string>,alpha:?string}|null
+     */
+    private function parseRelativeSrgbColorArguments(string $arguments): ?array
+    {
+        $slashParts = $this->splitTopLevel(trim($arguments), '/');
+        if ($slashParts === [] || count($slashParts) > 2) {
+            return null;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($slashParts[0]);
+        if (count($tokens) !== 5 || strcasecmp($tokens[0], 'from') !== 0) {
+            return null;
+        }
+
+        $origin = $this->parseRelativeSrgbOrigin($tokens[1]);
+        if ($origin === null) {
+            return null;
+        }
+
+        return [
+            'origin' => $origin,
+            'components' => array_slice($tokens, 2, 3),
+            'alpha' => isset($slashParts[1]) ? trim($slashParts[1]) : null,
+        ];
     }
 
     private function minifyRelativeRgbColorFunction(string $arguments): ?string
@@ -14059,7 +14166,7 @@ final class CssMinifier
     }
 
     /**
-     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     * @param array<string,float|int> $origin
      */
     private function evaluateRelativeColorChannelToken(string $token, array $origin, bool $alphaContext): ?float
     {
@@ -14095,21 +14202,28 @@ final class CssMinifier
     }
 
     /**
-     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     * @param array<string,float|int> $origin
      */
     private function relativeColorChannelValue(string $token, array $origin): ?float
     {
-        return match (strtolower(trim($token))) {
-            'r' => (float) $origin['red'],
-            'g' => (float) $origin['green'],
-            'b' => (float) $origin['blue'],
-            'alpha' => $origin['alpha'],
+        $token = strtolower(trim($token));
+        if ($token === 'b' && array_key_exists('blue', $origin)) {
+            return (float) $origin['blue'];
+        }
+        if (array_key_exists($token, $origin)) {
+            return (float) $origin[$token];
+        }
+
+        return match ($token) {
+            'r' => isset($origin['red']) ? (float) $origin['red'] : null,
+            'g' => isset($origin['green']) ? (float) $origin['green'] : null,
+            'alpha' => isset($origin['alpha']) ? (float) $origin['alpha'] : null,
             default => null,
         };
     }
 
     /**
-     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     * @param array<string,float|int> $origin
      */
     private function evaluateRelativeColorCalcExpression(string $expression, array $origin): ?float
     {
@@ -14125,7 +14239,7 @@ final class CssMinifier
     }
 
     /**
-     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     * @param array<string,float|int> $origin
      */
     private function parseRelativeColorCalcSum(string $expression, int &$offset, array $origin): ?float
     {
@@ -14152,7 +14266,7 @@ final class CssMinifier
     }
 
     /**
-     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     * @param array<string,float|int> $origin
      */
     private function parseRelativeColorCalcProduct(string $expression, int &$offset, array $origin): ?float
     {
@@ -14179,7 +14293,7 @@ final class CssMinifier
     }
 
     /**
-     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     * @param array<string,float|int> $origin
      */
     private function parseRelativeColorCalcFactor(string $expression, int &$offset, array $origin): ?float
     {
@@ -14217,6 +14331,134 @@ final class CssMinifier
         }
 
         return null;
+    }
+
+    /**
+     * @param array<string,float|int> $channels
+     */
+    private function evaluateRelativeHueComponent(string $token, array $channels): ?float
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return null;
+        }
+
+        if (strcasecmp($token, 'none') === 0) {
+            return 0.0;
+        }
+
+        $channel = $this->relativeColorChannelValue($token, $channels);
+        if ($channel !== null) {
+            return $channel;
+        }
+
+        if (preg_match('/^calc\((.*)\)$/is', $token, $matches) === 1) {
+            return $this->evaluateRelativeColorCalcExpression($matches[1], $channels);
+        }
+
+        return $this->parseHueDegrees($token);
+    }
+
+    /**
+     * @param array<string,float|int> $channels
+     */
+    private function evaluateRelativePercentageComponent(string $token, array $channels): ?float
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return null;
+        }
+
+        if (strcasecmp($token, 'none') === 0) {
+            return 0.0;
+        }
+
+        $channel = $this->relativeColorChannelValue($token, $channels);
+        if ($channel !== null) {
+            return $channel;
+        }
+
+        if (preg_match('/^calc\((.*)\)$/is', $token, $matches) === 1) {
+            return $this->evaluateRelativeColorCalcExpression($matches[1], $channels);
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
+            return (float) $matches[1];
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) === 1) {
+            return (float) $token;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     * @return array{h:float,s:float,l:float,alpha:float}
+     */
+    private function relativeHslChannelsFromSrgbOrigin(array $origin): array
+    {
+        $channels = $this->rgbBytesToHslChannels($origin['red'], $origin['green'], $origin['blue']);
+        $channels['alpha'] = $origin['alpha'];
+
+        return $channels;
+    }
+
+    /**
+     * @param array{red:int,green:int,blue:int,alpha:float} $origin
+     * @return array{h:float,w:float,b:float,alpha:float}
+     */
+    private function relativeHwbChannelsFromSrgbOrigin(array $origin): array
+    {
+        $hsl = $this->rgbBytesToHslChannels($origin['red'], $origin['green'], $origin['blue']);
+        $red = $origin['red'] / 255;
+        $green = $origin['green'] / 255;
+        $blue = $origin['blue'] / 255;
+
+        return [
+            'h' => $hsl['h'],
+            'w' => round(min($red, $green, $blue) * 100, 10),
+            'b' => round((1.0 - max($red, $green, $blue)) * 100, 10),
+            'alpha' => $origin['alpha'],
+        ];
+    }
+
+    /**
+     * @return array{h:float,s:float,l:float}
+     */
+    private function rgbBytesToHslChannels(int $red, int $green, int $blue): array
+    {
+        $r = $red / 255;
+        $g = $green / 255;
+        $b = $blue / 255;
+        $max = max($r, $g, $b);
+        $min = min($r, $g, $b);
+        $delta = $max - $min;
+        $lightness = ($max + $min) / 2;
+
+        if ($delta <= 0.000000001) {
+            return [
+                'h' => 0.0,
+                's' => 0.0,
+                'l' => round($lightness * 100, 10),
+            ];
+        }
+
+        $saturation = $delta / (1 - abs(2 * $lightness - 1));
+        if ($max === $r) {
+            $hue = 60 * fmod(($g - $b) / $delta, 6);
+        } elseif ($max === $g) {
+            $hue = 60 * (($b - $r) / $delta + 2);
+        } else {
+            $hue = 60 * (($r - $g) / $delta + 4);
+        }
+
+        return [
+            'h' => $this->normalizeMixedHue($hue),
+            's' => round($saturation * 100, 10),
+            'l' => round($lightness * 100, 10),
+        ];
     }
 
     private function skipRelativeColorCalcWhitespace(string $expression, int &$offset): void

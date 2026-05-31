@@ -119,6 +119,12 @@ return [
         $t->same('github.com', $withHttpPath->host);
         $t->same('byron/gitoxide', $withHttpPath->path);
 
+        $emptyHttpPath = (new CredentialContext(
+            url: 'https://github.com/',
+            path: 'stale/repository/path',
+        ))->destructureUrl(true);
+        $t->same(null, $emptyHttpPath->path);
+
         $decodedHttp = (new CredentialContext(
             url: 'https://USER%20name:p%40ss%3Aword@EXAMPLE.com:443/path/with%20spaces/file?token=abc#frag',
         ))->destructureUrl(true);
@@ -192,8 +198,10 @@ return [
         $t->same(false, $fixture['emptyQuitFalse']);
         $t->same(1711398853, $fixture['passwordExpiryUtc']);
         $t->contains('password=<redacted>', $fixture['redactedBytes']);
+        $t->same(true, $fixture['rootHttpPathCleared']);
         $t->same($fixture['credentialUrl'], $summary['credentialUrl']);
         $t->same($fixture['encodedContext']['path'], $summary['encodedPath']);
+        $t->same(true, $summary['rootHttpPathCleared']);
         $t->same(false, $summary['emptyQuitFalse']);
         $t->same(false, $summary['secretsInCleartextLog']);
     },

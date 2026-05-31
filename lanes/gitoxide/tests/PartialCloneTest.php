@@ -41,6 +41,24 @@ $writePromisorPackForObject = static function (string $gitDir, GitObject $object
     return $basename . '.promisor';
 };
 
+$writePromisorConfigFixture = static function (bool $promisor = true): string {
+    $gitDir = sys_get_temp_dir() . '/port-libs-git-promisor-config-' . bin2hex(random_bytes(4)) . '/.git';
+    $packDir = $gitDir . '/objects/pack';
+    if (!mkdir($packDir, 0777, true) && !is_dir($packDir)) {
+        throw new RuntimeException("Unable to create promisor config fixture directory: {$packDir}");
+    }
+
+    $promisorValue = $promisor ? 'true' : 'false';
+    file_put_contents($gitDir . '/config', <<<CFG
+    [remote "origin"]
+        url = https://git.example.test/wp-content.git
+        promisor = {$promisorValue}
+        partialCloneFilter = blob:none
+    CFG);
+
+    return $gitDir;
+};
+
 return [
     'parses common partial clone fetch filter specs' => static function (TestRunner $t): void {
         $blobNone = FetchFilterSpec::parse('blob:none');
@@ -97,6 +115,56 @@ return [
         $emptyDatabase = new ObjectDatabase($emptyGitDir);
         $t->same(false, $emptyDatabase->hasPromisorPacks());
         $t->same('missing', $emptyDatabase->objectState($missingObject)['status']);
+    },
+    'object database treats promisor remote config as promised before first pack' => static function (TestRunner $t) use ($writePromisorConfigFixture): void {
+        $gitDir = $writePromisorConfigFixture();
+        $database = new ObjectDatabase($gitDir);
+        $missingThemeBlob = new GitObject('blob', 'Config-only WordPress theme asset bytes');
+        $missingThemeOid = $missingThemeBlob->oid();
+
+        $t->same([[
+            'name' => 'origin',
+            'url' => 'https://git.example.test/wp-content.git',
+            'partialCloneFilter' => 'blob:none',
+        ]], $database->promisorRemotes());
+        $t->same(false, $database->hasPromisorPacks());
+        $t->same('promised-missing', $database->objectState($missingThemeOid)['status']);
+        $t->throws(RuntimeException::class, static fn () => $database->read($missingThemeOid));
+    },
+    'object database hydrates config-only promisor remote objects through resolver' => static function (TestRunner $t) use ($writePromisorConfigFixture): void {
+        $gitDir = $writePromisorConfigFixture();
+        $mediaBlob = new GitObject('blob', 'Hydrated from remote.origin.promisor config');
+        $mediaOid = $mediaBlob->oid();
+        $resolver = new class([$mediaOid => $mediaBlob]) implements PromisorObjectResolver {
+            public array $requests = [];
+
+            public function __construct(private readonly array $objects)
+            {
+            }
+
+            public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+            {
+                $this->requests[] = $oid;
+
+                return $this->objects[$oid] ?? null;
+            }
+        };
+        $database = (new ObjectDatabase($gitDir))->withPromisorResolver($resolver);
+
+        $t->same('promised-missing', $database->objectState($mediaOid)['status']);
+        $t->same($mediaBlob->body, $database->read($mediaOid)->body);
+        $t->same([$mediaOid], $resolver->requests);
+        $t->same('present', $database->objectState($mediaOid)['status']);
+        $t->same($mediaBlob->body, (new ObjectDatabase($gitDir))->read($mediaOid)->body);
+    },
+    'object database ignores false promisor remote config for promised state' => static function (TestRunner $t) use ($writePromisorConfigFixture): void {
+        $gitDir = $writePromisorConfigFixture(false);
+        $database = new ObjectDatabase($gitDir);
+        $missingOid = (new GitObject('blob', 'Not promised when remote promisor is false'))->oid();
+
+        $t->same([], $database->promisorRemotes());
+        $t->same('missing', $database->objectState($missingOid)['status']);
+        $t->throws(RuntimeException::class, static fn () => $database->read($missingOid));
     },
     'object database can lazily resolve promised missing objects into loose storage' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir] = $writePromisorPackFixture();
@@ -272,6 +340,11 @@ return [
     'wordpress lazy promisor example reports external pack hydration refresh' => static function (TestRunner $t): void {
         $summary = require dirname(__DIR__) . '/examples/wordpress-lazy-promisor-fetch.php';
 
+        $t->same([[
+            'name' => 'origin',
+            'url' => 'https://git.example.test/wp-content.git',
+            'partialCloneFilter' => 'blob:none',
+        ]], $summary['promisorRemotes']);
         $t->same('promised-missing', $summary['beforeExternalHydration']['status']);
         $t->same(true, $summary['containsAfterExternalHydration']);
         $t->same('found', $summary['prefixAfterExternalHydration']['status']);

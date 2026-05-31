@@ -22,6 +22,9 @@ final class CssModulesTransformer
     private bool $customIdents = true;
     private bool $pure = false;
 
+    /** @var array<string, string> */
+    private array $pseudoClasses = [];
+
     /**
      * @var array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
      */
@@ -39,7 +42,7 @@ final class CssModulesTransformer
      *   references:array<string, array{type:string, name:string, specifier:string}>
      * }
      *
-     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, grid?:bool, container?:bool, customIdents?:bool, custom_idents?:bool, pure?:bool} $options
+     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, grid?:bool, container?:bool, customIdents?:bool, custom_idents?:bool, pure?:bool, pseudoClasses?:array<string, string>, pseudo_classes?:array<string, string>} $options
      */
     public function transform(string $css, array $options = []): array
     {
@@ -59,6 +62,7 @@ final class CssModulesTransformer
         $this->container = ($options['container'] ?? true) !== false;
         $this->customIdents = ($options['customIdents'] ?? $options['custom_idents'] ?? true) !== false;
         $this->pure = ($options['pure'] ?? false) === true;
+        $this->pseudoClasses = $this->normalizePseudoClasses($options['pseudoClasses'] ?? $options['pseudo_classes'] ?? []);
         $this->exports = [];
         $this->references = [];
 
@@ -1676,6 +1680,23 @@ final class CssModulesTransformer
                 continue;
             }
 
+            $pseudoClassReplacement = $bracketDepth === 0
+                ? $this->pseudoClassReplacementAt($selector, $i)
+                : null;
+            if ($pseudoClassReplacement !== null) {
+                $class = $pseudoClassReplacement['class'];
+                $output .= '.';
+                if ($mode === 'local') {
+                    $this->ensureExport($class);
+                    $output .= $this->escapeCssIdentifier($this->scopedName($class));
+                } else {
+                    $output .= $this->escapeCssIdentifier($class);
+                }
+
+                $i += $pseudoClassReplacement['length'] - 1;
+                continue;
+            }
+
             $viewTransitionFunction = $bracketDepth === 0 && $mode === 'local'
                 ? $this->viewTransitionSelectorFunctionAt($selector, $i)
                 : null;
@@ -1715,6 +1736,78 @@ final class CssModulesTransformer
         }
 
         return trim($output);
+    }
+
+    /**
+     * @param mixed $value
+     *
+     * @return array<string, string>
+     */
+    private function normalizePseudoClasses(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $aliases = [
+            'hover' => ['hover'],
+            'active' => ['active'],
+            'focus' => ['focus'],
+            'focus-visible' => ['focus-visible', 'focusVisible', 'focus_visible'],
+            'focus-within' => ['focus-within', 'focusWithin', 'focus_within'],
+        ];
+
+        $normalized = [];
+        foreach ($aliases as $canonical => $keys) {
+            foreach ($keys as $key) {
+                if (!array_key_exists($key, $value)) {
+                    continue;
+                }
+
+                $class = trim((string) $value[$key]);
+                if ($class !== '') {
+                    $normalized[$canonical] = $class;
+                }
+                break;
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @return array{class:string,length:int}|null
+     */
+    private function pseudoClassReplacementAt(string $selector, int $offset): ?array
+    {
+        if ($this->pseudoClasses === [] || ($selector[$offset] ?? '') !== ':' || ($selector[$offset + 1] ?? '') === ':') {
+            return null;
+        }
+
+        foreach (['focus-visible', 'focus-within', 'hover', 'active', 'focus'] as $pseudo) {
+            $class = $this->pseudoClasses[$pseudo] ?? null;
+            if ($class === null) {
+                continue;
+            }
+
+            $needle = ':' . $pseudo;
+            $length = strlen($needle);
+            if (strncasecmp(substr($selector, $offset, $length), $needle, $length) !== 0) {
+                continue;
+            }
+
+            $next = $selector[$offset + $length] ?? '';
+            if ($next !== '' && ($this->isIdentChar($next) || $next === '(')) {
+                continue;
+            }
+
+            return [
+                'class' => $class,
+                'length' => $length,
+            ];
+        }
+
+        return null;
     }
 
     private function assertCssModulesFunctionalSelector(string $selector): void

@@ -117,3 +117,58 @@ No new support component is needed. This slice reuses the existing native
 `GitUrl` parser plus `CredentialContext` serialization logic; no live
 credential store, provider config, SSH process, Git binary, or shared
 support-library activation gate is required.
+
+---
+
+Slice: `gitoxide-credential-helper-context-parity-20260531T185123Z`
+Base accepted HEAD: `0c0eec061390da3a2185ec8623476b5865dd4a49`
+
+## Source Truth
+
+- Upstream `gix-credentials/src/protocol/context/mod.rs`
+  `Context::destructure_url_in_place()` parses the URL with `gix_url::parse()`
+  and, when the URL scheme is not HTTP(S) or `use_http_path` is enabled,
+  assigns `self.path` from the trimmed parsed path result.
+- Because that assignment uses the parsed path result directly, a root/empty
+  HTTP path under `use_http_path=true` clears any earlier helper `path`
+  instead of preserving stale repository context.
+- Upstream `gix-credentials/src/helper/cascade.rs` processes a helper-provided
+  `url` after direct helper fields by destructuring it back into the cascade
+  context before later helpers continue.
+
+## PHP Delta
+
+- `CredentialContext::destructureUrl()` now clears `path` when URL
+  destructuring is path-sensitive and the parsed path trims to an empty value.
+- `CredentialContextTest` covers an existing stale path being cleared by
+  `https://github.com/` with `useHttpPath=true`.
+- `CredentialCascadeTest` covers an upstream-shaped helper cascade where one
+  helper returns a stale `path` plus a root HTTP `url`, and the following
+  helper supplies credentials after the stale path has been cleared.
+- The WordPress credential-context fixture/example now exposes the root HTTP
+  path-clearing guard for deployment helper diagnostics.
+
+## Verification
+
+- Red-first probe before the patch:
+  `php -r 'require "tools/bootstrap.php"; $c=(new PortLibs\Gitoxide\CredentialContext(url:"https://example.com/", path:"stale/repo"))->destructureUrl(true); var_export($c->path); echo "\n";'`
+  returned `'stale/repo'`.
+- Probe after the patch:
+  `php -r 'require "tools/bootstrap.php"; $c=(new PortLibs\Gitoxide\CredentialContext(url:"https://example.com/", path:"stale/repo"))->destructureUrl(true); var_export($c->path); echo "\n";'`
+  returned `NULL`.
+- `php tools/run-tests.php lanes/gitoxide/tests/CredentialContextTest.php lanes/gitoxide/tests/CredentialCascadeTest.php lanes/gitoxide/tests/CredentialProgramTest.php`:
+  `3 test files, 192 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests`:
+  `39 test files, 5107 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-credential-context.php`: exited `0`.
+- `php -l` passed for changed PHP files.
+- `php -r` JSON validation passed for `lanes/gitoxide/lane-status.json` and
+  `lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json`.
+- `git diff --check -- lanes/gitoxide`: exited `0`.
+
+## Dependency Closure
+
+No new support component is needed. This slice reuses the existing native
+`GitUrl` parser and credential cascade/context model; no live credential
+store, provider config, SSH process, Git binary, or shared support-library
+activation gate is required.

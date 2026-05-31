@@ -33,6 +33,10 @@ final class ObjectDatabase
      * @var null|list<array{index:PackIndex,data:PackData,indexPath:string,packPath:string,indexName:string,packDirectory:string,promisorPath:string}>
      */
     private ?array $promisorPacks = null;
+    /**
+     * @var null|list<array{name:string,url:?string,partialCloneFilter:?string}>
+     */
+    private ?array $promisorRemotes = null;
 
     private readonly string $gitDirectory;
     private readonly bool $ignoreReplacements;
@@ -107,7 +111,7 @@ final class ObjectDatabase
             return $object;
         }
 
-        if ($this->hasPromisorPacks()) {
+        if ($this->hasPromisorConfiguration()) {
             $object = $this->resolvePromisedObject($oid);
             if ($object !== null) {
                 return $object;
@@ -139,7 +143,7 @@ final class ObjectDatabase
             return $header;
         }
 
-        if ($this->hasPromisorPacks()) {
+        if ($this->hasPromisorConfiguration()) {
             $object = $this->resolvePromisedObject($oid);
             if ($object !== null) {
                 return self::headerFromObject($object, 'promisor');
@@ -394,6 +398,65 @@ final class ObjectDatabase
     }
 
     /**
+     * @return list<array{name:string,url:?string,partialCloneFilter:?string}>
+     */
+    public function promisorRemotes(): array
+    {
+        if ($this->promisorRemotes !== null) {
+            return $this->promisorRemotes;
+        }
+
+        $configPath = rtrim($this->gitDirectory, '/\\') . '/config';
+        if (!is_file($configPath)) {
+            return $this->promisorRemotes = [];
+        }
+
+        $config = GitConfig::fromFile($configPath, [
+            'gitDir' => $this->gitDirectory,
+            'errOnMissingConfigPath' => false,
+            'errOnInterpolationFailure' => false,
+        ]);
+        $remoteConfig = [];
+        foreach ($config->sections() as $section) {
+            if ($section['name'] !== 'remote' || $section['subsection'] === null) {
+                continue;
+            }
+
+            $name = $section['subsection'];
+            $remoteConfig[$name] ??= [
+                'name' => $name,
+                'url' => null,
+                'promisor' => null,
+                'partialCloneFilter' => null,
+            ];
+            foreach ($section['entries'] as $entry) {
+                if ($entry['key'] === 'url') {
+                    $remoteConfig[$name]['url'] = $entry['value'];
+                } elseif ($entry['key'] === 'promisor') {
+                    $remoteConfig[$name]['promisor'] = $entry['value'];
+                } elseif ($entry['key'] === 'partialclonefilter') {
+                    $remoteConfig[$name]['partialCloneFilter'] = $entry['value'];
+                }
+            }
+        }
+
+        $promisorRemotes = [];
+        foreach ($remoteConfig as $remote) {
+            if (!self::configBooleanIsTrue($remote['promisor'])) {
+                continue;
+            }
+
+            $promisorRemotes[] = [
+                'name' => $remote['name'],
+                'url' => $remote['url'],
+                'partialCloneFilter' => $remote['partialCloneFilter'],
+            ];
+        }
+
+        return $this->promisorRemotes = $promisorRemotes;
+    }
+
+    /**
      * @return list<string>
      */
     public function promisorObjectIds(): array
@@ -441,7 +504,7 @@ final class ObjectDatabase
         }
 
         return [
-            'status' => $this->hasPromisorPacks() ? 'promised-missing' : 'missing',
+            'status' => $this->hasPromisorConfiguration() ? 'promised-missing' : 'missing',
             'oid' => $oid,
         ];
     }
@@ -609,6 +672,11 @@ final class ObjectDatabase
         $this->promisorPacks = null;
         $this->objectDirectories = null;
         $this->looseStores = null;
+    }
+
+    private function hasPromisorConfiguration(): bool
+    {
+        return $this->hasPromisorPacks() || $this->promisorRemotes() !== [];
     }
 
     private function primaryLooseStore(): LooseObjectStore
@@ -950,5 +1018,14 @@ final class ObjectDatabase
         }
 
         return $limit;
+    }
+
+    private static function configBooleanIsTrue(?string $value): bool
+    {
+        if ($value === null) {
+            return false;
+        }
+
+        return in_array(strtolower(trim($value)), ['true', 'yes', 'on', '1'], true);
     }
 }

@@ -305,6 +305,8 @@ final class SourceMap
             $childMaxLine === null ? 0 : $childMaxLine + 1
         );
         if ($childLineCount === 0) {
+            $this->drainSourceMap($sourceMap);
+
             return;
         }
 
@@ -335,6 +337,19 @@ final class SourceMap
         if ($targetEndLine >= 0) {
             $this->generatedLineCount = max($this->generatedLineCount, $targetEndLine + 1);
         }
+
+        $this->drainSourceMap($sourceMap);
+    }
+
+    private function drainSourceMap(SourceMap $sourceMap): void
+    {
+        $sourceMap->sources = [];
+        $sourceMap->sourceIndexes = [];
+        $sourceMap->sourcesContent = [];
+        $sourceMap->names = [];
+        $sourceMap->nameIndexes = [];
+        $sourceMap->mappings = [];
+        $sourceMap->generatedLineCount = 0;
     }
 
     public function extendWithSourceMap(SourceMap $originalSourceMap): void

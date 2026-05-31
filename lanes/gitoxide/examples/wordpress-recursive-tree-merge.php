@@ -10,6 +10,7 @@ use PortLibs\Gitoxide\MergeWorktreeWriter;
 use PortLibs\Gitoxide\Tree;
 use PortLibs\Gitoxide\TreeEntry;
 use PortLibs\Gitoxide\TreeMerge;
+use PortLibs\Gitoxide\TreeMergeResult;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
@@ -28,7 +29,20 @@ $read = static function (string $oid) use (&$objects): GitObject {
     return $objects[$oid];
 };
 $blob = static fn (string $name, string $content): TreeEntry => new TreeEntry('100644', $name, $write(new GitObject('blob', $content)));
+$symlink = static fn (string $name, string $target): TreeEntry => new TreeEntry('120000', $name, $write(new GitObject('blob', $target)));
 $tree = static fn (string $name, Tree $tree): TreeEntry => new TreeEntry('40000', $name, $write($tree->toObject()));
+$treeAtPath = static function (Tree $root, string $path) use ($read): Tree {
+    $current = $root;
+    foreach (explode('/', $path) as $part) {
+        $entry = $current->entryNamed($part, true);
+        if ($entry === null) {
+            throw new RuntimeException("Tree entry not found: {$path}");
+        }
+        $current = Tree::fromObject($read($entry->oid));
+    }
+
+    return $current;
+};
 $wpContent = static fn (TreeEntry $metadata, TreeEntry $theme): Tree => new Tree([
     $metadata,
     $tree('themes', new Tree([
@@ -186,6 +200,48 @@ $subtreeReplacementContent = Tree::fromObject($read($subtreeReplacementResult->t
 $subtreeReplacementPlugins = Tree::fromObject($read($subtreeReplacementContent->entryNamed('plugins', true)?->oid ?? ''));
 $subtreeReplacementMergedPlugin = Tree::fromObject($read($subtreeReplacementPlugins->entryNamed('acme-pro', true)?->oid ?? ''));
 $subtreeReplacementIncludes = Tree::fromObject($read($subtreeReplacementMergedPlugin->entryNamed('includes', true)?->oid ?? ''));
+$symlinkTarget = '../plugins/acme/bootstrap.php';
+$symlinkBase = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('mu-plugins', new Tree([
+            $symlink('acme-bootstrap.php', $symlinkTarget),
+        ])),
+        $tree('plugins', new Tree([
+            $tree('acme', new Tree([
+                $blob('bootstrap.php', "Plugin Name: Acme\nVersion: 1.0\n"),
+            ])),
+        ])),
+    ])),
+]);
+$symlinkOurs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('mu-plugins', new Tree([
+            $symlink('acme-bootstrap-current.php', $symlinkTarget),
+        ])),
+        $tree('plugins', new Tree([
+            $tree('acme', new Tree([
+                $blob('bootstrap.php', "Plugin Name: Acme\nVersion: 1.1\n"),
+            ])),
+        ])),
+    ])),
+]);
+$symlinkTheirs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('mu-plugins', new Tree([
+            $symlink('acme-bootstrap-deployed.php', $symlinkTarget),
+        ])),
+        $tree('plugins', new Tree([
+            $tree('acme', new Tree([
+                $blob('bootstrap.php', "Plugin Name: Acme\nVersion: 1.1\n"),
+            ])),
+        ])),
+    ])),
+]);
+$symlinkConflictResult = TreeMerge::mergeRecursive($symlinkBase, $symlinkOurs, $symlinkTheirs, $read, $write);
+$symlinkOursResolved = $symlinkConflictResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+$symlinkResolvedMuPlugins = $treeAtPath($symlinkOursResolved->tree, 'wp-content/mu-plugins');
+$symlinkResolvedPlugin = $treeAtPath($symlinkOursResolved->tree, 'wp-content/plugins/acme');
+$symlinkResolvedEntry = $symlinkResolvedMuPlugins->entryNamed('acme-bootstrap-current.php');
 $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
 $metadata = $read($contentTree->entryNamed('post.meta')?->oid ?? '');
 $demoRoot = sys_get_temp_dir() . '/port-libs-recursive-merge-' . bin2hex(random_bytes(4));
@@ -309,5 +365,17 @@ echo json_encode([
             static fn ($file): string => $file->path,
             $subtreeReplacementResult->worktreeConflictFiles($read),
         ),
+    ],
+    'symlinkRenameResolution' => [
+        'cleanBeforeResolution' => $symlinkConflictResult->isClean(),
+        'conflicts' => array_map(
+            static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
+            $symlinkConflictResult->conflicts,
+        ),
+        'oursResolvedClean' => $symlinkOursResolved->isClean(),
+        'muPluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $symlinkResolvedMuPlugins->entries),
+        'resolvedSymlinkTarget' => $symlinkResolvedEntry === null ? null : $read($symlinkResolvedEntry->oid)->body,
+        'bootstrapVersion' => $read($symlinkResolvedPlugin->entryNamed('bootstrap.php')?->oid ?? '')->body,
+        'indexStagesAfterResolution' => count($symlinkOursResolved->indexEntries()),
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

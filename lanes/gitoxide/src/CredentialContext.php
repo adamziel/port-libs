@@ -167,9 +167,7 @@ final class CredentialContext
         $path = $this->path;
         if (($protocol !== 'http' && $protocol !== 'https') || $useHttpPath) {
             $trimmedPath = trim($parsed->path(), '/');
-            if ($trimmedPath !== '') {
-                $path = $trimmedPath;
-            }
+            $path = $trimmedPath === '' ? null : $trimmedPath;
         }
 
         return new self(

@@ -81,6 +81,7 @@ if (($argv[1] ?? null) === '--self-test') {
         '@layer theme, blocks {}',
         '@import "blocks/query-card.css" layer(theme, blocks) {};',
         '@layer blocks { @media screen and (color) or (hover) { .wp-block-query { color: chartreuse; } } }',
+        '@layer blocks { @media (hover) and { .wp-block-query { color: chartreuse; } } }',
     ] as $invalidLayerCss) {
         try {
             $minifier->minify($invalidLayerCss);

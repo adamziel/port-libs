@@ -688,6 +688,38 @@ return [
         $t->same(['parent0', 'parent1', 'parent2', 'parent3', 'parent4', 'childRule'], $data['names']);
         $t->same(5, $decoded[1]['nameIndex']);
     },
+    'source map consumes nested source maps after upstream add_sourcemap merge' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $entry = $parent->addSource('entry.css');
+        $parent->setSourceContent($entry, ".entry{}\n");
+        $parent->addMapping(0, 0, $entry, 0, 0, 'parentRule');
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('child.css');
+        $child->setSourceContent($childSource, ".child{}\n");
+        $child->addMapping(0, 4, $childSource, 2, 1, 'childRule');
+
+        $parent->addSourceMap($child, 1);
+        $firstMerge = $parent->toArray(null, false);
+        $firstDecoded = SourceMap::decodeVlq($firstMerge['mappings']);
+
+        $t->same([], $child->getSources());
+        $t->same([], $child->getNames());
+        $t->same([], $child->getMappings());
+        $t->same([], $child->toArray(null, false)['sourcesContent']);
+        $t->same('', $child->writeVlq());
+
+        $parent->addSourceMap($child, 3);
+
+        $t->same($firstMerge, $parent->toArray(null, false));
+        $t->same([0, 1], array_column($firstDecoded, 'generatedLine'));
+        $t->same([0, 4], array_column($firstDecoded, 'generatedColumn'));
+        $t->same([0, 1], array_column($firstDecoded, 'sourceIndex'));
+        $t->same([0, 2], array_column($firstDecoded, 'originalLine'));
+        $t->same(['entry.css', 'child.css'], $firstMerge['sources']);
+        $t->same([".entry{}\n", ".child{}\n"], $firstMerge['sourcesContent']);
+        $t->same(['parentRule', 'childRule'], $firstMerge['names']);
+    },
     'source map adds upstream empty line maps with line offsets' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $map->addEmptyMap('theme.css', ".wp-block-cover {}\n\n.wp-block-button {}\n", 2);

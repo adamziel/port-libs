@@ -65,6 +65,10 @@ $map->addMappingWithOffset(
     5,
     0
 );
+$mapBeforeConsumedReplay = $map->toJson(null, false);
+$map->addSourceMap($blockMap, 9);
+$consumedNestedReplayNoop = $mapBeforeConsumedReplay === $map->toJson(null, false);
+$consumedNestedMap = $blockMap->toJson(null, false);
 
 $themeJsonMap = new SourceMap();
 $themeJsonMap->addEmptyMap(
@@ -242,6 +246,8 @@ $lookup = [
 $actual = [
     'css' => $code,
     'map' => $map->toJson(null, false),
+    'consumedNestedMap' => $consumedNestedMap,
+    'consumedNestedReplayNoop' => $consumedNestedReplayNoop,
     'emptyMap' => $themeJsonMap->toJson(null, false),
     'lineSpanMap' => $inlineEditorMap->toJson(null, false),
     'emptyLineColumnOffsetMap' => $emptyLineOffsetMap->toJson(null, false),
@@ -268,6 +274,8 @@ if (($argv[1] ?? null) === '--self-test') {
     $expected = [
         'css' => $code,
         'map' => '{"version":3,"mappings":";;;;;oBCKA,2BAGA,8CDPA","sources":["wp-content/themes/example/style.css","wp-content/themes/example/blocks.css"],"sourcesContent":["@import \"blocks.css\";\n.theme-footer {\n  color: green;\n}","/*! Theme package license */\n/*!\n * Block editor stylesheet generated from theme.json\n * Keep comments for distribution compliance.\n */\n.wp-block-cover {\n  color: yellow;\n}\n.wp-block-cover .wp-block-button {\n  margin: 1rem;\n}"],"names":[]}',
+        'consumedNestedMap' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'consumedNestedReplayNoop' => true,
         'emptyMap' => '{"version":3,"mappings":";AAAA;AACA;AACA","sources":["wp-content/themes/example/theme-json.css"],"sourcesContent":[":root {\n  --wp--style--global--content-size: 720px;\n}\n"],"names":[]}',
         'lineSpanMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/editor-inline.css"],"sourcesContent":[".wp-block-spacer {\n  margin-top: 1rem;\n}\n"],"names":[]}',
         'emptyLineColumnOffsetMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/empty-line-offset.css"],"sourcesContent":[".wp-block-empty-line-offset {}\n"],"names":[]}',

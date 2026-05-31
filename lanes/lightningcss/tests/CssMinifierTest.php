@@ -261,6 +261,97 @@ CSS
             $t->same('.foo{color:' . $expectedColor . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
         }
     },
+    'css minifier maps upstream hsl relative color sRGB origins' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'hsl(from rebeccapurple h s l)' => '#639',
+            'hsl(from rebeccapurple h s l / alpha)' => '#639',
+            'hsl(from rgb(20%, 40%, 60%, 80%) h s l / alpha)' => '#369c',
+            'hsl(from hsl(120deg 20% 50% / .5) h s l / alpha)' => '#66996680',
+            'hsl(from hsl(from rebeccapurple h s l) h s l)' => '#639',
+            'hsl(from rebeccapurple 0 0% 0%)' => '#000',
+            'hsl(from rebeccapurple 0deg 0% 0% / 0)' => '#0000',
+            'hsl(from rebeccapurple 0 s l / alpha)' => '#933',
+            'hsl(from rebeccapurple h 0% l / alpha)' => '#666',
+            'hsl(from rebeccapurple h s 0% / alpha)' => '#000',
+            'hsl(from rebeccapurple h s l / 0)' => '#6390',
+            'hsl(from rgb(20%, 40%, 60%, 80%) h 0% l / alpha)' => '#666c',
+            'hsl(from rgb(20%, 40%, 60%, 80%) h s 0% / alpha)' => '#000c',
+            'hsl(from rebeccapurple 25 s l / alpha)' => '#995e33',
+            'hsl(from rebeccapurple 25deg s l / alpha)' => '#995e33',
+            'hsl(from rebeccapurple h 20% l / alpha)' => '#66527a',
+            'hsl(from rebeccapurple h s l / .25)' => '#66339940',
+            'hsl(from rgb(20%, 40%, 60%, 80%) h 20% l / alpha)' => '#52667acc',
+            'hsl(from rebeccapurple h l s)' => '#804db3',
+            'hsl(from rebeccapurple h calc(alpha * 100) l / calc(s / 100))' => '#6600cc80',
+            'hsl(from rebeccapurple h l l / calc(l / 100))' => '#663d8f66',
+            'hsl(from rebeccapurple h calc(alpha * 100) calc(alpha * 100) / calc(alpha * 100))' => '#fff',
+            'hsl(from rgb(20%, 40%, 60%, 80%) h calc(alpha * 100) l / calc(s / 100))' => '#1466b880',
+            'hsl(from rebeccapurple calc(h) calc(s) calc(l))' => '#639',
+            'hsl(from rgb(20%, 40%, 60%, 80%) calc(h) calc(s) calc(l) / calc(alpha))' => '#369c',
+            'hsl(from rebeccapurple none none none)' => '#000',
+            'hsl(from rebeccapurple none none none / none)' => '#0000',
+            'hsl(from rebeccapurple h s none)' => '#000',
+            'hsl(from rebeccapurple h s l / none)' => '#6390',
+            'hsl(from rebeccapurple none s l / alpha)' => '#933',
+            'hsl(from hsl(120deg 20% 50% / .5) h s none / alpha)' => '#00000080',
+            'hsl(from hsl(120deg 20% 50% / .5) none s l / alpha)' => '#99666680',
+            'hsl(from hsl(none none none) h s l)' => '#000',
+            'hsl(from hsl(120deg none 50% / .5) h s l)' => 'gray',
+            'hsl(from hsl(none 20% 50% / .5) h s l / alpha)' => '#99666680',
+        ];
+
+        foreach ($cases as $input => $expectedColor) {
+            $t->same('.foo{color:' . $expectedColor . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
+        }
+    },
+    'css minifier maps upstream hwb relative color sRGB origins' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            'hwb(from rebeccapurple h w b)' => '#639',
+            'hwb(from rebeccapurple h w b / alpha)' => '#639',
+            'hwb(from rgb(20%, 40%, 60%, 80%) h w b / alpha)' => '#369c',
+            'hwb(from hsl(120deg 20% 50% / .5) h w b / alpha)' => '#66996680',
+            'hwb(from hwb(from rebeccapurple h w b) h w b)' => '#639',
+            'hwb(from rebeccapurple 0 0% 0%)' => 'red',
+            'hwb(from rebeccapurple 0deg 0% 0% / 0)' => '#f000',
+            'hwb(from rebeccapurple 0 w b / alpha)' => '#933',
+            'hwb(from rebeccapurple h 0% b / alpha)' => '#4d0099',
+            'hwb(from rebeccapurple h w 0% / alpha)' => '#93f',
+            'hwb(from rebeccapurple h w b / 0)' => '#6390',
+            'hwb(from rgb(20%, 40%, 60%, 80%) h 0% b / alpha)' => '#004d99cc',
+            'hwb(from rgb(20%, 40%, 60%, 80%) h w 0% / alpha)' => '#39fc',
+            'hwb(from rebeccapurple 25 w b / alpha)' => '#995e33',
+            'hwb(from rebeccapurple 25deg w b / alpha)' => '#995e33',
+            'hwb(from rebeccapurple h 20% b / alpha)' => '#639',
+            'hwb(from rebeccapurple h w 20% / alpha)' => '#8033cc',
+            'hwb(from rebeccapurple h w b / .2)' => '#6393',
+            'hwb(from rgb(20%, 40%, 60%, 80%) h 20% b / alpha)' => '#369c',
+            'hwb(from rgb(20%, 40%, 60%, 80%) h w 20% / alpha)' => '#3380cccc',
+            'hwb(from rebeccapurple h b w)' => '#96c',
+            'hwb(from rebeccapurple h calc(alpha * 100) w / calc(b / 100))' => '#d5d5d566',
+            'hwb(from rebeccapurple h w w / calc(w / 100))' => '#8033cc33',
+            'hwb(from rebeccapurple h calc(alpha * 100) calc(alpha * 100) / alpha)' => 'gray',
+            'hwb(from rgb(20%, 40%, 60%, 80%) h b w)' => '#69c',
+            'hwb(from rebeccapurple calc(h) calc(w) calc(b))' => '#639',
+            'hwb(from rgb(20%, 40%, 60%, 80%) calc(h) calc(w) calc(b) / calc(alpha))' => '#369c',
+            'hwb(from rebeccapurple none none none)' => 'red',
+            'hwb(from rebeccapurple none none none / none)' => '#f000',
+            'hwb(from rebeccapurple h w none)' => '#93f',
+            'hwb(from rebeccapurple h w b / none)' => '#6390',
+            'hwb(from rebeccapurple none w b / alpha)' => '#933',
+            'hwb(from hwb(120deg 20% 50% / .5) h w none / alpha)' => '#33ff3380',
+            'hwb(from hwb(120deg 20% 50% / .5) h w b / none)' => '#33803300',
+            'hwb(from hwb(120deg 20% 50% / .5) none w b / alpha)' => '#80333380',
+            'hwb(from hwb(none none none) h w b)' => 'red',
+            'hwb(from hwb(120deg none 50% / .5) h w b)' => '#008000',
+            'hwb(from hwb(none 20% 50% / .5) h w b / alpha)' => '#80333380',
+        ];
+
+        foreach ($cases as $input => $expectedColor) {
+            $t->same('.foo{color:' . $expectedColor . '}', $minifier->minify('.foo { color: ' . $input . '; }'));
+        }
+    },
     'css minifier maps upstream advanced color function normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $cases = [
@@ -1421,6 +1512,14 @@ CSS
         $t->same(
             '@supports (foo:bar) and ((bar:baz) or (test:foo)){.test{foo:bar}}',
             $minifier->minify('@supports (foo: bar) and (((bar: baz) or (test: foo))) { .test { foo: bar; } }')
+        );
+        $t->same(
+            '@supports ((display:flex) or (display:grid)) and (color:red){.test{foo:bar}}',
+            $minifier->minify('@supports (((display: flex) or (display: grid))) and (color: red) { .test { foo: bar; } }')
+        );
+        $t->same(
+            '@supports ((display:flex) and (color:red)) or (display:grid){.test{foo:bar}}',
+            $minifier->minify('@supports (((display: flex) and (color: red))) or (display: grid) { .test { foo: bar; } }')
         );
         $t->same(
             '@supports not ((foo:bar) and (bar:baz)){.test{foo:bar}}',

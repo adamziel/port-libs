@@ -11,6 +11,7 @@ $block = new DeclarationBlock();
 $declarations = 'background: url(hero.jpg) green; background-repeat: repeat-x; color: var(--wp--preset--color--contrast)';
 $gallery = 'background: url(card.jpg), url(texture.png)';
 $cover = 'background: url(hero.jpg)';
+$heroPosition = 'background-position: 20px 10px; background-size: cover';
 
 $actual = [
     'themeBackgroundColor' => $block->setProperty(
@@ -37,6 +38,24 @@ $actual = [
         'background: url(hero.jpg) fixed content-box text; background-color: blue; background-clip: text; padding: var(--wp--preset--spacing--40)',
         'background'
     ),
+    'heroFocalPointX' => $block->setProperty(
+        $heroPosition,
+        'background-position-x',
+        'left'
+    ),
+    'heroFocalPointY' => $block->setProperty(
+        $heroPosition,
+        'background-position-y',
+        'bottom'
+    ),
+    'resetHeroFocalX' => $block->removeProperty(
+        $heroPosition,
+        'background-position-x'
+    ),
+    'resetHeroFocalPoint' => $block->removeProperty(
+        'background-position: 20px 10px; background-position-x: 30px; color: var(--wp--preset--color--contrast)',
+        'background-position'
+    ),
 ];
 
 $expected = [
@@ -45,6 +64,10 @@ $expected = [
     'galleryAttachment' => 'background: url(card.jpg) fixed, url(texture.png) local',
     'coverClipText' => 'background: url(hero.jpg) text',
     'resetBackgroundOnly' => 'padding: var(--wp--preset--spacing--40)',
+    'heroFocalPointX' => 'background-position: left 10px; background-size: cover',
+    'heroFocalPointY' => 'background-position: 20px bottom; background-size: cover',
+    'resetHeroFocalX' => 'background-position-y: 10px; background-size: cover',
+    'resetHeroFocalPoint' => 'color: var(--wp--preset--color--contrast)',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

@@ -9,6 +9,7 @@ use PortLibs\Gitoxide\MergeIndexEntry;
 use PortLibs\Gitoxide\Tree;
 use PortLibs\Gitoxide\TreeEntry;
 use PortLibs\Gitoxide\TreeMerge;
+use PortLibs\Gitoxide\TreeMergeResult;
 
 $oid = static fn (string $hex): string => str_repeat($hex, 40);
 $entry = static fn (string $filename, string $oid, string $mode = '100644'): TreeEntry => new TreeEntry($mode, $filename, $oid);
@@ -1406,6 +1407,33 @@ return [
             $result->indexEntries(),
         ));
         $t->same([], $result->worktreeConflictFiles($read));
+
+        $ancestorResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+        $ancestorATree = Tree::fromObject($read($ancestorResolved->tree->entryNamed('a', true)?->oid ?? ''));
+
+        $t->true($ancestorResolved->isClean());
+        $t->same(['a', 'link'], $names($ancestorResolved->tree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($ancestorATree->entryNamed('x.f')?->oid ?? '')->body);
+        $t->same('a/x.f', $read($ancestorResolved->tree->entryNamed('link')?->oid ?? '')->body);
+        $t->same([], $ancestorResolved->indexEntries());
+
+        $oursResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+        $oursATree = Tree::fromObject($read($oursResolved->tree->entryNamed('a', true)?->oid ?? ''));
+
+        $t->true($oursResolved->isClean());
+        $t->same(['a', 'link-renamed'], $names($oursResolved->tree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($oursATree->entryNamed('x.f')?->oid ?? '')->body);
+        $t->same('a/x.f', $read($oursResolved->tree->entryNamed('link-renamed')?->oid ?? '')->body);
+        $t->same([], $oursResolved->indexEntries());
+
+        $theirsResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_THEIRS);
+        $theirsATree = Tree::fromObject($read($theirsResolved->tree->entryNamed('a', true)?->oid ?? ''));
+
+        $t->true($theirsResolved->isClean());
+        $t->same(['a', 'link-different'], $names($theirsResolved->tree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($theirsATree->entryNamed('x.f')?->oid ?? '')->body);
+        $t->same('a/x.f', $read($theirsResolved->tree->entryNamed('link-different')?->oid ?? '')->body);
+        $t->same([], $theirsResolved->indexEntries());
     },
     'maps upstream gix-merge tree-baseline rename-add-symlink fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();

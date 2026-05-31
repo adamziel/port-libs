@@ -51,6 +51,10 @@ final class DeclarationBlock
         'background-origin',
         'background-clip',
     ];
+    private const BACKGROUND_POSITION_LONGHANDS = [
+        'background-position-x',
+        'background-position-y',
+    ];
 
     private const BORDER_SIDES = ['top', 'right', 'bottom', 'left'];
     private const LOGICAL_BORDER_AXES = [
@@ -6037,6 +6041,22 @@ final class DeclarationBlock
         return [implode(', ', $xs), implode(', ', $ys)];
     }
 
+    private function composeBackgroundPositionList(string $xValue, string $yValue): ?string
+    {
+        $xs = $this->splitTopLevel($xValue, ',');
+        $ys = $this->splitTopLevel($yValue, ',');
+        if (count($xs) !== count($ys)) {
+            return null;
+        }
+
+        $positions = [];
+        foreach ($xs as $index => $x) {
+            $positions[] = trim(trim($x) . ' ' . trim($ys[$index]));
+        }
+
+        return implode(', ', $positions);
+    }
+
     /**
      * @return array{0:?string,1:?string}
      */
@@ -8240,6 +8260,35 @@ final class DeclarationBlock
                 return $this->serializeEntries($entries);
             }
 
+            if ($this->isBackgroundPositionLonghand($property) && $entries[$index]['property'] === 'background-position') {
+                if ($entries[$index]['important'] !== $important) {
+                    return null;
+                }
+
+                [$x, $y] = $this->splitBackgroundPositionList($entries[$index]['value']);
+                if ($x === null || $y === null) {
+                    return null;
+                }
+
+                if ($property === 'background-position-x') {
+                    $x = $value;
+                } else {
+                    $y = $value;
+                }
+                $position = $this->composeBackgroundPositionList($x, $y);
+                if ($position === null) {
+                    return null;
+                }
+
+                $entries[$index] = [
+                    'property' => 'background-position',
+                    'value' => $position,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
             if ($entries[$index]['property'] !== 'background') {
                 continue;
             }
@@ -8276,6 +8325,11 @@ final class DeclarationBlock
         }
 
         return count($this->splitTopLevel($value, ',')) === count($this->parseBackgroundLayers($background));
+    }
+
+    private function isBackgroundPositionLonghand(string $property): bool
+    {
+        return in_array($property, self::BACKGROUND_POSITION_LONGHANDS, true);
     }
 
     /**
@@ -9585,6 +9639,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isBackgroundPositionLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeBackgroundPositionLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeBackgroundPositionLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isTransitionShorthand($property)) {
             $normalEntries = $this->removeTransitionShorthandWithinPriority($normalEntries, $property);
             $importantEntries = $this->removeTransitionShorthandWithinPriority($importantEntries, $property);
@@ -9759,6 +9819,47 @@ final class DeclarationBlock
 
     /**
      * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeBackgroundPositionLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'background-position') {
+                $result[] = $entry;
+                continue;
+            }
+
+            [$x, $y] = $this->splitBackgroundPositionList($entry['value']);
+            if ($x === null || $y === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            if ($property !== 'background-position-x') {
+                $result[] = [
+                    'property' => 'background-position-x',
+                    'value' => $x,
+                    'important' => $entry['important'],
+                ];
+            }
+            if ($property !== 'background-position-y') {
+                $result[] = [
+                    'property' => 'background-position-y',
+                    'value' => $y,
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
      * @return list<array{property:string, value:string, important:bool}>
      */
     private function removeBackgroundShorthandWithinPriority(array $entries): array
@@ -9856,6 +9957,10 @@ final class DeclarationBlock
 
         if ($property === 'overflow') {
             return self::OVERFLOW_LONGHANDS;
+        }
+
+        if ($property === 'background-position') {
+            return self::BACKGROUND_POSITION_LONGHANDS;
         }
 
         if ($property === 'animation-range') {

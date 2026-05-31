@@ -1279,12 +1279,152 @@ final class CssBundler
             return $parent;
         }
 
-        return $this->supportsPrelude($parent) . ' and ' . $this->supportsPrelude($child);
+        return $this->supportsOperand($parent, 'and') . ' and ' . $this->supportsOperand($child, 'and');
     }
 
     private function combineSupportsOr(string $a, string $b): string
     {
-        return $this->supportsPrelude($a) . ' or ' . $this->supportsPrelude($b);
+        return $this->supportsOperand($a, 'or') . ' or ' . $this->supportsOperand($b, 'or');
+    }
+
+    private function supportsOperand(string $condition, string $parentOperator): string
+    {
+        $prelude = $this->supportsPrelude($condition);
+        $operator = $this->supportsConditionOperator($prelude);
+        $needsParens = match ($operator) {
+            'not' => true,
+            'and' => $parentOperator !== 'and',
+            'or' => $parentOperator !== 'or',
+            default => false,
+        };
+
+        return $needsParens ? '(' . $prelude . ')' : $prelude;
+    }
+
+    private function supportsConditionOperator(string $condition): string
+    {
+        $condition = trim($condition);
+        if ($condition === '') {
+            return 'leaf';
+        }
+
+        $inner = $this->unwrapSingleParenthesizedValue($condition);
+        if ($inner !== null) {
+            return $this->supportsConditionOperator($inner);
+        }
+
+        if (preg_match('/^not(?:\s+|\()/i', $condition) === 1) {
+            return 'not';
+        }
+
+        $quote = null;
+        $depth = 0;
+        $length = strlen($condition);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '/' && ($condition[$i + 1] ?? '') === '*') {
+                $end = strpos($condition, '*/', $i + 2);
+                if ($end === false) {
+                    throw new CssBundleException('parser-error', 'CSS contains an unbalanced comment');
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth === 0 && $this->isIdentifierChar($char)) {
+                $identifier = $this->readIdentifier($condition, $i);
+                $lower = strtolower($identifier);
+                $previous = $condition[$i - 1] ?? '';
+                $next = $condition[$i + strlen($identifier)] ?? '';
+                if (($lower === 'and' || $lower === 'or')
+                    && ($previous === '' || !$this->isIdentifierChar($previous))
+                    && ($next === '' || !$this->isIdentifierChar($next))
+                ) {
+                    return $lower;
+                }
+
+                $i += strlen($identifier) - 1;
+            }
+        }
+
+        return 'leaf';
+    }
+
+    private function unwrapSingleParenthesizedValue(string $value): ?string
+    {
+        $value = trim($value);
+        if ($value === '' || $value[0] !== '(') {
+            return null;
+        }
+
+        $quote = null;
+        $depth = 0;
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '/' && ($value[$i + 1] ?? '') === '*') {
+                $end = strpos($value, '*/', $i + 2);
+                if ($end === false) {
+                    throw new CssBundleException('parser-error', 'CSS contains an unbalanced comment');
+                }
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i === $length - 1 ? substr($value, 1, -1) : null;
+                }
+            }
+        }
+
+        return null;
     }
 
     private function wrapRules(string $css, ?string $layer, string $media, ?string $supports): string

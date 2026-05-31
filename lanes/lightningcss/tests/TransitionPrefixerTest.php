@@ -752,6 +752,34 @@ return [
             $prefixer->prefixForTargets('.foo { text-overflow: ellipsis; }', ['opera' => 13])
         );
         $t->same(
+            '.foo{text-decoration-skip-ink:all}',
+            $prefixer->prefixForTargets('.foo { text-decoration-skip-ink: all; }', ['safari' => 7])
+        );
+        $t->same(
+            '.foo{-webkit-text-decoration-skip-ink:none;text-decoration-skip-ink:none}',
+            $prefixer->prefixForTargets('.foo { text-decoration-skip-ink: none; }', ['safari' => '7.1'])
+        );
+        $t->same(
+            '.foo{-webkit-text-decoration-skip-ink:all;text-decoration-skip-ink:all}',
+            $prefixer->prefixForTargets('.foo { text-decoration-skip-ink: all; }', ['safari' => 12])
+        );
+        $t->same(
+            '.foo{text-decoration-skip-ink:all}',
+            $prefixer->prefixForTargets('.foo { text-decoration-skip-ink: all; }', ['safari' => '12.1'])
+        );
+        $t->same(
+            '.foo{-webkit-text-decoration-skip-ink:auto;text-decoration-skip-ink:auto}',
+            $prefixer->prefixForTargets('.foo { text-decoration-skip-ink: auto; }', ['ios_saf' => 8])
+        );
+        $t->same(
+            '.foo{-webkit-text-decoration-skip-ink:all;text-decoration-skip-ink:all}',
+            $prefixer->prefixForTargets('.foo { text-decoration-skip-ink: all; }', ['ios_saf' => 17])
+        );
+        $t->same(
+            '.foo{text-decoration-skip-ink:all}',
+            $prefixer->prefixForTargets('.foo { -webkit-text-decoration-skip-ink: all; text-decoration-skip-ink: all; }', ['safari' => 13])
+        );
+        $t->same(
             '.foo{-webkit-box-decoration-break:clone;box-decoration-break:clone}',
             $prefixer->prefixForTargets('.foo { box-decoration-break: clone; }', ['chrome' => 129])
         );

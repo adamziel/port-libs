@@ -213,6 +213,19 @@ if ($mediaBooleanBundle !== '@media print and (width>=240px){@layer theme.blocks
 
 echo 'media-boolean-layer-range: simplified' . PHP_EOL;
 
+$supportsGraphBundle = (new CssBundler())->bundle('/supports-entry.css', [
+    '/supports-entry.css' => '@import "layout.css" supports((display: grid) or (display: flex)); .wp-site-blocks { color: red }',
+    '/layout.css' => '@import "query.css" supports(container-type: inline-size); .wp-block-columns { color: green }',
+    '/query.css' => '.wp-block-query { color: blue }',
+]);
+
+if ($supportsGraphBundle !== '@supports ((display:grid) or (display:flex)) and (container-type:inline-size){.wp-block-query{color:#00f}}@supports (display:grid) or (display:flex){.wp-block-columns{color:green}}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected nested supports import graph to preserve condition grouping\n");
+    exit(1);
+}
+
+echo 'supports-import-graph: grouped' . PHP_EOL;
+
 try {
     (new CssBundler())->bundle('/broken-theme.css', [
         '/broken-theme.css' => '.wp-site-blocks { color: red } @import "tokens.css";',

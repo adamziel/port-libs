@@ -1059,6 +1059,22 @@ return [
             'background: linear-gradient(red, green) 20px 10px',
             $block->setProperty('background: linear-gradient(red, green)', 'background-position', '20px 10px')
         );
+        $t->same(
+            'background-position: left 10px',
+            $block->setProperty('background-position: 20px 10px', 'background-position-x', 'left')
+        );
+        $t->same(
+            'background-position: 20px bottom',
+            $block->setProperty('background-position: 20px 10px', 'background-position-y', 'bottom')
+        );
+        $t->same(
+            'background-position: 30px 10px, right top',
+            $block->setProperty('background-position: 20px 10px, left top', 'background-position-x', '30px, right')
+        );
+        $t->same(
+            'color: red; background-position: 20px bottom !important',
+            $block->setProperty('background-position: 20px 10px !important; color: red', 'background-position-y', 'bottom', true)
+        );
     },
     'declaration block sets upstream background cssom longhands in existing shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
@@ -1753,6 +1769,26 @@ return [
                 'background: url(hero.jpg) fixed content-box text; background-attachment: local; background-origin: border-box; background-clip: text; padding: 1rem',
                 'background'
             )
+        );
+    },
+    'declaration block removes upstream background position cssom longhands by splitting shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'background-position-y: 10px',
+            $block->removeProperty('background-position: 20px 10px', 'background-position-x')
+        );
+        $t->same(
+            'background-position-x: 20px',
+            $block->removeProperty('background-position: 20px 10px', 'background-position-y')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('background-position: 20px 10px; background-position-x: 30px; color: red', 'background-position')
+        );
+        $t->same(
+            'color: red; background-position-y: 10px !important',
+            $block->removeProperty('background-position: 20px 10px !important; color: red; background-position-x: 30px', 'background-position-x')
         );
     },
     'declaration block removes upstream border longhands by splitting shorthands' => static function (TestRunner $t): void {

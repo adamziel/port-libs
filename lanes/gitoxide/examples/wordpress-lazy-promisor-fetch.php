@@ -20,6 +20,12 @@ $basename = 'pack-' . $fixture['packChecksum'];
 file_put_contents($packDir . '/' . $basename . '.pack', $fixture['packBytes']);
 file_put_contents($packDir . '/' . $basename . '.idx', $fixture['indexBytes']);
 file_put_contents($packDir . '/' . $basename . '.promisor', "blobless WordPress lazy fetch\n");
+file_put_contents($gitDir . '/config', <<<CFG
+[remote "origin"]
+    url = https://git.example.test/wp-content.git
+    promisor = true
+    partialCloneFilter = blob:none
+CFG);
 
 $mediaBlob = new GitObject('blob', 'Lazily fetched WordPress media attachment bytes');
 $resolver = new class($mediaBlob, $gitDir) implements PromisorObjectResolver {
@@ -69,6 +75,7 @@ $prefixAfterExternalHydration = $database->lookupPrefix(strtoupper(substr($templ
 $afterExternalHydration = $database->objectState($templateOid);
 
 return [
+    'promisorRemotes' => $database->promisorRemotes(),
     'promisorPacks' => $database->promisorPackNames(),
     'mediaObject' => $mediaBlob->oid(),
     'beforeRead' => $before,

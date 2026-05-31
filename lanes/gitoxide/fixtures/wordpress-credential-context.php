@@ -27,6 +27,10 @@ $cleared = $helperResponse->clearSecrets();
 $encodedContext = (new CredentialContext(
     url: 'https://Deploy%20Bot:wp%40token@GIT.example.test:443/wp-content%20deploy.git',
 ))->destructureUrl(true);
+$rootHttpContext = (new CredentialContext(
+    url: 'https://GIT.example.test/',
+    path: 'stale/wp-content.git',
+))->destructureUrl(true);
 
 return [
     'requestBytes' => $request->storageBytes(),
@@ -38,6 +42,7 @@ return [
     ],
     'passwordExpiryUtc' => $helperResponse->passwordExpiryUtc,
     'emptyQuitFalse' => $emptyQuit->quit,
+    'rootHttpPathCleared' => $rootHttpContext->path === null,
     'redactedBytes' => $redacted->storageBytes(),
     'clearedPassword' => $cleared->password,
     'clearedOauthRefreshToken' => $cleared->oauthRefreshToken,

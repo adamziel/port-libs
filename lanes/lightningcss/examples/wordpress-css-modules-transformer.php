@@ -139,6 +139,27 @@ CSS, [
     'dashedIdents' => true,
 ]);
 
+$pseudoClassResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:hover {
+  color: yellow;
+}
+
+:global(.wp-block-button:hover) .card:focus-visible {
+  outline-color: yellow;
+}
+
+.cardInteractive {
+  composes: card;
+  color: red;
+}
+CSS, [
+    'hash' => 'BlockA',
+    'pseudoClasses' => [
+        'hover' => 'is-hovered',
+        'focusVisible' => 'is-focus-visible',
+    ],
+]);
+
 try {
     (new CssModulesTransformer())->transform(<<<'CSS'
 .card {
@@ -246,6 +267,8 @@ $actual = [
     'contentHashExports' => $contentHashResult['exports'],
     'dashedIdents' => $dashedIdentResult['code'],
     'dashedIdentExports' => $dashedIdentResult['exports'],
+    'pseudoClasses' => $pseudoClassResult['code'],
+    'pseudoClassExports' => $pseudoClassResult['exports'],
 ];
 
 $expected = [
@@ -480,6 +503,34 @@ $expected = [
             'isReferenced' => false,
         ],
     ],
+    'pseudoClasses' => '.BlockA_card.BlockA_is-hovered{color:#ff0}.wp-block-button.is-hovered .BlockA_card.BlockA_is-focus-visible{outline-color:#ff0}.BlockA_cardInteractive{color:red}',
+    'pseudoClassExports' => [
+        'card' => [
+            'name' => 'BlockA_card',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'is-hovered' => [
+            'name' => 'BlockA_is-hovered',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'is-focus-visible' => [
+            'name' => 'BlockA_is-focus-visible',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'cardInteractive' => [
+            'name' => 'BlockA_cardInteractive',
+            'composes' => [
+                [
+                    'type' => 'local',
+                    'name' => 'BlockA_card',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+    ],
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -503,3 +554,4 @@ echo 'license-pure-no-check: ' . $actual['licensePureNoCheck'] . PHP_EOL;
 echo 'pure-global: ' . $actual['pureGlobal'] . PHP_EOL;
 echo 'content-hash: ' . $actual['contentHash'] . PHP_EOL;
 echo 'dashed-idents: ' . $actual['dashedIdents'] . PHP_EOL;
+echo 'pseudo-classes: ' . $actual['pseudoClasses'] . PHP_EOL;

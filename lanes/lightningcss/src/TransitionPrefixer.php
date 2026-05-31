@@ -933,6 +933,8 @@ final class TransitionPrefixer
             'tabSizeNeedsO' => $this->targetInRange($normalized, 'opera', [10], [12, 1]),
             'textAlignLastNeedsMoz' => $this->targetInRange($normalized, 'firefox', [12], [48]),
             'textOverflowNeedsO' => $this->targetInRange($normalized, 'opera', [9], [12]),
+            'textDecorationSkipInkNeedsWebkit' => $this->targetAtLeast($normalized, 'ios_saf', [8])
+                || $this->targetInRange($normalized, 'safari', [7, 1], [12]),
             'boxDecorationBreakNeedsWebkit' => $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [22], [129])
                 || $this->targetInRange($normalized, 'edge', [79], [129])
@@ -3194,6 +3196,9 @@ final class TransitionPrefixer
         ]) || $changed;
         $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'text-overflow', [
             '-o-' => $targetOptions['textOverflowNeedsO'] ?? false,
+        ]) || $changed;
+        $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'text-decoration-skip-ink', [
+            '-webkit-' => $targetOptions['textDecorationSkipInkNeedsWebkit'] ?? false,
         ]) || $changed;
 
         return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'box-decoration-break', [

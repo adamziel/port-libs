@@ -73,6 +73,19 @@ return [
         $t->same('oauth-token', $result->oauthRefreshToken);
         $t->same(null, $result->context->passwordExpiryUtc);
     },
+    'credential cascade helper root urls clear stale http paths' => static function (TestRunner $t): void {
+        $cascade = new CredentialCascade([
+            static fn (): string => "path=stale/repository/path\nurl=https://example.com/\n",
+            static fn (): string => "username=user\npassword=pass\n",
+        ], useHttpPath: true);
+
+        $result = $cascade->get(new CredentialContext(url: 'https://origin.example.test/wp-content.git'));
+
+        $t->same('https', $result->context->protocol);
+        $t->same('example.com', $result->context->host);
+        $t->same(null, $result->context->path);
+        $t->same(false, str_contains($result->nextActionBytes(), "path=stale/repository/path\n"));
+    },
     'credential cascade honors quit and query user only boundaries' => static function (TestRunner $t): void {
         $calls = [];
         $quit = new CredentialCascade([

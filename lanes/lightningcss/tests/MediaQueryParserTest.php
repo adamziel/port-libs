@@ -130,9 +130,17 @@ return [
             'var(--theme-breakpoint)',
             'screen and var(--theme-breakpoint)',
             'screen and (color) or (hover)',
+            'screen or (hover)',
             'not screen and (color) or (hover)',
             'only screen and (width >= 240px) or (hover)',
             'all and (color) or (hover)',
+            'and (hover)',
+            'or (hover)',
+            '(hover) and',
+            '(hover) or',
+            'screen and',
+            'not screen and',
+            'only screen and',
             '()',
             'screen and ()',
         ];
@@ -241,6 +249,9 @@ return [
             '@layer blocks { @media var(--theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media screen and calc(theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media screen and (color) or (hover) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media screen or (hover) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (hover) and { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media screen and { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media screen and () { .wp-block-query { color: chartreuse; } } }',
         ] as $css) {
             $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify($css));
