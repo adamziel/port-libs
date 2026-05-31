@@ -690,7 +690,7 @@ final class SQLiteUpdateDeleteReturningSql
         if (preg_match('/^abs\s*\((.+)\)$/is', $expression, $match) === 1) {
             return abs(self::limitNumericValue($match[1]));
         }
-        if (preg_match('/^(coalesce|ifnull|nullif)\s*\((.*)\)$/is', $expression, $match) === 1) {
+        if (preg_match('/^(coalesce|ifnull|nullif|min|max)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }
         if (preg_match('/^-?\d+$/', $expression) === 1) {
@@ -822,10 +822,30 @@ final class SQLiteUpdateDeleteReturningSql
         if ($function === 'coalesce' && count($parts) < 2) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT coalesce() needs at least two arguments');
         }
+        if (($function === 'min' || $function === 'max') && $parts === []) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs at least one argument");
+        }
 
         $values = array_map(static fn (string $part): int|float|string|null => self::limitExpressionValue($part), $parts);
         if ($function === 'nullif') {
             return $values[0] == $values[1] ? null : $values[0];
+        }
+        if ($function === 'min' || $function === 'max') {
+            $selected = array_shift($values);
+            if ($selected === null) {
+                return null;
+            }
+            foreach ($values as $value) {
+                if ($value === null) {
+                    return null;
+                }
+                $comparison = self::compareLimitScalarValues($value, $selected);
+                if (($function === 'min' && $comparison < 0) || ($function === 'max' && $comparison > 0)) {
+                    $selected = $value;
+                }
+            }
+
+            return $selected;
         }
 
         foreach ($values as $value) {
@@ -835,6 +855,21 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return null;
+    }
+
+    private static function compareLimitScalarValues(int|float|string $left, int|float|string $right): int
+    {
+        if ((is_int($left) || is_float($left)) && (is_int($right) || is_float($right))) {
+            return $left <=> $right;
+        }
+        if (is_string($left) && is_numeric($left) && (is_int($right) || is_float($right))) {
+            return (float) $left <=> $right;
+        }
+        if ((is_int($left) || is_float($left)) && is_string($right) && is_numeric($right)) {
+            return $left <=> (float) $right;
+        }
+
+        return strcmp((string) $left, (string) $right);
     }
 
     /**

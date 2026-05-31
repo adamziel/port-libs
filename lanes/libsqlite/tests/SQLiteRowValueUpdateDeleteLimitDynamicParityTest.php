@@ -559,4 +559,57 @@ for ($seed = 1; $seed <= 36; $seed++) {
         };
 }
 
+for ($seed = 1; $seed <= 40; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = ($seed + 1) % 3;
+    $limitExpr = $seed % 2 === 0 ? "max(1, {$limitValue}, 2)" : "min({$limitValue}, 4, 5)";
+    $offsetExpr = $seed % 3 === 0 ? "min({$offsetValue}, 2)" : "max(0, {$offsetValue})";
+    $effectiveLimit = $seed % 2 === 0 ? max(1, $limitValue, 2) : min($limitValue, 4, 5);
+    $effectiveOffset = $seed % 3 === 0 ? min($offsetValue, 2) : max(0, $offsetValue);
+    $sql = "UPDATE app_settings SET state = 'minmax_dyn' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $effectiveOffset, $effectiveLimit);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update minmax window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $effectiveLimit, $effectiveOffset): void {
+            $result = $execute($sql);
+            $t->same($effectiveLimit, $result['plan']->toArray()['limit']);
+            $t->same($effectiveOffset, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 40; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 2) % 4;
+    $limitExpr = $seed % 2 === 0 ? "max(1, {$limitValue})" : "min({$limitValue}, 3)";
+    $offsetExpr = $seed % 3 === 0 ? "min({$offsetValue}, 2)" : "max(0, {$offsetValue})";
+    $effectiveLimit = $seed % 2 === 0 ? max(1, $limitValue) : min($limitValue, 3);
+    $effectiveOffset = $seed % 3 === 0 ? min($offsetValue, 2) : max(0, $offsetValue);
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $effectiveOffset, $effectiveLimit)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue minmax subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+$minMaxMalformed = [
+    'malformed min null limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT min(1, NULL)",
+    'malformed max blob offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET max(0, X'ABCD')",
+    'malformed min nonintegral limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT min(2.5, 3)",
+    'malformed max nonintegral offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET max(1.5, 1)",
+];
+
+foreach ($minMaxMalformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
+    };
+}
+
 return $tests;

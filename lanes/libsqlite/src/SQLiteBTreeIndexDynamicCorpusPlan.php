@@ -4578,6 +4578,200 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,constraints:list<array{column:string,operator:string,value:mixed,omitted:bool}>,idx_string:string,cost:float,result_rows:list<array<int,mixed>>,xfilter_where:string|null,uses_row_value:bool,uses_affinity_residual:bool,integrity:string,batch:int}>
+     */
+    public static function bestindex5VirtualTableConstraintCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindex5 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'bestindex5-1.1',
+                "xBestIndex receives != on a virtual table column and xFilter applies the omitted residual",
+                "SELECT * FROM t1 WHERE a!='hello'",
+                [['a', '!=', 'hello', true]],
+                "a != 'hello'",
+                [[1, 2, 3.0], [4, 5, 6.0], [7, 8, 9.0]],
+                false,
+                false,
+            ],
+            [
+                'bestindex5-1.2.1',
+                'numeric != literal on TEXT column is supplied to xBestIndex',
+                'SELECT * FROM t1 WHERE b!=8',
+                [['b', '!=', 8, true]],
+                "b != '8'",
+                [[1, 2, 3.0], [4, 5, 6.0]],
+                false,
+                false,
+            ],
+            [
+                'bestindex5-1.2.2',
+                'commuted numeric != literal maps back to the virtual table column',
+                'SELECT * FROM t1 WHERE 8!=b',
+                [['b', '!=', 8, true]],
+                "b != '8'",
+                [[1, 2, 3.0], [4, 5, 6.0]],
+                false,
+                false,
+            ],
+            [
+                'bestindex5-1.3',
+                'IS NOT constraint is supplied to xBestIndex',
+                'SELECT * FROM t1 WHERE c IS NOT 3',
+                [['c', 'IS NOT', 3, true]],
+                "c IS NOT '3'",
+                [[4, 5, 6.0], [7, 8, 9.0]],
+                false,
+                false,
+            ],
+            [
+                'bestindex5-1.3.2',
+                'commuted IS NOT constraint maps back to the virtual table column',
+                'SELECT * FROM t1 WHERE 3 IS NOT c',
+                [['c', 'IS NOT', 3, true]],
+                "c IS NOT '3'",
+                [[4, 5, 6.0], [7, 8, 9.0]],
+                false,
+                false,
+            ],
+            [
+                'bestindex5-1.4.1',
+                'join != constraint becomes usable after the outer virtual table row is available',
+                'SELECT * FROM t1, t2 WHERE x != a',
+                [['a', '!=', 1, true]],
+                "a != '1'",
+                [[4, 5, 6.0, 1], [7, 8, 9.0, 1]],
+                false,
+                false,
+            ],
+            [
+                'bestindex5-1.4.2',
+                'reversed join != constraint preserves the same xBestIndex term',
+                'SELECT * FROM t1, t2 WHERE a != x',
+                [['a', '!=', 1, true]],
+                "a != '1'",
+                [[4, 5, 6.0, 1], [7, 8, 9.0, 1]],
+                false,
+                false,
+            ],
+            [
+                'bestindex5-1.5.1',
+                'IS NOT NULL unary constraint is omitted and pushed into xFilter SQL',
+                'SELECT * FROM t1 WHERE a IS NOT NULL',
+                [['a', 'IS NOT NULL', null, true]],
+                'a IS NOT NULL',
+                [[1, 2, 3.0], [4, 5, 6.0], [7, 8, 9.0]],
+                false,
+                false,
+            ],
+            [
+                'bestindex5-1.6.1',
+                'IS NULL unary constraint is omitted and yields an empty virtual scan',
+                'SELECT * FROM t1 WHERE a IS NULL',
+                [['a', 'IS NULL', null, true]],
+                'a IS NULL',
+                [],
+                false,
+                false,
+            ],
+            [
+                'bestindex5-1.7.1',
+                'row-value IS constraint splits into usable column constraints',
+                'SELECT * FROM t1 WHERE (a, b) IS (1, 2)',
+                [['a', 'IS', 1, true], ['b', 'IS', 2, true]],
+                "a IS '1' AND b IS '2'",
+                [[1, 2, 3.0]],
+                true,
+                false,
+            ],
+            [
+                'bestindex5-1.7.2',
+                'commuted row-value IS constraint keeps column order in xBestIndex',
+                'SELECT * FROM t1 WHERE (5, 4) IS (b, a)',
+                [['b', 'IS', 5, true], ['a', 'IS', 4, true]],
+                "b IS '5' AND a IS '4'",
+                [[4, 5, 6.0]],
+                true,
+                false,
+            ],
+            [
+                'bestindex5-2.2.4',
+                'ordinary row-value equality keeps integer and text affinity compatible',
+                'SELECT * FROM t3 WHERE (a, b) == (45, 46)',
+                [],
+                '',
+                [[45, 46]],
+                true,
+                true,
+            ],
+            [
+                'bestindex5-3.2',
+                'INTEGER affinity virtual table equality accepts a text numeric literal',
+                "SELECT rowid, * FROM t4 WHERE x='245'",
+                [],
+                '',
+                [[1, 245]],
+                false,
+                true,
+            ],
+            [
+                'bestindex5-3.4',
+                'INTEGER affinity virtual table inequality rejects the matching text numeric literal',
+                "SELECT rowid, * FROM t4 WHERE x!='245'",
+                [],
+                '',
+                [],
+                false,
+                true,
+            ],
+            [
+                'bestindex5-3.5',
+                'INTEGER affinity residual combines rowid and value inequality without admitting the matching row',
+                "SELECT rowid, * FROM t4 WHERE rowid!=1 OR x!='245'",
+                [],
+                '',
+                [],
+                false,
+                true,
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $constraints, $idxString, $rows, $rowValue, $affinityResidual] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'bestindex5.test sections bestindex5-1.1 through bestindex5-3.5',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'statement' => $statement,
+                'constraints' => array_map(
+                    static fn (array $constraint): array => [
+                        'column' => $constraint[0],
+                        'operator' => $constraint[1],
+                        'value' => $constraint[2],
+                        'omitted' => $constraint[3],
+                    ],
+                    $constraints,
+                ),
+                'idx_string' => $idxString,
+                'cost' => $constraints === [] ? 999999.0 : 1000000.0 / (2 ** count($constraints)),
+                'result_rows' => $rows,
+                'xfilter_where' => $idxString === '' ? null : 'WHERE ' . $idxString,
+                'uses_row_value' => $rowValue,
+                'uses_affinity_residual' => $affinityResidual,
+                'integrity' => 'ok',
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,table_shape:string,index_name:string|null,predicate_literal:mixed,query_literal:mixed,result_rows:list<array<int,mixed>>,result_count:int,uses_partial_index:bool,detail:string,expected_error:string|null,integrity:string,without_rowid:bool,affinity:string,batch:int}>
      */
     public static function indexAPartialIndexAffinityPlannerCases(int $cases = 1200): array

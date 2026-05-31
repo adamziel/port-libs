@@ -288,4 +288,72 @@ $tests['real upstream corpus pager wal dynamic wal2 checkpoint fullsync row coun
     $t->same([0, 2], [$rows[1103]['normal_sync_count'], $rows[1103]['full_sync_count']]);
 };
 
+foreach (SQLiteRealUpstreamPagerWalDynamicCorpusPlan::wal3ReadmarkRaceRows() as $row) {
+    $tests['real upstream corpus pager wal dynamic ' . $row['upstream'] . ' readmark boundary'] = static function (TestRunner $t) use ($row): void {
+        $t->same(true, str_starts_with($row['upstream'], 'wal3.test wal3-'));
+        $t->same(true, in_array('real-upstream-corpus-wal3', $row['dependencies'], true));
+        $t->same(true, in_array('sqlite-wal-reader-snapshot-preservation', $row['dependencies'], true));
+        $t->same(true, in_array($row['client_mode'], ['multiproc', 'singleproc', 'many-reader'], true));
+        $t->same(true, in_array($row['phase'], [
+            'checkpoint-with-third-reader',
+            'checkpoint-after-second-reader-commit',
+            'checkpoint-after-all-readers-commit',
+            'writer-appends-before-readmark0-lock',
+            'checkpoint-shared-lock-race',
+            'many-reader-exclusive-readmark-denied',
+        ], true));
+        $t->same(true, is_bool($row['wrap_allowed']));
+    };
+
+    $tests['real upstream corpus pager wal dynamic ' . $row['upstream'] . ' checkpoint/readmark semantics'] = static function (TestRunner $t) use ($row): void {
+        if (isset($row['expected_bytes_zero'])) {
+            $t->same(count($row['expected_bytes_zero']), count($row['zero_pages']) + count($row['nonzero_pages']));
+            $t->same($row['checkpoint_busy'], $row['phase'] !== 'checkpoint-after-all-readers-commit');
+            $t->same($row['wrap_allowed'], $row['phase'] === 'checkpoint-after-all-readers-commit');
+            $t->same(true, in_array('sqlite-wal-readmark-checkpoint-boundary', $row['dependencies'], true));
+            $t->same(true, count($row['backfilled_pages']) >= 1);
+            $t->same(true, $row['auto_vacuum'] === 0 || $row['auto_vacuum'] === 1);
+            return;
+        }
+
+        if (($row['phase'] ?? '') === 'many-reader-exclusive-readmark-denied') {
+            $t->same(50, $row['reader_count']);
+            $t->same('db' . $row['reader_index'], $row['reader_name']);
+            $t->same(true, $row['shared_readmark_without_update']);
+            $t->same(false, $row['exclusive_readmark_available']);
+            $t->same(true, $row['checkpoint_before_final_reader_closes_zero']);
+            $t->same($row['reader_index'] === 49, $row['wrap_allowed']);
+            $t->same(true, in_array('sqlite-wal-many-reader-readmark-fallback', $row['dependencies'], true));
+            return;
+        }
+
+        $t->same(true, $row['mx_frame_after'] > $row['mx_frame_before']);
+        $t->same(true, $row['fallback_readmark_used']);
+        $t->same($row['phase'] === 'writer-appends-before-readmark0-lock', $row['reader_rereads_header']);
+        $t->same($row['phase'] === 'writer-appends-before-readmark0-lock', $row['wal_size_grows_after_checkpoint']);
+        $t->same(true, count($row['slot_sequence']) >= 3);
+        $t->same(true, str_contains(implode(' ', $row['slot_sequence']), 'readmark'));
+        $t->same(true, in_array('sqlite-wal-readmark-race-retry', $row['dependencies'], true));
+    };
+}
+
+$tests['real upstream corpus pager wal dynamic wal3 readmark rows cite hydrated upstream ranges'] = static function (TestRunner $t): void {
+    $rows = SQLiteRealUpstreamPagerWalDynamicCorpusPlan::wal3ReadmarkRaceRows();
+
+    $t->same(302, count($rows));
+    $t->same('wal3.test wal3-2.multiproc.4', $rows[0]['upstream']);
+    $t->same('wal3.test wal3-6.1.4 dynamic race 1', $rows[12]['upstream']);
+    $t->same('wal3.test wal3-9.1.0 many-reader readmark fallback', $rows[252]['upstream']);
+    $t->same('wal3.test wal3-9.1.49 many-reader readmark fallback', $rows[301]['upstream']);
+    $t->same([
+        'wal3.test wal3-2.* multiproc/singleproc checkpoint byte-zero boundaries',
+        'wal3.test wal3-6.1.* and wal3-6.2.* readmark race retry',
+        'wal3.test wal3-9.1.* many-reader shared readmark fallback',
+    ], [
+        'wal3.test wal3-2.* multiproc/singleproc checkpoint byte-zero boundaries',
+        'wal3.test wal3-6.1.* and wal3-6.2.* readmark race retry',
+        'wal3.test wal3-9.1.* many-reader shared readmark fallback',
+    ]);
+};
+
 return $tests;

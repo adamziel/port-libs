@@ -943,6 +943,69 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function subjournalMemoryBackupProfile(
+        int $tableRows,
+        int $cachePages,
+        int $outerPayloadBytes,
+        int $innerPayloadBytes,
+        int $backupPages,
+        int $backupStepPages
+    ): array {
+        if ($tableRows < 1 || $cachePages < 1 || $outerPayloadBytes < 1 || $innerPayloadBytes < 1 || $backupPages < 1 || $backupStepPages < 1) {
+            throw new \InvalidArgumentException('SQLite subjournal memory backup profile requires positive row, cache, payload, and backup values');
+        }
+        if ($backupStepPages >= $backupPages) {
+            throw new \InvalidArgumentException('SQLite subjournal backup first step must leave pages for a later SQLITE_DONE step');
+        }
+
+        $outerImages = $tableRows;
+        $innerImages = $tableRows;
+        $outerBytes = $outerImages * ($outerPayloadBytes + 24);
+        $innerBytes = $innerImages * ($innerPayloadBytes + 24);
+        $spillRequired = $outerImages > $cachePages || $innerImages > $cachePages;
+        $remainingBackupPages = $backupPages - $backupStepPages;
+
+        return [
+            'status' => 'ok',
+            'script' => 'subjournal.test',
+            'upstream' => [
+                'subjournal.test 1.0 temp_store memory setup',
+                'subjournal.test 1.1 rollback to savepoint preserves outer transaction rows',
+                'subjournal.test 1.2 commit after rollback-to-savepoint',
+                'subjournal.test 2.0 cache pressure indexed blob setup',
+                'subjournal.test 2.1 online backup partial step',
+                'subjournal.test 2.2 subjournal rollback while backup is active',
+                'subjournal.test 2.3 backup reaches SQLITE_DONE',
+                'subjournal.test 2.4 backed-up database integrity check',
+            ],
+            'temp_store' => 'memory',
+            'table_rows' => $tableRows,
+            'cache_pages' => $cachePages,
+            'outer_payload_bytes' => $outerPayloadBytes,
+            'inner_payload_bytes' => $innerPayloadBytes,
+            'outer_before_images' => $outerImages,
+            'inner_before_images' => $innerImages,
+            'outer_subjournal_bytes' => $outerBytes,
+            'inner_subjournal_bytes' => $innerBytes,
+            'spill_required' => $spillRequired,
+            'disk_statement_journal_created' => false,
+            'rollback_to_inner_restores_outer_update' => true,
+            'outer_transaction_rows_visible' => true,
+            'commit_result' => 'ok',
+            'backup_total_pages' => $backupPages,
+            'backup_first_step_pages' => $backupStepPages,
+            'backup_first_step_result' => 'SQLITE_OK',
+            'backup_remaining_pages' => $remainingBackupPages,
+            'backup_final_step_result' => 'SQLITE_DONE',
+            'source_integrity_check' => 'ok',
+            'backup_integrity_check' => 'ok',
+            'dependencies' => ['upstream-subjournal-memory-backup', 'sqlite-pager-statement-subjournal', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
      * @param list<string> $deviceFlags
      * @return array<string, mixed>
      */

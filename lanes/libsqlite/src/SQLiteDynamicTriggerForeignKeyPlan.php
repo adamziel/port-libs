@@ -522,6 +522,47 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{node:int,parent:int|null}> $foreignKeyRows
+     * @param list<array{node:int,parent:int|null}> $triggerRows
+     * @return array<string,mixed>
+     */
+    public static function fkey2RecursiveCascadeIgnoresRecursiveTriggerPragma(
+        array $foreignKeyRows,
+        array $triggerRows,
+        int $deleteNode,
+        bool $recursiveTriggers
+    ): array {
+        $foreignKeyRows = array_values($foreignKeyRows);
+        $triggerRows = array_values($triggerRows);
+        $originalForeignKeyRows = $foreignKeyRows;
+        $originalTriggerRows = $triggerRows;
+
+        $foreignKeyDeleted = self::cascadeDeleteTreeRows($foreignKeyRows, $deleteNode, true);
+        $triggerDeleted = self::cascadeDeleteTreeRows($triggerRows, $deleteNode, $recursiveTriggers);
+
+        return [
+            'source' => 'fkey2.test fkey2-4.1..4.4',
+            'operation' => 'recursive-foreign-key-cascade-ignores-recursive-trigger-pragma',
+            'status' => 'commit-ok',
+            'recursive_triggers' => $recursiveTriggers,
+            'delete_node' => $deleteNode,
+            'foreign_key_deleted_nodes' => $foreignKeyDeleted,
+            'trigger_deleted_nodes' => $triggerDeleted,
+            'foreign_key_remaining_nodes' => array_values(array_column(self::sortRows($foreignKeyRows), 'node')),
+            'trigger_remaining_nodes' => array_values(array_column(self::sortRows($triggerRows), 'node')),
+            'foreign_key_cascade_reaches_grandchildren' => self::treeDeleteReachedDepth($originalForeignKeyRows, $foreignKeyDeleted, $deleteNode, 2),
+            'ordinary_trigger_reaches_grandchildren' => self::treeDeleteReachedDepth($originalTriggerRows, $triggerDeleted, $deleteNode, 2),
+            'foreign_key_changes' => count($foreignKeyDeleted),
+            'trigger_changes' => count($triggerDeleted),
+            'dependencies' => [
+                'sqlite-fkey2-recursive-fk-actions-ignore-recursive-trigger-pragma',
+                'sqlite-fkey2-user-trigger-recursion-obeys-recursive-trigger-pragma',
+                'sqlite-fkey2-cascade-delete-visits-descendant-tree',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int|string,b:int|string,c:int|string}> $parents
      * @param list<array{d:int|string,e:int|string,f:int|string}> $children
      * @param array{mode:string,insert?:array{g:int|string,h:int|string,i:int|string},update_shift?:int,cascade_key?:int|string} $statement
@@ -4906,6 +4947,74 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return $violations;
+    }
+
+    /**
+     * @param list<array{node:int,parent:int|null}> $rows
+     * @return list<int>
+     */
+    private static function cascadeDeleteTreeRows(array &$rows, int $deleteNode, bool $recursive): array
+    {
+        $deleted = [];
+        $queue = [$deleteNode];
+        while ($queue !== []) {
+            $node = array_shift($queue);
+            $removed = false;
+            foreach ($rows as $index => $row) {
+                if (!is_int($row['node'] ?? null) || !(is_int($row['parent'] ?? null) || ($row['parent'] ?? null) === null)) {
+                    throw new \InvalidArgumentException('SQLite fkey2 recursive cascade row is malformed');
+                }
+                if ((int) ($row['node'] ?? 0) !== $node) {
+                    continue;
+                }
+                unset($rows[$index]);
+                $rows = array_values($rows);
+                $deleted[] = $node;
+                $removed = true;
+                break;
+            }
+            if (!$removed || !$recursive && $node !== $deleteNode) {
+                continue;
+            }
+            foreach ($rows as $row) {
+                if (!is_int($row['node'] ?? null) || !(is_int($row['parent'] ?? null) || ($row['parent'] ?? null) === null)) {
+                    throw new \InvalidArgumentException('SQLite fkey2 recursive cascade row is malformed');
+                }
+                if (($row['parent'] ?? null) === $node) {
+                    $queue[] = (int) $row['node'];
+                }
+            }
+        }
+
+        return $deleted;
+    }
+
+    /**
+     * @param list<array{node:int,parent:int|null}> $rows
+     * @param list<int> $deleted
+     */
+    private static function treeDeleteReachedDepth(array $rows, array $deleted, int $root, int $requiredDepth): bool
+    {
+        $parents = [];
+        foreach ($rows as $row) {
+            $parents[(int) $row['node']] = $row['parent'] === null ? null : (int) $row['parent'];
+        }
+        foreach ($deleted as $node) {
+            $depth = 0;
+            $cursor = $node;
+            while (isset($parents[$cursor]) && $parents[$cursor] !== null) {
+                $depth++;
+                if ($parents[$cursor] === $root) {
+                    break;
+                }
+                $cursor = $parents[$cursor];
+            }
+            if ($depth >= $requiredDepth) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

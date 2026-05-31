@@ -268,6 +268,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
         'indexedby.test',
         'indexexpr1.test',
         'indexexpr2.test',
+        'bestindex5.test',
     ], [
         'btree01.test',
         'btree02.test',
@@ -283,6 +284,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
         'indexedby.test',
         'indexexpr1.test',
         'indexexpr2.test',
+        'bestindex5.test',
     ]);
 };
 
@@ -300,6 +302,7 @@ $tests['real upstream btree index dynamic corpus count is non overlapping'] = st
     $t->same(1200, count(SQLiteBTreeIndexDynamicCorpusPlan::indexExpressionDynamicCases()));
     $t->same(1000, count(SQLiteBTreeIndexDynamicCorpusPlan::autoindex1PlannerCases()));
     $t->same(1000, count(SQLiteBTreeIndexDynamicCorpusPlan::index2DynamicWideColumnOrderCases()));
+    $t->same(1000, count(SQLiteBTreeIndexDynamicCorpusPlan::bestindex5VirtualTableConstraintCases()));
 };
 
 $tests['real upstream btree index dynamic corpus dependency closure'] = static function (TestRunner $t): void {

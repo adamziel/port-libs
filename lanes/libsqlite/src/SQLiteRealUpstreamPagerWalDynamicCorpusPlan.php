@@ -512,6 +512,134 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function wal3ReadmarkRaceRows(): array
+    {
+        $rows = [];
+
+        foreach (['multiproc', 'singleproc'] as $clientMode) {
+            foreach ([0, 1] as $autoVacuum) {
+                $basePage = $autoVacuum === 1 ? 4 : 3;
+                $rows[] = [
+                    'upstream' => 'wal3.test wal3-2.' . $clientMode . '.4',
+                    'client_mode' => $clientMode,
+                    'auto_vacuum' => $autoVacuum,
+                    'phase' => 'checkpoint-with-third-reader',
+                    'reader_holding_snapshot' => 'db2',
+                    'checkpoint_client' => 'db',
+                    'writer_client' => 'db3',
+                    'backfilled_pages' => [$basePage],
+                    'zero_pages' => [$basePage],
+                    'nonzero_pages' => [],
+                    'checkpoint_busy' => true,
+                    'wrap_allowed' => false,
+                    'expected_bytes_zero' => [true],
+                    'dependencies' => [
+                        'real-upstream-corpus-wal3',
+                        'sqlite-wal-readmark-checkpoint-boundary',
+                        'sqlite-wal-reader-snapshot-preservation',
+                    ],
+                ];
+                $rows[] = [
+                    'upstream' => 'wal3.test wal3-2.' . $clientMode . '.5',
+                    'client_mode' => $clientMode,
+                    'auto_vacuum' => $autoVacuum,
+                    'phase' => 'checkpoint-after-second-reader-commit',
+                    'reader_holding_snapshot' => 'db3',
+                    'checkpoint_client' => 'db2',
+                    'writer_client' => 'db3',
+                    'backfilled_pages' => [$basePage, $basePage + 1],
+                    'zero_pages' => [$basePage + 1],
+                    'nonzero_pages' => [$basePage],
+                    'checkpoint_busy' => true,
+                    'wrap_allowed' => false,
+                    'expected_bytes_zero' => [false, true],
+                    'dependencies' => [
+                        'real-upstream-corpus-wal3',
+                        'sqlite-wal-readmark-checkpoint-boundary',
+                        'sqlite-wal-reader-snapshot-preservation',
+                    ],
+                ];
+                $rows[] = [
+                    'upstream' => 'wal3.test wal3-2.' . $clientMode . '.6',
+                    'client_mode' => $clientMode,
+                    'auto_vacuum' => $autoVacuum,
+                    'phase' => 'checkpoint-after-all-readers-commit',
+                    'reader_holding_snapshot' => null,
+                    'checkpoint_client' => 'db3',
+                    'writer_client' => null,
+                    'backfilled_pages' => [$basePage, $basePage + 1],
+                    'zero_pages' => [$basePage + 1],
+                    'nonzero_pages' => [$basePage],
+                    'checkpoint_busy' => false,
+                    'wrap_allowed' => true,
+                    'expected_bytes_zero' => [false, true],
+                    'dependencies' => [
+                        'real-upstream-corpus-wal3',
+                        'sqlite-wal-readmark-checkpoint-boundary',
+                        'sqlite-wal-reader-snapshot-preservation',
+                    ],
+                ];
+            }
+        }
+
+        foreach (range(1, 240) as $case) {
+            $race = ($case % 2) === 1 ? 'writer-appends-before-readmark0-lock' : 'checkpoint-shared-lock-race';
+            $upstream = $race === 'writer-appends-before-readmark0-lock' ? 'wal3.test wal3-6.1.4' : 'wal3.test wal3-6.2.2';
+            $slotSequence = $race === 'writer-appends-before-readmark0-lock'
+                ? ['readmark0:shared-attempt', 'writer:append-frame', 'readmark1:shared']
+                : ['checkpoint:exclusive', 'readmark0:unlock-exclusive', 'reader:begin-on-prior-snapshot'];
+            $rows[] = [
+                'upstream' => $upstream . ' dynamic race ' . $case,
+                'client_mode' => ($case % 3) === 0 ? 'multiproc' : 'singleproc',
+                'auto_vacuum' => $case % 2,
+                'phase' => $race,
+                'reader_holding_snapshot' => 'reader-' . $case,
+                'checkpoint_client' => 'checkpoint-' . $case,
+                'writer_client' => 'writer-' . $case,
+                'readmark_slot' => $race === 'writer-appends-before-readmark0-lock' ? 1 + ($case % 4) : 0,
+                'mx_frame_before' => 4 + $case,
+                'mx_frame_after' => 5 + $case,
+                'reader_rereads_header' => $race === 'writer-appends-before-readmark0-lock',
+                'fallback_readmark_used' => true,
+                'wrap_allowed' => $race !== 'writer-appends-before-readmark0-lock',
+                'wal_size_grows_after_checkpoint' => $race === 'writer-appends-before-readmark0-lock',
+                'slot_sequence' => $slotSequence,
+                'dependencies' => [
+                    'real-upstream-corpus-wal3',
+                    'sqlite-wal-readmark-race-retry',
+                    'sqlite-wal-reader-snapshot-preservation',
+                ],
+            ];
+        }
+
+        foreach (range(0, 49) as $reader) {
+            $rows[] = [
+                'upstream' => 'wal3.test wal3-9.1.' . $reader . ' many-reader readmark fallback',
+                'client_mode' => 'many-reader',
+                'auto_vacuum' => 0,
+                'phase' => 'many-reader-exclusive-readmark-denied',
+                'reader_index' => $reader,
+                'reader_name' => 'db' . $reader,
+                'reader_count' => 50,
+                'shared_readmark_without_update' => true,
+                'exclusive_readmark_available' => false,
+                'checkpoint_before_final_reader_closes_zero' => true,
+                'checkpoint_after_final_reader_closes_zero' => false,
+                'wrap_allowed' => $reader === 49,
+                'dependencies' => [
+                    'real-upstream-corpus-wal3',
+                    'sqlite-wal-many-reader-readmark-fallback',
+                    'sqlite-wal-reader-snapshot-preservation',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array
