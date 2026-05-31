@@ -4219,6 +4219,15 @@ final class SQLiteSelectSql
         if (strcasecmp($sql, 'FALSE') === 0) {
             return ['type' => 'literal', 'value' => 0];
         }
+        if (strcasecmp($sql, 'CURRENT_TIME') === 0) {
+            return ['type' => 'literal', 'value' => gmdate('H:i:s')];
+        }
+        if (strcasecmp($sql, 'CURRENT_DATE') === 0) {
+            return ['type' => 'literal', 'value' => gmdate('Y-m-d')];
+        }
+        if (strcasecmp($sql, 'CURRENT_TIMESTAMP') === 0) {
+            return ['type' => 'literal', 'value' => gmdate('Y-m-d H:i:s')];
+        }
         if (preg_match("/^[xX]'([0-9A-Fa-f]*)'$/", $sql, $match) === 1) {
             if (strlen($match[1]) % 2 !== 0) {
                 throw new \InvalidArgumentException('SQLite SELECT SQL BLOB literal must have an even number of hex digits');

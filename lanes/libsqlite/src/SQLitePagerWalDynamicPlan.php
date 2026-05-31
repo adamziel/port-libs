@@ -141,6 +141,69 @@ final class SQLitePagerWalDynamicPlan
         ];
     }
 
+    /**
+     * @return array{status:string,readable:bool,recovery_action:string,error:?string,wal_format:int,wal_index_format:int,frame_count:int,source:string,dependencies:list<string>}
+     */
+    public static function walHeaderValidationScenario(
+        int $walFormat,
+        int $walIndexFormat,
+        bool $walChecksumValid,
+        bool $walIndexHeadersMatch,
+        bool $frameChecksumValid,
+        int $frameCount
+    ): array {
+        if ($frameCount < 0) {
+            throw new \InvalidArgumentException('SQLite WAL validation frame count must be non-negative');
+        }
+
+        $supportedWalFormat = $walFormat === 3007000;
+        $supportedWalIndexFormat = $walIndexFormat === 3007000;
+        $readable = $supportedWalFormat
+            && $supportedWalIndexFormat
+            && $walChecksumValid
+            && $walIndexHeadersMatch
+            && $frameChecksumValid;
+
+        if (!$supportedWalFormat || !$supportedWalIndexFormat) {
+            $status = 'unsupported-wal-format';
+            $action = 'reject-before-recovery';
+            $error = 'unsupported wal or wal-index format version';
+            $source = 'upstream wal2.test wal2-10.1.1 through wal2-10.2.3 unsupported wal and wal-index format versions';
+        } elseif (!$walChecksumValid) {
+            $status = 'wal-copy-checksum-mismatch';
+            $action = 'ignore-copied-wal';
+            $error = 'database disk image is malformed';
+            $source = 'upstream wal2.test wal2-7.1.1 through wal2-7.1.3 copied wal checksum corruption';
+        } elseif (!$walIndexHeadersMatch) {
+            $status = 'wal-index-header-mismatch';
+            $action = 'rebuild-wal-index';
+            $error = 'database disk image is malformed';
+            $source = 'upstream wal2.test wal2-9.1 through wal2-9.4 wal-index header copies disagree';
+        } elseif (!$frameChecksumValid) {
+            $status = 'wal-frame-checksum-mismatch';
+            $action = 'stop-at-last-valid-frame';
+            $error = 'database disk image is malformed';
+            $source = 'upstream wal2.test wal2-11.2 through wal2-11.3 malformed wal frame payload';
+        } else {
+            $status = 'wal-header-valid';
+            $action = $frameCount === 0 ? 'open-empty-wal' : 'replay-committed-frames';
+            $error = null;
+            $source = 'upstream wal2.test wal2-8.1.2 through wal2-8.1.4 recovered wal header and page-size mapping';
+        }
+
+        return [
+            'status' => $status,
+            'readable' => $readable,
+            'recovery_action' => $action,
+            'error' => $error,
+            'wal_format' => $walFormat,
+            'wal_index_format' => $walIndexFormat,
+            'frame_count' => $frameCount,
+            'source' => $source,
+            'dependencies' => ['real-upstream-corpus-wal2', 'sqlite-wal-header-validation'],
+        ];
+    }
+
     private static function mode(string $mode): string
     {
         $mode = strtolower(trim($mode));

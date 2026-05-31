@@ -1041,6 +1041,88 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $mainChildren
+     * @param list<array<string,mixed>> $attachedParents
+     * @param list<array<string,mixed>> $attachedChildren
+     * @return array<string,mixed>
+     */
+    public static function fkey8AttachedRestrictDeletePlan(
+        array $mainChildren,
+        array $attachedParents,
+        array $attachedChildren,
+        mixed $deleteKey,
+        string $attachedSchema = 'aux',
+        string $parentTable = 'p1',
+        string $childTable = 'c1'
+    ): array {
+        $attachedSchema = self::identifier($attachedSchema, 'attached schema');
+        $parentTable = self::identifier($parentTable, 'parent table');
+        $childTable = self::identifier($childTable, 'child table');
+
+        $mainChildren = array_values($mainChildren);
+        $attachedParents = array_values($attachedParents);
+        $attachedChildren = array_values($attachedChildren);
+        foreach ($attachedParents as $parent) {
+            if (!array_key_exists('a', $parent)) {
+                throw new \InvalidArgumentException('SQLite fkey8 attached parent row is missing key a');
+            }
+        }
+        foreach ($attachedChildren as $child) {
+            if (!array_key_exists('b', $child)) {
+                throw new \InvalidArgumentException('SQLite fkey8 attached child row is missing key b');
+            }
+        }
+
+        $referencingAttached = array_values(array_filter(
+            $attachedChildren,
+            static fn (array $row): bool => ($row['b'] ?? null) === $deleteKey
+        ));
+        $mainShadowMatches = array_values(array_filter(
+            $mainChildren,
+            static fn (array $row): bool => ($row['b'] ?? null) === $deleteKey
+        ));
+
+        $status = $referencingAttached === [] ? 'commit-ok' : 'constraint-failed';
+        $parentsAfter = $attachedParents;
+        $deletedParentKeys = [];
+        if ($status === 'commit-ok') {
+            $parentsAfter = [];
+            foreach ($attachedParents as $parent) {
+                if ($parent['a'] === $deleteKey) {
+                    $deletedParentKeys[] = $parent['a'];
+                    continue;
+                }
+                $parentsAfter[] = $parent;
+            }
+        }
+
+        return [
+            'source' => 'fkey8.test fkey8-6.1..6.3',
+            'operation' => 'attached-schema-restrict-delete-resolution',
+            'status' => $status,
+            'attached_schema' => $attachedSchema,
+            'parent_table' => $attachedSchema . '.' . $parentTable,
+            'child_table' => $attachedSchema . '.' . $childTable,
+            'main_shadow_child_table' => 'main.' . $childTable,
+            'delete_key' => $deleteKey,
+            'attached_child_reference_count' => count($referencingAttached),
+            'main_shadow_reference_count' => count($mainShadowMatches),
+            'main_shadow_ignored_for_attached_fk' => true,
+            'restrict_checked_attached_schema_only' => true,
+            'deleted_parent_keys' => $deletedParentKeys,
+            'parent_keys_after_statement' => array_values(array_column(self::sortRows($parentsAfter), 'a')),
+            'attached_child_keys' => array_values(array_column(self::sortRows($attachedChildren), 'b')),
+            'main_shadow_child_keys' => array_values(array_column(self::sortRows($mainChildren), 'b')),
+            'error' => $status === 'constraint-failed' ? 'FOREIGN KEY constraint failed' : null,
+            'dependencies' => [
+                'sqlite-fkey8-attached-child-resolves-parent-in-own-schema',
+                'sqlite-fkey8-main-shadow-table-does-not-satisfy-attached-fk',
+                'sqlite-fkey8-restrict-blocks-attached-parent-delete-before-parent-removal',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{id:int,a:int,b:int,c:int}> $rows
      * @param array{id:int,a:int,b:int,c:int} $incoming
      * @return array<string,mixed>

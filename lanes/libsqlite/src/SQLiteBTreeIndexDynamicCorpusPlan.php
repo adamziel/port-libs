@@ -6638,6 +6638,105 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,predicate:string,index_name:string,index_columns:list<string>,factored_lower_bound:string|null,result_a:list<int>,uses_index:bool,detail:string,nocase:bool,count_result:int|null,batch:int}>
+     */
+    public static function whereKOrTermFactoringCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite whereK dynamic corpus requires at least one OR-term factoring case');
+        }
+
+        $rows = [];
+        for ($a = 0; $a <= 99; $a++) {
+            $rows[] = ['a' => $a, 'b' => intdiv($a, 10), 'c' => $a % 10];
+        }
+
+        $templates = [
+            [
+                'whereK-1.1',
+                'OR equality folds into inclusive lower bound on b',
+                'b>9 OR b=9',
+                static fn (array $row): bool => $row['b'] > 9 || $row['b'] === 9,
+                'b>=9',
+            ],
+            [
+                'whereK-1.2',
+                'OR term factors b lower bound before c residual',
+                'b>8 OR (b=8 AND c>7)',
+                static fn (array $row): bool => $row['b'] > 8 || ($row['b'] === 8 && $row['c'] > 7),
+                'b>=8',
+            ],
+            [
+                'whereK-1.3',
+                'commuted OR arm still factors b lower bound',
+                '(b=8 AND c>7) OR b>8',
+                static fn (array $row): bool => ($row['b'] === 8 && $row['c'] > 7) || $row['b'] > 8,
+                'b>=8',
+            ],
+            [
+                'whereK-1.4',
+                'literal-left comparison still factors b lower bound',
+                '(b=8 AND c>7) OR 8<b',
+                static fn (array $row): bool => ($row['b'] === 8 && $row['c'] > 7) || 8 < $row['b'],
+                'b>=8',
+            ],
+            [
+                'whereK-1.5',
+                'factored lower bound preserves NOT IN residual on c',
+                '(b=8 AND c>7) OR (b>8 AND c NOT IN (4,5,6))',
+                static fn (array $row): bool => ($row['b'] === 8 && $row['c'] > 7)
+                    || ($row['b'] > 8 && !in_array($row['c'], [4, 5, 6], true)),
+                'b>=8',
+            ],
+            [
+                'whereK-2.1',
+                'NOCASE BETWEEN/greater-equal OR regression keeps one joined row',
+                '(y BETWEEN 1 AND x) OR (x>=y AND x)',
+                static fn (array $row): bool => false,
+                null,
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $predicate, $filter, $lowerBound] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $nocase = $section === 'whereK-2.1';
+            $result = [];
+
+            if (!$nocase) {
+                foreach ($rows as $row) {
+                    if ($filter($row)) {
+                        $result[] = $row['a'];
+                    }
+                }
+                sort($result);
+            }
+
+            $out[] = [
+                'source' => 'whereK.test sections whereK-1.1 through whereK-2.1',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'predicate' => $predicate,
+                'index_name' => 't1bc',
+                'index_columns' => ['b', 'c'],
+                'factored_lower_bound' => $lowerBound,
+                'result_a' => $result,
+                'uses_index' => !$nocase,
+                'detail' => $nocase
+                    ? 'NOCASE join OR predicate returns one row without factoring t1bc batch ' . $batch
+                    : 'SEARCH t1 USING INDEX t1bc with factored ' . $lowerBound . ' batch ' . $batch,
+                'nocase' => $nocase,
+                'count_result' => $nocase ? 1 : null,
+                'batch' => $batch,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @param list<string> $columns
      * @param list<string> $constraints
      */

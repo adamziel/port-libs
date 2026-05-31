@@ -1201,4 +1201,80 @@ foreach ($signMalformed as $name => $sql) {
     };
 }
 
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = $seed % 2;
+    $sql = "UPDATE app_settings SET state = 'distinct_tuple_limit' WHERE (tenant_id, key_name) IN (SELECT DISTINCT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitValue} OFFSET {$offsetValue}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+    $tablesWithDuplicates = $tables();
+    $tablesWithDuplicates['app_setting_targets'][] = ['target_id' => 6, 'tenant_id' => 1, 'key_name' => 'beta', 'action' => 'refresh', 'priority' => 5];
+    $tablesWithDuplicates['app_setting_targets'][] = ['target_id' => 7, 'tenant_id' => 2, 'key_name' => 'gamma', 'action' => 'cleanup', 'priority' => 60];
+    $orderedDistinctTuples = [[1, 'beta'], [2, 'gamma'], [1, 'gamma'], [2, 'beta'], [3, 'beta']];
+    $expectedTuples = array_slice($orderedDistinctTuples, $offsetValue, $limitValue);
+    $expected = [];
+    foreach ([1 => [1, 'alpha'], 2 => [1, 'beta'], 3 => [1, 'gamma'], 4 => [2, 'alpha'], 5 => [2, 'beta'], 6 => [2, 'gamma'], 7 => [3, 'alpha'], 8 => [3, 'beta']] as $settingId => $tuple) {
+        if (in_array($tuple, $expectedTuples, true)) {
+            $expected[] = $settingId;
+        }
+    }
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update distinct duplicate tuple source seed %02d', $seed)] =
+        static function (TestRunner $t) use ($sql, $tablesWithDuplicates, $expected): void {
+            $result = SQLiteUpdateDeleteReturningSql::execute($sql, $tablesWithDuplicates, 'setting_id', [['tenant_id', 'key_name']]);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 2;
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets WHERE action = 'refresh' ORDER BY priority ASC LIMIT {$limitValue} OFFSET {$offsetValue} UNION SELECT tenant_id, key_name FROM app_setting_targets WHERE action = 'cleanup' ORDER BY priority ASC LIMIT {$limitValue} OFFSET {$offsetValue}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+    $refreshOrdered = [[1, 'gamma'], [2, 'beta'], [1, 'beta']];
+    $cleanupOrdered = [[2, 'gamma'], [3, 'beta']];
+    $expectedTuples = [];
+    foreach (array_merge(array_slice($refreshOrdered, $offsetValue, $limitValue), array_slice($cleanupOrdered, $offsetValue, $limitValue)) as $tuple) {
+        if (!in_array($tuple, $expectedTuples, true)) {
+            $expectedTuples[] = $tuple;
+        }
+    }
+    $expected = [];
+    foreach ([1 => [1, 'alpha'], 2 => [1, 'beta'], 3 => [1, 'gamma'], 4 => [2, 'alpha'], 5 => [2, 'beta'], 6 => [2, 'gamma'], 7 => [3, 'alpha'], 8 => [3, 'beta']] as $settingId => $tuple) {
+        if (in_array($tuple, $expectedTuples, true)) {
+            $expected[] = $settingId;
+        }
+    }
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete compound union tuple source seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+for ($seed = 1; $seed <= 24; $seed++) {
+    $limitValue = ($seed % 2) + 1;
+    $offsetValue = $seed % 2;
+    $sql = "UPDATE app_settings SET state = 'compound_intersect_limit' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets WHERE tenant_id IN (1,2) ORDER BY priority ASC LIMIT {$limitValue} OFFSET {$offsetValue} INTERSECT SELECT tenant_id, key_name FROM app_setting_targets WHERE action = 'refresh' ORDER BY priority ASC LIMIT 3 OFFSET 0) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+    $left = array_slice([[2, 'gamma'], [1, 'gamma'], [2, 'beta'], [1, 'beta']], $offsetValue, $limitValue);
+    $right = [[1, 'gamma'], [2, 'beta'], [1, 'beta']];
+    $expectedTuples = array_values(array_filter($left, static fn (array $tuple): bool => in_array($tuple, $right, true)));
+    $expected = [];
+    foreach ([1 => [1, 'alpha'], 2 => [1, 'beta'], 3 => [1, 'gamma'], 4 => [2, 'alpha'], 5 => [2, 'beta'], 6 => [2, 'gamma'], 7 => [3, 'alpha'], 8 => [3, 'beta']] as $settingId => $tuple) {
+        if (in_array($tuple, $expectedTuples, true)) {
+            $expected[] = $settingId;
+        }
+    }
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update compound intersect tuple source seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
 return $tests;
