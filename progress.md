@@ -7611,6 +7611,31 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   regressions, remaining app-WAL/row-value conflicts, and release/all-runner
   parity remain blockers before gitoxide.
 
+## Supervisor Integration 2026-05-31T17:25Z LightningCSS Bundle/Media/Maps Batch
+
+- Integrated source commit
+  `200f297b95a896d04656cb5f01bdede84039d492` (`ports: extend lightningcss
+  bundle media maps prefixes`) from five accepted current-base LightningCSS
+  handoffs. The batch was applied one handoff at a time, excluding stale shared
+  metadata, so overlapping stale candidates remained queued for later rebase.
+- Public LightningCSS evidence moves from `2659` to `2696 pass / 0 fail`.
+  Conservative mapped coverage moves from `1566 / 3532` to `1571 / 3532` for
+  parent-relative bundler import resolution, generated-only SourceMap offset
+  mappings, and returned custom at-rule media/style/ignored rule AST objects.
+  Box-sizing prefix boundaries and parenthesized media negation deepen existing
+  target/media clusters.
+- Verification passed PHP lint on changed PHP files, `git diff --check --
+  lanes/lightningcss`, no WordPress/WP/wp_ text introduced by the changed
+  source diff, focused gate `6 files / 1942 assertions / 0 failures`, full
+  LightningCSS lane `13 files / 2696 assertions / 0 failures`, and touched
+  examples for bundling, custom at-rules, media-layer minification, source maps,
+  and box-sizing prefixing. Full upstream Rust/Node/WASM runners were not
+  executed for this isolated batch.
+- Next supervision step: refresh the public dashboard, archive the five
+  consumed handoffs, refill the visible worker pool from the new base, and
+  continue source-only LightningCSS integration while keeping SQLite closure and
+  Gitoxide lanes alive.
+
 ## Supervisor Integration 2026-05-31T17:20Z LightningCSS CSSOM/Modules/Maps Batch
 
 - Integrated source commit
