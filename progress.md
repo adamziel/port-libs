@@ -48,6 +48,33 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 04:37 UTC):
+  Batch70 is integrated locally as source
+  `1c70a002b6ca7df0ecd56148cc008f5163e41b1f` (`libsqlite: add
+  seventieth current corpus sweep`). The batch accepted 22 source/test-moving
+  handoffs across app-WAL rollback JSON parity, row-value update/delete limit
+  parity, B-tree early schema lifecycle and where8 multi-table behavior, date4
+  rows 15400-16399, expression real-affinity3 and real-IN behavior, JSON501
+  JSON5 corpus behavior, pager WAL exclusive-mode/no-SHM behavior, PRAGMA
+  schema reload and temp-store transaction behavior, SELECT derived aggregate
+  LEFT JOIN and distinct-union behavior, trigger/FK counter self-reference and
+  parent-update action behavior, UPSERT trigger-DDL error and expression
+  assignment behavior, VFS sequential safe-append and mmap3 pragma-state
+  behavior, and window4/window9 behavior. Four candidates were parked: direct
+  app-WAL/rowvalue conflicts, a duplicate date handoff, and a notes-only pager
+  marker. Verification passed PHP lint for `32` changed/new PHP files, `git
+  diff --check -- lanes/libsqlite`, no newly-added WordPress/wp source text in
+  the batch source diff, no newly-added numeric `CurrentNext`/`CurrentSourceNext`
+  class suffixes in the batch diff, the changed app-WAL example, focused
+  selected tests `22 files / 239349 assertions / 0 failures / 32108 PASS
+  lines`, accepted-base overlap `2 files / 9979 assertions / 0 failures / 4475
+  PASS lines`, and isolated per-file related guard `858 files / 11081085
+  assertions / 0 failures / 1773171 PASS lines` with the stable 16 known-red
+  diagnostic files excluded. Honest selected movement is `+27633`, moving
+  libsqlite from `2070862` to `2098495 pass / 0 fail`; mapped coverage remains
+  `1589 / 1589`. Broad release/all-runner parity remains open; gitoxide starts
+  only after libsqlite closure is recorded.
+
 - 2026-05-31 supervisor continuation (integration sample 04:28 UTC):
   Batch69 is integrated locally as source
   `3b9959f1aacabe0957967d57fc36179852f42e0e` (`libsqlite: add
