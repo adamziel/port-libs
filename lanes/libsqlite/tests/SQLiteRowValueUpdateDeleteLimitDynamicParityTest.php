@@ -1277,6 +1277,52 @@ for ($seed = 1; $seed <= 24; $seed++) {
         };
 }
 
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = $seed % 2;
+    $sql = "UPDATE app_settings SET state = 'compound_union_all_limit' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets WHERE target_id IN (1,2,3) ORDER BY priority ASC LIMIT {$limitValue} OFFSET {$offsetValue} UNION ALL SELECT tenant_id, key_name FROM app_setting_targets WHERE target_id IN (1,3,5) ORDER BY priority DESC LIMIT {$limitValue} OFFSET {$offsetValue}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+    $left = array_slice([[1, 'gamma'], [2, 'beta'], [1, 'beta']], $offsetValue, $limitValue);
+    $right = array_slice([[3, 'beta'], [1, 'beta'], [2, 'beta']], $offsetValue, $limitValue);
+    $expectedTuples = array_merge($left, $right);
+    $expected = [];
+    foreach ([1 => [1, 'alpha'], 2 => [1, 'beta'], 3 => [1, 'gamma'], 4 => [2, 'alpha'], 5 => [2, 'beta'], 6 => [2, 'gamma'], 7 => [3, 'alpha'], 8 => [3, 'beta']] as $settingId => $tuple) {
+        if (in_array($tuple, $expectedTuples, true)) {
+            $expected[] = $settingId;
+        }
+    }
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update compound union all tuple source seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = ($seed + 1) % 2;
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitValue} OFFSET {$offsetValue} EXCEPT SELECT tenant_id, key_name FROM app_setting_targets WHERE action = 'cleanup' ORDER BY priority ASC LIMIT 3 OFFSET 0) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+    $left = array_slice([[2, 'gamma'], [1, 'gamma'], [2, 'beta'], [1, 'beta'], [3, 'beta']], $offsetValue, $limitValue);
+    $right = [[2, 'gamma'], [3, 'beta']];
+    $expectedTuples = array_values(array_filter($left, static fn (array $tuple): bool => !in_array($tuple, $right, true)));
+    $expected = [];
+    foreach ([1 => [1, 'alpha'], 2 => [1, 'beta'], 3 => [1, 'gamma'], 4 => [2, 'alpha'], 5 => [2, 'beta'], 6 => [2, 'gamma'], 7 => [3, 'alpha'], 8 => [3, 'beta']] as $settingId => $tuple) {
+        if (in_array($tuple, $expectedTuples, true)) {
+            $expected[] = $settingId;
+        }
+    }
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete compound except tuple source seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
 for ($seed = 1; $seed <= 40; $seed++) {
     $limitValue = ($seed % 4) + 1;
     $offsetValue = $seed % 3;
@@ -1366,6 +1412,77 @@ $textScalarMalformed = [
 ];
 
 foreach ($textScalarMalformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
+    };
+}
+
+for ($seed = 1; $seed <= 40; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitHaystack = str_repeat('x', $limitValue - 1) . (string) $limitValue;
+    $offsetHaystack = $offsetValue === 0 ? '0' : str_repeat('x', $offsetValue - 1) . (string) $offsetValue;
+    $limitExpr = "instr('{$limitHaystack}', '{$limitValue}')";
+    $offsetExpr = $offsetValue === 0 ? "instr('{$offsetHaystack}', 'missing')" : "instr('{$offsetHaystack}', '{$offsetValue}')";
+    $sql = "UPDATE app_settings SET state = 'instr_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update instr limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 40; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = "replace('x{$limitValue}x', 'x', '')";
+    $offsetExpr = "replace('z{$offsetValue}z', 'z', '')";
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue replace subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitCodepoint = 48 + $limitValue;
+    $offsetCodepoint = 48 + $offsetValue;
+    $sql = "UPDATE app_settings SET state = 'char_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT char({$limitCodepoint}) OFFSET char({$offsetCodepoint})";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update char limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+$stringPositionMalformed = [
+    'malformed instr arity rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT instr('123')",
+    'malformed instr null limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT instr(NULL, '9')",
+    'malformed replace null limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT replace(NULL, 'x', '1')",
+    'malformed replace arity rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT replace('123', '1')",
+    'malformed char noninteger codepoint rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT char(1.5)",
+    'malformed unsupported unicode null offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET unicode(NULL)",
+];
+
+foreach ($stringPositionMalformed as $name => $sql) {
     $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($sql): void {
         $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
     };

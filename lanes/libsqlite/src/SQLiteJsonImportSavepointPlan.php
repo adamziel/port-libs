@@ -9,7 +9,7 @@ final class SQLiteJsonImportSavepointPlan
     /**
      * @param list<array{setting_id:int,key_name:string,key_value:mixed,load_policy?:string,page_number?:int,tenant_id?:int}> $currentRows
      * @param list<array{key_name:string,function?:string,path:string,value:mixed,page_number?:int,wal_frame_index?:int,statement?:string,on_missing?:string,insert_setting_id?:int,insert_load_policy?:string,initial_value?:mixed,tenant_id?:int}> $mutations
-     * @param array{database_bytes?:string,page_size?:int,savepoint?:string,transaction?:string} $keys
+     * @param array{database_bytes?:string,page_size?:int,savepoint?:string,transaction?:string,pre_savepoint_wal_pages?:list<int>} $keys
      * @return array<string,mixed>
      */
     public static function plan(array $currentRows, array $mutations, array $keys = []): array
@@ -57,12 +57,23 @@ final class SQLiteJsonImportSavepointPlan
 
         $savepoints = new SQLiteSavepointStack();
         $savepoints->beginTransaction($transactionName);
+        $preSavepointWalPages = $keys['pre_savepoint_wal_pages'] ?? [];
+        if (!is_array($preSavepointWalPages)) {
+            throw new \InvalidArgumentException('SQLite Application JSON import pre-savepoint WAL pages must be a list');
+        }
+        $nextWalFrame = 1;
+        foreach (array_values($preSavepointWalPages) as $preSavepointPage) {
+            if (!is_int($preSavepointPage) || $preSavepointPage < 1) {
+                throw new \InvalidArgumentException('SQLite Application JSON import pre-savepoint WAL pages must be one-based integers');
+            }
+            $savepoints->recordWalFrameWrite($nextWalFrame, $preSavepointPage);
+            $nextWalFrame++;
+        }
         $savepoints->savepoint($savepointName);
 
         $applied = [];
         $failed = [];
         $statementPlans = [];
-        $nextWalFrame = 1;
         $workingIds = $rowsById;
         $workingRows = $rowsByKey;
         $workingDatabase = $databaseBytes;

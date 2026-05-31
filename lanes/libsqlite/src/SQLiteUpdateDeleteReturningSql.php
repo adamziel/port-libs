@@ -722,7 +722,7 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : self::textLength((string) $value);
         }
-        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|upper|lower|trim|ltrim|rtrim|substr|substring)\s*\((.*)\)$/is', $expression, $match) === 1) {
+        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }
         $predicate = self::evaluateLimitPredicateExpression($expression);
@@ -949,6 +949,15 @@ final class SQLiteUpdateDeleteReturningSql
         if ($function === 'sign' && count($parts) !== 1) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT sign() needs one argument');
         }
+        if ($function === 'instr' && count($parts) !== 2) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT instr() needs two arguments');
+        }
+        if ($function === 'replace' && count($parts) !== 3) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT replace() needs three arguments');
+        }
+        if ($function === 'char' && count($parts) < 1) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT char() needs at least one argument');
+        }
         if (($function === 'upper' || $function === 'lower' || $function === 'trim' || $function === 'ltrim' || $function === 'rtrim') && count($parts) !== 1) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
         }
@@ -994,6 +1003,33 @@ final class SQLiteUpdateDeleteReturningSql
             }
 
             return (float) $values[0] <=> 0.0;
+        }
+        if ($function === 'instr') {
+            if ($values[0] === null || $values[1] === null) {
+                return null;
+            }
+
+            return self::sqliteTextPosition((string) $values[0], (string) $values[1]);
+        }
+        if ($function === 'replace') {
+            if ($values[0] === null || $values[1] === null || $values[2] === null) {
+                return null;
+            }
+
+            return str_replace((string) $values[1], (string) $values[2], (string) $values[0]);
+        }
+        if ($function === 'char') {
+            $characters = [];
+            foreach ($values as $value) {
+                if ($value === null) {
+                    $characters[] = "\0";
+                    continue;
+                }
+                $codepoint = self::integerFunctionArgument($value, $function, 'codepoint');
+                $characters[] = self::sqliteCharacter($codepoint);
+            }
+
+            return implode('', $characters);
         }
         if ($function === 'round') {
             if ($values[0] === null) {
@@ -1072,6 +1108,44 @@ final class SQLiteUpdateDeleteReturningSql
         $slice = $length === null ? array_slice($characters, $offset) : array_slice($characters, $offset, max(0, $length));
 
         return implode('', $slice);
+    }
+
+    private static function sqliteTextPosition(string $haystack, string $needle): int
+    {
+        if ($needle === '') {
+            return 1;
+        }
+
+        $position = strpos($haystack, $needle);
+
+        return $position === false ? 0 : $position + 1;
+    }
+
+    private static function sqliteCharacter(int $codepoint): string
+    {
+        if ($codepoint <= 0) {
+            return "\0";
+        }
+        if ($codepoint <= 0x7F) {
+            return chr($codepoint);
+        }
+        if ($codepoint <= 0x7FF) {
+            return chr(0xC0 | ($codepoint >> 6))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+        if ($codepoint <= 0xFFFF) {
+            return chr(0xE0 | ($codepoint >> 12))
+                . chr(0x80 | (($codepoint >> 6) & 0x3F))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+        if ($codepoint <= 0x10FFFF) {
+            return chr(0xF0 | ($codepoint >> 18))
+                . chr(0x80 | (($codepoint >> 12) & 0x3F))
+                . chr(0x80 | (($codepoint >> 6) & 0x3F))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+
+        return "\xEF\xBF\xBD";
     }
 
     private static function compareLimitScalarValues(int|float|string $left, int|float|string $right): int

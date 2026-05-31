@@ -3774,6 +3774,63 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{schema:string,name:string,table:string,event:string,timing:string}> $triggers
+     * @return array<string,mixed>
+     */
+    public static function dropTableTriggerCleanupPlan(array $triggers, string $table, ?string $schema = null): array
+    {
+        $schemaOrder = ['temp' => 0, 'main' => 1];
+        $records = [];
+        foreach (array_values($triggers) as $trigger) {
+            $triggerSchema = self::identifier((string) ($trigger['schema'] ?? ''), 'trigger schema');
+            $schemaOrder[$triggerSchema] ??= count($schemaOrder);
+            $records[] = [
+                'schema' => $triggerSchema,
+                'name' => self::identifier((string) ($trigger['name'] ?? ''), 'trigger name'),
+                'table' => self::identifier((string) ($trigger['table'] ?? ''), 'trigger table'),
+                'event' => strtolower(self::identifier((string) ($trigger['event'] ?? ''), 'trigger event')),
+                'timing' => strtolower(self::identifier((string) ($trigger['timing'] ?? ''), 'trigger timing')),
+            ];
+        }
+
+        $table = self::identifier($table, 'drop table target');
+        if ($schema !== null) {
+            $schema = self::identifier($schema, 'drop table schema');
+        }
+
+        $dropped = [];
+        $remaining = [];
+        foreach ($records as $record) {
+            $matchesTable = $record['table'] === $table;
+            $matchesSchema = $schema === null || $record['schema'] === $schema;
+            if ($matchesTable && $matchesSchema) {
+                $dropped[] = $record;
+                continue;
+            }
+            $remaining[] = $record;
+        }
+
+        return [
+            'source' => 'e_droptrigger.test e_droptrigger-4.1..4.4',
+            'operation' => 'drop-table-trigger-cleanup',
+            'status' => 'commit-ok',
+            'drop_table' => $table,
+            'drop_schema' => $schema,
+            'dropped_trigger_names' => self::qualifiedTriggerNames($dropped, $schemaOrder),
+            'remaining_trigger_names' => self::qualifiedTriggerNames($remaining, $schemaOrder),
+            'schema_rows_removed' => count($dropped),
+            'remaining_schema_row_count' => count($remaining),
+            'table_trigger_count_before' => count($dropped),
+            'auto_drop_trigger_definitions' => $dropped !== [],
+            'dependencies' => [
+                'sqlite-drop-table-removes-associated-trigger-definitions',
+                'sqlite-drop-table-removes-temp-trigger-schema-row',
+                'sqlite-drop-table-keeps-unrelated-schema-triggers',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:int,c:int}> $existingRows
      * @param list<array{a:int,b:int,c:int,raise?:string}> $statementRows
      * @return array<string,mixed>

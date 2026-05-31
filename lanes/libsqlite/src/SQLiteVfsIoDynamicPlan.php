@@ -3003,6 +3003,57 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function syscallTempHandleCloseProfile(int $tempRows, int $mainCacheSize = 10, int $tempCacheSize = 10, bool $memoryHandle = true): array
+    {
+        if ($tempRows < 1) {
+            throw new \InvalidArgumentException('SQLite syscall temp handle close profile requires at least one temp row');
+        }
+        if ($mainCacheSize < 1 || $tempCacheSize < 1) {
+            throw new \InvalidArgumentException('SQLite syscall temp handle close profile requires positive cache sizes');
+        }
+
+        $temporaryDatabaseHandles = ['test.db1', 'test.db2', 'test.db3'];
+        if ($memoryHandle) {
+            $temporaryDatabaseHandles[] = ':memory:';
+        }
+
+        $rowPayloadBytes = 1100;
+        $estimatedTempBytes = self::align($tempRows * $rowPayloadBytes, 4096);
+        $spillExpected = $tempRows > $tempCacheSize;
+
+        return [
+            'status' => 'ok',
+            'script' => 'syscall.test',
+            'scenario' => 'syscall-6',
+            'upstream' => [
+                'syscall.test 6.1 close several file-backed and in-memory handles',
+                'syscall.test 6.2 temp_store=file large temp-table close after cache spill',
+            ],
+            'main_cache_size' => $mainCacheSize,
+            'temp_cache_size' => $tempCacheSize,
+            'temp_rows' => $tempRows,
+            'row_payload_bytes' => $rowPayloadBytes,
+            'estimated_temp_bytes' => $estimatedTempBytes,
+            'temp_store' => 'file',
+            'temporary_database_handles' => $temporaryDatabaseHandles,
+            'memory_handle_closed' => $memoryHandle,
+            'temp_btree_spills_to_file' => $spillExpected,
+            'close_order' => ['db2', 'db3', 'dbM', 'db1', 'db'],
+            'close_result' => 'SQLITE_OK',
+            'open_file_count_after_close' => 0,
+            'unlinked_temp_files_after_close' => true,
+            'main_database_reusable_after_close' => true,
+            'dependencies' => [
+                'upstream-syscall-temp-handle-close',
+                'sqlite-temp-store-file-close',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function singleByteDatabaseOpenProfile(int $fileBytes): array
     {
         if ($fileBytes < 0) {

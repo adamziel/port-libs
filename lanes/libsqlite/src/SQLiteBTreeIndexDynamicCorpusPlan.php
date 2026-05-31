@@ -7208,6 +7208,86 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function btree02SkipNextCursorMutationCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite btree02 skip-next cursor dynamic corpus requires at least one case');
+        }
+
+        $initialRows = [];
+        for ($i = 1; $i <= 10; $i++) {
+            $initialRows[] = [
+                'a' => sprintf('%02x', $i + 160),
+                'ax' => 100000 + $i,
+                'b' => $i,
+            ];
+        }
+
+        $cursorRows = [];
+        foreach ($initialRows as $row) {
+            foreach ([1, 2, 3, 4] as $cnt) {
+                $cursorRows[] = $row + ['cnt' => $cnt];
+            }
+        }
+
+        $templates = [];
+        $finalRows = $initialRows;
+        foreach ($cursorRows as $ordinal => $row) {
+            $mutationOrdinal = $ordinal + 1;
+            if (($mutationOrdinal % 2) === 1) {
+                $inserted = [
+                    'a' => '(' . $row['a'] . ')',
+                    'ax' => 200000 + $mutationOrdinal,
+                    'b' => $row['b'] + 1000,
+                ];
+                $finalRows[] = $inserted;
+                $templates[] = [$mutationOrdinal, 'insert', $row, $inserted, false, count($finalRows)];
+                continue;
+            }
+
+            $finalRows = array_values(array_filter(
+                $finalRows,
+                static fn (array $candidate): bool => $candidate['a'] !== $row['a'],
+            ));
+            $templates[] = [$mutationOrdinal, 'delete', $row, null, true, count($finalRows)];
+        }
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$mutationOrdinal, $kind, $source, $inserted, $deleted, $transientRows] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $out[] = [
+                'source' => 'btree02.test sections btree02-100 and btree02-110',
+                'case' => $case,
+                'upstream_section' => 'btree02-110.' . $mutationOrdinal,
+                'scenario' => 'WITHOUT ROWID primary-key cursor preserves skip-next position while secondary-index scan mutates rows',
+                'initial_rows' => 10,
+                'cross_join_rows' => 4,
+                'cursor_rows' => count($cursorRows),
+                'mutation_ordinal' => $mutationOrdinal,
+                'mutation_kind' => $kind,
+                'source_key' => $source['a'],
+                'source_value' => $source['b'],
+                'source_counter' => $source['cnt'],
+                'inserted_key' => $inserted['a'] ?? null,
+                'inserted_value' => $inserted['b'] ?? null,
+                'deleted' => $deleted,
+                'transient_rows_after_mutation' => $transientRows,
+                'commits_inside_scan' => $mutationOrdinal,
+                'final_rows' => 10,
+                'secondary_index' => 't1a ON t1(a)',
+                'primary_key' => 'PRIMARY KEY(a,ax) WITHOUT ROWID',
+                'skipnext_preserved' => true,
+                'detail' => 'btree02 batch ' . $batch . ' mutation ' . $mutationOrdinal . ' ' . $kind . ' source ' . $source['a'],
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @param list<string> $columns
      * @param list<string> $constraints
      */

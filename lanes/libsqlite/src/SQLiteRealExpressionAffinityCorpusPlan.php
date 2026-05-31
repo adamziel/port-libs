@@ -190,6 +190,57 @@ final class SQLiteRealExpressionAffinityCorpusPlan
         return $out;
     }
 
+    /**
+     * @param list<array{name:string,value:mixed,cast?:string|null}> $arms
+     * @return list<array{source:string,ordinal:int,name:string,value:mixed,quote:string,storage_class:string,dummy?:string}>
+     */
+    public static function flexnumCompoundRows(array $arms, string $source): array
+    {
+        if (!in_array($source, [
+            'values',
+            'union-all',
+            'derived-values',
+            'derived-union-all',
+            'cross-join-values',
+            'cross-join-union-all',
+            'view-values',
+            'view-union-all',
+        ], true)) {
+            throw new \InvalidArgumentException("SQLite FLEXNUM compound source {$source} is not supported");
+        }
+
+        $rows = [];
+        foreach ($arms as $ordinal => $arm) {
+            if (!isset($arm['name']) || !is_string($arm['name']) || $arm['name'] === '') {
+                throw new \InvalidArgumentException('SQLite FLEXNUM compound arm needs a non-empty name');
+            }
+
+            $value = $arm['value'] ?? null;
+            $cast = $arm['cast'] ?? null;
+            if ($cast !== null) {
+                if (!is_string($cast)) {
+                    throw new \InvalidArgumentException('SQLite FLEXNUM compound arm cast must be a string or NULL');
+                }
+                $value = self::cast($value, $cast);
+            }
+
+            $row = [
+                'source' => $source,
+                'ordinal' => $ordinal,
+                'name' => $arm['name'],
+                'value' => $value,
+                'quote' => self::quote($value),
+                'storage_class' => self::storageClass($value),
+            ];
+            if (str_starts_with($source, 'cross-join-')) {
+                $row['dummy'] = 'X';
+            }
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+
     public static function storageClass(mixed $value): string
     {
         return SQLiteAffinityComparison::storageClass($value);
