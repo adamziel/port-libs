@@ -4578,6 +4578,136 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,table_shape:string,index_name:string|null,predicate_literal:mixed,query_literal:mixed,result_rows:list<array<int,mixed>>,result_count:int,uses_partial_index:bool,detail:string,expected_error:string|null,integrity:string,without_rowid:bool,affinity:string,batch:int}>
+     */
+    public static function indexAPartialIndexAffinityPlannerCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite indexA dynamic corpus requires at least one case');
+        }
+
+        $affinityRows = [
+            'TEXT' => [
+                '2' => [['2', 'two', 'ii', 'text']],
+                '2.0' => [['2.0', 'twopointoh', 'ii.0', 'text']],
+            ],
+            'NUMERIC' => [
+                'any' => [[2, 'two', 'ii', 'integer'], [2, 'twopointoh', 'ii.0', 'integer']],
+            ],
+            'REAL' => [
+                'any' => [[2.0, 'two', 'ii', 'real'], [2.0, 'twopointoh', 'ii.0', 'real']],
+            ],
+        ];
+
+        $literalLabels = [
+            ['sql' => '2', 'value' => 2, 'text-key' => '2'],
+            ['sql' => '2.0', 'value' => 2.0, 'text-key' => '2.0'],
+            ['sql' => "'2'", 'value' => '2', 'text-key' => '2'],
+            ['sql' => "'2.0'", 'value' => '2.0', 'text-key' => '2.0'],
+        ];
+
+        $templates = [];
+        $templates[] = [
+            'section' => 'indexA-1.1/1.7',
+            'scenario' => 'partial index on text literal is usable for matching RIGHT JOIN arm',
+            'statement' => 'SELECT x, a, b, c FROM t2 RIGHT JOIN t1 ON (t1.a=5 AND t1.b=t2.x)',
+            'shape' => 'rowid partial index',
+            'index' => 'i2',
+            'predicate' => 5,
+            'query' => 5,
+            'rows' => [[null, 'abc', 1, 2], [null, '5', 4, 3]],
+            'uses' => true,
+            'detail' => 'SEARCH t1 USING INDEX i2 (b=?)',
+            'error' => null,
+            'without' => false,
+            'affinity' => 'TEXT',
+        ];
+
+        foreach ([false, true] as $withoutRowid) {
+            foreach (['TEXT', 'NUMERIC', 'REAL'] as $affinity) {
+                foreach ($literalLabels as $predicate) {
+                    foreach ($literalLabels as $query) {
+                        $rows = $affinity === 'TEXT'
+                            ? $affinityRows[$affinity][$query['text-key']]
+                            : $affinityRows[$affinity]['any'];
+                        $section = $withoutRowid ? 'indexA-3.1' : 'indexA-2.1';
+                        $templates[] = [
+                            'section' => $section,
+                            'scenario' => $affinity . ' affinity partial-index predicate ' . $predicate['sql'] . ' queried by ' . $query['sql'],
+                            'statement' => 'SELECT a, b, c, typeof(a) FROM x WHERE a=' . $query['sql'],
+                            'shape' => $withoutRowid ? 'WITHOUT ROWID partial index' : 'rowid partial index',
+                            'index' => 'i_' . strtolower($affinity),
+                            'predicate' => $predicate['value'],
+                            'query' => $query['value'],
+                            'rows' => $rows,
+                            'uses' => self::indexAPredicateImpliesQuery($affinity, $predicate['text-key'], $query['text-key']),
+                            'detail' => self::indexAPredicateImpliesQuery($affinity, $predicate['text-key'], $query['text-key'])
+                                ? 'SEARCH x USING COVERING INDEX i_' . strtolower($affinity)
+                                : 'SCAN x',
+                            'error' => null,
+                            'without' => $withoutRowid,
+                            'affinity' => $affinity,
+                        ];
+                    }
+                }
+            }
+        }
+
+        foreach ([
+            ['indexA-4.1/4.1.2', "aggregate over partial covering index for b='two'", "SELECT sum(a), b FROM t2 WHERE b='two'", 't2a_two', 'two', 'two', [[6, 'two']], true, 'SCAN t2 USING COVERING INDEX t2a_two', null, false, 'TEXT'],
+            ['indexA-5.1', 'unknown collation in partial-index predicate is rejected', "CREATE INDEX ex1 ON t1(c) WHERE b IS 'abc' COLLATE g", 'ex1', 'abc', 'abc', [], false, '', 'no such collation sequence: g', false, 'TEXT'],
+            ['indexA-5.2/5.3', 'custom collation predicate survives database reopen', "CREATE INDEX ex1 ON t1(c) WHERE b IS 'abc' COLLATE xyz", 'ex1', 'abc', 'abc', [], true, 'partial index ex1 persisted after reopen', null, false, 'TEXT'],
+            ['indexA-6.2/6.5', 'partial index participates in bloom-filter join planning', 'SELECT * FROM t1, t2 WHERE b=1 AND z=c AND y=5', 't2z', 5, 5, [[1, 1, 1, 1, 5, 1], [2, 1, 2, 2, 5, 2]], true, 'BLOOM FILTER ON t2; SEARCH t2 USING INDEX t2z (z=?)', null, false, 'INTEGER'],
+            ['indexA-6.7', 'covering y,z partial index replaces single-column bloom-filter probe', 'SELECT * FROM t1 LEFT JOIN t2 ON (y=5) WHERE b=1 AND z IS c', 't2yz', 5, 5, [[1, 1, 1, 1, 5, 1], [2, 1, 2, 2, 5, 2]], true, 'SEARCH t2 USING COVERING INDEX t2yz (y=? AND z=?)', null, false, 'INTEGER'],
+            ['indexA-7.0', 'INDEXED BY can force a matching partial index over rowid predicate', "SELECT * FROM t1 INDEXED BY i1 WHERE b='abc' AND i=5 ORDER BY c", 'i1', 5, 5, [[5, 'abc', 'xyz']], true, 'SCAN t1 USING INDEX i1', null, false, 'INTEGER'],
+            ['indexA-8.1', 'commuted constant partial-index predicate does not filter matching b rows', 'SELECT * FROM t1 WHERE b=4', 'ex1', 4, 4, [[1, 4, 1], [2, 4, 2]], true, 'SEARCH t1 USING INDEX ex1', null, false, 'INTEGER'],
+        ] as [$section, $scenario, $statement, $index, $predicate, $query, $rows, $uses, $detail, $error, $without, $affinity]) {
+            $templates[] = [
+                'section' => $section,
+                'scenario' => $scenario,
+                'statement' => $statement,
+                'shape' => $without ? 'WITHOUT ROWID partial index' : 'rowid partial index',
+                'index' => $index,
+                'predicate' => $predicate,
+                'query' => $query,
+                'rows' => $rows,
+                'uses' => $uses,
+                'detail' => $detail,
+                'error' => $error,
+                'without' => $without,
+                'affinity' => $affinity,
+            ];
+        }
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'indexA.test sections indexA-1.1 through indexA-8.1',
+                'case' => $case,
+                'upstream_section' => $template['section'],
+                'scenario' => $template['scenario'],
+                'statement' => $template['statement'],
+                'table_shape' => $template['shape'],
+                'index_name' => $template['index'],
+                'predicate_literal' => $template['predicate'],
+                'query_literal' => $template['query'],
+                'result_rows' => $template['rows'],
+                'result_count' => count($template['rows']),
+                'uses_partial_index' => $template['uses'],
+                'detail' => $template['detail'],
+                'expected_error' => $template['error'],
+                'integrity' => $template['error'] === null ? 'ok' : 'expected-error',
+                'without_rowid' => $template['without'],
+                'affinity' => $template['affinity'],
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int
@@ -4589,6 +4719,15 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
         }
 
         throw new \InvalidArgumentException('SQLite dynamic index lookup fixture has no matching row');
+    }
+
+    private static function indexAPredicateImpliesQuery(string $affinity, string $predicate, string $query): bool
+    {
+        if ($affinity === 'TEXT') {
+            return $predicate === $query;
+        }
+
+        return ((float) $predicate) === ((float) $query);
     }
 
     private static function sqlitePartialIndexBoundValueMatches(int $predicate, mixed $value): bool

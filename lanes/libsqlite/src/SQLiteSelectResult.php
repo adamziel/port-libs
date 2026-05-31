@@ -419,6 +419,13 @@ final class SQLiteSelectResult
                 throw new \InvalidArgumentException("SQLite JOIN result has ambiguous column {$column}");
             }
             $target = array_key_exists($column, $row) ? 'right.' . $column : $column;
+            if (array_key_exists($target, $row) && str_contains($column, '.')) {
+                $suffix = 2;
+                do {
+                    $target = 'right' . $suffix . '.' . $column;
+                    $suffix++;
+                } while (array_key_exists($target, $row));
+            }
             if (array_key_exists($target, $row)) {
                 throw new \InvalidArgumentException("SQLite JOIN result has ambiguous column {$column}");
             }

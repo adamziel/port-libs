@@ -430,6 +430,137 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{a:int|string,b:int|string,c:int|string}> $parents
+     * @param list<array{d:int|string,e:int|string,f:int|string}> $children
+     * @param array{mode:string,insert?:array{g:int|string,h:int|string,i:int|string},update_shift?:int,cascade_key?:int|string} $statement
+     * @return array<string,mixed>
+     */
+    public static function fkey2CountChangesBoundary(array $parents, array $children, array $statement): array
+    {
+        $mode = strtolower(trim((string) ($statement['mode'] ?? '')));
+        $parents = array_values($parents);
+        $children = array_values($children);
+        $parentKeys = [];
+        foreach ($parents as $parent) {
+            $parentKeys[(string) $parent['b'] . "\0" . (string) $parent['c']] = true;
+        }
+
+        if ($mode === 'deferred-insert-step') {
+            $insert = $statement['insert'] ?? null;
+            if (!is_array($insert)) {
+                throw new \InvalidArgumentException('SQLite fkey2-17 deferred insert row is required');
+            }
+            $violates = !isset($parentKeys[(string) $insert['h'] . "\0" . (string) $insert['i']]);
+
+            return [
+                'source' => 'fkey2.test fkey2-17.1.10..17.1.14',
+                'operation' => 'count-changes-deferred-insert-step-boundary',
+                'status' => $violates ? 'constraint-on-second-step' : 'done',
+                'first_step_result' => 'SQLITE_ROW',
+                'count_changes_row' => 1,
+                'second_step_result' => $violates ? 'SQLITE_CONSTRAINT' : 'SQLITE_DONE',
+                'finalize_result' => $violates ? 'SQLITE_CONSTRAINT' : 'SQLITE_OK',
+                'extended_error' => $violates ? 'SQLITE_CONSTRAINT_FOREIGNKEY' : null,
+                'row_visible_before_constraint_step' => true,
+                'statement_changes' => 1,
+                'foreign_key_action_changes' => 0,
+                'total_changes_delta' => 1,
+                'deferred_violation_count' => $violates ? 1 : 0,
+                'inserted_row' => $insert,
+                'dependencies' => [
+                    'sqlite-fkey2-count-changes-yields-row-before-deferred-fk-error',
+                    'sqlite-fkey2-deferred-fk-error-repeats-on-finalize',
+                    'sqlite-fkey2-count-changes-row-excludes-fk-actions',
+                ],
+            ];
+        }
+
+        if ($mode === 'update-child-keys') {
+            $shift = (int) ($statement['update_shift'] ?? 1);
+            $updated = [];
+            $violations = [];
+            foreach ($children as $child) {
+                $next = $child;
+                $next['e'] = (is_numeric($next['e']) ? (int) $next['e'] : 0) + $shift;
+                $next['f'] = (is_numeric($next['f']) ? (int) $next['f'] : 0) + $shift;
+                $updated[] = $next;
+                if (!isset($parentKeys[(string) $next['e'] . "\0" . (string) $next['f']])) {
+                    $violations[] = ['d' => $next['d'], 'e' => $next['e'], 'f' => $next['f']];
+                }
+            }
+
+            return [
+                'source' => 'fkey2.test fkey2-17.1.5..17.1.9',
+                'operation' => 'count-changes-update-fk-boundary',
+                'status' => $violations === [] ? 'commit-ok' : 'constraint-failed',
+                'statement_changes' => $violations === [] ? count($children) : 0,
+                'foreign_key_action_changes' => 0,
+                'total_changes_delta' => $violations === [] ? count($children) : 0,
+                'count_changes_rows' => $violations === [] ? [count($children)] : [],
+                'updated_children' => $violations === [] ? $updated : $children,
+                'committed_children' => $violations === [] ? $updated : $children,
+                'committed_parents' => $parents,
+                'violation_count' => count($violations),
+                'violations' => $violations,
+                'transaction_can_commit_after_failed_statement' => true,
+                'dependencies' => [
+                    'sqlite-fkey2-failed-fk-update-rolls-back-statement-only',
+                    'sqlite-fkey2-transaction-can-commit-after-statement-fk-error',
+                    'sqlite-fkey2-count-changes-reports-direct-row-updates',
+                ],
+            ];
+        }
+
+        if ($mode === 'cascade-update-delete') {
+            if (!array_key_exists('cascade_key', $statement)) {
+                throw new \InvalidArgumentException('SQLite fkey2-17 cascade key is required');
+            }
+            $oldKey = $statement['cascade_key'];
+            $newKey = (string) $oldKey . '-next';
+            $updatedParents = [];
+            $updatedChildren = [];
+            foreach ($parents as $parent) {
+                if ((string) $parent['a'] === (string) $oldKey) {
+                    $parent['a'] = $newKey;
+                }
+                $updatedParents[] = $parent;
+            }
+            foreach ($children as $child) {
+                if ((string) $child['f'] === (string) $oldKey) {
+                    $child['f'] = $newKey;
+                }
+                $updatedChildren[] = $child;
+            }
+            $deletedParentCount = count(array_filter($updatedParents, static fn (array $row): bool => (string) $row['a'] === $newKey));
+            $deletedChildCount = count(array_filter($updatedChildren, static fn (array $row): bool => (string) $row['f'] === $newKey));
+
+            return [
+                'source' => 'fkey2.test fkey2-17.2.1..17.2.10',
+                'operation' => 'count-changes-cascade-action-boundary',
+                'status' => 'commit-ok',
+                'update_statement_changes' => 1,
+                'update_fk_action_changes' => $deletedChildCount,
+                'update_total_changes_delta' => 1 + $deletedChildCount,
+                'delete_statement_changes' => $deletedParentCount,
+                'delete_fk_action_changes' => $deletedChildCount,
+                'delete_total_changes_delta' => $deletedParentCount + $deletedChildCount,
+                'count_changes_excludes_fk_actions' => true,
+                'total_changes_includes_fk_actions' => true,
+                'updated_child_keys' => array_values(array_column($updatedChildren, 'f')),
+                'remaining_parent_count_after_delete' => count($updatedParents) - $deletedParentCount,
+                'remaining_child_count_after_delete' => count($updatedChildren) - $deletedChildCount,
+                'dependencies' => [
+                    'sqlite-fkey2-count-changes-excludes-cascade-update',
+                    'sqlite-fkey2-total-changes-includes-cascade-update',
+                    'sqlite-fkey2-count-changes-excludes-cascade-delete',
+                ],
+            ];
+        }
+
+        throw new \InvalidArgumentException('SQLite fkey2-17 count_changes boundary mode is unsupported');
+    }
+
+    /**
      * @param list<array{c34:string,c35:string,label?:string}> $parents
      * @param list<array{c38:string,c39:string,label?:string}> $children
      * @return array<string,mixed>
