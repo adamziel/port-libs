@@ -7611,6 +7611,31 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   regressions, remaining app-WAL/row-value conflicts, and release/all-runner
   parity remain blockers before gitoxide.
 
+## Supervisor Integration 2026-05-31T17:20Z LightningCSS CSSOM/Modules/Maps Batch
+
+- Integrated source commit
+  `12f1dc64f1d68eebb6af0c29e349155e4b0d97ea` (`ports: extend lightningcss
+  cssom modules maps filters`) from six accepted current-base LightningCSS
+  handoffs. Overlapping SourceMap, CSSOM, and CSS Modules candidates were left
+  in the queue for later rebase instead of being forced into this batch.
+- Public LightningCSS evidence moves from `2574` to `2659 pass / 0 fail`.
+  Conservative mapped coverage moves from `1562 / 3532` to `1566 / 3532` for
+  raw SourceMap VLQ negative generated-line offsets, custom-property calc color
+  function minification, and CSS Modules counter-style/list-style custom-ident
+  scoping. CSSOM mask/text-emphasis and filter browser-boundary work deepen
+  already represented clusters.
+- Verification passed PHP lint on changed PHP files, `git diff --check --
+  lanes/lightningcss`, no WordPress/WP/wp_ text introduced by the changed
+  source diff, focused gate `5 files / 2205 assertions / 0 failures`, full
+  LightningCSS lane `13 files / 2659 assertions / 0 failures`, and touched
+  examples for color values, CSS Modules, filter prefixing, source maps, mask
+  CSSOM, and text-emphasis CSSOM. Full upstream Rust/Node/WASM runners were not
+  executed for this isolated batch.
+- Next supervision step: refresh the public dashboard, archive the six consumed
+  handoffs, refill the visible worker pool from the new base, and continue
+  source-only LightningCSS integration while keeping SQLite closure and Gitoxide
+  lanes alive.
+
 ## Supervisor Integration 2026-05-31T17:12Z LightningCSS Batch
 
 - Integrated source commit
