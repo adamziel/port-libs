@@ -361,6 +361,14 @@ destinations such as `HEAD:HEAD` without shelling out to Git. The tree pathspec
 example now covers empty pathspec searches and walks, including prefixed walks,
 so repository traversal can intentionally enumerate complete deploy trees.
 
+## WordPress Commit, Push Status, And Sparse Checkout Examples
+
+`examples/wordpress-commit-signature.php` now covers writing detached gpgsig
+headers while keeping already-signed import commits stable. The protocol v1
+push-response example now parses proc-receive fall-through statuses, and the
+sparse-checkout example now normalizes absolute pathspecs under the worktree
+root for deployment selection.
+
 ## Next Task
 
 Broaden protocol/transport runner evidence with a controlled focused crate probe, deepen mmap-specific packed-ref race parity beyond metadata/hash invalidation if needed, or map another focused `gix-merge` tree fixture.

@@ -1212,3 +1212,20 @@ URL/refspec and tree/pathspec batch accepted on 2026-05-31:
 - The mapped denominator moves from `1527 / 2886` to `1529 / 2886` for the two
   distinct upstream-backed behavior slices. Full Cargo workspace tests were not
   run for this slice.
+
+Commit, push-status, and sparse-checkout batch accepted on 2026-05-31:
+
+- Source commit `e97166a7f62f8b380688e16da83baf2271f246d5` integrates three
+  Gitoxide handoffs without taking stale shared metadata edits. The accepted
+  source slices cover commit gpgsig writer parity for appending detached
+  signatures and preserving already-signed commits, send-pack proc-receive
+  fall-through status parsing, and sparse-checkout absolute-root pathspec
+  normalization under the worktree root.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused Gitoxide tests `3 files / 472 assertions / 0 failures`, full
+  Gitoxide lane tests `38 files / 4085 assertions / 0 failures`, and three
+  touched examples exiting 0.
+- The mapped denominator moves from `1529 / 2886` to `1532 / 2886` for the
+  three distinct upstream-backed behavior slices. Full Cargo workspace tests
+  were not run for this slice.
