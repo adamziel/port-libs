@@ -21,6 +21,10 @@ return [
         'wp-content/uploads/logo.png',
         ['binary', 'merge', 'diff', 'text'],
     ),
+    'mustUsePluginAttributes' => $attributes->attributesForPath(
+        'wp-content/mu-plugins/loader.php',
+        ['merge', 'deploy', 'diff'],
+    ),
     'cacheExcluded' => !$matcher->matches('wp-content/cache/page.html', false, $attributes),
     'buildExcludedByPathspec' => !$matcher->matches('wp-content/plugins/gutenberg/build/index.js', false, $attributes),
 ];

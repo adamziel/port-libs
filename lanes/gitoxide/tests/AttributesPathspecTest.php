@@ -70,6 +70,25 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([':(attr:v=inva\#lid)path']));
         $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([':(glob,literal)path']));
     },
+    'attribute and pathspec state adjustments ignore value suffixes like gix attributes' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString("wp-content/mu-plugins/** deploy=mustuse -diff=legacy !review=stale\n"
+            . "wp-content/mu-plugins/private/** !deploy=old -merge=ours\n");
+
+        $t->same([
+            'deploy' => 'mustuse',
+            'diff' => false,
+            'review' => null,
+        ], $attributes->attributesForPath('wp-content/mu-plugins/loader.php', ['deploy', 'diff', 'review']));
+        $t->same([
+            'deploy' => null,
+            'merge' => false,
+            'review' => null,
+        ], $attributes->attributesForPath('wp-content/mu-plugins/private/secret.php', ['deploy', 'merge', 'review']));
+        $t->same(true, PathspecMatcher::matchesOne(':(attr:-diff=legacy !review=stale)wp-content/mu-plugins/**', 'wp-content/mu-plugins/loader.php', false, $attributes));
+        $t->same(true, PathspecMatcher::matchesOne(':(attr:!deploy=old -merge=ours)wp-content/mu-plugins/private/**', 'wp-content/mu-plugins/private/secret.php', false, $attributes));
+        $t->same(false, PathspecMatcher::matchesOne(':(attr:!deploy=old)wp-content/mu-plugins/**', 'wp-content/mu-plugins/loader.php', false, $attributes));
+        $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([':(attr:-diff=inva\#lid)path']));
+    },
     'pathspec search applies exclude first directory prefixes icase and attr filters' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/plugins/gutenberg/** deploy=plugin merge=union\n"
             . "wp-content/plugins/gutenberg/build/** -deploy\n"
@@ -98,6 +117,7 @@ return [
         $example = require dirname(__DIR__) . '/examples/wordpress-attributes-pathspec.php';
 
         $t->same([
+            'wp-content/mu-plugins/loader.php',
             'wp-content/plugins/gutenberg/block.json',
             'wp-content/themes/twentytwentyfour/theme.json',
             'wp-content/uploads/logo.png',
@@ -105,6 +125,7 @@ return [
         $t->same($matcher->matchingPaths($fixture['paths'], $attributes), $example['selectedForDeployment']);
         $t->same(['deploy' => 'plugin', 'diff' => null, 'merge' => 'union'], $example['pluginBlockAttributes']);
         $t->same(['binary' => true, 'diff' => false, 'merge' => false, 'text' => false], $example['uploadAttributes']);
+        $t->same(['deploy' => 'mustuse', 'diff' => false, 'merge' => 'union'], $example['mustUsePluginAttributes']);
         $t->same(true, $example['cacheExcluded']);
         $t->same(true, $example['buildExcludedByPathspec']);
     },

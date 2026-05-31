@@ -297,22 +297,27 @@ final class GitAttributes
         $state = self::STATE_SET;
         $value = null;
         $name = $field;
+        $rawValue = null;
 
-        if (str_starts_with($field, '-')) {
-            $state = self::STATE_UNSET;
-            $name = substr($field, 1);
-        } elseif (str_starts_with($field, '!')) {
-            $state = self::STATE_UNSPECIFIED;
-            $name = substr($field, 1);
-        } elseif (str_contains($field, '=')) {
-            $state = self::STATE_VALUE;
-            [$name, $value] = explode('=', $field, 2);
+        if (str_contains($field, '=')) {
+            [$name, $rawValue] = explode('=', $field, 2);
             if ($strictValues) {
-                $value = self::unescapeRequirementValue($value);
-                if ($value === null) {
-                    return null;
-                }
+                $value = self::unescapeRequirementValue($rawValue);
+            } else {
+                $value = $rawValue;
             }
+        }
+
+        if (str_starts_with($name, '-')) {
+            $state = self::STATE_UNSET;
+            $name = substr($name, 1);
+            $value = null;
+        } elseif (str_starts_with($name, '!')) {
+            $state = self::STATE_UNSPECIFIED;
+            $name = substr($name, 1);
+            $value = null;
+        } elseif ($rawValue !== null) {
+            $state = self::STATE_VALUE;
         }
 
         if (!self::validAttributeName($name)) {
