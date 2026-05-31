@@ -53,6 +53,21 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS import layer-name slice
+  20:36 UTC): source commit `b231e2329e5afca8bbb383ec46a99bfb5fb93023`
+  (`ports: validate lightningcss import layer names`) landed one current-base
+  LightningCSS bundle/import handoff. LightningCSS now reports `4181 pass / 0
+  fail`; conservative mapped coverage remains `2078 / 3532` because the slice
+  deepens the already represented import prelude / `LayerName` import-graph
+  cluster. The accepted behavior allows escaped CSS identifiers in
+  `@import ... layer(...)` and rejects malformed dotted, whitespace, and
+  comment-bearing layer names before graph resolution. Verification passed PHP
+  lint on 3 changed PHP files, focused CssBundler `1 file / 307 assertions / 0
+  failures`, full LightningCSS lane `13 files / 4181 assertions / 0 failures`,
+  `wordpress-bundle-import-graph.php --self-test`, `git diff --check`, and no
+  WordPress/WP/wp_ symbols in `lanes/lightningcss/src`. Full upstream
+  Rust/Node/WASM runners were not executed for this isolated slice.
+
 - 2026-05-31 supervisor continuation (LightningCSS imports/modules/CSSOM batch
   20:24 UTC): source commit `68c51db33dc8aeee9ea9fe0b856adaf357ea832c`
   (`ports: extend lightningcss imports modules and cssom`) landed six screened

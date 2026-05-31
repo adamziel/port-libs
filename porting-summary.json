@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 20:25:06 UTC",
-    "sourceCommit": "68c51db33dc8aeee9ea9fe0b856adaf357ea832c",
-    "sourceCommitShort": "68c51db33dc8",
+    "generated": "2026-05-31 20:36:22 UTC",
+    "sourceCommit": "b231e2329e5afca8bbb383ec46a99bfb5fb93023",
+    "sourceCommitShort": "b231e2329e5a",
     "sourceBranch": "unknown",
-    "dashboardCommit": "68c51db33dc8aeee9ea9fe0b856adaf357ea832c",
-    "dashboardCommitShort": "68c51db33dc8",
+    "dashboardCommit": "b231e2329e5afca8bbb383ec46a99bfb5fb93023",
+    "dashboardCommitShort": "b231e2329e5a",
     "averageProgressPercent": "87.3",
     "lanes": [
         {
@@ -100,14 +100,14 @@
             "denominator": "3532",
             "mapped": "2078",
             "coverage": "2078 / 3532",
-            "php": "4150 pass / 0 fail",
+            "php": "4181 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
-            "audit": "2026-05-31 supervisor imports/modules/CSS...",
-            "currentWork": "Imports/modules/CSSOM batch integrated: nested import graph identities and conditions, CS...",
-            "nextTarget": "Keep LightningCSS as the main worker pool and prioritize fresh current-base handoffs that...",
+            "audit": "2026-05-31 supervisor import layer-name v...",
+            "currentWork": "Import layer-name validation integrated: escaped CSS identifiers in @import layer() are a...",
+            "nextTarget": "Keep LightningCSS dominant and prioritize current-base handoffs that add new mapped targe...",
             "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for t...",
-            "commit": "68c51db"
+            "commit": "b231e23"
         },
         {
             "library": "markerPDF",
