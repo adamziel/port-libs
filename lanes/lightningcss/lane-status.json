@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 89.2,
-    "suiteProgress": "Supervisor-integrated LightningCSS visitor/CSSOM/source-map/media/prefix batch adds condition-rule visitor traversal, inline style-attribute visitor support, SourceMap raw-vector validation, logical-size CSSOM behavior, CSS Modules resolver diagnostics, negated interval media fallback lowering, and backdrop-filter transition-name target prefixes. Verification passed PHP lint on 16 changed PHP files, git diff --check, no WordPress/WP/wp_ source symbols under lanes/lightningcss/src, touched example smoke runs, and full LightningCSS lane 13 files / 3375 assertions / 0 failures.",
-    "phpPass": 3375,
+    "estimatedProgress": 90.1,
+    "suiteProgress": "Supervisor-integrated LightningCSS color/CSSOM/modules/source-map/media/prefix batch adds background-position/background shorthand minification, animation declaration target-prefix boundaries, wide-gamut color fallback behavior, custom at-rule Color visitor composition, SourceMap negative column offsets, CSS Modules pattern/token guards, invalid import layer diagnostics, custom-property and prefixed text-decoration CSSOM, and decimal media-range lowering. Verification passed PHP lint on 20 changed PHP files, git diff --check, no WordPress/WP/wp_ source symbols under lanes/lightningcss/src, touched example smoke runs, and full LightningCSS lane 13 files / 3512 assertions / 0 failures.",
+    "phpPass": 3512,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source 5d2786e6: full LightningCSS lane passed 13 files / 3375 assertions / 0 failures. Conservative mapped coverage moves from 1800 / 3532 to 1807 / 3532: +2 custom at-rule condition visitor rows, +2 style-attribute visitor cases, +2 backdrop-filter transition-name prefix helpers, and +1 SourceMap raw-VLQ ordered-vector guard. CSSOM logical-size, CSS Modules resolver diagnostics, and negated interval media lowering deepen already represented clusters.",
-    "currentWork": "Condition-rule visitors, style-attribute visitors, raw SourceMap vector validation, logical-size CSSOM behavior, CSS Modules resolver diagnostics, media range lowering, bundle diagnostics, and backdrop-filter transition-name prefixes are integrated from screened worker handoffs.",
+    "audit": "2026-05-31 supervisor batch at source a032175e: full LightningCSS lane passed 13 files / 3512 assertions / 0 failures. Conservative mapped coverage moves from 1807 / 3532 to 1859 / 3532: +22 background-position/background shorthand minifier checks, +16 animation target-prefix checks, +11 wide-gamut color target checks, +2 custom Color visitor composition checks, and +1 SourceMap negative column-offset check. CSS Modules, bundle layer diagnostics, CSSOM, and decimal media-range behavior deepen already represented clusters.",
+    "currentWork": "Background-position minification, animation/color target prefixes, custom Color visitors, raw SourceMap negative offsets, CSS Modules guards, bundle layer diagnostics, CSSOM custom/text-decoration behavior, and decimal media ranges are integrated from screened worker handoffs.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch; continue source-only slices with focused PHP, examples, manifest-backed mapping, and periodic full-lane PHP gates.",
-    "latestCommit": "5d2786e654010485b6c0ad588bacaa9bd3e13ecd",
-    "nextTask": "Continue screening fresh LightningCSS-ready handoffs first, prioritizing non-overlapping high-yield property values, parser/CSSOM/source-map/bundler gaps, and target-prefix behaviors not already represented.",
-    "commit": "5d2786e654010485b6c0ad588bacaa9bd3e13ecd"
+    "latestCommit": "a032175ec914a7ff0e5ed71a5f25338be2ac4d9e",
+    "nextTask": "Continue screening fresh LightningCSS-ready handoffs first, prioritizing non-overlapping high-yield target-prefix, property-value, parser/CSSOM/source-map/bundler gaps; keep Gitoxide secondary and SQLite closure alive.",
+    "commit": "a032175ec914a7ff0e5ed71a5f25338be2ac4d9e"
 }

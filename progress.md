@@ -54,6 +54,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS color/CSSOM/modules/maps
+  integration 19:16 UTC): source commit
+  `a032175ec9245f763d84f7fe561815002f70617f` (`ports: extend lightningcss
+  color cssom modules and maps`) landed eleven clean LightningCSS handoffs
+  after screening the newest ready markers against current source `3c8cc29b`
+  and skipping two overlapping TransitionPrefixer/CssBundler variants.
+  LightningCSS full lane evidence moves from `3375` to `3512 pass / 0 fail`,
+  with conservative mapped coverage moving from `1807 / 3532` to `1859 /
+  3532`: 22 background-position/background shorthand minifier checks, 16
+  animation declaration target-prefix/browser-boundary checks, 11 wide-gamut
+  color target fallback checks, two custom at-rule Color visitor composition
+  checks, and one SourceMap negative column-offset raw-VLQ check. CSS Modules
+  raw pseudo-token and invalid-pattern guards, invalid import layer diagnostics,
+  custom-property and prefixed text-decoration CSSOM behavior, and decimal
+  media-range lowering deepen already represented clusters. Gates passed: PHP
+  lint on 20 changed PHP files, `git diff --check`, no WordPress/WP/wp_ source
+  symbols under `lanes/lightningcss/src`, touched LightningCSS examples, and
+  full LightningCSS lane `13 files / 3512 assertions / 0 failures`. Full
+  upstream Rust/Node/WASM runners were not executed for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS worker surge and focused
   integration 19:08 UTC): source commit
   `5d2786e654010485b6c0ad588bacaa9bd3e13ecd` (`ports: extend lightningcss
