@@ -10,7 +10,7 @@ final class SQLiteTriggerDeferredForeignKeyPlan
      * @param array<string,list<array<string,mixed>>> $tables
      * @param list<array<string,mixed>> $statements
      * @param list<array<string,mixed>> $foreignKeys
-     * @return array{tables:array<string,list<array<string,mixed>>>,events:list<array<string,mixed>>,deferred:list<array<string,mixed>>,violations:list<array<string,mixed>>,changes:int,commit_status:string}
+     * @return array{tables:array<string,list<array<string,mixed>>>,events:list<array<string,mixed>>,foreign_key_actions:list<array<string,mixed>>,deferred:list<array<string,mixed>>,violations:list<array<string,mixed>>,changes:int,commit_status:string}
      */
     public static function run(array $tables, array $statements, array $foreignKeys): array
     {
@@ -19,6 +19,7 @@ final class SQLiteTriggerDeferredForeignKeyPlan
         self::assertTables($rows, $specs);
 
         $events = [];
+        $foreignKeyActions = [];
         $deferred = [];
         $changes = 0;
 
@@ -56,6 +57,9 @@ final class SQLiteTriggerDeferredForeignKeyPlan
                     $changes++;
                     $events[] = self::event($statementIndex, $triggerName, 'update-row', $table, $row, $before);
                     self::queueForChangedChild($deferred, $specs, $table, $row, $statementIndex, $triggerName, 'update');
+                    $fk = self::applyParentUpdate($rows, $deferred, $specs, $table, $before, $row, $statementIndex, $triggerName);
+                    $foreignKeyActions = array_merge($foreignKeyActions, $fk['actions']);
+                    $changes += $fk['changes'];
                 }
                 if (!$matched && !empty($statement['require_match'])) {
                     throw new \InvalidArgumentException('SQLite trigger deferred FK update matched no rows');
@@ -83,6 +87,7 @@ final class SQLiteTriggerDeferredForeignKeyPlan
         return [
             'tables' => self::sortTables($rows),
             'events' => $events,
+            'foreign_key_actions' => $foreignKeyActions,
             'deferred' => $deferred,
             'violations' => $violations,
             'changes' => $changes,
@@ -131,13 +136,17 @@ final class SQLiteTriggerDeferredForeignKeyPlan
 
     /**
      * @param array<string,mixed> $foreignKey
-     * @return array{name:string,parent_table:string,parent_key:string,child_table:string,child_key:string,deferred:bool,on_delete:string}
+     * @return array{name:string,parent_table:string,parent_key:string,child_table:string,child_key:string,deferred:bool,on_delete:string,on_update:string,child_default:mixed}
      */
     private static function normalizeForeignKey(array $foreignKey): array
     {
         $onDelete = strtolower(trim((string) ($foreignKey['on_delete'] ?? 'no action')));
         if (!in_array($onDelete, ['no action', 'restrict'], true)) {
             throw new \InvalidArgumentException('SQLite trigger deferred FK only supports NO ACTION and RESTRICT checks');
+        }
+        $onUpdate = strtolower(trim((string) ($foreignKey['on_update'] ?? 'no action')));
+        if (!in_array($onUpdate, ['cascade', 'no action', 'restrict', 'set null', 'set default'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger deferred FK ON UPDATE action is unsupported');
         }
 
         return [
@@ -148,6 +157,8 @@ final class SQLiteTriggerDeferredForeignKeyPlan
             'child_key' => self::identifier($foreignKey['child_key'] ?? null, 'child key'),
             'deferred' => (bool) ($foreignKey['deferred'] ?? true),
             'on_delete' => $onDelete,
+            'on_update' => $onUpdate,
+            'child_default' => $foreignKey['child_default'] ?? null,
         ];
     }
 
@@ -218,6 +229,90 @@ final class SQLiteTriggerDeferredForeignKeyPlan
     }
 
     /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<array<string,mixed>> $deferred
+     * @param list<array<string,mixed>> $specs
+     * @return array{actions:list<array<string,mixed>>,changes:int}
+     */
+    private static function applyParentUpdate(array &$tables, array &$deferred, array $specs, string $table, array $before, array $after, int $statementIndex, ?string $triggerName): array
+    {
+        $actions = [];
+        $changes = 0;
+
+        foreach ($specs as $spec) {
+            if ($spec['parent_table'] !== $table) {
+                continue;
+            }
+            $oldKey = self::value($before, $spec['parent_key'], 'old parent row');
+            $newKey = self::value($after, $spec['parent_key'], 'new parent row');
+            if ($oldKey === $newKey) {
+                continue;
+            }
+
+            if ($spec['on_update'] === 'restrict' && self::hasKey($tables[$spec['child_table']], $spec['child_key'], $oldKey)) {
+                throw new \InvalidArgumentException('SQLite trigger deferred FK RESTRICT prevents parent update immediately');
+            }
+
+            if ($spec['on_update'] === 'no action') {
+                $deferred[] = [
+                    'kind' => 'parent-update-check',
+                    'foreign_key' => $spec['name'],
+                    'parent_table' => $table,
+                    'old_parent_key' => $oldKey,
+                    'new_parent_key' => $newKey,
+                    'child_table' => $spec['child_table'],
+                    'statement' => $statementIndex,
+                    'trigger' => $triggerName,
+                    'operation' => 'update',
+                    'deferred' => $spec['deferred'],
+                ];
+                $actions[] = self::parentUpdateAction($spec, $oldKey, $newKey, $statementIndex, $triggerName, 'defer-parent-update-check', null, 0);
+                continue;
+            }
+
+            foreach ($tables[$spec['child_table']] as &$child) {
+                if (self::value($child, $spec['child_key'], 'child row') !== $oldKey) {
+                    continue;
+                }
+                $replacement = match ($spec['on_update']) {
+                    'cascade' => $newKey,
+                    'set null' => null,
+                    'set default' => $spec['child_default'],
+                    default => $child[$spec['child_key']],
+                };
+                $child[$spec['child_key']] = $replacement;
+                $changes++;
+                $actions[] = self::parentUpdateAction($spec, $oldKey, $newKey, $statementIndex, $triggerName, 'update-child-key', $replacement, 1);
+            }
+            unset($child);
+        }
+
+        return ['actions' => $actions, 'changes' => $changes];
+    }
+
+    /**
+     * @param array<string,mixed> $spec
+     * @return array<string,mixed>
+     */
+    private static function parentUpdateAction(array $spec, mixed $oldKey, mixed $newKey, int $statementIndex, ?string $triggerName, string $action, mixed $childKey, int $rows): array
+    {
+        return [
+            'kind' => 'parent-update',
+            'action' => $action,
+            'foreign_key' => $spec['name'],
+            'parent_table' => $spec['parent_table'],
+            'old_parent_key' => $oldKey,
+            'new_parent_key' => $newKey,
+            'child_table' => $spec['child_table'],
+            'child_key' => $childKey,
+            'on_update' => $spec['on_update'],
+            'statement' => $statementIndex,
+            'trigger' => $triggerName,
+            'rows' => $rows,
+        ];
+    }
+
+    /**
      * @param list<array{name:string,parent_table:string,parent_key:string,child_table:string,child_key:string,deferred:bool,on_delete:string}> $specs
      * @param array<string,mixed> $row
      * @param list<array<string,mixed>> $deferred
@@ -260,6 +355,13 @@ final class SQLiteTriggerDeferredForeignKeyPlan
                 if ($check['kind'] === 'child-check') {
                     if (!self::hasKey($tables[$spec['parent_table']], $spec['parent_key'], $check['parent_key'])) {
                         $violations[] = $check + ['reason' => 'missing-parent-at-commit'];
+                    }
+                    continue;
+                }
+
+                if ($check['kind'] === 'parent-update-check') {
+                    if (self::hasKey($tables[$spec['child_table']], $spec['child_key'], $check['old_parent_key']) && !self::hasKey($tables[$spec['parent_table']], $spec['parent_key'], $check['old_parent_key'])) {
+                        $violations[] = $check + ['reason' => 'referenced-parent-updated-at-commit'];
                     }
                     continue;
                 }

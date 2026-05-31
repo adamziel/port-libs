@@ -457,6 +457,131 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{name:string,schema?:string,sql:string,rows?:int,parent?:string,child_rows?:int,child_references?:list<mixed>}> $tables
+     * @param array{action:string,schema?:string,table:string,column?:string,default?:mixed,references?:string,foreign_keys?:bool,new_name?:string} $statement
+     * @return array<string,mixed>
+     */
+    public static function foreignKeyDdlPlan(array $tables, array $statement): array
+    {
+        $action = strtolower(trim((string) ($statement['action'] ?? '')));
+        if (!in_array($action, ['add-column', 'rename-table', 'drop-table'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2-14 DDL action is unsupported');
+        }
+
+        $schema = self::identifier((string) ($statement['schema'] ?? 'main'), 'schema');
+        $table = self::identifier((string) ($statement['table'] ?? ''), 'table');
+        $foreignKeys = (bool) ($statement['foreign_keys'] ?? true);
+        $tables = array_values($tables);
+        $targetIndex = self::ddlTableIndex($tables, $schema, $table);
+        if ($targetIndex === null) {
+            throw new \InvalidArgumentException('SQLite fkey2-14 DDL target table is missing');
+        }
+
+        if ($action === 'add-column') {
+            $column = self::identifier((string) ($statement['column'] ?? ''), 'column');
+            $references = self::identifier((string) ($statement['references'] ?? ''), 'referenced table');
+            $default = $statement['default'] ?? null;
+            $hasRows = (int) ($tables[$targetIndex]['rows'] ?? 0) > 0;
+            $blocked = $foreignKeys && $hasRows && $default !== null;
+            $columnSql = $column . ($default === null ? ' REFERENCES ' . $references : " DEFAULT '" . self::ddlSqlLiteral((string) $default) . "' REFERENCES " . $references);
+
+            return [
+                'source' => 'fkey2.test fkey2-14.1.*',
+                'operation' => 'foreign-key-ddl-add-column',
+                'status' => $blocked ? 'schema-error' : 'commit-ok',
+                'schema' => $schema,
+                'table' => $table,
+                'column' => $column,
+                'references' => $references,
+                'foreign_keys' => $foreignKeys,
+                'target_row_count' => (int) ($tables[$targetIndex]['rows'] ?? 0),
+                'default_value' => $default,
+                'error' => $blocked ? 'Cannot add a REFERENCES column with non-NULL default value' : null,
+                'next_sql' => $blocked ? $tables[$targetIndex]['sql'] : self::appendColumnSql((string) $tables[$targetIndex]['sql'], $columnSql),
+                'dependencies' => [
+                    'sqlite-fkey2-add-references-column-allows-null-default',
+                    'sqlite-fkey2-add-references-column-rejects-non-null-default-when-foreign-keys-on',
+                    'sqlite-fkey2-add-references-column-foreign-keys-off-preserves-schema-text',
+                ],
+            ];
+        }
+
+        if ($action === 'rename-table') {
+            $newName = self::identifier((string) ($statement['new_name'] ?? ''), 'new table name');
+            $renamed = [];
+            foreach ($tables as $row) {
+                $rowSchema = (string) ($row['schema'] ?? 'main');
+                if ($rowSchema !== $schema) {
+                    $renamed[] = $row;
+                    continue;
+                }
+
+                $sql = (string) $row['sql'];
+                if ((string) $row['name'] === $table) {
+                    $row['name'] = $newName;
+                    $sql = self::renameCreateTableName($sql, $newName);
+                }
+                $sql = self::renameForeignKeyParentReferences($sql, $table, $newName);
+                $row['sql'] = $sql;
+                $renamed[] = $row;
+            }
+
+            return [
+                'source' => 'fkey2.test fkey2-14.2.*',
+                'operation' => 'foreign-key-ddl-rename-table',
+                'status' => 'commit-ok',
+                'schema' => $schema,
+                'old_name' => $table,
+                'new_name' => $newName,
+                'renamed_sql' => array_values(array_map(static fn (array $row): string => (string) $row['sql'], $renamed)),
+                'renamed_table_names' => array_values(array_map(static fn (array $row): string => (string) $row['name'], $renamed)),
+                'reference_rewrite_count' => self::referenceRewriteCount($tables, $schema, $table),
+                'dependencies' => [
+                    'sqlite-fkey2-rename-table-rewrites-self-references',
+                    'sqlite-fkey2-rename-table-rewrites-child-foreign-key-parents',
+                    'sqlite-fkey2-rename-table-stays-within-schema',
+                ],
+            ];
+        }
+
+        $referencing = [];
+        foreach ($tables as $row) {
+            if ((string) ($row['schema'] ?? 'main') !== $schema || (string) $row['name'] === $table) {
+                continue;
+            }
+            if ((string) ($row['parent'] ?? '') === $table) {
+                $refs = $row['child_references'] ?? [];
+                $referencing[] = [
+                    'table' => (string) $row['name'],
+                    'child_rows' => (int) ($row['child_rows'] ?? count($refs)),
+                    'child_references' => array_values($refs),
+                ];
+            }
+        }
+        $blocked = $foreignKeys && array_sum(array_column($referencing, 'child_rows')) > 0;
+        $remaining = array_values(array_filter($tables, static fn (array $row): bool => !((string) ($row['schema'] ?? 'main') === $schema && (string) $row['name'] === $table)));
+
+        return [
+            'source' => 'fkey2.test fkey2-14.3.* and fkey2-14.4.*',
+            'operation' => 'foreign-key-ddl-drop-table',
+            'status' => $blocked ? 'constraint-failed' : 'commit-ok',
+            'schema' => $schema,
+            'table' => $table,
+            'foreign_keys' => $foreignKeys,
+            'referencing_tables' => $referencing,
+            'referencing_child_row_count' => array_sum(array_column($referencing, 'child_rows')),
+            'remaining_table_names' => array_values(array_map(static fn (array $row): string => (string) $row['name'], $blocked ? $tables : $remaining)),
+            'error' => $blocked ? 'FOREIGN KEY constraint failed' : null,
+            'dangling_reference_tables' => $blocked ? [] : array_values(array_column($referencing, 'table')),
+            'dependencies' => [
+                'sqlite-fkey2-drop-table-blocks-when-child-rows-reference-parent',
+                'sqlite-fkey2-drop-table-allows-missing-parent-when-no-child-rows',
+                'sqlite-fkey2-drop-view-or-virtual-parent-reference-does-not-crash',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $parents
      * @param list<array<string,mixed>> $children
      * @return array<string,mixed>
@@ -7376,5 +7501,65 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             $values,
             static fn (int $value): bool => isset($allowedSet[(string) $value])
         ));
+    }
+
+    /**
+     * @param list<array{name:string,schema?:string}> $tables
+     */
+    private static function ddlTableIndex(array $tables, string $schema, string $table): ?int
+    {
+        foreach ($tables as $index => $row) {
+            if ((string) ($row['schema'] ?? 'main') === $schema && (string) $row['name'] === $table) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private static function ddlSqlLiteral(string $value): string
+    {
+        return str_replace("'", "''", $value);
+    }
+
+    private static function appendColumnSql(string $sql, string $columnSql): string
+    {
+        $trimmed = rtrim($sql);
+        if (!str_ends_with($trimmed, ')')) {
+            throw new \InvalidArgumentException('SQLite fkey2-14 CREATE TABLE SQL is malformed');
+        }
+
+        return substr($trimmed, 0, -1) . ', ' . $columnSql . ')';
+    }
+
+    private static function renameCreateTableName(string $sql, string $newName): string
+    {
+        return (string) preg_replace('/^(CREATE\s+(?:TEMP\s+)?TABLE\s+)(?:"(?:""|[^"])*"|`[^`]*`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)/i', '$1"' . $newName . '"', $sql, 1);
+    }
+
+    private static function renameForeignKeyParentReferences(string $sql, string $oldName, string $newName): string
+    {
+        $quoted = preg_quote($oldName, '/');
+        $identifier = '(?:"' . $quoted . '"|`' . $quoted . '`|\[' . $quoted . '\]|\b' . $quoted . '\b)';
+
+        return (string) preg_replace('/\bREFERENCES\s+' . $identifier . '/i', 'REFERENCES "' . $newName . '"', $sql);
+    }
+
+    /**
+     * @param list<array{schema?:string,sql:string}> $tables
+     */
+    private static function referenceRewriteCount(array $tables, string $schema, string $oldName): int
+    {
+        $count = 0;
+        $quoted = preg_quote($oldName, '/');
+        $identifier = '(?:"' . $quoted . '"|`' . $quoted . '`|\[' . $quoted . '\]|\b' . $quoted . '\b)';
+        foreach ($tables as $row) {
+            if ((string) ($row['schema'] ?? 'main') !== $schema) {
+                continue;
+            }
+            $count += preg_match_all('/\bREFERENCES\s+' . $identifier . '/i', (string) $row['sql']);
+        }
+
+        return $count;
     }
 }

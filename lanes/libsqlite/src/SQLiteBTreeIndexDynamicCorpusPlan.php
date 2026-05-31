@@ -361,6 +361,64 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,operation:string,table_shape:string,partial_index:string,partial_predicate:string,row_count:int,index_row_count:int|null,stat_rows:list<array{idx:string|null,stat:string}>,result_rows:list<array<int,mixed>>,expected_error:string|null,uses_partial_index:bool,integrity:string,batch:int}>
+     */
+    public static function index6EarlyPartialIndexCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index6 early partial-index corpus requires at least one case');
+        }
+
+        $templates = [
+            ['index6-1.1', 'initial partial indexes admit only rows satisfying their WHERE clauses', 'CREATE INDEX t1a ON t1(a) WHERE a IS NOT NULL; CREATE INDEX t1b ON t1(b) WHERE b>10', 'rowid', 't1a,t1b', 'a IS NOT NULL / b>10', 20, null, [], [[14, 20], ['ok']], null, false, 'ok'],
+            ['index6-1.1.1', 'count star optimization ignores reduced partial-index cardinality', 'SELECT count(*) FROM t1', 'rowid', 't1a,t1b', 'a IS NOT NULL / b>10', 20, null, [], [[20]], null, false, 'ok'],
+            ['index6-1.2', 'partial-index predicate rejects unknown columns at parse time', 'CREATE INDEX bad1 ON t1(a,b) WHERE x IS NOT NULL', 'rowid', 'bad1', 'x IS NOT NULL', 20, null, [], [], 'no such column: x', false, 'expected-error'],
+            ['index6-1.3', 'partial-index predicate rejects subqueries', 'CREATE INDEX bad1 ON t1(a,b) WHERE EXISTS(SELECT * FROM t1)', 'rowid', 'bad1', 'EXISTS(SELECT * FROM t1)', 20, null, [], [], 'subqueries prohibited in partial index WHERE clauses', false, 'expected-error'],
+            ['index6-1.4', 'partial-index predicate rejects bound parameters', 'CREATE INDEX bad1 ON t1(a,b) WHERE a!=?1', 'rowid', 'bad1', 'a!=?1', 20, null, [], [], 'parameters prohibited in partial index WHERE clauses', false, 'expected-error'],
+            ['index6-1.5', 'partial-index predicate rejects non-deterministic functions', 'CREATE INDEX bad1 ON t1(a,b) WHERE a!=random()', 'rowid', 'bad1', 'a!=random()', 20, null, [], [], 'non-deterministic functions prohibited in partial index WHERE clauses', false, 'expected-error'],
+            ['index6-1.6/1.7', 'NOT LIKE partial-index predicate is accepted then dropped cleanly', "CREATE INDEX bad1 ON t1(a,b) WHERE a NOT LIKE 'abc%'; DROP INDEX IF EXISTS bad1", 'rowid', 'bad1', "a NOT LIKE 'abc%'", 20, null, [], [], null, false, 'ok'],
+            ['index6-1.10', 'ANALYZE records reduced row counts for initial partial indexes', 'ANALYZE; SELECT idx, stat FROM sqlite_stat1 ORDER BY idx', 'rowid', 't1a,t1b', 'a IS NOT NULL / b>10', 20, null, [['idx' => null, 'stat' => '20'], ['idx' => 't1a', 'stat' => '14 1'], ['idx' => 't1b', 'stat' => '10 1']], [['ok']], null, false, 'ok'],
+            ['index6-1.11a', 'UPDATE into every a value expands t1a stat while t1b remains filtered', 'UPDATE t1 SET a=b; ANALYZE', 'rowid', 't1a,t1b', 'a IS NOT NULL / b>10', 20, null, [['idx' => null, 'stat' => '20'], ['idx' => 't1a', 'stat' => '20 1'], ['idx' => 't1b', 'stat' => '10 1']], [['ok']], null, false, 'ok'],
+            ['index6-1.11b', 'UPDATE nulls and b offset move rows between partial indexes', 'UPDATE t1 SET a=NULL WHERE b%3!=0; UPDATE t1 SET b=b+100; ANALYZE', 'rowid', 't1a,t1b', 'a IS NOT NULL / b>10', 20, null, [['idx' => null, 'stat' => '20'], ['idx' => 't1a', 'stat' => '6 1'], ['idx' => 't1b', 'stat' => '20 1']], [['ok']], null, false, 'ok'],
+            ['index6-1.12', 'restoring source values restores reduced partial-index stat rows', 'UPDATE t1 SET a=CASE WHEN b%3!=0 THEN b END; UPDATE t1 SET b=b-100; ANALYZE', 'rowid', 't1a,t1b', 'a IS NOT NULL / b>10', 20, null, [['idx' => null, 'stat' => '20'], ['idx' => 't1a', 'stat' => '13 1'], ['idx' => 't1b', 'stat' => '10 1']], [['ok']], null, false, 'ok'],
+            ['index6-1.13', 'DELETE shrinks both table and partial-index statistics', 'DELETE FROM t1 WHERE b BETWEEN 8 AND 12; ANALYZE', 'rowid', 't1a,t1b', 'a IS NOT NULL / b>10', 15, null, [['idx' => null, 'stat' => '15'], ['idx' => 't1a', 'stat' => '10 1'], ['idx' => 't1b', 'stat' => '8 1']], [['ok']], null, false, 'ok'],
+            ['index6-1.14', 'REINDEX preserves partial-index statistics and integrity', 'REINDEX; ANALYZE', 'rowid', 't1a,t1b', 'a IS NOT NULL / b>10', 15, null, [['idx' => null, 'stat' => '15'], ['idx' => 't1a', 'stat' => '10 1'], ['idx' => 't1b', 'stat' => '8 1']], [['ok']], null, false, 'ok'],
+            ['index6-1.15', 'ordinary index stats coexist with reduced partial-index stats', 'CREATE INDEX t1c ON t1(c); ANALYZE', 'rowid', 't1a,t1b,t1c', 'a IS NOT NULL / b>10', 15, null, [['idx' => 't1a', 'stat' => '10 1'], ['idx' => 't1b', 'stat' => '8 1'], ['idx' => 't1c', 'stat' => '15 1']], [['ok']], null, false, 'ok'],
+            ['index6-2.1/2.4', 'partial IS NOT NULL index drives matching probes but not NULL scans', 'CREATE INDEX t2a1 ON t2(a) WHERE a IS NOT NULL', 'rowid', 't2a1', 'a IS NOT NULL', 999, 500, [], [[500], ['SEARCH t2 USING INDEX t2a1'], ['SCAN t2']], null, true, 'ok'],
+            ['index6-2.101/2.104', 'OR-connected partial index accepts equality probes on either qualifying range', 'CREATE INDEX t2a2 ON t2(a) WHERE a<100 OR a>200', 'rowid', 't2a2', 'a<100 OR a>200', 999, null, [], [[10015], [10015], [10515]], null, true, 'ok'],
+            ['index6-3.1/3.5', 'partial UNIQUE index rejects duplicate qualifying keys but admits sentinel duplicates', 'CREATE UNIQUE INDEX t3a ON t3(a) WHERE a<>999', 'rowid', 't3a', 'a<>999', 201, 39, [], [[162], ['ok']], 'UNIQUE constraint failed: t3.a', true, 'expected-error-and-ok'],
+            ['index6-4.0', 'VACUUM preserves partial-index integrity after unique sentinel writes', 'VACUUM; PRAGMA integrity_check', 'rowid', 't3a', 'a<>999', 201, 39, [], [['ok']], null, true, 'ok'],
+            ['index6-5.0', 'database-qualified column names are ignored in partial-index predicates', 'CREATE INDEX t3b ON t3(b) WHERE xyzzy.t3.b BETWEEN 5 AND 10', 'rowid', 't3b', 't3.b BETWEEN 5 AND 10', 201, 6, [['idx' => 't3b', 'stat' => '6 1']], [[6], [6]], null, true, 'ok'],
+            ['index6-6.0/6.2', 'UPDATE OR REPLACE remains stable with unrelated partial index present', 'UPDATE OR REPLACE t6 SET b=789', 'rowid', 't6b', 'b=1', 1, 0, [], [[123, 456], [123, 789], ['ok']], null, false, 'ok'],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $operation, $tableShape, $partialIndex, $predicate, $rowCount, $indexRowCount, $statRows, $resultRows, $expectedError, $usesPartialIndex, $integrity] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'index6.test sections index6-1.1 through index6-6.2',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario . ' dynamic batch ' . (intdiv($case - 1, count($templates)) + 1),
+                'operation' => $operation,
+                'table_shape' => $tableShape,
+                'partial_index' => $partialIndex,
+                'partial_predicate' => $predicate,
+                'row_count' => $rowCount,
+                'index_row_count' => $indexRowCount,
+                'stat_rows' => $statRows,
+                'result_rows' => $resultRows,
+                'expected_error' => $expectedError,
+                'uses_partial_index' => $usesPartialIndex,
+                'integrity' => $integrity,
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{upstream:string,scenario:string,uses_partial_index:bool,result_rows:list<array<int,mixed>>,detail:string}>
      */
     public static function index6PartialJoinAndUpdateCases(): array
