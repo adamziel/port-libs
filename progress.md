@@ -54,6 +54,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS CSSOM/media/prefix plus
+  Gitoxide transport batch 19:26 UTC): source commit
+  `433042179d9051240c50e68e81ce9dcd5745a707` (`ports: extend lightningcss
+  cssom media prefixes and gitoxide transport`) landed seven screened
+  LightningCSS handoffs and two Gitoxide handoffs. LightningCSS now reports
+  `3720 pass / 0 fail`, with conservative mapped coverage moving from `1947 /
+  3532` to `1961 / 3532`: five env() media range fallback checks, one inline
+  import graph ordering behavior, and eight transition declaration
+  prefix/browser-boundary checks; var() media range parsing, duplicate import
+  condition guards, grid-template CSSOM, prefixed animation CSSOM, and
+  bundle/minifier assertions deepen already represented clusters. Gitoxide now
+  reports `5260 pass / 0 fail`, with mapped coverage moving from `1619 / 2886`
+  to `1621 / 2886` on git-daemon receive-pack extra-parameter service-request
+  parity and send-pack sideband push-response/receive-status client parity.
+  Verification passed PHP lint on changed PHP files, `git diff --check`, no
+  WordPress/WP/wp_ symbols in changed lane `src` trees, touched example smoke
+  runs, full LightningCSS lane `13 files / 3720 assertions / 0 failures`, and
+  full Gitoxide lane `39 files / 5260 assertions / 0 failures`.
+
 - 2026-05-31 supervisor continuation (LightningCSS surge plus Gitoxide pathspec
   batch 19:19 UTC): source commit
   `1daff0d4d064599b77ad9ffdcc572b93d5f4481d` (`ports: extend lightningcss

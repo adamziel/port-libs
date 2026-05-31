@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 19:20:33 UTC",
-    "sourceCommit": "1daff0d4d064599b77ad9ffdcc572b93d5f4481d",
-    "sourceCommitShort": "1daff0d4d064",
+    "generated": "2026-05-31 19:27:27 UTC",
+    "sourceCommit": "433042179d9051240c50e68e81ce9dcd5745a707",
+    "sourceCommitShort": "433042179d90",
     "sourceBranch": "unknown",
-    "dashboardCommit": "1daff0d4d064599b77ad9ffdcc572b93d5f4481d",
-    "dashboardCommitShort": "1daff0d4d064",
+    "dashboardCommit": "433042179d9051240c50e68e81ce9dcd5745a707",
+    "dashboardCommitShort": "433042179d90",
     "averageProgressPercent": "87.2",
     "lanes": [
         {
@@ -60,20 +60,20 @@
         },
         {
             "library": "gitoxide",
-            "progressPercent": "88.0",
+            "progressPercent": "88.1",
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1619",
-            "coverage": "1619 / 2886",
-            "php": "5225 pass / 0 fail",
+            "mapped": "1621",
+            "coverage": "1621 / 2886",
+            "php": "5260 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
-            "audit": "2026-05-31 supervisor batch at source 1da...",
-            "currentWork": "URL/refspec UTF-8 guard parity and attr-filtered tree pathspec walking are integrated fro...",
+            "audit": "2026-05-31 supervisor batch at source 433...",
+            "currentWork": "Git-daemon receive-pack extra-parameter service-request parity plus send-pack sideband pu...",
             "nextTarget": "Keep a bounded secondary Gitoxide pool on protocol, transport, object database, partial c...",
             "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch...",
-            "commit": "1daff0d"
+            "commit": "4330421"
         },
         {
             "library": "libsqlite",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "91.0",
+            "progressPercent": "91.4",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1947",
-            "coverage": "1947 / 3532",
-            "php": "3652 pass / 0 fail",
+            "mapped": "1961",
+            "coverage": "1961 / 3532",
+            "php": "3720 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
-            "audit": "2026-05-31 supervisor batch at source 1da...",
-            "currentWork": "Same-space relative lab()/oklab() colors, skipped child-source-map table preservation, mi...",
-            "nextTarget": "Keep LightningCSS as the main worker pool. Screen fresh non-overlapping handoffs first ac...",
+            "audit": "2026-05-31 supervisor batch at source 433...",
+            "currentWork": "Environment-variable and var() media range behavior, inline import graph ordering, duplic...",
+            "nextTarget": "Keep LightningCSS as the main worker pool and prioritize fresh current-base handoffs that...",
             "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for t...",
-            "commit": "1daff0d"
+            "commit": "4330421"
         },
         {
             "library": "markerPDF",

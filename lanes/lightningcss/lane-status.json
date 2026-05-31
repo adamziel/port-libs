@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 91,
-    "suiteProgress": "Supervisor-integrated LightningCSS relative-color/source-map/custom-rule batch adds same-space lab()/oklab() relative-color minification, skipped child-source-map table preservation, mixed boolean media validation, escaped CSS Modules selector delimiters, resolver-returned reader path identity, border-image CSSOM, generic Rule currentColor visitor handling, and grid separate-areas/auto-flow minification. Verification passed PHP lint on changed PHP files, git diff --check, no WordPress/WP/wp_ source symbols under lanes/lightningcss/src, touched example smoke runs, and full LightningCSS lane 13 files / 3652 assertions / 0 failures.",
-    "phpPass": 3652,
+    "estimatedProgress": 91.4,
+    "suiteProgress": "Supervisor-integrated LightningCSS CSSOM/media/prefix/bundle batch adds environment-variable media range fallback coverage, var() range parsing, inline import graph ordering, duplicate import condition guards, grid-template and prefixed animation CSSOM, and transition declaration target-prefix/browser-boundary behavior. Verification passed PHP lint on changed PHP files, git diff --check, no WordPress/WP/wp_ source symbols under lanes/lightningcss/src, touched example smoke runs, and full LightningCSS lane 13 files / 3720 assertions / 0 failures.",
+    "phpPass": 3720,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source 1daff0d4: full LightningCSS lane passed 13 files / 3652 assertions / 0 failures. Conservative mapped coverage moves from 1859 / 3532 to 1947 / 3532: +86 same-space relative lab()/oklab() color checks, +1 SourceMap skipped child-table preservation check, and +1 generic Rule currentColor visitor check. Media-query boolean validation, CSS Modules escaped selector delimiter handling, resolver-returned reader path identity, border-image CSSOM, and grid separate areas/auto-flow deepen already represented clusters.",
-    "currentWork": "Same-space relative lab()/oklab() colors, skipped child-source-map table preservation, mixed boolean media validation, escaped CSS Modules selector delimiters, resolver-backed reader path identity, border-image CSSOM, generic Rule currentColor visitors, and grid separate-areas/auto-flow behavior are integrated from screened worker handoffs.",
+    "audit": "2026-05-31 supervisor batch at source 43304217: full LightningCSS lane passed 13 files / 3720 assertions / 0 failures. Conservative mapped coverage moves from 1947 / 3532 to 1961 / 3532: +5 env() media range fallback checks, +1 inline import graph ordering behavior, and +8 transition declaration prefix/browser-boundary checks. var() media range parsing, duplicate import condition guards, grid-template CSSOM, prefixed animation CSSOM, and bundle/minifier assertions deepen already represented clusters.",
+    "currentWork": "Environment-variable and var() media range behavior, inline import graph ordering, duplicate import condition guards, grid-template CSSOM, prefixed animation CSSOM, and transition declaration prefix/browser-boundary behavior are integrated from screened worker handoffs.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch; continue source-only slices with focused PHP, examples, manifest-backed mapping, and periodic full-lane PHP gates.",
-    "latestCommit": "1daff0d4d064599b77ad9ffdcc572b93d5f4481d",
-    "nextTask": "Keep LightningCSS as the main worker pool. Screen fresh non-overlapping handoffs first across target-prefix, property-value, parser/CSSOM/source-map/bundler/CSS Modules gaps; continue small Gitoxide and SQLite closure pools only in parallel.",
-    "commit": "1daff0d4d064599b77ad9ffdcc572b93d5f4481d"
+    "latestCommit": "433042179d9051240c50e68e81ce9dcd5745a707",
+    "nextTask": "Keep LightningCSS as the main worker pool and prioritize fresh current-base handoffs that add new mapped target-prefix, property-value, parser/CSSOM/source-map/bundler/CSS Modules coverage; keep smaller Gitoxide and SQLite closure pools alive in parallel.",
+    "commit": "433042179d9051240c50e68e81ce9dcd5745a707"
 }

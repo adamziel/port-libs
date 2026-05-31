@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 88,
-    "suiteProgress": "Supervisor-integrated Gitoxide URL/refspec and tree pathspec batch adds UTF-8/control guard behavior for URL/refspec normalization plus attr-filtered tree pathspec walking. Verification passed PHP lint on changed PHP files, git diff --check, no WordPress/WP/wp_ source symbols under lanes/gitoxide/src, touched example smoke runs, and full Gitoxide lane 39 files / 5225 assertions / 0 failures.",
-    "phpPass": 5225,
+    "estimatedProgress": 88.1,
+    "suiteProgress": "Supervisor-integrated Gitoxide receive-pack/send-pack transport batch adds git-daemon extra-parameter service-request parity, upstream-shaped sideband push-response parsing, receive-status client filtering, and missing requested status handling. Verification passed PHP lint on changed PHP files, git diff --check, no WordPress/WP/wp_ source symbols under lanes/gitoxide/src, touched example smoke runs, and full Gitoxide lane 39 files / 5260 assertions / 0 failures.",
+    "phpPass": 5260,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full runner not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source 1daff0d4: full Gitoxide lane passed 39 files / 5225 assertions / 0 failures. Conservative mapped coverage moves from 1617 / 2886 to 1619 / 2886 for URL/refspec UTF-8 guard parity and attr-filtered tree pathspec walking.",
-    "currentWork": "URL/refspec UTF-8 guard parity and attr-filtered tree pathspec walking are integrated from screened worker handoffs while the main worker capacity remains on LightningCSS.",
+    "audit": "2026-05-31 supervisor batch at source 43304217: full Gitoxide lane passed 39 files / 5260 assertions / 0 failures. Conservative mapped coverage moves from 1619 / 2886 to 1621 / 2886 for git-daemon receive-pack extra-parameter service-request parity and send-pack sideband push-response/receive-status client parity.",
+    "currentWork": "Git-daemon receive-pack extra-parameter service-request parity plus send-pack sideband push-response and receive-status client behavior are integrated from screened worker handoffs while LightningCSS remains the main worker pool.",
     "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch due workspace breadth. Native PHP focused/full-lane evidence is green; keep Gitoxide at a smaller bounded pool while LightningCSS remains the main capacity target.",
-    "latestCommit": "1daff0d4d064599b77ad9ffdcc572b93d5f4481d",
+    "latestCommit": "433042179d9051240c50e68e81ce9dcd5745a707",
     "nextTask": "Keep a bounded secondary Gitoxide pool on protocol, transport, object database, partial clone, tree merge, reference, credential, URL/refspec, and pathspec slices while LightningCSS stays primary.",
-    "commit": "1daff0d4d064599b77ad9ffdcc572b93d5f4481d"
+    "commit": "433042179d9051240c50e68e81ce9dcd5745a707"
 }
