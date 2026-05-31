@@ -46,11 +46,30 @@
 - Root filesystem: current supervisor sample reports `/` at 452G size with about 363G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.6G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool includes
-  a dedicated LightningCSS surge target of 14 visible workers plus active
+  a dedicated LightningCSS surge target of 18 visible workers plus active
   libsqlite/Gitoxide workers; the latest refill started LightningCSS workers on
   `gpt-5.5` xhigh with the priority service tier and no long sleeper loop.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (Gitoxide/libsqlite source batch plus
+  LightningCSS surge 13:00 UTC): source commit
+  `b0d8a112b0f2a321e0df4cc8a588eb55c8abe338` (`ports: add git object
+  pathspec and sqlite corpus slices`) landed five verified handoffs and raised
+  the durable LightningCSS refill floor from 14 to 18 visible workers. Gitoxide
+  full lane evidence moves from `4599` to `4630 pass / 0 fail`, with mapped
+  coverage moving from `1574 / 2886` to `1576 / 2886` for attributes/pathspec
+  POSIX class boundary behavior and loose-object allocation-limit integrity
+  parity. Libsqlite selected evidence moves from `2922200` to `2927535 pass /
+  0 fail` with mapped coverage still `1589 / 1589`: +1203 where7 multi-index
+  OR dynamic PASS cases, +1002 e_select2 join associativity PASS cases, and
+  +3130 trigger1 temp-trigger rebind PASS cases. Verification passed PHP lint
+  on changed/new PHP files, diff checks, Gitoxide focused gate `4 files / 403
+  assertions / 0 failures`, full Gitoxide lane `39 files / 4630 assertions / 0
+  failures`, two Gitoxide examples, and libsqlite selected gate `4 files /
+  47097 assertions / 0 failures` including `SQLiteNoDomainSpecificApiTest.php`.
+  Root aggregate and full Gitoxide Cargo/libsqlite release-all runners were not
+  run for this micro-batch.
 
 - 2026-05-31 supervisor continuation (Gitoxide/LightningCSS integration 12:58
   UTC): source commit `0a0e1350d0e1a9867a1029e527a87325f564d2a8`
