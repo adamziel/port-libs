@@ -44,6 +44,31 @@ return [
         $t->same('(width>=6px)', $parser->minifyList('(width >= calc(2px + 4px))'));
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('&test, speech'));
     },
+    'media query parser rejects upstream invalid range and feature syntax' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+        $invalid = [
+            '(example, all,), speech',
+            '&test',
+            '(min-width: hi)',
+            '(width >= hi)',
+            '(width >= 2/1)',
+            '(600px <= min-height)',
+            '(scan >= 1)',
+            '(min-scan: interlace)',
+            '(1px <= width <= bar)',
+            '(1px <= min-width <= 2px)',
+            '(1px <= scan <= 2px)',
+            '(grid: 10)',
+            '(prefers-color-scheme = dark)',
+            'unknown(foo)',
+            '()',
+            'screen and ()',
+        ];
+
+        foreach ($invalid as $query) {
+            $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList($query));
+        }
+    },
     'media query parser lowers range syntax for legacy target fallbacks' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 
@@ -57,6 +82,25 @@ return [
         $t->same('not ((not (max-width:100px)) and (not (min-width:200px)))', $parser->lowerRangeSyntaxList('not (100px < width < 200px)'));
         $t->same('(max-width:200px) and (min-width:100px)', $parser->lowerRangeSyntaxList('(200px >= width >= 100px)'));
     },
+    'media query parser rejects upstream invalid typed range features' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        foreach ([
+            '(min-width: hi)',
+            '(width >= hi)',
+            '(width >= 2/1)',
+            '(600px <= min-height)',
+            '(scan >= 1)',
+            '(min-scan: interlace)',
+            '(1px <= width <= bar)',
+            '(1px <= min-width <= 2px)',
+            '(1px <= scan <= 2px)',
+            '(grid: 10)',
+            '(prefers-color-scheme = dark)',
+        ] as $query) {
+            $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList($query));
+        }
+    },
     'css minifier normalizes media query preludes before blocks' => static function (TestRunner $t): void {
         $css = '@media (min-width: 240px) and (hover: hover) { .foo { color: chartreuse; } }';
 
@@ -66,5 +110,25 @@ return [
         $t->same('', (new CssMinifier())->minify('@media not all { .foo { color: chartreuse } }'));
         $t->same('@media not ((color) or (hover)){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media not (((color) or (hover))) { .foo { color: chartreuse } }'));
         $t->same('@media (hover) and (color) and (test){.foo{color:#7fff00}}', (new CssMinifier())->minify('@media (hover) and ((color) and (test)) { .foo { color: chartreuse } }'));
+    },
+    'css minifier rejects invalid media ranges inside cascade layers' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '@layer blocks{@media (width>=240px){.wp-block-query{color:#7fff00}}}',
+            $minifier->minify('@layer blocks { @media (min-width: 240px) { .wp-block-query { color: chartreuse; } } }')
+        );
+
+        foreach ([
+            '@layer blocks { @media (min-width: hi) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (width >= 2/1) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (1px <= min-width <= 2px) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (scan >= 1) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (grid: 10) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (prefers-color-scheme = dark) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media screen and () { .wp-block-query { color: chartreuse; } } }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify($css));
+        }
     },
 ];

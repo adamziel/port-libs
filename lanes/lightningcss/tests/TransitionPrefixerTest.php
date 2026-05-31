@@ -509,6 +509,165 @@ return [
             $prefixer->prefixForTargets('.foo{ display: flex }', ['ie' => 11])
         );
     },
+    'transition prefixer maps upstream flex longhand target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $targets = [
+            'safari' => 4,
+            'firefox' => 4,
+            'ie' => 10,
+        ];
+
+        $t->same(
+            '.foo{-webkit-box-orient:horizontal;-moz-box-orient:horizontal;-webkit-box-direction:normal;-moz-box-direction:normal;-webkit-flex-direction:row;-ms-flex-direction:row;flex-direction:row}',
+            $prefixer->prefixForTargets('.foo { flex-direction: row; }', $targets)
+        );
+        $t->same(
+            '.foo{-webkit-box-lines:multiple;-moz-box-lines:multiple;-webkit-flex-wrap:wrap;-ms-flex-wrap:wrap;flex-wrap:wrap}',
+            $prefixer->prefixForTargets('.foo { flex-wrap: wrap; }', $targets)
+        );
+        $t->same(
+            '.foo{-webkit-box-orient:horizontal;-moz-box-orient:horizontal;-webkit-box-direction:normal;-moz-box-direction:normal;-webkit-flex-flow:wrap;-ms-flex-flow:wrap;flex-flow:wrap}',
+            $prefixer->prefixForTargets('.foo { flex-flow: row wrap; }', $targets)
+        );
+        $t->same(
+            '.foo{-webkit-box-flex:1;-moz-box-flex:1;-ms-flex-positive:1;-webkit-flex-grow:1;flex-grow:1}',
+            $prefixer->prefixForTargets('.foo { flex-grow: 1; }', $targets)
+        );
+        $t->same(
+            '.foo{-ms-flex-negative:1;-webkit-flex-shrink:1;flex-shrink:1}',
+            $prefixer->prefixForTargets('.foo { flex-shrink: 1; }', $targets)
+        );
+        $t->same(
+            '.foo{-ms-flex-preferred-size:1px;-webkit-flex-basis:1px;flex-basis:1px}',
+            $prefixer->prefixForTargets('.foo { flex-basis: 1px; }', $targets)
+        );
+        $t->same(
+            '.foo{-webkit-box-flex:1;-moz-box-flex:1;-webkit-flex:1;-ms-flex:1;flex:1}',
+            $prefixer->prefixForTargets('.foo { flex: 1; }', $targets)
+        );
+        $t->same(
+            '.foo{-webkit-box-ordinal-group:1;-moz-box-ordinal-group:1;-ms-flex-order:1;-webkit-order:1;order:1}',
+            $prefixer->prefixForTargets('.foo { order: 1; }', $targets)
+        );
+    },
+    'transition prefixer maps upstream flex box alignment target prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $targets = [
+            'safari' => 4,
+            'firefox' => 4,
+            'ie' => 10,
+        ];
+
+        $t->same(
+            '.foo{-ms-flex-line-pack:justify;-webkit-align-content:space-between;align-content:space-between}',
+            $prefixer->prefixForTargets('.foo { align-content: space-between; }', $targets)
+        );
+        $t->same(
+            '.foo{-webkit-box-pack:justify;-moz-box-pack:justify;-ms-flex-pack:justify;-webkit-justify-content:space-between;justify-content:space-between}',
+            $prefixer->prefixForTargets('.foo { justify-content: space-between; }', $targets)
+        );
+        $t->same(
+            '.foo{-ms-flex-item-align:end;-webkit-align-self:flex-end;align-self:flex-end}',
+            $prefixer->prefixForTargets('.foo { align-self: flex-end; }', $targets)
+        );
+        $t->same(
+            '.foo{-webkit-box-align:end;-moz-box-align:end;-ms-flex-align:end;-webkit-align-items:flex-end;align-items:flex-end}',
+            $prefixer->prefixForTargets('.foo { align-items: flex-end; }', $targets)
+        );
+        $t->same(
+            '.foo{-ms-flex-line-pack:justify;-webkit-box-pack:end;-moz-box-pack:end;-ms-flex-pack:end;-webkit-align-content:space-between;align-content:space-between;-webkit-justify-content:flex-end;justify-content:flex-end}',
+            $prefixer->prefixForTargets('.foo { place-content: space-between flex-end; }', $targets)
+        );
+        $t->same(
+            '.foo{-ms-flex-item-align:center;-webkit-align-self:center;align-self:center;justify-self:flex-end}',
+            $prefixer->prefixForTargets('.foo { place-self: center flex-end; }', $targets)
+        );
+        $t->same(
+            '.foo{-webkit-box-align:end;-moz-box-align:end;-ms-flex-align:end;-webkit-align-items:flex-end;align-items:flex-end;justify-items:center}',
+            $prefixer->prefixForTargets('.foo { place-items: flex-end center; }', $targets)
+        );
+    },
+    'transition prefixer maps upstream flex longhand stale prefix removal' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $modernTargets = ['safari' => 11];
+
+        $t->same(
+            '.foo{flex-direction:row}',
+            $prefixer->prefixForTargets('.foo { -webkit-box-orient: horizontal; -moz-box-orient: horizontal; -webkit-box-direction: normal; -moz-box-direction: normal; -webkit-flex-direction: row; -ms-flex-direction: row; flex-direction: row; }', $modernTargets)
+        );
+        $t->same(
+            '.foo{flex-wrap:wrap}',
+            $prefixer->prefixForTargets('.foo { -webkit-box-lines: multiple; -moz-box-lines: multiple; -webkit-flex-wrap: wrap; -ms-flex-wrap: wrap; flex-wrap: wrap; }', $modernTargets)
+        );
+        $t->same(
+            '.foo{flex-grow:1}',
+            $prefixer->prefixForTargets('.foo { -webkit-box-flex: 1; -moz-box-flex: 1; -ms-flex-positive: 1; -webkit-flex-grow: 1; flex-grow: 1; }', $modernTargets)
+        );
+        $t->same(
+            '.foo{flex:1}',
+            $prefixer->prefixForTargets('.foo { -webkit-box-flex: 1; -moz-box-flex: 1; -webkit-flex: 1; -ms-flex: 1; flex: 1; }', $modernTargets)
+        );
+        $t->same(
+            '.foo{justify-content:space-between}',
+            $prefixer->prefixForTargets('.foo { -webkit-box-pack: justify; -moz-box-pack: justify; -ms-flex-pack: justify; -webkit-justify-content: space-between; justify-content: space-between; }', $modernTargets)
+        );
+        $t->same(
+            '.foo{align-items:flex-end}',
+            $prefixer->prefixForTargets('.foo { -webkit-box-align: end; -moz-box-align: end; -ms-flex-align: end; -webkit-align-items: flex-end; align-items: flex-end; }', $modernTargets)
+        );
+        $t->same(
+            '.foo{order:1}',
+            $prefixer->prefixForTargets('.foo { -webkit-box-ordinal-group: 1; -moz-box-ordinal-group: 1; -ms-flex-order: 1; -webkit-order: 1; order: 1; }', $modernTargets)
+        );
+        $t->same(
+            '.foo{-ms-flex:0 0 8%;flex:0 0 5%}',
+            $prefixer->prefixForTargets('.foo { -ms-flex: 0 0 8%; flex: 0 0 5%; }', $modernTargets)
+        );
+    },
+    'transition prefixer maps upstream flex longhand browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-box-orient:horizontal;-webkit-box-direction:normal;-webkit-flex-direction:row;flex-direction:row}',
+            $prefixer->prefixForTargets('.foo { flex-direction: row; }', ['chrome' => 20])
+        );
+        $t->same(
+            '.foo{-webkit-flex-direction:row;flex-direction:row}',
+            $prefixer->prefixForTargets('.foo { flex-direction: row; }', ['chrome' => 21])
+        );
+        $t->same(
+            '.foo{-webkit-flex-direction:row;flex-direction:row}',
+            $prefixer->prefixForTargets('.foo { flex-direction: row; }', ['chrome' => 28])
+        );
+        $t->same(
+            '.foo{flex-direction:row}',
+            $prefixer->prefixForTargets('.foo { flex-direction: row; }', ['chrome' => 29])
+        );
+        $t->same(
+            '.foo{-webkit-box-align:end;-webkit-align-items:flex-end;align-items:flex-end}',
+            $prefixer->prefixForTargets('.foo { align-items: flex-end; }', ['safari' => 6])
+        );
+        $t->same(
+            '.foo{-webkit-align-items:flex-end;align-items:flex-end}',
+            $prefixer->prefixForTargets('.foo { align-items: flex-end; }', ['safari' => 7])
+        );
+        $t->same(
+            '.foo{-moz-box-pack:justify;justify-content:space-between}',
+            $prefixer->prefixForTargets('.foo { justify-content: space-between; }', ['firefox' => 21])
+        );
+        $t->same(
+            '.foo{justify-content:space-between}',
+            $prefixer->prefixForTargets('.foo { justify-content: space-between; }', ['firefox' => 22])
+        );
+        $t->same(
+            '.foo{-ms-flex-order:1;order:1}',
+            $prefixer->prefixForTargets('.foo { order: 1; }', ['ie' => 10])
+        );
+        $t->same(
+            '.foo{order:1}',
+            $prefixer->prefixForTargets('.foo { order: 1; }', ['ie' => 11])
+        );
+    },
     'transition prefixer maps upstream border-radius target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

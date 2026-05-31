@@ -42,4 +42,22 @@ $css = <<<'CSS'
 }
 CSS;
 
-echo (new CssMinifier())->minify($css) . PHP_EOL;
+$minifier = new CssMinifier();
+$actual = $minifier->minify($css);
+$expected = '@layer theme;@layer blocks{.wp-block-query{color:red;background:#fff}.wp-block-query__empty{color:#7fff00}@media (width>=600px) and (hover) and (color){.wp-block-query{color:#ff0}}}@layer utilities;';
+
+if (($argv[1] ?? null) === '--self-test') {
+    if ($actual !== $expected) {
+        fwrite(STDERR, "Unexpected media layer minifier output:\n{$actual}\n");
+        exit(1);
+    }
+
+    try {
+        $minifier->minify('@layer blocks { @media (min-width: hi) { .wp-block-query { color: chartreuse; } } }');
+        fwrite(STDERR, "Expected invalid layered media query to be rejected.\n");
+        exit(1);
+    } catch (InvalidArgumentException) {
+    }
+}
+
+echo $actual . PHP_EOL;

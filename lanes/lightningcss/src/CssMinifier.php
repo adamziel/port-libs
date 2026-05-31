@@ -103,6 +103,7 @@ final class CssMinifier
         $css = $this->rewriteAllResetDeclarationBlocks($css);
         $css = $this->composeContainerDeclarationBlocks($css);
         $css = $this->composePositionDeclarationBlocks($css);
+        $css = $this->composeGridDeclarationBlocks($css);
         $css = $this->composeBorderRadiusDeclarationBlocks($css);
         $css = $this->composeFontDeclarationBlocks($css);
         $css = $this->composeListStyleDeclarationBlocks($css);
@@ -1371,10 +1372,30 @@ final class CssMinifier
 
         $tail = trim(substr($rest, $offset));
         $parts = [$source];
+        $sawLayerModifier = false;
         while ($tail !== '') {
+            if ($this->startsAtKeyword($tail, 0, 'layer')) {
+                if (($tail[strlen('layer')] ?? '') === '(') {
+                    [$function, $functionEnd] = $this->readFunctionRaw($tail, 0);
+                    $parts[] = 'layer(' . trim(substr($function, strlen('layer('), -1)) . ')';
+                    $tail = trim(substr($tail, $functionEnd + 1));
+                    $sawLayerModifier = true;
+                    continue;
+                }
+
+                $parts[] = 'layer';
+                $tail = trim(substr($tail, strlen('layer')));
+                $sawLayerModifier = true;
+                continue;
+            }
+
             if ($this->startsAtKeyword($tail, 0, 'supports') && ($tail[strlen('supports')] ?? '') === '(') {
                 [$function, $functionEnd] = $this->readFunctionRaw($tail, 0);
-                $parts[] = 'supports(' . $this->minifySupportsCondition(substr($function, strlen('supports('), -1), false) . ')';
+                $condition = substr($function, strlen('supports('), -1);
+                $wrappedCondition = $sawLayerModifier ? $this->unwrapSingleParenthesizedValue($condition) : null;
+                $parts[] = $wrappedCondition === null
+                    ? 'supports(' . $this->minifySupportsCondition($condition, false) . ')'
+                    : 'supports((' . $this->minifySupportsCondition($wrappedCondition, false) . '))';
                 $tail = trim(substr($tail, $functionEnd + 1));
                 continue;
             }
@@ -1383,7 +1404,23 @@ final class CssMinifier
             break;
         }
 
-        return '@import ' . implode(' ', $parts);
+        return '@import ' . $this->serializeImportParts($parts);
+    }
+
+    /**
+     * @param non-empty-list<string> $parts
+     */
+    private function serializeImportParts(array $parts): string
+    {
+        $output = array_shift($parts);
+        $previous = $output;
+        foreach ($parts as $part) {
+            $separator = str_starts_with($previous, 'supports(') && str_starts_with($part, '(') ? '' : ' ';
+            $output .= $separator . $part;
+            $previous = $part;
+        }
+
+        return $output;
     }
 
     private function minifySupportsCondition(string $condition, bool $wrapDeclaration): string
@@ -7323,6 +7360,32 @@ final class CssMinifier
         return $output;
     }
 
+    private function composeGridDeclarationBlocks(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $open = $this->findNextTopLevel($css, '{', $cursor);
+            if ($open === null) {
+                $output .= substr($css, $cursor);
+                break;
+            }
+
+            $close = $this->findMatchingBraceInCss($css, $open);
+            $body = $this->composeGridDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            if (!str_contains($body, '{')) {
+                $body = $this->composeGridDeclarationList($body);
+            }
+
+            $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
+            $cursor = $close + 1;
+        }
+
+        return $output;
+    }
+
     private function composeFontDeclarationBlocks(string $css): string
     {
         $output = '';
@@ -7710,6 +7773,311 @@ final class CssMinifier
         $this->rewritePositionInsetGroup($entries);
 
         return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    private function composeGridDeclarationList(string $body): string
+    {
+        if (stripos($body, 'grid-') === false) {
+            return $body;
+        }
+
+        $entries = $this->parseDeclarationEntriesForComposition($body);
+        if ($entries === null) {
+            return $body;
+        }
+
+        $this->rewriteGridTemplateGroup($entries);
+
+        return $this->serializeDeclarationEntriesForComposition($entries);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
+     */
+    private function rewriteGridTemplateGroup(array &$entries): void
+    {
+        $templateProperties = [
+            'areas' => 'grid-template-areas',
+            'rows' => 'grid-template-rows',
+            'columns' => 'grid-template-columns',
+        ];
+        $autoProperties = [
+            'flow' => 'grid-auto-flow',
+            'rows' => 'grid-auto-rows',
+            'columns' => 'grid-auto-columns',
+        ];
+        $templateNames = array_flip($templateProperties);
+        $autoNames = array_flip($autoProperties);
+        $latest = [];
+        $latestAuto = [];
+        $templateIndices = [];
+        $autoIndices = [];
+
+        foreach ($entries as $index => $entry) {
+            if ($entry['drop']) {
+                continue;
+            }
+            if ($entry['important']) {
+                return;
+            }
+            if ($entry['property'] === 'grid' || $entry['property'] === 'grid-template') {
+                return;
+            }
+            if (isset($templateNames[$entry['property']])) {
+                $component = $templateNames[$entry['property']];
+                $latest[$component] = $index;
+                $templateIndices[] = $index;
+                continue;
+            }
+            if (isset($autoNames[$entry['property']])) {
+                $component = $autoNames[$entry['property']];
+                $latestAuto[$component] = $index;
+                $autoIndices[] = $index;
+            }
+        }
+
+        foreach (['areas', 'rows', 'columns'] as $required) {
+            if (!isset($latest[$required])) {
+                return;
+            }
+        }
+
+        $shorthand = $this->serializeGridTemplateDeclarationShorthand(
+            $entries[$latest['areas']]['value'],
+            $entries[$latest['rows']]['value'],
+            $entries[$latest['columns']]['value'],
+        );
+        if ($shorthand === null) {
+            return;
+        }
+
+        $useGridShorthand = isset($latestAuto['flow'], $latestAuto['rows'], $latestAuto['columns'])
+            && strtolower(trim($entries[$latestAuto['flow']]['value'])) === 'row'
+            && strtolower(trim($entries[$latestAuto['rows']]['value'])) === 'auto'
+            && strtolower(trim($entries[$latestAuto['columns']]['value'])) === 'auto';
+
+        $included = array_values($latest);
+        if ($useGridShorthand) {
+            $included = array_merge($included, array_values($latestAuto));
+        }
+        $replaceAt = min($included);
+
+        foreach ($templateIndices as $index) {
+            $entries[$index]['drop'] = true;
+        }
+        if ($useGridShorthand) {
+            foreach ($autoIndices as $index) {
+                $entries[$index]['drop'] = true;
+            }
+        }
+
+        $entries[$replaceAt] = [
+            'property' => $useGridShorthand ? 'grid' : 'grid-template',
+            'name' => $useGridShorthand ? 'grid' : 'grid-template',
+            'value' => $shorthand,
+            'important' => false,
+            'drop' => false,
+        ];
+    }
+
+    private function serializeGridTemplateDeclarationShorthand(string $areas, string $rows, string $columns): ?string
+    {
+        $areas = trim($areas);
+        $rows = trim($rows);
+        $columns = trim($columns);
+        if ($areas === '' || $rows === '' || $columns === '') {
+            return null;
+        }
+
+        if (strcasecmp($areas, 'none') === 0) {
+            if (strcasecmp($rows, 'none') === 0 && strcasecmp($columns, 'none') === 0) {
+                return 'none';
+            }
+
+            return $rows . '/' . $columns;
+        }
+
+        if (stripos($columns, 'repeat(') !== false) {
+            return null;
+        }
+
+        $areaRows = $this->parseGridTemplateAreaRows($areas);
+        if ($areaRows === null || $areaRows === []) {
+            return null;
+        }
+
+        $rowTokens = $this->splitGridTrackListTokens($rows);
+        $rowTracks = array_values(array_filter(
+            $rowTokens,
+            fn (string $token): bool => !$this->isGridLineNameToken($token),
+        ));
+        if ($rowTracks === [] || count($rowTracks) < count($areaRows)) {
+            return null;
+        }
+
+        $areaColumnCount = $this->gridTemplateAreaColumnCount($areaRows[0]);
+        $targetRows = max(count($areaRows), count($rowTracks));
+        $segments = [];
+        $tokenIndex = 0;
+
+        for ($rowIndex = 0; $rowIndex < $targetRows; $rowIndex++) {
+            while (isset($rowTokens[$tokenIndex]) && $this->isGridLineNameToken($rowTokens[$tokenIndex])) {
+                $segments[] = $rowTokens[$tokenIndex++];
+            }
+
+            $area = $areaRows[$rowIndex] ?? $this->gridTemplateEmptyAreaRow($areaColumnCount);
+            $segments[] = '"' . $area . '"';
+
+            if (!isset($rowTracks[$rowIndex])) {
+                continue;
+            }
+
+            while (isset($rowTokens[$tokenIndex]) && $this->isGridLineNameToken($rowTokens[$tokenIndex])) {
+                $segments[] = $rowTokens[$tokenIndex++];
+            }
+
+            $track = $rowTokens[$tokenIndex] ?? $rowTracks[$rowIndex];
+            if (!$this->isGridLineNameToken($track)) {
+                $tokenIndex++;
+                if (strcasecmp($track, 'auto') !== 0) {
+                    $segments[] = $track;
+                }
+            }
+        }
+
+        while (isset($rowTokens[$tokenIndex])) {
+            $segments[] = $rowTokens[$tokenIndex++];
+        }
+
+        return implode('', $segments) . '/' . $columns;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function parseGridTemplateAreaRows(string $value): ?array
+    {
+        $rows = [];
+        $quote = null;
+        $row = '';
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\' && $i + 1 < $length) {
+                    $row .= $char . $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $rows[] = $this->normalizeGridTemplateAreaRowText($row);
+                    $row = '';
+                    $quote = null;
+                    continue;
+                }
+                $row .= $char;
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if (!ctype_space($char)) {
+                return null;
+            }
+        }
+
+        return $quote === null ? $rows : null;
+    }
+
+    private function gridTemplateAreaColumnCount(string $row): int
+    {
+        $tokens = preg_split('/\s+/', trim($row)) ?: [];
+        $tokens = array_values(array_filter($tokens, static fn (string $token): bool => $token !== ''));
+
+        return max(1, count($tokens));
+    }
+
+    private function gridTemplateEmptyAreaRow(int $columns): string
+    {
+        return implode(' ', array_fill(0, max(1, $columns), '.'));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitGridTrackListTokens(string $value): array
+    {
+        $tokens = [];
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            if (ctype_space($value[$i])) {
+                continue;
+            }
+
+            if ($value[$i] === '[') {
+                $end = strpos($value, ']', $i + 1);
+                if ($end === false) {
+                    $tokens[] = substr($value, $i);
+                    break;
+                }
+                $tokens[] = substr($value, $i, $end - $i + 1);
+                $i = $end;
+                continue;
+            }
+
+            $start = $i;
+            $quote = null;
+            $parenDepth = 0;
+            for (; $i < $length; $i++) {
+                $char = $value[$i];
+                if ($quote !== null) {
+                    if ($char === '\\') {
+                        $i++;
+                        continue;
+                    }
+                    if ($char === $quote) {
+                        $quote = null;
+                    }
+                    continue;
+                }
+
+                if ($char === '"' || $char === "'") {
+                    $quote = $char;
+                    continue;
+                }
+                if ($char === '(') {
+                    $parenDepth++;
+                    continue;
+                }
+                if ($char === ')') {
+                    $parenDepth = max(0, $parenDepth - 1);
+                    continue;
+                }
+                if ($parenDepth === 0 && ($char === '[' || ctype_space($char))) {
+                    break;
+                }
+            }
+
+            $token = substr($value, $start, $i - $start);
+            if ($token !== '') {
+                $tokens[] = $token;
+            }
+            if ($i < $length && $value[$i] === '[') {
+                $i--;
+            }
+        }
+
+        return $tokens;
+    }
+
+    private function isGridLineNameToken(string $token): bool
+    {
+        $token = trim($token);
+
+        return str_starts_with($token, '[') && str_ends_with($token, ']');
     }
 
     private function containsPositionInsetDeclarationName(string $body): bool
@@ -11658,7 +12026,7 @@ final class CssMinifier
             return false;
         }
 
-        $previous = $value[$offset - 1] ?? '';
+        $previous = $offset > 0 ? $value[$offset - 1] : '';
         $next = $value[$offset + strlen($keyword)] ?? '';
 
         return ($previous === '' || !$this->isIdentifierChar($previous))

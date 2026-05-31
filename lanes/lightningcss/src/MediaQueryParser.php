@@ -43,6 +43,7 @@ final class MediaQueryParser
         $query = $this->normalizeParentheses($query);
         $query = preg_replace('/\b(and|or)\b/i', ' $1 ', $query) ?? $query;
         $query = $this->normalizeWhitespace($query);
+        $this->validateTopLevelConditionFunctions($query);
         $query = $this->normalizeBooleanConditionGroups($query);
         $query = preg_replace_callback('/^(not|only)\s+(screen|print|all)\b/i', static fn (array $m): string => strtolower($m[1]) . ' ' . strtolower($m[2]), $query) ?? $query;
         $query = preg_replace_callback('/^(screen|print|all)\b/i', static fn (array $m): string => strtolower($m[1]), $query) ?? $query;
@@ -94,7 +95,7 @@ final class MediaQueryParser
     {
         $inner = trim($inner);
         if ($inner === '') {
-            return '';
+            throw new \InvalidArgumentException('Empty brackets are invalid in media query conditions');
         }
 
         if ($this->containsTopLevelKeyword($inner, 'and') || $this->containsTopLevelKeyword($inner, 'or')) {
@@ -115,30 +116,194 @@ final class MediaQueryParser
     private function minifyFeature(string $feature): string
     {
         $feature = $this->normalizeWhitespace($feature);
+        if ($this->containsTopLevelDelimiter($feature, ',')) {
+            throw new \InvalidArgumentException("Invalid media query feature: {$feature}");
+        }
 
         if (preg_match('/^(.+?)\s*(<=|>=|<|>)\s*([_a-zA-Z-][_a-zA-Z0-9-]*)\s*(<=|>=|<|>)\s*(.+)$/', $feature, $matches) === 1) {
+            $this->validateRangeFeature(strtolower($matches[3]), $matches[1], $matches[5], $feature);
+
             return $this->minifyValue($matches[1]) . $matches[2] . strtolower($matches[3]) . $matches[4] . $this->minifyValue($matches[5]);
         }
 
         if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)\s*(<=|>=|<|>|=)\s*(.+)$/', $feature, $matches) === 1) {
+            $name = strtolower($matches[1]);
+            if ($matches[2] === '=' && !$this->isRangeComparableMediaFeature($name)) {
+                throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
+            }
+            $this->validateRangeFeature($name, $matches[3], null, $feature);
+
             return strtolower($matches[1]) . $matches[2] . $this->minifyValue($matches[3]);
         }
 
         if (preg_match('/^(.+?)\s*(<=|>=|<|>|=)\s*([_a-zA-Z-][_a-zA-Z0-9-]*)$/', $feature, $matches) === 1) {
+            $name = strtolower($matches[3]);
+            if ($matches[2] === '=' && !$this->isRangeComparableMediaFeature($name)) {
+                throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
+            }
+            $this->validateRangeFeature($name, $matches[1], null, $feature);
+
             return strtolower($matches[3]) . $this->oppositeComparison($matches[2]) . $this->minifyValue($matches[1]);
         }
 
         if (preg_match('/^(min|max)-([_a-zA-Z-][_a-zA-Z0-9-]*)\s*:\s*(.+)$/i', $feature, $matches) === 1) {
+            $this->validateRangeFeature(strtolower($matches[2]), $matches[3], null, $feature);
             $operator = strtolower($matches[1]) === 'min' ? '>=' : '<=';
 
             return strtolower($matches[2]) . $operator . $this->minifyValue($matches[3]);
         }
 
         if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)\s*:\s*(.+)$/', $feature, $matches) === 1) {
+            $this->validateDiscreteMediaFeature(strtolower($matches[1]), $matches[2], $feature);
+
             return strtolower($matches[1]) . ':' . $this->minifyValue($matches[2]);
         }
 
+        if (preg_match('/^[_a-zA-Z-][_a-zA-Z0-9-]*\(/', $feature) === 1) {
+            throw new \InvalidArgumentException("Unknown media query condition function: {$feature}");
+        }
+
         return strtolower(str_replace(' ', '', $feature));
+    }
+
+    private function validateTopLevelConditionFunctions(string $query): void
+    {
+        $quote = null;
+        $depth = 0;
+        $length = strlen($query);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $query[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+
+            if ($depth !== 0 || preg_match('/[_a-zA-Z-]/', $char) !== 1) {
+                continue;
+            }
+
+            $start = $i;
+            while ($i < $length && preg_match('/[-_a-zA-Z0-9]/', $query[$i]) === 1) {
+                $i++;
+            }
+
+            $identifier = strtolower(substr($query, $start, $i - $start));
+            if (($query[$i] ?? '') === '('
+                && $identifier !== 'not'
+                && !in_array($identifier, ['calc', 'clamp', 'env', 'max', 'min', 'var'], true)
+            ) {
+                throw new \InvalidArgumentException('Unknown media query condition function: ' . substr($query, $start));
+            }
+
+            $i--;
+        }
+    }
+
+    private function validateRangeFeature(string $name, string $leftValue, ?string $rightValue, string $feature): void
+    {
+        if (!$this->isRangeComparableMediaFeature($name)) {
+            throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
+        }
+
+        foreach ([$leftValue, $rightValue] as $value) {
+            if ($value === null) {
+                continue;
+            }
+            if (!$this->isValidRangeValue($name, $value)) {
+                throw new \InvalidArgumentException("Invalid media query range value: {$feature}");
+            }
+        }
+    }
+
+    private function validateDiscreteMediaFeature(string $name, string $value, string $feature): void
+    {
+        if ($name === 'grid' && !in_array(trim($value), ['0', '1'], true)) {
+            throw new \InvalidArgumentException("Invalid media query feature value: {$feature}");
+        }
+    }
+
+    private function isRangeComparableMediaFeature(string $name): bool
+    {
+        if (str_starts_with($name, 'min-') || str_starts_with($name, 'max-')) {
+            return false;
+        }
+
+        return in_array($name, ['width', 'height', 'color', 'resolution'], true);
+    }
+
+    private function isValidRangeValue(string $feature, string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        if (preg_match('/^(?:calc|clamp|env|max|min|var)\(/i', $value) === 1) {
+            return true;
+        }
+
+        if (str_starts_with($value, '--styled-jsx-placeholder-')) {
+            return true;
+        }
+
+        return match ($feature) {
+            'color' => preg_match('/^\d+$/', $value) === 1,
+            'resolution' => preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:dpcm|dpi|dppx|x))$/i', $value) === 1,
+            default => preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:[a-zA-Z%]+))$/', $value) === 1,
+        };
+    }
+
+    private function containsTopLevelDelimiter(string $value, string $delimiter): bool
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === $delimiter && $parenDepth === 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function minifyValue(string $value): string

@@ -545,6 +545,58 @@ CSS
         $t->same('.foo{grid-area:a/b/c}', $minifier->minify('.foo { grid-area: a / b / c / b; }'));
         $t->same('.foo{grid-area:1/1/1/1}', $minifier->minify('.foo { grid-area: 1 / 1 / 1 / 1; }'));
     },
+    'css minifier composes upstream grid template longhands' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.test-miss-areas{grid-template:"one""."80px/1fr 90px}',
+            $minifier->minify(
+                '.test-miss-areas { grid-template-columns: 1fr 90px; grid-template-rows: auto 80px; grid-template-areas: "one"; }'
+            )
+        );
+        $t->same(
+            '.test-miss-areas-2{grid-template:"a a a"30px"b c c"60px". . ."100px/1fr 1fr 1fr}',
+            $minifier->minify(
+                '.test-miss-areas-2 { grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 30px 60px 100px; grid-template-areas: "a a a" "b c c"; }'
+            )
+        );
+        $t->same(
+            '.foo{grid-template:auto 1fr/auto 1fr auto}',
+            $minifier->minify(
+                '.foo { grid-template-rows: auto 1fr; grid-template-columns: auto 1fr auto; grid-template-areas: none; }'
+            )
+        );
+        $t->same(
+            '.foo{grid-template:none}',
+            $minifier->minify(
+                '.foo { grid-template-areas: none; grid-template-columns: none; grid-template-rows: none; }'
+            )
+        );
+        $t->same(
+            '.foo{grid:[header-top]"a a a"[header-bottom main-top]"b b b"1fr[main-bottom]/auto 1fr auto}',
+            $minifier->minify(
+                '.foo { grid-template-areas: "a a a" "b b b"; grid-template-rows: [header-top] auto [header-bottom main-top] 1fr [main-bottom]; grid-template-columns: auto 1fr auto; grid-auto-flow: row; grid-auto-rows: auto; grid-auto-columns: auto; }'
+            )
+        );
+        $t->same(
+            '.foo{grid:repeat(2,1fr)/auto 1fr auto}',
+            $minifier->minify(
+                '.foo { grid-template-areas: none; grid-template-columns: auto 1fr auto; grid-template-rows: repeat(2, 1fr); grid-auto-flow: row; grid-auto-rows: auto; grid-auto-columns: auto; }'
+            )
+        );
+        $t->same(
+            '.foo{grid:none}',
+            $minifier->minify(
+                '.foo { grid-template-areas: none; grid-template-columns: none; grid-template-rows: none; grid-auto-flow: row; grid-auto-rows: auto; grid-auto-columns: auto; }'
+            )
+        );
+        $t->same(
+            '.foo{grid-template-areas:"a a a""b b b";grid-template-columns:repeat(3,1fr);grid-template-rows:auto 1fr}',
+            $minifier->minify(
+                '.foo { grid-template-areas: "a a a" "b b b"; grid-template-columns: repeat(3, 1fr); grid-template-rows: auto 1fr; }'
+            )
+        );
+    },
     'css minifier maps upstream property rule minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

@@ -236,6 +236,7 @@ final class TransitionPrefixer
         $transitionChanged = $this->rewritePrefixedTransitionEntries($entries);
         $supportRules = [];
         $displayFlexChanged = $this->rewriteDisplayFlexPrefixEntries($entries, $targetOptions);
+        $flexChanged = $this->rewriteFlexPrefixEntries($entries, $targetOptions);
         $colorSchemeChanged = $this->rewriteColorSchemeFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $printColorAdjustChanged = $this->rewritePrintColorAdjustPrefixEntries($entries, $targetOptions);
         $uiPrefixChanged = $this->rewriteUiPrefixEntries($entries, $targetOptions);
@@ -267,7 +268,7 @@ final class TransitionPrefixer
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules);
         $lightDarkChanged = $this->rewriteLightDarkFallbackEntries($entries, $targetOptions);
         $lightDarkSerializationChanged = $this->rewriteLightDarkAdvancedColorSerializationEntries($entries, $targetOptions);
-        if ($transitionChanged || $displayFlexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -803,6 +804,17 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'safari', [3, 1], [8]),
             'displayFlexNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [21]),
             'displayFlexNeedsMs' => $this->targetInRange($normalized, 'ie', [10], [10]),
+            'flexNeedsOldWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 2])
+                || $this->targetInRange($normalized, 'chrome', [4], [20])
+                || $this->targetInRange($normalized, 'ios_saf', [3, 2], [6])
+                || $this->targetInRange($normalized, 'safari', [3, 1], [6]),
+            'flexNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 2])
+                || $this->targetInRange($normalized, 'chrome', [4], [28])
+                || $this->targetInRange($normalized, 'ios_saf', [3, 2], [8, 1])
+                || $this->targetInRange($normalized, 'opera', [15], [16])
+                || $this->targetInRange($normalized, 'safari', [3, 1], [8]),
+            'flexNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [21]),
+            'flexNeedsMs' => $this->targetInRange($normalized, 'ie', [10], [10]),
             'userSelectNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [53])
                 || $this->targetAtLeast($normalized, 'ios_saf', [3])
@@ -1379,6 +1391,760 @@ final class TransitionPrefixer
         $values[] = $kind;
 
         return $values;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteFlexPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $standards = $this->collectFlexStandardValues($entries);
+        if ($standards === []) {
+            return false;
+        }
+
+        $existing = [];
+        foreach ($entries as $entry) {
+            if ($entry['important']) {
+                continue;
+            }
+
+            $existing[$entry['property'] . "\0" . $entry['value']] = true;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        foreach ($entries as $entry) {
+            if ($entry['important']) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            if ($entry['property'] === 'flex-flow') {
+                $minified = $this->minifyFlexFlowValue($entry['value']);
+                if ($minified !== $entry['value']) {
+                    $entry = $this->entryWithValue($entry, $minified);
+                    $changed = true;
+                }
+            }
+
+            if ($this->shouldDropFlexPrefixedEntry($entry, $standards, $targetOptions)) {
+                $changed = true;
+                continue;
+            }
+
+            $prefixEntries = $this->flexPrefixEntriesForStandard($entry['property'], $entry['value'], $targetOptions);
+            if ($prefixEntries !== []) {
+                foreach ($prefixEntries as $prefixEntry) {
+                    $key = $prefixEntry['property'] . "\0" . $prefixEntry['value'];
+                    if (isset($existing[$key])) {
+                        continue;
+                    }
+
+                    $rewritten[] = $prefixEntry;
+                    $existing[$key] = true;
+                    $changed = true;
+                }
+            }
+
+            if ($this->flexPlaceShorthandNeedsExpansion($entry['property'], $targetOptions)) {
+                $changed = true;
+                continue;
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+        return true;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @return array<string, array<string, true>>
+     */
+    private function collectFlexStandardValues(array $entries): array
+    {
+        $standards = [];
+        foreach ($entries as $entry) {
+            if ($entry['important']) {
+                continue;
+            }
+
+            $property = $entry['property'];
+            $value = $entry['value'];
+            if ($this->isFlexStandardProperty($property)) {
+                if ($property === 'flex-flow') {
+                    $value = $this->minifyFlexFlowValue($value);
+                }
+                $standards[$property][$value] = true;
+                continue;
+            }
+
+            if ($property === 'place-content') {
+                [$align, $justify] = $this->splitPlacePair($value);
+                $standards['place-content'][$value] = true;
+                $standards['align-content'][$align] = true;
+                $standards['justify-content'][$justify] = true;
+                continue;
+            }
+
+            if ($property === 'place-self') {
+                [$align, $justify] = $this->splitPlacePair($value);
+                $standards['place-self'][$value] = true;
+                $standards['align-self'][$align] = true;
+                $standards['justify-self'][$justify] = true;
+                continue;
+            }
+
+            if ($property === 'place-items') {
+                [$align, $justify] = $this->splitPlacePair($value);
+                $standards['place-items'][$value] = true;
+                $standards['align-items'][$align] = true;
+                $standards['justify-items'][$justify] = true;
+            }
+        }
+
+        return $standards;
+    }
+
+    private function isFlexStandardProperty(string $property): bool
+    {
+        return in_array($property, [
+            'flex-direction',
+            'flex-wrap',
+            'flex-flow',
+            'flex-grow',
+            'flex-shrink',
+            'flex-basis',
+            'flex',
+            'order',
+            'align-content',
+            'justify-content',
+            'align-self',
+            'align-items',
+        ], true);
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function flexPrefixEntriesForStandard(string $property, string $value, array $targetOptions): array
+    {
+        return match ($property) {
+            'flex-direction' => $this->flexDirectionPrefixEntries($value, $targetOptions),
+            'flex-wrap' => $this->flexWrapPrefixEntries($value, $targetOptions),
+            'flex-flow' => $this->flexFlowPrefixEntries($value, $targetOptions),
+            'flex-grow' => $this->flexGrowPrefixEntries($value, $targetOptions),
+            'flex-shrink' => $this->flexSimplePrefixEntries($value, $targetOptions, [
+                ['property' => '-ms-flex-negative', 'flag' => 'flexNeedsMs'],
+                ['property' => '-webkit-flex-shrink', 'flag' => 'flexNeedsWebkit'],
+            ]),
+            'flex-basis' => $this->flexSimplePrefixEntries($value, $targetOptions, [
+                ['property' => '-ms-flex-preferred-size', 'flag' => 'flexNeedsMs'],
+                ['property' => '-webkit-flex-basis', 'flag' => 'flexNeedsWebkit'],
+            ]),
+            'flex' => $this->flexShorthandPrefixEntries($value, $targetOptions),
+            'order' => $this->orderPrefixEntries($value, $targetOptions),
+            'align-content' => $this->alignmentPrefixEntries('align-content', $value, $targetOptions),
+            'justify-content' => $this->alignmentPrefixEntries('justify-content', $value, $targetOptions),
+            'align-self' => $this->alignmentPrefixEntries('align-self', $value, $targetOptions),
+            'align-items' => $this->alignmentPrefixEntries('align-items', $value, $targetOptions),
+            'place-content' => $this->placeContentPrefixEntries($value, $targetOptions),
+            'place-self' => $this->placeSelfPrefixEntries($value, $targetOptions),
+            'place-items' => $this->placeItemsPrefixEntries($value, $targetOptions),
+            default => [],
+        };
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function flexDirectionPrefixEntries(string $value, array $targetOptions): array
+    {
+        $entries = [];
+        $parts = $this->flexDirectionBoxParts($value);
+        if ($parts !== null) {
+            if ($targetOptions['flexNeedsOldWebkit'] ?? false) {
+                $entries[] = $this->declarationEntry('-webkit-box-orient', $parts[0]);
+            }
+            if ($targetOptions['flexNeedsMoz'] ?? false) {
+                $entries[] = $this->declarationEntry('-moz-box-orient', $parts[0]);
+            }
+            if ($targetOptions['flexNeedsOldWebkit'] ?? false) {
+                $entries[] = $this->declarationEntry('-webkit-box-direction', $parts[1]);
+            }
+            if ($targetOptions['flexNeedsMoz'] ?? false) {
+                $entries[] = $this->declarationEntry('-moz-box-direction', $parts[1]);
+            }
+        }
+
+        if ($targetOptions['flexNeedsWebkit'] ?? false) {
+            $entries[] = $this->declarationEntry('-webkit-flex-direction', $value);
+        }
+        if ($targetOptions['flexNeedsMs'] ?? false) {
+            $entries[] = $this->declarationEntry('-ms-flex-direction', $value);
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function flexWrapPrefixEntries(string $value, array $targetOptions): array
+    {
+        $entries = [];
+        $boxLines = $this->flexWrapBoxLinesValue($value);
+        if ($boxLines !== null) {
+            if ($targetOptions['flexNeedsOldWebkit'] ?? false) {
+                $entries[] = $this->declarationEntry('-webkit-box-lines', $boxLines);
+            }
+            if ($targetOptions['flexNeedsMoz'] ?? false) {
+                $entries[] = $this->declarationEntry('-moz-box-lines', $boxLines);
+            }
+        }
+        if ($targetOptions['flexNeedsWebkit'] ?? false) {
+            $entries[] = $this->declarationEntry('-webkit-flex-wrap', $value);
+        }
+        if ($targetOptions['flexNeedsMs'] ?? false) {
+            $entries[] = $this->declarationEntry('-ms-flex-wrap', $value);
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function flexFlowPrefixEntries(string $value, array $targetOptions): array
+    {
+        [$direction] = $this->parseFlexFlowValue($value);
+        $entries = [];
+        $parts = $this->flexDirectionBoxParts($direction);
+        if ($parts !== null) {
+            if ($targetOptions['flexNeedsOldWebkit'] ?? false) {
+                $entries[] = $this->declarationEntry('-webkit-box-orient', $parts[0]);
+            }
+            if ($targetOptions['flexNeedsMoz'] ?? false) {
+                $entries[] = $this->declarationEntry('-moz-box-orient', $parts[0]);
+            }
+            if ($targetOptions['flexNeedsOldWebkit'] ?? false) {
+                $entries[] = $this->declarationEntry('-webkit-box-direction', $parts[1]);
+            }
+            if ($targetOptions['flexNeedsMoz'] ?? false) {
+                $entries[] = $this->declarationEntry('-moz-box-direction', $parts[1]);
+            }
+        }
+        if ($targetOptions['flexNeedsWebkit'] ?? false) {
+            $entries[] = $this->declarationEntry('-webkit-flex-flow', $value);
+        }
+        if ($targetOptions['flexNeedsMs'] ?? false) {
+            $entries[] = $this->declarationEntry('-ms-flex-flow', $value);
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function flexGrowPrefixEntries(string $value, array $targetOptions): array
+    {
+        $entries = [];
+        if ($targetOptions['flexNeedsOldWebkit'] ?? false) {
+            $entries[] = $this->declarationEntry('-webkit-box-flex', $value);
+        }
+        if ($targetOptions['flexNeedsMoz'] ?? false) {
+            $entries[] = $this->declarationEntry('-moz-box-flex', $value);
+        }
+        if ($targetOptions['flexNeedsMs'] ?? false) {
+            $entries[] = $this->declarationEntry('-ms-flex-positive', $value);
+        }
+        if ($targetOptions['flexNeedsWebkit'] ?? false) {
+            $entries[] = $this->declarationEntry('-webkit-flex-grow', $value);
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @param list<array{property:string,flag:string}> $mapping
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function flexSimplePrefixEntries(string $value, array $targetOptions, array $mapping): array
+    {
+        $entries = [];
+        foreach ($mapping as $item) {
+            if ($targetOptions[$item['flag']] ?? false) {
+                $entries[] = $this->declarationEntry($item['property'], $value);
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function flexShorthandPrefixEntries(string $value, array $targetOptions): array
+    {
+        $entries = [];
+        $boxFlex = $this->legacyBoxFlexValueForFlex($value);
+        if ($boxFlex !== null) {
+            if ($targetOptions['flexNeedsOldWebkit'] ?? false) {
+                $entries[] = $this->declarationEntry('-webkit-box-flex', $boxFlex);
+            }
+            if ($targetOptions['flexNeedsMoz'] ?? false) {
+                $entries[] = $this->declarationEntry('-moz-box-flex', $boxFlex);
+            }
+        }
+        if ($targetOptions['flexNeedsWebkit'] ?? false) {
+            $entries[] = $this->declarationEntry('-webkit-flex', $value);
+        }
+        if ($targetOptions['flexNeedsMs'] ?? false) {
+            $entries[] = $this->declarationEntry('-ms-flex', $value);
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function orderPrefixEntries(string $value, array $targetOptions): array
+    {
+        $entries = [];
+        if ($targetOptions['flexNeedsOldWebkit'] ?? false) {
+            $entries[] = $this->declarationEntry('-webkit-box-ordinal-group', $value);
+        }
+        if ($targetOptions['flexNeedsMoz'] ?? false) {
+            $entries[] = $this->declarationEntry('-moz-box-ordinal-group', $value);
+        }
+        if ($targetOptions['flexNeedsMs'] ?? false) {
+            $entries[] = $this->declarationEntry('-ms-flex-order', $value);
+        }
+        if ($targetOptions['flexNeedsWebkit'] ?? false) {
+            $entries[] = $this->declarationEntry('-webkit-order', $value);
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function alignmentPrefixEntries(string $property, string $value, array $targetOptions): array
+    {
+        $entries = [];
+        switch ($property) {
+            case 'align-content':
+                $linePack = $this->legacyContentAlignmentValue($value);
+                if (($targetOptions['flexNeedsMs'] ?? false) && $linePack !== null) {
+                    $entries[] = $this->declarationEntry('-ms-flex-line-pack', $linePack);
+                }
+                if ($targetOptions['flexNeedsWebkit'] ?? false) {
+                    $entries[] = $this->declarationEntry('-webkit-align-content', $value);
+                }
+                break;
+
+            case 'justify-content':
+                $pack = $this->legacyPackAlignmentValue($value);
+                if ($pack !== null) {
+                    if ($targetOptions['flexNeedsOldWebkit'] ?? false) {
+                        $entries[] = $this->declarationEntry('-webkit-box-pack', $pack);
+                    }
+                    if ($targetOptions['flexNeedsMoz'] ?? false) {
+                        $entries[] = $this->declarationEntry('-moz-box-pack', $pack);
+                    }
+                    if ($targetOptions['flexNeedsMs'] ?? false) {
+                        $entries[] = $this->declarationEntry('-ms-flex-pack', $pack);
+                    }
+                }
+                if ($targetOptions['flexNeedsWebkit'] ?? false) {
+                    $entries[] = $this->declarationEntry('-webkit-justify-content', $value);
+                }
+                break;
+
+            case 'align-self':
+                $itemAlign = $this->legacySelfAlignmentValue($value);
+                if (($targetOptions['flexNeedsMs'] ?? false) && $itemAlign !== null) {
+                    $entries[] = $this->declarationEntry('-ms-flex-item-align', $itemAlign);
+                }
+                if ($targetOptions['flexNeedsWebkit'] ?? false) {
+                    $entries[] = $this->declarationEntry('-webkit-align-self', $value);
+                }
+                break;
+
+            case 'align-items':
+                $boxAlign = $this->legacySelfAlignmentValue($value);
+                if ($boxAlign !== null) {
+                    if ($targetOptions['flexNeedsOldWebkit'] ?? false) {
+                        $entries[] = $this->declarationEntry('-webkit-box-align', $boxAlign);
+                    }
+                    if ($targetOptions['flexNeedsMoz'] ?? false) {
+                        $entries[] = $this->declarationEntry('-moz-box-align', $boxAlign);
+                    }
+                    if ($targetOptions['flexNeedsMs'] ?? false) {
+                        $entries[] = $this->declarationEntry('-ms-flex-align', $boxAlign);
+                    }
+                }
+                if ($targetOptions['flexNeedsWebkit'] ?? false) {
+                    $entries[] = $this->declarationEntry('-webkit-align-items', $value);
+                }
+                break;
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function placeContentPrefixEntries(string $value, array $targetOptions): array
+    {
+        if (!$this->flexPlaceShorthandNeedsExpansion('place-content', $targetOptions)) {
+            return [];
+        }
+
+        [$align, $justify] = $this->splitPlacePair($value);
+        $entries = [];
+        $linePack = $this->legacyContentAlignmentValue($align);
+        if (($targetOptions['flexNeedsMs'] ?? false) && $linePack !== null) {
+            $entries[] = $this->declarationEntry('-ms-flex-line-pack', $linePack);
+        }
+        $pack = $this->legacyPackAlignmentValue($justify);
+        if ($pack !== null) {
+            if ($targetOptions['flexNeedsOldWebkit'] ?? false) {
+                $entries[] = $this->declarationEntry('-webkit-box-pack', $pack);
+            }
+            if ($targetOptions['flexNeedsMoz'] ?? false) {
+                $entries[] = $this->declarationEntry('-moz-box-pack', $pack);
+            }
+            if ($targetOptions['flexNeedsMs'] ?? false) {
+                $entries[] = $this->declarationEntry('-ms-flex-pack', $pack);
+            }
+        }
+        if ($targetOptions['flexNeedsWebkit'] ?? false) {
+            $entries[] = $this->declarationEntry('-webkit-align-content', $align);
+        }
+        $entries[] = $this->declarationEntry('align-content', $align);
+        if ($targetOptions['flexNeedsWebkit'] ?? false) {
+            $entries[] = $this->declarationEntry('-webkit-justify-content', $justify);
+        }
+        $entries[] = $this->declarationEntry('justify-content', $justify);
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function placeSelfPrefixEntries(string $value, array $targetOptions): array
+    {
+        if (!$this->flexPlaceShorthandNeedsExpansion('place-self', $targetOptions)) {
+            return [];
+        }
+
+        [$align, $justify] = $this->splitPlacePair($value);
+
+        return array_merge(
+            $this->alignmentPrefixEntries('align-self', $align, $targetOptions),
+            [$this->declarationEntry('align-self', $align)],
+            [$this->declarationEntry('justify-self', $justify)]
+        );
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<array{property:string,name:string,value:string,important:bool}>
+     */
+    private function placeItemsPrefixEntries(string $value, array $targetOptions): array
+    {
+        if (!$this->flexPlaceShorthandNeedsExpansion('place-items', $targetOptions)) {
+            return [];
+        }
+
+        [$align, $justify] = $this->splitPlacePair($value);
+
+        return array_merge(
+            $this->alignmentPrefixEntries('align-items', $align, $targetOptions),
+            [$this->declarationEntry('align-items', $align)],
+            [$this->declarationEntry('justify-items', $justify)]
+        );
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function flexPlaceShorthandNeedsExpansion(string $property, array $targetOptions): bool
+    {
+        if (!in_array($property, ['place-content', 'place-self', 'place-items'], true)) {
+            return false;
+        }
+
+        return ($targetOptions['flexNeedsOldWebkit'] ?? false)
+            || ($targetOptions['flexNeedsWebkit'] ?? false)
+            || ($targetOptions['flexNeedsMoz'] ?? false)
+            || ($targetOptions['flexNeedsMs'] ?? false);
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private function splitPlacePair(string $value): array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return ['', ''];
+        }
+
+        $align = $tokens[0];
+        $justify = count($tokens) > 1 ? implode(' ', array_slice($tokens, 1)) : $align;
+
+        return [$align, $justify];
+    }
+
+    /**
+     * @return array{0:string,1:string}|null
+     */
+    private function flexDirectionBoxParts(string $value): ?array
+    {
+        return match (strtolower(trim($value))) {
+            'row' => ['horizontal', 'normal'],
+            'column' => ['vertical', 'normal'],
+            'row-reverse' => ['horizontal', 'reverse'],
+            'column-reverse' => ['vertical', 'reverse'],
+            default => null,
+        };
+    }
+
+    private function flexWrapBoxLinesValue(string $value): ?string
+    {
+        return match (strtolower(trim($value))) {
+            'wrap', 'wrap-reverse' => 'multiple',
+            'nowrap' => 'single',
+            default => null,
+        };
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private function parseFlexFlowValue(string $value): array
+    {
+        $direction = 'row';
+        $wrap = 'nowrap';
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower($token);
+            if (in_array($lower, ['row', 'row-reverse', 'column', 'column-reverse'], true)) {
+                $direction = $lower;
+            } elseif (in_array($lower, ['nowrap', 'wrap', 'wrap-reverse'], true)) {
+                $wrap = $lower;
+            }
+        }
+
+        return [$direction, $wrap];
+    }
+
+    private function minifyFlexFlowValue(string $value): string
+    {
+        [$direction, $wrap] = $this->parseFlexFlowValue($value);
+        $parts = [];
+        if ($direction !== 'row' || $wrap === 'nowrap') {
+            $parts[] = $direction;
+        }
+        if ($wrap !== 'nowrap') {
+            $parts[] = $wrap;
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function legacyBoxFlexValueForFlex(string $value): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === [] || preg_match('/^(?:\d+|\d*\.\d+)$/', $tokens[0]) !== 1) {
+            return null;
+        }
+
+        return $tokens[0];
+    }
+
+    private function legacyPackAlignmentValue(string $value): ?string
+    {
+        return match (strtolower(trim($value))) {
+            'start', 'flex-start', 'left' => 'start',
+            'end', 'flex-end', 'right' => 'end',
+            'center' => 'center',
+            'space-between' => 'justify',
+            default => null,
+        };
+    }
+
+    private function legacyContentAlignmentValue(string $value): ?string
+    {
+        return $this->legacyPackAlignmentValue($value);
+    }
+
+    private function legacySelfAlignmentValue(string $value): ?string
+    {
+        return match (strtolower(trim($value))) {
+            'start', 'flex-start', 'self-start' => 'start',
+            'end', 'flex-end', 'self-end' => 'end',
+            'center' => 'center',
+            'baseline', 'first baseline', 'last baseline' => 'baseline',
+            'stretch', 'normal' => 'stretch',
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string, array<string, true>> $standards
+     * @param array<string, bool> $targetOptions
+     */
+    private function shouldDropFlexPrefixedEntry(array $entry, array $standards, array $targetOptions): bool
+    {
+        $property = $entry['property'];
+        $value = $entry['value'];
+
+        return match ($property) {
+            '-webkit-box-orient' => !($targetOptions['flexNeedsOldWebkit'] ?? false) && $this->hasFlexDirectionForBoxPart($standards, 'orient', $value),
+            '-moz-box-orient' => !($targetOptions['flexNeedsMoz'] ?? false) && $this->hasFlexDirectionForBoxPart($standards, 'orient', $value),
+            '-webkit-box-direction' => !($targetOptions['flexNeedsOldWebkit'] ?? false) && $this->hasFlexDirectionForBoxPart($standards, 'direction', $value),
+            '-moz-box-direction' => !($targetOptions['flexNeedsMoz'] ?? false) && $this->hasFlexDirectionForBoxPart($standards, 'direction', $value),
+            '-webkit-flex-direction' => !($targetOptions['flexNeedsWebkit'] ?? false) && isset($standards['flex-direction'][$value]),
+            '-ms-flex-direction' => !($targetOptions['flexNeedsMs'] ?? false) && isset($standards['flex-direction'][$value]),
+            '-webkit-box-lines' => !($targetOptions['flexNeedsOldWebkit'] ?? false) && $this->hasFlexWrapForBoxLines($standards, $value),
+            '-moz-box-lines' => !($targetOptions['flexNeedsMoz'] ?? false) && $this->hasFlexWrapForBoxLines($standards, $value),
+            '-webkit-flex-wrap' => !($targetOptions['flexNeedsWebkit'] ?? false) && isset($standards['flex-wrap'][$value]),
+            '-ms-flex-wrap' => !($targetOptions['flexNeedsMs'] ?? false) && isset($standards['flex-wrap'][$value]),
+            '-webkit-flex-flow' => !($targetOptions['flexNeedsWebkit'] ?? false) && isset($standards['flex-flow'][$value]),
+            '-ms-flex-flow' => !($targetOptions['flexNeedsMs'] ?? false) && isset($standards['flex-flow'][$value]),
+            '-webkit-box-flex' => !($targetOptions['flexNeedsOldWebkit'] ?? false) && $this->hasFlexGrowOrFlexForBoxFlex($standards, $value),
+            '-moz-box-flex' => !($targetOptions['flexNeedsMoz'] ?? false) && $this->hasFlexGrowOrFlexForBoxFlex($standards, $value),
+            '-ms-flex-positive' => !($targetOptions['flexNeedsMs'] ?? false) && isset($standards['flex-grow'][$value]),
+            '-webkit-flex-grow' => !($targetOptions['flexNeedsWebkit'] ?? false) && isset($standards['flex-grow'][$value]),
+            '-ms-flex-negative' => !($targetOptions['flexNeedsMs'] ?? false) && isset($standards['flex-shrink'][$value]),
+            '-webkit-flex-shrink' => !($targetOptions['flexNeedsWebkit'] ?? false) && isset($standards['flex-shrink'][$value]),
+            '-ms-flex-preferred-size' => !($targetOptions['flexNeedsMs'] ?? false) && isset($standards['flex-basis'][$value]),
+            '-webkit-flex-basis' => !($targetOptions['flexNeedsWebkit'] ?? false) && isset($standards['flex-basis'][$value]),
+            '-webkit-flex' => !($targetOptions['flexNeedsWebkit'] ?? false) && isset($standards['flex'][$value]),
+            '-ms-flex' => !($targetOptions['flexNeedsMs'] ?? false) && isset($standards['flex'][$value]),
+            '-webkit-box-ordinal-group' => !($targetOptions['flexNeedsOldWebkit'] ?? false) && isset($standards['order'][$value]),
+            '-moz-box-ordinal-group' => !($targetOptions['flexNeedsMoz'] ?? false) && isset($standards['order'][$value]),
+            '-ms-flex-order' => !($targetOptions['flexNeedsMs'] ?? false) && isset($standards['order'][$value]),
+            '-webkit-order' => !($targetOptions['flexNeedsWebkit'] ?? false) && isset($standards['order'][$value]),
+            '-ms-flex-line-pack' => !($targetOptions['flexNeedsMs'] ?? false) && $this->hasAlignmentForLegacyValue($standards, 'align-content', $value, 'content'),
+            '-webkit-align-content' => !($targetOptions['flexNeedsWebkit'] ?? false) && isset($standards['align-content'][$value]),
+            '-webkit-box-pack' => !($targetOptions['flexNeedsOldWebkit'] ?? false) && $this->hasAlignmentForLegacyValue($standards, 'justify-content', $value, 'pack'),
+            '-moz-box-pack' => !($targetOptions['flexNeedsMoz'] ?? false) && $this->hasAlignmentForLegacyValue($standards, 'justify-content', $value, 'pack'),
+            '-ms-flex-pack' => !($targetOptions['flexNeedsMs'] ?? false) && $this->hasAlignmentForLegacyValue($standards, 'justify-content', $value, 'pack'),
+            '-webkit-justify-content' => !($targetOptions['flexNeedsWebkit'] ?? false) && isset($standards['justify-content'][$value]),
+            '-ms-flex-item-align' => !($targetOptions['flexNeedsMs'] ?? false) && $this->hasAlignmentForLegacyValue($standards, 'align-self', $value, 'self'),
+            '-webkit-align-self' => !($targetOptions['flexNeedsWebkit'] ?? false) && isset($standards['align-self'][$value]),
+            '-webkit-box-align' => !($targetOptions['flexNeedsOldWebkit'] ?? false) && $this->hasAlignmentForLegacyValue($standards, 'align-items', $value, 'self'),
+            '-moz-box-align' => !($targetOptions['flexNeedsMoz'] ?? false) && $this->hasAlignmentForLegacyValue($standards, 'align-items', $value, 'self'),
+            '-ms-flex-align' => !($targetOptions['flexNeedsMs'] ?? false) && $this->hasAlignmentForLegacyValue($standards, 'align-items', $value, 'self'),
+            '-webkit-align-items' => !($targetOptions['flexNeedsWebkit'] ?? false) && isset($standards['align-items'][$value]),
+            default => false,
+        };
+    }
+
+    /**
+     * @param array<string, array<string, true>> $standards
+     */
+    private function hasFlexDirectionForBoxPart(array $standards, string $part, string $value): bool
+    {
+        foreach (array_keys($standards['flex-direction'] ?? []) as $direction) {
+            $direction = (string) $direction;
+            $parts = $this->flexDirectionBoxParts($direction);
+            if ($parts !== null && $parts[$part === 'orient' ? 0 : 1] === $value) {
+                return true;
+            }
+        }
+
+        foreach (array_keys($standards['flex-flow'] ?? []) as $flow) {
+            $flow = (string) $flow;
+            [$direction] = $this->parseFlexFlowValue($flow);
+            $parts = $this->flexDirectionBoxParts($direction);
+            if ($parts !== null && $parts[$part === 'orient' ? 0 : 1] === $value) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, array<string, true>> $standards
+     */
+    private function hasFlexWrapForBoxLines(array $standards, string $value): bool
+    {
+        foreach (array_keys($standards['flex-wrap'] ?? []) as $wrap) {
+            $wrap = (string) $wrap;
+            if ($this->flexWrapBoxLinesValue($wrap) === $value) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, array<string, true>> $standards
+     */
+    private function hasFlexGrowOrFlexForBoxFlex(array $standards, string $value): bool
+    {
+        if (isset($standards['flex-grow'][$value])) {
+            return true;
+        }
+
+        foreach (array_keys($standards['flex'] ?? []) as $flex) {
+            $flex = (string) $flex;
+            if ($this->legacyBoxFlexValueForFlex($flex) === $value) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, array<string, true>> $standards
+     */
+    private function hasAlignmentForLegacyValue(array $standards, string $property, string $value, string $kind): bool
+    {
+        foreach (array_keys($standards[$property] ?? []) as $standard) {
+            $standard = (string) $standard;
+            $legacy = match ($kind) {
+                'pack' => $this->legacyPackAlignmentValue($standard),
+                'content' => $this->legacyContentAlignmentValue($standard),
+                'self' => $this->legacySelfAlignmentValue($standard),
+                default => null,
+            };
+            if ($legacy === $value) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
