@@ -576,6 +576,12 @@ Focused gix-credentials prompt fallback inventory and runner evidence added on 2
 - Counted 29 already-materialized `gix-credentials/src` and `gix-credentials/tests` files in the sparse cache, 50 Rust `#[test]` attributes across the `credentials` integration target, and 18 focused prompt/cascade source/test call sites for `gix_prompt::ask`, `to_prompt`, `query_user_only`, and `Mode::Disable`.
 - `timeout 180 cargo test -p gix-credentials --test credentials -- --nocapture` passed the full upstream `gix-credentials` integration target: 50/50 tests, 0 failures.
 - `Cascade::invoke()` defines the mapped prompt fallback boundary: helper responses are merged first, the original URL is restored into the context when prompting is enabled, missing usernames use a visible prompt, missing passwords use a hidden prompt, query-user-only still avoids a password prompt by installing a bogus empty password before helpers run, and an incomplete quit-marked helper context can still become a complete returned identity if prompting supplies the missing field.
+
+Focused credential helper context URL destructuring parity added on 2026-05-31:
+
+- Re-inspected upstream `gix-credentials/src/protocol/context/mod.rs` and `gix-url/src/{lib.rs,parse.rs,simple_url.rs}` plus focused `gix-url/tests/url/parse/{http.rs,ssh.rs}` evidence for `Context::destructure_url_in_place()` delegating to `gix_url::parse()`.
+- The PHP slice maps percent-decoded user/password/path components, lowercase DNS host normalization, default `git://` port elision, SSH IPv6 bracket stripping, scp-like SSH URLs, file URLs without hosts, and UTF-8 validation for credential context fields that are Rust `String`s upstream.
+- Native focused verification passed `CredentialContextTest.php` with 99 assertions, the credential family with 185 assertions, and the full Gitoxide lane with 5050 assertions; full upstream Cargo workspace was not executed for this isolated micro-slice.
 - The PHP slice adds optional username/password prompt callbacks to `CredentialCascade`, including prompt mode metadata, URL-restored prompt text, next-action URL retention after prompting, and a WordPress deployment prompt fixture where helpers return only OAuth metadata and the deploy username/token are obtained without invoking `git credential`.
 
 Focused gix-pack thin-pack repair inventory and runner evidence added on 2026-05-22:

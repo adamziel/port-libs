@@ -126,7 +126,7 @@ The latest namespace prefix slice uses `ReferenceName::intoNamespacedPrefix()` t
 
 ## WordPress Credential Context Example
 
-`examples/wordpress-credential-context.php` writes and reads native Git credential-helper context fields for a WordPress deployment repository. It preserves upstream helper protocol field order, derives a password-free display URL for `wp-content.git`, and redacts or clears the deployment password and OAuth refresh token before diagnostic logging.
+`examples/wordpress-credential-context.php` writes and reads native Git credential-helper context fields for a WordPress deployment repository. It preserves upstream helper protocol field order, derives a password-free display URL for `wp-content.git`, normalizes percent-encoded deployment helper URLs through gix-url-style context destructuring, and redacts or clears the deployment password and OAuth refresh token before diagnostic logging.
 
 ## WordPress Credential Cascade Example
 

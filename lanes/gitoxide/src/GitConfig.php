@@ -438,6 +438,7 @@ final class GitConfig
             return false;
         }
 
+        $pattern = self::stripOptionalPathPrefix($pattern);
         $pattern = self::interpolatePath($pattern, $options);
         if ($pattern === null) {
             return false;
@@ -524,6 +525,7 @@ final class GitConfig
      */
     private static function resolvePath(string $path, ?string $targetConfigPath, array $options): ?string
     {
+        $path = self::stripOptionalPathPrefix($path);
         $path = self::interpolatePath($path, $options);
         if ($path === null) {
             return null;
@@ -541,6 +543,13 @@ final class GitConfig
         }
 
         return $path;
+    }
+
+    private static function stripOptionalPathPrefix(string $path): string
+    {
+        $prefix = ':(optional)';
+
+        return str_starts_with($path, $prefix) ? substr($path, strlen($prefix)) : $path;
     }
 
     /**

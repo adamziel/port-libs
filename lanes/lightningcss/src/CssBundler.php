@@ -26,7 +26,7 @@ final class CssBundler
 
     private bool $cssModules = false;
 
-    /** @var array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,container?:bool,projectRoot?:string,project_root?:string} */
+    /** @var array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,grid?:bool,container?:bool,projectRoot?:string,project_root?:string} */
     private array $cssModuleOptions = [];
 
     /**
@@ -119,7 +119,7 @@ final class CssBundler
      *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,grid?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModules(string $entry, array $files, ?callable $resolver = null, array $options = []): array
     {
@@ -135,7 +135,7 @@ final class CssBundler
      *
      * @param callable(string): string $reader
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,grid?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModulesWithReader(string $entry, callable $reader, ?callable $resolver = null, array $options = []): array
     {
@@ -149,7 +149,7 @@ final class CssBundler
      * }
      *
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,grid?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModulesFile(string $entry, ?callable $resolver = null, array $options = []): array
     {
@@ -164,7 +164,7 @@ final class CssBundler
      *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,container?:bool,projectRoot?:string,project_root?:string} $cssModuleOptions
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,grid?:bool,container?:bool,projectRoot?:string,project_root?:string} $cssModuleOptions
      * @param (callable(string): string)|null $reader
      */
     private function bundleInternal(
@@ -254,7 +254,9 @@ final class CssBundler
         }
 
         $cssModuleResult = null;
+        $cssModuleDependencyLocations = [];
         if ($this->cssModules) {
+            $cssModuleDependencyLocations = $this->cssModuleDependencyLocations($source);
             $cssModuleResult = (new CssModulesTransformer())->transform($source, $this->cssModuleTransformOptions($file));
             $source = $cssModuleResult['code'];
         }
@@ -264,7 +266,8 @@ final class CssBundler
         $cssModuleExports = $cssModuleResult['exports'] ?? [];
         $cssModuleReferences = $cssModuleResult['references'] ?? [];
         foreach ($this->cssModuleDependencySpecifiers($cssModuleExports, $cssModuleReferences) as $specifier) {
-            $resolved = $this->resolveImport($specifier, $file, ['line' => 1, 'column' => 1]);
+            $dependencyLoc = $cssModuleDependencyLocations[$specifier] ?? ['line' => 1, 'column' => 1];
+            $resolved = $this->resolveImport($specifier, $file, $dependencyLoc);
             if (isset($resolved['external'])) {
                 throw new CssBundleException(
                     'referenced-external-module-with-css-module-from',
@@ -279,7 +282,7 @@ final class CssBundler
                 'layer' => $rule['layer'],
                 'supports' => $rule['supports'],
                 'media' => $rule['media'],
-                'loc' => ['line' => 1, 'column' => 1],
+                'loc' => $dependencyLoc,
                 'file' => $file,
             ];
             $depSourceIndex = $this->loadFile($resolved['file'], $dependencyRule);
@@ -1364,7 +1367,7 @@ final class CssBundler
     }
 
     /**
-     * @return array{hash?:string,filename:string,projectRoot?:string,pattern:string,minify:bool,dashedIdents:bool,container:bool}
+     * @return array{hash?:string,filename:string,projectRoot?:string,pattern:string,minify:bool,dashedIdents:bool,grid:bool,container:bool}
      */
     private function cssModuleTransformOptions(string $file): array
     {
@@ -1373,6 +1376,7 @@ final class CssBundler
             'pattern' => $this->cssModulePattern(),
             'minify' => $this->cssModuleOptions['minify'] ?? true,
             'dashedIdents' => ($this->cssModuleOptions['dashedIdents'] ?? $this->cssModuleOptions['dashed_idents'] ?? false) === true,
+            'grid' => ($this->cssModuleOptions['grid'] ?? true) !== false,
             'container' => ($this->cssModuleOptions['container'] ?? true) !== false,
         ];
 
@@ -1450,6 +1454,135 @@ final class CssBundler
         $stem = $dot === false ? $base : substr($base, 0, $dot);
 
         return str_replace('.', '-', $stem);
+    }
+
+    /**
+     * @return array<string, array{line:int,column:int}>
+     */
+    private function cssModuleDependencyLocations(string $source): array
+    {
+        $locations = [];
+        $offset = 0;
+        while (preg_match('/\bcomposes\b/i', $source, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $propertyOffset = $match[0][1];
+            $offset = $propertyOffset + strlen($match[0][0]);
+            $previous = $propertyOffset > 0 ? $source[$propertyOffset - 1] : '';
+            if (
+                ($previous !== '' && $this->isIdentifierChar($previous))
+                || $this->isCssOffsetInsideStringOrComment($source, $propertyOffset)
+            ) {
+                continue;
+            }
+
+            $colon = $this->skipWhitespaceAndComments($source, $offset);
+            if (($source[$colon] ?? '') !== ':') {
+                continue;
+            }
+
+            $valueStart = $this->skipWhitespaceAndComments($source, $colon + 1);
+            $valueEnd = $this->findNextTopLevel($source, ';', $valueStart)
+                ?? $this->findNextTopLevel($source, '}', $valueStart)
+                ?? strlen($source);
+            $value = substr($source, $valueStart, $valueEnd - $valueStart);
+            $location = $this->sourceLocation($source, $valueStart);
+            foreach ($this->cssModuleDependencySpecifiersInValue($value) as $specifier) {
+                $locations[$specifier] ??= $location;
+            }
+
+            $offset = $valueEnd + 1;
+        }
+
+        $offset = 0;
+        while (preg_match('/\b(?:var|env)\(/i', $source, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $functionOffset = $match[0][1];
+            $open = $functionOffset + strlen($match[0][0]) - 1;
+            $offset = $open + 1;
+            if ($this->isCssOffsetInsideStringOrComment($source, $functionOffset)) {
+                continue;
+            }
+
+            try {
+                $close = $this->findMatchingDelimiter($source, $open, '(', ')');
+            } catch (CssBundleException) {
+                continue;
+            }
+            $value = substr($source, $open + 1, $close - $open - 1);
+            $location = $this->sourceLocation($source, $functionOffset);
+            foreach ($this->cssModuleDependencySpecifiersInValue($value) as $specifier) {
+                $locations[$specifier] ??= $location;
+            }
+
+            $offset = $close + 1;
+        }
+
+        return $locations;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function cssModuleDependencySpecifiersInValue(string $value): array
+    {
+        $specifiers = [];
+        $offset = 0;
+        while (preg_match('/\bfrom\b/i', $value, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
+            $fromOffset = $match[0][1];
+            $offset = $fromOffset + strlen($match[0][0]);
+            if ($this->isCssOffsetInsideStringOrComment($value, $fromOffset)) {
+                continue;
+            }
+
+            $quoteOffset = $this->skipWhitespaceAndComments($value, $offset);
+            $quote = $value[$quoteOffset] ?? '';
+            if ($quote !== '"' && $quote !== "'") {
+                continue;
+            }
+
+            $end = $this->readQuotedTokenEnd($value, $quoteOffset);
+            $specifier = $this->cssStringTokenValue(substr($value, $quoteOffset, $end - $quoteOffset));
+            if ($specifier !== '' && !in_array($specifier, $specifiers, true)) {
+                $specifiers[] = $specifier;
+            }
+
+            $offset = $end;
+        }
+
+        return $specifiers;
+    }
+
+    private function isCssOffsetInsideStringOrComment(string $source, int $offset): bool
+    {
+        $quote = null;
+        $length = min($offset, strlen($source));
+        for ($i = 0; $i < $length; $i++) {
+            $char = $source[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '/' && ($source[$i + 1] ?? '') === '*') {
+                $end = strpos($source, '*/', $i + 2);
+                if ($end === false || $end + 2 > $offset) {
+                    return true;
+                }
+
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            }
+        }
+
+        return $quote !== null;
     }
 
     private function normalizePath(string $path): string

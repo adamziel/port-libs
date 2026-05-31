@@ -67,7 +67,7 @@ final class CredentialContext
             if ($value === null) {
                 continue;
             }
-            self::validateField($key, $value);
+            self::validateField($key, $value, !in_array($key, ['url', 'path'], true));
             $bytes .= "{$key}={$value}\n";
         }
 
@@ -146,30 +146,27 @@ final class CredentialContext
         }
 
         try {
-            $parts = parse_url($url);
-        } catch (\ValueError $error) {
+            $parsed = GitUrl::parse($url);
+        } catch (\InvalidArgumentException $error) {
             throw new \InvalidArgumentException('Credential context URL could not be parsed', 0, $error);
         }
-        if (!is_array($parts) || !isset($parts['scheme']) || !is_string($parts['scheme'])) {
-            throw new \InvalidArgumentException("Either 'url' field or both 'protocol' and 'host' fields must be provided");
-        }
 
-        $protocol = strtolower($parts['scheme']);
+        $protocol = $parsed->scheme();
         $host = $this->host;
-        if (isset($parts['host']) && is_string($parts['host']) && $parts['host'] !== '') {
-            $host = $parts['host'];
-            $port = isset($parts['port']) ? (int) $parts['port'] : null;
+        if ($parsed->host() !== null && $parsed->host() !== '') {
+            $host = $parsed->host();
+            $port = $parsed->port();
             if ($port !== null && self::defaultPort($protocol) !== $port) {
                 $host .= ':' . $port;
             }
         }
-        if ($host === null || $host === '') {
+        if (($host === null || $host === '') && in_array($protocol, ['http', 'https', 'ssh', 'git'], true)) {
             throw new \InvalidArgumentException("Either 'url' field or both 'protocol' and 'host' fields must be provided");
         }
 
         $path = $this->path;
         if (($protocol !== 'http' && $protocol !== 'https') || $useHttpPath) {
-            $trimmedPath = isset($parts['path']) && is_string($parts['path']) ? trim($parts['path'], '/') : '';
+            $trimmedPath = trim($parsed->path(), '/');
             if ($trimmedPath !== '') {
                 $path = $trimmedPath;
             }
@@ -179,8 +176,8 @@ final class CredentialContext
             protocol: $protocol,
             host: $host,
             path: $path,
-            username: isset($parts['user']) ? rawurldecode((string) $parts['user']) : null,
-            password: isset($parts['pass']) ? rawurldecode((string) $parts['pass']) : null,
+            username: $parsed->user(),
+            password: $parsed->password(),
             oauthRefreshToken: $this->oauthRefreshToken,
             passwordExpiryUtc: $this->passwordExpiryUtc,
             url: $url,
@@ -242,7 +239,7 @@ final class CredentialContext
         return null;
     }
 
-    private static function validateField(string $key, string $value): void
+    private static function validateField(string $key, string $value, bool $valueMustBeUtf8 = false): void
     {
         if (str_contains($key, "\0")
             || str_contains($key, "\n")
@@ -250,6 +247,12 @@ final class CredentialContext
             || str_contains($value, "\n")
         ) {
             throw new \InvalidArgumentException('Credential context keys and values must not contain NUL bytes or newlines');
+        }
+        if (preg_match('//u', $key) !== 1) {
+            throw new \InvalidArgumentException('Credential context keys must be valid UTF-8');
+        }
+        if ($valueMustBeUtf8 && preg_match('//u', $value) !== 1) {
+            throw new \InvalidArgumentException("Credential context field {$key} must be valid UTF-8");
         }
     }
 
@@ -259,6 +262,7 @@ final class CredentialContext
             'http' => 80,
             'https' => 443,
             'ssh' => 22,
+            'git' => 9418,
             default => null,
         };
     }

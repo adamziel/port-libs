@@ -24,10 +24,18 @@ $helperResponse = CredentialContext::fromBytes(
 $emptyQuit = CredentialContext::fromBytes("quit=\n");
 $redacted = $helperResponse->redacted();
 $cleared = $helperResponse->clearSecrets();
+$encodedContext = (new CredentialContext(
+    url: 'https://Deploy%20Bot:wp%40token@GIT.example.test:443/wp-content%20deploy.git',
+))->destructureUrl(true);
 
 return [
     'requestBytes' => $request->storageBytes(),
     'credentialUrl' => $helperResponse->toUrl(),
+    'encodedContext' => [
+        'host' => $encodedContext->host,
+        'path' => $encodedContext->path,
+        'username' => $encodedContext->username,
+    ],
     'passwordExpiryUtc' => $helperResponse->passwordExpiryUtc,
     'emptyQuitFalse' => $emptyQuit->quit,
     'redactedBytes' => $redacted->storageBytes(),

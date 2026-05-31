@@ -762,6 +762,84 @@ CSS);
             'list' => $export('EgL3uq_list'),
         ], $builtInTypeWins['exports']);
     },
+    'css modules scopes upstream grid template names' => static function (TestRunner $t) use ($export): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+body {
+  grid: [header-top] "a a a" [header-bottom]
+        [main-top] "b b b" 1fr [main-bottom]
+        / auto 1fr auto;
+}
+
+header {
+  grid-area: a;
+}
+
+main {
+  grid-row: main-top / main-bottom;
+}
+CSS);
+
+        $t->same('body{grid:[EgL3uq_header-top]"EgL3uq_a EgL3uq_a EgL3uq_a"[EgL3uq_header-bottom EgL3uq_main-top]"EgL3uq_b EgL3uq_b EgL3uq_b"1fr[EgL3uq_main-bottom]/auto 1fr auto}header{grid-area:EgL3uq_a}main{grid-row:EgL3uq_main-top/EgL3uq_main-bottom}', $result['code']);
+        $t->same([
+            'header-top' => $export('EgL3uq_header-top'),
+            'a' => $export('EgL3uq_a'),
+            'header-bottom' => $export('EgL3uq_header-bottom'),
+            'main-top' => $export('EgL3uq_main-top'),
+            'b' => $export('EgL3uq_b'),
+            'main-bottom' => $export('EgL3uq_main-bottom'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
+    'css modules scopes upstream grid areas while preserving composes exports' => static function (TestRunner $t) use ($export, $dependency): void {
+        $css = <<<'CSS'
+.grid {
+  composes: utility from "tokens.css";
+  grid-template-areas: "foo";
+}
+
+.foo {
+  grid-area: foo;
+}
+
+.bar {
+  grid-column-start: foo-start;
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css);
+
+        $t->same('.EgL3uq_grid{grid-template-areas:"EgL3uq_foo"}.EgL3uq_foo{grid-area:EgL3uq_foo}.EgL3uq_bar{grid-column-start:EgL3uq_foo-start}', $result['code']);
+        $t->same([
+            'grid' => $export('EgL3uq_grid', [$dependency('utility', 'tokens.css')]),
+            'foo' => $export('EgL3uq_foo'),
+            'bar' => $export('EgL3uq_bar'),
+            'foo-start' => $export('EgL3uq_foo-start'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $disabled = (new CssModulesTransformer())->transform($css, [
+            'grid' => false,
+        ]);
+
+        $t->same('.EgL3uq_grid{grid-template-areas:"foo"}.EgL3uq_foo{grid-area:foo}.EgL3uq_bar{grid-column-start:foo-start}', $disabled['code']);
+        $t->same([
+            'grid' => $export('EgL3uq_grid', [$dependency('utility', 'tokens.css')]),
+            'foo' => $export('EgL3uq_foo'),
+            'bar' => $export('EgL3uq_bar'),
+        ], $disabled['exports']);
+
+        try {
+            (new CssModulesTransformer())->transform('.grid { grid-template-areas: "foo"; }', [
+                'pattern' => 'test-[local]-[hash]',
+            ]);
+        } catch (InvalidArgumentException $exception) {
+            $t->same('The CSS modules `pattern` config must end with `[local]` for use in CSS grid line names.', $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected invalid CSS Modules grid pattern exception');
+    },
     'css modules scopes upstream container query names while preserving composes exports' => static function (TestRunner $t) use ($export, $dependency): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .box2 {

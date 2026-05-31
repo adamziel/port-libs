@@ -65,6 +65,8 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => CredentialContext::fromBytes("not-a-field\n"));
         $t->throws(InvalidArgumentException::class, static fn () => (new CredentialContext(path: "foo\nbar"))->storageBytes());
         $t->throws(InvalidArgumentException::class, static fn () => CredentialContext::fromBytes("username=\xff\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => CredentialContext::fromBytes("bad\xff=value\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => (new CredentialContext(username: "bad\xff"))->storageBytes());
     },
     'credential context preserves byte string path and url fields' => static function (TestRunner $t): void {
         $context = CredentialContext::fromBytes(
@@ -117,6 +119,37 @@ return [
         $t->same('github.com', $withHttpPath->host);
         $t->same('byron/gitoxide', $withHttpPath->path);
 
+        $decodedHttp = (new CredentialContext(
+            url: 'https://USER%20name:p%40ss%3Aword@EXAMPLE.com:443/path/with%20spaces/file?token=abc#frag',
+        ))->destructureUrl(true);
+        $t->same('USER name', $decodedHttp->username);
+        $t->same('p@ss:word', $decodedHttp->password);
+        $t->same('example.com', $decodedHttp->host);
+        $t->same('path/with spaces/file?token=abc#frag', $decodedHttp->path);
+
+        $defaultGitPort = (new CredentialContext(url: 'git://HOST.xz:9418/~repo'))->destructureUrl();
+        $t->same('git', $defaultGitPort->protocol);
+        $t->same('host.xz', $defaultGitPort->host);
+        $t->same('~repo', $defaultGitPort->path);
+
+        $sshIpv6 = (new CredentialContext(url: 'ssh://user@[::1]:22/repo'))->destructureUrl();
+        $t->same('ssh', $sshIpv6->protocol);
+        $t->same('user', $sshIpv6->username);
+        $t->same('::1', $sshIpv6->host);
+        $t->same('repo', $sshIpv6->path);
+
+        $scpLike = (new CredentialContext(url: 'User@HOST.xz:repo.git'))->destructureUrl();
+        $t->same('ssh', $scpLike->protocol);
+        $t->same('User', $scpLike->username);
+        $t->same('host.xz', $scpLike->host);
+        $t->same('repo.git', $scpLike->path);
+        $t->same('User@HOST.xz:repo.git', $scpLike->url);
+
+        $fileUrl = (new CredentialContext(url: 'file:///srv/repo.git'))->destructureUrl();
+        $t->same('file', $fileUrl->protocol);
+        $t->same(null, $fileUrl->host);
+        $t->same('srv/repo.git', $fileUrl->path);
+
         $composed = (new CredentialContext(
             protocol: 'https',
             host: 'github.com',
@@ -152,11 +185,15 @@ return [
         $t->contains("protocol=https\n", $fixture['requestBytes']);
         $t->contains("host=git.example.test\n", $fixture['requestBytes']);
         $t->same('https://deploy-bot@git.example.test/wp-content.git', $fixture['credentialUrl']);
+        $t->same('git.example.test', $fixture['encodedContext']['host']);
+        $t->same('wp-content deploy.git', $fixture['encodedContext']['path']);
+        $t->same('Deploy Bot', $fixture['encodedContext']['username']);
         $t->same(null, $fixture['clearedPassword']);
         $t->same(false, $fixture['emptyQuitFalse']);
         $t->same(1711398853, $fixture['passwordExpiryUtc']);
         $t->contains('password=<redacted>', $fixture['redactedBytes']);
         $t->same($fixture['credentialUrl'], $summary['credentialUrl']);
+        $t->same($fixture['encodedContext']['path'], $summary['encodedPath']);
         $t->same(false, $summary['emptyQuitFalse']);
         $t->same(false, $summary['secretsInCleartextLog']);
     },

@@ -548,6 +548,48 @@ return [
         ]));
     },
 
+    'optional path prefix is stripped for gitdir conditions and include paths' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $root = $tmpDir();
+        $worktree = $root . '/optional-prefix';
+        $gitDir = $worktree . '/.git';
+        $installPrefix = $root . '/install';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/conditional.config', "[section]\nvalue = conditional-optional\n");
+        $write($worktree . '/case.config', "[section]\ncase = should-not-load\n");
+        $write($installPrefix . '/install.config', "[section]\ninstall = optional-install\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir::(optional)optional-prefix/"]
+        path = :(optional)../conditional.config
+        [includeIf "gitdir::(OPTIONAL)optional-prefix/"]
+        path = :(optional)../case.config
+        [includeIf "gitdir::(optional)optional-prefix/"]
+        path = :(optional)%(prefix)/install.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', [
+            'gitDir' => $gitDir,
+            'homeDir' => $root,
+            'installPrefix' => $installPrefix,
+        ]);
+        $t->same('conditional-optional', $config->value('section', null, 'value'));
+        $t->same(null, $config->value('section', null, 'case'));
+        $t->same('optional-install', $config->value('section', null, 'install'));
+
+        $root = $tmpDir();
+        $write($root . '/plain.config', "[section]\nplain = optional-plain\n");
+        $write($root . '/case.config', "[section]\ncase = should-not-load\n");
+        $write($root . '/config', <<<CFG
+        [include]
+        path = :(optional)plain.config
+        [include]
+        path = :(OPTIONAL)case.config
+        CFG);
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same('optional-plain', $config->value('section', null, 'plain'));
+        $t->same(null, $config->value('section', null, 'case'));
+    },
+
     'hasconfig includeIf searches parent config with gix ordering and cycle boundaries' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $root = $tmpDir();
         $write($root . '/include-this', "[user]\nthis = included\n");
@@ -670,6 +712,7 @@ return [
         $t->same(null, $fixture['unboundedDoubleStarRejectedPolicy']);
         $t->same(null, $fixture['invalidPosixPolicy']);
         $t->same(null, $fixture['unclosedBracketPolicy']);
+        $t->same('matched', $fixture['optionalPrefixPolicy']);
         $t->same($fixture['preview'], $summary['preview']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
         $t->same($fixture['escapedGitdirPolicy'], $summary['escapedGitdirPolicy']);
@@ -686,6 +729,7 @@ return [
         $t->same($fixture['unboundedDoubleStarRejectedPolicy'], $summary['unboundedDoubleStarRejectedPolicy']);
         $t->same($fixture['invalidPosixPolicy'], $summary['invalidPosixPolicy']);
         $t->same($fixture['unclosedBracketPolicy'], $summary['unclosedBracketPolicy']);
+        $t->same($fixture['optionalPrefixPolicy'], $summary['optionalPrefixPolicy']);
         $t->same($fixture['sectionsLoaded'], $summary['sectionsLoaded']);
     },
 ];

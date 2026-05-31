@@ -103,6 +103,11 @@ $write($repo . '/unclosed-bracket.config', <<<CFG
 unclosedBracket = should-not-load
 CFG);
 
+$write($repo . '/optional-prefix.config', <<<CFG
+[wordpress]
+optionalPrefix = matched
+CFG);
+
 $write($gitDir . '/config', <<<CFG
 [core]
 repositoryformatversion = 0
@@ -154,6 +159,8 @@ path = ../unbounded-double-star.config
 path = ../invalid-posix.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[.git"]
 path = ../unclosed-bracket.config
+[includeIf "gitdir::(optional)wp-content.git/"]
+path = :(optional)../optional-prefix.config
 CFG);
 
 $config = GitConfig::fromFile($gitDir . '/config', [
@@ -184,6 +191,7 @@ return [
     'unboundedDoubleStarRejectedPolicy' => $config->value('wordpress', null, 'unboundedDoubleStar'),
     'invalidPosixPolicy' => $config->value('wordpress', null, 'invalidPosix'),
     'unclosedBracketPolicy' => $config->value('wordpress', null, 'unclosedBracket'),
+    'optionalPrefixPolicy' => $config->value('wordpress', null, 'optionalPrefix'),
     'sectionsLoaded' => array_map(
         static fn (array $section): string => $section['subsection'] === null
             ? $section['name']

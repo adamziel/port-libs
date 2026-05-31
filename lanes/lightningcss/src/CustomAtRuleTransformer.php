@@ -72,6 +72,12 @@ final class CustomAtRuleTransformer
     /** @var callable|null */
     private $urlVisitor = null;
 
+    /** @var callable|null */
+    private $dashedIdentVisitor = null;
+
+    /** @var callable|null */
+    private $customIdentVisitor = null;
+
     /** @var array<string, callable> */
     private array $tokenVisitors = [];
 
@@ -484,6 +490,42 @@ final class CustomAtRuleTransformer
 
                 return $changed ? $value : null;
             },
+            'DashedIdent' => static function (string $ident, self $transformer) use ($visitors): mixed {
+                $value = $ident;
+                $changed = false;
+                foreach ($visitors as $visitor) {
+                    $callback = self::dashedIdentVisitorCallback($visitor);
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($value, $transformer);
+                    if ($replacement !== null) {
+                        $value = (string) $replacement;
+                        $changed = true;
+                    }
+                }
+
+                return $changed ? $value : null;
+            },
+            'CustomIdent' => static function (string $ident, self $transformer) use ($visitors): mixed {
+                $value = $ident;
+                $changed = false;
+                foreach ($visitors as $visitor) {
+                    $callback = self::customIdentVisitorCallback($visitor);
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($value, $transformer);
+                    if ($replacement !== null) {
+                        $value = (string) $replacement;
+                        $changed = true;
+                    }
+                }
+
+                return $changed ? $value : null;
+            },
         ];
     }
 
@@ -731,6 +773,8 @@ final class CustomAtRuleTransformer
 
         $this->lengthVisitor = is_callable($visitor['Length'] ?? null) ? $visitor['Length'] : null;
         $this->urlVisitor = is_callable($visitor['Url'] ?? null) ? $visitor['Url'] : null;
+        $this->dashedIdentVisitor = is_callable($visitor['DashedIdent'] ?? null) ? $visitor['DashedIdent'] : null;
+        $this->customIdentVisitor = is_callable($visitor['CustomIdent'] ?? null) ? $visitor['CustomIdent'] : null;
 
         $this->tokenVisitors = [];
         $this->genericTokenVisitor = null;
@@ -2301,6 +2345,9 @@ final class CustomAtRuleTransformer
         }
 
         $prelude = trim($this->rewriteAtRulePreludeValue((string) ($rule['prelude'] ?? '')));
+        if ($this->isKeyframesAtRule($name)) {
+            $prelude = $this->rewriteKeyframesPrelude($prelude);
+        }
         $head = '@' . $name . ($prelude === '' ? '' : ' ' . $prelude);
         if (empty($rule['hasBlock'])) {
             return $head . ';';
@@ -2683,6 +2730,26 @@ final class CustomAtRuleTransformer
         $urlConfig = $visitor['Url'] ?? null;
 
         return is_callable($urlConfig) ? $urlConfig : null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function dashedIdentVisitorCallback(array $visitor): ?callable
+    {
+        $dashedIdentConfig = $visitor['DashedIdent'] ?? null;
+
+        return is_callable($dashedIdentConfig) ? $dashedIdentConfig : null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function customIdentVisitorCallback(array $visitor): ?callable
+    {
+        $customIdentConfig = $visitor['CustomIdent'] ?? null;
+
+        return is_callable($customIdentConfig) ? $customIdentConfig : null;
     }
 
     private static function isUnknownRuleReplacement(mixed $replacement): bool
@@ -3283,7 +3350,7 @@ final class CustomAtRuleTransformer
             if ($property === '') {
                 continue;
             }
-            $body .= $property . ':' . $this->rewriteDeclarationValue((string) ($entry['value'] ?? ''));
+            $body .= $this->rewriteDeclarationProperty($property) . ':' . $this->rewriteDeclarationValue((string) ($entry['value'] ?? ''), $property);
             if (!empty($entry['important'])) {
                 $body .= ' !important';
             }
@@ -3297,14 +3364,142 @@ final class CustomAtRuleTransformer
         return implode(',', array_map('trim', $selectors)) . '{' . $body . '}';
     }
 
-    private function rewriteDeclarationValue(string $value): string
+    private function rewriteDeclarationProperty(string $property): string
     {
-        return $this->rewriteValueTokens($this->rewriteValueFunctions($this->rewriteStandaloneLengths($value)));
+        return str_starts_with($property, '--') ? $this->applyDashedIdentVisitor($property) : $property;
+    }
+
+    private function rewriteDeclarationValue(string $value, ?string $property = null): string
+    {
+        $rewritten = $this->rewriteValueTokens($this->rewriteValueFunctions($this->rewriteStandaloneLengths($value)));
+
+        return $property === null ? $rewritten : $this->rewriteAnimationCustomIdents($property, $rewritten);
     }
 
     private function rewriteAtRulePreludeValue(string $value): string
     {
         return $this->rewriteValueFunctions($value);
+    }
+
+    private function rewriteKeyframesPrelude(string $prelude): string
+    {
+        $prelude = trim($prelude);
+        if ($prelude === '') {
+            return $prelude;
+        }
+        if (
+            strlen($prelude) >= 2
+            && (($prelude[0] === '"' && $prelude[strlen($prelude) - 1] === '"') || ($prelude[0] === "'" && $prelude[strlen($prelude) - 1] === "'"))
+        ) {
+            $name = stripcslashes(substr($prelude, 1, -1));
+
+            return $this->applyCustomIdentVisitor($name);
+        }
+
+        return $this->isCustomIdentToken($prelude) ? $this->applyCustomIdentVisitor($prelude) : $prelude;
+    }
+
+    private function rewriteAnimationCustomIdents(string $property, string $value): string
+    {
+        if ($this->customIdentVisitor === null) {
+            return $value;
+        }
+
+        $property = strtolower($property);
+        if ($property === 'animation-name') {
+            return implode(',', array_map(
+                fn (string $name): string => $this->isAnimationCustomIdentToken($name) ? $this->applyCustomIdentVisitor($name) : $name,
+                $this->splitTopLevel($value, ',')
+            ));
+        }
+
+        if (!in_array($property, ['animation', '-webkit-animation', '-moz-animation'], true)) {
+            return $value;
+        }
+
+        $layers = $this->splitTopLevel($value, ',');
+        $rewritten = [];
+        foreach ($layers as $layer) {
+            $tokens = $this->splitWhitespaceTokens($layer);
+            foreach ($tokens as &$token) {
+                if ($this->isAnimationCustomIdentToken($token)) {
+                    $token = $this->applyCustomIdentVisitor($token);
+                }
+            }
+            unset($token);
+            $rewritten[] = implode(' ', $tokens);
+        }
+
+        return implode(',', $rewritten);
+    }
+
+    private function isAnimationCustomIdentToken(string $token): bool
+    {
+        $token = trim($token);
+        if (!$this->isCustomIdentToken($token)) {
+            return false;
+        }
+
+        return !in_array(strtolower($token), [
+            'alternate',
+            'alternate-reverse',
+            'backwards',
+            'both',
+            'ease',
+            'ease-in',
+            'ease-in-out',
+            'ease-out',
+            'forwards',
+            'infinite',
+            'linear',
+            'none',
+            'normal',
+            'paused',
+            'reverse',
+            'running',
+            'step-end',
+            'step-start',
+        ], true);
+    }
+
+    private function isCustomIdentToken(string $token): bool
+    {
+        return preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', trim($token)) === 1
+            && !in_array(strtolower(trim($token)), ['inherit', 'initial', 'revert', 'revert-layer', 'unset'], true);
+    }
+
+    private function applyDashedIdentVisitor(string $ident): string
+    {
+        if ($this->dashedIdentVisitor === null) {
+            return $ident;
+        }
+
+        $replacement = ($this->dashedIdentVisitor)($ident, $this);
+        if ($replacement === null) {
+            return $ident;
+        }
+        if (!is_string($replacement) || !str_starts_with($replacement, '--')) {
+            throw new \InvalidArgumentException('DashedIdent visitor must return a dashed identifier string');
+        }
+
+        return $replacement;
+    }
+
+    private function applyCustomIdentVisitor(string $ident): string
+    {
+        if ($this->customIdentVisitor === null) {
+            return $ident;
+        }
+
+        $replacement = ($this->customIdentVisitor)($ident, $this);
+        if ($replacement === null) {
+            return $ident;
+        }
+        if (!is_string($replacement) || !$this->isCustomIdentToken($replacement)) {
+            throw new \InvalidArgumentException('CustomIdent visitor must return a custom identifier string');
+        }
+
+        return $replacement;
     }
 
     private function rewriteStandaloneLengths(string $value): string
@@ -3442,16 +3637,18 @@ final class CustomAtRuleTransformer
     private function callStructuredValueVisitor(string $name, string $argumentsCss, string $raw): mixed
     {
         $lower = strtolower($name);
-        if ($lower === 'env' && ($this->environmentVariableVisitors !== [] || $this->genericEnvironmentVariableVisitor !== null)) {
-            $replacement = $this->callEnvironmentVariableVisitor($this->parseEnvironmentVariable($argumentsCss, $raw));
+        if ($lower === 'env' && ($this->environmentVariableVisitors !== [] || $this->genericEnvironmentVariableVisitor !== null || $this->dashedIdentVisitor !== null)) {
+            $environmentVariable = $this->parseEnvironmentVariable($argumentsCss, $raw);
+            $replacement = $this->callEnvironmentVariableVisitor($environmentVariable);
 
-            return $replacement === null ? null : $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
+            return $replacement === null ? ['type' => 'env', 'value' => $environmentVariable] : $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
         }
 
-        if ($lower === 'var' && ($this->variableVisitors !== [] || $this->genericVariableVisitor !== null)) {
-            $replacement = $this->callVariableVisitor($this->parseVariable($argumentsCss, $raw));
+        if ($lower === 'var' && ($this->variableVisitors !== [] || $this->genericVariableVisitor !== null || $this->dashedIdentVisitor !== null)) {
+            $variable = $this->parseVariable($argumentsCss, $raw);
+            $replacement = $this->callVariableVisitor($variable);
 
-            return $replacement === null ? null : $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
+            return $replacement === null ? ['type' => 'var', 'value' => $variable] : $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
         }
 
         if ($lower === 'url' && $this->urlVisitor !== null) {
@@ -4144,6 +4341,9 @@ final class CustomAtRuleTransformer
     private function serializeVariableValue(array $variable): string
     {
         $name = self::variableCallbackName($variable);
+        if (str_starts_with($name, '--')) {
+            $name = $this->applyDashedIdentVisitor($name);
+        }
         $fallback = $variable['fallback'] ?? null;
         if (!is_array($fallback) || $fallback === []) {
             return 'var(' . $name . ')';
@@ -4158,6 +4358,9 @@ final class CustomAtRuleTransformer
     private function serializeEnvironmentVariableValue(array $environmentVariable): string
     {
         $name = self::environmentVariableCallbackName($environmentVariable);
+        if (str_starts_with($name, '--')) {
+            $name = $this->applyDashedIdentVisitor($name);
+        }
         $fallback = $environmentVariable['fallback'] ?? null;
         if (!is_array($fallback) || $fallback === []) {
             return 'env(' . $name . ')';
@@ -4336,6 +4539,11 @@ final class CustomAtRuleTransformer
     private function isCustomAtRule(string $name): bool
     {
         return isset($this->customAtRules[strtolower($name)]);
+    }
+
+    private function isKeyframesAtRule(string $name): bool
+    {
+        return in_array(strtolower($name), ['keyframes', '-webkit-keyframes', '-moz-keyframes'], true);
     }
 
     /**

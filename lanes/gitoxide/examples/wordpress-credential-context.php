@@ -8,6 +8,8 @@ $fixture = require __DIR__ . '/../fixtures/wordpress-credential-context.php';
 
 return [
     'credentialUrl' => $fixture['credentialUrl'],
+    'encodedHost' => $fixture['encodedContext']['host'],
+    'encodedPath' => $fixture['encodedContext']['path'],
     'requestBytes' => $fixture['requestBytes'],
     'emptyQuitFalse' => $fixture['emptyQuitFalse'],
     'redactedBytes' => $fixture['redactedBytes'],

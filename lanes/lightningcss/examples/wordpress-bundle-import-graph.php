@@ -407,6 +407,33 @@ if (
 
 echo 'css-modules: dependency graph resolved' . PHP_EOL;
 
+try {
+    (new CssBundler())->bundleCssModules('/modules/missing-card.css', [
+        '/modules/missing-card.css' => <<<'CSS'
+.wp-block-card {
+  composes: token from "../missing-tokens.css";
+  color: red;
+}
+CSS,
+    ]);
+
+    fwrite(STDERR, "Expected missing CSS Modules dependency diagnostic\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'resolver-error'
+        || $exception->getMessage() !== 'Could not read `/missing-tokens.css`.'
+        || $exception->sourceFile !== '/modules/missing-card.css'
+        || $exception->sourceLine !== 2
+        || $exception->sourceColumn !== 13
+    ) {
+        fwrite(STDERR, 'Unexpected CSS Modules dependency diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+}
+
+echo 'css-modules-missing-dependency-location: rejected' . PHP_EOL;
+
 $withTempFiles([
     'modules/card.css' => <<<'CSS'
 @import "../base.css" layer(theme.blocks);

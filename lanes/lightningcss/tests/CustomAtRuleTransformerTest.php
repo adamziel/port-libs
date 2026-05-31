@@ -1591,4 +1591,87 @@ CSS;
             ['url' => 'https://mywebsite.com/foo.png', 'raw' => 'url(foo.png)'],
         ], $seenUrls);
     },
+    'custom at-rules compose upstream DashedIdent visitors for custom properties and variables' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'DashedIdent' => static function (string $ident) use (&$seen): string {
+                    $seen[] = $ident;
+
+                    return '--prefix-' . substr($ident, 2);
+                },
+            ],
+            [
+                'DashedIdent' => static function (string $ident) use (&$seen): string {
+                    $seen[] = $ident;
+
+                    return str_replace('--prefix-', '--theme-', $ident);
+                },
+            ],
+        ]);
+
+        $css = <<<'CSS'
+.foo {
+  --foo: #ff0;
+  color: var(--foo);
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.foo{--theme-foo:#ff0;color:var(--theme-foo)}', $result);
+        $t->same(['--foo', '--prefix-foo', '--foo', '--prefix-foo'], $seen);
+    },
+    'custom at-rules map upstream CustomIdent visitors for keyframes and animation names' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'CustomIdent' => static function (string $ident) use (&$seen): string {
+                    $seen[] = $ident;
+
+                    return 'prefix-' . $ident;
+                },
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@keyframes test {
+  from { color: red }
+  to { color: green }
+}
+
+.foo {
+  animation: test;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('@keyframes prefix-test{0%{color:red}to{color:green}}.foo{animation:prefix-test}', $result);
+        $t->same(['test', 'test'], $seen);
+    },
+    'custom at-rules apply upstream identifier visitors after parser replacements' => static function (TestRunner $t): void {
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'custom' => [
+                        'tokens' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->styleRule(':root', [
+                            '--' . $rule['prelude'] => 'var(--' . $rule['prelude'] . ')',
+                        ]),
+                    ],
+                ],
+            ],
+            [
+                'DashedIdent' => static fn (string $ident): string => '--wp-' . substr($ident, 2),
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@tokens accent;', [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ], $visitor);
+
+        $t->same(':root{--wp-accent:var(--wp-accent)}', $result);
+    },
 ];

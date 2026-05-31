@@ -1877,6 +1877,26 @@ CSS;
             '@layer blocks{@media (width>=240px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media all and (width >= 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 64])
         );
+        $t->same(
+            '@layer blocks{@media (-webkit-min-device-pixel-ratio:2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (-webkit-device-pixel-ratio >= 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media not (-webkit-max-device-pixel-ratio:2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (-webkit-device-pixel-ratio > 2) { .wp-block-query { color: yellow; } } }', ['chrome' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media (-webkit-device-pixel-ratio>=2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (-webkit-min-device-pixel-ratio: 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 64])
+        );
+        $t->same(
+            '@layer blocks{@media (-webkit-min-device-pixel-ratio:2) and (-webkit-max-device-pixel-ratio:3){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (2 <= -webkit-device-pixel-ratio <= 3) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min--moz-device-pixel-ratio:2) and (max--moz-device-pixel-ratio:3){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (2 <= -moz-device-pixel-ratio <= 3) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
     },
     'transition prefixer maps upstream typed media range fallbacks inside layers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
@@ -1963,6 +1983,18 @@ CSS;
                 'firefox' => 85,
                 'exclude' => ['MediaIntervalSyntax'],
             ])
+        );
+    },
+    'transition prefixer maps upstream negated grouped media ranges inside layers' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@layer blocks{@media not ((not (min-width:240px)) or (hover)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media not ((width < 240px) or (hover)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media not (((min-width:100px) and (max-width:200px)) or (hover)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media not ((100px <= width <= 200px) or (hover)) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
         );
     },
     'transition prefixer maps upstream resolution media prefixes inside layers' => static function (TestRunner $t): void {

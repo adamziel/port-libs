@@ -17,6 +17,7 @@ final class CssModulesTransformer
     private string $pattern = '[hash]_[local]';
     private bool $dashedIdents = false;
     private bool $animation = true;
+    private bool $grid = true;
     private bool $container = true;
     private bool $customIdents = true;
     private bool $pure = false;
@@ -38,7 +39,7 @@ final class CssModulesTransformer
      *   references:array<string, array{type:string, name:string, specifier:string}>
      * }
      *
-     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, container?:bool, customIdents?:bool, custom_idents?:bool, pure?:bool} $options
+     * @param array{hash?:string, contentHash?:string, filename?:string, projectRoot?:string, pattern?:string, minify?:bool, dashedIdents?:bool, dashed_idents?:bool, animation?:bool, grid?:bool, container?:bool, customIdents?:bool, custom_idents?:bool, pure?:bool} $options
      */
     public function transform(string $css, array $options = []): array
     {
@@ -54,6 +55,7 @@ final class CssModulesTransformer
                 : '');
         $this->dashedIdents = ($options['dashedIdents'] ?? $options['dashed_idents'] ?? false) === true;
         $this->animation = ($options['animation'] ?? true) !== false;
+        $this->grid = ($options['grid'] ?? true) !== false;
         $this->container = ($options['container'] ?? true) !== false;
         $this->customIdents = ($options['customIdents'] ?? $options['custom_idents'] ?? true) !== false;
         $this->pure = ($options['pure'] ?? false) === true;
@@ -527,6 +529,9 @@ final class CssModulesTransformer
             'animation-name' => $this->animation ? $this->rewriteAnimationNameValue($value) : null,
             'list-style' => $this->rewriteListStyleValue($value),
             'list-style-type' => $this->rewriteListStyleTypeValue($value),
+            'grid', 'grid-template', 'grid-template-rows', 'grid-template-columns',
+            'grid-template-areas', 'grid-area', 'grid-row', 'grid-row-start',
+            'grid-row-end', 'grid-column', 'grid-column-start', 'grid-column-end' => $this->rewriteGridValue($property, $value),
             'view-transition-name' => $this->rewriteViewTransitionNameValue($value),
             'view-transition-class' => $this->rewriteViewTransitionIdentList($value, ['none']),
             'view-transition-group' => $this->rewriteViewTransitionNameValue($value, ['contain']),
@@ -713,6 +718,293 @@ final class CssModulesTransformer
         }
 
         return $this->escapeCssIdentifier($this->scopeDashedIdent($token['decoded'], true));
+    }
+
+    private function rewriteGridValue(string $property, string $value): ?string
+    {
+        if (!$this->grid) {
+            return null;
+        }
+
+        $rewritten = match ($property) {
+            'grid', 'grid-template' => $this->rewriteGridTemplateValue($value),
+            'grid-template-rows', 'grid-template-columns' => $this->rewriteGridLineNameLists($value),
+            'grid-template-areas' => $this->rewriteGridTemplateAreaStrings($value),
+            'grid-area', 'grid-row', 'grid-row-start', 'grid-row-end',
+            'grid-column', 'grid-column-start', 'grid-column-end' => $this->rewriteGridLineValue($value),
+            default => $value,
+        };
+
+        return $rewritten === $value ? null : $rewritten;
+    }
+
+    private function rewriteGridTemplateValue(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+
+            if ($quote !== null) {
+                $start = $i;
+                while ($i < $length) {
+                    $current = $value[$i];
+                    if ($current === '\\' && $i + 1 < $length) {
+                        $i += 2;
+                        continue;
+                    }
+
+                    if ($current === $quote) {
+                        $content = substr($value, $start, $i - $start);
+                        $output .= $this->rewriteGridTemplateAreaStringContent($content) . $quote;
+                        $quote = null;
+                        break;
+                    }
+
+                    $i++;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $close = $this->findGridLineNameListEnd($value, $i);
+                if ($close !== null) {
+                    $inner = substr($value, $i + 1, $close - $i - 1);
+                    $output .= '[' . $this->rewriteGridLineNameListContent($inner) . ']';
+                    $i = $close;
+                    continue;
+                }
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function rewriteGridLineNameLists(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '[') {
+                $close = $this->findGridLineNameListEnd($value, $i);
+                if ($close !== null) {
+                    $inner = substr($value, $i + 1, $close - $i - 1);
+                    $output .= '[' . $this->rewriteGridLineNameListContent($inner) . ']';
+                    $i = $close;
+                    continue;
+                }
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function findGridLineNameListEnd(string $value, int $open): ?int
+    {
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = $open + 1; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === ']') {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    private function rewriteGridTemplateAreaStrings(string $value): string
+    {
+        return preg_replace_callback(
+            '/(["\'])(?:\\\\.|(?!\\1).)*\\1/s',
+            function (array $matches): string {
+                $quote = $matches[1];
+                $content = substr($matches[0], 1, -1);
+
+                return $quote . $this->rewriteGridTemplateAreaStringContent($content) . $quote;
+            },
+            $value
+        ) ?? $value;
+    }
+
+    private function rewriteGridTemplateAreaStringContent(string $content): string
+    {
+        $parts = preg_split('/(\s+)/', $content, -1, PREG_SPLIT_DELIM_CAPTURE);
+        if ($parts === false) {
+            return $content;
+        }
+
+        foreach ($parts as $index => $part) {
+            if ($part === '' || ctype_space($part) || preg_match('/^\.+$/', $part) === 1) {
+                continue;
+            }
+
+            $parts[$index] = $this->scopeGridName($part);
+        }
+
+        return implode('', $parts);
+    }
+
+    private function rewriteGridLineNameListContent(string $content): string
+    {
+        $parts = preg_split('/(\s+)/', $content, -1, PREG_SPLIT_DELIM_CAPTURE);
+        if ($parts === false) {
+            return $content;
+        }
+
+        foreach ($parts as $index => $part) {
+            if ($part === '' || ctype_space($part)) {
+                continue;
+            }
+
+            $token = $this->readCssIdentifierToken($part, 0);
+            if ($token === null || $token['end'] !== strlen($part)) {
+                continue;
+            }
+
+            $parts[$index] = $this->scopeGridNameToken($token);
+        }
+
+        return implode('', $parts);
+    }
+
+    private function rewriteGridLineValue(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            $token = ($char === '\\' || $char === '-' || $this->isCssIdentifierStartChar($char))
+                ? $this->readCssIdentifierToken($value, $i)
+                : null;
+            if ($token === null) {
+                $output .= $char;
+                continue;
+            }
+
+            if (($value[$token['end']] ?? '') === '(') {
+                $close = $this->findMatchingParen($value, $token['end']);
+                $output .= substr($value, $i, $close - $i + 1);
+                $i = $close;
+                continue;
+            }
+
+            $output .= $this->scopeGridNameToken($token);
+            $i = $token['end'] - 1;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param array{raw:string, decoded:string, end:int} $token
+     */
+    private function scopeGridNameToken(array $token): string
+    {
+        $decoded = $token['decoded'];
+        if ($this->isGridLineKeyword($decoded)) {
+            return $token['raw'];
+        }
+
+        return $this->escapeCssIdentifier($this->scopeGridName($token['raw']));
+    }
+
+    private function scopeGridName(string $raw): string
+    {
+        $decoded = $this->decodeCssIdentifierToken($raw);
+        if ($decoded === null || $decoded === '' || $this->isGridLineKeyword($decoded)) {
+            return $raw;
+        }
+
+        $this->assertGridPatternSupportsLineNames();
+        $this->ensureExport($decoded);
+
+        return $this->scopedName($decoded);
+    }
+
+    private function assertGridPatternSupportsLineNames(): void
+    {
+        if (!str_ends_with($this->pattern, '[local]')) {
+            throw new \InvalidArgumentException('The CSS modules `pattern` config must end with `[local]` for use in CSS grid line names.');
+        }
+    }
+
+    private function isGridLineKeyword(string $token): bool
+    {
+        return $this->isCssWideKeyword($token)
+            || in_array(strtolower($token), ['auto', 'span', 'none', 'subgrid', 'masonry'], true);
     }
 
     private function isCssWideKeyword(string $token): bool

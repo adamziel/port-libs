@@ -51,6 +51,14 @@ return [
         $t->same('(vertical-viewport-segments<3)', $parser->minifyList('(3 > vertical-viewport-segments)'));
         $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= 2)'));
         $t->same('(-moz-device-pixel-ratio<1.5)', $parser->minifyList('(-moz-device-pixel-ratio < 1.5)'));
+        $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-min-device-pixel-ratio: 2)'));
+        $t->same('(-webkit-device-pixel-ratio<=1.5)', $parser->minifyList('(-webkit-max-device-pixel-ratio: 1.5)'));
+        $t->same('(-moz-device-pixel-ratio>=2)', $parser->minifyList('(min--moz-device-pixel-ratio: 2)'));
+        $t->same('(-moz-device-pixel-ratio<=1.5)', $parser->minifyList('(max--moz-device-pixel-ratio: 1.5)'));
+        $t->same('(-webkit-device-pixel-ratio)', $parser->minifyList('(-webkit-min-device-pixel-ratio)'));
+        $t->same('(-moz-device-pixel-ratio)', $parser->minifyList('(max--moz-device-pixel-ratio)'));
+        $t->same('(width)', $parser->minifyList('(min-width)'));
+        $t->same('(scan)', $parser->minifyList('(max-scan)'));
     },
     'media query parser maps upstream unknown range feature parity' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
@@ -112,6 +120,8 @@ return [
             '(1px <= scan <= 2px)',
             '(grid: 10)',
             '(prefers-color-scheme = dark)',
+            '(-webkit-min-device-pixel-ratio: hi)',
+            '(-webkit-min-device-pixel-ratio >= 2)',
             'unknown(foo)',
             'calc(foo)',
             'env(--theme-breakpoint)',
@@ -140,6 +150,8 @@ return [
         $t->same('(hover) or ((min-width:100px) and (max-width:200px))', $parser->lowerRangeSyntaxList('(hover) or (100px <= width <= 200px)'));
         $t->same('(not (max-width:100px)) and (not (min-width:200px))', $parser->lowerRangeSyntaxList('(100px < width < 200px)'));
         $t->same('not ((not (max-width:100px)) and (not (min-width:200px)))', $parser->lowerRangeSyntaxList('not (100px < width < 200px)'));
+        $t->same('not ((not (min-width:240px)) or (hover))', $parser->lowerRangeSyntaxList('not ((width < 240px) or (hover))'));
+        $t->same('not (((min-width:100px) and (max-width:200px)) or (hover))', $parser->lowerRangeSyntaxList('not ((100px <= width <= 200px) or (hover))'));
         $t->same('(max-width:200px) and (min-width:100px)', $parser->lowerRangeSyntaxList('(200px >= width >= 100px)'));
         $t->same('(min-aspect-ratio:16/9)', $parser->lowerRangeSyntaxList('(aspect-ratio >= 16 / 9)'));
         $t->same('not (max-color-index:2)', $parser->lowerRangeSyntaxList('(color-index > 2)'));
@@ -150,6 +162,12 @@ return [
         $t->same('(width:240px)', $parser->lowerRangeSyntaxList('(240px = width)'));
         $t->same('(theme-state:expanded)', $parser->lowerRangeSyntaxList('(theme-state = expanded)'));
         $t->same('(--wp-breakpoint:env(--wp-breakpoint))', $parser->lowerRangeSyntaxList('(--wp-breakpoint = env(--wp-breakpoint))'));
+        $t->same('(-webkit-min-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= 2)'));
+        $t->same('not (-webkit-max-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio > 2)'));
+        $t->same('(-webkit-max-device-pixel-ratio:1.5)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio <= 1.5)'));
+        $t->same('not (min--moz-device-pixel-ratio:1.5)', $parser->lowerRangeSyntaxList('(-moz-device-pixel-ratio < 1.5)'));
+        $t->same('(-webkit-min-device-pixel-ratio:2) and (-webkit-max-device-pixel-ratio:3)', $parser->lowerRangeSyntaxList('(2 <= -webkit-device-pixel-ratio <= 3)'));
+        $t->same('(not (-webkit-max-device-pixel-ratio:2)) and (not (-webkit-min-device-pixel-ratio:3))', $parser->lowerRangeSyntaxList('(2 < -webkit-device-pixel-ratio < 3)'));
         $t->same('not screen and not (min-width:240px)', $parser->lowerRangeSyntaxList('not screen and (width < 240px)'));
         $t->same('only screen and (min-width:240px)', $parser->lowerRangeSyntaxList('only screen and (width >= 240px)'));
         $t->same('(min-width:240px)', $parser->lowerRangeSyntaxList('all and (width >= 240px)'));

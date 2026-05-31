@@ -176,6 +176,21 @@ final class MediaQueryParser
             return strtolower($matches[3]) . $this->oppositeComparison($matches[2]) . $this->minifyValue($matches[1]);
         }
 
+        if (preg_match('/^-webkit-(min|max)-([_a-zA-Z-][_a-zA-Z0-9-]*)\s*:\s*(.+)$/i', $feature, $matches) === 1) {
+            $name = '-webkit-' . strtolower($matches[2]);
+            $type = $this->knownMediaFeatureType($name);
+            if ($type !== null) {
+                if (!$this->mediaFeatureTypeAllowsRanges($type)) {
+                    throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
+                }
+
+                $this->validateRangeFeature($name, $matches[3], null, $feature);
+                $operator = strtolower($matches[1]) === 'min' ? '>=' : '<=';
+
+                return $name . $operator . $this->minifyValue($matches[3]);
+            }
+        }
+
         if (preg_match('/^(min|max)-([_a-zA-Z-][_a-zA-Z0-9-]*)\s*:\s*(.+)$/i', $feature, $matches) === 1) {
             $type = $this->knownMediaFeatureType(strtolower($matches[2]));
             if ($type !== null && !$this->mediaFeatureTypeAllowsRanges($type)) {
@@ -199,6 +214,11 @@ final class MediaQueryParser
 
         if (preg_match('/^[_a-zA-Z-][_a-zA-Z0-9-]*\(/', $feature) === 1) {
             throw new \InvalidArgumentException("Unknown media query condition function: {$feature}");
+        }
+
+        $canonicalLegacyName = $this->canonicalLegacyMediaFeatureName($feature);
+        if ($canonicalLegacyName !== null) {
+            return $canonicalLegacyName;
         }
 
         return strtolower(str_replace(' ', '', $feature));
@@ -332,6 +352,24 @@ final class MediaQueryParser
             'prefers-reduced-data' => 'ident',
             default => null,
         };
+    }
+
+    private function canonicalLegacyMediaFeatureName(string $name): ?string
+    {
+        $name = strtolower(str_replace(' ', '', $name));
+        if (preg_match('/^-webkit-(?:min|max)-(.+)$/', $name, $matches) === 1) {
+            $canonical = '-webkit-' . $matches[1];
+
+            return $this->knownMediaFeatureType($canonical) !== null ? $canonical : null;
+        }
+
+        if (preg_match('/^(?:min|max)-(.+)$/', $name, $matches) === 1) {
+            $canonical = $matches[1];
+
+            return $this->knownMediaFeatureType($canonical) !== null ? $canonical : null;
+        }
+
+        return null;
     }
 
     private function mediaFeatureTypeAllowsRanges(string $type): bool
@@ -971,7 +1009,7 @@ final class MediaQueryParser
                 return $range;
             }
 
-            $lowered = $this->lowerRangeSyntaxCondition($inner, $lowerSimpleRanges, $lowerIntervalRanges);
+            $lowered = $this->lowerRangeSyntaxCondition($unwrapped, $lowerSimpleRanges, $lowerIntervalRanges);
             if (!$lowered['changed']) {
                 return [
                     'css' => $condition,
@@ -1110,6 +1148,10 @@ final class MediaQueryParser
     private function lowerRangeFeature(string $feature, bool $negated, bool $lowerSimpleRanges, bool $lowerIntervalRanges): ?array
     {
         $feature = trim($feature);
+        if ($this->splitTopLevelLogical($feature, 'and') !== null || $this->splitTopLevelLogical($feature, 'or') !== null) {
+            return null;
+        }
+
         $ident = '[_a-zA-Z-][_a-zA-Z0-9-]*';
         $intervalOperator = '<=|>=|<|>';
         $simpleOperator = '<=|>=|<|>|=';
@@ -1173,8 +1215,7 @@ final class MediaQueryParser
 
     private function isLegacyRangeFeature(string $feature): bool
     {
-        return $this->rangeComparableMediaFeatureType($feature) !== null
-            && !in_array($feature, ['-webkit-device-pixel-ratio', '-moz-device-pixel-ratio'], true);
+        return $this->rangeComparableMediaFeatureType($feature) !== null;
     }
 
     private function comparisonFromLeft(string $operator): string
@@ -1205,13 +1246,22 @@ final class MediaQueryParser
     private function legacyComparison(string $feature, string $operator, string $value): array
     {
         return match ($operator) {
-            '>=' => ['css' => '(min-' . $feature . ':' . $value . ')', 'bareNot' => false],
-            '<=' => ['css' => '(max-' . $feature . ':' . $value . ')', 'bareNot' => false],
-            '>' => ['css' => 'not (max-' . $feature . ':' . $value . ')', 'bareNot' => true],
-            '<' => ['css' => 'not (min-' . $feature . ':' . $value . ')', 'bareNot' => true],
+            '>=' => ['css' => '(' . $this->legacyBoundFeatureName($feature, 'min') . ':' . $value . ')', 'bareNot' => false],
+            '<=' => ['css' => '(' . $this->legacyBoundFeatureName($feature, 'max') . ':' . $value . ')', 'bareNot' => false],
+            '>' => ['css' => 'not (' . $this->legacyBoundFeatureName($feature, 'max') . ':' . $value . ')', 'bareNot' => true],
+            '<' => ['css' => 'not (' . $this->legacyBoundFeatureName($feature, 'min') . ':' . $value . ')', 'bareNot' => true],
             '=' => ['css' => '(' . $feature . ':' . $value . ')', 'bareNot' => false],
             default => ['css' => '(' . $feature . $operator . $value . ')', 'bareNot' => false],
         };
+    }
+
+    private function legacyBoundFeatureName(string $feature, string $bound): string
+    {
+        if ($feature === '-webkit-device-pixel-ratio') {
+            return '-webkit-' . $bound . '-device-pixel-ratio';
+        }
+
+        return $bound . '-' . $feature;
     }
 
     /**

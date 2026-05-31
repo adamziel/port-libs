@@ -27,5 +27,6 @@ return [
     'unboundedDoubleStarRejectedPolicy' => $fixture['unboundedDoubleStarRejectedPolicy'],
     'invalidPosixPolicy' => $fixture['invalidPosixPolicy'],
     'unclosedBracketPolicy' => $fixture['unclosedBracketPolicy'],
+    'optionalPrefixPolicy' => $fixture['optionalPrefixPolicy'],
     'sectionsLoaded' => $fixture['sectionsLoaded'],
 ];

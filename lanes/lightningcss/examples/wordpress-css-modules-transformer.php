@@ -51,6 +51,20 @@ $css = <<<'CSS'
   composes: card;
 }
 
+.cardGrid {
+  composes: card;
+  grid-template-areas: "media content";
+  grid-template-columns: [media-start] 96px [content-start] 1fr [content-end];
+}
+
+.cardMedia {
+  grid-area: media;
+}
+
+.cardContent {
+  grid-column: content-start / content-end;
+}
+
 @container card-layout (width >= 320px) {
   .cardCompact {
     padding: 12px;
@@ -228,7 +242,7 @@ $actual = [
 ];
 
 $expected = [
-    'code' => '.BlockA_card{background:#fff;view-transition-name:BlockA_card-enter;view-transition-class:BlockA_card BlockA_page;animation:.24s ease-out BlockA_card-pop}.BlockA_card .BlockA_cardIcon{color:#ff0}.wp-block-button .BlockA_card{border-radius:4px}.BlockA_cardTitle{color:#ff0}.BlockA_card\:featured{outline:1px solid #ff0}.wp-block-button .legacyButton .BlockA_cardTitle{text-decoration:none}@counter-style BlockA_card-steps{system:cyclic;symbols:A B C;suffix:". "}.BlockA_cardSteps{list-style:inside BlockA_card-steps}@container BlockA_card-layout (width>=320px){.BlockA_cardCompact{padding:12px}}@media (width>=600px){.BlockA_cardCompact{gap:8px}}@scope(.BlockA_cardScope) to (.wp-block-buttons){:scope .BlockA_cardScoped{color:#ff0}}@view-transition{types:BlockA_card-enter BlockA_page}@keyframes BlockA_card-pop{0%{opacity:0}to{opacity:1}}',
+    'code' => '.BlockA_card{background:#fff;view-transition-name:BlockA_card-enter;view-transition-class:BlockA_card BlockA_page;animation:.24s ease-out BlockA_card-pop}.BlockA_card .BlockA_cardIcon{color:#ff0}.wp-block-button .BlockA_card{border-radius:4px}.BlockA_cardTitle{color:#ff0}.BlockA_card\:featured{outline:1px solid #ff0}.wp-block-button .legacyButton .BlockA_cardTitle{text-decoration:none}@counter-style BlockA_card-steps{system:cyclic;symbols:A B C;suffix:". "}.BlockA_cardSteps{list-style:inside BlockA_card-steps}.BlockA_cardGrid{grid-template-areas:"BlockA_media BlockA_content";grid-template-columns:[BlockA_media-start]96px[BlockA_content-start]1fr[BlockA_content-end]}.BlockA_cardMedia{grid-area:BlockA_media}.BlockA_cardContent{grid-column:BlockA_content-start/BlockA_content-end}@container BlockA_card-layout (width>=320px){.BlockA_cardCompact{padding:12px}}@media (width>=600px){.BlockA_cardCompact{gap:8px}}@scope(.BlockA_cardScope) to (.wp-block-buttons){:scope .BlockA_cardScoped{color:#ff0}}@view-transition{types:BlockA_card-enter BlockA_page}@keyframes BlockA_card-pop{0%{opacity:0}to{opacity:1}}',
     'exports' => [
         'card' => [
             'name' => 'BlockA_card',
@@ -303,6 +317,51 @@ $expected = [
                     'name' => 'BlockA_card',
                 ],
             ],
+            'isReferenced' => false,
+        ],
+        'cardGrid' => [
+            'name' => 'BlockA_cardGrid',
+            'composes' => [
+                [
+                    'type' => 'local',
+                    'name' => 'BlockA_card',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+        'media' => [
+            'name' => 'BlockA_media',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'content' => [
+            'name' => 'BlockA_content',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'media-start' => [
+            'name' => 'BlockA_media-start',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'content-start' => [
+            'name' => 'BlockA_content-start',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'content-end' => [
+            'name' => 'BlockA_content-end',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'cardMedia' => [
+            'name' => 'BlockA_cardMedia',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'cardContent' => [
+            'name' => 'BlockA_cardContent',
+            'composes' => [],
             'isReferenced' => false,
         ],
         'card-layout' => [

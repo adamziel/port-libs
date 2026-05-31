@@ -1140,6 +1140,54 @@ CSS,
             'entry' => $moduleExport('entry_entry'),
         ], $disabled['exports']);
     },
+    'css bundler passes upstream css module grid option through import graph' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
+        $default = $bundleModules([
+            '/entry.css' => <<<'CSS'
+.entry {
+  grid-template-areas: "media content";
+}
+
+.media {
+  grid-area: media;
+}
+CSS,
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+            ],
+        ]);
+
+        $t->same('.entry_entry{grid-template-areas:"entry_media entry_content"}.entry_media{grid-area:entry_media}', $default['code']);
+        $t->same([
+            'entry' => $moduleExport('entry_entry'),
+            'media' => $moduleExport('entry_media'),
+            'content' => $moduleExport('entry_content'),
+        ], $default['exports']);
+
+        $disabled = $bundleModules([
+            '/entry.css' => '@import "./component.css"; .entry { color: red }',
+            '/component.css' => <<<'CSS'
+.grid {
+  grid-template-areas: "media content";
+}
+
+.media {
+  grid-area: media;
+}
+CSS,
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/component.css' => 'component',
+            ],
+            'grid' => false,
+        ]);
+
+        $t->same('.component_grid{grid-template-areas:"media content"}.component_media{grid-area:media}.entry_entry{color:red}', $disabled['code']);
+        $t->same([
+            'entry' => $moduleExport('entry_entry'),
+        ], $disabled['exports']);
+    },
     'css bundler maps upstream file-backed css modules import graph' => static function (TestRunner $t) use ($withTempFiles, $moduleExport, $moduleLocal): void {
         $withTempFiles([
             'theme/card.module.css' => <<<'CSS'
@@ -1221,6 +1269,32 @@ CSS,
         $t->same([
             'card' => $moduleExport('entry_card'),
         ], $result['exports']);
+    },
+    'css bundler maps upstream css module dependency read diagnostics to composes locations' => static function (TestRunner $t) use ($bundleModules): void {
+        try {
+            $bundleModules([
+                '/entry.css' => <<<'CSS'
+.card {
+  color: red;
+}
+
+.cardVariant {
+  composes: token from "./missing.css";
+  background: blue;
+}
+CSS,
+            ], '/entry.css');
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Could not read `/missing.css`.', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(6, $exception->sourceLine);
+            $t->same(13, $exception->sourceColumn);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected missing CSS Modules dependency read diagnostic');
     },
     'css bundler rejects external css module from references like upstream' => static function (TestRunner $t) use ($bundleModules): void {
         try {
