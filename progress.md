@@ -52,6 +52,21 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS integration 13:50 UTC):
+  source commit `997310621560673da7969ef3e7771c4154db832d`
+  (`ports: add lightningcss grid flex bundle parity`) landed four verified
+  LightningCSS handoffs after excluding stale shared status/manifest/progress
+  metadata. LightningCSS full lane evidence moves from `1576` to `1619 pass /
+  0 fail`, with conservative mapped coverage moving from `1141 / 3532` to
+  `1164 / 3532`: +14 direct `grid`/`grid-template` shorthand minifier helpers,
+  +5 display flex prefix helper/boundary cases, +3 CSS Modules bundle
+  composes-from import graph behaviors, and +1 media range feature-flag
+  printer-options case. Verification passed PHP lint on changed/new
+  LightningCSS PHP files, diff checks, focused LightningCSS gate `3 files /
+  1121 assertions / 0 failures`, full LightningCSS lane `13 files / 1619
+  assertions / 0 failures`, and four touched examples. Root aggregate and full
+  upstream LightningCSS Rust/Node runners were not run for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS worker refill and
   integration 13:41 UTC): visible LightningCSS tmux pool was refilled from 21
   to 25 workers using `gpt-5.5` xhigh with priority service tier. Source
