@@ -16,7 +16,8 @@ final class SQLiteGroupedAggregate
         ?string $valueColumn,
         array $jsonAggregates = [],
         array $filteredAggregates = [],
-        array $groupCollations = []
+        array $groupCollations = [],
+        array $sampleAggregates = []
     ): array {
         $groupColumns = self::groupColumns($groupColumn);
         $groups = [];
@@ -62,7 +63,8 @@ final class SQLiteGroupedAggregate
                     $summary[$column] = $value;
                 }
             }
-            foreach (($group['rows'][0] ?? []) as $column => $value) {
+            $sampleRow = self::sampleRowForAggregates($group['rows'], $sampleAggregates) ?? ($group['rows'][0] ?? []);
+            foreach ($sampleRow as $column => $value) {
                 if (is_string($column) && !array_key_exists($column, $summary)) {
                     $summary[$column] = $value;
                 }
@@ -546,6 +548,68 @@ final class SQLiteGroupedAggregate
         }
 
         return $invariant;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<array<string,mixed>> $aggregates
+     * @return array<string,mixed>|null
+     */
+    private static function sampleRowForAggregates(array $rows, array $aggregates): ?array
+    {
+        foreach ($aggregates as $aggregate) {
+            if (!is_array($aggregate)) {
+                continue;
+            }
+            $sample = self::minMaxAggregateSampleRow($rows, $aggregate);
+            if ($sample !== null) {
+                return $sample;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param array<string,mixed> $aggregate
+     * @return array<string,mixed>|null
+     */
+    private static function minMaxAggregateSampleRow(array $rows, array $aggregate): ?array
+    {
+        if (($aggregate['type'] ?? null) !== 'function') {
+            return null;
+        }
+        $name = strtolower((string) ($aggregate['name'] ?? ''));
+        if ($name !== 'min' && $name !== 'max') {
+            return null;
+        }
+        $arguments = $aggregate['arguments'] ?? [];
+        if (!is_array($arguments) || !array_is_list($arguments) || count($arguments) !== 1 || !is_array($arguments[0])) {
+            return null;
+        }
+
+        $selected = null;
+        $selectedValue = null;
+        foreach ($rows as $row) {
+            $value = SQLiteSelectExpression::evaluate($row, $arguments[0]);
+            if ($value === null) {
+                continue;
+            }
+            if ($selected === null) {
+                $selected = $row;
+                $selectedValue = $value;
+                continue;
+            }
+
+            $comparison = self::compareSqlValues($value, $selectedValue);
+            if (($name === 'min' && $comparison < 0) || ($name === 'max' && $comparison > 0)) {
+                $selected = $row;
+                $selectedValue = $value;
+            }
+        }
+
+        return $selected;
     }
 
     private static function compareSqlValues(mixed $left, mixed $right, string $collation = 'BINARY'): int

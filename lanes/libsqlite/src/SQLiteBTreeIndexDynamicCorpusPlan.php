@@ -13680,6 +13680,136 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,with_left_table_index:bool,left_table_index:string|null,right_table_index:string|null,on_terms:list<string>,where_terms:list<string>,chosen_indexes:list<string>,result_rows:list<array<int,mixed>>,result_row_count:int,left_row_count:int,null_extended_rows:int,on_clause_filters_match_only:bool,where_clause_filters_left_rows:bool,left_table_index_blocked_for_on:bool,left_table_index_used_for_where:bool,explain_equivalent_to:string|null,complex_left_table_equality_guard:bool,detail:string,integrity:string}>
+     */
+    public static function where6LeftJoinOnClauseIndexGuardCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite where6 LEFT JOIN index guard corpus requires at least one case');
+        }
+
+        $onRows = [[1, 3, 1, 3], [2, 4, 2, null]];
+        $whereRows = [[1, 3, 1, 3]];
+        $complexRows = [
+            ['abc', 'abc', null, 1],
+            ['abc', 'def', 123, null],
+            ['abc', 'ghi', null, null],
+            ['def', 'abc', null, null],
+            ['def', 'def', null, 1],
+            ['def', 'ghi', 456, null],
+            ['ghi', 'abc', null, null],
+            ['ghi', 'def', null, null],
+            ['ghi', 'ghi', null, 1],
+        ];
+
+        $simple = static function (
+            string $section,
+            string $scenario,
+            string $statement,
+            bool $withIndex,
+            array $onTerms,
+            array $whereTerms,
+            array $rows,
+            ?string $equivalentTo,
+            string $detail,
+        ): array {
+            $whereFilters = $whereTerms !== [];
+            $onFilters = !$whereFilters;
+            $leftIndexBlocked = $withIndex && $onFilters && (in_array('c=1', $onTerms, true) || in_array('1=c', $onTerms, true));
+            $leftIndexUsedForWhere = $withIndex && $whereFilters && (in_array('c=1', $whereTerms, true) || in_array('1=c', $whereTerms, true));
+
+            return [
+                'source' => 'where6.test sections where6-1.1 through where6-3.1',
+                'case' => 0,
+                'upstream_section' => $section,
+                'batch' => 0,
+                'scenario' => $scenario,
+                'statement' => $statement,
+                'with_left_table_index' => $withIndex,
+                'left_table_index' => $withIndex ? 'i1(c)' : null,
+                'right_table_index' => 't2 INTEGER PRIMARY KEY',
+                'on_terms' => $onTerms,
+                'where_terms' => $whereTerms,
+                'chosen_indexes' => array_values(array_filter([
+                    $leftIndexUsedForWhere ? 'i1(c)' : null,
+                    't2(rowid)',
+                ])),
+                'result_rows' => $rows,
+                'result_row_count' => count($rows),
+                'left_row_count' => 2,
+                'null_extended_rows' => count(array_filter($rows, static fn (array $row): bool => $row[3] === null)),
+                'on_clause_filters_match_only' => $onFilters,
+                'where_clause_filters_left_rows' => $whereFilters,
+                'left_table_index_blocked_for_on' => $leftIndexBlocked,
+                'left_table_index_used_for_where' => $leftIndexUsedForWhere,
+                'explain_equivalent_to' => $equivalentTo,
+                'complex_left_table_equality_guard' => false,
+                'detail' => $detail,
+                'integrity' => 'ok',
+            ];
+        };
+
+        $templates = [
+            $simple('where6-1.1', 'ON b=x AND c=1 preserves unmatched left rows without a left-table index', 'SELECT * FROM t1 LEFT JOIN t2 ON b=x AND c=1', false, ['b=x', 'c=1'], [], $onRows, null, 'SCAN t1; SEARCH t2 USING INTEGER PRIMARY KEY; c=1 is tested as an ON-clause match guard'),
+            $simple('where6-1.2', 'commuted ON x=b AND c=1 has the same null-extension behavior', 'SELECT * FROM t1 LEFT JOIN t2 ON x=b AND c=1', false, ['x=b', 'c=1'], [], $onRows, null, 'SCAN t1; SEARCH t2 USING INTEGER PRIMARY KEY; commuted equality remains an ON-clause match guard'),
+            $simple('where6-1.3', 'constant-first ON x=b AND 1=c is equivalent to c=1', 'SELECT * FROM t1 LEFT JOIN t2 ON x=b AND 1=c', false, ['x=b', '1=c'], [], $onRows, null, 'SCAN t1; SEARCH t2 USING INTEGER PRIMARY KEY; 1=c is not a left-table filter'),
+            $simple('where6-1.4', 'both ON terms commuted preserve the second null-extended row', 'SELECT * FROM t1 LEFT JOIN t2 ON b=x AND 1=c', false, ['b=x', '1=c'], [], $onRows, null, 'SCAN t1; SEARCH t2 USING INTEGER PRIMARY KEY; both ON terms stay inside the join matcher'),
+            $simple('where6-1.5', 'EXPLAIN for x=b AND 1=c matches b=x AND c=1', 'EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON x=b AND 1=c', false, ['x=b', '1=c'], [], $onRows, 'where6-1.1', 'bytecode-equivalent ON-clause commutation without left-table filtering'),
+            $simple('where6-1.6', 'EXPLAIN for WHERE 1=c matches WHERE c=1 after join matching', 'EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON x=b WHERE 1=c', false, ['x=b'], ['1=c'], $whereRows, 'where6-1.11', 'bytecode-equivalent WHERE-clause commutation filters the left rowset'),
+            $simple('where6-1.11', 'WHERE c=1 filters left rows after the join terms are classified', 'SELECT * FROM t1 LEFT JOIN t2 ON b=x WHERE c=1', false, ['b=x'], ['c=1'], $whereRows, null, 'SCAN t1 then WHERE c=1 removes the second left row before output'),
+            $simple('where6-1.12', 'commuted ON equality with WHERE c=1 filters the same row', 'SELECT * FROM t1 LEFT JOIN t2 ON x=b WHERE c=1', false, ['x=b'], ['c=1'], $whereRows, null, 'SCAN t1; WHERE c=1 is a real filter rather than an ON guard'),
+            $simple('where6-1.13', 'constant-first WHERE 1=c filters the same row', 'SELECT * FROM t1 LEFT JOIN t2 ON b=x WHERE 1=c', false, ['b=x'], ['1=c'], $whereRows, null, 'SCAN t1; WHERE 1=c is equivalent to WHERE c=1'),
+            $simple('where6-2.1', 'with i1(c), ON b=x AND c=1 still preserves unmatched left rows', 'CREATE INDEX i1 ON t1(c); SELECT * FROM t1 LEFT JOIN t2 ON b=x AND c=1', true, ['b=x', 'c=1'], [], $onRows, null, 'SCAN t1; SEARCH t2 USING INTEGER PRIMARY KEY; i1(c) is not used to filter an ON-clause term'),
+            $simple('where6-2.2', 'with i1(c), commuted ON x=b AND c=1 still preserves unmatched left rows', 'SELECT * FROM t1 LEFT JOIN t2 ON x=b AND c=1', true, ['x=b', 'c=1'], [], $onRows, null, 'SCAN t1; SEARCH t2 USING INTEGER PRIMARY KEY; i1(c) remains blocked and is not used to filter ON-clause c=1'),
+            $simple('where6-2.3', 'with i1(c), ON x=b AND 1=c still does not drive a left-table index probe', 'SELECT * FROM t1 LEFT JOIN t2 ON x=b AND 1=c', true, ['x=b', '1=c'], [], $onRows, null, 'SCAN t1; SEARCH t2 USING INTEGER PRIMARY KEY; constant-first ON term is not used to filter t1 through i1(c)'),
+            $simple('where6-2.4', 'with i1(c), both commuted ON terms preserve the null-extended row', 'SELECT * FROM t1 LEFT JOIN t2 ON b=x AND 1=c', true, ['b=x', '1=c'], [], $onRows, null, 'SCAN t1; SEARCH t2 USING INTEGER PRIMARY KEY; left-table index is not used to filter ON guards'),
+            $simple('where6-2.5', 'with i1(c), EXPLAIN ON commutation is still equivalent', 'EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON x=b AND 1=c', true, ['x=b', '1=c'], [], $onRows, 'where6-2.1', 'bytecode-equivalent ON-clause commutation; i1(c) is not used to filter left rows'),
+            $simple('where6-2.6', 'with i1(c), EXPLAIN WHERE commutation is equivalent and may use i1', 'EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON x=b WHERE 1=c', true, ['x=b'], ['1=c'], $whereRows, 'where6-2.11', 'bytecode-equivalent WHERE-clause commutation may use SEARCH t1 USING INDEX i1(c) before output'),
+            $simple('where6-2.11', 'with i1(c), WHERE c=1 may filter the left table through the index', 'SELECT * FROM t1 LEFT JOIN t2 ON b=x WHERE c=1', true, ['b=x'], ['c=1'], $whereRows, null, 'SEARCH t1 USING INDEX i1(c); SEARCH t2 USING INTEGER PRIMARY KEY'),
+            $simple('where6-2.12', 'with i1(c), commuted ON equality plus WHERE c=1 uses the same filter', 'SELECT * FROM t1 LEFT JOIN t2 ON x=b WHERE c=1', true, ['x=b'], ['c=1'], $whereRows, null, 'SEARCH t1 USING INDEX i1(c); SEARCH t2 USING INTEGER PRIMARY KEY'),
+            $simple('where6-2.13', 'with i1(c), WHERE 1=c uses the same left-table filter', 'SELECT * FROM t1 LEFT JOIN t2 ON x=b WHERE 1=c', true, ['x=b'], ['1=c'], $whereRows, null, 'SEARCH t1 USING INDEX i1(c); SEARCH t2 USING INTEGER PRIMARY KEY'),
+            $simple('where6-2.14', 'with i1(c), b=x plus WHERE 1=c filters one output row', 'SELECT * FROM t1 LEFT JOIN t2 ON b=x WHERE 1=c', true, ['b=x'], ['1=c'], $whereRows, null, 'SEARCH t1 USING INDEX i1(c); SEARCH t2 USING INTEGER PRIMARY KEY'),
+            [
+                'source' => 'where6.test sections where6-1.1 through where6-3.1',
+                'case' => 0,
+                'upstream_section' => 'where6-3.1',
+                'batch' => 0,
+                'scenario' => 'two indexed left tables do not let t4a.x=t4b.x drive an index before null-extension',
+                'statement' => 'SELECT t4a.x, t4b.x, t5.c, t6.v FROM t4 AS t4a INNER JOIN t4 AS t4b LEFT JOIN t5 ON t5.a=t4a.x AND t5.b=t4b.x LEFT JOIN (SELECT 1 AS v) AS t6 ON t4a.x=t4b.x ORDER BY 1,2,3',
+                'with_left_table_index' => true,
+                'left_table_index' => 'sqlite_autoindex_t4_1',
+                'right_table_index' => 'sqlite_autoindex_t5_1',
+                'on_terms' => ['t5.a=t4a.x', 't5.b=t4b.x', 't4a.x=t4b.x'],
+                'where_terms' => [],
+                'chosen_indexes' => ['sqlite_autoindex_t5_1'],
+                'result_rows' => $complexRows,
+                'result_row_count' => count($complexRows),
+                'left_row_count' => 9,
+                'null_extended_rows' => count(array_filter($complexRows, static fn (array $row): bool => $row[3] === null)),
+                'on_clause_filters_match_only' => true,
+                'where_clause_filters_left_rows' => false,
+                'left_table_index_blocked_for_on' => true,
+                'left_table_index_used_for_where' => false,
+                'explain_equivalent_to' => null,
+                'complex_left_table_equality_guard' => true,
+                'detail' => 'LEFT JOIN t6 equality between already-left tables is tested as an ON guard; it must not reorder or index-filter t4a/t4b before null-extension',
+                'integrity' => 'ok',
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $template['case'] = $case;
+            $template['batch'] = intdiv($case - 1, count($templates)) + 1;
+            $template['scenario'] .= ' dynamic replay ' . $template['batch'];
+            $out[] = $template;
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,projection:list<string>,or_terms:list<string>,result_rows:list<array<int,mixed>>,result_flat:list<mixed>,selected_i_values:list<int>,matched_rowids:list<int>,chosen_indexes:list<string>,covering_indexes:list<string>,residual_terms:list<string>,requires_table_lookup:bool,uses_or_clause_index_union:bool,empty_result:bool,index_probe_count:int,detail:string,integrity:string}>
      */
     public static function whereDCoveringOrIndexCases(int $cases = 1000): array

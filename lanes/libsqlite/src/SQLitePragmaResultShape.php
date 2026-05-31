@@ -25,6 +25,7 @@ final class SQLitePragmaResultShape
         'full_column_names',
         'fullfsync',
         'ignore_check_constraints',
+        'lock_proxy_file',
         'page_size',
         'query_only',
         'read_uncommitted',

@@ -1370,7 +1370,11 @@ final class SQLiteSelectQuery
         if ($groupColumn === []) {
             $summaries = SQLiteGroupedAggregate::summarizeAll($rows, $valueColumn, $jsonAggregates, $filteredAggregates);
             if (($groupBy['implicitAggregate'] ?? false) === true) {
-                self::materializeImplicitAggregateSourceColumns($summaries[0], $rows, $plan['select'] ?? []);
+                $sampleAggregates = $groupBy['sampleAggregates'] ?? [];
+                if (!is_array($sampleAggregates) || !array_is_list($sampleAggregates)) {
+                    throw new \InvalidArgumentException('SQLite SELECT query sample aggregate plans must be a list');
+                }
+                self::materializeImplicitAggregateSourceColumns($summaries[0], $rows, $plan['select'] ?? [], $sampleAggregates);
             }
             if ($rows === [] && isset($plan['correlatedOuterRow']) && is_array($plan['correlatedOuterRow'])) {
                 foreach ($plan['correlatedOuterRow'] as $column => $value) {
@@ -1387,6 +1391,7 @@ final class SQLiteSelectQuery
                 $jsonAggregates,
                 $filteredAggregates,
                 self::groupByCollations($rows, $groupBy),
+                self::sampleAggregates($groupBy),
             );
         }
 
@@ -1457,13 +1462,13 @@ final class SQLiteSelectQuery
      * @param list<array<string,mixed>> $rows
      * @param mixed $select
      */
-    private static function materializeImplicitAggregateSourceColumns(array &$summary, array $rows, mixed $select): void
+    private static function materializeImplicitAggregateSourceColumns(array &$summary, array $rows, mixed $select, array $sampleAggregates = []): void
     {
         if (!is_array($select) || !array_is_list($select)) {
             return;
         }
 
-        $sampleRow = self::implicitAggregateSampleRow($rows, $select);
+        $sampleRow = self::implicitAggregateSampleRow($rows, $select, $sampleAggregates);
         foreach ($select as $expression) {
             if (!is_array($expression)) {
                 continue;
@@ -1485,7 +1490,7 @@ final class SQLiteSelectQuery
      * @param list<array<string,mixed>> $select
      * @return array<string,mixed>|null
      */
-    private static function implicitAggregateSampleRow(array $rows, array $select): ?array
+    private static function implicitAggregateSampleRow(array $rows, array $select, array $sampleAggregates = []): ?array
     {
         if ($rows === []) {
             return null;
@@ -1504,8 +1509,36 @@ final class SQLiteSelectQuery
                 return $sample;
             }
         }
+        foreach ($sampleAggregates as $expression) {
+            if (!is_array($expression)) {
+                continue;
+            }
+            $sample = self::minMaxAggregateSampleRow($rows, $expression);
+            if ($sample !== null) {
+                return $sample;
+            }
+        }
 
         return $rows[0];
+    }
+
+    /**
+     * @param array<string,mixed> $groupBy
+     * @return list<array<string,mixed>>
+     */
+    private static function sampleAggregates(array $groupBy): array
+    {
+        $aggregates = $groupBy['sampleAggregates'] ?? [];
+        if (!is_array($aggregates) || !array_is_list($aggregates)) {
+            throw new \InvalidArgumentException('SQLite SELECT query sample aggregate plans must be a list');
+        }
+        foreach ($aggregates as $aggregate) {
+            if (!is_array($aggregate)) {
+                throw new \InvalidArgumentException('SQLite SELECT query sample aggregate plans must be arrays');
+            }
+        }
+
+        return $aggregates;
     }
 
     /**
@@ -1526,27 +1559,23 @@ final class SQLiteSelectQuery
         if (!is_array($arguments) || !array_is_list($arguments) || count($arguments) !== 1 || !is_array($arguments[0])) {
             return null;
         }
-        if (($arguments[0]['type'] ?? null) !== 'column' || !isset($arguments[0]['name']) || !is_string($arguments[0]['name'])) {
-            return null;
-        }
-
-        $column = $arguments[0]['name'];
         $selected = null;
         $selectedValue = null;
         foreach ($rows as $row) {
-            if (!array_key_exists($column, $row) || $row[$column] === null) {
+            $value = SQLiteSelectExpression::evaluate($row, $arguments[0]);
+            if ($value === null) {
                 continue;
             }
             if ($selected === null) {
                 $selected = $row;
-                $selectedValue = $row[$column];
+                $selectedValue = $value;
                 continue;
             }
 
-            $comparison = self::compareSqlValues($row[$column], $selectedValue);
+            $comparison = self::compareSqlValues($value, $selectedValue);
             if (($name === 'min' && $comparison < 0) || ($name === 'max' && $comparison > 0)) {
                 $selected = $row;
-                $selectedValue = $row[$column];
+                $selectedValue = $value;
             }
         }
 

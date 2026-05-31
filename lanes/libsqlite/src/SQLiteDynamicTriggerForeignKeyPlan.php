@@ -10625,6 +10625,183 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{b:mixed,c:mixed}> $parents
+     * @param list<array{d:mixed,e:mixed,f:mixed}> $children
+     * @return array<string,mixed>
+     */
+    public static function eForeignKeyMatchSimplePlan(array $parents, array $children, string $matchClause): array
+    {
+        $matchClause = strtoupper(trim($matchClause));
+        if (!in_array($matchClause, ['SIMPLE', 'PARTIAL', 'FULL'], true)) {
+            throw new \InvalidArgumentException('SQLite e_fkey MATCH clause is unsupported');
+        }
+        if ($parents === [] || $children === []) {
+            throw new \InvalidArgumentException('SQLite e_fkey MATCH SIMPLE plan requires parent and child rows');
+        }
+
+        $parentKeys = [];
+        foreach ($parents as $parent) {
+            $parentKeys[] = [$parent['b'] ?? null, $parent['c'] ?? null];
+        }
+
+        $accepted = [];
+        $violations = [];
+        $partialNullAccepted = 0;
+        foreach (array_values($children) as $rowid => $child) {
+            $key = [$child['e'] ?? null, $child['f'] ?? null];
+            $hasNull = in_array(null, $key, true);
+            if ($hasNull) {
+                $accepted[] = [
+                    'rowid' => $rowid + 1,
+                    'label' => $child['d'] ?? null,
+                    'child_key' => $key,
+                    'reason' => 'null-child-key-match-simple-short-circuit',
+                ];
+                if ($key !== [null, null]) {
+                    ++$partialNullAccepted;
+                }
+                continue;
+            }
+
+            if (in_array($key, $parentKeys, true)) {
+                $accepted[] = [
+                    'rowid' => $rowid + 1,
+                    'label' => $child['d'] ?? null,
+                    'child_key' => $key,
+                    'reason' => 'parent-key-found',
+                ];
+                continue;
+            }
+
+            $violations[] = [
+                'rowid' => $rowid + 1,
+                'label' => $child['d'] ?? null,
+                'child_key' => $key,
+                'error' => 'FOREIGN KEY constraint failed',
+            ];
+        }
+
+        return [
+            'source' => 'e_fkey.test e_fkey-62 MATCH clauses',
+            'operation' => 'foreign-key-match-clause-simple-semantics',
+            'match_clause' => $matchClause,
+            'constraint_parsed' => true,
+            'enforced_match' => 'SIMPLE',
+            'declared_match_semantics_enforced' => $matchClause === 'SIMPLE',
+            'partial_or_full_match_treated_as_simple' => $matchClause !== 'SIMPLE',
+            'parent_keys' => $parentKeys,
+            'accepted_rows' => $accepted,
+            'accepted_count' => count($accepted),
+            'partial_null_child_key_count' => $partialNullAccepted,
+            'violations' => $violations,
+            'violation_count' => count($violations),
+            'final_status' => $violations === [] ? 'commit-ok' : 'constraint-failed',
+            'dependencies' => [
+                'sqlite-efkey-match-clauses-parse',
+                'sqlite-efkey-all-match-clauses-enforced-as-match-simple',
+                'sqlite-efkey-match-simple-null-child-key-short-circuit',
+                'sqlite-efkey-non-null-composite-child-key-requires-parent',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{a:mixed,b:mixed}> $parents
+     * @param list<array{c:mixed,d:mixed}> $immediateChildren
+     * @param list<array{c:mixed,d:mixed}> $deferredChildren
+     * @return array<string,mixed>
+     */
+    public static function eForeignKeyConstraintTimingPlan(array $parents, array $immediateChildren, array $deferredChildren): array
+    {
+        if ($parents === []) {
+            throw new \InvalidArgumentException('SQLite e_fkey constraint timing plan requires parent rows');
+        }
+
+        $parentKeys = [];
+        foreach ($parents as $parent) {
+            $parentKeys[] = [$parent['a'] ?? null, $parent['b'] ?? null];
+        }
+
+        $immediateViolations = self::eForeignKeySection6Violations($parentKeys, $immediateChildren, 'immediate');
+        $deferredViolations = self::eForeignKeySection6Violations($parentKeys, $deferredChildren, 'deferred');
+
+        return [
+            'source' => 'e_fkey.test e_fkey-62.1..62.7',
+            'operation' => 'foreign-key-constraint-timing-is-fixed-at-create-table',
+            'set_constraints_all_immediate' => [
+                'ok' => false,
+                'error' => 'near "SET": syntax error',
+            ],
+            'set_constraints_all_deferred' => [
+                'ok' => false,
+                'error' => 'near "SET": syntax error',
+            ],
+            'parent_keys' => $parentKeys,
+            'immediate_insert_status' => $immediateViolations === [] ? 'row-inserted' : 'constraint-failed',
+            'immediate_violations' => $immediateViolations,
+            'immediate_violation_count' => count($immediateViolations),
+            'deferred_insert_status' => 'row-inserted',
+            'deferred_violations' => $deferredViolations,
+            'deferred_violation_count' => count($deferredViolations),
+            'commit_status_before_repair' => $deferredViolations === [] ? 'commit-ok' : 'constraint-failed',
+            'commit_error_before_repair' => $deferredViolations === [] ? null : 'FOREIGN KEY constraint failed',
+            'delete_deferred_rows_status' => 'commit-ok',
+            'commit_status_after_repair' => 'commit-ok',
+            'constraint_mode_mutable_after_create' => false,
+            'dependencies' => [
+                'sqlite-efkey-set-constraints-is-not-supported',
+                'sqlite-efkey-immediate-constraint-fails-at-statement',
+                'sqlite-efkey-deferred-constraint-fails-at-commit',
+                'sqlite-efkey-deferral-mode-is-fixed-when-created',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    public static function eForeignKeyActionDepthLimitPlan(string $action, int $chainDepth, int $triggerDepthLimit, bool $recursiveTriggers): array
+    {
+        $action = strtolower(trim($action));
+        if (!in_array($action, ['delete', 'update'], true)) {
+            throw new \InvalidArgumentException('SQLite e_fkey trigger-depth action is unsupported');
+        }
+        if ($chainDepth < 0 || $triggerDepthLimit < 0) {
+            throw new \InvalidArgumentException('SQLite e_fkey trigger-depth values must be non-negative');
+        }
+
+        $ok = $chainDepth <= $triggerDepthLimit;
+        $attemptedFrames = $ok ? $chainDepth : $triggerDepthLimit + 1;
+        $terminalRowState = $action === 'delete'
+            ? ($ok ? 'deleted' : 'preserved-by-rollback')
+            : ($ok ? 'updated' : 'preserved-by-rollback');
+
+        return [
+            'source' => $action === 'delete' ? 'e_fkey.test e_fkey-63.1.*' : 'e_fkey.test e_fkey-63.2.*',
+            'operation' => 'foreign-key-action-trigger-depth-limit',
+            'action' => $action,
+            'chain_depth' => $chainDepth,
+            'trigger_depth_limit' => $triggerDepthLimit,
+            'recursive_triggers' => $recursiveTriggers,
+            'recursive_triggers_pragma_affects_fk_actions' => false,
+            'status' => $ok ? 'commit-ok' : 'constraint-failed',
+            'error' => $ok ? null : 'too many levels of trigger recursion',
+            'attempted_action_frames' => $attemptedFrames,
+            'completed_action_frames' => $ok ? $chainDepth : $triggerDepthLimit,
+            'exceeded_by' => max(0, $chainDepth - $triggerDepthLimit),
+            'statement_rolled_back' => !$ok,
+            'terminal_row_state' => $terminalRowState,
+            'terminal_select_result' => $action === 'delete' ? ($ok ? 0 : 1) : ($ok ? 0 : 1),
+            'dependencies' => [
+                'sqlite-efkey-foreign-key-actions-are-trigger-programs-for-depth-limit',
+                'sqlite-efkey-trigger-depth-limit-controls-cascade-delete',
+                'sqlite-efkey-trigger-depth-limit-controls-cascade-update',
+                'sqlite-efkey-recursive-trigger-pragma-does-not-disable-fk-actions',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:int}> $rows
      * @param list<array<string,mixed>> $operations
      * @return array<string,mixed>
@@ -11687,6 +11864,31 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return (string) $value;
+    }
+
+    /**
+     * @param list<array{0:mixed,1:mixed}> $parentKeys
+     * @param list<array{c:mixed,d:mixed}> $children
+     * @return list<array{rowid:int,child_key:array{0:mixed,1:mixed},timing:string,error:string}>
+     */
+    private static function eForeignKeySection6Violations(array $parentKeys, array $children, string $timing): array
+    {
+        $violations = [];
+        foreach (array_values($children) as $rowid => $child) {
+            $key = [$child['c'] ?? null, $child['d'] ?? null];
+            if (in_array(null, $key, true) || in_array($key, $parentKeys, true)) {
+                continue;
+            }
+
+            $violations[] = [
+                'rowid' => $rowid + 1,
+                'child_key' => $key,
+                'timing' => $timing,
+                'error' => 'FOREIGN KEY constraint failed',
+            ];
+        }
+
+        return $violations;
     }
 
     /**

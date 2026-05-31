@@ -273,6 +273,15 @@ final class SQLiteSelectSql
                 continue;
             }
 
+            if ($char === ':' || $char === '@' || $char === '$') {
+                $token = self::namedParameterToken($sql, $i);
+                if ($token !== null) {
+                    $result .= $token;
+                    $i += strlen($token) - 1;
+                    continue;
+                }
+            }
+
             if ($char === '-' && $next === '-') {
                 $i += 2;
                 while ($i < $length && !in_array($sql[$i], ["\n", "\r"], true)) {
@@ -429,6 +438,7 @@ final class SQLiteSelectSql
         $length = strlen($sql);
         $quote = false;
         $positionalIndex = 1;
+        $namedParameterIndexes = [];
         for ($i = 0; $i < $length; $i++) {
             $char = $sql[$i];
             if ($char === "'") {
@@ -468,15 +478,22 @@ final class SQLiteSelectSql
                 continue;
             }
 
-            if (($char === ':' || $char === '@' || $char === '$') && preg_match('/[A-Za-z_]/', $sql[$i + 1] ?? '') === 1) {
-                $start = $i + 2;
-                while ($start < $length && preg_match('/[A-Za-z0-9_]/', $sql[$start]) === 1) {
-                    $start++;
+            if ($char === ':' || $char === '@' || $char === '$') {
+                $token = self::namedParameterToken($sql, $i);
+                if ($token !== null) {
+                    if (!array_key_exists($token, $namedParameterIndexes)) {
+                        $namedParameterIndexes[$token] = $positionalIndex++;
+                    }
+                    $result .= self::parameterLiteral(self::parameterValue(
+                        $parameters,
+                        $token,
+                        $token,
+                        false,
+                        $namedParameterIndexes[$token],
+                    ));
+                    $i += strlen($token) - 1;
+                    continue;
                 }
-                $token = substr($sql, $i, $start - $i);
-                $result .= self::parameterLiteral(self::parameterValue($parameters, substr($token, 1), $token));
-                $i = $start - 1;
-                continue;
             }
 
             $result .= $char;
@@ -488,10 +505,117 @@ final class SQLiteSelectSql
         return $result;
     }
 
+    private static function namedParameterToken(string $sql, int $offset): ?string
+    {
+        $prefix = $sql[$offset] ?? '';
+        if ($prefix === '$') {
+            return self::dollarParameterToken($sql, $offset);
+        }
+        if ($prefix !== ':' && $prefix !== '@') {
+            return null;
+        }
+
+        $length = strlen($sql);
+        $end = $offset + 1;
+        if ($end >= $length || !self::isParameterNameByte($sql[$end])) {
+            return null;
+        }
+
+        while ($end < $length && self::isParameterNameByte($sql[$end])) {
+            $end++;
+        }
+
+        return substr($sql, $offset, $end - $offset);
+    }
+
+    private static function dollarParameterToken(string $sql, int $offset): ?string
+    {
+        $length = strlen($sql);
+        $end = $offset + 1;
+        if ($end >= $length) {
+            return null;
+        }
+
+        $hasName = false;
+        while ($end < $length) {
+            $char = $sql[$end];
+            if (self::isParameterNameByte($char)) {
+                $hasName = true;
+                $end++;
+                continue;
+            }
+            if ($char === ':' && ($sql[$end + 1] ?? null) === ':') {
+                $hasName = true;
+                $end += 2;
+                continue;
+            }
+
+            break;
+        }
+        if (!$hasName) {
+            return null;
+        }
+
+        if (($sql[$end] ?? null) === '(') {
+            $suffixEnd = self::parameterSuffixEnd($sql, $end);
+            if ($suffixEnd === null) {
+                return null;
+            }
+            $end = $suffixEnd;
+        }
+
+        return substr($sql, $offset, $end - $offset);
+    }
+
+    private static function isParameterNameByte(string $char): bool
+    {
+        $byte = ord($char);
+
+        return ($byte >= 48 && $byte <= 57)
+            || ($byte >= 65 && $byte <= 90)
+            || ($byte >= 97 && $byte <= 122)
+            || $char === '_'
+            || $char === '$'
+            || $byte >= 0x80;
+    }
+
+    private static function parameterSuffixEnd(string $sql, int $offset): ?int
+    {
+        $length = strlen($sql);
+        $depth = 0;
+        $quote = false;
+        for ($i = $offset; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                if ($quote && ($sql[$i + 1] ?? null) === "'") {
+                    $i++;
+                    continue;
+                }
+                $quote = !$quote;
+                continue;
+            }
+            if ($quote) {
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')') {
+                $depth--;
+                if ($depth === 0) {
+                    return $i + 1;
+                }
+            }
+        }
+
+        return null;
+    }
+
     /**
      * @param array<int|string,mixed> $parameters
      */
-    private static function parameterValue(array $parameters, int|string $key, string $token, bool $explicit = false): mixed
+    private static function parameterValue(array $parameters, int|string $key, string $token, bool $explicit = false, ?int $assignedIndex = null): mixed
     {
         if (is_int($key)) {
             $zeroBased = $key - 1;
@@ -505,9 +629,19 @@ final class SQLiteSelectSql
                 return $parameters[$zeroBased];
             }
         } else {
-            foreach ([$key, ':' . $key, '@' . $key, '$' . $key] as $candidate) {
+            $bare = substr($token, 1);
+            foreach (array_unique([$token, $bare, ':' . $bare, '@' . $bare, '$' . $bare]) as $candidate) {
                 if (array_key_exists($candidate, $parameters)) {
                     return $parameters[$candidate];
+                }
+            }
+            if ($assignedIndex !== null) {
+                if (array_key_exists($assignedIndex, $parameters)) {
+                    return $parameters[$assignedIndex];
+                }
+                $zeroBased = $assignedIndex - 1;
+                if (array_key_exists($zeroBased, $parameters)) {
+                    return $parameters[$zeroBased];
                 }
             }
         }
@@ -5587,6 +5721,10 @@ final class SQLiteSelectSql
             'jsonAggregates' => self::jsonAggregateSpecs($select, $aggregateExpressions),
             'filteredAggregates' => self::filteredAggregateSpecs($select, $aggregateExpressions),
         ];
+        $sampleAggregates = self::minMaxAggregateExpressions($select, $aggregateExpressions);
+        if ($sampleAggregates !== []) {
+            $groupBy['sampleAggregates'] = $sampleAggregates;
+        }
         if ($collationExpressions !== []) {
             $groupBy['collationExpressions'] = $collationExpressions;
         }
@@ -5643,6 +5781,10 @@ final class SQLiteSelectSql
             'jsonAggregates' => self::jsonAggregateSpecs($select, $aggregateExpressions),
             'filteredAggregates' => self::filteredAggregateSpecs($select, $aggregateExpressions),
         ];
+        $sampleAggregates = self::minMaxAggregateExpressions($select, $aggregateExpressions);
+        if ($sampleAggregates !== []) {
+            $group['sampleAggregates'] = $sampleAggregates;
+        }
         $expressions = self::aggregateArgumentExpressions($select, $aggregateExpressions);
         if ($expressions !== []) {
             $group['expressions'] = $expressions;
@@ -5907,6 +6049,81 @@ final class SQLiteSelectSql
         }
 
         return array_values($expressions);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     * @return list<array<string,mixed>>
+     */
+    private static function minMaxAggregateExpressions(array $select, array $aggregateExpressions = []): array
+    {
+        $expressions = [];
+        foreach (array_merge($select, $aggregateExpressions) as $term) {
+            if (is_array($term)) {
+                self::collectMinMaxAggregateExpressions($term, $expressions);
+            }
+        }
+
+        return array_values($expressions);
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     * @param array<string,array<string,mixed>> $expressions
+     */
+    private static function collectMinMaxAggregateExpressions(array $expression, array &$expressions): void
+    {
+        if (($expression['type'] ?? null) === 'function' && isset($expression['name']) && is_string($expression['name'])) {
+            $name = strtolower($expression['name']);
+            $arguments = $expression['arguments'] ?? [];
+            if (
+                ($name === 'min' || $name === 'max')
+                && is_array($arguments)
+                && array_is_list($arguments)
+                && count($arguments) === 1
+                && is_array($arguments[0])
+            ) {
+                $expressions[sha1(json_encode([$name, $arguments[0]], JSON_THROW_ON_ERROR))] = $expression;
+            }
+        }
+
+        foreach (['left', 'right', 'operand', 'predicate', 'expression', 'base'] as $side) {
+            if (isset($expression[$side]) && is_array($expression[$side])) {
+                self::collectMinMaxAggregateExpressions($expression[$side], $expressions);
+            }
+        }
+        if (isset($expression['term']) && is_array($expression['term'])) {
+            self::collectMinMaxAggregateExpressions($expression['term'], $expressions);
+        }
+        if (isset($expression['terms']) && is_array($expression['terms']) && array_is_list($expression['terms'])) {
+            foreach ($expression['terms'] as $term) {
+                if (is_array($term)) {
+                    self::collectMinMaxAggregateExpressions($term, $expressions);
+                }
+            }
+        }
+        foreach (['arguments', 'values'] as $side) {
+            if (!isset($expression[$side]) || !is_array($expression[$side]) || !array_is_list($expression[$side])) {
+                continue;
+            }
+            foreach ($expression[$side] as $child) {
+                if (is_array($child)) {
+                    self::collectMinMaxAggregateExpressions($child, $expressions);
+                }
+            }
+        }
+        if (isset($expression['branches']) && is_array($expression['branches']) && array_is_list($expression['branches'])) {
+            foreach ($expression['branches'] as $branch) {
+                if (!is_array($branch)) {
+                    continue;
+                }
+                foreach (['when', 'then'] as $side) {
+                    if (isset($branch[$side]) && is_array($branch[$side])) {
+                        self::collectMinMaxAggregateExpressions($branch[$side], $expressions);
+                    }
+                }
+            }
+        }
     }
 
     /**
