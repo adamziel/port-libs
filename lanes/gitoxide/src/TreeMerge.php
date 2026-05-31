@@ -2228,15 +2228,8 @@ final class TreeMerge
         self::sortEntries($stageValues);
         $stageTreeEntry = new TreeEntry($renamedEntry->mode, $targetName, $writeObject((new Tree($stageValues))->toObject()));
 
-        $conflicts = [
-            new TreeMergeConflict(
-                self::joinPath($pathPrefix, $targetPath),
-                'directory-rename-subtree-replacement',
-                null,
-                $renamedByOurs ? $stageTreeEntry : null,
-                $renamedByOurs ? null : $stageTreeEntry,
-            ),
-        ];
+        $renameDeleteConflicts = [];
+        $renameDeletePaths = [];
 
         foreach ($baseEntries as $rootPath => $rootBaseEntry) {
             if (
@@ -2247,8 +2240,10 @@ final class TreeMerge
             ) {
                 continue;
             }
-            $conflicts[] = new TreeMergeConflict(
-                self::joinPath($pathPrefix, self::joinPath($baseEntry->filename, $rootPath)),
+            $conflictPath = self::joinPath($pathPrefix, self::joinPath($baseEntry->filename, $rootPath));
+            $renameDeletePaths[] = $conflictPath;
+            $renameDeleteConflicts[] = new TreeMergeConflict(
+                $conflictPath,
                 'rename-delete',
                 new TreeEntry($rootBaseEntry->mode, $rootPath, $rootBaseEntry->oid),
                 null,
@@ -2256,19 +2251,47 @@ final class TreeMerge
             );
         }
 
+        $suggestedConflicts = [];
+        $suggestedPaths = [];
         foreach ($match['replacementLeaves'] as $replacementPath => $replacementLeaf) {
             $baseLeaf = $match['baseLeaves'][$replacementPath] ?? null;
             if ($baseLeaf === null || self::sameEntry($baseLeaf, $replacementLeaf)) {
                 continue;
             }
-            $conflicts[] = new TreeMergeConflict(
-                self::joinPath($pathPrefix, self::joinPath($baseEntry->filename, $replacementPath)),
+            $conflictPath = self::joinPath($pathPrefix, self::joinPath($baseEntry->filename, $replacementPath));
+            $suggestedPaths[] = $replacementPath;
+            $suggestedConflicts[] = new TreeMergeConflict(
+                $conflictPath,
                 'directory-rename-suggested',
                 null,
                 $renamedByOurs ? null : $replacementLeaf,
                 $renamedByOurs ? $replacementLeaf : null,
             );
         }
+
+        $conflicts = [
+            new TreeMergeConflict(
+                self::joinPath($pathPrefix, $targetPath),
+                'directory-rename-subtree-replacement',
+                null,
+                $renamedByOurs ? $stageTreeEntry : null,
+                $renamedByOurs ? null : $stageTreeEntry,
+                [
+                    'baseEntry' => $baseEntry,
+                    'sourcePath' => self::joinPath($pathPrefix, $baseEntry->filename),
+                    'targetPath' => self::joinPath($pathPrefix, $targetPath),
+                    'renamedByOurs' => $renamedByOurs,
+                    'replacementPaths' => array_keys($match['replacementLeaves']),
+                    'suggestedPaths' => $suggestedPaths,
+                    'relatedConflictPaths' => [...$renameDeletePaths, ...array_map(
+                        static fn (TreeMergeConflict $conflict): string => $conflict->path,
+                        $suggestedConflicts,
+                    )],
+                ],
+            ),
+            ...$renameDeleteConflicts,
+            ...$suggestedConflicts,
+        ];
 
         $mergedValues = array_values($mergedEntries);
         self::sortEntries($mergedValues);

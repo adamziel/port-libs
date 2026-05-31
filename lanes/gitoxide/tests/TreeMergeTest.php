@@ -2725,6 +2725,59 @@ return [
             ],
             $reverseExpanded,
         ));
+
+        $ancestorResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+        $ancestorATree = Tree::fromObject($read($ancestorResolved->tree->entryNamed('a', true)?->oid ?? ''));
+        $ancestorSub = Tree::fromObject($read($ancestorATree->entryNamed('sub', true)?->oid ?? ''));
+        $ancestorRenamed = Tree::fromObject($read($ancestorResolved->tree->entryNamed('a-renamed', true)?->oid ?? ''));
+
+        $t->true($ancestorResolved->isClean());
+        $t->same(['a', 'a-renamed'], $names($ancestorResolved->tree));
+        $t->same(['z'], $names($ancestorRenamed));
+        $t->same(['sub', 'w', 'x.f'], $names($ancestorATree));
+        $t->same(['y.f', 'z'], $names($ancestorSub));
+        $t->same($baseContent, $read($ancestorSub->entryNamed('y.f')?->oid ?? '')->body);
+        $t->same($baseContent, $read($ancestorATree->entryNamed('x.f')?->oid ?? '')->body);
+        $t->same([], $ancestorResolved->indexEntries());
+
+        $oursResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+        $oursRenamed = Tree::fromObject($read($oursResolved->tree->entryNamed('a-renamed', true)?->oid ?? ''));
+        $oursSub = Tree::fromObject($read($oursRenamed->entryNamed('sub', true)?->oid ?? ''));
+
+        $t->true($oursResolved->isClean());
+        $t->same(['a-renamed'], $names($oursResolved->tree));
+        $t->same(['sub', 'w', 'x.f', 'z'], $names($oursRenamed));
+        $t->same(['y.f', 'z'], $names($oursSub));
+        $t->same($ourContent, $read($oursSub->entryNamed('y.f')?->oid ?? '')->body);
+        $t->same($theirContent, $read($oursRenamed->entryNamed('x.f')?->oid ?? '')->body);
+        $t->same('', $read($oursRenamed->entryNamed('z')?->oid ?? '')->body);
+        $t->same([], $oursResolved->indexEntries());
+
+        $theirsResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_THEIRS);
+        $theirsRenamed = Tree::fromObject($read($theirsResolved->tree->entryNamed('a-renamed', true)?->oid ?? ''));
+
+        $t->true($theirsResolved->isClean());
+        $t->same(['a-renamed'], $names($theirsResolved->tree));
+        $t->same(['y.f', 'z'], $names($theirsRenamed));
+        $t->same($theirContent, $read($theirsRenamed->entryNamed('y.f')?->oid ?? '')->body);
+        $t->same('', $read($theirsRenamed->entryNamed('z')?->oid ?? '')->body);
+        $t->same([], $theirsResolved->indexEntries());
+
+        $reverseOursResolved = $reverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+        $reverseOursRenamed = Tree::fromObject($read($reverseOursResolved->tree->entryNamed('a-renamed', true)?->oid ?? ''));
+        $reverseTheirsResolved = $reverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_THEIRS);
+        $reverseTheirsRenamed = Tree::fromObject($read($reverseTheirsResolved->tree->entryNamed('a-renamed', true)?->oid ?? ''));
+        $reverseTheirsSub = Tree::fromObject($read($reverseTheirsRenamed->entryNamed('sub', true)?->oid ?? ''));
+
+        $t->true($reverseOursResolved->isClean());
+        $t->same(['y.f', 'z'], $names($reverseOursRenamed));
+        $t->same($theirContent, $read($reverseOursRenamed->entryNamed('y.f')?->oid ?? '')->body);
+        $t->same([], $reverseOursResolved->indexEntries());
+        $t->true($reverseTheirsResolved->isClean());
+        $t->same(['sub', 'w', 'x.f', 'z'], $names($reverseTheirsRenamed));
+        $t->same($ourContent, $read($reverseTheirsSub->entryNamed('y.f')?->oid ?? '')->body);
+        $t->same($theirContent, $read($reverseTheirsRenamed->entryNamed('x.f')?->oid ?? '')->body);
+        $t->same([], $reverseTheirsResolved->indexEntries());
     },
     'maps upstream gix-merge tree-baseline rename-rename-plus-content fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();

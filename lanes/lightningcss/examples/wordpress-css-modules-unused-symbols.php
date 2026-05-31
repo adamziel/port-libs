@@ -25,6 +25,14 @@ $css = <<<'CSS'
   color: green;
 }
 
+.legacyWrapper {
+  color: blue;
+
+  &.legacyNested {
+    color: yellow;
+  }
+}
+
 @keyframes legacy-fade {
   from { opacity: 0 }
   to { opacity: 1 }
@@ -40,7 +48,7 @@ CSS;
 $result = (new CssModulesTransformer())->transform($css, [
     'hash' => 'BlockA',
     'dashedIdents' => true,
-    'unusedSymbols' => ['legacyCard', 'legacy-fade', '--legacy-accent'],
+    'unusedSymbols' => ['legacyCard', 'legacyWrapper', 'legacy-fade', '--legacy-accent'],
 ]);
 
 $expected = [

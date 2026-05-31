@@ -2432,6 +2432,14 @@ final class CssModulesTransformer
                 && !$this->cssContainsIdentifier($code, $name)
             ) {
                 unset($this->exports[$key]);
+                continue;
+            }
+
+            if (
+                !$export['isReferenced']
+                && !$this->cssContainsIdentifier($code, (string) $name)
+            ) {
+                unset($this->exports[$key]);
             }
         }
     }

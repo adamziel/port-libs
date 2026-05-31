@@ -840,6 +840,59 @@ return [
         $t->same([0, 2], array_column($decoded, 'generatedColumn'));
         $t->same([0, 6], array_column($decoded, 'originalLine'));
     },
+    'source map applies upstream leading vlq and nested line-offset spans' => static function (TestRunner $t): void {
+        $lineStart = new SourceMap();
+        $lineStartSource = $lineStart->addSource('line-start.css');
+        $lineStart->addMapping(0, 0, $lineStartSource, 0, 0, 'top');
+        $lineStart->addMapping(2, 4, $lineStartSource, 2, 1, 'later');
+
+        $lineStart->offsetLines(0, 2);
+        $lineStartDecoded = SourceMap::decodeVlq($lineStart->writeVlq());
+
+        $t->same(';;AAAAA;;IAECC', $lineStart->writeVlq());
+        $t->same([2, 4], array_column($lineStartDecoded, 'generatedLine'));
+        $t->same([0, 4], array_column($lineStartDecoded, 'generatedColumn'));
+        $t->same([0, 2], array_column($lineStartDecoded, 'originalLine'));
+        $t->same([0, 1], array_column($lineStartDecoded, 'nameIndex'));
+
+        $lineStart->offsetLines(2, -1);
+        $lineStartDecoded = SourceMap::decodeVlq($lineStart->writeVlq());
+
+        $t->same(';AAAAA;;IAECC', $lineStart->writeVlq());
+        $t->same([1, 3], array_column($lineStartDecoded, 'generatedLine'));
+        $t->same([0, 4], array_column($lineStartDecoded, 'generatedColumn'));
+
+        $raw = new SourceMap();
+        $raw->addVlqMap(';;AACA', ['raw.css'], ['.raw{}'], [], 2, 3);
+        $rawDecoded = SourceMap::decodeVlq($raw->writeVlq());
+
+        $t->same(';;;;GACA', $raw->writeVlq());
+        $t->same([4], array_column($rawDecoded, 'generatedLine'));
+        $t->same([3], array_column($rawDecoded, 'generatedColumn'));
+        $t->same([1], array_column($rawDecoded, 'originalLine'));
+
+        $parent = new SourceMap();
+        $parentSource = $parent->addSource('parent.css');
+        foreach ([0, 1, 2, 3] as $line) {
+            $parent->addMapping($line, 0, $parentSource, $line, 0, 'parent' . $line);
+        }
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('child.css');
+        $child->addMapping(0, 2, $childSource, 7, 1, 'child');
+        $child->offsetLines(1, 2);
+        $parent->addSourceMap($child, -1);
+        $parentDecoded = SourceMap::decodeVlq($parent->writeVlq());
+        $parentData = $parent->toArray(null, false);
+
+        $t->same(';;AAEAE;AACAC', $parent->writeVlq());
+        $t->same([2, 3], array_column($parentDecoded, 'generatedLine'));
+        $t->same([2, 3], array_column($parentDecoded, 'originalLine'));
+        $t->same([2, 3], array_column($parentDecoded, 'nameIndex'));
+        $t->same(['parent.css', 'child.css'], $parentData['sources']);
+        $t->same(['parent0', 'parent1', 'parent2', 'parent3', 'child'], $parentData['names']);
+        $t->same([], $child->getSources());
+    },
     'source map ignores column offsets on empty generated-line spans like upstream' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $sourceIndex = $map->addSource('theme.css');

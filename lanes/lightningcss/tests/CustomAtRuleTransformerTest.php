@@ -1547,6 +1547,31 @@ CSS;
 
         $t->same('.foo{margin:10px;padding:20px}', $result);
     },
+    'custom at-rules compose upstream EnvironmentVariable visitors inside generic functions' => static function (TestRunner $t): void {
+        $tokens = [
+            '--percentage1' => '25%',
+            '--percentage2' => '75%',
+            '--length1' => '10px',
+            '--length2' => '20px',
+        ];
+        $seenNames = [];
+
+        $result = (new CustomAtRuleTransformer())->transform(
+            '.test { background: linear-gradient(red env(--percentage1), blue env(--percentage2)); width: calc(env(--length1) - env(--length2)); }',
+            [],
+            [
+                'EnvironmentVariable' => static function (array $environmentVariable) use (&$seenNames, $tokens): ?array {
+                    $name = $environmentVariable['name']['ident'] ?? $environmentVariable['name']['value'] ?? '';
+                    $seenNames[] = $name;
+
+                    return isset($tokens[$name]) ? ['raw' => $tokens[$name]] : null;
+                },
+            ]
+        );
+
+        $t->same('.test{background:linear-gradient(red 25%,#00f 75%);width:-10px}', $result);
+        $t->same(['--percentage1', '--percentage2', '--length1', '--length2'], $seenNames);
+    },
     'custom at-rules revisit upstream raw Function variables' => static function (TestRunner $t): void {
         $seen = [];
         $result = (new CustomAtRuleTransformer())->transform('.foo { color: theme("foo"); background: theme("red"); }', [], [

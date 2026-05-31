@@ -103,6 +103,45 @@ return [
             $block->removeProperty($declarations, '--Block-Accent')
         );
     },
+    'declaration block canonicalizes upstream all css-wide keywords in cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            [
+                'all' => 'initial',
+                'color' => 'red',
+            ],
+            $block->parse('ALL: INITIAL; color: red')
+        );
+        $t->same(
+            ['value' => 'inherit', 'important' => true],
+            $block->getProperty('a\\6c l: InHeRiT !important; color: red', 'all')
+        );
+        $t->same(
+            ['value' => 'var(--wp--custom--reset)', 'important' => false],
+            $block->getProperty('all: var(--wp--custom--reset)', 'all')
+        );
+        $t->same(
+            'color: red; all: revert-layer',
+            $block->setProperty('all: initial !important; color: red', 'all', 'REVERT-LAYER')
+        );
+        $t->same(
+            'all: unset; color: red',
+            $block->setProperty('all: inherit; color: red', 'all', 'UNSET')
+        );
+        $t->same(
+            'all: var(--wp--custom--reset); color: red',
+            $block->setProperty('all: inherit; color: red', 'all', 'var(--wp--custom--reset)')
+        );
+        $t->same(
+            'color: red; all: revert !important',
+            $block->setProperty('all: initial; color: red', 'ALL', 'ReVeRt', true)
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('all: initial; color: red; all: revert !important', 'all')
+        );
+    },
     'declaration block enumerates upstream cssom length and item order' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'color: red !important; background: white; --Block-Accent: blue; margin: 1rem !important; color: green';

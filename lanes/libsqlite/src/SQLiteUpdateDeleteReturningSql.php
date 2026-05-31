@@ -970,13 +970,16 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (preg_match('/^length\s*\((.+)\)$/is', $expression, $match) === 1) {
             $value = self::limitExpressionValue(trim($match[1]));
+            if ($value instanceof SQLiteBlobValue) {
+                return strlen($value->bytes);
+            }
 
             return $value === null ? null : self::textLength((string) $value);
         }
         $scalarFunction = self::wholeLimitScalarFunction($expression);
         if (
             $scalarFunction !== null
-            && in_array($scalarFunction['name'], ['coalesce', 'ifnull', 'nullif', 'min', 'max', 'round', 'sign', 'ceil', 'ceiling', 'floor', 'trunc', 'sqrt', 'pow', 'power', 'exp', 'ln', 'log', 'log10', 'log2', 'mod', 'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'pi', 'upper', 'lower', 'trim', 'ltrim', 'rtrim', 'substr', 'substring', 'instr', 'replace', 'concat', 'concat_ws', 'char', 'unicode', 'octet_length', 'hex', 'quote', 'typeof', 'printf', 'format', 'iif', 'if', 'likely', 'unlikely', 'likelihood', 'zeroblob', 'randomblob', 'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime', 'sqlite_version', 'sqlite_source_id', 'sqlite_compileoption_get', 'sqlite_compileoption_used', 'json', 'jsonb', 'json_array', 'jsonb_array', 'json_object', 'jsonb_object', 'json_valid', 'json_error_position', 'json_type', 'json_array_length', 'json_extract', 'jsonb_extract', 'json_quote'], true)
+            && in_array($scalarFunction['name'], ['coalesce', 'ifnull', 'nullif', 'min', 'max', 'round', 'sign', 'ceil', 'ceiling', 'floor', 'trunc', 'sqrt', 'pow', 'power', 'exp', 'ln', 'log', 'log10', 'log2', 'mod', 'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'pi', 'upper', 'lower', 'trim', 'ltrim', 'rtrim', 'substr', 'substring', 'instr', 'replace', 'concat', 'concat_ws', 'char', 'unicode', 'octet_length', 'hex', 'unhex', 'quote', 'typeof', 'printf', 'format', 'iif', 'if', 'likely', 'unlikely', 'likelihood', 'zeroblob', 'randomblob', 'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime', 'sqlite_version', 'sqlite_source_id', 'sqlite_compileoption_get', 'sqlite_compileoption_used', 'json', 'jsonb', 'json_array', 'jsonb_array', 'json_object', 'jsonb_object', 'json_valid', 'json_error_position', 'json_type', 'json_array_length', 'json_extract', 'jsonb_extract', 'json_quote'], true)
         ) {
             return self::evaluateLimitScalarFunction($scalarFunction['name'], $scalarFunction['arguments']);
         }
@@ -1343,6 +1346,9 @@ final class SQLiteUpdateDeleteReturningSql
         if ($function === 'hex' && count($parts) !== 1) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT hex() needs one argument');
         }
+        if ($function === 'unhex' && count($parts) !== 1 && count($parts) !== 2) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT unhex() needs one or two arguments');
+        }
         if (($function === 'quote' || $function === 'typeof') && count($parts) !== 1) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
         }
@@ -1450,6 +1456,14 @@ final class SQLiteUpdateDeleteReturningSql
             $value = SQLiteCoreScalarFunction::sqlFunctionArguments($function, $values);
             if (!is_int($value) && !is_float($value) && !is_string($value) && $value !== null) {
                 throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() returned an unsupported value");
+            }
+
+            return $value;
+        }
+        if ($function === 'unhex') {
+            $value = SQLiteCoreScalarFunction::sqlFunctionArguments($function, $values);
+            if (!$value instanceof SQLiteBlobValue && $value !== null) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT unhex() returned an unsupported value');
             }
 
             return $value;
@@ -1577,12 +1591,18 @@ final class SQLiteUpdateDeleteReturningSql
             if ($values[0] === null) {
                 return null;
             }
+            if ($values[0] instanceof SQLiteBlobValue) {
+                return strlen($values[0]->bytes);
+            }
 
             return strlen((string) $values[0]);
         }
         if ($function === 'hex') {
             if ($values[0] === null) {
                 return '';
+            }
+            if ($values[0] instanceof SQLiteBlobValue) {
+                return strtoupper(bin2hex($values[0]->bytes));
             }
 
             return strtoupper(bin2hex((string) $values[0]));

@@ -1576,6 +1576,94 @@ for ($seed = 1; $seed <= 36; $seed++) {
         };
 }
 
+$unhexLimitExpr = static function (int $value, int $seed): string {
+    $packed = str_repeat('00', $value);
+    $spaced = implode(' ', array_fill(0, $value, 'ab'));
+    $dashed = implode('-', array_fill(0, $value, 'cd'));
+    $numericByte = sprintf('%02d', $value);
+
+    return match ($seed % 8) {
+        0 => "length(unhex('{$packed}'))",
+        1 => "octet_length(unhex('{$packed}'))",
+        2 => "length(unhex('{$spaced}', ' '))",
+        3 => "octet_length(unhex('{$dashed}', '-'))",
+        4 => "length(unhex(lower('" . strtoupper($packed) . "')))",
+        5 => "(typeof(unhex('{$packed}')) = 'blob') + {$value} - 1",
+        6 => "hex(unhex('{$numericByte}'))",
+        default => "length(unhex(' {$spaced} ', ' '))",
+    };
+};
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = $unhexLimitExpr($limitValue, $seed);
+    $offsetExpr = $unhexLimitExpr($offsetValue, $seed + 4);
+    $sql = "UPDATE app_settings SET state = 'unhex_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update unhex blob limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($result['returning']), 'unhex_limit'), array_column($result['returning'], 'state'));
+            $t->contains('unhex.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/unhex.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = $unhexLimitExpr($limitValue, $seed + 2);
+    $offsetExpr = $unhexLimitExpr($offsetValue, $seed + 6);
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue unhex blob subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+            $t->contains('unhex.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/unhex.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+$unhexLimitCases = [
+    'parse unhex blob length limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(unhex('0000'))")['limit'], 2],
+    'parse unhex ignored spaces offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET octet_length(unhex('AB CD EF', ' '))")['offset'], 3],
+    'parse unhex dashed bytes count' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(unhex('AA-BB-CC-DD', '-'))")['limit'], 4],
+    'parse unhex lowercase via hex numeric limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT hex(unhex('02'))")['limit'], 2],
+    'parse unhex empty blob has zero length' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(unhex(''))")['limit'], 0],
+    'parse unhex typeof blob predicate limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT typeof(unhex('')) = 'blob'")['limit'], 1],
+    'malformed direct unhex blob rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT unhex('02')"), InvalidArgumentException::class],
+    'malformed unhex odd digits rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(unhex('ABC'))"), InvalidArgumentException::class],
+    'malformed unhex bad digit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(unhex('12x4'))"), InvalidArgumentException::class],
+    'malformed unhex null input rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(unhex(NULL))"), InvalidArgumentException::class],
+    'malformed unhex null ignored set rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(unhex('1234', NULL))"), InvalidArgumentException::class],
+    'malformed unhex arity none rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT unhex()"), InvalidArgumentException::class],
+    'malformed unhex arity three rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT unhex('1234', ' ', '-')"), InvalidArgumentException::class],
+];
+
+foreach ($unhexLimitCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity unhex blob ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            $t->contains('unhex.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/unhex.test');
+            return;
+        }
+        $t->same($expected, $callback());
+        $t->contains('unhex.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/unhex.test');
+    };
+}
+
 for ($seed = 1; $seed <= 48; $seed++) {
     $limitValue = ($seed % 4) + 1;
     $offsetValue = $seed % 3;

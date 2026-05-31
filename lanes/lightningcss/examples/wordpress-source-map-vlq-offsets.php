@@ -149,6 +149,37 @@ $farLineOffsetMap->offsetLines(4, 2);
 $farLineOffsetMap->addMapping(6, 2, $farLineOffsetSource, 6, 0);
 $farLineOffsetMap->offsetLines(5, -2);
 
+$lineStartOffsetMap = new SourceMap();
+$lineStartOffsetSource = $lineStartOffsetMap->addSource('wp-content/themes/example/line-start-offset.css');
+$lineStartOffsetMap->setSourceContent($lineStartOffsetSource, ".wp-block-line-start-offset {}\n.wp-block-line-start-later {}\n");
+$lineStartOffsetMap->addMapping(0, 0, $lineStartOffsetSource, 0, 0, 'line-start-top');
+$lineStartOffsetMap->addMapping(2, 4, $lineStartOffsetSource, 2, 1, 'line-start-later');
+$lineStartOffsetMap->offsetLines(0, 2);
+$lineStartOffsetInsertedMap = $lineStartOffsetMap->toJson(null, false);
+$lineStartOffsetMap->offsetLines(2, -1);
+
+$rawLeadingSemicolonOffsetMap = new SourceMap();
+$rawLeadingSemicolonOffsetMap->addVlqMap(
+    ';;AACA',
+    ['wp-content/themes/example/source-map-leading-semicolon.css'],
+    ['.wp-block-leading-semicolon{}'],
+    [],
+    2,
+    3
+);
+
+$negativeChildLineOffsetParent = new SourceMap();
+$negativeChildLineOffsetSource = $negativeChildLineOffsetParent->addSource('wp-content/themes/example/negative-child-parent.css');
+for ($line = 0; $line < 4; $line++) {
+    $negativeChildLineOffsetParent->addMapping($line, 0, $negativeChildLineOffsetSource, $line, 0, 'negative-child-parent-' . $line);
+}
+$negativeChildLineOffsetChild = new SourceMap();
+$negativeChildLineOffsetChildSource = $negativeChildLineOffsetChild->addSource('wp-content/themes/example/negative-child.css');
+$negativeChildLineOffsetChild->addMapping(0, 2, $negativeChildLineOffsetChildSource, 7, 1, 'negative-child-rule');
+$negativeChildLineOffsetChild->offsetLines(1, 2);
+$negativeChildLineOffsetParent->addSourceMap($negativeChildLineOffsetChild, -1);
+$negativeChildLineOffsetChildConsumed = $negativeChildLineOffsetChild->toJson(null, false);
+
 $generatedOnlyOffsetMap = new SourceMap();
 $generatedOnlyOffsetSource = $generatedOnlyOffsetMap->addSource('wp-content/themes/example/generated-offset.css');
 $generatedOnlyOffsetMap->setSourceContent($generatedOnlyOffsetSource, ".wp-block-generated-offset{display:block}\n");
@@ -441,6 +472,11 @@ $actual = [
     'bufferRoundTripMap' => $bufferRoundTripMap->toJson(null, false),
     'negativeLinePastSpanGuard' => $negativeLinePastSpanGuard && $negativeLinePastSpanBeforeGuard === $negativeLinePastSpanMap->toJson(null, false),
     'farLineOffsetMap' => $farLineOffsetMap->toJson(null, false),
+    'lineStartOffsetInsertedMap' => $lineStartOffsetInsertedMap,
+    'lineStartOffsetMap' => $lineStartOffsetMap->toJson(null, false),
+    'rawLeadingSemicolonOffsetMap' => $rawLeadingSemicolonOffsetMap->toJson(null, false),
+    'negativeChildLineOffsetMap' => $negativeChildLineOffsetParent->toJson(null, false),
+    'negativeChildLineOffsetChildConsumed' => $negativeChildLineOffsetChildConsumed,
     'generatedOnlyOffsetMap' => $generatedOnlyOffsetMap->toJson(null, false),
     'extendedInputMap' => $generatedThemeJsonMap->toJson(null, false),
     'projectRootMap' => $projectRootMap->toJson(null, false),
@@ -484,6 +520,11 @@ if (($argv[1] ?? null) === '--self-test') {
         'bufferRoundTripMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/empty-line-offset.css"],"sourcesContent":[".wp-block-empty-line-offset {}\n"],"names":[]}',
         'negativeLinePastSpanGuard' => true,
         'farLineOffsetMap' => '{"version":3,"mappings":"AAAA;;;;EAMA","sources":["wp-content/themes/example/far-line-offset.css"],"sourcesContent":[".wp-block-far-line-offset {}\n"],"names":[]}',
+        'lineStartOffsetInsertedMap' => '{"version":3,"mappings":";;AAAAA;;IAECC","sources":["wp-content/themes/example/line-start-offset.css"],"sourcesContent":[".wp-block-line-start-offset {}\n.wp-block-line-start-later {}\n"],"names":["line-start-top","line-start-later"]}',
+        'lineStartOffsetMap' => '{"version":3,"mappings":";AAAAA;;IAECC","sources":["wp-content/themes/example/line-start-offset.css"],"sourcesContent":[".wp-block-line-start-offset {}\n.wp-block-line-start-later {}\n"],"names":["line-start-top","line-start-later"]}',
+        'rawLeadingSemicolonOffsetMap' => '{"version":3,"mappings":";;;;GACA","sources":["wp-content/themes/example/source-map-leading-semicolon.css"],"sourcesContent":[".wp-block-leading-semicolon{}"],"names":[]}',
+        'negativeChildLineOffsetMap' => '{"version":3,"mappings":";;AAEAE;AACAC","sources":["wp-content/themes/example/negative-child-parent.css","wp-content/themes/example/negative-child.css"],"sourcesContent":[],"names":["negative-child-parent-0","negative-child-parent-1","negative-child-parent-2","negative-child-parent-3","negative-child-rule"]}',
+        'negativeChildLineOffsetChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'generatedOnlyOffsetMap' => '{"version":3,"mappings":";;Y,MAAAA;E","sources":["wp-content/themes/example/generated-offset.css"],"sourcesContent":[".wp-block-generated-offset{display:block}\n"],"names":["generated-offset-rule"]}',
         'extendedInputMap' => '{"version":3,"mappings":"ACMQE,wDAMFC","sources":["wp-content/cache/theme-json.generated.css","wp-content/themes/example/theme.json"],"sourcesContent":[".wp-block-cover{color:var(--wp--preset--color--primary)}.wp-block-spacer{margin-top:1rem}","{\n  \"version\": 3,\n  \"settings\": {\n    \"color\": {\n      \"palette\": [\n        { \"slug\": \"primary\", \"color\": \"#06c\" }\n      ]\n    }\n  },\n  \"styles\": {\n    \"blocks\": {\n      \"core/spacer\": { \"spacing\": { \"margin\": { \"top\": \"1rem\" } } }\n    }\n  }\n}"],"names":["coverRule","spacerRule","settings.color.primary","styles.blocks.core/spacer.spacing.margin.top"]}',
         'projectRootMap' => '{"version":3,"mappings":"AACAA,0BCIAC;ACLAC","sources":["wp-content/themes/example/style.css","wp-content/themes/example/blocks.css","theme://generated/editor.css"],"sourcesContent":["@import \"blocks.css\";\n.theme-footer {\n  color: green;\n}","/*! Theme package license */\n/*!\n * Block editor stylesheet generated from theme.json\n * Keep comments for distribution compliance.\n */\n.wp-block-cover {\n  color: yellow;\n}\n.wp-block-cover .wp-block-button {\n  margin: 1rem;\n}",".wp-block-cover{outline:2px solid currentColor}"],"names":["theme-footer","block-cover","virtual-editor-rule"]}',

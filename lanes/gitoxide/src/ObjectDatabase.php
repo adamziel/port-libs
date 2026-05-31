@@ -191,9 +191,9 @@ final class ObjectDatabase
     }
 
     /**
-     * @return array{status:'missing'}|array{status:'found',oid:string}|array{status:'ambiguous',matches:list<string>}
+     * @return array{status:'missing',candidates?:list<string>}|array{status:'found',oid:string,candidates?:list<string>}|array{status:'ambiguous',matches:list<string>,candidates?:list<string>}
      */
-    public function lookupPrefix(string $prefix): array
+    public function lookupPrefix(string $prefix, bool $includeCandidates = false): array
     {
         $prefix = strtolower($prefix);
         $maxLength = ReferenceTarget::hashHexLength($this->objectHash);
@@ -201,20 +201,40 @@ final class ObjectDatabase
             throw new \InvalidArgumentException("Lookup prefix must be 4 to {$maxLength} hexadecimal characters");
         }
 
-        $oids = $this->prefixMatches($prefix);
-        if (count($oids) <= 1) {
+        if ($includeCandidates) {
             $this->refreshObjectStorage();
             $oids = $this->prefixMatches($prefix);
+        } else {
+            $oids = $this->prefixMatches($prefix);
+            if (count($oids) <= 1) {
+                $this->refreshObjectStorage();
+                $oids = $this->prefixMatches($prefix);
+            }
         }
 
         if ($oids === []) {
-            return ['status' => 'missing'];
+            $result = ['status' => 'missing'];
+            if ($includeCandidates) {
+                $result['candidates'] = [];
+            }
+
+            return $result;
         }
         if (count($oids) > 1) {
-            return ['status' => 'ambiguous', 'matches' => $oids];
+            $result = ['status' => 'ambiguous', 'matches' => $oids];
+            if ($includeCandidates) {
+                $result['candidates'] = $oids;
+            }
+
+            return $result;
         }
 
-        return ['status' => 'found', 'oid' => $oids[0]];
+        $result = ['status' => 'found', 'oid' => $oids[0]];
+        if ($includeCandidates) {
+            $result['candidates'] = $oids;
+        }
+
+        return $result;
     }
 
     public function disambiguatePrefix(string $oid, int $minimumHexLength): ?string

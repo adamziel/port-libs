@@ -1669,6 +1669,54 @@ CSS;
         $t->same('', $cardPruned['code']);
         $t->same([], $cardPruned['exports']);
     },
+    'css modules prunes stale nested unused exports while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $css = <<<'CSS'
+.foo {
+  color: red;
+
+  &.bar {
+    color: purple;
+  }
+
+  @nest &.bar {
+    color: orange;
+  }
+
+  @nest :not(&) {
+    color: green;
+  }
+}
+
+.x {
+  color: purple;
+
+  &.y {
+    color: green;
+  }
+}
+
+.survivor {
+  composes: reset;
+  color: yellow;
+}
+
+.reset {
+  color: blue;
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css, [
+            'unusedSymbols' => ['foo', 'x'],
+        ]);
+
+        $t->same(':not(.EgL3uq_foo){color:green}.EgL3uq_survivor{color:#ff0}.EgL3uq_reset{color:#00f}', $result['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo'),
+            'survivor' => $export('EgL3uq_survivor', [$local('EgL3uq_reset')]),
+            'reset' => $export('EgL3uq_reset'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
     'css modules scopes upstream view transition declaration idents' => static function (TestRunner $t) use ($export): void {
         $css = <<<'CSS'
 .card {

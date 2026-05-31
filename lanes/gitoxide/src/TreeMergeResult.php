@@ -89,9 +89,13 @@ final class TreeMergeResult
         $tree = $this->tree;
         $remaining = [];
         $sourceConflictsResolvedByTargetAdd = self::sourceConflictsResolvedByTargetAdd($this->conflicts);
+        $subtreeReplacementFollowers = self::directorySubtreeReplacementFollowerIndexes($this->conflicts);
         foreach ($this->conflicts as $index => $conflict) {
             if (isset($sourceConflictsResolvedByTargetAdd[$index])) {
                 $tree = self::removeEntryAtPath($tree, $conflict->path, $readObject, $writeObject);
+                continue;
+            }
+            if (isset($subtreeReplacementFollowers[$index])) {
                 continue;
             }
 
@@ -108,6 +112,17 @@ final class TreeMergeResult
             $resolutionForConflict = $isContentConflict ? $contentResolution : $resolution;
             if ($resolutionForConflict === null) {
                 $remaining[] = $conflict;
+                continue;
+            }
+            $subtreeReplacement = self::resolveDirectorySubtreeReplacement(
+                $tree,
+                $conflict,
+                $resolutionForConflict,
+                $readObject,
+                $writeObject,
+            );
+            if ($subtreeReplacement !== null) {
+                $tree = $subtreeReplacement;
                 continue;
             }
 
@@ -231,6 +246,143 @@ final class TreeMergeResult
      * @param list<TreeMergeConflict> $conflicts
      * @return array<int, true>
      */
+    private static function directorySubtreeReplacementFollowerIndexes(array $conflicts): array
+    {
+        $relatedPaths = [];
+        foreach ($conflicts as $conflict) {
+            if ($conflict->reason !== 'directory-rename-subtree-replacement') {
+                continue;
+            }
+            foreach (self::stringList($conflict->context['relatedConflictPaths'] ?? []) as $path) {
+                $relatedPaths[$path] = true;
+            }
+        }
+
+        if ($relatedPaths === []) {
+            return [];
+        }
+
+        $indexes = [];
+        foreach ($conflicts as $index => $conflict) {
+            if (
+                isset($relatedPaths[$conflict->path])
+                && in_array($conflict->reason, ['rename-delete', 'directory-rename-suggested'], true)
+            ) {
+                $indexes[$index] = true;
+            }
+        }
+
+        return $indexes;
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     */
+    private static function resolveDirectorySubtreeReplacement(
+        Tree $tree,
+        TreeMergeConflict $conflict,
+        string $resolution,
+        callable $readObject,
+        callable $writeObject,
+    ): ?Tree {
+        if ($conflict->reason !== 'directory-rename-subtree-replacement') {
+            return null;
+        }
+
+        $baseEntry = $conflict->context['baseEntry'] ?? null;
+        $sourcePath = $conflict->context['sourcePath'] ?? null;
+        $renamedByOurs = $conflict->context['renamedByOurs'] ?? null;
+        if (!$baseEntry instanceof TreeEntry || !is_string($sourcePath) || !is_bool($renamedByOurs)) {
+            return null;
+        }
+
+        $replacementPaths = self::stringList($conflict->context['replacementPaths'] ?? []);
+        $suggestedPaths = array_fill_keys(self::stringList($conflict->context['suggestedPaths'] ?? []), true);
+        $cleanReplacementPaths = array_values(array_filter(
+            $replacementPaths,
+            static fn (string $path): bool => !isset($suggestedPaths[$path]),
+        ));
+
+        $targetEntry = self::entryAtPathInTree($tree, $conflict->path, $readObject);
+        $targetTree = $targetEntry !== null && $targetEntry->isTree()
+            ? Tree::fromObject(self::readTypedObject($readObject, $targetEntry->oid, 'tree'))
+            : new Tree([]);
+
+        $resolved = self::removeEntryAtPath($tree, $conflict->path, $readObject, $writeObject);
+        $resolved = self::removeEntryAtPath($resolved, $sourcePath, $readObject, $writeObject);
+
+        if ($resolution === self::RESOLVE_ANCESTOR) {
+            $resolved = self::setEntryAtPath($resolved, $sourcePath, $baseEntry, $readObject, $writeObject);
+            $cleanTree = self::filterTreePaths($targetTree, $cleanReplacementPaths, $readObject, $writeObject);
+            if ($targetEntry !== null && $cleanTree->entries !== []) {
+                $resolved = self::setEntryAtPath(
+                    $resolved,
+                    $conflict->path,
+                    new TreeEntry($targetEntry->mode, basename($conflict->path), $writeObject($cleanTree->toObject())),
+                    $readObject,
+                    $writeObject,
+                );
+            }
+
+            return $resolved;
+        }
+
+        $choosesRenamedSide = $resolution === self::RESOLVE_OURS ? $renamedByOurs : !$renamedByOurs;
+        if ($choosesRenamedSide) {
+            $selectedEntry = self::entryForResolution($conflict, $resolution);
+            if ($selectedEntry === null || !$selectedEntry->isTree()) {
+                return null;
+            }
+            $selectedTree = Tree::fromObject(self::readTypedObject($readObject, $selectedEntry->oid, 'tree'));
+            $selectedTree = self::overlayTreePaths($selectedTree, $targetTree, $cleanReplacementPaths, $readObject, $writeObject);
+
+            return self::setEntryAtPath(
+                $resolved,
+                $conflict->path,
+                new TreeEntry($selectedEntry->mode, basename($conflict->path), $writeObject($selectedTree->toObject())),
+                $readObject,
+                $writeObject,
+            );
+        }
+
+        $replacementTree = self::filterTreePaths($targetTree, $replacementPaths, $readObject, $writeObject);
+        if ($targetEntry === null || $replacementTree->entries === []) {
+            return $resolved;
+        }
+
+        return self::setEntryAtPath(
+            $resolved,
+            $conflict->path,
+            new TreeEntry($targetEntry->mode, basename($conflict->path), $writeObject($replacementTree->toObject())),
+            $readObject,
+            $writeObject,
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function stringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($value as $item) {
+            if (is_string($item) && $item !== '') {
+                $strings[] = $item;
+            }
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @param list<TreeMergeConflict> $conflicts
+     * @return array<int, true>
+     */
     private static function sourceConflictsResolvedByTargetAdd(array $conflicts): array
     {
         $sourceIndexes = [];
@@ -302,7 +454,7 @@ final class TreeMergeResult
                 continue;
             }
 
-            $entry = $this->entryAtPath($this->tree, $conflict->path, $readObject);
+            $entry = self::entryAtPathInTree($this->tree, $conflict->path, $readObject);
             if ($entry === null || !$entry->isBlob()) {
                 continue;
             }
@@ -407,6 +559,84 @@ final class TreeMergeResult
     }
 
     /**
+     * @param list<string> $paths
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     */
+    private static function filterTreePaths(Tree $source, array $paths, callable $readObject, callable $writeObject): Tree
+    {
+        $filtered = new Tree([]);
+        foreach ($paths as $path) {
+            $entry = self::entryAtPathInTree($source, $path, $readObject);
+            if ($entry === null) {
+                continue;
+            }
+            $filtered = self::addEntryAtPath($filtered, $path, $entry, $readObject, $writeObject);
+        }
+
+        return $filtered;
+    }
+
+    /**
+     * @param list<string> $paths
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     */
+    private static function overlayTreePaths(
+        Tree $target,
+        Tree $source,
+        array $paths,
+        callable $readObject,
+        callable $writeObject,
+    ): Tree {
+        foreach ($paths as $path) {
+            $entry = self::entryAtPathInTree($source, $path, $readObject);
+            if ($entry === null) {
+                continue;
+            }
+            $target = self::addEntryAtPath($target, $path, $entry, $readObject, $writeObject);
+        }
+
+        return $target;
+    }
+
+    /**
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     */
+    private static function addEntryAtPath(Tree $tree, string $path, TreeEntry $entry, callable $readObject, callable $writeObject): Tree
+    {
+        $parts = explode('/', $path);
+        $name = array_shift($parts);
+        if ($name === null || $name === '') {
+            return $tree;
+        }
+
+        $entries = self::entriesByName($tree);
+        if ($parts === []) {
+            $entries[$name] = new TreeEntry($entry->mode, $name, $entry->oid);
+
+            return self::treeFromEntries($entries);
+        }
+
+        $parent = $entries[$name] ?? new TreeEntry('40000', $name, $writeObject((new Tree([]))->toObject()));
+        if (!$parent->isTree()) {
+            return $tree;
+        }
+
+        $nested = self::addEntryAtPath(
+            Tree::fromObject(self::readTypedObject($readObject, $parent->oid, 'tree')),
+            implode('/', $parts),
+            $entry,
+            $readObject,
+            $writeObject,
+        );
+        $entries[$name] = new TreeEntry($parent->mode, $parent->filename, $writeObject($nested->toObject()));
+
+        return self::treeFromEntries($entries);
+    }
+
+    /**
      * @return array<string, TreeEntry>
      */
     private static function entriesByName(Tree $tree): array
@@ -433,7 +663,7 @@ final class TreeMergeResult
     /**
      * @param callable(string): GitObject $readObject
      */
-    private function entryAtPath(Tree $tree, string $path, callable $readObject): ?TreeEntry
+    private static function entryAtPathInTree(Tree $tree, string $path, callable $readObject): ?TreeEntry
     {
         $parts = explode('/', $path);
         $current = $tree;

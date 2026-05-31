@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../../tools/bootstrap.php';
 
+use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\LooseObjectStore;
 use PortLibs\Gitoxide\ObjectDatabase;
 
 $fixture = require __DIR__ . '/../fixtures/wordpress-object-database-multi-pack.php';
@@ -23,6 +25,8 @@ $database = new ObjectDatabase($gitDir);
 $content = $database->read($fixture['objectsByRole']['content']['oid']);
 $media = $database->read($fixture['objectsByRole']['media']['oid']);
 $shared = $database->read($fixture['objectsByRole']['shared']['oid']);
+$loosePrefixCandidateOid = (new LooseObjectStore($gitDir))->write(new GitObject('blob', 'midx-prefix-candidate-128814'));
+$contentPrefixCandidates = $database->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 4), true);
 
 return [
     'packedObjects' => $database->packedObjectCount(),
@@ -34,5 +38,8 @@ return [
     'multiPackIndexOffsetsVerified' => true,
     'mediaPrefixStatus' => $database->lookupPrefix(substr($fixture['objectsByRole']['media']['oid'], 0, 8))['status'],
     'mediaShortestPrefix' => $database->disambiguatePrefix($fixture['objectsByRole']['media']['oid'], 4),
+    'loosePrefixCandidateOid' => $loosePrefixCandidateOid,
+    'contentPrefixCandidateStatus' => $contentPrefixCandidates['status'],
+    'contentPrefixCandidates' => $contentPrefixCandidates['candidates'],
     'packOffsetOrder' => $database->objectIds(ObjectDatabase::ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL),
 ];

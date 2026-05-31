@@ -212,6 +212,13 @@ $subtreeReplacementContent = Tree::fromObject($read($subtreeReplacementResult->t
 $subtreeReplacementPlugins = Tree::fromObject($read($subtreeReplacementContent->entryNamed('plugins', true)?->oid ?? ''));
 $subtreeReplacementMergedPlugin = Tree::fromObject($read($subtreeReplacementPlugins->entryNamed('acme-pro', true)?->oid ?? ''));
 $subtreeReplacementIncludes = Tree::fromObject($read($subtreeReplacementMergedPlugin->entryNamed('includes', true)?->oid ?? ''));
+$subtreeReplacementAncestorResolved = $subtreeReplacementResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+$subtreeReplacementOursResolved = $subtreeReplacementResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+$subtreeReplacementTheirsResolved = $subtreeReplacementResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_THEIRS);
+$subtreeReplacementAncestorPlugin = $treeAtPathOrEmpty($subtreeReplacementAncestorResolved->tree, 'wp-content/plugins/acme');
+$subtreeReplacementAncestorCleanRename = $treeAtPathOrEmpty($subtreeReplacementAncestorResolved->tree, 'wp-content/plugins/acme-pro');
+$subtreeReplacementOursPlugin = $treeAtPathOrEmpty($subtreeReplacementOursResolved->tree, 'wp-content/plugins/acme-pro');
+$subtreeReplacementTheirsPlugin = $treeAtPathOrEmpty($subtreeReplacementTheirsResolved->tree, 'wp-content/plugins/acme-pro');
 $symlinkTarget = '../plugins/acme/bootstrap.php';
 $symlinkBase = new Tree([
     $tree('wp-content', new Tree([
@@ -431,6 +438,14 @@ echo json_encode([
         'includesEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $subtreeReplacementIncludes->entries),
         'rootRestRoute' => $read($subtreeReplacementMergedPlugin->entryNamed('rest.php')?->oid ?? '')->body,
         'bootstrapRoute' => $read($subtreeReplacementMergedPlugin->entryNamed('bootstrap.php')?->oid ?? '')->body,
+        'ancestorResolvedClean' => $subtreeReplacementAncestorResolved->isClean(),
+        'ancestorPluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $subtreeReplacementAncestorPlugin->entries),
+        'ancestorCleanRenamedEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $subtreeReplacementAncestorCleanRename->entries),
+        'oursResolvedClean' => $subtreeReplacementOursResolved->isClean(),
+        'oursResolvedPluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $subtreeReplacementOursPlugin->entries),
+        'theirsResolvedClean' => $subtreeReplacementTheirsResolved->isClean(),
+        'theirsResolvedPluginEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $subtreeReplacementTheirsPlugin->entries),
+        'indexStagesAfterOursResolution' => count($subtreeReplacementOursResolved->indexEntries()),
         'expandedIndexStages' => array_map(
             static fn (MergeIndexEntry $entry): array => [
                 'path' => $entry->path,

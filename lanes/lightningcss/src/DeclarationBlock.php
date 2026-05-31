@@ -54,6 +54,8 @@ final class DeclarationBlock
         'max-inline-size' => ['group' => 'max-size', 'category' => 'logical'],
     ];
 
+    private const CSS_WIDE_KEYWORDS = ['initial', 'inherit', 'unset', 'revert', 'revert-layer'];
+
     private const BACKGROUND_LONGHANDS = [
         'background-color',
         'background-image',
@@ -381,6 +383,7 @@ final class DeclarationBlock
                 throw new \InvalidArgumentException("Invalid CSS declaration: {$part}");
             }
             [$value, $important] = $this->splitImportantFlag($value);
+            $value = $this->normalizeDeclarationValue($property, $value);
             if ($value === '') {
                 throw new \InvalidArgumentException("Invalid CSS declaration: {$part}");
             }
@@ -9216,6 +9219,7 @@ final class DeclarationBlock
         if (!str_starts_with($property, '--') && $this->hasTopLevelCurlyBlock($value)) {
             throw new \InvalidArgumentException("Invalid CSS declaration: {$property}: {$value}");
         }
+        $value = $this->normalizeDeclarationValue($property, $value);
 
         [$normalEntries, $importantEntries] = $this->partitionEntriesByImportance($this->parseEntries($block));
         if ($important) {
@@ -12804,6 +12808,20 @@ final class DeclarationBlock
     private function normalizeProperty(string $property): string
     {
         return $this->normalizeDeclarationPropertyName($property);
+    }
+
+    private function normalizeDeclarationValue(string $property, string $value): string
+    {
+        if ($property !== 'all') {
+            return $value;
+        }
+
+        $keyword = strtolower($value);
+        if (in_array($keyword, self::CSS_WIDE_KEYWORDS, true)) {
+            return $keyword;
+        }
+
+        return $value;
     }
 
     private function normalizeDeclarationPropertyName(string $property): string

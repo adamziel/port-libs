@@ -1407,3 +1407,29 @@ Smart HTTP noProxy CIDR cookie-parity slice prepared on 2026-05-31:
   validation, and `git diff --check -- lanes/gitoxide` also passed. Full Cargo
   workspace runner was not executed.
 - Expected mapped denominator movement: `1632 / 2886` to `1633 / 2886`.
+
+Pack-index/MIDX prefix candidate collection slice prepared on 2026-05-31:
+
+- Pending worker slice `gitoxide-pack-index-midx-prefix-parity-20260531T215647Z`
+  on accepted base `9ef60eb910c3006c081a236c1ec05f4d0e7024c4` maps the
+  upstream dynamic object database prefix lookup boundary where callers can
+  request the full candidate object-id set without changing the missing,
+  found, or ambiguous outcome.
+- Source truth: upstream Gitoxide
+  `gix-odb/src/store_impls/dynamic/prefix.rs::lookup_prefix()` continues
+  through all indexes and loose stores when a candidate set is requested;
+  `gix-odb/src/store_impls/dynamic/handle.rs::lookup_prefix()` converts
+  pack-index and multi-pack-index candidate entry ranges into object ids; and
+  `gix-pack/src/multi_index/access.rs::lookup_prefix()` delegates to
+  `gix-pack/src/index/access.rs::lookup_prefix()`.
+- Native PHP delta: `ObjectDatabase::lookupPrefix()` keeps its default return
+  shape but accepts an opt-in candidate flag, refreshes object storage for a
+  complete candidate pass, and returns de-duplicated sorted candidates across
+  MIDX entries, standalone pack indexes, and loose objects.
+- Verification: focused `ObjectDatabaseTest.php` passed `1 file / 173
+  assertions / 0 failures`; focused pack/MIDX/object database gate passed
+  `3 files / 299 assertions / 0 failures`; full Gitoxide lane passed `39
+  files / 5848 assertions / 0 failures`; the touched WordPress MIDX example,
+  PHP lint, and `git diff --check -- lanes/gitoxide` passed. Full upstream
+  Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1644 / 2886` to `1645 / 2886`.

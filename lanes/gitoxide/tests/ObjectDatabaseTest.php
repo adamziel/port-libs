@@ -232,6 +232,11 @@ return [
         $found = $database->lookupPrefix(strtoupper(substr($fixture['objects'][1]['oid'], 0, 8)));
         $t->same('found', $found['status']);
         $t->same($duplicatePackedOid, $found['oid']);
+        $t->same([
+            'status' => 'found',
+            'oid' => $duplicatePackedOid,
+            'candidates' => [$duplicatePackedOid],
+        ], $database->lookupPrefix(strtoupper(substr($fixture['objects'][1]['oid'], 0, 8)), true));
 
         $ambiguous = $database->lookupPrefix(substr($fixture['objects'][0]['oid'], 0, 4));
         $t->same('ambiguous', $ambiguous['status']);
@@ -239,6 +244,13 @@ return [
             $fixture['objects'][0]['oid'],
             $ambiguousOid,
         ], $ambiguous['matches']);
+        $ambiguousWithCandidates = $database->lookupPrefix(substr($fixture['objects'][0]['oid'], 0, 4), true);
+        $t->same('ambiguous', $ambiguousWithCandidates['status']);
+        $t->same([
+            $fixture['objects'][0]['oid'],
+            $ambiguousOid,
+        ], $ambiguousWithCandidates['matches']);
+        $t->same($ambiguousWithCandidates['matches'], $ambiguousWithCandidates['candidates']);
 
         $packedPrefix = $database->disambiguatePrefix(strtoupper($fixture['objects'][0]['oid']), 4);
         $t->true($packedPrefix !== null);
@@ -250,6 +262,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $database->disambiguatePrefix($fixture['objects'][0]['oid'], 3));
 
         $t->same('missing', $database->lookupPrefix('ffff')['status']);
+        $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix('ffff', true));
     },
     'object database rejects incomplete pack pairs' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-data.php';
@@ -660,6 +673,23 @@ return [
         $t->same(substr($fixture['objectsByRole']['media']['oid'], 0, strlen($shortestMediaPrefix)), $shortestMediaPrefix);
         $t->same(['status' => 'found', 'oid' => $fixture['objectsByRole']['media']['oid']], $database->lookupPrefix($shortestMediaPrefix));
         $t->same(null, $database->disambiguatePrefix(str_repeat('f', 40), 4));
+
+        $looseCandidateOid = (new LooseObjectStore($gitDir))->write(new GitObject('blob', 'midx-prefix-candidate-128814'));
+        $contentPrefixCandidates = $database->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 4), true);
+        $t->same('ambiguous', $contentPrefixCandidates['status']);
+        $t->same([
+            $fixture['objectsByRole']['content']['oid'],
+            $looseCandidateOid,
+        ], $contentPrefixCandidates['matches']);
+        $t->same($contentPrefixCandidates['matches'], $contentPrefixCandidates['candidates']);
+
+        $uniqueContentCandidates = $database->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 5), true);
+        $t->same([
+            'status' => 'found',
+            'oid' => $fixture['objectsByRole']['content']['oid'],
+            'candidates' => [$fixture['objectsByRole']['content']['oid']],
+        ], $uniqueContentCandidates);
+        $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix('ffff', true));
     },
     'object database rejects multi-pack-index entries that reference missing packs' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
         [$gitDir] = $writeWordPressMultiPackFixture(true);
@@ -692,6 +722,11 @@ return [
 
         $t->same(true, $summary['multiPackIndexOffsetsVerified']);
         $t->same('found', $summary['mediaPrefixStatus']);
+        $t->same('ambiguous', $summary['contentPrefixCandidateStatus']);
+        $t->same([
+            $summary['contentOid'],
+            $summary['loosePrefixCandidateOid'],
+        ], $summary['contentPrefixCandidates']);
         $t->same(3, $summary['packedObjects']);
         $t->same(4, $summary['rawPackIndexObjects']);
     },

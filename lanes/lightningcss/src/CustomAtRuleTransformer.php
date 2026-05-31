@@ -4930,9 +4930,11 @@ final class CustomAtRuleTransformer
             return $this->applyValueVisitors($this->normalizeVisitorValue($replacement));
         }
 
+        $serializedArguments = implode(',', array_map(fn (mixed $argument): string => $this->serializeVisitorValue($argument), $arguments));
+
         return [
             'type' => 'raw',
-            'value' => $name . '(' . implode(',', array_map(fn (mixed $argument): string => $this->serializeVisitorValue($argument), $arguments)) . ')',
+            'value' => $name . '(' . $this->rewriteRawVisitorFunctions($serializedArguments) . ')',
         ];
     }
 
@@ -5372,8 +5374,27 @@ final class CustomAtRuleTransformer
         $length = strlen($value);
 
         while ($cursor < $length) {
+            $char = $value[$cursor];
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                $cursor++;
+                while ($cursor < $length) {
+                    $output .= $value[$cursor];
+                    if ($value[$cursor] === '\\' && $cursor + 1 < $length) {
+                        $cursor++;
+                        $output .= $value[$cursor];
+                    } elseif ($value[$cursor] === $quote) {
+                        $cursor++;
+                        break;
+                    }
+                    $cursor++;
+                }
+                continue;
+            }
+
             if (preg_match('/[a-zA-Z_-][-_a-zA-Z0-9]*(?=\()/A', substr($value, $cursor), $matches) !== 1) {
-                $output .= $value[$cursor];
+                $output .= $char;
                 $cursor++;
                 continue;
             }
@@ -5390,7 +5411,9 @@ final class CustomAtRuleTransformer
             $argumentsCss = substr($value, $open + 1, $close - $open - 1);
             $raw = $name . '(' . $argumentsCss . ')';
             $replacement = $this->callStructuredValueVisitor($name, $argumentsCss, $raw);
-            $output .= $replacement === null ? $raw : $this->serializeVisitorValue($replacement);
+            $output .= $replacement === null
+                ? $name . '(' . $this->rewriteRawVisitorFunctions($argumentsCss) . ')'
+                : $this->serializeVisitorValue($replacement);
             $cursor = $close + 1;
         }
 
