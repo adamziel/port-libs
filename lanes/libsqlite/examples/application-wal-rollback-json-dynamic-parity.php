@@ -10,12 +10,14 @@ $scenarios = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(4);
 $preexistingWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalScenarios(4);
 $deferredScenarios = SQLiteJsonImportRollbackWalPlan::dynamicDeferredFailureScenarios(4);
 $preexistingRetryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalRetryScenarios(4);
+$missingWalTailScenarios = SQLiteJsonImportRollbackWalPlan::dynamicMissingWalTailScenarios(4);
 $summary = [
     'scenario' => 'application-wal-rollback-json-dynamic-parity',
     'scenarioCount' => count($scenarios),
     'preexistingWalScenarioCount' => count($preexistingWalScenarios),
     'deferredScenarioCount' => count($deferredScenarios),
     'preexistingRetryScenarioCount' => count($preexistingRetryScenarios),
+    'missingWalTailScenarioCount' => count($missingWalTailScenarios),
     'statuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $scenarios),
     'preexistingWalStatuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $preexistingWalScenarios),
     'deferredStatuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $deferredScenarios),
@@ -27,6 +29,8 @@ $summary = [
     'deferredWalFramesAfter' => array_map(static fn (array $scenario): int => $scenario['plan']['wal_frame_count_after'], $deferredScenarios),
     'preexistingRetryFailedWalFramesAfter' => array_map(static fn (array $scenario): int => $scenario['failed_plan']['wal_frame_count_after'], $preexistingRetryScenarios),
     'preexistingRetryWalFramesAfter' => array_map(static fn (array $scenario): int => $scenario['retry_plan']['wal_frame_count_after'], $preexistingRetryScenarios),
+    'missingWalTailMessages' => array_map(static fn (array $scenario): ?string => $scenario['exception_message'], $missingWalTailScenarios),
+    'missingWalTailShortFrameCounts' => array_map(static fn (array $scenario): int => $scenario['short_frame_count'], $missingWalTailScenarios),
     'restoredPages' => array_map(static fn (array $scenario): array => $scenario['plan']['rollback_to_savepoint']['restored_page_numbers'], $scenarios),
 ];
 
@@ -35,6 +39,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['preexistingWalScenarioCount'] === 4);
     assert($summary['deferredScenarioCount'] === 4);
     assert($summary['preexistingRetryScenarioCount'] === 4);
+    assert($summary['missingWalTailScenarioCount'] === 4);
     assert($summary['statuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['preexistingWalStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['deferredStatuses'] === array_fill(0, 4, 'partial_rollback'));
@@ -45,6 +50,8 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['deferredWalFramesAfter'] === [5, 6, 7, 8]);
     assert($summary['preexistingRetryFailedWalFramesAfter'] === [2, 3, 4, 5]);
     assert($summary['preexistingRetryWalFramesAfter'] === [2, 3, 4, 5]);
+    assert($summary['missingWalTailShortFrameCounts'] === [4, 6, 6, 4]);
+    assert($summary['missingWalTailMessages'][0] === 'SQLite Application JSON import rollback WAL bytes are missing current batch frame(s): 5');
     assert($summary['restoredPages'][0] === [3, 11]);
     fwrite(STDOUT, "application-wal-rollback-json-dynamic-parity self-test passed\n");
     return;

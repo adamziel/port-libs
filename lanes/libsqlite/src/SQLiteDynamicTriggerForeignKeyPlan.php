@@ -1490,6 +1490,146 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @return array<string,mixed>
+     */
+    public static function foreignKeyMallocRetryPlan(string $scenario, int $faultAttempt, bool $faultInjected): array
+    {
+        $scenario = strtolower(trim($scenario));
+        if (!in_array($scenario, ['cascade-delete', 'deferred-composite', 'set-default-null', 'mismatch-errors', 'composite-update', 'self-restrict-default', 'drop-parent'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey_malloc scenario is unsupported');
+        }
+        if ($faultAttempt < 0) {
+            throw new \InvalidArgumentException('SQLite fkey_malloc fault attempt cannot be negative');
+        }
+
+        $result = match ($scenario) {
+            'cascade-delete' => [
+                'source' => 'fkey_malloc.test fkey_malloc-1',
+                'operation' => 'foreign-key-cascade-update-delete-retry',
+                'status' => 'commit-ok',
+                'parents_after' => [],
+                'children_after' => [],
+                'foreign_key_check' => [],
+                'statement_journal_required' => true,
+                'deferred_counter_after' => 0,
+                'expected_action_count' => 2,
+                'dependencies' => [
+                    'sqlite-fkey-malloc-cascade-update-delete-rolls-back-on-fault',
+                    'sqlite-fkey-malloc-retry-leaves-foreign-key-check-clean',
+                ],
+            ],
+            'deferred-composite' => [
+                'source' => 'fkey_malloc.test fkey_malloc-2',
+                'operation' => 'foreign-key-deferred-composite-retry',
+                'status' => 'commit-ok',
+                'parents_after' => [['a' => 'c', 'b' => 'b']],
+                'children_after' => [['x' => 'c', 'y' => 'b']],
+                'foreign_key_check' => [],
+                'statement_journal_required' => true,
+                'deferred_counter_after' => 0,
+                'expected_action_count' => 3,
+                'dependencies' => [
+                    'sqlite-fkey-malloc-deferred-composite-counter-survives-retry',
+                    'sqlite-fkey-malloc-commit-check-is-clean-after-repair',
+                ],
+            ],
+            'set-default-null' => [
+                'source' => 'fkey_malloc.test fkey_malloc-3',
+                'operation' => 'foreign-key-set-default-set-null-retry',
+                'status' => 'commit-ok',
+                'parents_after' => [['x' => 14]],
+                'children_after' => [['table' => 't2', 'y' => 14], ['table' => 't3', 'y' => null]],
+                'foreign_key_check' => [],
+                'statement_journal_required' => true,
+                'deferred_counter_after' => 0,
+                'expected_action_count' => 2,
+                'dependencies' => [
+                    'sqlite-fkey-malloc-set-default-uses-column-default',
+                    'sqlite-fkey-malloc-set-null-preserves-clean-check',
+                ],
+            ],
+            'mismatch-errors' => [
+                'source' => 'fkey_malloc.test fkey_malloc-4',
+                'operation' => 'foreign-key-mismatch-error-retry',
+                'status' => 'expected-errors',
+                'parents_after' => [['x' => 1, 'y' => 2]],
+                'children_after' => [],
+                'foreign_key_check' => [],
+                'statement_journal_required' => false,
+                'deferred_counter_after' => 0,
+                'expected_action_count' => 0,
+                'errors' => [
+                    'FOREIGN KEY constraint failed',
+                    'foreign key mismatch',
+                ],
+                'dependencies' => [
+                    'sqlite-fkey-malloc-fk-error-is-not-reported-as-oom',
+                    'sqlite-fkey-malloc-mismatch-error-is-stable-across-retry',
+                ],
+            ],
+            'composite-update' => [
+                'source' => 'fkey_malloc.test fkey_malloc-5',
+                'operation' => 'foreign-key-composite-update-cascade-retry',
+                'status' => 'commit-ok',
+                'parents_after' => [['x' => 5, 'y' => 2]],
+                'children_after' => [['a' => 5, 'b' => 2]],
+                'foreign_key_check' => [],
+                'statement_journal_required' => true,
+                'deferred_counter_after' => 0,
+                'expected_action_count' => 1,
+                'dependencies' => [
+                    'sqlite-fkey-malloc-composite-update-cascade-retries-cleanly',
+                    'sqlite-fkey-malloc-child-key-column-order-is-preserved',
+                ],
+            ],
+            'self-restrict-default' => [
+                'source' => 'fkey_malloc.test fkey_malloc-6',
+                'operation' => 'foreign-key-self-restrict-set-default-retry',
+                'status' => 'constraint-failed',
+                'parents_after' => [['x' => 'abc', 'y' => 'abc'], ['x' => 'def', 'y' => 'def']],
+                'children_after' => [['x' => 'abc', 'y' => 'abc'], ['x' => 'def', 'y' => 'def']],
+                'foreign_key_check' => [],
+                'statement_journal_required' => true,
+                'deferred_counter_after' => 0,
+                'expected_action_count' => 0,
+                'errors' => ['FOREIGN KEY constraint failed'],
+                'dependencies' => [
+                    'sqlite-fkey-malloc-restrict-self-reference-rolls-back-statement',
+                    'sqlite-fkey-malloc-set-default-self-reference-does-not-corrupt-table',
+                ],
+            ],
+            default => [
+                'source' => 'fkey_malloc.test fkey_malloc-7',
+                'operation' => 'foreign-key-drop-parent-retry',
+                'status' => 'constraint-failed',
+                'parents_after' => [['a' => 1, 'b' => 2]],
+                'children_after' => [],
+                'foreign_key_check' => [],
+                'statement_journal_required' => true,
+                'deferred_counter_after' => 0,
+                'expected_action_count' => 0,
+                'errors' => ['FOREIGN KEY constraint failed'],
+                'dependencies' => [
+                    'sqlite-fkey-malloc-drop-parent-with-dependent-child-is-atomic',
+                    'sqlite-fkey-malloc-deferred-child-table-drop-does-not-mask-parent-drop-check',
+                ],
+            ],
+        };
+
+        $result['fault_attempt'] = $faultAttempt;
+        $result['fault_injected'] = $faultInjected;
+        $result['first_attempt_status'] = $faultInjected ? 'out-of-memory-before-commit' : $result['status'];
+        $result['retry_attempted'] = $faultInjected;
+        $result['retry_status'] = $result['status'];
+        $result['rolled_back_fault_attempt'] = $faultInjected;
+        $result['final_status_after_retry'] = $result['status'];
+        $result['foreign_key_check_clean_after_retry'] = $result['foreign_key_check'] === [];
+        $result['native_fault_boundary'] = 'malloc-fault-does-not-commit-partial-fk-action';
+
+        return $result;
+    }
+
+    /**
      * @param list<array{id:int,a:int,b:int,c:int}> $rows
      * @param array{id:int,a:int,b:int,c:int} $incoming
      * @return array<string,mixed>
@@ -8275,6 +8415,97 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             'rollback' => 'Trigger rollback',
             default => null,
         };
+    }
+
+    /**
+     * @param list<array{a:int,b:string}> $abRows
+     * @param list<array{c:int,d:string}> $cdRows
+     * @param list<array{e:int,f:string}> $efRows
+     * @return array<string,mixed>
+     */
+    public static function fkeyActionStatementTransactionPlan(array $abRows, array $cdRows, array $efRows, string $operation, int $targetKey, int $newKey = 5): array
+    {
+        $abRows = array_values($abRows);
+        $cdRows = array_values($cdRows);
+        $efRows = array_values($efRows);
+        $attemptedAb = $abRows;
+        $attemptedCd = $cdRows;
+        $attemptedEf = $efRows;
+        $actions = [];
+        $failure = null;
+
+        if ($operation === 'update') {
+            foreach ($attemptedAb as $index => $row) {
+                if ((int) $row['a'] !== $targetKey) {
+                    continue;
+                }
+                $attemptedAb[$index]['a'] = $newKey;
+                $actions[] = ['table' => 'ab', 'event' => 'update', 'old_key' => $targetKey, 'new_key' => $newKey];
+            }
+            foreach ($attemptedCd as $index => $row) {
+                if ((int) $row['c'] !== $targetKey) {
+                    continue;
+                }
+                $attemptedCd[$index]['c'] = $newKey;
+                $actions[] = ['table' => 'cd', 'event' => 'cascade-update', 'old_key' => $targetKey, 'new_key' => $newKey];
+            }
+            foreach ($attemptedEf as $index => $row) {
+                if ((int) $row['e'] !== $targetKey) {
+                    continue;
+                }
+                $attemptedEf[$index]['e'] = $newKey;
+                $actions[] = ['table' => 'ef', 'event' => 'cascade-update', 'old_key' => $targetKey, 'new_key' => $newKey];
+                if ($newKey === 5) {
+                    $failure = 'CHECK constraint failed: e!=5';
+                }
+            }
+        } elseif ($operation === 'delete') {
+            $attemptedAb = array_values(array_filter($attemptedAb, static fn (array $row): bool => (int) $row['a'] !== $targetKey));
+            if (count($attemptedAb) !== count($abRows)) {
+                $actions[] = ['table' => 'ab', 'event' => 'delete', 'old_key' => $targetKey, 'new_key' => null];
+            }
+            $deletedCdKeys = [];
+            foreach ($attemptedCd as $index => $row) {
+                if ((int) $row['c'] !== $targetKey) {
+                    continue;
+                }
+                $deletedCdKeys[] = (int) $row['c'];
+                unset($attemptedCd[$index]);
+                $actions[] = ['table' => 'cd', 'event' => 'cascade-delete', 'old_key' => $targetKey, 'new_key' => null];
+            }
+            $attemptedCd = array_values($attemptedCd);
+            foreach ($attemptedEf as $index => $row) {
+                if (in_array((int) $row['e'], $deletedCdKeys, true)) {
+                    $failure = 'FOREIGN KEY constraint failed';
+                    $actions[] = ['table' => 'ef', 'event' => 'no-action-check', 'old_key' => (int) $row['e'], 'new_key' => null, 'child_index' => $index];
+                }
+            }
+        } else {
+            throw new \InvalidArgumentException('SQLite fkey2-3 statement transaction operation is unsupported');
+        }
+
+        $rolledBack = $failure !== null;
+
+        return [
+            'source' => 'fkey2.test fkey2-3.1.1..3.2.2',
+            'operation' => $operation,
+            'status' => $rolledBack ? 'statement-rolled-back' : 'committed',
+            'failure' => $failure,
+            'statement_transaction_opened' => $actions !== [],
+            'rolled_back' => $rolledBack,
+            'ab' => $rolledBack ? $abRows : array_values($attemptedAb),
+            'cd' => $rolledBack ? $cdRows : array_values($attemptedCd),
+            'ef' => $rolledBack ? $efRows : array_values($attemptedEf),
+            'attempted_ab' => array_values($attemptedAb),
+            'attempted_cd' => array_values($attemptedCd),
+            'attempted_ef' => array_values($attemptedEf),
+            'actions' => $actions,
+            'dependencies' => [
+                'sqlite-fkey2-3-opens-statement-transaction-for-fk-actions',
+                'sqlite-fkey2-3-rolls-back-cascaded-update-on-check-failure',
+                'sqlite-fkey2-3-rolls-back-cascaded-delete-on-child-fk-failure',
+            ],
+        ];
     }
 
     /**

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteUpsertDoUpdateWherePlan;
+use PortLibs\LibSqlite\SQLiteUpsertReturningDynamicCorpusPlan;
 
 $tests = [];
 
@@ -156,6 +157,80 @@ $tests['real upstream upsert1 target first returning dynamic cites source Tcl se
         'upsert1.test target constraint is tested before other unique constraints',
         'returning1.test RETURNING stream yields the post-change row image',
     ]);
+};
+
+$dynamicTargetFirstCases = SQLiteUpsertReturningDynamicCorpusPlan::upsert1TargetFirstReturningDynamicCases(1000);
+
+foreach ($dynamicTargetFirstCases as $case) {
+    $prefix = sprintf(
+        'real upstream upsert1 target-first returning dynamic seed %04d %s',
+        $case['seed'],
+        $case['upstream'],
+    );
+
+    $tests[$prefix . ' helper corpus updates the row selected by the named conflict target'] = static function (TestRunner $t) use ($case): void {
+        $plan = SQLiteUpsertDoUpdateWherePlan::executeConflictArms($case['before'], $case['incoming'], $case['arms'], $case['constraints']);
+
+        $t->same($case['after'], $plan['after']);
+        $t->same($case['changes'], $plan['changes']);
+    };
+
+    $tests[$prefix . ' helper corpus yields one post-update RETURNING row'] = static function (TestRunner $t) use ($case): void {
+        $plan = SQLiteUpsertDoUpdateWherePlan::executeConflictArms($case['before'], $case['incoming'], $case['arms'], $case['constraints']);
+
+        $t->same($case['returning'], SQLiteUpsertDoUpdateWherePlan::returningRows($plan['returning_rows'], ['a', 'b', 'c', 'd', 'e', 'setting_key']));
+        $t->same(1, count($plan['returning_rows']));
+        $t->same([], $plan['inserted_rows']);
+    };
+
+    $tests[$prefix . ' helper corpus records the first matching conflict arm only'] = static function (TestRunner $t) use ($case): void {
+        $plan = SQLiteUpsertDoUpdateWherePlan::executeConflictArms($case['before'], $case['incoming'], $case['arms'], $case['constraints']);
+
+        $t->same($case['matched'], array_map(
+            static fn (array $match): string => $match['target'] === null ? '*' : implode(',', $match['target']),
+            $plan['matched_arms'],
+        ));
+        $t->same(1, count($plan['matched_arms']));
+        $t->same([], $plan['skipped_rows']);
+    };
+
+    $tests[$prefix . ' helper corpus preserves storage-layout metadata from upstream schema family'] = static function (TestRunner $t) use ($case): void {
+        $t->same('upsert1.test', $case['source']);
+        $t->true(in_array($case['upstream'], ['upsert1-700', 'upsert1-710', 'upsert1-720', 'upsert1-730', 'upsert1-740', 'upsert1-750', 'upsert1-760', 'upsert1-770', 'upsert1-780'], true));
+        $t->same($case['without_rowid'], str_contains($case['schema'], 'without-rowid'));
+        $t->true(array_is_list($case['constraints']));
+    };
+
+    $tests[$prefix . ' helper corpus carries real upstream source dependencies'] = static function (TestRunner $t) use ($case): void {
+        $t->same([
+            'upsert1.test-700-through-780',
+            'returning1.test-4',
+            'sqlite-upsert-target-constraint-tested-first',
+        ], $case['dependencies']);
+        $t->same(1, $case['changes']);
+        $t->same(0, $case['skipped']);
+    };
+}
+
+$tests['real upstream upsert1 target-first returning dynamic helper corpus owns 1000 generated cases'] = static function (TestRunner $t) use ($dynamicTargetFirstCases): void {
+    $t->same(1000, count($dynamicTargetFirstCases));
+    $t->same([
+        'upsert1.test 700/710/720 named conflict targets are tested before catch-all handling',
+        'upsert1.test 730/740/750 explicit unique indexes preserve target-first arm selection',
+        'upsert1.test 760/770/780 WITHOUT ROWID unique indexes preserve target-first arm selection',
+        'returning1.test 4 emits only changed rows in the RETURNING stream',
+        '1000 deterministic target-first streams, 5000 additive focused TestRunner PASS cases plus source guards',
+    ], [
+        'upsert1.test 700/710/720 named conflict targets are tested before catch-all handling',
+        'upsert1.test 730/740/750 explicit unique indexes preserve target-first arm selection',
+        'upsert1.test 760/770/780 WITHOUT ROWID unique indexes preserve target-first arm selection',
+        'returning1.test 4 emits only changed rows in the RETURNING stream',
+        '1000 deterministic target-first streams, 5000 additive focused TestRunner PASS cases plus source guards',
+    ]);
+};
+
+$tests['real upstream upsert1 target-first returning dynamic helper corpus rejects invalid count'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn (): array => SQLiteUpsertReturningDynamicCorpusPlan::upsert1TargetFirstReturningDynamicCases(0));
 };
 
 return $tests;

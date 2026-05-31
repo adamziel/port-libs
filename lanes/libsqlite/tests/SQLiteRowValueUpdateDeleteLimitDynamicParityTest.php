@@ -1603,6 +1603,65 @@ foreach ($iifMalformed as $name => $sql) {
     };
 }
 
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = $seed % 2 === 0
+        ? "likely({$limitValue})"
+        : "unlikely({$limitValue})";
+    $offsetExpr = $seed % 3 === 0
+        ? "likelihood({$offsetValue}, 0.75)"
+        : "likely({$offsetValue})";
+    $sql = "UPDATE app_settings SET state = 'likelihood_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update likelihood expression window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = $seed % 2 === 0
+        ? "likelihood({$limitValue}, 0.25)"
+        : "likely({$limitValue})";
+    $offsetExpr = $seed % 3 === 0
+        ? "unlikely({$offsetValue})"
+        : "likelihood({$offsetValue}, 0.5)";
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue likelihood subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+$likelihoodMalformed = [
+    'malformed likely arity rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT likely(1, 2)",
+    'malformed unlikely arity rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT unlikely()",
+    'malformed likelihood arity rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT likelihood(1)",
+    'malformed likelihood probability rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT likelihood(1, 'probably')",
+    'malformed likelihood null value rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT likelihood(NULL, 0.5)",
+    'malformed likely nonintegral value rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT likely(2.5)",
+];
+
+foreach ($likelihoodMalformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
+    };
+}
+
 for ($limit = 1; $limit <= 5; $limit++) {
     for ($offset = 0; $offset <= 4; $offset++) {
         $sql = "UPDATE app_settings SET state = 'rowvalue4_window' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limit} OFFSET {$offset}) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
@@ -1668,6 +1727,46 @@ foreach ($nullTupleCases as $name => [$sql, $expected]) {
             $result = $execute($sql);
             $t->same($expected, $result['plan']->selectedIds);
             $t->same($expected, array_column($result['returning'], 'setting_id'));
+        };
+}
+
+$notLikeTargetIds = [5, 2, 8];
+$likeTargetIds = [6, 3];
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limit = 1 + ($seed % 4);
+    $offset = intdiv($seed, 4) % 3;
+    $operator = $seed % 2 === 0 ? 'NOT LIKE' : 'NOT GLOB';
+    $pattern = $operator === 'NOT LIKE' ? "'g%'" : "'?amma'";
+    $orderedWindow = array_slice($notLikeTargetIds, $offset, $limit);
+    $expected = array_values(array_intersect([2, 5, 8], $orderedWindow));
+    $sql = "UPDATE app_settings SET state = 'not_like_window' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets WHERE key_name {$operator} {$pattern} ORDER BY priority ASC LIMIT {$limit} OFFSET {$offset}) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity rowvalue3 update subquery %s window seed %02d', strtolower(str_replace(' ', '-', $operator)), $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $operator): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->contains($operator, $sql);
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limit = 1 + ($seed % 3);
+    $offset = intdiv($seed, 3) % 2;
+    $operator = $seed % 2 === 0 ? 'LIKE' : 'GLOB';
+    $pattern = $operator === 'LIKE' ? "'g%'" : "'?amma'";
+    $orderedWindow = array_slice($likeTargetIds, $offset, $limit);
+    $expected = array_values(array_intersect([3, 6], $orderedWindow));
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets WHERE key_name {$operator} {$pattern} ORDER BY priority ASC LIMIT {$limit} OFFSET {$offset}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity rowvalue3 delete subquery %s window seed %02d', strtolower($operator), $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $operator): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains($operator, $sql);
         };
 }
 

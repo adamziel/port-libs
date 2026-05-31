@@ -50,6 +50,9 @@ final class SQLiteJsonImportRollbackWalPlan
         if ($rollbackToFrame > $walState['frame_count']) {
             throw new \InvalidArgumentException('SQLite Application JSON import rollback frame is beyond the WAL byte stream');
         }
+        if ($rollbackRequired) {
+            self::assertRollbackFramesExist($importPlan, $walState['frame_count']);
+        }
 
         $truncateToBytes = 32 + ($rollbackToFrame * (24 + $pageSize));
         $rolledBackWalBytes = $rollbackRequired ? substr($walBytes, 0, $truncateToBytes) : $walBytes;
@@ -307,6 +310,8 @@ final class SQLiteJsonImportRollbackWalPlan
                 'expected_failed_statement' => 'prefix_broken_payload_' . $seed,
                 'database_bytes' => $databaseBytes,
                 'wal_bytes' => $walBytes,
+                'input_rows' => $rows,
+                'input_mutations' => $mutations,
                 'plan' => $plan,
             ];
         }
@@ -716,6 +721,94 @@ final class SQLiteJsonImportRollbackWalPlan
         }
 
         return $scenarios;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicMissingWalTailScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL missing-tail dynamic parity requires at least one scenario');
+        }
+
+        $prefixScenarios = self::dynamicPreexistingWalScenarios($scenarioCount);
+        $scenarios = [];
+        foreach ($prefixScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $pageSize = (int) $base['page_size'];
+            $frameSize = 24 + $pageSize;
+            $missingFrames = 1 + ($seed % 2);
+            $shortFrameCount = (int) $base['wal_frames_before'] - $missingFrames;
+            $shortWalBytes = substr((string) $base['wal_bytes'], 0, 32 + ($shortFrameCount * $frameSize));
+            $exceptionMessage = null;
+
+            try {
+                self::plan(
+                    $base['input_rows'],
+                    $base['input_mutations'],
+                    [
+                        'database_bytes' => $base['database_bytes'],
+                        'page_size' => $pageSize,
+                        'wal_bytes' => $shortWalBytes,
+                        'transaction' => 'application_missing_wal_tail_' . $seed,
+                        'savepoint' => 'missing_wal_tail_batch_' . $seed,
+                        'pre_savepoint_wal_pages' => $base['pre_savepoint_wal_pages'],
+                    ]
+                );
+            } catch (\InvalidArgumentException $exception) {
+                $exceptionMessage = $exception->getMessage();
+            }
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $base['tenant_id'],
+                'page_size' => $pageSize,
+                'preexisting_frames' => $base['preexisting_frames'],
+                'expected_frame_count' => $base['wal_frames_before'],
+                'short_frame_count' => $shortFrameCount,
+                'missing_frames' => $missingFrames,
+                'missing_frame_indexes' => range($shortFrameCount + 1, (int) $base['wal_frames_before']),
+                'short_wal_bytes' => $shortWalBytes,
+                'exception_message' => $exceptionMessage,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
+     * @param array<string,mixed> $importPlan
+     */
+    private static function assertRollbackFramesExist(array $importPlan, int $walFrameCount): void
+    {
+        $frameIndexes = [];
+        foreach ($importPlan['wal_rollback_to_savepoint']['discarded_wal_frames'] ?? [] as $frame) {
+            if (is_array($frame) && isset($frame['frame_index'])) {
+                $frameIndexes[] = (int) $frame['frame_index'];
+            }
+        }
+        foreach ($importPlan['failed'] ?? [] as $failure) {
+            if (!is_array($failure)) {
+                continue;
+            }
+            foreach ($failure['rollback']['discarded_wal_frames'] ?? [] as $frame) {
+                if (is_array($frame) && isset($frame['frame_index'])) {
+                    $frameIndexes[] = (int) $frame['frame_index'];
+                }
+            }
+        }
+
+        $missing = array_values(array_unique(array_filter(
+            $frameIndexes,
+            static fn (int $frameIndex): bool => $frameIndex > $walFrameCount
+        )));
+        sort($missing);
+        if ($missing !== []) {
+            throw new \InvalidArgumentException(
+                'SQLite Application JSON import rollback WAL bytes are missing current batch frame(s): ' . implode(', ', $missing)
+            );
+        }
     }
 
     private static function emptyWalBytes(int $pageSize): string

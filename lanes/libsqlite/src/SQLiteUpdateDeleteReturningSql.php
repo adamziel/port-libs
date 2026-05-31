@@ -722,7 +722,7 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : self::textLength((string) $value);
         }
-        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode|iif|if)\s*\((.*)\)$/is', $expression, $match) === 1) {
+        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode|iif|if|likely|unlikely|likelihood)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }
         $predicate = self::evaluateLimitPredicateExpression($expression);
@@ -964,6 +964,12 @@ final class SQLiteUpdateDeleteReturningSql
         if (($function === 'iif' || $function === 'if') && count($parts) !== 3) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs three arguments");
         }
+        if (($function === 'likely' || $function === 'unlikely') && count($parts) !== 1) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
+        }
+        if ($function === 'likelihood' && count($parts) !== 2) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT likelihood() needs two arguments');
+        }
         if (($function === 'upper' || $function === 'lower' || $function === 'trim' || $function === 'ltrim' || $function === 'rtrim') && count($parts) !== 1) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
         }
@@ -977,6 +983,16 @@ final class SQLiteUpdateDeleteReturningSql
             return $condition === true
                 ? self::limitExpressionValue($parts[1])
                 : self::limitExpressionValue($parts[2]);
+        }
+        if ($function === 'likely' || $function === 'unlikely' || $function === 'likelihood') {
+            if ($function === 'likelihood') {
+                $probability = self::limitExpressionValue($parts[1]);
+                if (!is_int($probability) && !is_float($probability) && !(is_string($probability) && is_numeric($probability))) {
+                    throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT likelihood() probability must be numeric');
+                }
+            }
+
+            return self::limitExpressionValue($parts[0]);
         }
 
         $values = array_map(static fn (string $part): int|float|string|null => self::limitExpressionValue($part), $parts);
@@ -1493,16 +1509,18 @@ final class SQLiteUpdateDeleteReturningSql
 
             return isset($match[2]) && trim($match[2]) !== '' ? !$found : $found;
         }
-        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s+(LIKE|GLOB)\s+(.+)$/is', $term, $match) === 1) {
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s+(NOT\s+)?(LIKE|GLOB)\s+(.+)$/is', $term, $match) === 1) {
             $left = self::column($row, $match[1]);
-            $pattern = self::literal(trim($match[3]));
+            $pattern = self::literal(trim($match[4]));
             if ($left === null || $pattern === null) {
                 return null;
             }
 
-            return strtoupper($match[2]) === 'LIKE'
+            $matched = strtoupper($match[3]) === 'LIKE'
                 ? SQLiteDatabase::likeMatches((string) $left, (string) $pattern)
                 : SQLiteDatabase::globMatches((string) $left, (string) $pattern);
+
+            return isset($match[2]) && trim($match[2]) !== '' ? !$matched : $matched;
         }
         if (preg_match('/^([A-Za-z_][A-Za-z0-9_]*)\s*(=|<>|!=|>=|<=|>|<)\s*(.+)$/s', $term, $match) === 1) {
             $left = self::column($row, $match[1]);

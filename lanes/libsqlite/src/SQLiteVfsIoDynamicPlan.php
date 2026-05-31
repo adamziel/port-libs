@@ -886,6 +886,47 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function sizeHintChunkGrowthProfile(int $chunkSize, int $hintBytes, int $currentBytes = 0): array
+    {
+        if ($chunkSize < 1) {
+            throw new \InvalidArgumentException('SQLite VFS size-hint chunk size must be positive');
+        }
+        if ($hintBytes < 0 || $currentBytes < 0) {
+            throw new \InvalidArgumentException('SQLite VFS size-hint byte counts must be non-negative');
+        }
+
+        $grownBytes = $currentBytes;
+        if ($hintBytes > $currentBytes) {
+            $grownBytes = self::align($hintBytes, $chunkSize);
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'syscall.test',
+            'upstream' => [
+                'syscall.test syscall-8.2 file_control_sizehint_test db main hint with 4096-byte chunk',
+                'syscall.test syscall-8.4 file_control_sizehint_test db main hint with 16-byte chunk',
+            ],
+            'chunk_size' => $chunkSize,
+            'hint_bytes' => $hintBytes,
+            'current_bytes' => $currentBytes,
+            'grown_bytes' => $grownBytes,
+            'bytes_added' => $grownBytes - $currentBytes,
+            'rounded_to_chunk_boundary' => $grownBytes === 0 || $grownBytes % $chunkSize === 0,
+            'growth_required' => $hintBytes > $currentBytes,
+            'reason' => $hintBytes > $currentBytes
+                ? 'size_hint_extends_file_to_next_chunk_boundary'
+                : 'size_hint_within_current_file_size_does_not_shrink',
+            'dependencies' => [
+                'upstream-syscall-sizehint-chunks',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function checksumReserveProfile(
         int $reserveBytes,
         int $pageSize,

@@ -17,6 +17,22 @@ $buildSource = static function (int $seed): array {
     ];
 };
 
+$buildInterleavedSource = static function (int $seed): array {
+    $base = 100000 + ($seed * 100);
+    $first = str_repeat(chr(97 + ($seed % 26)), 72 + ($seed % 23));
+    $second = str_repeat(chr(97 + (($seed + 7) % 26)), 85 + ($seed % 19));
+    $third = str_repeat(chr(97 + (($seed + 13) % 26)), 96 + ($seed % 29));
+
+    return [
+        ['x' => $base + 30, 'y' => $third . '-c'],
+        ['x' => $base + 10, 'y' => $first . '-a'],
+        ['x' => $base + 20, 'y' => $second . '-b'],
+        ['x' => $base + 30, 'y' => $third . '-c'],
+        ['x' => $base + 10, 'y' => $first . '-a'],
+        ['x' => $base + 20, 'y' => $second . '-b'],
+    ];
+};
+
 $tests['real upstream upsert1.test 1300 trigger old value baseline after image'] = static function (TestRunner $t) use ($buildSource): void {
     $result = SQLiteUpsertTriggerOldValuePlan::execute($buildSource(0));
 
@@ -66,6 +82,22 @@ foreach (range(2, 1001) as $seed) {
         $t->same([true, true], array_column($result['trigger_events'], 'matched'), 'trigger saw the current row image as old');
         $t->same([$source[0]['y'], $source[2]['y']], array_column($result['after'], 'y'), 'final row image keeps duplicate source text');
         $t->same([$source[0]['x'], $source[0]['x'], $source[2]['x'], $source[2]['x']], array_column($result['returning'], 'x'), 'RETURNING stream follows source order');
+    };
+}
+
+foreach (range(1, 1000) as $seed) {
+    $tests[sprintf('real upstream upsert1.test 1300 interleaved duplicate source returning dynamic %04d', $seed)] = static function (TestRunner $t) use ($buildInterleavedSource, $seed): void {
+        $source = $buildInterleavedSource($seed);
+        $result = SQLiteUpsertTriggerOldValuePlan::execute($source);
+
+        $t->same(3, count($result['after']), 'three unique target keys remain after interleaved duplicate source UPSERT');
+        $t->same(3, count($result['inserted']), 'first source row for each interleaved key inserts');
+        $t->same(3, count($result['updated']), 'second source row for each interleaved key updates through trigger');
+        $t->same(6, $result['changes'], 'all interleaved inserts and updates are counted');
+        $t->same([true, true, true], array_column($result['trigger_events'], 'matched'), 'trigger old image matches new duplicate source value for every key');
+        $t->same([$source[1]['y'], $source[2]['y'], $source[0]['y']], array_column($result['after'], 'y'), 'final row image sorts by key after interleaved source order');
+        $t->same(['insert', 'insert', 'insert', 'update', 'update', 'update'], array_column($result['returning'], 'event'), 'RETURNING stream follows interleaved source statement order');
+        $t->same([$source[0]['x'], $source[1]['x'], $source[2]['x'], $source[3]['x'], $source[4]['x'], $source[5]['x']], array_column($result['returning'], 'x'), 'RETURNING x values preserve interleaved duplicate source order');
     };
 }
 

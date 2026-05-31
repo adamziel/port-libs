@@ -187,6 +187,24 @@ final class SQLitePragmaRuntimeState
     }
 
     /**
+     * @return list<array{database:string,status:string}>
+     */
+    public function pragmaLockStatus(): array
+    {
+        $rows = [];
+        foreach ($this->schemas as $schema => $state) {
+            $status = $state['lock'];
+            if ($schema === 'temp' && $status === 'closed') {
+                $status = 'unknown';
+            }
+
+            $rows[] = ['database' => $schema, 'status' => $status];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{schema:string,schema_version:int,user_version:int,application_id:int,cache_size:int,cache_spill:int,lock:string,file:string|null}
      */
     public function state(string $schemaName = 'main'): array

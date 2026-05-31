@@ -501,6 +501,52 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,statement:string,statement_kind:string,indexed_by:string|null,not_indexed:bool,table_name:string,where_terms:list<string>,result_code:int,error:string|null,result_rows:list<array<int,mixed>>,uses_index:bool,index_name:string|null,uses_rowid_tail:bool,view_dependency:bool,partial_index_no_solution:bool,detail:string,integrity:string}>
+     */
+    public static function indexedByPlannerDynamicCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite indexedby dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            self::indexedByCase('indexedby-1.2', 'SELECT * FROM t1 WHERE a = 10', 'select', null, false, 't1', ['a=?'], 0, null, [], true, 'i1', false, false, false, 'SEARCH t1 USING INDEX i1 (a=?)'),
+            self::indexedByCase('indexedby-2.1', "SELECT * FROM t1 NOT INDEXED WHERE a = 'one' AND b = 'two'", 'select', null, true, 't1', ['a=?', 'b=?'], 0, null, [], false, null, false, false, false, 'SCAN t1 because NOT INDEXED disables i1/i2'),
+            self::indexedByCase('indexedby-2.2', "SELECT * FROM t1 INDEXED BY i1 WHERE a = 'one' AND b = 'two'", 'select', 'i1', false, 't1', ['a=?', 'b=?'], 0, null, [], true, 'i1', false, false, false, 'SEARCH t1 USING INDEX i1 (a=?)'),
+            self::indexedByCase('indexedby-2.4', "SELECT * FROM t1 INDEXED BY i3 WHERE a = 'one' AND b = 'two'", 'select', 'i3', false, 't1', ['a=?', 'b=?'], 1, 'no such index: i3', [], false, null, false, false, false, 'INDEXED BY names an index attached to another table'),
+            self::indexedByCase('indexedby-2.7', "SELECT * FROM v1 INDEXED BY i1 WHERE a = 'one'", 'select', 'i1', false, 'v1', ['a=?'], 1, 'no such index: i1', [], false, null, false, false, false, 'INDEXED BY cannot attach to a view source'),
+            self::indexedByCase('indexedby-3.1.2', 'SELECT * FROM t1 NOT INDEXED WHERE rowid=1', 'select', null, true, 't1', ['rowid=?'], 0, null, [], true, 'rowid', true, false, false, 'SEARCH t1 USING INTEGER PRIMARY KEY (rowid=?) despite NOT INDEXED'),
+            self::indexedByCase('indexedby-3.8', 'SELECT * FROM t3 INDEXED BY sqlite_autoindex_t3_1 ORDER BY e', 'select', 'sqlite_autoindex_t3_1', false, 't3', [], 0, null, [], true, 'sqlite_autoindex_t3_1', false, false, false, 'SCAN t3 USING INDEX sqlite_autoindex_t3_1'),
+            self::indexedByCase('indexedby-3.11', 'SELECT * FROM t3 INDEXED BY sqlite_autoindex_t3_2 WHERE f = 10', 'select', 'sqlite_autoindex_t3_2', false, 't3', ['f=?'], 1, 'no such index: sqlite_autoindex_t3_2', [], false, null, false, false, false, 'missing autoindex name is rejected during prepare'),
+            self::indexedByCase('indexedby-4.2', 'SELECT * FROM t1 INDEXED BY i1, t2 WHERE a = c', 'select', 'i1', false, 't1,t2', ['a=c'], 0, null, [], true, 'i1', false, false, false, 'SCAN t1 USING INDEX i1; SEARCH t2 USING INDEX i3 (c=?)'),
+            self::indexedByCase('indexedby-5.1', 'CREATE VIEW v2 AS SELECT * FROM t1 INDEXED BY i1 WHERE a > 5; SELECT * FROM v2', 'view-select', 'i1', false, 'v2', ['a>?'], 0, null, [], true, 'i1', false, true, false, 'view v2 preserves INDEXED BY i1 dependency'),
+            self::indexedByCase('indexedby-5.3', 'DROP INDEX i1; SELECT * FROM v2', 'view-select', 'i1', false, 'v2', ['a>?'], 1, 'no such index: i1', [], false, null, false, true, false, 'dropping the required view index makes the view fail'),
+            self::indexedByCase('indexedby-5.5', 'DROP INDEX i1; CREATE INDEX i1 ON t1(a); SELECT * FROM v2', 'view-select', 'i1', false, 'v2', ['a>?'], 0, null, [], true, 'i1', false, true, false, 'recreated compatible index satisfies the view again'),
+            self::indexedByCase('indexedby-7.3', 'DELETE FROM t1 INDEXED BY i1 WHERE a = 5', 'delete', 'i1', false, 't1', ['a=?'], 0, null, [], true, 'i1', false, false, false, 'DELETE is forced through i1'),
+            self::indexedByCase('indexedby-7.5', 'DELETE FROM t1 INDEXED BY i2 WHERE a = 5 AND b = 10', 'delete', 'i2', false, 't1', ['a=?', 'b=?'], 0, null, [], true, 'i2', false, false, false, 'DELETE is forced through i2 on b=?'),
+            self::indexedByCase('indexedby-8.3', 'UPDATE t1 INDEXED BY i1 SET rowid=rowid+1 WHERE a = 5', 'update', 'i1', false, 't1', ['a=?'], 0, null, [], true, 'i1', false, false, false, 'UPDATE rowid change uses covering index i1'),
+            self::indexedByCase('indexedby-8.5', 'UPDATE t1 INDEXED BY i2 SET rowid=rowid+1 WHERE a = 5 AND b = 10', 'update', 'i2', false, 't1', ['a=?', 'b=?'], 0, null, [], true, 'i2', false, false, false, 'UPDATE is forced through i2 on b=?'),
+            self::indexedByCase('indexedby-9.2', 'SELECT * FROM maintable AS m JOIN joinme AS j INDEXED BY joinme_id_text_idx ON (m.id=j.id_int)', 'join', 'joinme_id_text_idx', false, 'maintable,joinme', ['m.id=j.id_int'], 0, null, [], true, 'joinme_id_text_idx', false, false, false, 'INDEXED BY on joined table remains legal even when ON term names another column'),
+            self::indexedByCase('indexedby-10.3', 'SELECT * FROM t10 indexed by indexed WHERE indexed>0', 'select', 'indexed', false, 't10', ['indexed>?'], 0, null, [[1]], true, 'indexed', false, false, false, 'identifier named indexed can also be an index name'),
+            self::indexedByCase('indexedby-11.5', "SELECT a,b,rowid FROM x1 INDEXED BY x1i WHERE a=1 AND b=1 AND rowid='3.0'", 'select', 'x1i', false, 'x1', ['a=?', 'b=?', 'rowid=?'], 0, null, [[1, 1, 3]], true, 'x1i', true, false, false, 'SEARCH x1 USING COVERING INDEX x1i (a=? AND b=? AND rowid=?)'),
+            self::indexedByCase('indexedby-11.10', "SELECT a,b,c FROM x2 INDEXED BY x2i WHERE a=1 AND b=1 AND c='3.0'", 'select', 'x2i', false, 'x2', ['a=?', 'b=?', 'rowid=?'], 0, null, [[1, 1, 3]], true, 'x2i', true, false, false, 'INTEGER PRIMARY KEY tail is constrained as rowid through x2i'),
+            self::indexedByCase('indexedby-12.2', 'SELECT * FROM o1 INDEXED BY p2 ORDER BY 1', 'select', 'p2', false, 'o1', [], 1, 'no query solution', [], false, 'p2', false, false, true, 'partial index p2 cannot satisfy an unconstrained scan'),
+            self::indexedByCase('indexedby-12.4', 'SELECT * FROM o1 INDEXED BY p2 ORDER BY 1 after index recreation', 'select', 'p2', false, 'o1', [], 1, 'no query solution', [], false, 'p2', false, false, true, 'partial index p2 remains unusable after drop/recreate order changes'),
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $template['case'] = $case;
+            $template['batch'] = intdiv($case - 1, count($templates)) + 1;
+            $template['detail'] .= '; dynamic replay ' . $template['batch'];
+            $out[] = $template;
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{upstream:string,step:int,operation:string,source_a:string,source_b:int,inserted_a:string|null,inserted_b:int|null,deleted_a:string|null,t1_count:int,t2_count:int}>
      */
     public static function btree02CursorMutationCases(): array
@@ -8026,6 +8072,53 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
             'catalog_indexes' => $catalogIndexes,
             'integrity' => $resultCode === 0 ? 'ok' : 'expected-error',
             'detail' => $detail,
+        ];
+    }
+
+    /**
+     * @param list<string> $whereTerms
+     * @param list<array<int,mixed>> $resultRows
+     * @return array{source:string,case:int,upstream_section:string,batch:int,statement:string,statement_kind:string,indexed_by:string|null,not_indexed:bool,table_name:string,where_terms:list<string>,result_code:int,error:string|null,result_rows:list<array<int,mixed>>,uses_index:bool,index_name:string|null,uses_rowid_tail:bool,view_dependency:bool,partial_index_no_solution:bool,detail:string,integrity:string}
+     */
+    private static function indexedByCase(
+        string $section,
+        string $statement,
+        string $statementKind,
+        ?string $indexedBy,
+        bool $notIndexed,
+        string $tableName,
+        array $whereTerms,
+        int $resultCode,
+        ?string $error,
+        array $resultRows,
+        bool $usesIndex,
+        ?string $indexName,
+        bool $usesRowidTail,
+        bool $viewDependency,
+        bool $partialIndexNoSolution,
+        string $detail,
+    ): array {
+        return [
+            'source' => 'indexedby.test sections indexedby-1.2 through indexedby-12.4',
+            'case' => 0,
+            'upstream_section' => $section,
+            'batch' => 0,
+            'statement' => $statement,
+            'statement_kind' => $statementKind,
+            'indexed_by' => $indexedBy,
+            'not_indexed' => $notIndexed,
+            'table_name' => $tableName,
+            'where_terms' => $whereTerms,
+            'result_code' => $resultCode,
+            'error' => $error,
+            'result_rows' => $resultRows,
+            'uses_index' => $usesIndex,
+            'index_name' => $indexName,
+            'uses_rowid_tail' => $usesRowidTail,
+            'view_dependency' => $viewDependency,
+            'partial_index_no_solution' => $partialIndexNoSolution,
+            'detail' => $detail,
+            'integrity' => $resultCode === 0 ? 'ok' : 'expected-error',
         ];
     }
 
