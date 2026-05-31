@@ -48,6 +48,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 01:23 UTC):
+  Latest libsqlite source is integrated as `3800a13b`
+  (`libsqlite: add thirty-eighth current corpus sweep`). The batch accepted 10
+  non-app-WAL handoffs: trigger/FK statement-counter and deferred-transaction
+  behavior, pager WAL hook behavior, JSON501 JSON5 behavior, UPSERT/RETURNING
+  target-first behavior, date4 rows 2300-3299 behavior, expression affinity
+  real-precision behavior, SELECTG VALUES behavior, PRAGMA5 virtual-row
+  behavior, and window following-frame behavior. Verification passed PHP lint
+  for `16` changed/new PHP files, `git diff --check -- lanes/libsqlite`,
+  focused selected tests `10 files / 60325 assertions / 0 failures / 21082 PASS
+  lines`, accepted-base overlap `0 files / 0 assertions / 0 failures / 0 PASS
+  lines`, trigger/upsert related tests `130 files / 699262 assertions / 0
+  failures / 445279 PASS lines`, pager related high-memory tests `56 files /
+  599748 assertions / 0 failures / 66431 PASS lines`, mixed targeted related
+  tests `9 files / 42554 assertions / 0 failures / 10771 PASS lines`, and no-
+  domain-specific API guard `1 file / 3 assertions / 0 failures`. Honest
+  selected movement is `+21082`, so the public row should move to `1429270
+  pass / 0 fail` with coverage still `1589 / 1589`. A default-memory pager
+  sweep hit PHP's 128MB limit and passed when rerun with `memory_limit=-1`.
+  Rowvalue conflict, app-WAL, and note-only VFS handoffs remain parked;
+  libsqlite remains active until full functional/release/all-runner gates are
+  done before moving the team to gitoxide.
+
 - 2026-05-31 supervisor continuation (integration sample 01:14 UTC):
   Latest libsqlite source is integrated as `8da3bd65`
   (`libsqlite: add thirty-seventh current corpus sweep`). The batch accepted 7
