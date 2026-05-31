@@ -4476,6 +4476,135 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,table_name:string,constraint_sql:string,conflict_policy:string,statement:string,result_code:int,message:string|null,transaction_state:string,rows_after:list<array<int,mixed>>,schema_preserved:bool,merged_autoindex:bool,autoindex_name:string,integrity:string}>
+     */
+    public static function index19MergedConstraintConflictPolicyCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index-19 conflict-policy corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'index-19.1',
+                't7',
+                'a UNIQUE PRIMARY KEY',
+                'ABORT',
+                'CREATE TABLE t7(a UNIQUE PRIMARY KEY); INSERT INTO t7 VALUES(1)',
+                0,
+                null,
+                'outside-transaction',
+                [[1]],
+                true,
+                true,
+                'sqlite_autoindex_t7_1',
+                'ok',
+            ],
+            [
+                'index-19.2',
+                't7',
+                'a UNIQUE PRIMARY KEY',
+                'ABORT',
+                'BEGIN; INSERT INTO t7 VALUES(1)',
+                1,
+                'UNIQUE constraint failed: t7.a',
+                'transaction-open-after-abort-conflict',
+                [[1]],
+                true,
+                true,
+                'sqlite_autoindex_t7_1',
+                'expected-abort-conflict',
+            ],
+            [
+                'index-19.3',
+                't7',
+                'a UNIQUE PRIMARY KEY',
+                'ABORT',
+                'BEGIN',
+                1,
+                'cannot start a transaction within a transaction',
+                'transaction-still-open',
+                [[1]],
+                true,
+                true,
+                'sqlite_autoindex_t7_1',
+                'expected-open-transaction',
+            ],
+            [
+                'index-19.4',
+                't8',
+                'a UNIQUE PRIMARY KEY ON CONFLICT ROLLBACK',
+                'ROLLBACK',
+                'INSERT INTO t8 VALUES(1)',
+                1,
+                'UNIQUE constraint failed: t8.a',
+                'rolled-back-to-autocommit',
+                [[1]],
+                true,
+                true,
+                'sqlite_autoindex_t8_1',
+                'expected-rollback-conflict',
+            ],
+            [
+                'index-19.5',
+                't8',
+                'a UNIQUE PRIMARY KEY ON CONFLICT ROLLBACK',
+                'ROLLBACK',
+                'BEGIN; COMMIT',
+                0,
+                null,
+                'committed-empty-transaction-after-rollback',
+                [[1]],
+                true,
+                true,
+                'sqlite_autoindex_t8_1',
+                'ok',
+            ],
+            [
+                'index-19.6',
+                't7',
+                'a PRIMARY KEY ON CONFLICT FAIL, UNIQUE(a) ON CONFLICT IGNORE',
+                'CONFLICTING',
+                'CREATE TABLE t7(a PRIMARY KEY ON CONFLICT FAIL, UNIQUE(a) ON CONFLICT IGNORE)',
+                1,
+                'conflicting ON CONFLICT clauses specified',
+                'schema-change-rejected',
+                [],
+                false,
+                false,
+                'sqlite_autoindex_t7_1',
+                'expected-schema-error',
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $table, $constraint, $policy, $statement, $code, $message, $transaction, $rowsAfter, $schemaPreserved, $mergedAutoindex, $autoindex, $integrity] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $rows[] = [
+                'source' => 'index.test sections index-19.1 through index-19.6',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'table_name' => $table,
+                'constraint_sql' => $constraint,
+                'conflict_policy' => $policy,
+                'statement' => $statement,
+                'result_code' => $code,
+                'message' => $message,
+                'transaction_state' => $transaction,
+                'rows_after' => $rowsAfter,
+                'schema_preserved' => $schemaPreserved,
+                'merged_autoindex' => $mergedAutoindex,
+                'autoindex_name' => $autoindex,
+                'integrity' => $integrity,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,batch:int,sql:string,index_name:string,expression:string,where_clause:string|null,order_by:string|null,result_rows:list<array<int,mixed>>,function_opcode_count:int,covering_index:bool,uses_index:bool,detail:string,integrity:string}>
      */
     public static function indexExpressionJsonCoveringCases(int $cases = 1000): array
@@ -7017,6 +7146,61 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
                 'search_count' => count(array_filter($planTerms, static fn (string $term): bool => str_starts_with($term, 'SEARCH '))),
                 'batch' => $batch,
                 'detail' => $section . ' batch ' . $batch . ' ' . implode(' | ', $tags),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,from_clause:string,analyzed:bool,t1_rows:int,t2_rows:int,t1_distinct_a:int,t2_distinct_z:int,result_rows:list<array<int,int>>,uses_t1_scan:bool,uses_t2_index:bool,index_name:string,detail:string,altered_columns:list<string>,join_terms:list<string>,batch:int}>
+     */
+    public static function whereEAlterTableJoinPlannerCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite whereE dynamic corpus requires at least one join-planner case');
+        }
+
+        $templates = [
+            ['whereE-1.1', 't1, t2', false, 'initial join order after ALTER TABLE column c materialization'],
+            ['whereE-1.2', 't2, t1', false, 'reversed FROM clause still scans t1 before probing unique t2 index'],
+            ['whereE-1.3', 't1, t2', true, 'ANALYZE keeps t1 scan and t2 unique index probe after statistics reload'],
+            ['whereE-1.4', 't2, t1', true, 'ANALYZE keeps reversed FROM clause from forcing a worse t2 scan'],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $fromClause, $analyzed, $scenario] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+
+            $resultRows = [];
+            foreach ([1, 2, 3, 2, 3] as $rowNumber => $a) {
+                $rowid = $rowNumber + 1;
+                $z = 2;
+                if ($a === $z) {
+                    $resultRows[] = [$rowid, $a, $z, $a * $rowid + 10000];
+                }
+            }
+
+            $out[] = [
+                'source' => 'whereE.test sections whereE-1.1 through whereE-1.4',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario . ' batch ' . $batch,
+                'from_clause' => $fromClause,
+                'analyzed' => $analyzed,
+                't1_rows' => 5120,
+                't2_rows' => 128,
+                't1_distinct_a' => 3,
+                't2_distinct_z' => 1,
+                'result_rows' => $resultRows,
+                'uses_t1_scan' => true,
+                'uses_t2_index' => true,
+                'index_name' => 't2zx',
+                'detail' => 'SCAN t1; SEARCH t2 USING COVERING INDEX t2zx (z=? AND x=?)',
+                'altered_columns' => ['t1.c', 't2.z'],
+                'join_terms' => ['a=z', 'c=x'],
+                'batch' => $batch,
             ];
         }
 

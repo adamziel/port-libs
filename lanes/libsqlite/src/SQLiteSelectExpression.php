@@ -911,6 +911,9 @@ final class SQLiteSelectExpression
 
     private static function realTextValue(float $value): string
     {
+        if (is_infinite($value)) {
+            return $value > 0 ? '9.0e+999' : '-9.0e+999';
+        }
         if (floor($value) === $value && abs($value) < 1.0e16) {
             return sprintf('%.1F', $value);
         }
@@ -951,15 +954,38 @@ final class SQLiteSelectExpression
             return $row[$name];
         }
 
+        $caseInsensitiveMatches = [];
+        foreach ($row as $column => $value) {
+            if (is_string($column) && strcasecmp($column, $name) === 0) {
+                $caseInsensitiveMatches[] = $value;
+            }
+        }
+        if (count($caseInsensitiveMatches) === 1) {
+            return $caseInsensitiveMatches[0];
+        }
+        if (count($caseInsensitiveMatches) > 1) {
+            throw new \InvalidArgumentException("SQLite SELECT expression column {$name} is ambiguous");
+        }
+
         if (str_contains($name, '.')) {
             $schemaQualifiedSuffix = substr($name, strpos($name, '.') + 1);
             if (array_key_exists($schemaQualifiedSuffix, $row)) {
                 return $row[$schemaQualifiedSuffix];
             }
+            foreach ($row as $column => $value) {
+                if (is_string($column) && strcasecmp($column, $schemaQualifiedSuffix) === 0) {
+                    return $value;
+                }
+            }
 
             $suffix = substr($name, strrpos($name, '.') + 1);
             if (array_key_exists($suffix, $row)) {
                 return $row[$suffix];
+            }
+            foreach ($row as $column => $value) {
+                if (is_string($column) && strcasecmp($column, $suffix) === 0) {
+                    return $value;
+                }
             }
         }
 
@@ -967,7 +993,7 @@ final class SQLiteSelectExpression
             $matches = [];
             $suffix = '.' . $name;
             foreach ($row as $column => $value) {
-                if (is_string($column) && str_ends_with($column, $suffix)) {
+                if (is_string($column) && str_ends_with(strtolower($column), strtolower($suffix))) {
                     $matches[] = $value;
                 }
             }

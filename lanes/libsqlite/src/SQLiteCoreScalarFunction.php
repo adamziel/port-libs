@@ -466,9 +466,6 @@ final class SQLiteCoreScalarFunction
             if (is_nan($value)) {
                 return 'NULL';
             }
-            if (is_infinite($value)) {
-                return $value > 0 ? 'Inf' : '-Inf';
-            }
 
             return self::formatFloat($value);
         }
@@ -1726,6 +1723,9 @@ final class SQLiteCoreScalarFunction
             $year = (int) $matches[1];
             $month = (int) $matches[2];
             $day = (int) $matches[3];
+            if ($month < 1 || $month > 12 || $day < 1 || $day > 31) {
+                return null;
+            }
             $floorCandidate = null;
             if ($month >= 1 && $month <= 12 && $day > self::daysInGregorianMonth($year, $month)) {
                 $floorCandidate = new \DateTimeImmutable(
@@ -1740,7 +1740,15 @@ final class SQLiteCoreScalarFunction
                 return null;
             }
         }
-        if (preg_match('/\A-?\d{4}-\d{2}-\d{2}(?:[ T]+)\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:\s*(?:Z|[+-]\d{2}:\d{2}))?\z/i', $text) === 1) {
+        if (preg_match('/\A(-?\d{4})-(\d{2})-(\d{2})(?:[ T]+)(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:\s*(?:Z|[+-]\d{2}:\d{2}))?\z/i', $text, $matches) === 1) {
+            $month = (int) $matches[2];
+            $day = (int) $matches[3];
+            $hour = (int) $matches[4];
+            $minute = (int) $matches[5];
+            $second = isset($matches[6]) && $matches[6] !== '' ? (int) $matches[6] : 0;
+            if ($month < 1 || $month > 12 || $day < 1 || $day > 31 || $hour > 24 || $minute > 59 || $second > 59) {
+                return null;
+            }
             $normalized = self::normalizeDateTimeText($text);
 
             try {
@@ -2124,6 +2132,9 @@ final class SQLiteCoreScalarFunction
 
     private static function formatFloat(float $value): string
     {
+        if (is_infinite($value)) {
+            return $value > 0 ? '9.0e+999' : '-9.0e+999';
+        }
         if ($value == 0.0) {
             return '0.0';
         }

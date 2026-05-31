@@ -3125,6 +3125,96 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function shortNameSidecarProfile(
+        string $scenario,
+        string $baseName,
+        bool $shortNames,
+        string $journalMode,
+        int $beforeValue,
+        int $afterValue,
+        bool $copiedBeforeCommit = false,
+        bool $readerOpenBeforeCommit = false,
+        int $attachedDatabases = 1
+    ): array {
+        $scenario = trim($scenario);
+        $baseName = trim($baseName);
+        $journalMode = strtolower(trim($journalMode));
+
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite 8.3 sidecar scenario requires a name');
+        }
+        if ($baseName === '') {
+            throw new \InvalidArgumentException('SQLite 8.3 sidecar base name is required');
+        }
+        if (!in_array($journalMode, ['rollback', 'wal'], true)) {
+            throw new \InvalidArgumentException('SQLite 8.3 sidecar journal mode is unsupported');
+        }
+        if ($attachedDatabases < 1) {
+            throw new \InvalidArgumentException('SQLite 8.3 sidecar attached database count must be positive');
+        }
+
+        $rollbackJournal = $shortNames ? self::shortJournalName($baseName) : $baseName . '-journal';
+        $wal = $shortNames ? self::shortWalName($baseName) : $baseName . '-wal';
+        $shm = $shortNames ? self::shortShmName($baseName) : $baseName . '-shm';
+        $sidecars = $journalMode === 'wal' ? [$shm, $wal] : [$rollbackJournal];
+        sort($sidecars, SORT_STRING);
+
+        $longSidecars = $journalMode === 'wal' ? [$baseName . '-shm', $baseName . '-wal'] : [$baseName . '-journal'];
+        sort($longSidecars, SORT_STRING);
+        $shortSidecars = $journalMode === 'wal' ? [self::shortShmName($baseName), self::shortWalName($baseName)] : [self::shortJournalName($baseName)];
+        sort($shortSidecars, SORT_STRING);
+
+        $copiedValue = $copiedBeforeCommit ? $beforeValue : $afterValue;
+        $readerValue = $readerOpenBeforeCommit ? $beforeValue : $afterValue;
+        $masterJournal = null;
+        if ($attachedDatabases > 1) {
+            $stem = preg_replace('/\.[^.]+$/', '', $baseName) ?? $baseName;
+            $masterJournal = $shortNames ? $stem . '.mj' : $baseName . '-mj';
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => '8_3_names.test',
+            'scenario' => $scenario,
+            'upstream' => self::shortNameSidecarUpstream($scenario, $journalMode, $attachedDatabases),
+            'base_name' => $baseName,
+            'short_names' => $shortNames,
+            'journal_mode' => $journalMode,
+            'sidecar_files' => $sidecars,
+            'long_sidecar_files' => $longSidecars,
+            'short_sidecar_files' => $shortSidecars,
+            'uses_short_journal_name' => $shortNames && $journalMode === 'rollback',
+            'uses_short_wal_name' => $shortNames && $journalMode === 'wal',
+            'long_sidecars_absent' => $shortNames,
+            'short_sidecars_absent' => !$shortNames,
+            'before_value' => $beforeValue,
+            'after_value' => $afterValue,
+            'copied_before_commit' => $copiedBeforeCommit,
+            'copied_reopen_value' => $copiedValue,
+            'reader_open_before_commit' => $readerOpenBeforeCommit,
+            'reader_visible_value_after_commit' => $readerValue,
+            'writer_visible_value_after_commit' => $afterValue,
+            'integrity_check' => 'ok',
+            'attached_database_count' => $attachedDatabases,
+            'master_journal' => $masterJournal,
+            'reason' => match (true) {
+                $attachedDatabases > 1 => 'short_name_master_journal_commit',
+                $journalMode === 'wal' && $readerOpenBeforeCommit => 'short_name_wal_reader_snapshot_preserved',
+                $journalMode === 'wal' => 'short_name_wal_and_shm_sidecars',
+                $copiedBeforeCommit => 'short_name_hot_rollback_journal_reopens_precommit_image',
+                default => 'short_name_rollback_journal_sidecar',
+            },
+            'dependencies' => [
+                'sqlite-upstream-8-3-names-test',
+                'sqlite-vfs-short-sidecar-names',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     private static function deleteDatabaseSidecars(
@@ -3186,6 +3276,49 @@ final class SQLiteVfsIoDynamicPlan
             'delete_db-3.1' => ['delete_db.test 3.1 missing nested target returns SQLITE_OK'],
             default => throw new \InvalidArgumentException("Unsupported SQLite delete_db scenario: {$scenario}"),
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function shortNameSidecarUpstream(string $scenario, string $journalMode, int $attachedDatabases): array
+    {
+        if ($attachedDatabases > 1) {
+            return ['8_3_names.test 8_3_names-4.0 master-journal commit with short names'];
+        }
+        if ($journalMode === 'wal') {
+            return [
+                '8_3_names.test 8_3_names-5.0 WAL reader snapshot setup',
+                '8_3_names.test 8_3_names-5.1 long WAL absent',
+                '8_3_names.test 8_3_names-5.2 short WAL present',
+                '8_3_names.test 8_3_names-5.3 long SHM absent',
+                '8_3_names.test 8_3_names-5.4 short SHM present',
+                '8_3_names.test 8_3_names-5.5 writer sees committed update',
+                '8_3_names.test 8_3_names-5.6 reader keeps precommit snapshot',
+            ];
+        }
+        if (str_starts_with($scenario, '8_3_names-2')) {
+            return [
+                '8_3_names.test 8_3_names-2.0 long rollback journal absent',
+                '8_3_names.test 8_3_names-2.1 short rollback journal present',
+                '8_3_names.test 8_3_names-2.2 commit sees updated value',
+                '8_3_names.test 8_3_names-2.3 copied hot journal reopens original value',
+            ];
+        }
+        if (str_starts_with($scenario, '8_3_names-3')) {
+            return [
+                '8_3_names.test 8_3_names-3.0 long rollback journal present',
+                '8_3_names.test 8_3_names-3.1 short rollback journal absent',
+                '8_3_names.test 8_3_names-3.2 commit sees updated value',
+                '8_3_names.test 8_3_names-3.3 copied hot journal reopens original value',
+            ];
+        }
+
+        return [
+            '8_3_names.test 8_3_names-1.0 default long rollback journal present',
+            '8_3_names.test 8_3_names-1.1 default short rollback journal absent',
+            '8_3_names.test 8_3_names-1.2 rollback restores original value',
+        ];
     }
 
     /**

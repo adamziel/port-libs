@@ -4623,6 +4623,7 @@ final class SQLiteSelectSql
         if (!in_array($name, $supported, true)) {
             throw new \InvalidArgumentException("SQLite SELECT SQL window function {$name} is not supported");
         }
+        self::assertWindowFunctionArgumentCount($name, $arguments);
 
         $expression = [
             'type' => 'window',
@@ -4655,6 +4656,41 @@ final class SQLiteSelectSql
     {
         if ($orderBy === [] && in_array($frame['unit'], ['RANGE', 'GROUPS'], true)) {
             throw new \InvalidArgumentException('SQLite SELECT SQL RANGE/GROUPS window frame needs ORDER BY');
+        }
+        if (
+            $frame['unit'] === 'RANGE'
+            && count($orderBy) !== 1
+            && (self::frameBoundaryUsesOffset((string) ($frame['startBoundary'] ?? '')) || self::frameBoundaryUsesOffset((string) ($frame['endBoundary'] ?? '')))
+        ) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL RANGE offset window frame requires exactly one ORDER BY expression');
+        }
+    }
+
+    private static function frameBoundaryUsesOffset(string $boundary): bool
+    {
+        return preg_match('/^\s*[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)\s+(?:PRECEDING|FOLLOWING)\s*$/i', $boundary) === 1;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $arguments
+     */
+    private static function assertWindowFunctionArgumentCount(string $name, array $arguments): void
+    {
+        $count = count($arguments);
+        if (in_array($name, ['row_number', 'rank', 'dense_rank', 'percent_rank', 'cume_dist'], true) && $count !== 0) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL window function {$name} takes no arguments");
+        }
+        if ($name === 'ntile' && $count !== 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL ntile() window function takes one argument');
+        }
+        if (in_array($name, ['lag', 'lead'], true) && ($count < 1 || $count > 3)) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL {$name}() window function takes one to three arguments");
+        }
+        if (in_array($name, ['first_value', 'last_value'], true) && $count !== 1) {
+            throw new \InvalidArgumentException("SQLite SELECT SQL {$name}() window function takes one argument");
+        }
+        if ($name === 'nth_value' && $count !== 2) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL nth_value() window function takes two arguments');
         }
     }
 

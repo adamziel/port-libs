@@ -29,7 +29,10 @@ final class SQLiteSelectProjection
                 }
 
                 $alias = self::expressionAlias($expression, $index);
-                self::appendProjectedValue($projected, $alias, self::projectedValue(self::evaluateExpression($row, $expression)));
+                $evaluationRow = ($expression['hiddenOrderColumn'] ?? false) === true
+                    ? array_merge($row, $projected)
+                    : $row;
+                self::appendProjectedValue($projected, $alias, self::projectedValue(self::evaluateExpression($evaluationRow, $expression)));
             }
             $projectedRows[] = $projected;
         }

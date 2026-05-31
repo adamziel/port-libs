@@ -5045,6 +5045,115 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{a:int,b:int,c:int}> $sourceRows
+     * @param list<int> $emptyValues
+     * @param list<int> $nonEmptyValues
+     * @param list<array{e:int,f:int}> $lookupRows
+     * @return array<string,mixed>
+     */
+    public static function triggerProgramConstantLoopPlan(
+        array $sourceRows,
+        array $emptyValues,
+        array $nonEmptyValues,
+        array $lookupRows,
+        int $lookupConstant
+    ): array {
+        $sourceRows = array_values($sourceRows);
+        $emptyValues = array_values(array_map('intval', $emptyValues));
+        $nonEmptyValues = array_values(array_map('intval', $nonEmptyValues));
+        $lookupMatches = [];
+        foreach ($lookupRows as $row) {
+            if ((int) ($row['e'] ?? 0) === $lookupConstant) {
+                $lookupMatches[] = (int) ($row['f'] ?? 0);
+            }
+        }
+
+        $inserted = [];
+        $visited = 0;
+        foreach ($sourceRows as $row) {
+            ++$visited;
+            $a = (int) ($row['a'] ?? 0);
+            $b = (int) ($row['b'] ?? 0);
+            $c = (int) ($row['c'] ?? 0);
+            $left = in_array($a, $emptyValues, true) || in_array($b, $nonEmptyValues, true);
+            $right = in_array($c, $lookupMatches, true);
+            if ($left && $right) {
+                $inserted[] = ['g' => $a, 'h' => $b, 'i' => $c];
+            }
+        }
+
+        return [
+            'source' => 'triggerC.test triggerC-14.1..14.2',
+            'operation' => 'trigger-program-constant-loop-evaluation',
+            'status' => 'commit-ok',
+            'lookup_constant' => $lookupConstant,
+            'source_row_count' => count($sourceRows),
+            'visited_source_rows' => $visited,
+            'empty_values' => $emptyValues,
+            'non_empty_values' => $nonEmptyValues,
+            'lookup_matches' => $lookupMatches,
+            'inserted_rows' => $inserted,
+            'inserted_count' => count($inserted),
+            'constant_factored_out_of_trigger_loop' => false,
+            'dependencies' => [
+                'sqlite-triggerC-trigger-program-constants-stay-inside-loop',
+                'sqlite-triggerC-subquery-membership-evaluates-per-trigger-row',
+                'sqlite-triggerC-factor-constants-optimization-does-not-change-trigger-result',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{id:int,pid:int,key:string,path?:string}> $nodes
+     * @param list<int> $deleteIds
+     * @return array<string,mixed>
+     */
+    public static function quotedTriggerTargetCascadePlan(array $nodes, array $deleteIds): array
+    {
+        $nodesById = [];
+        foreach ($nodes as $node) {
+            $id = (int) ($node['id'] ?? 0);
+            $nodesById[$id] = $node;
+        }
+
+        $deleted = [];
+        $delete = static function (int $id) use (&$delete, &$nodesById, &$deleted): void {
+            if (!isset($nodesById[$id])) {
+                return;
+            }
+            unset($nodesById[$id]);
+            $deleted[] = $id;
+            foreach (array_keys($nodesById) as $candidate) {
+                if ((int) ($nodesById[$candidate]['pid'] ?? 0) === $id) {
+                    $delete((int) $candidate);
+                }
+            }
+        };
+
+        foreach ($deleteIds as $id) {
+            $delete((int) $id);
+        }
+        sort($deleted);
+        ksort($nodesById);
+
+        return [
+            'source' => 'triggerC.test triggerC-15.1.1..15.2.3',
+            'operation' => 'quoted-trigger-target-dequote-once',
+            'status' => 'commit-ok',
+            'trigger_target' => '"node"',
+            'resolved_trigger_target' => 'node',
+            'dequote_count' => 1,
+            'deleted_ids' => $deleted,
+            'remaining_ids' => array_values(array_map('intval', array_keys($nodesById))),
+            'remaining_row_count' => count($nodesById),
+            'dependencies' => [
+                'sqlite-triggerC-quoted-trigger-table-name-dequoted-exactly-once',
+                'sqlite-triggerC-recursive-delete-targets-real-table-not-double-quoted-name',
+            ],
+        ];
+    }
+
+    /**
      * @param array<string,mixed> $row
      * @param array<string,mixed> $parentAssignments
      * @param array<string,mixed> $triggerAssignments

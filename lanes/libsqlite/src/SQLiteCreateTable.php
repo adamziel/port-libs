@@ -91,6 +91,9 @@ final class SQLiteCreateTable
             if (self::startsWithKeyword($constraint, 'UNIQUE')) {
                 $list = self::parenthesizedBodyAfterKeyword($constraint, 'UNIQUE');
                 $addConstraint($list === null ? [] : self::indexedColumnsInList($list, $columnCollations));
+                foreach (self::adjacentUniqueConstraintColumns($constraint, $columnCollations) as $constraintColumns) {
+                    $addConstraint($constraintColumns);
+                }
                 continue;
             }
             if ($includePrimaryKey && self::startsWithPrimaryKey($constraint)) {
@@ -98,6 +101,9 @@ final class SQLiteCreateTable
                 $primaryKeyColumns = $list === null ? [] : self::indexedColumnsInList($list, $columnCollations);
                 if ($withoutRowid || !self::isRowidAliasTablePrimaryKey($primaryKeyColumns, $columnTypes)) {
                     $addConstraint($primaryKeyColumns);
+                }
+                foreach (self::adjacentUniqueConstraintColumns($constraint, $columnCollations) as $constraintColumns) {
+                    $addConstraint($constraintColumns);
                 }
 
                 continue;
@@ -108,6 +114,9 @@ final class SQLiteCreateTable
                 || self::startsWithKeyword($constraint, 'CHECK')
                 || self::startsWithKeyword($constraint, 'FOREIGN')
             ) {
+                foreach (self::adjacentUniqueConstraintColumns($constraint, $columnCollations) as $constraintColumns) {
+                    $addConstraint($constraintColumns);
+                }
                 continue;
             }
 
@@ -134,6 +143,37 @@ final class SQLiteCreateTable
                     ),
                 ]);
             }
+        }
+
+        return $columns;
+    }
+
+    /**
+     * SQLite accepts legacy table-constraint syntax where adjacent constraints
+     * are not comma separated, for example "PRIMARY KEY(a) CHECK(b) UNIQUE(c)".
+     *
+     * @param array<string, string> $columnCollations
+     * @return list<non-empty-list<SQLiteIndexColumn>>
+     */
+    private static function adjacentUniqueConstraintColumns(string $constraint, array $columnCollations): array
+    {
+        $columns = [];
+        $offset = 0;
+        while (($uniqueOffset = self::findTopLevelKeyword($constraint, 'UNIQUE', $offset)) !== null) {
+            $open = strpos($constraint, '(', $uniqueOffset + strlen('UNIQUE'));
+            if ($open === false) {
+                break;
+            }
+            $close = self::matchingParen($constraint, $open);
+            if ($close === null) {
+                break;
+            }
+
+            $list = self::indexedColumnsInList(substr($constraint, $open + 1, $close - $open - 1), $columnCollations);
+            if ($list !== []) {
+                $columns[] = $list;
+            }
+            $offset = $close + 1;
         }
 
         return $columns;
@@ -324,10 +364,15 @@ final class SQLiteCreateTable
 
     private static function containsTopLevelKeyword(string $text, string $keyword): bool
     {
+        return self::findTopLevelKeyword($text, $keyword) !== null;
+    }
+
+    private static function findTopLevelKeyword(string $text, string $keyword, int $offset = 0): ?int
+    {
         $depth = 0;
         $length = strlen($text);
         $keywordLength = strlen($keyword);
-        for ($i = 0; $i < $length; $i++) {
+        for ($i = max(0, $offset); $i < $length; $i++) {
             $char = $text[$i];
             if ($char === "'" || $char === '"' || $char === '`') {
                 $i = self::skipQuoted($text, $i, $char);
@@ -351,11 +396,11 @@ final class SQLiteCreateTable
                 && ($i === 0 || !self::isIdentifierChar($text[$i - 1]))
                 && (!isset($text[$i + $keywordLength]) || !self::isIdentifierChar($text[$i + $keywordLength]))
             ) {
-                return true;
+                return $i;
             }
         }
 
-        return false;
+        return null;
     }
 
     private static function containsTopLevelPrimaryKey(string $text): bool
