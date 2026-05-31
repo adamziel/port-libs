@@ -46,11 +46,32 @@
 - Root filesystem: current supervisor sample reports `/` at 452G size with about 351G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.0G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool includes
-  a LightningCSS surge currently targeted at 43 visible workers plus active
+  a LightningCSS surge currently targeted at 46 visible workers plus active
   libsqlite/Gitoxide workers; the latest refill started LightningCSS workers on
   `gpt-5.5` xhigh with the priority service tier and no long sleeper loop.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (LightningCSS modules/CSSOM/color/visitor
+  integration 17:44 UTC): source commit
+  `22f42d2f72f3f002064dd7cfee2dec49626eb999` (`ports: extend lightningcss
+  modules cssom color visitor maps`) landed seven verified LightningCSS
+  source/test/example handoffs after excluding stale shared metadata.
+  LightningCSS full lane evidence moves from `2715` to `2794 pass / 0 fail`,
+  with conservative mapped coverage moving from `1573 / 3532` to `1601 /
+  3532`: CSS Modules container-query name scoping, SourceMap relative VLQ
+  guards, custom at-rule selector visitors including nth-of-S, HSL
+  color-mix() normalization/interpolation, bundle import modifier-order
+  parsing, media-query `all` elision, and caret CSSOM shorthand/longhand
+  read/write/remove behavior. Gates passed: PHP lint on changed PHP files,
+  `git diff --check -- lanes/lightningcss`, no WordPress/WP/wp_ text
+  introduced by the changed source diff, focused gate `8 files / 2659
+  assertions / 0 failures`, full LightningCSS lane `13 files / 2794 assertions
+  / 0 failures`, and seven touched examples exiting 0. Full upstream
+  Rust/Node/WASM runners were not executed for this isolated batch. The visible
+  LightningCSS pool was topped up with three fresh `gpt-5.5` xhigh priority
+  workers around 17:40 UTC, bringing visible LightningCSS windows from 39 to
+  42 at the supervisor sample.
 
 - 2026-05-31 supervisor continuation (LightningCSS CSSOM/import-graph
   integration 17:33 UTC): source commit
