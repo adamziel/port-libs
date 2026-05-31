@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 87.8,
-    "suiteProgress": "Supervisor-integrated Gitoxide tree-merge/partial-clone/credential batch adds renamed-symlink resolve-tree conflict choices, config-only promisor remote hydration before a first .promisor pack, and credential URL root-path clearing during helper cascades. Verification passed PHP lint on 31 changed/new PHP files across the batch, git diff --check -- lanes/lightningcss lanes/gitoxide, no WordPress/WP/wp_ source symbols under changed lane src trees, focused gate 11 files / 3866 assertions / 0 failures, full Gitoxide lane 39 files / 5206 assertions / 0 failures, full LightningCSS lane 13 files / 3328 assertions / 0 failures, and touched example smoke runs.",
-    "phpPass": 5206,
+    "estimatedProgress": 88,
+    "suiteProgress": "Supervisor-integrated Gitoxide URL/refspec and tree pathspec batch adds UTF-8/control guard behavior for URL/refspec normalization plus attr-filtered tree pathspec walking. Verification passed PHP lint on changed PHP files, git diff --check, no WordPress/WP/wp_ source symbols under lanes/gitoxide/src, touched example smoke runs, and full Gitoxide lane 39 files / 5225 assertions / 0 failures.",
+    "phpPass": 5225,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full runner not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source 18b0deb3: full Gitoxide lane passed 39 files / 5206 assertions / 0 failures. Conservative mapped coverage moves from 1614 / 2886 to 1617 / 2886 for tree merge renamed-symlink resolve-tree parity, config-only partial-clone promisor hydration, and credential helper root URL path clearing.",
-    "currentWork": "Tree merge resolve-tree choices for renamed symlinks, config-only partial-clone promisor hydration, and credential helper root URL path clearing are integrated from screened worker handoffs.",
+    "audit": "2026-05-31 supervisor batch at source 1daff0d4: full Gitoxide lane passed 39 files / 5225 assertions / 0 failures. Conservative mapped coverage moves from 1617 / 2886 to 1619 / 2886 for URL/refspec UTF-8 guard parity and attr-filtered tree pathspec walking.",
+    "currentWork": "URL/refspec UTF-8 guard parity and attr-filtered tree pathspec walking are integrated from screened worker handoffs while the main worker capacity remains on LightningCSS.",
     "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch due workspace breadth. Native PHP focused/full-lane evidence is green; keep Gitoxide at a smaller bounded pool while LightningCSS remains the main capacity target.",
-    "latestCommit": "18b0deb3515dc92a712cbd8626c76fa5de6b3008",
-    "nextTask": "Continue bounded Gitoxide workers on protocol, transport, object database, partial clone, tree merge, reference, credential, and URL/refspec slices.",
-    "commit": "18b0deb3515dc92a712cbd8626c76fa5de6b3008"
+    "latestCommit": "1daff0d4d064599b77ad9ffdcc572b93d5f4481d",
+    "nextTask": "Keep a bounded secondary Gitoxide pool on protocol, transport, object database, partial clone, tree merge, reference, credential, URL/refspec, and pathspec slices while LightningCSS stays primary.",
+    "commit": "1daff0d4d064599b77ad9ffdcc572b93d5f4481d"
 }

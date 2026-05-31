@@ -54,6 +54,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS surge plus Gitoxide pathspec
+  batch 19:19 UTC): source commit
+  `1daff0d4d064599b77ad9ffdcc572b93d5f4481d` (`ports: extend lightningcss
+  relative colors and gitoxide pathspecs`) landed eight screened LightningCSS
+  handoffs and two Gitoxide handoffs. LightningCSS now reports `3652 pass / 0
+  fail`, with conservative mapped coverage moving from `1859 / 3532` to `1947
+  / 3532` on same-space lab()/oklab() relative colors, SourceMap skipped child
+  table preservation, and generic Rule currentColor visitor behavior; mixed
+  boolean media validation, escaped CSS Modules selector delimiters,
+  resolver-backed reader path identity, border-image CSSOM, and grid
+  separate-areas/auto-flow deepen already mapped clusters. Gitoxide now reports
+  `5225 pass / 0 fail`, with mapped coverage moving from `1617 / 2886` to
+  `1619 / 2886` on URL/refspec UTF-8 guard parity and attr-filtered tree
+  pathspec walking. Verification passed PHP lint on changed PHP files,
+  `git diff --check`, no WordPress/WP/wp_ symbols in changed lane `src` trees,
+  touched example smoke runs, full LightningCSS lane `13 files / 3652
+  assertions / 0 failures`, and full Gitoxide lane `39 files / 5225 assertions
+  / 0 failures`.
+
 - 2026-05-31 supervisor continuation (LightningCSS color/CSSOM/modules/maps
   integration 19:16 UTC): source commit
   `a032175ec9245f763d84f7fe561815002f70617f` (`ports: extend lightningcss
