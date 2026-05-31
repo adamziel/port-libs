@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-31 19:09:42 UTC",
-    "sourceCommit": "89430b87346802edd9a84907de512ad2d36ebfbb",
-    "sourceCommitShort": "89430b873468",
+    "generated": "2026-05-31 19:14:30 UTC",
+    "sourceCommit": "b659a2e80e77d693f12e4be198d3a824770d6b70",
+    "sourceCommitShort": "b659a2e80e77",
     "sourceBranch": "unknown",
-    "dashboardCommit": "89430b87346802edd9a84907de512ad2d36ebfbb",
-    "dashboardCommitShort": "89430b873468",
-    "averageProgressPercent": "87.0",
+    "dashboardCommit": "b659a2e80e77d693f12e4be198d3a824770d6b70",
+    "dashboardCommitShort": "b659a2e80e77",
+    "averageProgressPercent": "87.1",
     "lanes": [
         {
             "library": "difftastic",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "89.2",
+            "progressPercent": "90.1",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1807",
-            "coverage": "1807 / 3532",
-            "php": "3375 pass / 0 fail",
+            "mapped": "1859",
+            "coverage": "1859 / 3532",
+            "php": "3512 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
-            "audit": "2026-05-31 supervisor batch at source 5d2...",
-            "currentWork": "Condition-rule visitors, style-attribute visitors, raw SourceMap vector validation, logic...",
+            "audit": "2026-05-31 supervisor batch at source a03...",
+            "currentWork": "Background-position minification, animation/color target prefixes, custom Color visitors,...",
             "nextTarget": "Continue screening fresh LightningCSS-ready handoffs first, prioritizing non-overlapping...",
             "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for t...",
-            "commit": "5d2786e"
+            "commit": "a032175"
         },
         {
             "library": "markerPDF",
