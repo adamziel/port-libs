@@ -2801,6 +2801,7 @@ final class SQLiteSelectSql
                     'type' => $type,
                     'rows' => $rightRows,
                     'predicate' => self::usingPredicate($columns, $leftRows, $rightRows),
+                    'coalesceColumns' => $columns,
                 ];
                 if ($type === 'LEFT' || $type === 'FULL') {
                     $join['rightColumns'] = self::collectColumns($rightRows);
@@ -2888,6 +2889,7 @@ final class SQLiteSelectSql
                 self::assertBareIdentifier($column, 'SQLite SELECT SQL JOIN USING column');
             }
             $join['predicate'] = self::usingPredicate($columns, $leftRows, $join['rows']);
+            $join['coalesceColumns'] = $columns;
             if ($type === 'CROSS') {
                 $join['type'] = 'INNER';
             }

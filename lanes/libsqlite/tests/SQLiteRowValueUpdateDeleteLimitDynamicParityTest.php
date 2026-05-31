@@ -2206,4 +2206,104 @@ foreach ($explicitTupleMalformed as $name => $sql) {
     };
 }
 
+$mathWindowCases = [
+    'ceil floor outer update' => [
+        "UPDATE app_settings SET state = 'math_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT ceil(2.1) OFFSET floor(1.9)",
+        [2, 3, 6],
+        'state',
+        ['math_limit', 'math_limit', 'math_limit'],
+    ],
+    'trunc sqrt outer delete' => [
+        "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT trunc(3.9) OFFSET sqrt(1)",
+        [2, 3, 6],
+        null,
+        null,
+    ],
+    'power alias outer update' => [
+        "UPDATE app_settings SET state = 'power_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY setting_id ASC LIMIT power(2, 2) OFFSET pow(0, 3)",
+        [2, 3, 5, 6],
+        'state',
+        ['power_limit', 'power_limit', 'power_limit', 'power_limit'],
+    ],
+    'ceiling negative trunc offset delete' => [
+        "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT ceiling(2.0) OFFSET trunc(1.8)",
+        [2, 3],
+        null,
+        null,
+    ],
+];
+
+foreach ($mathWindowCases as $name => [$sql, $expectedIds, $column, $expectedColumnValues]) {
+    $tests['rowvalue update delete limit dynamic parity math scalar ' . $name] =
+        static function (TestRunner $t) use ($execute, $sql, $expectedIds, $column, $expectedColumnValues): void {
+            $result = $execute($sql);
+            $t->same($expectedIds, $result['plan']->selectedIds);
+            $t->same($expectedIds, array_column($result['returning'], 'setting_id'));
+            if (is_string($column)) {
+                $t->same($expectedColumnValues, array_column($result['returning'], $column));
+            } else {
+                $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expectedIds)), array_column($result['tables']['app_settings'], 'setting_id'));
+            }
+        };
+}
+
+$mathSubqueryCases = [
+    'ceil floor rowvalue update subquery' => [
+        "UPDATE app_settings SET state = 'math_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT ceil(2.1) OFFSET floor(1.2)) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1",
+        [2, 3, 5],
+        'state',
+        ['math_subquery', 'math_subquery', 'math_subquery'],
+    ],
+    'sqrt trunc rowvalue delete subquery' => [
+        "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT sqrt(4) OFFSET trunc(1.9)) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1",
+        [3, 5],
+        null,
+        null,
+    ],
+    'power rowvalue update subquery' => [
+        "UPDATE app_settings SET state = 'power_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT pow(2, 1) OFFSET power(1, 2)) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1",
+        [3, 5],
+        'state',
+        ['power_subquery', 'power_subquery'],
+    ],
+    'ceiling rowvalue delete subquery' => [
+        "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT ceiling(2.0) OFFSET floor(2.0)) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1",
+        [2, 5],
+        null,
+        null,
+    ],
+];
+
+foreach ($mathSubqueryCases as $name => [$sql, $expectedIds, $column, $expectedColumnValues]) {
+    $tests['rowvalue update delete limit dynamic parity math scalar ' . $name] =
+        static function (TestRunner $t) use ($execute, $sql, $expectedIds, $column, $expectedColumnValues): void {
+            $result = $execute($sql);
+            $t->same($expectedIds, $result['plan']->selectedIds);
+            $t->same($expectedIds, array_column($result['returning'], 'setting_id'));
+            if (is_string($column)) {
+                $t->same($expectedColumnValues, array_column($result['returning'], $column));
+            } else {
+                $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expectedIds)), array_column($result['tables']['app_settings'], 'setting_id'));
+            }
+        };
+}
+
+$mathMalformed = [
+    'malformed ceil null limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT ceil(NULL)",
+    'malformed floor text limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT floor('abc')",
+    'malformed sqrt negative limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT sqrt(-1)",
+    'malformed pow null offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET pow(NULL, 2)",
+    'malformed power arity rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT power(2)",
+];
+
+foreach ($mathMalformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity math scalar ' . $name] = static function (TestRunner $t) use ($sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::execute($sql, [
+            'app_settings' => [
+                ['setting_id' => 1, 'tenant_id' => 1, 'key_name' => 'alpha'],
+            ],
+        ]));
+    };
+}
+
 return $tests;

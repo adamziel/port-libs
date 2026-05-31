@@ -8,6 +8,7 @@ use PortLibs\LibSqlite\SQLiteJsonImportRollbackWalPlan;
 $scenarios = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(24);
 $preexistingWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalScenarios(24);
 $tenantCollisionScenarios = SQLiteJsonImportRollbackWalPlan::dynamicTenantCollisionScenarios(24);
+$insertedSettingScenarios = SQLiteJsonImportRollbackWalPlan::dynamicInsertedSettingRollbackScenarios(24);
 $deferredScenarios = SQLiteJsonImportRollbackWalPlan::dynamicDeferredFailureScenarios(24);
 $retryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRetryAfterRollbackScenarios(18);
 $preexistingRetryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalRetryScenarios(18);
@@ -56,6 +57,19 @@ $tests = [
     },
     'sqlite application wal rollback json dynamic parity tenant collision covers json text and jsonb rows' => static function (TestRunner $t) use ($tenantCollisionScenarios): void {
         $jsonModes = array_values(array_unique(array_column($tenantCollisionScenarios, 'jsonb_mode')));
+        sort($jsonModes);
+        $t->same([false, true], $jsonModes);
+    },
+    'sqlite application wal rollback json dynamic parity inserted setting exposes requested scenario count' => static function (TestRunner $t) use ($insertedSettingScenarios): void {
+        $t->same(24, count($insertedSettingScenarios));
+    },
+    'sqlite application wal rollback json dynamic parity inserted setting covers both page sizes' => static function (TestRunner $t) use ($insertedSettingScenarios): void {
+        $pageSizes = array_values(array_unique(array_column($insertedSettingScenarios, 'page_size')));
+        sort($pageSizes);
+        $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json dynamic parity inserted setting covers json text and jsonb rows' => static function (TestRunner $t) use ($insertedSettingScenarios): void {
+        $jsonModes = array_values(array_unique(array_column($insertedSettingScenarios, 'jsonb_mode')));
         sort($jsonModes);
         $t->same([false, true], $jsonModes);
     },
@@ -310,6 +324,79 @@ foreach ($tenantCollisionScenarios as $scenario) {
     };
     $tests[$prefix . 'keeps jsonb mode isolated to target row'] = static function (TestRunner $t) use ($plan, $scenario): void {
         $value = $plan['import_plan']['applied'][0]['key_value'];
+        $t->same($scenario['jsonb_mode'], $value instanceof SQLiteBlobValue);
+    };
+}
+
+foreach ($insertedSettingScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $plan = $scenario['plan'];
+    $prefix = 'sqlite application wal rollback json dynamic parity inserted setting seed ' . $seed . ' ';
+
+    $tests[$prefix . 'rolls back inserted json batch'] = static function (TestRunner $t) use ($plan): void {
+        $t->same('rolled_back_current_json_batch', $plan['status']);
+    };
+    $tests[$prefix . 'uses inserted setting transaction name'] = static function (TestRunner $t) use ($plan, $seed): void {
+        $t->same('application_inserted_setting_json_import_' . $seed, $plan['transaction']);
+    };
+    $tests[$prefix . 'uses inserted setting savepoint name'] = static function (TestRunner $t) use ($plan, $seed): void {
+        $t->same('inserted_setting_json_batch_' . $seed, $plan['savepoint']);
+    };
+    $tests[$prefix . 'applies base row and two inserted rows before failure'] = static function (TestRunner $t) use ($plan): void {
+        $t->same(3, $plan['applied_statement_count']);
+    };
+    $tests[$prefix . 'records one failed malformed inserted batch statement'] = static function (TestRunner $t) use ($plan): void {
+        $t->same(1, $plan['failed_statement_count']);
+    };
+    $tests[$prefix . 'names failed inserted batch statement'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same([$scenario['expected_failed_statement']], $plan['failed_statements']);
+    };
+    $tests[$prefix . 'records inserted key names in applied rows'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['inserted_key_names'], array_slice(array_column($plan['import_plan']['applied'], 'key_name'), 1));
+    };
+    $tests[$prefix . 'marks inserted settings as inserted'] = static function (TestRunner $t) use ($plan): void {
+        $t->same([false, true, true], array_column($plan['import_plan']['applied'], 'inserted_setting'));
+    };
+    $tests[$prefix . 'assigns deterministic inserted setting ids'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $finalRows = $plan['import_plan']['final_rows'];
+        $inserted = array_values(array_filter(
+            $finalRows,
+            static fn (array $row): bool => in_array($row['key_name'], $scenario['inserted_key_names'], true)
+        ));
+        $t->same($scenario['inserted_setting_ids'], array_column($inserted, 'setting_id'));
+    };
+    $tests[$prefix . 'retains tenant id for inserted rows'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same([$scenario['tenant_id'], $scenario['tenant_id'], $scenario['tenant_id']], array_column($plan['import_plan']['applied'], 'tenant_id'));
+    };
+    $tests[$prefix . 'restores original database bytes'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['database_bytes'], $plan['restored_database_bytes']);
+    };
+    $tests[$prefix . 'marks database restored after inserted rollback'] = static function (TestRunner $t) use ($plan): void {
+        $t->same(true, $plan['database_restored_to_before']);
+    };
+    $tests[$prefix . 'truncates wal to header'] = static function (TestRunner $t) use ($plan): void {
+        $t->same(32, strlen($plan['wal_bytes_after']));
+    };
+    $tests[$prefix . 'has zero wal frames after rollback'] = static function (TestRunner $t) use ($plan): void {
+        $t->same(0, $plan['wal_frame_count_after']);
+    };
+    $tests[$prefix . 'discards all current wal frames'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['wal_frames_before'], $plan['discarded_wal_frame_count']);
+    };
+    $tests[$prefix . 'restores base and inserted pages'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['expected_restored_pages'], $plan['rollback_to_savepoint']['restored_page_numbers']);
+    };
+    $tests[$prefix . 'wal rollback discards inserted page numbers'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['expected_restored_pages'], $plan['wal_rollback_to_savepoint']['discarded_page_numbers']);
+    };
+    $tests[$prefix . 'wal rollback discards three applied frames'] = static function (TestRunner $t) use ($plan): void {
+        $t->same([1, 2, 3], array_column($plan['wal_rollback_to_savepoint']['discarded_wal_frames'], 'frame_index'));
+    };
+    $tests[$prefix . 'keeps malformed statement rollback isolated to fourth frame'] = static function (TestRunner $t) use ($plan): void {
+        $t->same([4], array_column($plan['import_plan']['failed'][0]['rollback']['discarded_wal_frames'], 'frame_index'));
+    };
+    $tests[$prefix . 'preserves jsonb mode on first inserted row'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $value = $plan['import_plan']['applied'][1]['key_value'];
         $t->same($scenario['jsonb_mode'], $value instanceof SQLiteBlobValue);
     };
 }
@@ -593,6 +680,17 @@ $tests['sqlite application wal rollback json dynamic parity rejects zero tenant 
     $t->same('rejected', 'accepted');
 };
 
+$tests['sqlite application wal rollback json dynamic parity rejects zero inserted setting scenarios'] = static function (TestRunner $t): void {
+    try {
+        SQLiteJsonImportRollbackWalPlan::dynamicInsertedSettingRollbackScenarios(0);
+    } catch (InvalidArgumentException) {
+        $t->same('rejected', 'rejected');
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
 $tests['sqlite application wal rollback json dynamic parity rejects zero retry scenarios'] = static function (TestRunner $t): void {
     try {
         SQLiteJsonImportRollbackWalPlan::dynamicRetryAfterRollbackScenarios(0);
@@ -664,6 +762,13 @@ $tests['sqlite application wal rollback json dynamic parity tenant collision sma
     $t->same([2101, 2102, 2103], array_column($smallBatch, 'target_tenant_id'));
     $t->same([3101, 3102, 3103], array_column($smallBatch, 'stable_tenant_id'));
     $t->same([512, 1024, 512], array_column($smallBatch, 'page_size'));
+};
+
+$tests['sqlite application wal rollback json dynamic parity inserted setting small batch remains deterministic'] = static function (TestRunner $t): void {
+    $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicInsertedSettingRollbackScenarios(3);
+    $t->same([4101, 4102, 4103], array_column($smallBatch, 'tenant_id'));
+    $t->same([512, 1024, 512], array_column($smallBatch, 'page_size'));
+    $t->same([[5003, 5004], [10003, 10004], [15003, 15004]], array_column($smallBatch, 'inserted_setting_ids'));
 };
 
 $tests['sqlite application wal rollback json dynamic parity retry small batch remains deterministic'] = static function (TestRunner $t): void {

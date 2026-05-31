@@ -8717,6 +8717,47 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,statement:string,statement_kind:string,table_name:string,indexed_by:string|null,not_indexed:bool,or_terms:list<string>,and_terms:list<string>,result_rows:list<array<int,mixed>>,scan_steps:int,sort_steps:int,uses_multi_index_or:bool,chosen_indexes:list<string>,mutation:string|null,rows_after:list<int>,detail:string,integrity:string}>
+     */
+    public static function where9LateOrJoinMutationCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite where9 late OR join mutation corpus requires at least one case');
+        }
+
+        $templates = [
+            self::where9OrCase('where9-6.4.1/6.4.2', 'DELETE FROM t1 WHERE (b>=950 AND b<=1010) OR (b IS NULL AND c NOT NULL)', 'delete', 't1', null, false, ['b BETWEEN 950 AND 1010', 'b IS NULL AND c NOT NULL'], [], [], 0, 0, true, ['t1b'], 'delete', [85, 86, 92, 93, 94, 95, 96, 97, 98, 99], 'range arm and NULL arm delete rows 87 through 91'),
+            self::where9OrCase('where9-6.4.3/6.4.4', 'UPDATE t1 SET a=a+100 WHERE (b>=950 AND b<=1010) OR (b IS NULL AND c NOT NULL)', 'update', 't1', null, false, ['b BETWEEN 950 AND 1010', 'b IS NULL AND c NOT NULL'], [], [], 0, 0, true, ['t1b'], 'update', [85, 86, 92, 93, 94, 95, 96, 97, 98, 99], 'range arm and NULL arm update rowids 87 through 91 out of the 85-100 window'),
+            self::where9OrCase('where9-6.5.1/6.5.2', "DELETE FROM t1 WHERE a=83 OR b=913 OR c=28028 OR (d>=82 AND d<83) OR (e>2802 AND e<2803) OR f='fghijklmn' OR g='hgfedcb'", 'delete', 't1', null, false, ['a=83', 'b=913', 'c=28028', 'd>=82 AND d<83', 'e>2802 AND e<2803', "f='fghijklmn'", "g='hgfedcb'"], [], [], 0, 0, true, ['rowid', 't1b', 't1c', 't1d', 't1e', 't1f', 't1g'], 'delete', [], 'seven OR arms delete rows 5 31 57 82 83 84 85 86 87'),
+            self::where9OrCase('where9-6.5.3/6.5.4', "UPDATE t1 SET a=a+100 WHERE a=83 OR b=913 OR c=28028 OR (d>=82 AND d<83) OR (e>2802 AND e<2803) OR f='fghijklmn' OR g='hgfedcb'", 'update', 't1', null, false, ['a=83', 'b=913', 'c=28028', 'd>=82 AND d<83', 'e>2802 AND e<2803', "f='fghijklmn'", "g='hgfedcb'"], [], [[105], [131], [157], [182], [183], [184], [185], [186], [187]], 0, 0, true, ['rowid', 't1b', 't1c', 't1d', 't1e', 't1f', 't1g'], 'update', [105, 131, 157, 182, 183, 184, 185, 186, 187], 'seven OR arms update the selected rowids once each'),
+            self::where9OrCase('where9-6.6.1/6.6.2', 'DELETE FROM t1 WHERE (b IS NULL AND c NOT NULL AND d NOT NULL) OR (b NOT NULL AND +c IS NULL AND d NOT NULL) OR (b NOT NULL AND c NOT NULL AND d IS NULL)', 'delete', 't1', null, false, ['b IS NULL AND c NOT NULL AND d NOT NULL', 'b NOT NULL AND +c IS NULL AND d NOT NULL', 'b NOT NULL AND c NOT NULL AND d IS NULL'], [], [], 98, 0, false, ['t1b', 't1d'], 'delete', [85, 86, 87, 88, 89, 93, 94, 95, 96, 98, 99], 'unary plus disables one OR arm and scan fallback deletes rows 90 91 92 97'),
+            self::where9OrCase('where9-6.6.3/6.6.4', 'UPDATE t1 SET a=a+100 WHERE (b IS NULL AND c NOT NULL AND d NOT NULL) OR (b NOT NULL AND +c IS NULL AND d NOT NULL) OR (b NOT NULL AND c NOT NULL AND d IS NULL)', 'update', 't1', null, false, ['b IS NULL AND c NOT NULL AND d NOT NULL', 'b NOT NULL AND +c IS NULL AND d NOT NULL', 'b NOT NULL AND c NOT NULL AND d IS NULL'], [], [[190], [191], [192], [197]], 98, 0, false, ['t1b', 't1d'], 'update', [85, 86, 87, 88, 89, 93, 94, 95, 96, 98, 99, 190, 191, 192, 197], 'unary plus fallback updates rows 90 91 92 97 once each'),
+            self::where9OrCase('where9-6.7.1/6.7.2', 'DELETE FROM t1 NOT INDEXED WHERE (b IS NULL AND c NOT NULL AND d NOT NULL) OR (b NOT NULL AND c IS NULL AND d NOT NULL) OR (b NOT NULL AND c NOT NULL AND d IS NULL)', 'delete', 't1', null, true, ['b IS NULL AND c NOT NULL AND d NOT NULL', 'b NOT NULL AND c IS NULL AND d NOT NULL', 'b NOT NULL AND c NOT NULL AND d IS NULL'], [], [], 98, 0, false, [], 'delete', [85, 86, 87, 88, 89, 93, 94, 95, 96, 98, 99], 'NOT INDEXED disables OR arm probes for DELETE'),
+            self::where9OrCase('where9-6.7.3/6.7.4', 'UPDATE t1 NOT INDEXED SET a=a+100 WHERE (b IS NULL AND c NOT NULL AND d NOT NULL) OR (b NOT NULL AND c IS NULL AND d NOT NULL) OR (b NOT NULL AND c NOT NULL AND d IS NULL)', 'update', 't1', null, true, ['b IS NULL AND c NOT NULL AND d NOT NULL', 'b NOT NULL AND c IS NULL AND d NOT NULL', 'b NOT NULL AND c NOT NULL AND d IS NULL'], [], [[190], [191], [192], [197]], 98, 0, false, [], 'update', [85, 86, 87, 88, 89, 93, 94, 95, 96, 98, 99, 190, 191, 192, 197], 'NOT INDEXED disables OR arm probes for UPDATE'),
+            self::where9OrCase('where9-6.8.1', 'DELETE FROM t1 INDEXED BY t1b WHERE (+b IS NULL AND c NOT NULL AND d NOT NULL) OR (b NOT NULL AND c IS NULL AND d NOT NULL) OR (b NOT NULL AND c NOT NULL AND d IS NULL)', 'delete', 't1', 't1b', false, ['+b IS NULL AND c NOT NULL AND d NOT NULL', 'b NOT NULL AND c IS NULL AND d NOT NULL', 'b NOT NULL AND c NOT NULL AND d IS NULL'], [], [], 0, 0, false, ['t1b'], 'delete', [], 'INDEXED BY t1b admits a legal no-error DELETE even when OR proof is constrained'),
+            self::where9OrCase('where9-6.8.2', 'UPDATE t1 INDEXED BY t1b SET a=a+100 WHERE (+b IS NULL AND c NOT NULL AND d NOT NULL) OR (b NOT NULL AND c IS NULL AND d NOT NULL) OR (b NOT NULL AND c NOT NULL AND d IS NULL)', 'update', 't1', 't1b', false, ['+b IS NULL AND c NOT NULL AND d NOT NULL', 'b NOT NULL AND c IS NULL AND d NOT NULL', 'b NOT NULL AND c NOT NULL AND d IS NULL'], [], [], 0, 0, false, ['t1b'], 'update', [], 'INDEXED BY t1b admits a legal no-error UPDATE even when OR proof is constrained'),
+            self::where9OrCase('where9-7.1.1/7.1.4', "SELECT a FROM t5 WHERE x=? AND (b=913 OR c=27027) ORDER BY a", 'select', 't5', null, false, ['b=913', 'c=27027'], ['x=y or x=n'], [[79], [81], [83]], 0, 1, true, ['t5xb', 't5xc'], null, [79, 80, 81, 83], 'external x term combines with each OR arm through compound indexes'),
+            self::where9OrCase('where9-7.2.1/7.3.2', "SELECT a FROM t5 WHERE (x='y' OR y='y') AND (b=913 OR c=27027) ORDER BY a", 'select', 't5', null, false, ['x=y', 'y=y', 'b=913', 'c=27027'], [], [[79], [81], [83]], 0, 1, true, ['t5xb', 't5yb', 't5xc', 't5yc'], null, [79, 81, 83], 'AND terms outside OR are distributed to x/y compound indexes'),
+            self::where9OrCase('where9-8.1/8.3', 'SELECT * FROM t81 LEFT JOIN t82 ON y=b JOIN t83 WHERE c==p OR d==p ORDER BY +a', 'join', 't81,t82,t83', null, false, ['c==p', 'd==p'], ['LEFT JOIN y=b'], [[2, 3, 4, 5, null, null, 5, 55], [3, 4, 5, 6, 2, 4, 5, 55]], 0, 1, true, ['t81 rowid', 't83 rowid'], null, [2, 3], 'LEFT JOIN rows remain correct when OR terms join to the right table'),
+            self::where9OrCase('where9-9.1', 'SELECT sequence FROM t91 LEFT JOIN t92 ON a=2 OR b=3 variants', 'join', 't91,t92', null, false, ['a=2', 'b=3'], ['LEFT JOIN ON'], [[1], [2], [3], [4], [8], [9]], 0, 0, true, ['t92 rowid'], null, [1, 2, 3, 4, 8, 9], 'OR in LEFT JOIN ON clause preserves matched and unmatched result rows'),
+            self::where9OrCase('where9-10.1/10.2', 'SELECT * FROM t10x AS t0 LEFT JOIN t10x AS t1 ON ... JOIN t10x AS t2 ON (t2.id=t0.id OR ...)', 'join', 't101/t102', null, false, ['t2.id=t0.id', 't2.id=t1.id'], ['LEFT JOIN no-match row'], [[1, null, 1]], 0, 0, true, ['t2 primary key'], null, [1], 'OR join to the right of a LEFT JOIN preserves NULL-extended middle row'),
+            self::where9OrCase('where9-11.1', 'SELECT 1 FROM t1 JOIN t1 USING(a) WHERE a=1 OR (a=2 AND scalar subquery over UNION ALL view)', 'select', 't1,t2 view', null, false, ['a=1', 'a=2 AND scalar subquery'], ['UNION ALL view subquery'], [], 0, 0, true, ['t1 rowid'], null, [], 'multi-index OR copies subexpressions that contain flattened UNION ALL view subqueries'),
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $template['source'] = 'where9.test sections where9-6.4.1 through where9-11.1';
+            $template['case'] = $case;
+            $template['batch'] = intdiv($case - 1, count($templates)) + 1;
+            $template['detail'] .= '; late dynamic replay ' . $template['batch'];
+            $rows[] = $template;
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array<int,mixed>> $resultRows
      * @param list<mixed> $expected
      * @param list<string> $catalogIndexes

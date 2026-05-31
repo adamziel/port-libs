@@ -842,7 +842,7 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : self::textLength((string) $value);
         }
-        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode|quote|typeof|iif|if|likely|unlikely|likelihood)\s*\((.*)\)$/is', $expression, $match) === 1) {
+        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|ceil|ceiling|floor|trunc|sqrt|pow|power|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode|quote|typeof|iif|if|likely|unlikely|likelihood)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }
         $predicate = self::evaluateLimitPredicateExpression($expression);
@@ -1069,6 +1069,12 @@ final class SQLiteUpdateDeleteReturningSql
         if ($function === 'sign' && count($parts) !== 1) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT sign() needs one argument');
         }
+        if (($function === 'ceil' || $function === 'ceiling' || $function === 'floor' || $function === 'trunc' || $function === 'sqrt') && count($parts) !== 1) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
+        }
+        if (($function === 'pow' || $function === 'power') && count($parts) !== 2) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs two arguments");
+        }
         if ($function === 'instr' && count($parts) !== 2) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT instr() needs two arguments');
         }
@@ -1156,6 +1162,38 @@ final class SQLiteUpdateDeleteReturningSql
             }
 
             return (float) $values[0] <=> 0.0;
+        }
+        if ($function === 'ceil' || $function === 'ceiling' || $function === 'floor' || $function === 'trunc' || $function === 'sqrt') {
+            if ($values[0] === null) {
+                return null;
+            }
+            if (!is_int($values[0]) && !is_float($values[0]) && !(is_string($values[0]) && is_numeric($values[0]))) {
+                throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() value must be numeric");
+            }
+            $value = (float) $values[0];
+            if ($function === 'sqrt' && $value < 0.0) {
+                return null;
+            }
+
+            return match ($function) {
+                'ceil', 'ceiling' => ceil($value),
+                'floor' => floor($value),
+                'trunc' => $value < 0.0 ? ceil($value) : floor($value),
+                'sqrt' => sqrt($value),
+                default => throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() is not supported"),
+            };
+        }
+        if ($function === 'pow' || $function === 'power') {
+            foreach ([0, 1] as $index) {
+                if ($values[$index] === null) {
+                    return null;
+                }
+                if (!is_int($values[$index]) && !is_float($values[$index]) && !(is_string($values[$index]) && is_numeric($values[$index]))) {
+                    throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() arguments must be numeric");
+                }
+            }
+
+            return pow((float) $values[0], (float) $values[1]);
         }
         if ($function === 'instr') {
             if ($values[0] === null || $values[1] === null) {

@@ -9,6 +9,7 @@ use PortLibs\LibSqlite\SQLiteJsonImportRollbackWalPlan;
 $scenarios = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(4);
 $preexistingWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalScenarios(4);
 $tenantCollisionScenarios = SQLiteJsonImportRollbackWalPlan::dynamicTenantCollisionScenarios(4);
+$insertedSettingScenarios = SQLiteJsonImportRollbackWalPlan::dynamicInsertedSettingRollbackScenarios(4);
 $deferredScenarios = SQLiteJsonImportRollbackWalPlan::dynamicDeferredFailureScenarios(4);
 $preexistingRetryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalRetryScenarios(4);
 $missingWalTailScenarios = SQLiteJsonImportRollbackWalPlan::dynamicMissingWalTailScenarios(4);
@@ -18,6 +19,7 @@ $summary = [
     'scenarioCount' => count($scenarios),
     'preexistingWalScenarioCount' => count($preexistingWalScenarios),
     'tenantCollisionScenarioCount' => count($tenantCollisionScenarios),
+    'insertedSettingScenarioCount' => count($insertedSettingScenarios),
     'deferredScenarioCount' => count($deferredScenarios),
     'preexistingRetryScenarioCount' => count($preexistingRetryScenarios),
     'missingWalTailScenarioCount' => count($missingWalTailScenarios),
@@ -25,6 +27,7 @@ $summary = [
     'statuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $scenarios),
     'preexistingWalStatuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $preexistingWalScenarios),
     'tenantCollisionStatuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $tenantCollisionScenarios),
+    'insertedSettingStatuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $insertedSettingScenarios),
     'deferredStatuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $deferredScenarios),
     'preexistingRetryStatuses' => array_map(static fn (array $scenario): string => $scenario['retry_plan']['status'], $preexistingRetryScenarios),
     'walFramesBefore' => array_map(static fn (array $scenario): int => $scenario['plan']['wal_frame_count_before'], $scenarios),
@@ -33,6 +36,9 @@ $summary = [
     'preexistingWalTruncateBytes' => array_map(static fn (array $scenario): int => $scenario['plan']['wal_truncate_to_bytes'], $preexistingWalScenarios),
     'tenantCollisionStablePages' => array_map(static fn (array $scenario): int => $scenario['stable_page'], $tenantCollisionScenarios),
     'tenantCollisionRestoredPages' => array_map(static fn (array $scenario): array => $scenario['plan']['rollback_to_savepoint']['restored_page_numbers'], $tenantCollisionScenarios),
+    'insertedSettingIds' => array_map(static fn (array $scenario): array => $scenario['inserted_setting_ids'], $insertedSettingScenarios),
+    'insertedSettingRestoredPages' => array_map(static fn (array $scenario): array => $scenario['plan']['rollback_to_savepoint']['restored_page_numbers'], $insertedSettingScenarios),
+    'insertedSettingWalFramesAfter' => array_map(static fn (array $scenario): int => $scenario['plan']['wal_frame_count_after'], $insertedSettingScenarios),
     'deferredWalFramesAfter' => array_map(static fn (array $scenario): int => $scenario['plan']['wal_frame_count_after'], $deferredScenarios),
     'preexistingRetryFailedWalFramesAfter' => array_map(static fn (array $scenario): int => $scenario['failed_plan']['wal_frame_count_after'], $preexistingRetryScenarios),
     'preexistingRetryWalFramesAfter' => array_map(static fn (array $scenario): int => $scenario['retry_plan']['wal_frame_count_after'], $preexistingRetryScenarios),
@@ -48,6 +54,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['scenarioCount'] === 4);
     assert($summary['preexistingWalScenarioCount'] === 4);
     assert($summary['tenantCollisionScenarioCount'] === 4);
+    assert($summary['insertedSettingScenarioCount'] === 4);
     assert($summary['deferredScenarioCount'] === 4);
     assert($summary['preexistingRetryScenarioCount'] === 4);
     assert($summary['missingWalTailScenarioCount'] === 4);
@@ -55,6 +62,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['statuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['preexistingWalStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['tenantCollisionStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
+    assert($summary['insertedSettingStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['deferredStatuses'] === array_fill(0, 4, 'partial_rollback'));
     assert($summary['preexistingRetryStatuses'] === array_fill(0, 4, 'ready'));
     assert($summary['walFramesAfter'] === array_fill(0, 4, 0));
@@ -62,6 +70,9 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['preexistingWalTruncateBytes'][0] === 1640);
     assert($summary['tenantCollisionStablePages'] === [81, 82, 83, 84]);
     assert($summary['tenantCollisionRestoredPages'][0] === [19]);
+    assert($summary['insertedSettingIds'][0] === [5003, 5004]);
+    assert($summary['insertedSettingRestoredPages'][0] === [25, 181, 231]);
+    assert($summary['insertedSettingWalFramesAfter'] === array_fill(0, 4, 0));
     assert($summary['deferredWalFramesAfter'] === [5, 6, 7, 8]);
     assert($summary['preexistingRetryFailedWalFramesAfter'] === [2, 3, 4, 5]);
     assert($summary['preexistingRetryWalFramesAfter'] === [2, 3, 4, 5]);

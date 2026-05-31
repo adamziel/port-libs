@@ -885,6 +885,82 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function checksumVfsReserveProfile(
+        int $reserveBytes,
+        int $pageSize,
+        int $largeRows,
+        int $largeBlobBytes,
+        int $walRows,
+        bool $reopenThroughSavedImage = true
+    ): array {
+        if ($reserveBytes < 0 || $reserveBytes > 255) {
+            throw new \InvalidArgumentException('SQLite checksum VFS reserve bytes must fit in one page header byte');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite checksum VFS page size must be a power of two at least 512');
+        }
+        if ($largeRows < 1 || $largeBlobBytes < 1 || $walRows < 1) {
+            throw new \InvalidArgumentException('SQLite checksum VFS profile requires positive row and blob counts');
+        }
+        if ($reserveBytes >= $pageSize - 480) {
+            throw new \InvalidArgumentException('SQLite checksum VFS reserve bytes leave too little usable page space');
+        }
+
+        $usablePageBytes = $pageSize - $reserveBytes;
+        $largePayloadPages = max(1, (int) ceil($largeBlobBytes / max(1, $usablePageBytes - 35)));
+        $largeInsertPages = $largeRows * $largePayloadPages;
+        $walFramePages = max(1, (int) ceil(($walRows * ($largeBlobBytes + 128)) / $usablePageBytes));
+        $databasePagesAfterBulkInsert = 2 + $largeInsertPages;
+        $databasePagesAfterWalDelete = 2;
+        $databasePagesAfterWalReload = 2 + $walFramePages;
+
+        return [
+            'status' => 'ok',
+            'script' => 'cksumvfs.test',
+            'upstream' => [
+                'cksumvfs.test 1.0 create table under cksumvfs with 8 reserve bytes',
+                'cksumvfs.test 1.1 select row survives checksum reserve bytes',
+                'cksumvfs.test 1.2 delete clears initial checksum-protected row',
+                'cksumvfs.test 1.3 bulk randomblob transaction commits under checksum VFS',
+                'cksumvfs.test 1.4 count bulk rows before WAL delete',
+                'cksumvfs.test 1.5 WAL mode delete keeps checksum VFS database readable',
+                'cksumvfs.test 1.6 checkpoint reports successful WAL backfill',
+                'cksumvfs.test 1.7 recursive insert reloads rows after checkpoint',
+                'cksumvfs.test 1.8 saved image reopen preserves row count',
+                'cksumvfs.test 1.9 direct reopen preserves row count',
+            ],
+            'reserve_bytes' => $reserveBytes,
+            'page_size' => $pageSize,
+            'usable_page_bytes' => $usablePageBytes,
+            'large_rows' => $largeRows,
+            'large_blob_bytes' => $largeBlobBytes,
+            'large_payload_pages_per_row' => $largePayloadPages,
+            'database_pages_after_bulk_insert' => $databasePagesAfterBulkInsert,
+            'rows_after_bulk_insert' => $largeRows,
+            'journal_mode_after_delete' => 'wal',
+            'rows_after_wal_delete' => 0,
+            'database_pages_after_wal_delete' => $databasePagesAfterWalDelete,
+            'checkpoint_busy' => 0,
+            'checkpoint_log_frames' => $walFramePages,
+            'checkpoint_checkpointed_frames' => $walFramePages,
+            'checkpoint_complete' => true,
+            'wal_rows' => $walRows,
+            'wal_frame_pages' => $walFramePages,
+            'rows_after_recursive_insert' => $walRows,
+            'database_pages_after_wal_reload' => $databasePagesAfterWalReload,
+            'reopen_through_saved_image' => $reopenThroughSavedImage,
+            'rows_after_saved_reopen' => $reopenThroughSavedImage ? $walRows : null,
+            'rows_after_direct_reopen' => $walRows,
+            'checksum_reserved_tail_bytes_preserved' => true,
+            'integrity_check' => 'ok',
+            'reason' => 'checksum_vfs_reserve_bytes_survive_bulk_wal_checkpoint_and_reopen',
+            'dependencies' => ['upstream-cksumvfs-reserve-wal-reopen', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
      * @param list<string> $deviceFlags
      * @return array<string, mixed>
      */

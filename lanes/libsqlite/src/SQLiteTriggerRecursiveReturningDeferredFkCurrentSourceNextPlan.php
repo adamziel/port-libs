@@ -113,6 +113,8 @@ final class SQLiteTriggerRecursiveReturningDeferredFkCurrentSourceNextPlan
             'trigger_effects' => $triggerEffects,
             'foreign_key_actions' => self::foreignKeyActions($parents, $children, $spec),
             'foreign_key_violations' => $violations,
+            'statement_changes' => count($topLevelYielded),
+            'next_statement_changes' => $rollback ? 0 : count($topLevelYielded),
             'current_changes' => $changes,
             'next_changes' => $rollback ? 0 : $changes,
             'yield_suppressed_by_rollback' => $rollback && $topLevelYielded !== [],

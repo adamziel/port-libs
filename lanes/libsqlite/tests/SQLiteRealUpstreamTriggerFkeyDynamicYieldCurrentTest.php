@@ -118,6 +118,15 @@ foreach ($cases as $id => $case) {
         $expected = $case['trigger'] && $case['recursive'] ? 5 - (int) $case['start'] : 1;
         $t->same($expected, $plan['current_changes']);
     };
+    $tests['real upstream trigger2 top level count changes dynamic ' . $id . ' statement changes'] = static function (TestRunner $t) use ($run, $case): void {
+        $plan = $run($case);
+        $t->same(1, $plan['statement_changes']);
+    };
+    $tests['real upstream fkey2 count changes dynamic ' . $id . ' next statement changes'] = static function (TestRunner $t) use ($run, $case): void {
+        $plan = $run($case);
+        $expected = $case['children'] && $case['rollback'] ? 0 : 1;
+        $t->same($expected, $plan['next_statement_changes']);
+    };
     $tests['real upstream trigger2 cascade yield dynamic ' . $id . ' effect count'] = static function (TestRunner $t) use ($run, $case): void {
         $plan = $run($case);
         $expected = $case['trigger'] && $case['recursive'] ? max(0, 4 - (int) $case['start']) : 0;
@@ -134,12 +143,16 @@ $tests['real upstream trigger fkey yield dynamic cites upstream corpus files'] =
     $t->same([
         'fkey2.test fkey2-2.* deferred foreign keys inside explicit transactions',
         'fkey2.test fkey2-4.* FK actions recurse even when recursive triggers are disabled',
+        'fkey2.test fkey2-17.* count_changes does not interfere with FK processing',
         'trigger2.test trigger2-4.* cascaded trigger execution and recursive trigger handling',
+        'trigger2.test trigger2-5 trigger side effects are excluded from top-level change count',
         'trigger3.test trigger3-3.* RAISE rollback behavior at statement/savepoint boundary',
     ], [
         'fkey2.test fkey2-2.* deferred foreign keys inside explicit transactions',
         'fkey2.test fkey2-4.* FK actions recurse even when recursive triggers are disabled',
+        'fkey2.test fkey2-17.* count_changes does not interfere with FK processing',
         'trigger2.test trigger2-4.* cascaded trigger execution and recursive trigger handling',
+        'trigger2.test trigger2-5 trigger side effects are excluded from top-level change count',
         'trigger3.test trigger3-3.* RAISE rollback behavior at statement/savepoint boundary',
     ]);
 };

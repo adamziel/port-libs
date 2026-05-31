@@ -429,6 +429,123 @@ final class SQLiteJsonImportRollbackWalPlan
     /**
      * @return list<array<string,mixed>>
      */
+    public static function dynamicInsertedSettingRollbackScenarios(int $scenarioCount = 18): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL inserted-setting dynamic parity requires at least one scenario');
+        }
+
+        $scenarios = [];
+        for ($seed = 1; $seed <= $scenarioCount; $seed++) {
+            $pageSize = $seed % 2 === 0 ? 1024 : 512;
+            $tenantId = 4100 + $seed;
+            $basePage = 24 + ($seed % 6);
+            $insertPage = 180 + $seed;
+            $auditInsertPage = 230 + $seed;
+            $brokenPage = 280 + $seed;
+            $walFramesBefore = 4 + ($seed % 5);
+            $jsonbMode = $seed % 2 === 0;
+
+            $rows = [
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 5000 + 1,
+                    'key_name' => 'insert_base_payload_' . $seed,
+                    'key_value' => json_encode(['enabled' => false, 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'yes',
+                    'page_number' => $basePage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 5000 + 2,
+                    'key_name' => 'insert_broken_payload_' . $seed,
+                    'key_value' => '{"broken":',
+                    'load_policy' => 'no',
+                    'page_number' => $brokenPage,
+                ],
+            ];
+
+            $mutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'insert_enable_base_' . $seed,
+                    'key_name' => 'insert_base_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'insert_new_payload_' . $seed,
+                    'key_name' => 'insert_new_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.source',
+                    'value' => 'batch-' . $seed,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $seed * 5000 + 3,
+                    'insert_load_policy' => 'no',
+                    'initial_value' => $jsonbMode ? new SQLiteBlobValue(SQLiteJsonB::encode(['source' => 'initial'])) : '{}',
+                    'page_number' => $insertPage,
+                    'wal_frame_index' => 2,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'insert_audit_payload_' . $seed,
+                    'key_name' => 'insert_audit_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.audit',
+                    'value' => true,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $seed * 5000 + 4,
+                    'insert_load_policy' => 'yes',
+                    'initial_value' => '{}',
+                    'page_number' => $auditInsertPage,
+                    'wal_frame_index' => 3,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'insert_broken_payload_' . $seed,
+                    'key_name' => 'insert_broken_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => 4,
+                ],
+            ];
+
+            $databaseBytes = self::scenarioDatabaseBytes($pageSize, max($brokenPage, $auditInsertPage, $insertPage, $basePage));
+            $walBytes = self::scenarioWalBytes($pageSize, $walFramesBefore, 0x8400 + $seed, 0x8500 + $seed);
+            $plan = self::plan($rows, $mutations, [
+                'database_bytes' => $databaseBytes,
+                'page_size' => $pageSize,
+                'wal_bytes' => $walBytes,
+                'transaction' => 'application_inserted_setting_json_import_' . $seed,
+                'savepoint' => 'inserted_setting_json_batch_' . $seed,
+            ]);
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $tenantId,
+                'page_size' => $pageSize,
+                'jsonb_mode' => $jsonbMode,
+                'wal_frames_before' => $walFramesBefore,
+                'inserted_setting_ids' => [$seed * 5000 + 3, $seed * 5000 + 4],
+                'inserted_key_names' => ['insert_new_payload_' . $seed, 'insert_audit_payload_' . $seed],
+                'expected_restored_pages' => [$basePage, $insertPage, $auditInsertPage],
+                'expected_failed_statement' => 'insert_broken_payload_' . $seed,
+                'database_bytes' => $databaseBytes,
+                'wal_bytes' => $walBytes,
+                'plan' => $plan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
     public static function dynamicDeferredFailureScenarios(int $scenarioCount = 16): array
     {
         if ($scenarioCount < 1) {

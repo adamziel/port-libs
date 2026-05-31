@@ -1116,6 +1116,7 @@ final class SQLiteSelectQuery
                 'USING' => SQLiteSelectResult::joinUsing($rows, $rightRows, self::usingColumns($join), (bool) ($join['left'] ?? false)),
                 default => throw new \InvalidArgumentException("SQLite SELECT query join type {$type} is not supported"),
             };
+            $rows = self::materializeCoalescedJoinColumns($rows, $join);
         }
 
         return $rows;
@@ -1161,10 +1162,61 @@ final class SQLiteSelectQuery
         }
 
         if ($type === 'INNER' || $type === 'LEFT' || $type === 'CROSS') {
-            return $joined;
+            return self::materializeCoalescedJoinColumns($joined, $join);
         }
 
         throw new \InvalidArgumentException("SQLite SELECT query join type {$type} is not supported");
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function materializeCoalescedJoinColumns(array $rows, array $join): array
+    {
+        if (!isset($join['coalesceColumns'])) {
+            return $rows;
+        }
+        if (!is_array($join['coalesceColumns']) || !array_is_list($join['coalesceColumns'])) {
+            throw new \InvalidArgumentException('SQLite SELECT query coalesced join columns must be a list');
+        }
+
+        foreach ($join['coalesceColumns'] as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite SELECT query coalesced join column names must be strings');
+            }
+        }
+
+        foreach ($rows as $rowIndex => $row) {
+            foreach ($join['coalesceColumns'] as $column) {
+                if (array_key_exists($column, $row)) {
+                    continue;
+                }
+
+                $sawColumn = false;
+                $coalesced = null;
+                $suffix = '.' . strtolower($column);
+                foreach ($row as $candidate => $value) {
+                    if (
+                        !is_string($candidate)
+                        || (strtolower($candidate) !== $column && !str_ends_with(strtolower($candidate), $suffix))
+                    ) {
+                        continue;
+                    }
+                    $sawColumn = true;
+                    if ($value !== null) {
+                        $coalesced = $value;
+                        break;
+                    }
+                }
+                if ($sawColumn) {
+                    $row[$column] = $coalesced;
+                }
+            }
+            $rows[$rowIndex] = $row;
+        }
+
+        return $rows;
     }
 
     /**

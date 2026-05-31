@@ -769,13 +769,15 @@ final class SQLiteSelectExpression
             return self::integerLike($leftNumeric, $rightNumeric) ? $remainder : (float) $remainder;
         }
 
-        return match ($operator) {
+        $result = match ($operator) {
             '+' => self::integerLike($leftNumeric, $rightNumeric) ? (int) $leftNumeric + (int) $rightNumeric : $leftNumeric + $rightNumeric,
             '-' => self::integerLike($leftNumeric, $rightNumeric) ? (int) $leftNumeric - (int) $rightNumeric : $leftNumeric - $rightNumeric,
             '*' => self::integerLike($leftNumeric, $rightNumeric) ? (int) $leftNumeric * (int) $rightNumeric : $leftNumeric * $rightNumeric,
             '/' => self::integerLike($leftNumeric, $rightNumeric) ? self::integerDivisionValue((int) $leftNumeric, (int) $rightNumeric) : $leftNumeric / $rightNumeric,
             default => throw new \InvalidArgumentException("SQLite SELECT numeric operator {$operator} is not supported"),
         };
+
+        return is_float($result) && is_nan($result) ? null : $result;
     }
 
     private static function integerDivisionValue(int $left, int $right): int|float

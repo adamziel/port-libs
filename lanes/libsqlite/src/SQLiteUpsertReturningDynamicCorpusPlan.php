@@ -612,6 +612,80 @@ final class SQLiteUpsertReturningDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{upstream:string,source:string,seed:int,before:list<array<string,int|string>>,incoming:list<array<string,int|string>>,constraints:list<list<string>>,arms:list<array<string,mixed>>,after:list<array<string,int|string>>,returning:list<array<string,int|string>>,events:list<string>,matched:list<string>,changes:int,skipped:int,dependencies:list<string>}>
+     */
+    public static function upsert2RepeatedConflictReturningDynamicCases(int $caseCount = 1000): array
+    {
+        if ($caseCount < 1) {
+            throw new \InvalidArgumentException('SQLite upstream UPSERT repeated-conflict corpus case count must be positive');
+        }
+
+        $cases = [];
+        for ($seed = 1; $seed <= $caseCount; ++$seed) {
+            $base = $seed * 1000;
+            $before = [
+                ['a' => $base + 1, 'b' => $base + 10, 'c' => 0, 'tag' => 'seed-a'],
+                ['a' => $base + 2, 'b' => $base + 20, 'c' => 0, 'tag' => 'seed-b'],
+            ];
+            $incoming = [
+                ['a' => $base + 1, 'b' => $base + 11, 'c' => 1, 'tag' => 'first-update'],
+                ['a' => $base + 3, 'b' => $base + 30, 'c' => 0, 'tag' => 'inserted'],
+                ['a' => $base + 1, 'b' => $base + 12, 'c' => 2, 'tag' => 'second-update'],
+                ['a' => $base + 2, 'b' => $base + 19, 'c' => 9, 'tag' => 'where-false'],
+                ['a' => $base + 2, 'b' => $base + 25, 'c' => 3, 'tag' => 'third-update'],
+            ];
+            $constraints = [['a']];
+            $arms = [[
+                'target' => ['a'],
+                'action' => 'update',
+                'assignments' => [
+                    'b' => static fn (array $current, array $row): int => (int) $row['b'],
+                    'c' => static fn (array $current): int => (int) $current['c'] + 1,
+                    'tag' => static fn (array $current, array $row): string => (string) $row['tag'],
+                ],
+                'where' => static fn (array $current, array $row): bool => (int) $row['b'] > (int) $current['b'],
+            ]];
+            $plan = SQLiteUpsertDoUpdateWherePlan::executeConflictArmsWithYieldTrace($before, $incoming, $arms, $constraints);
+
+            $cases[] = [
+                'upstream' => 'upsert2-200/201-repeated-conflict-returning-dynamic-' . $seed,
+                'source' => 'upsert2.test + returning1.test',
+                'seed' => $seed,
+                'before' => $before,
+                'incoming' => $incoming,
+                'constraints' => $constraints,
+                'arms' => $arms,
+                'after' => [
+                    ['a' => $base + 1, 'b' => $base + 12, 'c' => 2, 'tag' => 'second-update'],
+                    ['a' => $base + 2, 'b' => $base + 25, 'c' => 1, 'tag' => 'third-update'],
+                    ['a' => $base + 3, 'b' => $base + 30, 'c' => 0, 'tag' => 'inserted'],
+                ],
+                'returning' => [
+                    ['a' => $base + 1, 'b' => $base + 11, 'c' => 1, 'tag' => 'first-update'],
+                    ['a' => $base + 3, 'b' => $base + 30, 'c' => 0, 'tag' => 'inserted'],
+                    ['a' => $base + 1, 'b' => $base + 12, 'c' => 2, 'tag' => 'second-update'],
+                    ['a' => $base + 2, 'b' => $base + 25, 'c' => 1, 'tag' => 'third-update'],
+                ],
+                'events' => array_column($plan['yield_trace'], 'event'),
+                'matched' => array_map(
+                    static fn (array $match): string => $match['target'] === null ? '*' : implode(',', $match['target']),
+                    $plan['matched_arms'],
+                ),
+                'changes' => 4,
+                'skipped' => 1,
+                'dependencies' => [
+                    'upsert2.test-200-201',
+                    'returning1.test-4.5',
+                    'sqlite-upsert-repeated-conflict-current-row-image',
+                    'sqlite-returning-changed-row-stream',
+                ],
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
      * @return list<array{upstream:string,source:string,seed:int,schema:string,without_rowid:bool,before:list<array<string,int|string>>,incoming:list<array<string,int|string>>,constraints:list<list<string>>,arms:list<array<string,mixed>>,after:list<array<string,int|string>>,returning:list<array<string,int|string>>,matched:list<string>,changes:int,skipped:int,dependencies:list<string>}>
      */
     public static function upsert1TargetFirstReturningDynamicCases(int $caseCount = 1000): array
