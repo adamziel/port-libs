@@ -6123,3 +6123,21 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Public pass/mapped counters remain `188,257 pass / 0 fail` and `830 / 1589`
   because this batch removes numbered helper/test suffixes and adds focused
   guard coverage rather than claiming new upstream denominator rows.
+
+## Supervisor Integration 2026-05-31T04:50Z Libsqlite Seventy-Third Sweep
+
+- Integrated 21 current-base libsqlite handoffs as source commit
+  `005d6d297 libsqlite: add seventy-third current corpus sweep`.
+- Public selected libsqlite evidence moves from `2125874` to `2168479 pass / 0
+  fail`, a net `+42605` PASS-line increase after subtracting `16209` accepted
+  base-overlap PASS lines. Mapped coverage remains `1589 / 1589`.
+- Verification passed PHP lint for 27 changed/new PHP files, `git diff --check
+  -- lanes/libsqlite`, no new WordPress/wp source text in changed libsqlite
+  source, no new numbered `CurrentNext`/`CurrentSourceNext` class suffixes,
+  focused selected tests `20 files / 226790 assertions / 0 failures / 58814
+  PASS lines`, base overlap `5 files / 70376 assertions / 0 failures / 16209
+  PASS lines`, and related guard `895 files / 11500357 assertions / 0 failures
+  / 1843155 PASS lines`.
+- Parked two direct JSON/app-WAL conflicts and skipped two notes-only markers.
+  Libsqlite remains active until broad release/all-runner and known-red
+  diagnostic clusters are closed; gitoxide stays next after libsqlite.
