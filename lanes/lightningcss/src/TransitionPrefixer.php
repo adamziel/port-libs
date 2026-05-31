@@ -6260,7 +6260,7 @@ final class TransitionPrefixer
 
         foreach ($entries as $entry) {
             $isCustomProperty = str_starts_with($entry['property'], '--');
-            if (!$isCustomProperty && !in_array($entry['property'], ['background', 'background-color', 'background-image'], true)) {
+            if (!$isCustomProperty && !$this->propertySupportsAdvancedColorFallback($entry['property'])) {
                 $rewritten[] = $entry;
                 continue;
             }
@@ -6274,12 +6274,13 @@ final class TransitionPrefixer
                 continue;
             }
 
+            $hasCustomPropertyReference = $this->containsCustomPropertyReference($normalized);
             $p3Fallback = $useP3Fallback ? $this->advancedColorP3FallbackValue($normalized, $isCustomProperty) : null;
-            $labFallback = $this->advancedColorLabFallbackValue($normalized, $isCustomProperty);
+            $labFallback = $this->advancedColorLabFallbackValue($normalized, $isCustomProperty || $hasCustomPropertyReference);
             $rewritten[] = $this->entryWithValue($entry, $srgbFallback);
             $changed = true;
 
-            if ($isCustomProperty || $this->containsCustomPropertyReference($normalized)) {
+            if ($isCustomProperty || $hasCustomPropertyReference) {
                 if ($p3Fallback !== null && $p3Fallback !== $srgbFallback) {
                     $p3SupportEntries[] = $this->entryWithValue($entry, $p3Fallback);
                 }
@@ -6307,6 +6308,17 @@ final class TransitionPrefixer
         $entries = $rewritten;
 
         return $changed;
+    }
+
+    private function propertySupportsAdvancedColorFallback(string $property): bool
+    {
+        return in_array($property, [
+            'background',
+            'background-color',
+            'background-image',
+            'outline',
+            'outline-color',
+        ], true);
     }
 
     /**

@@ -1640,6 +1640,26 @@ CSS;
             $prefixer->prefixLegacySafari('@supports (color: lab(0% 0 0)) { .foo { background: linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364)) } }')
         );
     },
+    'transition prefixer maps upstream outline advanced color target fallbacks' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{outline-color:#b32323;outline-color:lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { outline-color: lab(40% 56.6 39) }', ['chrome' => 90])
+        );
+        $t->same(
+            '.foo{outline:2px solid #b32323;outline:2px solid lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { outline: 2px solid lab(40% 56.6 39) }', ['chrome' => 90])
+        );
+        $t->same(
+            '.foo{outline:var(--width) solid #b32323}@supports (color:lab(0% 0 0)){.foo{outline:var(--width) solid lab(40% 56.6 39)}}',
+            $prefixer->prefixForTargets('.foo { outline: var(--width) solid lab(40% 56.6 39) }', ['chrome' => 90])
+        );
+        $t->same(
+            '.foo{outline-color:lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { outline-color: lab(40% 56.6 39) }', ['chrome' => 111])
+        );
+    },
     'transition prefixer maps upstream oklab and oklch lab target fallbacks' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
