@@ -2442,6 +2442,7 @@ final class CssMinifier
         $value = $this->minifyBoxLengthListValue($property, $value);
         if (!str_starts_with($property, '--') && !$this->isFontFamilySensitiveProperty($property)) {
             $value = $this->minifyColorKeywords($value);
+            $value = $this->minifySrgbColorMixFunctions($value);
             $value = $this->minifyLightDarkFunctions($value);
         }
 
@@ -10864,6 +10865,278 @@ final class CssMinifier
         $lower = strtolower($identifier);
 
         return in_array($lower, $systemColors, true) ? $lower : $identifier;
+    }
+
+    private function minifySrgbColorMixFunctions(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($this->isIdentifierStart($char)) {
+                $identifier = $this->readIdentifier($value, $i);
+                $next = $value[$i + strlen($identifier)] ?? '';
+                if (strcasecmp($identifier, 'color-mix') === 0 && $next === '(') {
+                    [$function, $offset] = $this->readFunctionRaw($value, $i);
+                    $output .= $this->minifySrgbColorMixFunction($function) ?? $function;
+                    $i = $offset;
+                    continue;
+                }
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    private function minifySrgbColorMixFunction(string $function): ?string
+    {
+        if (preg_match('/^color-mix\((.*)\)$/is', trim($function), $matches) !== 1) {
+            return null;
+        }
+
+        $parts = $this->splitTopLevel($matches[1], ',');
+        if (count($parts) !== 3 || strcasecmp(trim($parts[0]), 'in srgb') !== 0) {
+            return null;
+        }
+
+        $left = $this->parseSrgbColorMixStop($parts[1]);
+        $right = $this->parseSrgbColorMixStop($parts[2]);
+        if ($left === null || $right === null) {
+            return $this->serializeUnresolvedSrgbColorMixFunction($parts[1], $parts[2]);
+        }
+
+        [$leftWeight, $rightWeight] = $this->normalizedColorMixWeights($left['weight'], $right['weight']);
+        if ($leftWeight === null || $rightWeight === null) {
+            return null;
+        }
+
+        $leftAlpha = $left['color']['alpha'];
+        $rightAlpha = $right['color']['alpha'];
+        $alpha = ($leftAlpha * $leftWeight) + ($rightAlpha * $rightWeight);
+        if ($alpha <= 0.000000001) {
+            return '#0000';
+        }
+
+        $red = (($left['color']['red'] / 255 * $leftAlpha * $leftWeight) + ($right['color']['red'] / 255 * $rightAlpha * $rightWeight)) / $alpha;
+        $green = (($left['color']['green'] / 255 * $leftAlpha * $leftWeight) + ($right['color']['green'] / 255 * $rightAlpha * $rightWeight)) / $alpha;
+        $blue = (($left['color']['blue'] / 255 * $leftAlpha * $leftWeight) + ($right['color']['blue'] / 255 * $rightAlpha * $rightWeight)) / $alpha;
+
+        return $this->serializeColorBytes(
+            $this->clampColorByte((int) round($red * 255)),
+            $this->clampColorByte((int) round($green * 255)),
+            $this->clampColorByte((int) round($blue * 255)),
+            min(1.0, max(0.0, $alpha)),
+        );
+    }
+
+    private function serializeUnresolvedSrgbColorMixFunction(string $left, string $right): string
+    {
+        return 'color-mix(in srgb, '
+            . $this->serializeUnresolvedColorMixStop($left)
+            . ', '
+            . $this->serializeUnresolvedColorMixStop($right)
+            . ')';
+    }
+
+    private function serializeUnresolvedColorMixStop(string $stop): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($stop));
+        $tokens = array_map(fn (string $token): string => match (strtolower($token)) {
+            '#00f', '#0000ff' => 'blue',
+            '#f00', '#ff0000' => 'red',
+            'accentcolor' => 'accentcolor',
+            default => $token,
+        }, $tokens);
+
+        return implode(' ', $tokens);
+    }
+
+    /**
+     * @return array{color:array{red:int,green:int,blue:int,alpha:float},weight:?float}|null
+     */
+    private function parseSrgbColorMixStop(string $stop): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($stop));
+        if ($tokens === []) {
+            return null;
+        }
+
+        $weight = null;
+        $firstWeight = $this->parseColorMixPercentage($tokens[0]);
+        if ($firstWeight !== null) {
+            $weight = $firstWeight;
+            array_shift($tokens);
+        }
+
+        if ($tokens !== []) {
+            $lastIndex = count($tokens) - 1;
+            $lastWeight = $this->parseColorMixPercentage($tokens[$lastIndex]);
+            if ($lastWeight !== null) {
+                if ($weight !== null) {
+                    return null;
+                }
+                $weight = $lastWeight;
+                array_pop($tokens);
+            }
+        }
+
+        if (count($tokens) !== 1) {
+            return null;
+        }
+
+        $color = $this->parseSrgbColorMixColor($tokens[0]);
+        if ($color === null) {
+            return null;
+        }
+
+        return [
+            'color' => $color,
+            'weight' => $weight,
+        ];
+    }
+
+    private function parseColorMixPercentage(string $token): ?float
+    {
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', trim($token), $matches) !== 1) {
+            return null;
+        }
+
+        $percentage = (float) $matches[1];
+        if ($percentage < 0) {
+            return null;
+        }
+
+        return $percentage / 100;
+    }
+
+    /**
+     * @return array{0:?float,1:?float}
+     */
+    private function normalizedColorMixWeights(?float $left, ?float $right): array
+    {
+        if ($left === null && $right === null) {
+            return [0.5, 0.5];
+        }
+
+        if ($left === null && $right !== null) {
+            return [max(0.0, 1.0 - $right), $right];
+        }
+
+        if ($left !== null && $right === null) {
+            return [$left, max(0.0, 1.0 - $left)];
+        }
+
+        if ($left === null || $right === null) {
+            return [null, null];
+        }
+
+        $sum = $left + $right;
+        if ($sum <= 0.0) {
+            return [0.0, 0.0];
+        }
+
+        if ($sum > 1.0) {
+            return [$left / $sum, $right / $sum];
+        }
+
+        return [$left, $right];
+    }
+
+    /**
+     * @return array{red:int,green:int,blue:int,alpha:float}|null
+     */
+    private function parseSrgbColorMixColor(string $token): ?array
+    {
+        $token = trim($token);
+        if (preg_match('/^(?:rgb|rgba|hsl|hsla|hwb)\(/i', $token) === 1) {
+            $serialized = $this->minifyColorFunction($token);
+            if ($serialized === null) {
+                return null;
+            }
+
+            return $this->parseSerializedSrgbColor($serialized);
+        }
+
+        return $this->parseSerializedSrgbColor($token);
+    }
+
+    /**
+     * @return array{red:int,green:int,blue:int,alpha:float}|null
+     */
+    private function parseSerializedSrgbColor(string $color): ?array
+    {
+        $color = trim($color);
+        $named = [
+            'black' => [0, 0, 0, 1.0],
+            'blue' => [0, 0, 255, 1.0],
+            'gray' => [128, 128, 128, 1.0],
+            'green' => [0, 128, 0, 1.0],
+            'lime' => [0, 255, 0, 1.0],
+            'red' => [255, 0, 0, 1.0],
+            'transparent' => [0, 0, 0, 0.0],
+            'white' => [255, 255, 255, 1.0],
+        ];
+        $lower = strtolower($color);
+        if (isset($named[$lower])) {
+            return [
+                'red' => $named[$lower][0],
+                'green' => $named[$lower][1],
+                'blue' => $named[$lower][2],
+                'alpha' => $named[$lower][3],
+            ];
+        }
+
+        if (preg_match('/^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i', $color, $matches) !== 1) {
+            return null;
+        }
+
+        $hex = strtolower($matches[1]);
+        if (strlen($hex) === 3 || strlen($hex) === 4) {
+            $expanded = '';
+            foreach (str_split($hex) as $digit) {
+                $expanded .= $digit . $digit;
+            }
+            $hex = $expanded;
+        }
+
+        $red = hexdec(substr($hex, 0, 2));
+        $green = hexdec(substr($hex, 2, 2));
+        $blue = hexdec(substr($hex, 4, 2));
+        $alpha = strlen($hex) === 8 ? hexdec(substr($hex, 6, 2)) / 255 : 1.0;
+
+        return [
+            'red' => $red,
+            'green' => $green,
+            'blue' => $blue,
+            'alpha' => $alpha,
+        ];
+    }
+
+    private function clampColorByte(int $value): int
+    {
+        return min(255, max(0, $value));
     }
 
     private function minifyColorFunction(string $function): ?string

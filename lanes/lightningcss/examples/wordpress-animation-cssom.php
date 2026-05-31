@@ -9,8 +9,34 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $declarations = 'animation: core-block-fade 240ms ease-out both';
 $block = new DeclarationBlock();
 
-echo json_encode([
+$actual = [
     'animationName' => $block->getProperty($declarations, 'animation-name'),
+    'duration' => $block->getProperty($declarations, 'animation-duration'),
+    'fillMode' => $block->getProperty($declarations, 'animation-fill-mode'),
     'rewrittenDeclarations' => $block->setProperty($declarations, 'animation-name', 'wp-block-fade-in'),
+    'slowerEntrance' => $block->setProperty($declarations, 'animation-duration', '320ms'),
     'multiNameFallback' => $block->setProperty('animation: core-block-fade 240ms', 'animation-name', 'wp-block-fade-in, wp-block-slide-up'),
-], JSON_PRETTY_PRINT) . "\n";
+    'durationRemoved' => $block->removeProperty($declarations, 'animation-duration'),
+];
+
+$expected = [
+    'animationName' => ['value' => 'core-block-fade', 'important' => false],
+    'duration' => ['value' => '240ms', 'important' => false],
+    'fillMode' => ['value' => 'both', 'important' => false],
+    'rewrittenDeclarations' => 'animation: 240ms ease-out both wp-block-fade-in',
+    'slowerEntrance' => 'animation: 320ms ease-out both core-block-fade',
+    'multiNameFallback' => 'animation: 240ms core-block-fade; animation-name: wp-block-fade-in, wp-block-slide-up',
+    'durationRemoved' => 'animation-name: core-block-fade; animation-timing-function: ease-out; animation-iteration-count: 1; animation-direction: normal; animation-play-state: running; animation-delay: 0s; animation-fill-mode: both; animation-timeline: auto',
+];
+
+if (($argv[1] ?? null) === '--self-test') {
+    if ($actual !== $expected) {
+        fwrite(STDERR, "Unexpected animation CSSOM output:\n" . var_export($actual, true) . "\n");
+        exit(1);
+    }
+
+    echo "OK\n";
+    exit(0);
+}
+
+echo json_encode($actual, JSON_PRETTY_PRINT) . "\n";

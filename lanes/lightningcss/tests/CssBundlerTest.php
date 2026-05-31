@@ -454,6 +454,31 @@ CSS,
             ]),
         ], $result['exports']);
     },
+    'css bundler omits unresolved upstream css module dependency exports' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
+        $result = $bundleModules([
+            '/entry.css' => <<<'CSS'
+.card {
+  composes: missing from "./tokens.css";
+  background: red;
+}
+CSS,
+            '/tokens.css' => <<<'CSS'
+.token {
+  color: green;
+}
+CSS,
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/tokens.css' => 'tokens',
+            ],
+        ]);
+
+        $t->same('.tokens_token{color:green}.entry_card{background:red}', $result['code']);
+        $t->same([
+            'card' => $moduleExport('entry_card'),
+        ], $result['exports']);
+    },
     'css bundler rejects external css module from references like upstream' => static function (TestRunner $t) use ($bundleModules): void {
         try {
             $bundleModules([

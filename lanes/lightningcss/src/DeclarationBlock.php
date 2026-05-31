@@ -49,6 +49,17 @@ final class DeclarationBlock
     private const ANIMATION_PLAY_STATES = ['running', 'paused'];
     private const ANIMATION_TIMING_FUNCTIONS = ['linear', 'ease', 'ease-in', 'ease-out', 'ease-in-out', 'step-start', 'step-end'];
     private const ANIMATION_COMPOSITIONS = ['replace', 'add', 'accumulate'];
+    private const ANIMATION_LONGHANDS = [
+        'animation-name',
+        'animation-duration',
+        'animation-timing-function',
+        'animation-iteration-count',
+        'animation-direction',
+        'animation-play-state',
+        'animation-delay',
+        'animation-fill-mode',
+        'animation-timeline',
+    ];
     private const TRANSITION_LONGHANDS = [
         'transition-property',
         'transition-duration',
@@ -71,6 +82,10 @@ final class DeclarationBlock
         'grid-auto-flow',
         'grid-auto-rows',
         'grid-auto-columns',
+    ];
+    private const GAP_LONGHANDS = [
+        'row-gap',
+        'column-gap',
     ];
     private const LIST_STYLE_LONGHANDS = [
         'list-style-position',
@@ -162,6 +177,9 @@ final class DeclarationBlock
         if ($animationValue !== null) {
             return $animationValue;
         }
+        if ($this->isAnimationProperty($property)) {
+            return null;
+        }
         $transitionValue = $this->getTransitionProperty($entries, $property);
         if ($transitionValue !== null) {
             return $transitionValue;
@@ -176,6 +194,13 @@ final class DeclarationBlock
         $gridValue = $this->getGridProperty($entries, $property);
         if ($gridValue !== null) {
             return $gridValue;
+        }
+        $gapValue = $this->getGapProperty($entries, $property);
+        if ($gapValue !== null) {
+            return $gapValue;
+        }
+        if ($this->isGapProperty($property)) {
+            return null;
         }
         $listStyleValue = $this->getListStyleProperty($entries, $property);
         if ($listStyleValue !== null) {
@@ -252,37 +277,39 @@ final class DeclarationBlock
      */
     private function getAnimationProperty(array $entries, string $property): ?array
     {
-        if ($property !== 'animation-name') {
+        if (!$this->isAnimationProperty($property)) {
             return null;
         }
 
-        $match = null;
+        $components = [];
+        $sawAnimationProperty = false;
         foreach ($entries as $entry) {
-            if ($entry['property'] === 'animation-name') {
-                $match = [
-                    'value' => $entry['value'],
-                    'important' => $entry['important'],
-                ];
+            if ($entry['property'] === 'animation') {
+                $components = $this->animationComponentsFromShorthand($entry['value'], $entry['important']);
+                $sawAnimationProperty = true;
                 continue;
             }
 
-            if ($entry['property'] !== 'animation') {
+            if (!$this->isAnimationLonghand($entry['property'])) {
                 continue;
             }
 
-            $names = [];
-            foreach ($this->splitTopLevel($entry['value'], ',') as $layer) {
-                $parts = $this->parseAnimationLayer($layer);
-                $names[] = $parts['name'] ?? 'none';
-            }
-
-            $match = [
-                'value' => implode(', ', $names),
+            $components[$entry['property']] = [
+                'value' => $this->normalizeAnimationLonghandList($entry['property'], $entry['value']),
                 'important' => $entry['important'],
             ];
+            $sawAnimationProperty = true;
         }
 
-        return $match;
+        if (!$sawAnimationProperty) {
+            return null;
+        }
+
+        if ($property !== 'animation') {
+            return $components[$property] ?? null;
+        }
+
+        return $this->composeAnimationShorthandProperty($components);
     }
 
     /**
@@ -1030,6 +1057,170 @@ final class DeclarationBlock
             || in_array($property, self::GRID_TEMPLATE_COMPONENTS, true)
             || in_array($property, self::GRID_AUTO_COMPONENTS, true)
             || in_array($property, self::GRID_AREA_COMPONENTS, true);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getGapProperty(array $entries, string $property): ?array
+    {
+        if (!$this->isGapProperty($property)) {
+            return null;
+        }
+
+        $components = array_fill_keys(self::GAP_LONGHANDS, null);
+        foreach ($entries as $entry) {
+            if ($entry['property'] === 'gap') {
+                $parsed = $this->parseGapComponents($entry['value']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                foreach (self::GAP_LONGHANDS as $longhand) {
+                    $components[$longhand] = [
+                        'value' => $parsed[$longhand],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($this->isGapLonghand($entry['property'])) {
+                $components[$entry['property']] = [
+                    'value' => $entry['value'],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        if ($property !== 'gap') {
+            return $components[$property];
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->serializeGapComponents(
+                $components['row-gap']['value'],
+                $components['column-gap']['value']
+            ),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setGapLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!$this->isGapLonghand($property)) {
+            return null;
+        }
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'gap') {
+                continue;
+            }
+
+            $components = $this->parseGapComponents($entries[$index]['value']);
+            if ($components === null) {
+                continue;
+            }
+
+            $components[$property] = $value;
+            $entries[$index] = [
+                'property' => 'gap',
+                'value' => $this->serializeGapComponents($components['row-gap'], $components['column-gap']),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeGapLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'gap') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->parseGapComponents($entry['value']);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            foreach (self::GAP_LONGHANDS as $longhand) {
+                if ($longhand === $property) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
+                    'value' => $components[$longhand],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @return array{row-gap:string, column-gap:string}|null
+     */
+    private function parseGapComponents(string $value): ?array
+    {
+        $parts = $this->splitWhitespaceTopLevel($value);
+        if (count($parts) < 1 || count($parts) > 2) {
+            return null;
+        }
+
+        return [
+            'row-gap' => $parts[0],
+            'column-gap' => $parts[1] ?? $parts[0],
+        ];
+    }
+
+    private function serializeGapComponents(string $row, string $column): string
+    {
+        return $row === $column ? $row : $row . ' ' . $column;
+    }
+
+    private function isGapProperty(string $property): bool
+    {
+        return $property === 'gap' || $this->isGapLonghand($property);
+    }
+
+    private function isGapLonghand(string $property): bool
+    {
+        return in_array($property, self::GAP_LONGHANDS, true);
     }
 
     /**
@@ -1807,6 +1998,39 @@ final class DeclarationBlock
 
                 $result[] = [
                     'property' => $this->transitionPropertyName($prefix, $longhand),
+                    'value' => $components[$longhand]['value'],
+                    'important' => $entry['important'],
+                ];
+            }
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removeAnimationLonghand(array $entries, string $property): string
+    {
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== 'animation') {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->animationComponentsFromShorthand($entry['value'], $entry['important']);
+            foreach (self::ANIMATION_LONGHANDS as $longhand) {
+                if ($longhand === $property) {
+                    continue;
+                }
+
+                $result[] = [
+                    'property' => $longhand,
                     'value' => $components[$longhand]['value'],
                     'important' => $entry['important'],
                 ];
@@ -2643,13 +2867,17 @@ final class DeclarationBlock
         if ($transitionValue !== null) {
             return $this->parseEntries($transitionValue);
         }
-        $animationValue = $this->setAnimationNameLonghand($entries, $property, $value, $important);
+        $animationValue = $this->setAnimationLonghand($entries, $property, $value, $important);
         if ($animationValue !== null) {
             return $this->parseEntries($animationValue);
         }
         $gridValue = $this->setGridPlacementLonghand($entries, $property, $value, $important);
         if ($gridValue !== null) {
             return $this->parseEntries($gridValue);
+        }
+        $gapValue = $this->setGapLonghand($entries, $property, $value, $important);
+        if ($gapValue !== null) {
+            return $this->parseEntries($gapValue);
         }
         $logicalBoxValue = $this->setLogicalBoxProperty($entries, $property, $value, $important);
         if ($logicalBoxValue !== null) {
@@ -2931,6 +3159,388 @@ final class DeclarationBlock
     /**
      * @param list<array{property:string, value:string, important:bool}> $entries
      */
+    private function setAnimationLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        if (!$this->isAnimationLonghand($property)) {
+            return null;
+        }
+
+        if ($property === 'animation-name') {
+            return $this->setAnimationNameLonghand($entries, $property, $value, $important);
+        }
+
+        $value = $this->normalizeAnimationLonghandList($property, $value);
+        $values = $this->animationComponentList($value);
+        if ($values === []) {
+            throw new \InvalidArgumentException("{$property} cannot be empty");
+        }
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'animation') {
+                continue;
+            }
+            if ($entries[$index]['important'] !== $important) {
+                return null;
+            }
+
+            $layers = $this->parseAnimationCssomLayers($entries[$index]['value']);
+            if (count($values) !== count($layers)) {
+                $entries[$index] = [
+                    'property' => 'animation',
+                    'value' => $this->serializeAnimationCssomLayers($layers),
+                    'important' => $important,
+                ];
+                $entries[] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            foreach ($layers as $layerIndex => $_layer) {
+                $layers[$layerIndex][$property] = $values[$layerIndex];
+            }
+
+            $entries[$index] = [
+                'property' => 'animation',
+                'value' => $this->serializeAnimationCssomLayers($layers),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<string, array{value:string, important:bool}>
+     */
+    private function animationComponentsFromShorthand(string $value, bool $important): array
+    {
+        $layers = $this->parseAnimationCssomLayers($value);
+        $components = [
+            'animation' => ['value' => $this->serializeAnimationCssomLayers($layers), 'important' => $important],
+        ];
+
+        foreach (self::ANIMATION_LONGHANDS as $longhand) {
+            $components[$longhand] = [
+                'value' => implode(', ', array_column($layers, $longhand)),
+                'important' => $important,
+            ];
+        }
+
+        return $components;
+    }
+
+    /**
+     * @param array<string, array{value:string, important:bool}> $components
+     * @return array{value:string, important:bool}|null
+     */
+    private function composeAnimationShorthandProperty(array $components): ?array
+    {
+        $lists = [];
+        $important = null;
+        $length = null;
+        foreach (self::ANIMATION_LONGHANDS as $longhand) {
+            if (!isset($components[$longhand])) {
+                return null;
+            }
+            if ($important === null) {
+                $important = $components[$longhand]['important'];
+            } elseif ($components[$longhand]['important'] !== $important) {
+                return null;
+            }
+
+            $parts = $this->animationComponentList($components[$longhand]['value']);
+            if ($parts === []) {
+                return null;
+            }
+            if ($length === null) {
+                $length = count($parts);
+            } elseif (count($parts) !== $length) {
+                return null;
+            }
+            $lists[$longhand] = $parts;
+        }
+
+        $layers = [];
+        for ($index = 0; $index < $length; $index++) {
+            $layer = [];
+            foreach (self::ANIMATION_LONGHANDS as $longhand) {
+                $layer[$longhand] = $lists[$longhand][$index];
+            }
+            $layers[] = $layer;
+        }
+
+        return [
+            'value' => $this->serializeAnimationCssomLayers($layers),
+            'important' => $important ?? false,
+        ];
+    }
+
+    /**
+     * @return list<array<string, string>>
+     */
+    private function parseAnimationCssomLayers(string $value): array
+    {
+        $layers = [];
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            $layers[] = $this->parseAnimationCssomLayer($layer);
+        }
+
+        return $layers === [] ? [$this->animationDefaultLayer()] : $layers;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function parseAnimationCssomLayer(string $layer): array
+    {
+        $components = $this->animationDefaultLayer();
+        $durationSet = false;
+        $delaySet = false;
+        $timingSet = false;
+        $iterationSet = false;
+        $directionSet = false;
+        $fillSet = false;
+        $playStateSet = false;
+        $timelineSet = false;
+        $name = null;
+
+        foreach ($this->splitWhitespaceTopLevel($layer) as $token) {
+            $lower = strtolower($token);
+            if ($this->isAnimationTimeToken($lower)) {
+                if (!$durationSet) {
+                    $components['animation-duration'] = $this->canonicalAnimationTime($token);
+                    $durationSet = true;
+                    continue;
+                }
+                if (!$delaySet) {
+                    $components['animation-delay'] = $this->canonicalAnimationTime($token);
+                    $delaySet = true;
+                    continue;
+                }
+            }
+
+            if (!$timingSet && $this->isAnimationTimingToken($lower)) {
+                $components['animation-timing-function'] = $token;
+                $timingSet = true;
+                continue;
+            }
+
+            if (!$iterationSet && $this->isAnimationIterationToken($lower)) {
+                $components['animation-iteration-count'] = $this->normalizeAnimationIterationCount($token);
+                $iterationSet = true;
+                continue;
+            }
+
+            if (!$directionSet && in_array($lower, self::ANIMATION_DIRECTIONS, true)) {
+                $components['animation-direction'] = $lower;
+                $directionSet = true;
+                continue;
+            }
+
+            if (!$fillSet && in_array($lower, self::ANIMATION_FILL_MODES, true)) {
+                $components['animation-fill-mode'] = $lower;
+                $fillSet = true;
+                continue;
+            }
+
+            if (!$playStateSet && in_array($lower, self::ANIMATION_PLAY_STATES, true)) {
+                $components['animation-play-state'] = $lower;
+                $playStateSet = true;
+                continue;
+            }
+
+            if (!$timelineSet && $this->isAnimationTimelineToken($token)) {
+                $components['animation-timeline'] = trim($token);
+                $timelineSet = true;
+                continue;
+            }
+
+            $name = $name === null ? $token : $name . ' ' . $token;
+        }
+
+        if ($name !== null && trim($name) !== '') {
+            $components['animation-name'] = trim($name);
+        }
+
+        return $components;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function animationDefaultLayer(): array
+    {
+        return [
+            'animation-name' => 'none',
+            'animation-duration' => '0s',
+            'animation-timing-function' => 'ease',
+            'animation-iteration-count' => '1',
+            'animation-direction' => 'normal',
+            'animation-play-state' => 'running',
+            'animation-delay' => '0s',
+            'animation-fill-mode' => 'none',
+            'animation-timeline' => 'auto',
+        ];
+    }
+
+    /**
+     * @param list<array<string, string>> $layers
+     */
+    private function serializeAnimationCssomLayers(array $layers): string
+    {
+        return implode(', ', array_map(
+            fn (array $layer): string => $this->serializeAnimationCssomLayer($layer),
+            $layers
+        ));
+    }
+
+    /**
+     * @param array<string, string> $layer
+     */
+    private function serializeAnimationCssomLayer(array $layer): string
+    {
+        $name = $layer['animation-name'] ?? 'none';
+        if (strcasecmp($name, 'none') === 0) {
+            return 'none';
+        }
+
+        $duration = $this->canonicalAnimationTime($layer['animation-duration'] ?? '0s');
+        $delay = $this->canonicalAnimationTime($layer['animation-delay'] ?? '0s');
+        $timing = $layer['animation-timing-function'] ?? 'ease';
+        $iteration = $this->normalizeAnimationIterationCount($layer['animation-iteration-count'] ?? '1');
+        $direction = strtolower($layer['animation-direction'] ?? 'normal');
+        $playState = strtolower($layer['animation-play-state'] ?? 'running');
+        $fillMode = strtolower($layer['animation-fill-mode'] ?? 'none');
+        $timeline = $layer['animation-timeline'] ?? 'auto';
+        $parts = [];
+
+        if (!$this->isZeroAnimationTime($duration) || !$this->isZeroAnimationTime($delay)) {
+            $parts[] = $duration;
+        }
+        if (strcasecmp($timing, 'ease') !== 0 || $this->animationNameConflictsWith($name, $timing)) {
+            $parts[] = $timing;
+        }
+        if (!$this->isZeroAnimationTime($delay)) {
+            $parts[] = $delay;
+        }
+        if ($iteration !== '1' || strcasecmp($name, 'infinite') === 0) {
+            $parts[] = $iteration;
+        }
+        if ($direction !== 'normal' || in_array(strtolower($name), self::ANIMATION_DIRECTIONS, true)) {
+            $parts[] = $direction;
+        }
+        if ($fillMode !== 'none' || (strcasecmp($name, 'none') !== 0 && in_array(strtolower($name), self::ANIMATION_FILL_MODES, true))) {
+            $parts[] = $fillMode;
+        }
+        if ($playState !== 'running' || in_array(strtolower($name), self::ANIMATION_PLAY_STATES, true)) {
+            $parts[] = $playState;
+        }
+
+        $parts[] = $name;
+        if (strcasecmp($timeline, 'auto') !== 0) {
+            $parts[] = $timeline;
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function normalizeAnimationLonghandList(string $property, string $value): string
+    {
+        return implode(', ', array_map(
+            fn (string $part): string => $this->normalizeAnimationLonghandValue($property, $part),
+            $this->animationComponentList($value)
+        ));
+    }
+
+    private function normalizeAnimationLonghandValue(string $property, string $value): string
+    {
+        $value = trim($value);
+
+        return match ($property) {
+            'animation-duration', 'animation-delay' => $this->canonicalAnimationTime($value),
+            'animation-iteration-count' => $this->normalizeAnimationIterationCount($value),
+            'animation-direction', 'animation-play-state', 'animation-fill-mode' => strtolower($value),
+            default => $value,
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function animationComponentList(string $value): array
+    {
+        return array_values(array_filter(
+            array_map(
+                static fn (string $part): string => trim($part),
+                $this->splitTopLevel($value, ',')
+            ),
+            static fn (string $part): bool => $part !== ''
+        ));
+    }
+
+    private function canonicalAnimationTime(string $token): string
+    {
+        return $this->isZeroAnimationTime($token) ? '0s' : trim($token);
+    }
+
+    private function isZeroAnimationTime(string $token): bool
+    {
+        return preg_match('/^[+-]?(?:0+|0*\.0+)(?:ms|s)$/i', trim($token)) === 1;
+    }
+
+    private function normalizeAnimationIterationCount(string $value): string
+    {
+        $value = strtolower(trim($value));
+        if ($value === 'infinite') {
+            return $value;
+        }
+
+        return preg_replace('/(?<=\d)\.0+$/', '', $value) ?? $value;
+    }
+
+    private function animationNameConflictsWith(string $name, string $component): bool
+    {
+        $name = strtolower(trim($name));
+        $component = strtolower(trim($component));
+
+        return $name === $component
+            || ($this->isAnimationTimingToken($component) && $this->isAnimationTimingToken($name));
+    }
+
+    private function isAnimationTimelineToken(string $token): bool
+    {
+        return preg_match('/^(?:scroll|view)\(/i', trim($token)) === 1;
+    }
+
+    private function isAnimationProperty(string $property): bool
+    {
+        return $property === 'animation' || $this->isAnimationLonghand($property);
+    }
+
+    private function isAnimationLonghand(string $property): bool
+    {
+        return in_array($property, self::ANIMATION_LONGHANDS, true);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
     private function setLogicalBoxProperty(array $entries, string $property, string $value, bool $important): ?string
     {
         $shorthand = $this->boxShorthandForLogicalProperty($property);
@@ -3090,6 +3700,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($property === 'animation') {
+            $normalEntries = $this->removeAnimationShorthandWithinPriority($normalEntries);
+            $importantEntries = $this->removeAnimationShorthandWithinPriority($importantEntries);
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         $shorthandLonghands = $this->cssomShorthandLonghands($property);
         if ($shorthandLonghands !== null) {
             $normalEntries = $this->removeShorthandLonghandsWithinPriority($normalEntries, $property, $shorthandLonghands);
@@ -3122,9 +3738,21 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->isAnimationLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeAnimationLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeAnimationLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isGridPlacementProperty($property)) {
             $normalEntries = $this->parseEntries($this->removeGridPlacementProperty($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeGridPlacementProperty($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
+        if ($this->isGapLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeGapLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeGapLonghand($importantEntries, $property));
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
@@ -3169,6 +3797,19 @@ final class DeclarationBlock
 
     /**
      * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function removeAnimationShorthandWithinPriority(array $entries): array
+    {
+        return array_values(array_filter(
+            $entries,
+            fn (array $entry): bool => $entry['property'] !== 'animation'
+                && !$this->isAnimationLonghand($entry['property'])
+        ));
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
      * @param list<string> $longhands
      * @return list<array{property:string, value:string, important:bool}>
      */
@@ -3199,6 +3840,10 @@ final class DeclarationBlock
         $gridLonghands = $this->gridShorthandLonghands($property);
         if ($gridLonghands !== null) {
             return $gridLonghands;
+        }
+
+        if ($property === 'gap') {
+            return self::GAP_LONGHANDS;
         }
 
         return $property === 'list-style' ? self::LIST_STYLE_LONGHANDS : null;

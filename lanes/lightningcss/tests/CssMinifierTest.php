@@ -180,6 +180,36 @@ CSS
             $t->same($expected, $minifier->minify($input));
         }
     },
+    'css minifier maps upstream srgb color-mix value normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{color:#8080ff}', $minifier->minify('.foo { color: color-mix(in srgb, white, blue); }'));
+        $t->same('.foo{color:#8080ff}', $minifier->minify('.foo { color: color-mix(in srgb, blue, white); }'));
+        $t->same(
+            '.foo{color:#89760053}',
+            $minifier->minify('.foo { color: color-mix(in srgb, rgb(100% 0% 0% / 0.7) 25%, rgb(0% 100% 0% / 0.2)); }')
+        );
+        $t->same(
+            '.foo{color:#89760042}',
+            $minifier->minify('.foo { color: color-mix(in srgb, rgb(100% 0% 0% / 0.7) 20%, rgb(0% 100% 0% / 0.2) 60%); }')
+        );
+        $t->same(
+            '.foo{color:color-mix(in srgb, currentColor, blue)}',
+            $minifier->minify('.foo { color: color-mix(in srgb, currentColor, blue); }')
+        );
+        $t->same(
+            '.foo{color:color-mix(in srgb, blue, currentColor)}',
+            $minifier->minify('.foo { color: color-mix(in srgb, blue, currentColor); }')
+        );
+        $t->same(
+            '.foo{color:color-mix(in srgb, accentcolor, blue)}',
+            $minifier->minify('.foo { color: color-mix(in srgb, accentcolor, blue); }')
+        );
+        $t->same(
+            '.foo{color:color-mix(in srgb, blue, accentcolor)}',
+            $minifier->minify('.foo { color: color-mix(in srgb, blue, accentcolor); }')
+        );
+    },
     'css minifier maps upstream color-scheme value ordering' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

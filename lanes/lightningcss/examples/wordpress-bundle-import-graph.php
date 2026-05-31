@@ -79,7 +79,7 @@ $moduleBundle = (new CssBundler())->bundleCssModules('/modules/card.css', [
 @import "../theme.css";
 
 .card {
-  composes: token from "../tokens.module.css";
+  composes: token missing-token from "../tokens.module.css";
   color: red;
 }
 CSS,

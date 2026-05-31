@@ -476,7 +476,6 @@ final class CssBundler
 
             $depExport = $this->stylesheets[$depSourceIndex]['cssModuleExports'][$reference['name']] ?? null;
             if ($depExport === null) {
-                $this->appendCssModuleReference($resolved, $reference);
                 continue;
             }
 

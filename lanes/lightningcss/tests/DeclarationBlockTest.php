@@ -296,6 +296,29 @@ return [
         );
         $t->same(null, $block->getProperty('-webkit-flex-flow: row', 'flex-direction'));
     },
+    'declaration block reads upstream gap cssom shorthand and longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(['value' => '1rem 2rem', 'important' => false], $block->getProperty('gap: 1rem 2rem', 'gap'));
+        $t->same(['value' => '1rem', 'important' => false], $block->getProperty('gap: 1rem 2rem', 'row-gap'));
+        $t->same(['value' => '2rem', 'important' => false], $block->getProperty('gap: 1rem 2rem', 'column-gap'));
+        $t->same(
+            ['value' => 'var(--wp--style--block-gap)', 'important' => false],
+            $block->getProperty(
+                'row-gap: var(--wp--style--block-gap); column-gap: var(--wp--style--block-gap)',
+                'gap'
+            )
+        );
+        $t->same(
+            ['value' => '1rem 2rem', 'important' => true],
+            $block->getProperty('row-gap: 1rem !important; column-gap: 2rem !important', 'gap')
+        );
+        $t->same(null, $block->getProperty('row-gap: 1rem !important; column-gap: 2rem', 'gap'));
+        $t->same(
+            ['value' => '1rem', 'important' => true],
+            $block->getProperty('gap: 1rem !important; row-gap: 2rem', 'row-gap')
+        );
+    },
     'declaration block reads upstream animation name cssom longhand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -310,6 +333,28 @@ return [
         $t->same(
             ['value' => 'slide-up', 'important' => false],
             $block->getProperty('animation: fade-in 240ms ease-out; animation-name: slide-up', 'animation-name')
+        );
+    },
+    'declaration block reads upstream animation cssom longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $motion = 'animation: core-block-fade 240ms ease-out 80ms 2 reverse both paused scroll(block)';
+        $t->same(['value' => 'core-block-fade', 'important' => false], $block->getProperty($motion, 'animation-name'));
+        $t->same(['value' => '240ms', 'important' => false], $block->getProperty($motion, 'animation-duration'));
+        $t->same(['value' => 'ease-out', 'important' => false], $block->getProperty($motion, 'animation-timing-function'));
+        $t->same(['value' => '80ms', 'important' => false], $block->getProperty($motion, 'animation-delay'));
+        $t->same(['value' => '2', 'important' => false], $block->getProperty($motion, 'animation-iteration-count'));
+        $t->same(['value' => 'reverse', 'important' => false], $block->getProperty($motion, 'animation-direction'));
+        $t->same(['value' => 'both', 'important' => false], $block->getProperty($motion, 'animation-fill-mode'));
+        $t->same(['value' => 'paused', 'important' => false], $block->getProperty($motion, 'animation-play-state'));
+        $t->same(['value' => 'scroll(block)', 'important' => false], $block->getProperty($motion, 'animation-timeline'));
+        $t->same(
+            ['value' => 'ease, linear', 'important' => false],
+            $block->getProperty('animation: fade 200ms, slide 300ms linear 50ms', 'animation-timing-function')
+        );
+        $t->same(
+            ['value' => '400ms', 'important' => true],
+            $block->getProperty('animation: fade 200ms; animation-duration: 400ms !important', 'animation-duration')
         );
     },
     'declaration block reads upstream transition cssom longhands' => static function (TestRunner $t): void {
@@ -519,6 +564,26 @@ return [
             $block->setProperty('flex-flow: row wrap', '-webkit-flex-direction', 'column')
         );
     },
+    'declaration block sets upstream gap cssom longhands in existing shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'gap: 3rem 2rem',
+            $block->setProperty('gap: 1rem 2rem', 'row-gap', '3rem')
+        );
+        $t->same(
+            'gap: 1rem',
+            $block->setProperty('gap: 1rem 2rem', 'column-gap', '1rem')
+        );
+        $t->same(
+            'gap: 1rem 2rem; row-gap: 3rem',
+            $block->setProperty('gap: 1rem 2rem; row-gap: 1rem', 'row-gap', '3rem')
+        );
+        $t->same(
+            'row-gap: 3rem; gap: 1rem !important',
+            $block->setProperty('gap: 1rem !important', 'row-gap', '3rem')
+        );
+    },
     'declaration block sets upstream animation name cssom longhand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -537,6 +602,38 @@ return [
         $t->same(
             'animation: 200ms ease wp-fade, 300ms wp-slide',
             $block->setProperty('animation: fade 200ms ease, slide 300ms', 'animation-name', 'wp-fade, wp-slide')
+        );
+    },
+    'declaration block sets upstream animation cssom longhands in existing shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'animation: 320ms ease-out 80ms both paused core-block-fade',
+            $block->setProperty(
+                'animation: core-block-fade 240ms ease-out 80ms both paused',
+                'animation-duration',
+                '320ms'
+            )
+        );
+        $t->same(
+            'animation: 200ms 50ms fade, 300ms linear 100ms slide',
+            $block->setProperty(
+                'animation: fade 200ms, slide 300ms linear',
+                'animation-delay',
+                '50ms, 100ms'
+            )
+        );
+        $t->same(
+            'animation: 200ms fade, 300ms slide; animation-delay: 50ms',
+            $block->setProperty('animation: fade 200ms, slide 300ms', 'animation-delay', '50ms')
+        );
+        $t->same(
+            'animation: 240ms wp-block-fade scroll(root block)',
+            $block->setProperty('animation: wp-block-fade 240ms scroll(block)', 'animation-timeline', 'scroll(root block)')
+        );
+        $t->same(
+            'animation-duration: 320ms; animation: wp-block-fade 240ms !important',
+            $block->setProperty('animation: wp-block-fade 240ms !important', 'animation-duration', '320ms')
         );
     },
     'declaration block sets upstream grid placement cssom longhands' => static function (TestRunner $t): void {
@@ -788,6 +885,42 @@ return [
         $t->same('flex-wrap: wrap', $block->removeProperty('flex-flow: column wrap', 'flex-direction'));
         $t->same('flex-flow: column wrap', $block->removeProperty('flex-flow: column wrap', '-webkit-flex-direction'));
         $t->same('-webkit-flex-wrap: wrap', $block->removeProperty('-webkit-flex-flow: column wrap', '-webkit-flex-direction'));
+    },
+    'declaration block removes upstream gap cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'column-gap: 2rem',
+            $block->removeProperty('gap: 1rem 2rem', 'row-gap')
+        );
+        $t->same(
+            'row-gap: 1rem',
+            $block->removeProperty('gap: 1rem 2rem', 'column-gap')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('gap: 1rem 2rem; row-gap: 3rem; color: red', 'gap')
+        );
+        $t->same(
+            'column-gap: 1rem !important',
+            $block->removeProperty('gap: 1rem !important; row-gap: 3rem', 'row-gap')
+        );
+    },
+    'declaration block removes upstream animation cssom longhands and shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'animation-name: fade; animation-timing-function: ease-out; animation-iteration-count: 1; animation-direction: normal; animation-play-state: paused; animation-delay: 80ms; animation-fill-mode: both; animation-timeline: auto; color: red',
+            $block->removeProperty('animation: fade 200ms ease-out 80ms both paused; color: red', 'animation-duration')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('animation: fade 200ms; animation-duration: 300ms; color: red', 'animation')
+        );
+        $t->same(
+            'animation-name: fade, slide; animation-duration: 200ms, 300ms; animation-timing-function: ease, linear; animation-iteration-count: 1, 1; animation-direction: normal, normal; animation-play-state: running, running; animation-delay: 0s, 50ms; animation-timeline: auto, auto',
+            $block->removeProperty('animation: fade 200ms both, slide 300ms linear 50ms forwards', 'animation-fill-mode')
+        );
     },
     'declaration block removes upstream grid placement cssom longhands and shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
