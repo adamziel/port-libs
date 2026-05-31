@@ -668,6 +668,19 @@ final class SQLiteUpdateDeleteReturningSql
         while (($stripped = self::stripEnclosingParentheses($expression)) !== null) {
             $expression = $stripped;
         }
+        $concatParts = self::splitOperator($expression, '||');
+        if (count($concatParts) > 1) {
+            $pieces = [];
+            foreach ($concatParts as $part) {
+                $value = self::limitExpressionValue($part);
+                if ($value === null) {
+                    return null;
+                }
+                $pieces[] = (string) $value;
+            }
+
+            return implode('', $pieces);
+        }
         if (preg_match("/^'.*'$/s", $expression) === 1) {
             return self::literal($expression);
         }

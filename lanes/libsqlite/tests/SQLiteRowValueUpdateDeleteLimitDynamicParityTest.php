@@ -1017,4 +1017,61 @@ foreach ($unicodeLengthMalformed as $name => $sql) {
     };
 }
 
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitLeft = intdiv($limitValue, 10);
+    $limitRight = $limitValue % 10;
+    $offsetLeft = intdiv($offsetValue, 10);
+    $offsetRight = $offsetValue % 10;
+    $limitExpr = "'{$limitLeft}' || '{$limitRight}'";
+    $offsetExpr = "'{$offsetLeft}' || '{$offsetRight}'";
+    $sql = "UPDATE app_settings SET state = 'concat_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update concat expression window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitLeft = intdiv($limitValue, 10);
+    $limitRight = $limitValue % 10;
+    $offsetLeft = intdiv($offsetValue, 10);
+    $offsetRight = $offsetValue % 10;
+    $limitExpr = "'{$limitLeft}' || '{$limitRight}'";
+    $offsetExpr = "'{$offsetLeft}' || '{$offsetRight}'";
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue concat subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+$concatMalformed = [
+    'malformed concat null limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT '1' || NULL",
+    'malformed concat blob offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET '0' || X'ABCD'",
+    'malformed concat nonintegral limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT '2' || '.5'",
+    'malformed concat empty expression rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT '1' || ",
+];
+
+foreach ($concatMalformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
+    };
+}
+
 return $tests;

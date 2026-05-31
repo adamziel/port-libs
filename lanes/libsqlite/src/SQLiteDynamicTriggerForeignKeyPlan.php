@@ -6179,6 +6179,22 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             throw new \InvalidArgumentException("SQLite dynamic trigger FK {$label} is malformed");
         }
 
+        $first = $identifier[0];
+        $last = $identifier[strlen($identifier) - 1];
+        if ($first === '"' || $first === '`' || $first === '[') {
+            if ($first === '"' && $last === '"') {
+                return str_replace('""', '"', substr($identifier, 1, -1));
+            }
+            if ($first === '`' && $last === '`') {
+                return str_replace('``', '`', substr($identifier, 1, -1));
+            }
+            if ($first === '[' && $last === ']') {
+                return substr($identifier, 1, -1);
+            }
+
+            return $identifier;
+        }
+
         return $identifier;
     }
 

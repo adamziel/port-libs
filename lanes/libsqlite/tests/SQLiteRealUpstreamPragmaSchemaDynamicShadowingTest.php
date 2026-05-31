@@ -84,7 +84,7 @@ $catalogFor = static function (int $variant) use ($record): SQLiteAttachedSchema
     return $catalog;
 };
 
-foreach (range(1, 250) as $variant) {
+foreach (range(1, 400) as $variant) {
     $shared = sprintf('shadow_settings_%03d', $variant);
     $mainOnly = sprintf('main_settings_%03d', $variant);
     $archiveOnly = sprintf('archive_settings_%03d', $variant);
