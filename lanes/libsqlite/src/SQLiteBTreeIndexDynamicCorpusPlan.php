@@ -7351,6 +7351,69 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,index_name:string,index_columns:list<string>,where_column:string,where_value:int,order_by:list<string>,limit:int,result_rows:list<list<int>>,expected_detail:string,uses_index:bool,requires_sort:bool,covers_where:bool,table_lookup_required:bool,row_count:int,integrity:string}>
+     */
+    public static function index8OrderByLimitScanCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index8 ORDER BY LIMIT dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'index8-1.0/1.0eqp',
+                'ORDER BY LIMIT query uses a composite index when the WHERE column is covered by trailing index terms',
+                't1abc',
+                ['a', 'b', 'c'],
+                true,
+                true,
+                false,
+                false,
+                'SCAN t1 USING INDEX t1abc',
+            ],
+            [
+                'index8-1.1/1.1eqp',
+                'ORDER BY LIMIT query falls back to a table scan and sorter when the replacement index does not cover the WHERE column',
+                't1abd',
+                ['a', 'b', 'd'],
+                false,
+                false,
+                true,
+                true,
+                'SCAN t1; USE TEMP B-TREE FOR ORDER BY',
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $indexName, $columns, $coversWhere, $usesIndex, $requiresSort, $tableLookup, $detail] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'index8.test sections 1.0, 1.0eqp, 1.1, and 1.1eqp',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+                'scenario' => $scenario,
+                'index_name' => $indexName,
+                'index_columns' => $columns,
+                'where_column' => 'c',
+                'where_value' => 4,
+                'order_by' => ['a', 'b'],
+                'limit' => 2,
+                'result_rows' => [[0, 4, 4, 4], [2, 3, 4, 23]],
+                'expected_detail' => $detail,
+                'uses_index' => $usesIndex,
+                'requires_sort' => $requiresSort,
+                'covers_where' => $coversWhere,
+                'table_lookup_required' => $tableLookup,
+                'row_count' => 101,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @param list<string> $columns
      * @param list<string> $constraints
      */

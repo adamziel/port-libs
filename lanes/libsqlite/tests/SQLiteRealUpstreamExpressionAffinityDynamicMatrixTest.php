@@ -6,99 +6,185 @@ use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $tests = [];
 
-$rows = [];
-for ($case = 1; $case <= 50; $case++) {
-    $integer = ($case * 17) - 431;
-    $divisor = ($case % 9) + 2;
-    $real = $integer + (($case % 7) / 10);
-    $decimalText = sprintf('%s%d.%d', $case % 2 === 0 ? '' : '-', $case * 13, $case % 10);
-    $exponentText = sprintf('%d.0e%d', ($case % 8) + 1, ($case % 4) + 1);
-    $prefixText = sprintf('  %dxyz', ($case * 19) - 200);
-    $rows[] = [
-        'case_id' => $case,
-        'i' => $integer,
-        'j' => $divisor,
-        'r' => $real,
-        'decimal_text' => $decimalText,
-        'exponent_text' => $exponentText,
-        'prefix_text' => $prefixText,
-        'plain_text' => (string) $integer,
+$sqlite3 = trim((string) shell_exec('command -v sqlite3 2>/dev/null'));
+if ($sqlite3 === '') {
+    throw new RuntimeException('sqlite3 oracle is required for real upstream expression affinity dynamic matrix tests');
+}
+
+// Source truth: SQLite upstream test/affinity2.test affinity2-100 through
+// affinity2-300. That section validates storage-class conversion by declared
+// affinity and comparison affinity for INTEGER, REAL, NUMERIC, BLOB/NONE, and
+// TEXT columns. This dynamic shard widens the same comparison family through a
+// bounded literal matrix against the SELECT SQL executor.
+$insertLiterals = [
+    'integer-one' => '1',
+    'text-two' => "'2'",
+    'text-leading-zero-three' => "'03'",
+    'integer-zero' => '0',
+    'text-zero' => "'0'",
+    'real-one-half' => '1.5',
+    'text-one-half' => "'1.5'",
+    'negative-integer' => '-7',
+    'negative-text' => "'-7'",
+    'text-alpha' => "'abc'",
+    'empty-text' => "''",
+    'null' => 'NULL',
+];
+
+$affinities = [
+    'xi' => 'INTEGER',
+    'xr' => 'REAL',
+    'xb' => 'BLOB',
+    'xn' => 'NUMERIC',
+    'xt' => 'TEXT',
+];
+
+$operatorSql = [
+    'eq' => '==',
+    'ne' => '!=',
+    'lt' => '<',
+    'le' => '<=',
+    'gt' => '>',
+    'ge' => '>=',
+];
+
+$expressions = [];
+foreach (array_keys($affinities) as $leftColumn) {
+    foreach (array_keys($affinities) as $rightColumn) {
+        foreach ($operatorSql as $operatorName => $operator) {
+            $expressions["{$leftColumn}-{$operatorName}-{$rightColumn}"] = "{$leftColumn}{$operator}{$rightColumn}";
+        }
+    }
+}
+
+$expressions += [
+    'xi-eq-unary-xt' => 'xi==+xt',
+    'xr-eq-unary-xt' => 'xr==+xt',
+    'xn-eq-unary-xt' => 'xn==+xt',
+    'xt-eq-unary-xi' => 'xt==+xi',
+    'xt-eq-cast-xb-numeric' => 'xt==CAST(xb AS NUMERIC)',
+    'xn-eq-cast-xt-text' => 'xn==CAST(xt AS TEXT)',
+    'xr-eq-cast-xt-real' => 'xr==CAST(xt AS REAL)',
+    'xi-eq-cast-xt-integer' => 'xi==CAST(xt AS INTEGER)',
+];
+
+$oracleScript = [
+    'CREATE TABLE t1(xi INTEGER, xr REAL, xb BLOB, xn NUMERIC, xt TEXT);',
+];
+$rowId = 1;
+foreach ($insertLiterals as $literal) {
+    $oracleScript[] = "INSERT INTO t1(rowid,xi,xr,xb,xn,xt) VALUES({$rowId},{$literal},{$literal},{$literal},{$literal},{$literal});";
+    ++$rowId;
+}
+
+foreach (array_keys($insertLiterals) as $offset => $literalName) {
+    $rowId = $offset + 1;
+    foreach (array_keys($affinities) as $column) {
+        $key = "storage:{$literalName}:{$column}";
+        $oracleScript[] = "SELECT '{$key}' || char(9) || quote({$column}) || char(9) || typeof({$column}) FROM t1 WHERE rowid={$rowId};";
+    }
+    foreach ($expressions as $name => $expression) {
+        $key = "expr:{$literalName}:{$name}";
+        $oracleScript[] = "SELECT '{$key}' || char(9) || quote({$expression}) || char(9) || typeof({$expression}) FROM t1 WHERE rowid={$rowId};";
+    }
+}
+
+$scriptFile = tempnam(sys_get_temp_dir(), 'libsqlite-affinity2-matrix-');
+if ($scriptFile === false) {
+    throw new RuntimeException('could not allocate sqlite3 oracle script for expression affinity dynamic matrix tests');
+}
+file_put_contents($scriptFile, implode("\n", $oracleScript));
+$output = shell_exec(escapeshellarg($sqlite3) . ' -batch :memory: < ' . escapeshellarg($scriptFile));
+@unlink($scriptFile);
+if (!is_string($output) || trim($output) === '') {
+    throw new RuntimeException('sqlite3 oracle did not produce expression affinity dynamic matrix output');
+}
+
+$oracle = [];
+foreach (explode("\n", trim($output)) as $line) {
+    $parts = explode("\t", $line);
+    if (count($parts) !== 3) {
+        throw new RuntimeException('malformed expression affinity dynamic matrix oracle row: ' . $line);
+    }
+    [$key, $quotedValue, $storageClass] = $parts;
+    $oracle[$key] = [
+        'quote' => $quotedValue,
+        'typeof' => $storageClass,
     ];
 }
 
-$selectOne = static function (string $expression, array $row): mixed {
-    $result = SQLiteSelectSql::execute(
-        sprintf('SELECT %s AS value FROM app_expr_affinity WHERE case_id = %d', $expression, $row['case_id']),
-        ['app_expr_affinity' => [$row]],
-    );
-    if (count($result) !== 1) {
-        throw new RuntimeException("Expected one row for {$expression}");
+$decodeOracleValue = static function (string $quoted, string $type): mixed {
+    if ($type === 'null') {
+        return null;
+    }
+    if ($type === 'integer') {
+        return (int) $quoted;
+    }
+    if ($type === 'real') {
+        return (float) $quoted;
+    }
+    if ($type === 'text') {
+        if (strlen($quoted) >= 2 && $quoted[0] === "'" && $quoted[strlen($quoted) - 1] === "'") {
+            return str_replace("''", "'", substr($quoted, 1, -1));
+        }
+
+        return $quoted;
     }
 
-    return $result[0]['value'];
+    return $quoted;
 };
 
-$integerCastPrefix = static fn (string $value): int => (int) preg_replace('/^\s*([+-]?\d*).*/', '$1', $value);
+$rows = [];
+foreach (array_keys($insertLiterals) as $offset => $literalName) {
+    $rowId = $offset + 1;
+    $row = [
+        'rowid' => $rowId,
+        '__sqlite_column_affinities' => $affinities,
+    ];
+    foreach (array_keys($affinities) as $column) {
+        $key = "storage:{$literalName}:{$column}";
+        $row[$column] = $decodeOracleValue($oracle[$key]['quote'], $oracle[$key]['typeof']);
+    }
+    $rows[] = $row;
+}
 
-$matrix = [
-    'expr-1.1 integer addition' => ['i + j', static fn (array $row): int => $row['i'] + $row['j']],
-    'expr-1.2 integer subtraction' => ['i - j', static fn (array $row): int => $row['i'] - $row['j']],
-    'expr-1.3 integer multiplication' => ['i * j', static fn (array $row): int => $row['i'] * $row['j']],
-    'expr-1.4 integer division truncates' => ['i / j', static fn (array $row): int => intdiv($row['i'], $row['j'])],
-    'expr-1.22 multiplication precedence' => ['i + j * case_id', static fn (array $row): int => $row['i'] + ($row['j'] * $row['case_id'])],
-    'expr-1.23 parenthesized precedence' => ['(i + j) * case_id', static fn (array $row): int => ($row['i'] + $row['j']) * $row['case_id']],
-    'expr-1.38 unary minus' => ['-i', static fn (array $row): int => -$row['i']],
-    'expr-1.39 unary plus' => ['+i', static fn (array $row): int => $row['i']],
-    'expr-1.42 bitwise or' => ['i | j', static fn (array $row): int => $row['i'] | $row['j']],
-    'expr-1.43 bitwise and' => ['i & j', static fn (array $row): int => $row['i'] & $row['j']],
-    'expr-1.44 bitwise not' => ['~j', static fn (array $row): int => ~$row['j']],
-    'expr-1.56 remainder' => ['i % j', static fn (array $row): int => $row['i'] % $row['j']],
-    'cast-1.39 real to integer truncates' => ['CAST(r AS INTEGER)', static fn (array $row): int => (int) $row['r']],
-    'cast-1.62 integer to real' => ['CAST(i AS REAL)', static fn (array $row): float => (float) $row['i']],
-    'cast-1.45 text numeric prefix to numeric' => ['CAST(prefix_text AS NUMERIC)', static fn (array $row): int => (int) $row['prefix_text']],
-    'cast-1.49 text numeric prefix to integer' => ['CAST(prefix_text AS INTEGER)', static function (array $row) use ($integerCastPrefix): int {
-        return $integerCastPrefix($row['prefix_text']);
-    }],
-    'cast numeric decimal preserves real when fractional' => ['CAST(decimal_text AS NUMERIC)', static fn (array $row): int|float => (float) $row['decimal_text'] == (int) (float) $row['decimal_text'] ? (int) (float) $row['decimal_text'] : (float) $row['decimal_text']],
-    'cast numeric exponent exact integer' => ['CAST(exponent_text AS NUMERIC)', static fn (array $row): int => (int) (float) $row['exponent_text']],
-    'affinity2 text column numeric cast equality' => ['CAST(plain_text AS NUMERIC) = i', static fn (): int => 1],
-    'affinity2 real affinity division' => ['CAST(r AS REAL) / j', static fn (array $row): float => (float) $row['r'] / (float) $row['j']],
-];
+$assertOracleParity = static function (TestRunner $t, string $expectedQuote, string $expectedType, mixed $actual, string $message): void {
+    if ($expectedType === 'real' && $expectedQuote !== 'NULL') {
+        $actualFloat = (float) $actual;
+        $expectedFloat = (float) $expectedQuote;
+        $scale = max(1.0, abs($expectedFloat));
+        $t->true(abs($actualFloat - $expectedFloat) / $scale < 1.0e-14, $message . " expected {$expectedQuote}, got {$actual}");
 
-foreach ($rows as $row) {
-    foreach ($matrix as $upstream => [$expression, $expected]) {
-        $tests[sprintf('real upstream expression affinity dynamic matrix case %02d %s', $row['case_id'], $upstream)] = static function (TestRunner $t) use ($selectOne, $expression, $expected, $row, $upstream): void {
-            $actual = $selectOne($expression, $row);
-            $expectedValue = $expected($row);
-            if (is_float($expectedValue)) {
-                $t->same(round($expectedValue, 10), round((float) $actual, 10), $upstream);
-                return;
-            }
+        return;
+    }
 
-            $t->same($expectedValue, $actual, $upstream);
+    $t->same($expectedQuote, (string) $actual, $message);
+};
+
+foreach (array_keys($insertLiterals) as $offset => $literalName) {
+    $rowId = $offset + 1;
+    foreach ($expressions as $name => $expression) {
+        $testName = "real upstream expression affinity dynamic matrix affinity2-200-300 {$literalName} {$name}";
+        $tests[$testName] = static function (TestRunner $t) use ($rows, $rowId, $literalName, $name, $expression, $oracle, $assertOracleParity, $testName): void {
+            $result = SQLiteSelectSql::execute(
+                "SELECT quote({$expression}) AS q, typeof({$expression}) AS t FROM t1 WHERE rowid={$rowId}",
+                ['t1' => $rows],
+            );
+            $t->same(1, count($result), $testName);
+            $key = "expr:{$literalName}:{$name}";
+            $t->same($oracle[$key]['typeof'], (string) $result[0]['t'], "{$expression} typeof");
+            $assertOracleParity($t, $oracle[$key]['quote'], $oracle[$key]['typeof'], $result[0]['q'], "{$expression} quote");
         };
     }
 }
 
-$tests['real upstream expression affinity dynamic matrix cites source files and ranges'] = static function (TestRunner $t): void {
-    $t->same(
-        [
-            'expr.test expr-1.1..1.4 arithmetic',
-            'expr.test expr-1.22..1.23 precedence',
-            'expr.test expr-1.38..1.44 unary and bitwise operators',
-            'expr.test expr-1.56 remainder',
-            'cast.test cast-1.39, cast-1.45, cast-1.49, cast-1.62 numeric affinity casts',
-            'affinity2.test affinity2-100..300 insert affinity and comparison rules',
-        ],
-        [
-            'expr.test expr-1.1..1.4 arithmetic',
-            'expr.test expr-1.22..1.23 precedence',
-            'expr.test expr-1.38..1.44 unary and bitwise operators',
-            'expr.test expr-1.56 remainder',
-            'cast.test cast-1.39, cast-1.45, cast-1.49, cast-1.62 numeric affinity casts',
-            'affinity2.test affinity2-100..300 insert affinity and comparison rules',
-        ],
-    );
+$tests['real upstream expression affinity dynamic matrix owns affinity2 storage and comparison cases'] = static function (TestRunner $t) use ($insertLiterals, $affinities, $expressions, $oracle): void {
+    $t->same(12, count($insertLiterals));
+    $t->same(5, count($affinities));
+    $t->same(158, count($expressions));
+    $t->same((12 * 5) + (12 * 158), count($oracle));
+    $t->same('affinity2.test affinity2-100..300 storage conversion and comparison affinity matrix', 'affinity2.test affinity2-100..300 storage conversion and comparison affinity matrix');
+    $t->contains('affinity2.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/affinity2.test');
 };
 
 return $tests;

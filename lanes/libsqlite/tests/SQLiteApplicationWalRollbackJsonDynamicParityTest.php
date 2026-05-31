@@ -9,6 +9,7 @@ $scenarios = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(24);
 $preexistingWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalScenarios(24);
 $deferredScenarios = SQLiteJsonImportRollbackWalPlan::dynamicDeferredFailureScenarios(24);
 $retryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRetryAfterRollbackScenarios(18);
+$preexistingRetryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalRetryScenarios(18);
 
 $tests = [
     'sqlite application wal rollback json dynamic parity exposes requested scenario count' => static function (TestRunner $t) use ($scenarios): void {
@@ -55,6 +56,19 @@ $tests = [
     },
     'sqlite application wal rollback json dynamic parity retry mode covers json text and jsonb rows' => static function (TestRunner $t) use ($retryScenarios): void {
         $t->same([false, true], array_values(array_unique(array_column($retryScenarios, 'jsonb_mode'))));
+    },
+    'sqlite application wal rollback json dynamic parity preexisting retry mode exposes requested scenario count' => static function (TestRunner $t) use ($preexistingRetryScenarios): void {
+        $t->same(18, count($preexistingRetryScenarios));
+    },
+    'sqlite application wal rollback json dynamic parity preexisting retry mode covers prefix frame counts' => static function (TestRunner $t) use ($preexistingRetryScenarios): void {
+        $prefixCounts = array_values(array_unique(array_column($preexistingRetryScenarios, 'preexisting_frames')));
+        sort($prefixCounts);
+        $t->same([1, 2, 3, 4, 5], $prefixCounts);
+    },
+    'sqlite application wal rollback json dynamic parity preexisting retry mode covers json text and jsonb rows' => static function (TestRunner $t) use ($preexistingRetryScenarios): void {
+        $jsonModes = array_values(array_unique(array_column($preexistingRetryScenarios, 'jsonb_mode')));
+        sort($jsonModes);
+        $t->same([false, true], $jsonModes);
     },
 ];
 
@@ -331,6 +345,69 @@ foreach ($retryScenarios as $scenario) {
     };
 }
 
+foreach ($preexistingRetryScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $failedPlan = $scenario['failed_plan'];
+    $retryPlan = $scenario['retry_plan'];
+    $prefix = 'sqlite application wal rollback json dynamic parity preexisting retry seed ' . $seed . ' ';
+
+    $tests[$prefix . 'first batch rolls back current json writes'] = static function (TestRunner $t) use ($failedPlan): void {
+        $t->same('rolled_back_current_json_batch', $failedPlan['status']);
+    };
+    $tests[$prefix . 'first batch preserves preexisting wal frame count'] = static function (TestRunner $t) use ($failedPlan, $scenario): void {
+        $t->same($scenario['preexisting_frames'], $failedPlan['wal_frame_count_after']);
+    };
+    $tests[$prefix . 'first batch truncates only after prefix'] = static function (TestRunner $t) use ($failedPlan, $scenario): void {
+        $t->same($scenario['expected_truncate_bytes'], $failedPlan['wal_truncate_to_bytes']);
+        $t->same($scenario['expected_truncate_bytes'], strlen($failedPlan['wal_bytes_after']));
+    };
+    $tests[$prefix . 'first batch keeps committed prefix bytes'] = static function (TestRunner $t) use ($failedPlan, $scenario): void {
+        $t->same(substr($scenario['wal_bytes'], 0, $scenario['expected_truncate_bytes']), $failedPlan['wal_bytes_after']);
+    };
+    $tests[$prefix . 'first batch discards only current json frames'] = static function (TestRunner $t) use ($failedPlan): void {
+        $t->same(3, $failedPlan['discarded_wal_frame_count']);
+    };
+    $tests[$prefix . 'retry starts from restored database bytes'] = static function (TestRunner $t) use ($failedPlan, $retryPlan): void {
+        $t->same($failedPlan['restored_database_bytes'], $retryPlan['database_bytes_before']);
+    };
+    $tests[$prefix . 'retry starts from preserved wal prefix'] = static function (TestRunner $t) use ($failedPlan, $retryPlan): void {
+        $t->same($failedPlan['wal_bytes_after'], $retryPlan['wal_bytes_before']);
+    };
+    $tests[$prefix . 'retry succeeds without rollback request'] = static function (TestRunner $t) use ($retryPlan): void {
+        $t->same('ready', $retryPlan['status']);
+        $t->same(false, $retryPlan['rollback_required']);
+    };
+    $tests[$prefix . 'retry leaves prefix wal byte stream intact'] = static function (TestRunner $t) use ($failedPlan, $retryPlan): void {
+        $t->same($failedPlan['wal_bytes_after'], $retryPlan['wal_bytes_after']);
+    };
+    $tests[$prefix . 'retry reports prefix frame count after success'] = static function (TestRunner $t) use ($retryPlan, $scenario): void {
+        $t->same($scenario['preexisting_frames'], $retryPlan['wal_frame_count_after']);
+    };
+    $tests[$prefix . 'retry savepoint rollback preview starts after prefix'] = static function (TestRunner $t) use ($retryPlan, $scenario): void {
+        $t->same($scenario['preexisting_frames'], $retryPlan['wal_rollback_to_savepoint']['rollback_to_frame']);
+    };
+    $tests[$prefix . 'retry records corrected frame indexes after prefix'] = static function (TestRunner $t) use ($retryPlan, $scenario): void {
+        $start = $scenario['preexisting_frames'] + 1;
+        $t->same([$start, $start + 1, $start + 2], array_column($retryPlan['import_plan']['applied'], 'wal_frame_index'));
+    };
+    $tests[$prefix . 'retry savepoint rollback preview covers corrected pages'] = static function (TestRunner $t) use ($retryPlan, $scenario): void {
+        $t->same($scenario['expected_retry_pages'], $retryPlan['rollback_to_savepoint']['restored_page_numbers']);
+    };
+    $tests[$prefix . 'retry wal rollback preview covers corrected pages'] = static function (TestRunner $t) use ($retryPlan, $scenario): void {
+        $t->same($scenario['expected_retry_pages'], $retryPlan['wal_rollback_to_savepoint']['discarded_page_numbers']);
+    };
+    $tests[$prefix . 'retry keeps tenant isolation'] = static function (TestRunner $t) use ($retryPlan, $scenario): void {
+        $t->same([$scenario['tenant_id'], $scenario['tenant_id'], $scenario['tenant_id']], array_column($retryPlan['import_plan']['applied'], 'tenant_id'));
+    };
+    $tests[$prefix . 'retry preserves jsonb mode on catalog row'] = static function (TestRunner $t) use ($retryPlan, $scenario): void {
+        $value = $retryPlan['import_plan']['applied'][1]['key_value'];
+        $t->same($scenario['jsonb_mode'], $value instanceof SQLiteBlobValue);
+    };
+    $tests[$prefix . 'retry fixes formerly malformed payload row'] = static function (TestRunner $t) use ($retryPlan, $seed): void {
+        $t->same('prefix_retry_fixed_payload_success_' . $seed, $retryPlan['import_plan']['applied'][2]['statement']);
+    };
+}
+
 $tests['sqlite application wal rollback json dynamic parity rejects zero scenarios'] = static function (TestRunner $t): void {
     try {
         SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(0);
@@ -375,6 +452,17 @@ $tests['sqlite application wal rollback json dynamic parity rejects zero retry s
     $t->same('rejected', 'accepted');
 };
 
+$tests['sqlite application wal rollback json dynamic parity rejects zero preexisting retry scenarios'] = static function (TestRunner $t): void {
+    try {
+        SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalRetryScenarios(0);
+    } catch (InvalidArgumentException) {
+        $t->same('rejected', 'rejected');
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
 $tests['sqlite application wal rollback json dynamic parity explicit small batch remains deterministic'] = static function (TestRunner $t): void {
     $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(3);
     $t->same([101, 102, 103], array_column($smallBatch, 'tenant_id'));
@@ -402,6 +490,13 @@ $tests['sqlite application wal rollback json dynamic parity retry small batch re
     $t->same([901, 902, 903], array_column($smallBatch, 'tenant_id'));
     $t->same([512, 1024, 512], array_column($smallBatch, 'page_size'));
     $t->same([7, 8, 9], array_column($smallBatch, 'wal_frames_before'));
+};
+
+$tests['sqlite application wal rollback json dynamic parity preexisting retry small batch remains deterministic'] = static function (TestRunner $t): void {
+    $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalRetryScenarios(3);
+    $t->same([1501, 1502, 1503], array_column($smallBatch, 'tenant_id'));
+    $t->same([512, 1024, 512], array_column($smallBatch, 'page_size'));
+    $t->same([2, 3, 4], array_column($smallBatch, 'preexisting_frames'));
 };
 
 return $tests;

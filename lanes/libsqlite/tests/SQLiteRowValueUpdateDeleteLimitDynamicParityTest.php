@@ -1473,6 +1473,62 @@ for ($seed = 1; $seed <= 36; $seed++) {
         };
 }
 
+$unicodeLimitCases = [
+    'parse unicode char limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT unicode(char(3))")['limit'], 3],
+    'parse unicode ascii text offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET unicode('2')-48")['offset'], 2],
+    'parse unicode two-byte text' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT unicode('é')-230")['limit'], 3],
+    'parse unicode three-byte text' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT unicode('€')-8361")['limit'], 3],
+    'parse unicode four-byte text' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT unicode('🙂')-128575")['limit'], 3],
+    'malformed unicode arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT unicode('1','2')"), InvalidArgumentException::class],
+    'malformed unicode empty limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT unicode('')"), InvalidArgumentException::class],
+];
+
+foreach ($unicodeLimitCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            return;
+        }
+        $t->same($expected, $callback());
+    };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitCodepoint = $limitValue;
+    $offsetCodepoint = $offsetValue;
+    $sql = "UPDATE app_settings SET state = 'unicode_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT unicode(char({$limitCodepoint})) OFFSET unicode(char({$offsetCodepoint}))";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update unicode codepoint limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 2) % 4;
+    $limitCodepoint = 48 + $limitValue;
+    $offsetCodepoint = 48 + $offsetValue;
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT unicode(char({$limitCodepoint}))-48 OFFSET unicode(char({$offsetCodepoint}))-48) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue unicode subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
 $stringPositionMalformed = [
     'malformed instr arity rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT instr('123')",
     'malformed instr null limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT instr(NULL, '9')",

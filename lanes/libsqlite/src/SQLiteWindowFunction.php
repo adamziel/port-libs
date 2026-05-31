@@ -137,11 +137,31 @@ final class SQLiteWindowFunction
 
     /**
      * @param iterable<mixed> $values
+     * @param iterable<int|float|string> $offsets
+     * @return list<mixed>
+     */
+    public static function lagByRow(iterable $values, iterable $offsets, mixed $default = null): array
+    {
+        return self::offsetValueByRow($values, $offsets, -1, $default, 'lag');
+    }
+
+    /**
+     * @param iterable<mixed> $values
      * @return list<mixed>
      */
     public static function lead(iterable $values, int $offset = 1, mixed $default = null): array
     {
         return self::offsetValue($values, $offset, $default, 'lead');
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     * @param iterable<int|float|string> $offsets
+     * @return list<mixed>
+     */
+    public static function leadByRow(iterable $values, iterable $offsets, mixed $default = null): array
+    {
+        return self::offsetValueByRow($values, $offsets, 1, $default, 'lead');
     }
 
     /**
@@ -1449,6 +1469,55 @@ final class SQLiteWindowFunction
         }
 
         return $result;
+    }
+
+    /**
+     * @param iterable<mixed> $values
+     * @param iterable<int|float|string> $offsets
+     * @return list<mixed>
+     */
+    private static function offsetValueByRow(
+        iterable $values,
+        iterable $offsets,
+        int $direction,
+        mixed $default,
+        string $functionName
+    ): array {
+        $rows = self::rows($values);
+        $offsetRows = self::rows($offsets);
+        if (count($rows) !== count($offsetRows)) {
+            throw new \InvalidArgumentException("SQLite {$functionName}() values and offsets must have the same row count");
+        }
+
+        $result = [];
+        foreach ($rows as $index => $_value) {
+            $offset = self::offsetIndexValue($offsetRows[$index], $functionName);
+            $target = $index + ($direction * $offset);
+            $result[] = array_key_exists($target, $rows) ? $rows[$target] : $default;
+        }
+
+        return $result;
+    }
+
+    private static function offsetIndexValue(mixed $value, string $functionName): int
+    {
+        if (is_string($value)) {
+            $value = trim($value);
+            if (!preg_match('/^[+-]?\d+$/', $value)) {
+                throw new \InvalidArgumentException("SQLite {$functionName}() offset must be an integer");
+            }
+            $value = (int) $value;
+        }
+        if (!is_int($value) && (!is_float($value) || floor($value) !== $value)) {
+            throw new \InvalidArgumentException("SQLite {$functionName}() offset must be an integer");
+        }
+
+        $offset = (int) $value;
+        if ($offset < 0) {
+            throw new \InvalidArgumentException("SQLite {$functionName}() offset must be non-negative");
+        }
+
+        return $offset;
     }
 
     /**

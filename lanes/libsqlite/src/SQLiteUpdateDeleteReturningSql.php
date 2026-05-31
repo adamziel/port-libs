@@ -722,7 +722,7 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : self::textLength((string) $value);
         }
-        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char)\s*\((.*)\)$/is', $expression, $match) === 1) {
+        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round|sign|upper|lower|trim|ltrim|rtrim|substr|substring|instr|replace|char|unicode)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }
         $predicate = self::evaluateLimitPredicateExpression($expression);
@@ -958,6 +958,9 @@ final class SQLiteUpdateDeleteReturningSql
         if ($function === 'char' && count($parts) < 1) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT char() needs at least one argument');
         }
+        if ($function === 'unicode' && count($parts) !== 1) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT unicode() needs one argument');
+        }
         if (($function === 'upper' || $function === 'lower' || $function === 'trim' || $function === 'ltrim' || $function === 'rtrim') && count($parts) !== 1) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
         }
@@ -1030,6 +1033,13 @@ final class SQLiteUpdateDeleteReturningSql
             }
 
             return implode('', $characters);
+        }
+        if ($function === 'unicode') {
+            if ($values[0] === null) {
+                return null;
+            }
+
+            return self::sqliteUnicodeCodepoint((string) $values[0]);
         }
         if ($function === 'round') {
             if ($values[0] === null) {
@@ -1146,6 +1156,29 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return "\xEF\xBF\xBD";
+    }
+
+    private static function sqliteUnicodeCodepoint(string $value): ?int
+    {
+        if ($value === '') {
+            return null;
+        }
+
+        $byte0 = ord($value[0]);
+        if ($byte0 < 0x80) {
+            return $byte0;
+        }
+        if (($byte0 & 0xE0) === 0xC0 && isset($value[1])) {
+            return (($byte0 & 0x1F) << 6) | (ord($value[1]) & 0x3F);
+        }
+        if (($byte0 & 0xF0) === 0xE0 && isset($value[2])) {
+            return (($byte0 & 0x0F) << 12) | ((ord($value[1]) & 0x3F) << 6) | (ord($value[2]) & 0x3F);
+        }
+        if (($byte0 & 0xF8) === 0xF0 && isset($value[3])) {
+            return (($byte0 & 0x07) << 18) | ((ord($value[1]) & 0x3F) << 12) | ((ord($value[2]) & 0x3F) << 6) | (ord($value[3]) & 0x3F);
+        }
+
+        return $byte0;
     }
 
     private static function compareLimitScalarValues(int|float|string $left, int|float|string $right): int

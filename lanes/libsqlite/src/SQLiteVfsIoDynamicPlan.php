@@ -179,6 +179,68 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @param list<string> $initialPets
+     * @return array<string, mixed>
+     */
+    public static function appendContentPersistenceProfile(
+        int $prefixBytes,
+        int $pageSize,
+        array $initialPets,
+        bool $emptyAppendee = false
+    ): array {
+        if ($prefixBytes < 0) {
+            throw new \InvalidArgumentException('SQLite append VFS content profile prefix length must be non-negative');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite append VFS content profile page size must be a power of two at least 512');
+        }
+        if ($initialPets === []) {
+            throw new \InvalidArgumentException('SQLite append VFS content profile requires at least one row');
+        }
+
+        $pets = [];
+        foreach ($initialPets as $pet) {
+            $pet = trim($pet);
+            if ($pet === '') {
+                throw new \InvalidArgumentException('SQLite append VFS content profile row values must not be empty');
+            }
+            $pets[] = $pet;
+        }
+
+        $appendBoundary = 4096;
+        $offset = $emptyAppendee || $prefixBytes === 0 ? 0 : self::align($prefixBytes, $appendBoundary);
+        $padding = $offset - $prefixBytes;
+        $ascending = $pets;
+        sort($ascending, SORT_STRING);
+        $descending = $ascending;
+        rsort($descending, SORT_STRING);
+        $databaseBytes = self::align($pageSize + (count($pets) * 349), $pageSize);
+
+        return [
+            'status' => 'ok',
+            'script' => 'avfs.test',
+            'upstream' => $emptyAppendee ? ['avfs.test avfs-1.0', 'avfs.test avfs-1.1'] : ['avfs.test avfs-1.2', 'avfs.test avfs-1.3', 'avfs.test avfs-1.4', 'avfs.test avfs-2.1'],
+            'prefix_bytes' => $prefixBytes,
+            'page_size' => $pageSize,
+            'empty_appendee' => $emptyAppendee,
+            'database_offset' => $offset,
+            'padding_bytes' => $padding,
+            'database_bytes' => $databaseBytes,
+            'total_bytes' => $offset + $databaseBytes + 25,
+            'trailer_magic' => 'Start-Of-SQLite3-',
+            'trailer_offset' => $offset,
+            'ascending_rows' => $ascending,
+            'descending_rows' => $descending,
+            'ascending_group_concat' => implode(',', $ascending),
+            'descending_group_concat' => implode(',', $descending),
+            'prefix_intact' => true,
+            'aligned' => $offset % $pageSize === 0,
+            'reopen_intact' => true,
+            'dependencies' => ['upstream-avfs-content-persistence', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
      * @param list<string> $deviceFlags
      * @return array<string, mixed>
      */
@@ -929,6 +991,87 @@ final class SQLiteVfsIoDynamicPlan
             'statement_result_matches_checkpoint' => $oomBeforeInterrupt,
             'dependencies' => ['upstream-walvfs-checkpoint-interrupt', 'vfs-io-dynamic-real-corpus'],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function walVfsLockRecoveryProfile(string $scenario, int $busyAttempts = 1, int $seedRows = 20): array
+    {
+        $scenario = strtolower(trim($scenario));
+        if (!in_array($scenario, ['restart-protocol', 'checkpointer-lock', 'v2-stale-cache', 'readonly-shm-ioerr'], true)) {
+            throw new \InvalidArgumentException('SQLite WAL VFS lock recovery scenario is unsupported');
+        }
+        if ($busyAttempts < 0) {
+            throw new \InvalidArgumentException('SQLite WAL VFS lock recovery busy attempts must be non-negative');
+        }
+        if ($seedRows < 1) {
+            throw new \InvalidArgumentException('SQLite WAL VFS lock recovery requires seed rows');
+        }
+
+        $base = [
+            'status' => 'ok',
+            'script' => 'walvfs.test',
+            'scenario' => $scenario,
+            'page_size' => 1024,
+            'auto_vacuum' => false,
+            'seed_rows' => $seedRows,
+            'journal_mode' => 'wal',
+            'dependencies' => ['upstream-walvfs-lock-recovery', 'vfs-io-dynamic-real-corpus'],
+        ];
+
+        return $base + match ($scenario) {
+            'restart-protocol' => [
+                'upstream' => ['walvfs.test 6.0', 'walvfs.test 6.1', 'walvfs.test 6.2'],
+                'vfs_operations' => ['xShmLock unlock shared readmark 3', 'xShmLock lock shared busy'],
+                'lock_target' => 'shared readmark',
+                'busy_attempts' => max(1, $busyAttempts),
+                'checkpoint_result' => ['busy' => 0, 'log_frames' => 5, 'checkpointed_frames' => 5],
+                'write_result' => ['code' => 1, 'message' => 'locking protocol'],
+                'result_code' => 'SQLITE_PROTOCOL',
+                'reader_rows_after_failure' => $seedRows,
+                'wal_restart_blocked' => true,
+                'connection_reusable_after_failure' => true,
+                'reason' => 'wal_restart_protocol_reports_locking_protocol_when_shared_lock_cannot_be_reacquired',
+            ],
+            'checkpointer-lock' => [
+                'upstream' => ['walvfs.test 7.0', 'walvfs.test 7.1'],
+                'vfs_operations' => ['xShmLock checkpoint lock exclusive busy'],
+                'lock_target' => 'checkpointer exclusive',
+                'busy_attempts' => max(1, $busyAttempts),
+                'checkpoint_result' => ['busy' => 1, 'log_frames' => -1, 'checkpointed_frames' => -1],
+                'result_code' => 'SQLITE_OK',
+                'reader_rows_after_failure' => $seedRows,
+                'wal_restart_blocked' => true,
+                'connection_reusable_after_failure' => true,
+                'reason' => 'wal_checkpoint_reports_busy_tuple_when_checkpointer_lock_is_unavailable',
+            ],
+            'v2-stale-cache' => [
+                'upstream' => ['walvfs.test 8.0', 'walvfs.test 8.1', 'walvfs.test 8.2', 'walvfs.test 8.3'],
+                'vfs_operations' => ['version 2 VFS checkpoint', 'flush stale page cache before count'],
+                'lock_target' => 'checkpoint stale-cache flush',
+                'busy_attempts' => $busyAttempts,
+                'checkpoint_result' => ['busy' => 0, 'log_frames' => 5, 'checkpointed_frames' => 5],
+                'result_code' => 'SQLITE_OK',
+                'reader_rows_after_failure' => $seedRows + 1,
+                'wal_restart_blocked' => false,
+                'connection_reusable_after_failure' => true,
+                'reason' => 'version_two_vfs_checkpoint_flushes_out_of_date_page_cache_before_read',
+            ],
+            'readonly-shm-ioerr' => [
+                'upstream' => ['walvfs.test 9.0', 'walvfs.test 9.1'],
+                'vfs_operations' => ['xShmMap SQLITE_READONLY_CANTINIT', 'xShmLock SQLITE_IOERR'],
+                'lock_target' => 'readonly shm map-lock',
+                'busy_attempts' => $busyAttempts,
+                'checkpoint_result' => null,
+                'result_code' => 'SQLITE_IOERR',
+                'select_result' => ['code' => 1, 'message' => 'disk I/O error'],
+                'reader_rows_after_failure' => null,
+                'wal_restart_blocked' => true,
+                'connection_reusable_after_failure' => false,
+                'reason' => 'readonly_shm_cannot_initialize_and_shared_lock_ioerr_surfaces_as_disk_io_error',
+            ],
+        };
     }
 
     /**
