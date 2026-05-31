@@ -566,21 +566,14 @@ final class SQLiteVdbeWindowAggregateCursor
     private function currentRangeFrame(int $partitionStart, int $partitionEnd): array
     {
         $orderColumn = $this->orderColumns[0];
-        $current = $this->numericRangeKey($this->orderedRows[$this->position][$orderColumn]);
-        $descending = $this->orderDescending[0] ?? false;
         $startBoundary = strtoupper(trim($this->startBoundary));
         $endBoundary = strtoupper(trim($this->endBoundary));
+        [$peerStart, $peerEnd] = $this->currentPeerRange();
         $start = null;
         $end = null;
         for ($index = $partitionStart; $index <= $partitionEnd; $index++) {
-            $numeric = $this->numericRangeKey($this->orderedRows[$index][$orderColumn]);
-            if ($descending) {
-                $inFrame = $numeric <= $this->rangeLowerLimit($current, $startBoundary, (float) $this->preceding, true) + 1.0e-12
-                    && $numeric >= $this->rangeUpperLimit($current, $endBoundary, (float) $this->following, true) - 1.0e-12;
-            } else {
-                $inFrame = $numeric >= $this->rangeLowerLimit($current, $startBoundary, (float) $this->preceding, false) - 1.0e-12
-                    && $numeric <= $this->rangeUpperLimit($current, $endBoundary, (float) $this->following, false) + 1.0e-12;
-            }
+            $inFrame = $this->rangeBoundaryIncludes($index, $startBoundary, (float) $this->preceding, true, $peerStart, $peerEnd)
+                && $this->rangeBoundaryIncludes($index, $endBoundary, (float) $this->following, false, $peerStart, $peerEnd);
             if (!$inFrame) {
                 continue;
             }
@@ -589,6 +582,46 @@ final class SQLiteVdbeWindowAggregateCursor
         }
 
         return [$start ?? $partitionEnd + 1, $end ?? $partitionStart - 1];
+    }
+
+    private function rangeBoundaryIncludes(
+        int $index,
+        string $boundary,
+        float $offset,
+        bool $isStart,
+        int $peerStart,
+        int $peerEnd
+    ): bool {
+        if ($boundary === 'UNBOUNDED PRECEDING' || $boundary === 'UNBOUNDED FOLLOWING') {
+            return true;
+        }
+        if ($boundary === 'CURRENT ROW') {
+            return $isStart ? $index >= $peerStart : $index <= $peerEnd;
+        }
+
+        $orderColumn = $this->orderColumns[0];
+        $currentValue = $this->orderedRows[$this->position][$orderColumn];
+        $candidateValue = $this->orderedRows[$index][$orderColumn];
+        if (!self::isNumericRangeValue($currentValue) || !self::isNumericRangeValue($candidateValue)) {
+            return $index >= $peerStart && $index <= $peerEnd;
+        }
+
+        $current = (float) $currentValue;
+        $candidate = (float) $candidateValue;
+        $descending = $this->orderDescending[0] ?? false;
+        if ($isStart) {
+            $limit = $this->rangeLowerLimit($current, $boundary, $offset, $descending);
+
+            return $descending
+                ? $candidate <= $limit + 1.0e-12
+                : $candidate >= $limit - 1.0e-12;
+        }
+
+        $limit = $this->rangeUpperLimit($current, $boundary, $offset, $descending);
+
+        return $descending
+            ? $candidate >= $limit - 1.0e-12
+            : $candidate <= $limit + 1.0e-12;
     }
 
     /**
@@ -987,16 +1020,9 @@ final class SQLiteVdbeWindowAggregateCursor
         ) === 0;
     }
 
-    private function numericRangeKey(mixed $value): float
+    private static function isNumericRangeValue(mixed $value): bool
     {
-        if (is_bool($value)) {
-            return $value ? 1.0 : 0.0;
-        }
-        if (is_int($value) || is_float($value)) {
-            return (float) $value;
-        }
-
-        throw new \InvalidArgumentException('SQLite VDBE window aggregate RANGE frame requires numeric ORDER BY values');
+        return is_bool($value) || is_int($value) || is_float($value);
     }
 
     /**

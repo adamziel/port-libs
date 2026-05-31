@@ -4872,6 +4872,69 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,sql:string,distinct_code:int,idxinsert:bool,order_by_consumed:bool,filter_args:list<mixed>,filter_sql:list<string>,rhs_values:list<mixed>,uses_in_operator:bool,handle_in:bool,result_rows:list<array<int,mixed>>,detail:string}>
+     */
+    public static function bestindex8VirtualTableDistinctLimitInCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindex8 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            ['bestindex8-1.1', 'plain virtual table scan does not request distinct handling', 'SELECT a, b FROM vt1', 0, false, false, [], [], [], false, true, [['a', 'b'], ['c', 'd'], ['a', 'b'], ['c', 'd']], 'SCAN vt1 VIRTUAL TABLE INDEX 0'],
+            ['bestindex8-1.2', 'DISTINCT over a,b is satisfied by virtual ORDER BY consumption', 'SELECT DISTINCT a, b FROM vt1', 2, false, true, [], [], [], false, true, [['a', 'b'], ['c', 'd']], 'xBestIndex distinct=2 and orderby consumed for a,b'],
+            ['bestindex8-1.3', 'DISTINCT over leading a column consumes virtual table order', 'SELECT DISTINCT a FROM vt1', 2, false, true, [], [], [], false, true, [['a'], ['c']], 'xBestIndex distinct=2 and orderby consumed for a'],
+            ['bestindex8-1.4', 'DISTINCT over b still needs ephemeral duplicate tracking', 'SELECT DISTINCT b FROM vt1', 2, true, false, [], [], [], false, true, [['b'], ['d']], 'IdxInsert remains because requested ordering is not satisfied'],
+            ['bestindex8-1.5', 'DISTINCT b ORDER BY a passes distinct=3 with consumed order', 'SELECT DISTINCT b FROM vt1 ORDER BY a', 3, true, true, [], [], [], false, true, [['b'], ['d']], 'distinct=3 with ORDER BY a leaves duplicate tracking for projected b'],
+            ['bestindex8-1.7', 'DISTINCT a,b ORDER BY a,b consumes order without duplicate index', 'SELECT DISTINCT a, b FROM vt1 ORDER BY a, b', 3, false, true, [], [], [], false, true, [['a', 'b'], ['c', 'd']], 'xBestIndex consumes ORDER BY a,b'],
+            ['bestindex8-1.10', 'DISTINCT a,b with b equality keeps consumed order and no duplicate index', "SELECT DISTINCT a, b FROM vt1 WHERE b='b'", 2, false, true, [], [], [], false, true, [['a', 'b']], 'usable equality on b plus distinct order handoff'],
+            ['bestindex8-2.1', 'usable LIMIT constraint is forwarded to xFilter arguments', 'SELECT * FROM vt1 LIMIT 10', 0, false, false, [10], [], [], false, true, [], 'xFilter receives LIMIT 10'],
+            ['bestindex8-2.2', 'usable OFFSET and LIMIT constraints are forwarded together', 'SELECT * FROM vt1 LIMIT 5 OFFSET 50', 0, false, false, [[50, 5]], [], [], false, true, [], 'xFilter receives OFFSET 50 then LIMIT 5'],
+            ['bestindex8-2.3', 'ORDER BY a,b keeps LIMIT/OFFSET usable for the virtual table', 'SELECT * FROM vt1 ORDER BY a, b LIMIT 1 OFFSET 1', 0, false, false, [[1, 1]], [], [], false, true, [], 'ORDER BY a,b still forwards OFFSET and LIMIT'],
+            ['bestindex8-2.4', 'ORDER BY a,+b blocks LIMIT/OFFSET forwarding to xFilter', 'SELECT * FROM vt1 ORDER BY a, +b LIMIT 1 OFFSET 1', 0, false, false, [[]], [], [], false, true, [], 'expression order term prevents limit/offset constraint forwarding'],
+            ['bestindex8-3.1', 'single IN list is forwarded as one vector argument', 'SELECT * FROM vt1 WHERE b IN (10, 20, 30)', 0, false, false, [], [], [[10, 20, 30]], true, true, [], 'xBestIndex in() groups b IN values'],
+            ['bestindex8-3.3', 'IS NULL and IN list produce separate filter arguments', "SELECT * FROM vt1 WHERE a IS NULL AND b IN ('abc', 'def')", 0, false, false, [], [], [[], ['abc', 'def']], true, true, [], 'NULL equality and IN vector remain separate xFilter arguments'],
+            ['bestindex8-3.5', 'subquery IN values are materialized before text IN values', "SELECT * FROM vt1 WHERE a IN (SELECT 1 UNION SELECT 2) AND b IN ('abc', 'def')", 0, false, false, [], [], [[1, 2], ['abc', 'def']], true, true, [], 'subquery IN vector precedes literal text IN vector'],
+            ['bestindex8-3.6', 'constraint order follows SQL term order for multiple IN vectors', "SELECT * FROM vt1 WHERE b IN ('abc', 'def') AND a IN (SELECT 1 UNION SELECT 2)", 0, false, false, [], [], [['abc', 'def'], [1, 2]], true, true, [], 'literal b IN vector precedes subquery a IN vector'],
+            ['bestindex8-4.1', 'rhs_value returns literal equality RHS to xBestIndex', 'SELECT * FROM vt1 WHERE b = 10', 0, false, false, [], [], [10], false, true, [], 'rhs_value exposes b = 10'],
+            ['bestindex8-4.2', 'rhs_value returns literal equality and range values', "SELECT * FROM vt1 WHERE a = 'abc' AND b < 30", 0, false, false, [], [], ['abc', 30], false, true, [], 'rhs_value exposes a and b literal values'],
+            ['bestindex8-4.3', 'rhs_value refuses computed range expression', "SELECT * FROM vt1 WHERE a = 'abc' AND b < 30+2", 0, false, false, [], [], ['abc', '-'], false, true, [], 'computed 30+2 RHS is not a direct value'],
+            ['bestindex8-4.4', 'rhs_value refuses IN list and computed range expressions', 'SELECT * FROM vt1 WHERE a IN (1,2,3) AND b < 30+2', 0, false, false, [], [], ['-', '-'], true, true, [], 'IN and expression RHS values are not direct rhs_value outputs'],
+            ['bestindex8-4.5', 'rhs_value handles IS literal but not computed range expression', 'SELECT * FROM vt1 WHERE a IS 111 AND b < 30+2', 0, false, false, [], [], [111, '-'], false, true, [], 'IS literal is visible to rhs_value'],
+            ['bestindex8-5.1.1', 'DISTINCT virtual SQL can project only ordered distinct columns', 'SELECT DISTINCT a FROM vt1', 2, false, false, [], ['SELECT DISTINCT 0, a, 0, 0 FROM t1'], [], false, true, [[1], [2], [3]], 'xFilter SQL uses DISTINCT projection for a'],
+            ['bestindex8-5.1.3', 'handled IN vector keeps one DISTINCT virtual SQL statement', 'SELECT DISTINCT a FROM vt1 WHERE c IN (4,5,6,7,8)', 2, false, false, [], ['SELECT DISTINCT 0, a, 0, 0 FROM t1 WHERE c IN (4,5,6,7,8)'], [[4, 5, 6, 7, 8]], true, true, [[2], [3], [1]], 'xFilter SQL keeps c IN as one vectorized predicate'],
+            ['bestindex8-5.1.4', 'unhandled IN vector expands into repeated equality probes', 'SELECT DISTINCT a FROM vt1 WHERE c IN (4,5,6,7,8)', 2, false, false, [], ['SELECT DISTINCT 0, a, 0, 0 FROM t1 WHERE c = 4', 'SELECT DISTINCT 0, a, 0, 0 FROM t1 WHERE c = 5', 'SELECT DISTINCT 0, a, 0, 0 FROM t1 WHERE c = 6', 'SELECT DISTINCT 0, a, 0, 0 FROM t1 WHERE c = 7', 'SELECT DISTINCT 0, a, 0, 0 FROM t1 WHERE c = 8'], [[4], [5], [6], [7], [8]], true, false, [[2], [3], [1]], 'without in() handling, each IN value drives an equality probe'],
+            ['bestindex8-5.1.5a', 'handled IN vector combines with LIMIT and OFFSET in one virtual SQL statement', 'SELECT a, b, c FROM vt1 WHERE c IN (4,5,6,7,8) LIMIT 2 OFFSET 2', 0, false, false, [[2, 2]], ['SELECT rowid, a, b, c FROM t1 WHERE c IN (4,5,6,7,8) LIMIT 2 OFFSET 2'], [[4, 5, 6, 7, 8]], true, true, [[1, 5, 6], [2, 6, 7]], 'vectorized IN preserves LIMIT/OFFSET inside one xFilter SQL string'],
+            ['bestindex8-5.1.5b', 'unhandled IN vector stops after enough equality probes satisfy LIMIT/OFFSET', 'SELECT a, b, c FROM vt1 WHERE c IN (4,5,6,7,8) LIMIT 2 OFFSET 2', 0, false, false, [[2, 2]], ['SELECT rowid, a, b, c FROM t1 WHERE c = 4', 'SELECT rowid, a, b, c FROM t1 WHERE c = 5', 'SELECT rowid, a, b, c FROM t1 WHERE c = 6', 'SELECT rowid, a, b, c FROM t1 WHERE c = 7'], [[4], [5], [6], [7]], true, false, [[1, 5, 6], [2, 6, 7]], 'non-vectorized IN probes stop before c=8 after LIMIT/OFFSET is satisfied'],
+        ];
+
+        $out = [];
+        $templateCount = count($templates);
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $sql, $distinctCode, $idxinsert, $orderByConsumed, $filterArgs, $filterSql, $rhsValues, $usesIn, $handleIn, $resultRows, $detail] = $templates[($case - 1) % $templateCount];
+            $out[] = [
+                'source' => 'bestindex8.test sections bestindex8-1.1 through bestindex8-5.1.5b',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario . ' dynamic batch ' . (intdiv($case - 1, $templateCount) + 1),
+                'sql' => $sql,
+                'distinct_code' => $distinctCode,
+                'idxinsert' => $idxinsert,
+                'order_by_consumed' => $orderByConsumed,
+                'filter_args' => $filterArgs,
+                'filter_sql' => $filterSql,
+                'rhs_values' => $rhsValues,
+                'uses_in_operator' => $usesIn,
+                'handle_in' => $handleIn,
+                'result_rows' => $resultRows,
+                'detail' => $detail,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,table_shape:string,index_name:string|null,predicate_literal:mixed,query_literal:mixed,result_rows:list<array<int,mixed>>,result_count:int,uses_partial_index:bool,detail:string,expected_error:string|null,integrity:string,without_rowid:bool,affinity:string,batch:int}>
      */
     public static function indexAPartialIndexAffinityPlannerCases(int $cases = 1200): array

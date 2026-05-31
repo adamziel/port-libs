@@ -671,6 +671,14 @@ final class SQLiteUpdateDeleteReturningSql
         if (preg_match("/^'.*'$/s", $expression) === 1) {
             return self::literal($expression);
         }
+        if (preg_match('/^SELECT\s+(.+)$/is', $expression, $match) === 1) {
+            $selectExpression = trim($match[1]);
+            if ($selectExpression === '' || self::keywordPosition(' ' . $selectExpression, ' FROM ') !== null) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT scalar SELECT only supports constant expressions');
+            }
+
+            return self::limitExpressionValue($selectExpression);
+        }
         if (strcasecmp($expression, 'NULL') === 0 || preg_match('/^X\'[0-9A-F]*\'$/i', $expression) === 1) {
             return null;
         }

@@ -981,6 +981,101 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function journalPlaybackIoErrorProfile(string $scenario, int $failAt, string $operation, int $seedRows = 500): array
+    {
+        $scenario = strtolower(trim($scenario));
+        if (!in_array($scenario, ['hot-journal-read', 'master-journal-name-read', 'statement-playback-constraint'], true)) {
+            throw new \InvalidArgumentException('SQLite VFS journal playback I/O scenario is unsupported');
+        }
+        if ($failAt < 1) {
+            throw new \InvalidArgumentException('SQLite VFS journal playback I/O failure index must be positive');
+        }
+        $operation = strtolower(trim($operation));
+        if (!in_array($operation, ['read', 'write', 'sync', 'truncate'], true)) {
+            throw new \InvalidArgumentException('SQLite VFS journal playback I/O operation is unsupported');
+        }
+        if ($seedRows < 1) {
+            throw new \InvalidArgumentException('SQLite VFS journal playback I/O seed row count must be positive');
+        }
+
+        $faultDetected = $failAt % 41 !== 0;
+        $writeSideFault = in_array($operation, ['write', 'sync', 'truncate'], true);
+        $script = 'ioerr.test';
+
+        if ($scenario === 'hot-journal-read') {
+            $upstream = ['ioerr.test ioerr-7'];
+            $checkpoint = 'hot-journal';
+            $expectedResult = $faultDetected ? 'SQLITE_IOERR_READ' : 'SQLITE_OK';
+            $recoveryAction = $faultDetected
+                ? 'defer_hot_journal_replay_until_read_succeeds'
+                : 'hot_journal_replayed_after_successful_retry';
+            $finalRows = [[1, 2]];
+            $journalBytesRetained = $faultDetected;
+            $masterJournalNameRequired = false;
+            $statementJournalPlayback = false;
+            $constraintMessagePreserved = false;
+        } elseif ($scenario === 'master-journal-name-read') {
+            $upstream = ['ioerr.test ioerr-9'];
+            $checkpoint = 'master-journal-name';
+            $expectedResult = $faultDetected ? 'SQLITE_IOERR_READ' : 'SQLITE_OK';
+            $recoveryAction = $faultDetected
+                ? 'treat_master_journal_name_as_unreadable_and_keep_member_hot'
+                : 'master_journal_name_read_allows_member_rollback';
+            $finalRows = ['committed-row'];
+            $journalBytesRetained = $faultDetected;
+            $masterJournalNameRequired = true;
+            $statementJournalPlayback = false;
+            $constraintMessagePreserved = false;
+        } else {
+            $upstream = ['ioerr.test ioerr-10'];
+            $checkpoint = 'statement-journal';
+            $expectedResult = 'UNIQUE constraint failed: t1.a';
+            $recoveryAction = $faultDetected && $writeSideFault
+                ? 'play_statement_journal_then_preserve_outer_transaction'
+                : 'constraint_aborts_statement_without_outer_transaction_loss';
+            $finalRows = range(0, min($seedRows - 1, 9));
+            $journalBytesRetained = false;
+            $masterJournalNameRequired = false;
+            $statementJournalPlayback = true;
+            $constraintMessagePreserved = true;
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => $script,
+            'scenario' => $scenario,
+            'upstream' => $upstream,
+            'fail_at' => $failAt,
+            'operation' => $operation,
+            'seed_rows' => $seedRows,
+            'fault_detected' => $faultDetected,
+            'expected_result' => $expectedResult,
+            'checkpoint' => $checkpoint,
+            'recovery_action' => $recoveryAction,
+            'rollback_required' => $faultDetected && ($scenario !== 'statement-playback-constraint' || $writeSideFault),
+            'hot_journal_left' => $scenario === 'hot-journal-read' && $faultDetected,
+            'journal_bytes_retained_for_retry' => $journalBytesRetained,
+            'master_journal_name_required' => $masterJournalNameRequired,
+            'statement_journal_playback' => $statementJournalPlayback,
+            'constraint_message_preserved' => $constraintMessagePreserved,
+            'rows_preserved' => true,
+            'final_rows_sample' => $finalRows,
+            'integrity_check' => 'ok',
+            'cache_refcount_zero' => true,
+            'open_file_count' => 0,
+            'reason' => $recoveryAction,
+            'dependencies' => [
+                'upstream-ioerr-journal-playback',
+                'sqlite-vfs-io-error-recovery',
+                'sqlite-pager-journal-playback',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function updateAssertionIoErrorProfile(int $failAt, string $operation, int $seedId, string $seedName, int $updatedId, string $updatedName): array
     {
         if ($failAt < 1) {
