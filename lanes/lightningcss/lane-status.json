@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 92.5,
-    "suiteProgress": "Supervisor-integrated LightningCSS bundle/import layer-name validation slice deepens upstream import graph parity: escaped layer identifiers are accepted while malformed dotted, whitespace, and comment-bearing layer names fail before graph resolution. Verification passed PHP lint on 3 changed PHP files, focused CssBundlerTest.php 1 file / 307 assertions / 0 failures, full LightningCSS lane 13 files / 4181 assertions / 0 failures, wordpress-bundle-import-graph.php --self-test, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/lightningcss/src.",
-    "phpPass": 4181,
+    "estimatedProgress": 92.6,
+    "suiteProgress": "Supervisor-integrated LightningCSS colors/maps/visitors/media batch maps same-space relative color() minifier cases and SourceMap VLQ strictness, while deepening media resolution-prefix and custom Declaration visitor clusters. Verification passed PHP lint on 12 changed/new PHP files, focused gate 4 files / 2567 assertions / 0 failures, full LightningCSS lane 13 files / 4262 assertions / 0 failures, four example smoke runs, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/lightningcss/src.",
+    "phpPass": 4262,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-05-31 supervisor import layer-name validation at source b231e232: full LightningCSS lane passed 13 files / 4181 assertions / 0 failures. Conservative mapped coverage stays 2078 / 3532 because this deepens the already represented import prelude / LayerName import-graph cluster.",
-    "currentWork": "Import layer-name validation integrated: escaped CSS identifiers in @import layer() are accepted, malformed dotted/whitespace/comment layer names are rejected before graph resolution, and the bundle smoke records the new cases.",
+    "audit": "2026-05-31 supervisor colors/maps/visitors/media batch at source 5606777e: full LightningCSS lane passed 13 files / 4262 assertions / 0 failures. Conservative mapped coverage moves from 2078 / 3532 to 2093 / 3532: +14 same-space relative color() minifier cases and +1 SourceMap VLQ strictness case; media resolution-prefix and custom Declaration visitor work deepen represented clusters.",
+    "currentWork": "Colors/maps/visitors/media batch integrated: same-space relative color() minification, SourceMap missing/null VLQ strictness, fractional resolution media prefixing, and raw Declaration visitor insertion for overflow scrolling.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch; continue current-base PHP parity slices with focused tests, examples, manifest-backed mapping, and periodic full-lane PHP gates.",
-    "latestCommit": "b231e2329e5afca8bbb383ec46a99bfb5fb93023",
-    "nextTask": "Keep LightningCSS dominant and prioritize current-base handoffs that add new mapped target-prefix, property-value, parser/CSSOM/source-map/bundler/CSS Modules coverage; reject duplicate status-only or already-covered clusters.",
-    "commit": "b231e2329e5afca8bbb383ec46a99bfb5fb93023"
+    "latestCommit": "5606777ea25d5f9258f33667d8e2723b2f6eaf4c",
+    "nextTask": "Keep LightningCSS dominant and prioritize current-base handoffs that add fresh mapped target-prefix, property-value, parser/CSSOM/source-map/bundler/CSS Modules coverage; reject duplicate status-only or already-covered clusters.",
+    "commit": "5606777ea25d5f9258f33667d8e2723b2f6eaf4c"
 }
