@@ -52,6 +52,25 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (libsqlite selected corpus integration
+  16:22 UTC): source commit
+  `244af0e12cb234114c65902b96f88c63059491d2` (`ports: extend sqlite pragma
+  window select corpus`) landed seven verified libsqlite handoffs after
+  excluding stale shared metadata. Libsqlite selected evidence moves from
+  `3194686` to `3350074 pass / 0 fail` (+`155388` selected assertions), with
+  mapped coverage unchanged at `1589 / 1589`: PRAGMA `lock_proxy_file`
+  state/result handling, window sorter reuse planning, RETURNING view rowid
+  behavior, SELECT HAVING min/max lowering, trigger/fkey section-6 limits,
+  named-parameter expression-affinity syntax, and `where6` left-join index
+  guards. Gates passed: PHP lint on changed/new PHP files, `git diff --check
+  -- lanes/libsqlite`, no newly added `CurrentSourceNext`-numbered duplicate
+  filenames, no WordPress/WP/wp_ text introduced by the changed source diff,
+  selected libsqlite gate `8 files / 155391 assertions / 0 failures` under
+  `memory_limit=2048M`, and `application-pragma-lock-proxy-file.php
+  --self-test`. Full libsqlite release/all-runner parity was not run for this
+  isolated batch; default-memory pager/WAL pressure and broader release-runner
+  closure remain open.
+
 - 2026-05-31 supervisor continuation (Gitoxide integration plus LightningCSS
   refill 16:20 UTC): source commit
   `db90c9ab60d38142735b1aac59a6f5519b1d474f` (`ports: extend gitoxide tree
