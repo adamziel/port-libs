@@ -277,6 +277,25 @@ capability and `ls-refs` advertisements plus upstream-shaped request bytes, so
 deployment tooling can inspect active branches, unborn refs, peeled tags, and
 symbolic HEADs through native PHP protocol framing.
 
+The fetch response example now also records upstream sideband fixture progress
+messages parsed into native remote-progress records. The push response example
+now rejects oversized receive-pack status packet-lines before interpreting them
+as ref updates.
+
+## WordPress URL And Refspec Example
+
+`examples/wordpress-url-refspec-normalize.php` normalizes deployment remote URLs
+and fetch/push refspecs through native PHP parsers. This models deployment code
+deciding which WordPress branch/tag namespaces to fetch or update without
+shelling out to `git remote` or `git push`.
+
+## WordPress Merge Base Example
+
+`examples/wordpress-merge-base.php` now records graph-walk merge-base checks
+against other review heads, including archive-branch rejection. This models
+release-baseline selection for plugin/theme review branches without invoking
+Git.
+
 ## WordPress Tree Pathspec Walk Example
 
 `examples/wordpress-tree-pathspec-walk.php` applies native pathspec parsing and

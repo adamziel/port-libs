@@ -1078,3 +1078,20 @@ Tree pathspec walk batch accepted on 2026-05-31:
 - The mapped denominator moves from `1503 / 2886` to `1504 / 2886` for the
   distinct upstream-backed tree pathspec slice. Full Cargo workspace tests were
   not run for this slice.
+
+URL/merge/fetch/push batch accepted on 2026-05-31:
+
+- Source commit `acedf069fc6ff0fa5939ee93f9ce6bed3624c9cd` integrates four
+  Gitoxide handoffs without taking their stale shared metadata edits. The
+  accepted source slices cover URL/refspec parse-normalize behavior, merge-base
+  graph walking against other heads, protocol v2 fetch sideband fixture and
+  remote-progress parsing, and send-pack receive-status packet-line length
+  bounds.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`, focused
+  URL/merge/fetch/push tests `6 files / 781 assertions / 0 failures`, full
+  Gitoxide lane tests `38 files / 3739 assertions / 0 failures`, and four
+  touched examples exiting 0.
+- The mapped denominator moves from `1504 / 2886` to `1508 / 2886` for the four
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.
