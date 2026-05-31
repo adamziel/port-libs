@@ -269,6 +269,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
         'indexedby.test',
         'indexexpr1.test',
         'indexexpr2.test',
+        'indexexpr3.test',
         'bestindex5.test',
     ], [
         'btree01.test',
@@ -286,6 +287,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
         'indexedby.test',
         'indexexpr1.test',
         'indexexpr2.test',
+        'indexexpr3.test',
         'bestindex5.test',
     ]);
 };
@@ -306,10 +308,11 @@ $tests['real upstream btree index dynamic corpus count is non overlapping'] = st
     $t->same(1000, count(SQLiteBTreeIndexDynamicCorpusPlan::autoindex1PlannerCases()));
     $t->same(1000, count(SQLiteBTreeIndexDynamicCorpusPlan::index2DynamicWideColumnOrderCases()));
     $t->same(1000, count(SQLiteBTreeIndexDynamicCorpusPlan::bestindex5VirtualTableConstraintCases()));
+    $t->same(1000, count(SQLiteBTreeIndexDynamicCorpusPlan::indexexpr3JsonExpressionCoveringCases()));
 };
 
 $tests['real upstream btree index dynamic corpus dependency closure'] = static function (TestRunner $t): void {
-    $t->same('no new support component needed; reuses lane-local B-tree/index page, record, planner, automatic-index, partial-index, wide-column ordering, write-order, create-index stress, expression-index, quoted-identifier, and cursor-case helpers', 'no new support component needed; reuses lane-local B-tree/index page, record, planner, automatic-index, partial-index, wide-column ordering, write-order, create-index stress, expression-index, quoted-identifier, and cursor-case helpers');
+    $t->same('no new support component needed; reuses lane-local B-tree/index page, record, planner, automatic-index, partial-index, wide-column ordering, write-order, create-index stress, expression-index, JSON expression-index, quoted-identifier, and cursor-case helpers', 'no new support component needed; reuses lane-local B-tree/index page, record, planner, automatic-index, partial-index, wide-column ordering, write-order, create-index stress, expression-index, JSON expression-index, quoted-identifier, and cursor-case helpers');
 };
 
 return $tests;

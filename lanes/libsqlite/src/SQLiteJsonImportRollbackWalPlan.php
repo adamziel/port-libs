@@ -1886,6 +1886,119 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicRollbackDisabledMaterializedWalScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL rollback-disabled materialized dynamic parity requires at least one scenario');
+        }
+
+        $scenarios = [];
+        for ($seed = 1; $seed <= $scenarioCount; $seed++) {
+            $pageSize = $seed % 2 === 0 ? 1024 : 512;
+            $tenantId = 8100 + $seed;
+            $preexistingFrames = 1 + ($seed % 4);
+            $featurePage = 62 + ($seed % 5);
+            $catalogPage = 1320 + $seed;
+            $brokenPage = 1420 + $seed;
+            $jsonbMode = $seed % 3 === 2;
+            $preSavepointWalPages = [];
+            for ($frame = 1; $frame <= $preexistingFrames; $frame++) {
+                $preSavepointWalPages[] = 1500 + $seed + $frame;
+            }
+
+            $rows = [
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 10000 + 1,
+                    'key_name' => 'disabled_rollback_feature_payload_' . $seed,
+                    'key_value' => json_encode(['enabled' => false, 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'yes',
+                    'page_number' => $featurePage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 10000 + 2,
+                    'key_name' => 'disabled_rollback_catalog_payload_' . $seed,
+                    'key_value' => $jsonbMode
+                        ? new SQLiteBlobValue(SQLiteJsonB::encode(['items' => ['before'], 'seed' => $seed]))
+                        : json_encode(['items' => ['before'], 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'no',
+                    'page_number' => $catalogPage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 10000 + 3,
+                    'key_name' => 'disabled_rollback_broken_payload_' . $seed,
+                    'key_value' => '{"broken":',
+                    'load_policy' => 'no',
+                    'page_number' => $brokenPage,
+                ],
+            ];
+
+            $mutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_rollback_enable_feature_' . $seed,
+                    'key_name' => 'disabled_rollback_feature_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => $preexistingFrames + 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_rollback_catalog_append_' . $seed,
+                    'key_name' => 'disabled_rollback_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.items',
+                    'value' => new SQLiteJsonSubtypeValue(json_encode(['before', 'kept-despite-failure-' . $seed], JSON_THROW_ON_ERROR)),
+                    'wal_frame_index' => $preexistingFrames + 2,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_rollback_broken_payload_' . $seed,
+                    'key_name' => 'disabled_rollback_broken_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => $preexistingFrames + 3,
+                ],
+            ];
+
+            $databaseBytes = self::scenarioDatabaseBytes($pageSize, max($brokenPage, $catalogPage, $featurePage));
+            $walBytes = self::scenarioWalBytes($pageSize, $preexistingFrames, 0x8a00 + $seed, 0x8b00 + $seed);
+            $plan = self::plan($rows, $mutations, [
+                'database_bytes' => $databaseBytes,
+                'page_size' => $pageSize,
+                'wal_bytes' => $walBytes,
+                'transaction' => 'application_disabled_rollback_json_import_' . $seed,
+                'savepoint' => 'disabled_rollback_json_batch_' . $seed,
+                'pre_savepoint_wal_pages' => $preSavepointWalPages,
+                'rollback_on_error' => false,
+                'materialize_success_wal_frames' => true,
+            ]);
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $tenantId,
+                'page_size' => $pageSize,
+                'jsonb_mode' => $jsonbMode,
+                'preexisting_frames' => $preexistingFrames,
+                'pre_savepoint_wal_pages' => $preSavepointWalPages,
+                'expected_applied_pages' => [$featurePage, $catalogPage],
+                'expected_failed_statement' => 'disabled_rollback_broken_payload_' . $seed,
+                'database_bytes' => $databaseBytes,
+                'wal_bytes' => $walBytes,
+                'plan' => $plan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
      * @param array<string,mixed> $importPlan
      */
     private static function assertRollbackFramesExist(array $importPlan, int $walFrameCount): void

@@ -9316,6 +9316,75 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,declared_sql:string,expected_code:int,expected_error:string,errcode:string,connect_method:string,detail:string,integrity:string}>
+     */
+    public static function bestindexCVirtualTableDeclarationErrorCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindexC declaration-error dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'bestindexC-4.0',
+                'xConnect application error is surfaced as SQLITE_ERROR',
+                'CREATE VIRTUAL TABLE y1 USING tcl(vtab_command 1)',
+                '',
+                'not happy!',
+                'throws application error before declare_vtab SQL is available',
+            ],
+            [
+                'bestindexC-4.2',
+                'xConnect cannot declare a PRAGMA as a virtual table schema',
+                'CREATE VIRTUAL TABLE y1 USING tcl(vtab_command "PRAGMA page_size=1024")',
+                'PRAGMA page_size=1024',
+                'declare_vtab: syntax error',
+                'declare_vtab rejects non-CREATE-TABLE statements',
+            ],
+            [
+                'bestindexC-4.3',
+                'xConnect incomplete CREATE TABLE declaration reports incomplete input',
+                'CREATE VIRTUAL TABLE y1 USING tcl(vtab_command "CREATE TABLE x1(")',
+                'CREATE TABLE x1(',
+                'declare_vtab: incomplete input',
+                'declare_vtab preserves parser incomplete-input diagnostics',
+            ],
+            [
+                'bestindexC-4.4',
+                'xConnect declaration with reserved column name reports syntax error',
+                'CREATE VIRTUAL TABLE y1 USING tcl(vtab_command "CREATE TABLE x1(insert)")',
+                'CREATE TABLE x1(insert)',
+                'declare_vtab: near "insert": syntax error',
+                'declare_vtab preserves token-local syntax diagnostics',
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $declaredSql, $error, $detail] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+
+            $out[] = [
+                'source' => 'bestindexC.test sections 4.0 through 4.4',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario,
+                'statement' => $statement . ' /* dynamic batch ' . $batch . ' */',
+                'declared_sql' => $declaredSql,
+                'expected_code' => 1,
+                'expected_error' => $error,
+                'errcode' => 'SQLITE_ERROR',
+                'connect_method' => 'xConnect',
+                'detail' => $detail . '; dynamic batch ' . $batch,
+                'integrity' => 'expected-error',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,sql:string,virtual_table:string,columns:list<string>,constraints:list<string>,expected_col_used:int,reported_col_used:int,constraint_log:list<string>,cost:int,rows:int,detail:string,batch:int}>
      */
     public static function bestindexDAndEVirtualTablePlannerCases(int $cases = 1000): array
@@ -11656,6 +11725,55 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
                 'expected_error' => $error,
                 'detail' => $detail,
                 'integrity' => $integrity,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,index_name:string,indexed_expression:string,where_clause:string|null,function_opcode_count:int,expected_rows:list<array<int,mixed>>,uses_covering_index:bool,uses_index:bool,detail:string,integrity:string}>
+     */
+    public static function indexexpr3JsonExpressionCoveringCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite indexexpr3 JSON expression-index corpus requires at least one case');
+        }
+
+        $templates = [
+            ['indexexpr3-1.1', 'ORDER BY reads json_extract expression from expression index without Function opcodes', "SELECT json_extract(j, '$.x') FROM t1 ORDER BY 1", 'i1', "json_extract(j, '$.x')", null, 0, [['one'], ['three'], ['two']], true, true, 'SCAN t1 USING INDEX i1; expression value is read from the index key'],
+            ['indexexpr3-1.2', 'equality prefix on a plus expression column reads json_extract from composite index', "SELECT json_extract(j, '$.x') FROM t1 WHERE a=2", 'i2', "a, json_extract(j, '$.x')", 'a=2', 0, [['two']], true, true, 'SEARCH t1 USING COVERING INDEX i2 (a=?)'],
+            ['indexexpr3-1.3', 'coalesce wrapper still uses indexed json_extract operand without recomputation', "SELECT coalesce(json_extract(j, '$.x'), 'five') FROM t1 WHERE a=2", 'i2', "a, json_extract(j, '$.x')", 'a=2', 0, [['two']], true, true, 'SEARCH t1 USING COVERING INDEX i2 (a=?) and evaluate coalesce over index value'],
+            ['indexexpr3-1.4', 'concatenation wrapper reuses indexed json_extract operand', "SELECT json_extract(j, '$.x') || '.two' FROM t1 WHERE a=2", 'i2', "a, json_extract(j, '$.x')", 'a=2', 0, [['two.two']], true, true, 'SEARCH t1 USING COVERING INDEX i2 (a=?) and concatenate the stored expression value'],
+            ['indexexpr3-1.5', 'json_insert cannot fully substitute nested json_extract and keeps two Function opcodes', "SELECT json_insert('{}', '$.y', json_extract(j, '$.x')) FROM t1 WHERE a=2", 'i2', "a, json_extract(j, '$.x')", 'a=2', 2, [['{"y":"two"}']], false, true, 'SEARCH t1 USING INDEX i2; json_insert and nested extraction remain executable functions'],
+            ['indexexpr3-1.6', 'json_insert with coalesce wrapper keeps runtime Function opcodes', "SELECT json_insert('{}', '$.y', coalesce(json_extract(j, '$.x'), 'five')) FROM t1 WHERE a=2", 'i2', "a, json_extract(j, '$.x')", 'a=2', 2, [['{"y":"two"}']], false, true, 'SEARCH t1 USING INDEX i2 while nested JSON function evaluation remains visible'],
+            ['indexexpr3-2.1', 'single indexed expression projection is covered by composite expression index', "SELECT json_extract(j, '$.x') FROM t1 WHERE a=?", 'i1', "a, json_extract(j, '$.x')", 'a=?', 0, [], true, true, 't1 USING COVERING INDEX i1'],
+            ['indexexpr3-2.2', 'adding non-indexed column b prevents covering index use', "SELECT b, json_extract(j, '$.x') FROM t1 WHERE a=?", 'i1', "a, json_extract(j, '$.x')", 'a=?', 0, [], false, true, 't1 USING INDEX i1'],
+            ['indexexpr3-2.3', 'json_insert path argument fed by indexed expression is not covering', "SELECT json_insert('{}', json_extract(j, '$.x')) FROM t1 WHERE a=?", 'i1', "a, json_extract(j, '$.x')", 'a=?', 1, [], false, true, 't1 USING INDEX i1'],
+            ['indexexpr3-2.4', 'aggregate over only the indexed expression is covering', "SELECT sum(json_extract(j, '$.x')) FROM t1 WHERE a=?", 'i1', "a, json_extract(j, '$.x')", 'a=?', 0, [], true, true, 't1 USING COVERING INDEX i1'],
+            ['indexexpr3-2.5', 'mixed projection plus aggregate over expression is not covering', "SELECT json_extract(j, '$.x'), sum(json_extract(j, '$.x')) FROM t1 WHERE a=?", 'i1', "a, json_extract(j, '$.x')", 'a=?', 0, [], false, true, 't1 USING INDEX i1'],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $indexName, $indexedExpression, $whereClause, $functionCount, $rows, $covering, $usesIndex, $detail] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $out[] = [
+                'source' => 'indexexpr3.test sections indexexpr3-1.1 through indexexpr3-2.5',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => $batch,
+                'scenario' => $scenario . ' dynamic batch ' . $batch,
+                'statement' => $statement,
+                'index_name' => $indexName,
+                'indexed_expression' => $indexedExpression,
+                'where_clause' => $whereClause,
+                'function_opcode_count' => $functionCount,
+                'expected_rows' => $rows,
+                'uses_covering_index' => $covering,
+                'uses_index' => $usesIndex,
+                'detail' => $detail,
+                'integrity' => 'ok',
             ];
         }
 

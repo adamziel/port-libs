@@ -944,6 +944,95 @@ final class SQLiteUpsertReturningDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{upstream:string,source:string,seed:int,storage:string,before:list<array<string,int|string>>,incoming:list<array<string,int|string>>,constraints:list<list<string>>,arms:list<array<string,mixed>>,after:list<array<string,int|string>>,returning:list<array{fooid:int}>,events:list<string>,trigger_checks:list<array{old_y:string,new_y:string,passes:bool}>,changes:int,dependencies:list<string>}>
+     */
+    public static function returning1RepeatedFoovalDynamicCases(int $caseCount = 1000): array
+    {
+        if ($caseCount < 1) {
+            throw new \InvalidArgumentException('SQLite upstream RETURNING repeated UPSERT corpus case count must be positive');
+        }
+
+        $cases = [];
+        for ($seed = 1; $seed <= $caseCount; ++$seed) {
+            $base = $seed * 1000;
+            $firstValue = $base + 17;
+            $secondValue = $base + 4711;
+            $thirdValue = $base + 33;
+            $storage = $seed % 2 === 0 ? 'temp' : 'main';
+            $largeA = str_repeat('a', 96 + ($seed % 11));
+            $largeB = str_repeat('b', 104 + ($seed % 13));
+
+            $before = [
+                ['fooid' => $base + 1, 'fooval' => $firstValue, 'refcnt' => 1, 'payload' => $largeA],
+                ['fooid' => $base + 2, 'fooval' => $secondValue, 'refcnt' => 1, 'payload' => $largeB],
+            ];
+            $incoming = [
+                ['fooid' => $base + 3, 'fooval' => $firstValue, 'refcnt' => 1, 'payload' => $largeA],
+                ['fooid' => $base + 4, 'fooval' => $secondValue, 'refcnt' => 1, 'payload' => $largeB],
+                ['fooid' => $base + 5, 'fooval' => $firstValue, 'refcnt' => 1, 'payload' => $largeA],
+                ['fooid' => $base + 6, 'fooval' => $thirdValue, 'refcnt' => 1, 'payload' => 'insert-' . $seed],
+                ['fooid' => $base + 7, 'fooval' => $secondValue, 'refcnt' => 1, 'payload' => $largeB],
+            ];
+            $arms = [[
+                'target' => null,
+                'action' => 'update',
+                'assignments' => [
+                    'refcnt' => static fn (array $current): int => (int) $current['refcnt'] + 1,
+                    'payload' => static fn (array $current, array $row): string => (string) $row['payload'],
+                ],
+            ]];
+            $plan = SQLiteUpsertDoUpdateWherePlan::executeConflictArmsWithYieldTrace($before, $incoming, $arms, [['fooval']]);
+            $triggerChecks = [];
+            foreach ($plan['yield_trace'] as $event) {
+                if (($event['event'] ?? '') !== 'update-returning') {
+                    continue;
+                }
+                $oldY = (string) (($event['old'] ?? [])['payload'] ?? '');
+                $newY = (string) (($event['row'] ?? [])['payload'] ?? '');
+                $triggerChecks[] = [
+                    'old_y' => $oldY,
+                    'new_y' => $newY,
+                    'passes' => $oldY === $newY,
+                ];
+            }
+
+            $cases[] = [
+                'upstream' => 'returning1-17.' . ($storage === 'main' ? '1' : '2') . '/upsert1-1300-dynamic-' . sprintf('%04d', $seed),
+                'source' => 'returning1.test + upsert1.test',
+                'seed' => $seed,
+                'storage' => $storage,
+                'before' => $before,
+                'incoming' => $incoming,
+                'constraints' => [['fooval']],
+                'arms' => $arms,
+                'after' => [
+                    ['fooid' => $base + 1, 'fooval' => $firstValue, 'refcnt' => 3, 'payload' => $largeA],
+                    ['fooid' => $base + 2, 'fooval' => $secondValue, 'refcnt' => 3, 'payload' => $largeB],
+                    ['fooid' => $base + 6, 'fooval' => $thirdValue, 'refcnt' => 1, 'payload' => 'insert-' . $seed],
+                ],
+                'returning' => [
+                    ['fooid' => $base + 1],
+                    ['fooid' => $base + 2],
+                    ['fooid' => $base + 1],
+                    ['fooid' => $base + 6],
+                    ['fooid' => $base + 2],
+                ],
+                'events' => array_column($plan['yield_trace'], 'event'),
+                'trigger_checks' => $triggerChecks,
+                'changes' => 5,
+                'dependencies' => [
+                    'returning1.test-17.1-through-17.2',
+                    'upsert1.test-1300',
+                    'sqlite-returning-repeated-upsert-row-stream',
+                    'sqlite-upsert-trigger-current-row-image',
+                ],
+            ];
+        }
+
+        return $cases;
+    }
+
+    /**
      * @param list<string> $order
      * @return list<array<string,mixed>>
      */

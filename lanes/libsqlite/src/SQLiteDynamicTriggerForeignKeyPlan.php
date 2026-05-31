@@ -4396,6 +4396,76 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @return array<string,mixed>
+     */
+    public static function triggerProgramDmlRestrictionPlan(string $statement): array
+    {
+        $sql = trim($statement);
+        if ($sql === '') {
+            throw new \InvalidArgumentException('SQLite trigger1 program statement is empty');
+        }
+
+        $normalized = preg_replace('/\s+/', ' ', $sql);
+        if (!is_string($normalized)) {
+            throw new \InvalidArgumentException('SQLite trigger1 program statement is malformed');
+        }
+
+        $kind = strtolower(strtok($normalized, ' ') ?: '');
+        if (!in_array($kind, ['insert', 'update', 'delete'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger1 program statement kind is unsupported');
+        }
+
+        $target = null;
+        if ($kind === 'insert' && preg_match('/\binsert\s+into\s+([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)/i', $normalized, $matches) === 1) {
+            $target = $matches[1];
+        } elseif ($kind === 'update' && preg_match('/\bupdate\s+([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)/i', $normalized, $matches) === 1) {
+            $target = $matches[1];
+        } elseif ($kind === 'delete' && preg_match('/\bdelete\s+from\s+([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)/i', $normalized, $matches) === 1) {
+            $target = $matches[1];
+        }
+
+        if ($target === null) {
+            throw new \InvalidArgumentException('SQLite trigger1 program target table is missing');
+        }
+
+        $qualified = str_contains($target, '.');
+        $usesNotIndexed = preg_match('/\bnot\s+indexed\b/i', $normalized) === 1;
+        $usesIndexedBy = preg_match('/\bindexed\s+by\b/i', $normalized) === 1;
+        $status = 'commit-ok';
+        $error = null;
+
+        if ($qualified) {
+            $status = 'schema-error';
+            $error = 'qualified table names are not allowed on INSERT, UPDATE, and DELETE statements within triggers';
+        } elseif (($kind === 'update' || $kind === 'delete') && $usesNotIndexed) {
+            $status = 'schema-error';
+            $error = 'the NOT INDEXED clause is not allowed on UPDATE or DELETE statements within triggers';
+        } elseif (($kind === 'update' || $kind === 'delete') && $usesIndexedBy) {
+            $status = 'schema-error';
+            $error = 'the INDEXED BY clause is not allowed on UPDATE or DELETE statements within triggers';
+        }
+
+        return [
+            'source' => 'trigger1.test trigger1-16.1..16.7',
+            'operation' => 'trigger-program-dml-restriction',
+            'status' => $status,
+            'statement' => $normalized,
+            'statement_kind' => $kind,
+            'target' => $target,
+            'qualified_target' => $qualified,
+            'uses_not_indexed' => $usesNotIndexed,
+            'uses_indexed_by' => $usesIndexedBy,
+            'installed' => $status === 'commit-ok',
+            'error' => $error,
+            'dependencies' => [
+                'sqlite-trigger1-trigger-program-dml-target-must-be-unqualified',
+                'sqlite-trigger1-trigger-program-update-delete-disallows-not-indexed',
+                'sqlite-trigger1-trigger-program-update-delete-disallows-indexed-by',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{name:string,columns:list<string>,timing?:string,event?:string}> $triggers
      * @param list<string> $updatedColumns
      * @return array<string,mixed>
@@ -5618,6 +5688,86 @@ final class SQLiteDynamicTriggerForeignKeyPlan
                 'sqlite-trigger1-create-drop-rollback',
                 'sqlite-trigger1-temp-trigger-hidden-from-main-schema',
                 'sqlite-trigger1-drop-table-drops-triggers',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{name:string,object_type:string,temp?:bool}> $objects
+     * @param list<array{name:string,target:string,temp?:bool,if_not_exists?:bool,quoted_name?:string,for_each_statement?:bool,system_target?:bool}> $definitions
+     * @return array<string,mixed>
+     */
+    public static function triggerCreateDiagnostics(array $objects, array $definitions): array
+    {
+        $catalog = [];
+        $tempCatalog = [];
+        foreach ($objects as $object) {
+            self::catalogAdd($catalog, $tempCatalog, $object);
+        }
+
+        $results = [];
+        foreach ($definitions as $definition) {
+            if (!is_array($definition)) {
+                throw new \InvalidArgumentException('SQLite trigger1 create diagnostic definition is malformed');
+            }
+
+            $name = self::identifier((string) ($definition['name'] ?? ''), 'trigger name');
+            $target = self::identifier((string) ($definition['target'] ?? ''), 'trigger target');
+            $temp = (bool) ($definition['temp'] ?? false);
+            $ifNotExists = (bool) ($definition['if_not_exists'] ?? false);
+            $displayName = (string) ($definition['quoted_name'] ?? $name);
+            $status = 'created';
+            $error = null;
+
+            if (($definition['for_each_statement'] ?? false) === true) {
+                $status = 'syntax-error';
+                $error = 'near "STATEMENT": syntax error';
+            } elseif (($definition['system_target'] ?? false) === true || $target === 'sqlite_master') {
+                $status = 'schema-error';
+                $error = 'cannot create trigger on system table';
+            } elseif (!isset($catalog[$target]) && !isset($tempCatalog[$target])) {
+                $status = 'schema-error';
+                $error = $temp ? "no such table: {$target}" : "no such table: main.{$target}";
+            } elseif (isset($catalog[$name]) || isset($tempCatalog[$name])) {
+                if ($ifNotExists) {
+                    $status = 'skipped-existing';
+                } else {
+                    $status = 'schema-error';
+                    $error = "trigger {$displayName} already exists";
+                }
+            } else {
+                self::catalogAdd($catalog, $tempCatalog, ['name' => $name, 'object_type' => 'trigger', 'target' => $target, 'temp' => $temp]);
+            }
+
+            $results[] = [
+                'name' => $name,
+                'display_name' => $displayName,
+                'target' => $target,
+                'temp' => $temp,
+                'if_not_exists' => $ifNotExists,
+                'status' => $status,
+                'ok' => $error === null,
+                'error' => $error,
+                'main_trigger_names' => self::catalogNames($catalog, 'trigger'),
+                'temp_trigger_names' => self::catalogNames($tempCatalog, 'trigger'),
+            ];
+        }
+
+        return [
+            'source' => 'trigger1.test trigger1-1.1..1.9',
+            'operation' => 'trigger-create-diagnostics',
+            'cases' => $results,
+            'case_count' => count($results),
+            'created_count' => count(array_filter($results, static fn (array $row): bool => $row['status'] === 'created')),
+            'error_count' => count(array_filter($results, static fn (array $row): bool => $row['error'] !== null)),
+            'skipped_existing_count' => count(array_filter($results, static fn (array $row): bool => $row['status'] === 'skipped-existing')),
+            'final_main_triggers' => self::catalogNames($catalog, 'trigger'),
+            'final_temp_triggers' => self::catalogNames($tempCatalog, 'trigger'),
+            'dependencies' => [
+                'sqlite-trigger1-missing-target-diagnostics',
+                'sqlite-trigger1-for-each-statement-syntax-error',
+                'sqlite-trigger1-if-not-exists-skips-duplicate-trigger',
+                'sqlite-trigger1-system-table-trigger-rejected',
             ],
         ];
     }

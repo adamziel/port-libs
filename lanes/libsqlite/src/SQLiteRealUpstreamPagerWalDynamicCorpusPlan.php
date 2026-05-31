@@ -1564,6 +1564,104 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walSetlkTimeoutRows(): array
+    {
+        $sections = [
+            [
+                'section' => 'walsetlk2-2.1..2.4',
+                'journal_mode' => 'delete',
+                'setlk_timeout_ms' => 2000,
+                'busy_timeout_ms' => 2000,
+                'blocked_statement' => 'INSERT INTO t1 VALUES(7, 8)',
+                'blocking_rows' => [[5, 6]],
+                'attempt_rows' => [[7, 8]],
+                'setlk_result' => ['code' => 1, 'message' => 'database is locked'],
+                'busy_result' => ['code' => 0, 'message' => null],
+                'uses_wal_index_locks' => false,
+                'blocking_lock_kind' => 'rollback-exclusive',
+            ],
+            [
+                'section' => 'walsetlk2-2.5..2.7',
+                'journal_mode' => 'wal',
+                'setlk_timeout_ms' => 2000,
+                'busy_timeout_ms' => null,
+                'blocked_statement' => 'INSERT INTO t1 VALUES(13, 14)',
+                'blocking_rows' => [[11, 12]],
+                'attempt_rows' => [[13, 14]],
+                'setlk_result' => ['code' => 0, 'message' => null],
+                'busy_result' => ['code' => 0, 'message' => null],
+                'uses_wal_index_locks' => true,
+                'blocking_lock_kind' => 'wal-write',
+            ],
+            [
+                'section' => 'walsetlk2-3.1..3.2',
+                'journal_mode' => 'wal',
+                'setlk_timeout_ms' => -1,
+                'busy_timeout_ms' => null,
+                'blocked_statement' => 'INSERT INTO t1 VALUES(7, "seven")',
+                'blocking_rows' => [[5, 'five']],
+                'attempt_rows' => [[7, 'seven']],
+                'setlk_result' => ['code' => 0, 'message' => null],
+                'busy_result' => ['code' => 0, 'message' => null],
+                'uses_wal_index_locks' => true,
+                'blocking_lock_kind' => 'wal-indefinite-write',
+            ],
+            [
+                'section' => 'walsetlk2-3.3..3.4',
+                'journal_mode' => 'wal',
+                'setlk_timeout_ms' => -1,
+                'busy_timeout_ms' => null,
+                'blocked_statement' => 'INSERT INTO t1 VALUES(9, "nine")',
+                'blocking_rows' => [[11, 'eleven']],
+                'attempt_rows' => [[9, 'nine']],
+                'setlk_result' => ['code' => 0, 'message' => null],
+                'busy_result' => ['code' => 0, 'message' => null],
+                'uses_wal_index_locks' => true,
+                'blocking_lock_kind' => 'wal-indefinite-second-write',
+            ],
+        ];
+
+        $rows = [];
+        foreach (range(1, 1000) as $case) {
+            $section = $sections[($case - 1) % count($sections)];
+            $setlkEnabled = $section['setlk_timeout_ms'] !== null;
+            $busyEnabled = $section['busy_timeout_ms'] !== null;
+            $finalRows = [[1, 2], [3, 4]];
+            foreach ($section['blocking_rows'] as $row) {
+                $finalRows[] = $row;
+            }
+            if ($section['setlk_result']['code'] === 0 || $section['busy_result']['code'] === 0) {
+                foreach ($section['attempt_rows'] as $row) {
+                    $finalRows[] = $row;
+                }
+            }
+
+            $rows[] = $section + [
+                'upstream' => sprintf('walsetlk2.test %s dynamic timeout case %04d', $section['section'], $case),
+                'script' => 'walsetlk2.test',
+                'case' => $case,
+                'fullmutex' => true,
+                'lock_holder_duration_ms' => 2000,
+                'callback_delay_before_attempt_ms' => 500,
+                'writer_waits_for_lock_holder' => $section['setlk_result']['code'] === 0,
+                'busy_timeout_retries_statement' => $busyEnabled,
+                'setlk_timeout_routes_blocking_locks_only' => $setlkEnabled,
+                'final_rows' => $finalRows,
+                'final_row_count' => count($finalRows),
+                'dependencies' => [
+                    'real-upstream-corpus-walsetlk2',
+                    'sqlite-setlk-timeout-routing',
+                    'sqlite-wal-write-lock-timeout',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array

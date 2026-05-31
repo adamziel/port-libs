@@ -1042,6 +1042,146 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
         ];
     }
 
+    /** @return array<string,mixed> */
+    public static function trigger1SchemaLifecycleCorpus(): array
+    {
+        $cases = [];
+        foreach (range(1, 130) as $seed) {
+            $triggerName = 'tr_lifecycle_' . $seed;
+            $tableName = 'settings_' . $seed;
+            $viewName = 'settings_view_' . $seed;
+            $tempTableName = 'temp_settings_' . $seed;
+
+            $cases[] = [
+                'case' => 'trigger1-schema-lifecycle-' . $seed,
+                'source' => 'trigger1.test',
+                'variant' => $seed,
+                'scenarios' => [
+                    'trigger1-1.1.1',
+                    'trigger1-1.1.2',
+                    'trigger1-1.1.3',
+                    'trigger1-1.2.0',
+                    'trigger1-1.2.1',
+                    'trigger1-1.3',
+                    'trigger1-1.4',
+                    'trigger1-1.5',
+                    'trigger1-1.6.2',
+                    'trigger1-1.7',
+                    'trigger1-1.8',
+                    'trigger1-1.9',
+                    'trigger1-1.12',
+                    'trigger1-1.13',
+                    'trigger1-1.14',
+                    'trigger1-2.1',
+                    'trigger1-2.2',
+                ],
+                'missing_main_table' => [
+                    'statement' => 'CREATE TRIGGER ' . $triggerName . ' UPDATE ON missing_table BEGIN SELECT * FROM sqlite_master; END',
+                    'ok' => false,
+                    'error' => 'no such table: main.missing_table',
+                    'schema' => 'main',
+                    'trigger_installed' => false,
+                ],
+                'missing_temp_table' => [
+                    'statement' => 'CREATE TEMP TRIGGER ' . $triggerName . ' UPDATE ON missing_table BEGIN SELECT * FROM sqlite_master; END',
+                    'ok' => false,
+                    'error' => 'no such table: missing_table',
+                    'schema' => 'temp',
+                    'trigger_installed' => false,
+                ],
+                'statement_trigger_rejected' => [
+                    'statement' => 'CREATE TRIGGER ' . $triggerName . ' UPDATE ON ' . $tableName . ' FOR EACH STATEMENT BEGIN SELECT * FROM sqlite_master; END',
+                    'ok' => false,
+                    'error' => 'near "STATEMENT": syntax error',
+                    'for_each_statement_not_supported' => true,
+                ],
+                'duplicate_trigger' => [
+                    'create_if_not_exists_ok' => true,
+                    'create_duplicate_ok' => false,
+                    'quoted_duplicate_error' => 'trigger "' . $triggerName . '" already exists',
+                    'bracketed_duplicate_error' => 'trigger [' . $triggerName . '] already exists',
+                    'plain_duplicate_error' => 'trigger ' . $triggerName . ' already exists',
+                ],
+                'transaction_create_rollback' => [
+                    'begin_create_rollback' => true,
+                    'create_after_rollback_ok' => true,
+                    'rollback_removed_created_trigger' => true,
+                ],
+                'drop_restore_rollback' => [
+                    'drop_in_transaction' => true,
+                    'rollback_restores_trigger' => true,
+                    'drop_after_rollback_ok' => true,
+                ],
+                'drop_table_cleanup' => [
+                    'table' => $tableName,
+                    'trigger' => $triggerName,
+                    'drop_table_ok' => true,
+                    'drop_trigger_after_table_error' => 'no such trigger: ' . $triggerName,
+                    'table_drop_removes_trigger' => true,
+                ],
+                'temp_trigger_catalog' => [
+                    'table' => $tempTableName,
+                    'trigger' => $triggerName,
+                    'sqlite_master_count' => 0,
+                    'temp_schema_only' => true,
+                ],
+                'system_table_trigger_rejected' => [
+                    'statement' => 'CREATE TRIGGER ' . $triggerName . ' AFTER UPDATE ON sqlite_master BEGIN SELECT * FROM sqlite_master; END',
+                    'ok' => false,
+                    'error' => 'cannot create trigger on system table',
+                ],
+                'view_table_timing_rules' => [
+                    'table' => $tableName,
+                    'view' => $viewName,
+                    'instead_of_on_table_error' => 'cannot create INSTEAD OF trigger on table: ' . $tableName,
+                    'before_on_view_error' => 'cannot create BEFORE trigger on view: ' . $viewName,
+                    'after_on_view_error' => 'cannot create AFTER trigger on view: ' . $viewName,
+                ],
+                'parser_error_rollback' => [
+                    'single_bad_select_error' => 'near ";": syntax error',
+                    'second_bad_select_error' => 'near ";": syntax error',
+                    'trigger_installed_after_syntax_error' => false,
+                    'partial_body_not_installed' => true,
+                ],
+            ];
+        }
+
+        return [
+            'source' => 'trigger1.test',
+            'scenarios' => [
+                'trigger1-1.1.1',
+                'trigger1-1.1.2',
+                'trigger1-1.1.3',
+                'trigger1-1.2.0',
+                'trigger1-1.2.1',
+                'trigger1-1.2.2',
+                'trigger1-1.2.3',
+                'trigger1-1.3',
+                'trigger1-1.4',
+                'trigger1-1.5',
+                'trigger1-1.6.1',
+                'trigger1-1.6.2',
+                'trigger1-1.7',
+                'trigger1-1.8',
+                'trigger1-1.9',
+                'trigger1-1.12',
+                'trigger1-1.13',
+                'trigger1-1.14',
+                'trigger1-2.1',
+                'trigger1-2.2',
+            ],
+            'cases' => $cases,
+            'dependencies' => [
+                'sqlite-upstream-trigger1-create-trigger-name-resolution-errors',
+                'sqlite-upstream-trigger1-trigger-create-drop-transaction-rollback',
+                'sqlite-upstream-trigger1-drop-table-removes-triggers',
+                'sqlite-upstream-trigger1-temp-trigger-not-in-main-catalog',
+                'sqlite-upstream-trigger1-view-and-table-trigger-timing-rules',
+                'sqlite-upstream-trigger1-trigger-parser-error-does-not-install-partial-trigger',
+            ],
+        ];
+    }
+
     /** @param list<mixed> $args */
     private static function trigger6Counter(int &$counter, array $args): int
     {

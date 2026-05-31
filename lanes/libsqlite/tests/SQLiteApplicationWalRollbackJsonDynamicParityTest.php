@@ -22,6 +22,7 @@ $headerChecksumMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicHeade
 $successfulMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicSuccessfulMaterializedWalScenarios(24);
 $fullRunMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFullRunMaterializedWalScenarios(18);
 $committedPrefixFailureScenarios = SQLiteJsonImportRollbackWalPlan::dynamicCommittedPrefixFailureScenarios(18);
+$rollbackDisabledMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledMaterializedWalScenarios(18);
 
 $tests = [
     'sqlite application wal rollback json dynamic parity exposes requested scenario count' => static function (TestRunner $t) use ($scenarios): void {
@@ -249,7 +250,97 @@ $tests = [
         sort($jsonModes);
         $t->same([false, true], $jsonModes);
     },
+    'sqlite application wal rollback json dynamic parity rollback-disabled materialized WAL exposes requested scenario count' => static function (TestRunner $t) use ($rollbackDisabledMaterializedWalScenarios): void {
+        $t->same(18, count($rollbackDisabledMaterializedWalScenarios));
+    },
+    'sqlite application wal rollback json dynamic parity rollback-disabled materialized WAL covers prefix frame counts' => static function (TestRunner $t) use ($rollbackDisabledMaterializedWalScenarios): void {
+        $prefixCounts = array_values(array_unique(array_column($rollbackDisabledMaterializedWalScenarios, 'preexisting_frames')));
+        sort($prefixCounts);
+        $t->same([1, 2, 3, 4], $prefixCounts);
+    },
+    'sqlite application wal rollback json dynamic parity rollback-disabled materialized WAL covers both page sizes' => static function (TestRunner $t) use ($rollbackDisabledMaterializedWalScenarios): void {
+        $pageSizes = array_values(array_unique(array_column($rollbackDisabledMaterializedWalScenarios, 'page_size')));
+        sort($pageSizes);
+        $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json dynamic parity rollback-disabled materialized WAL covers json text and jsonb rows' => static function (TestRunner $t) use ($rollbackDisabledMaterializedWalScenarios): void {
+        $jsonModes = array_values(array_unique(array_column($rollbackDisabledMaterializedWalScenarios, 'jsonb_mode')));
+        sort($jsonModes);
+        $t->same([false, true], $jsonModes);
+    },
 ];
+
+foreach ($rollbackDisabledMaterializedWalScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $plan = $scenario['plan'];
+    $prefix = 'sqlite application wal rollback json dynamic parity rollback disabled materialized wal seed ' . $seed . ' ';
+
+    $tests[$prefix . 'keeps partial rollback status without outer rollback'] = static function (TestRunner $t) use ($plan): void {
+        $t->same('partial_rollback', $plan['status']);
+        $t->same(false, $plan['rollback_required']);
+    };
+    $tests[$prefix . 'uses rollback-disabled transaction name'] = static function (TestRunner $t) use ($plan, $seed): void {
+        $t->same('application_disabled_rollback_json_import_' . $seed, $plan['transaction']);
+    };
+    $tests[$prefix . 'uses rollback-disabled savepoint name'] = static function (TestRunner $t) use ($plan, $seed): void {
+        $t->same('disabled_rollback_json_batch_' . $seed, $plan['savepoint']);
+    };
+    $tests[$prefix . 'records failed statement but materializes applied rows'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same([$scenario['expected_failed_statement']], $plan['failed_statements']);
+        $t->same(2, $plan['applied_statement_count']);
+        $t->same(1, $plan['failed_statement_count']);
+    };
+    $tests[$prefix . 'does not restore database to before image'] = static function (TestRunner $t) use ($plan): void {
+        $t->same(false, $plan['database_restored_to_before']);
+        $t->same(true, $plan['database_changed_before_rollback']);
+    };
+    $tests[$prefix . 'preserves preexisting WAL prefix'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['wal_bytes'], substr($plan['wal_bytes_after'], 0, strlen($scenario['wal_bytes'])));
+        $t->same($scenario['preexisting_frames'], $plan['wal_frame_count_before']);
+    };
+    $tests[$prefix . 'appends only successful statement frames'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same(2, $plan['materialized_wal_frame_count']);
+        $t->same($scenario['preexisting_frames'] + 2, $plan['wal_frame_count_after']);
+        $t->same(0, $plan['discarded_wal_frame_count']);
+        $t->same(false, $plan['wal_truncated']);
+    };
+    $tests[$prefix . 'records applied page numbers'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same($scenario['expected_applied_pages'], array_column($plan['import_plan']['applied'], 'page_number'));
+    };
+    $tests[$prefix . 'retains tenant id in applied rows'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $t->same([$scenario['tenant_id'], $scenario['tenant_id']], array_column($plan['import_plan']['applied'], 'tenant_id'));
+    };
+    $tests[$prefix . 'keeps JSONB mode on catalog row'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $value = $plan['import_plan']['applied'][1]['key_value'];
+        $t->same($scenario['jsonb_mode'], $value instanceof SQLiteBlobValue);
+    };
+    $tests[$prefix . 'statement-level failed frame remains isolated'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $failedFrames = array_column($plan['import_plan']['failed'][0]['rollback']['discarded_wal_frames'], 'frame_index');
+        $t->same([$scenario['preexisting_frames'] + 3], $failedFrames);
+    };
+    $tests[$prefix . 'appended frame pages match successful applied pages'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $pages = [];
+        for ($index = 1; $index <= 2; $index++) {
+            $frameOffset = 32 + (($scenario['preexisting_frames'] + $index - 1) * $frameSize);
+            $frameHeader = unpack('Npage_number', substr($plan['wal_bytes_after'], $frameOffset, 4));
+            $pages[] = (int) $frameHeader['page_number'];
+        }
+        $t->same($scenario['expected_applied_pages'], $pages);
+    };
+    $tests[$prefix . 'only final materialized frame is a commit frame'] = static function (TestRunner $t) use ($plan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $commits = [];
+        for ($index = 1; $index <= 2; $index++) {
+            $frameOffset = 32 + (($scenario['preexisting_frames'] + $index - 1) * $frameSize);
+            $frameHeader = unpack('Npage_number/Ncommit', substr($plan['wal_bytes_after'], $frameOffset, 8));
+            $commits[] = (int) $frameHeader['commit'];
+        }
+        $t->same([0, intdiv(strlen($plan['database_bytes_after_import']), $pageSize)], $commits);
+    };
+}
 
 foreach ($successfulMaterializedWalScenarios as $scenario) {
     $seed = (int) $scenario['seed'];
@@ -1493,6 +1584,17 @@ $tests['sqlite application wal rollback json dynamic parity rejects zero committ
     $t->same('rejected', 'accepted');
 };
 
+$tests['sqlite application wal rollback json dynamic parity rejects zero rollback-disabled materialized wal scenarios'] = static function (TestRunner $t): void {
+    try {
+        SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledMaterializedWalScenarios(0);
+    } catch (InvalidArgumentException) {
+        $t->same('rejected', 'rejected');
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
 $tests['sqlite application wal rollback json dynamic parity explicit small batch remains deterministic'] = static function (TestRunner $t): void {
     $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(3);
     $t->same([101, 102, 103], array_column($smallBatch, 'tenant_id'));
@@ -1605,6 +1707,14 @@ $tests['sqlite application wal rollback json dynamic parity committed prefix fai
     $t->same([7101, 7102, 7103, 7104], array_column($smallBatch, 'tenant_id'));
     $t->same([5, 6, 7, 4], array_column($smallBatch, 'committed_prefix_frame_count'));
     $t->same([[721, 1221], [722, 1222], [723, 1223], [724, 1224]], array_column($smallBatch, 'expected_tail_pages'));
+};
+
+$tests['sqlite application wal rollback json dynamic parity rollback-disabled materialized wal small batch remains deterministic'] = static function (TestRunner $t): void {
+    $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledMaterializedWalScenarios(4);
+    $t->same([8101, 8102, 8103, 8104], array_column($smallBatch, 'tenant_id'));
+    $t->same([2, 3, 4, 1], array_column($smallBatch, 'preexisting_frames'));
+    $t->same([[63, 1321], [64, 1322], [65, 1323], [66, 1324]], array_column($smallBatch, 'expected_applied_pages'));
+    $t->same([4, 5, 6, 3], array_map(static fn (array $scenario): int => $scenario['plan']['wal_frame_count_after'], $smallBatch));
 };
 
 $tests['sqlite application wal rollback json dynamic parity rejects wal header page size mismatch'] = static function (TestRunner $t) use ($scenarios): void {
