@@ -149,6 +149,32 @@ return [
         $t->same(true, $nil->includesPath('wp-admin/admin.php', false));
         $t->same(true, $none->includesPath('wp-admin/admin.php', false));
     },
+    'pathspec sparse checkout keeps root matched before always negative specs' => static function (TestRunner $t) use ($entryNames): void {
+        $shortNegativeNil = SparseCheckoutSpec::fromPathspecs([':!']);
+        $longNegativeNil = SparseCheckoutSpec::fromPathspecs([':(exclude)']);
+        $positiveThenNegativeNil = SparseCheckoutSpec::fromPathspecs([
+            'wp-content/**',
+            ':!',
+        ]);
+
+        foreach ([$shortNegativeNil, $longNegativeNil, $positiveThenNegativeNil] as $spec) {
+            $t->same(true, $spec->includesPath('', true));
+            $t->same(true, $spec->includesPath('', false));
+            $t->same(false, $spec->skipWorktree('', true));
+            $t->same(false, $spec->includesPath('wp-content', true));
+            $t->same(false, $spec->includesPath('wp-content/plugins/gutenberg/block.json', false));
+            $t->same(true, $spec->skipWorktree('wp-content/plugins/gutenberg/block.json', false));
+        }
+
+        $blob = str_repeat('1', 40);
+        $tree = str_repeat('2', 40);
+        $root = new Tree([
+            new TreeEntry('100644', 'index.php', $blob),
+            new TreeEntry('040000', 'wp-content', $tree),
+        ]);
+
+        $t->same([], $entryNames($shortNegativeNil->includedTreeEntries($root)));
+    },
     'pathspec sparse checkout honors gitoxide default search modes' => static function (TestRunner $t): void {
         $shellDefault = SparseCheckoutSpec::fromPathspecs(['wp-content/plugins/*']);
         $pathAwareDefault = SparseCheckoutSpec::fromPathspecs(

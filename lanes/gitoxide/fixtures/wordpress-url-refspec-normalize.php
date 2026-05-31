@@ -31,6 +31,10 @@ return [
     'expectedHomeMirrorTail' => '/wp-content/site.git',
     'expectedHomeMirrorShellPath' => '~Deploy.User/wp-content/site.git',
     'expectedHomeMirrorExpandedPath' => '/srv/users/Deploy.User/wp-content/site.git',
+    'relativeMirrorUrl' => './mirrors/../site.git',
+    'relativeMirrorCurrentDirectory' => '/srv/users/Deploy.User/wp-content',
+    'expectedRelativeMirrorCanonicalPath' => '/srv/users/Deploy.User/wp-content/site.git',
+    'expectedRelativeMirrorCanonicalUrl' => '/srv/users/Deploy.User/wp-content/site.git',
     'currentHomeDirectory' => '/srv/users/current',
     'homeDirectories' => [
         'Deploy.User' => '/srv/users/Deploy.User',

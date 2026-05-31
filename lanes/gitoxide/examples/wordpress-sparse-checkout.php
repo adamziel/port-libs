@@ -54,6 +54,9 @@ $directoryOnlyWildcardExcludePathspec = SparseCheckoutSpec::fromPathspecs([
     'wp-content/**',
     ':(exclude,glob)wp-content/*-cache/',
 ]);
+$negativeNilPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':!',
+]);
 $deploymentRoot = '/srv/www/example.com/current';
 $absolutePathspec = SparseCheckoutSpec::fromPathspecs([
     $deploymentRoot . '/wp-content/plugins/gutenberg/block.json',
@@ -153,6 +156,9 @@ return [
     'negativeWildcardExcludeOnlyDescendantIncluded' => $negativeWildcardExcludeOnlyPathspec->includesPath('wp-content/generated-cache/index.php', false),
     'directoryOnlyWildcardExcludeDirectoryTraversable' => $directoryOnlyWildcardExcludePathspec->includesPath('wp-content/generated-cache', true),
     'negativeWildcardEntriesToMaterialize' => $entryNames($negativeWildcardPathspec->includedTreeEntries($wpContent, 'wp-content')),
+    'negativeNilRootIncluded' => $negativeNilPathspec->includesPath('', true),
+    'negativeNilRootSkipWorktree' => $negativeNilPathspec->skipWorktree('', true),
+    'negativeNilPluginSkipped' => $negativeNilPathspec->skipWorktree('wp-content/plugins/gutenberg/block.json', false),
     'absoluteRootPathspecBlockIncluded' => $absolutePathspec->includesPath('wp-content/plugins/gutenberg/block.json', false),
     'absoluteRootPathspecIcaseReadmeIncluded' => $absolutePathspec->includesPath('wp-content/plugins/gutenberg/README.md', false),
     'absoluteRootPathspecUpperPrefixSkipped' => $absolutePathspec->skipWorktree('WP-CONTENT/plugins/gutenberg/README.md', false),

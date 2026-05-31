@@ -2461,4 +2461,114 @@ CSS;
             ['unit' => 'px', 'value' => 12.0],
         ], $seen);
     },
+    'custom at-rules apply upstream RuleExit custom and unknown visitors after parser' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@tokens wp {
+  accent: yellow;
+  spacing: 16px;
+}
+
+@dep "tokens.json";
+
+.card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+        ], [
+            'RuleExit' => [
+                'custom' => [
+                    'tokens' => static function (array $rule, CustomAtRuleTransformer $transformer) use (&$seen): array {
+                        $seen['customBodyType'] = $rule['bodyAst']['type'] ?? null;
+                        $seen['firstDeclaration'] = $rule['declarations'][0]['property'] ?? null;
+
+                        return $transformer->styleRule('.tokens-ready', [
+                            'outline-color' => $rule['declarations'][0]['value'] ?? 'transparent',
+                        ]);
+                    },
+                ],
+                'unknown' => [
+                    'dep' => static function (array $rule, CustomAtRuleTransformer $transformer) use (&$seen): array {
+                        $seen['depName'] = $rule['preludeTokens'][0]['value']['value'] ?? null;
+
+                        return $transformer->styleRule('.dep-ready', [
+                            'outline-color' => '#056ef0',
+                        ]);
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.tokens-ready{outline-color:#ff0}.dep-ready{outline-color:#056ef0}.card{color:red}', $result);
+        $t->same('declaration-list', $seen['customBodyType']);
+        $t->same('accent', $seen['firstDeclaration']);
+        $t->same('tokens.json', $seen['depName']);
+    },
+    'custom at-rules compose upstream RuleExit style visitors' => static function (TestRunner $t): void {
+        $seenSelectors = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'RuleExit' => [
+                    'style' => static function (array $rule): ?array {
+                        if (($rule['selector'] ?? null) !== '.card') {
+                            return null;
+                        }
+
+                        $clone = $rule;
+                        $clone['selector'] = '.card--exit';
+                        $clone['selectors'] = ['.card--exit'];
+
+                        return [$rule, $clone];
+                    },
+                ],
+            ],
+            [
+                'RuleExit' => [
+                    'style' => static function (array $rule) use (&$seenSelectors): array {
+                        $seenSelectors[] = $rule['selector'] ?? '';
+                        $rule['declarations'][] = [
+                            'property' => 'height',
+                            'value' => '16px',
+                            'important' => false,
+                        ];
+
+                        return $rule;
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.card { width: 16px; }', [], $visitor);
+
+        $t->same('.card{width:16px;height:16px}.card--exit{width:16px;height:16px}', $result);
+        $t->same(['.card', '.card--exit'], $seenSelectors);
+    },
+    'custom at-rules apply upstream RuleExit media visitors after body traversal' => static function (TestRunner $t): void {
+        $seen = [];
+        $result = (new CustomAtRuleTransformer())->transform('@media (hover) { .notice { width: 16px; } }', [], [
+            'RuleExit' => [
+                'media' => static function (array $rule) use (&$seen): array {
+                    $seen['type'] = $rule['type'] ?? null;
+                    $seen['feature'] = $rule['value']['query']['mediaQueries'][0]['condition']['value']['name'] ?? null;
+                    $rule['value']['query'] = [
+                        'mediaQueries' => [
+                            ['raw' => '(min-width: 640px)'],
+                        ],
+                    ];
+
+                    return $rule;
+                },
+            ],
+        ]);
+
+        $t->same('@media (width>=640px){.notice{width:16px}}', $result);
+        $t->same('media', $seen['type']);
+        $t->same('hover', $seen['feature']);
+    },
 ];

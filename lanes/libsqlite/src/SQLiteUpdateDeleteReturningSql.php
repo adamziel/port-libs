@@ -1117,6 +1117,14 @@ final class SQLiteUpdateDeleteReturningSql
             return ['matched' => true, 'value' => self::negateNullable($inner['value'])];
         }
 
+        $nullPostfix = self::splitLimitNullPostfixPredicate($expression);
+        if ($nullPostfix !== null) {
+            $value = self::limitExpressionValue($nullPostfix['value']);
+            $result = $value === null;
+
+            return ['matched' => true, 'value' => $nullPostfix['not'] ? !$result : $result];
+        }
+
         $truth = self::splitLimitTruthPredicate($expression);
         if ($truth !== null) {
             $value = self::limitExpressionValue($truth['value']);
@@ -1212,6 +1220,37 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return ['matched' => false, 'value' => null];
+    }
+
+    /**
+     * @return array{value:string,not:bool}|null
+     */
+    private static function splitLimitNullPostfixPredicate(string $sql): ?array
+    {
+        foreach ([
+            ['keyword' => 'NOT NULL', 'not' => true],
+            ['keyword' => 'NOTNULL', 'not' => true],
+            ['keyword' => 'ISNULL', 'not' => false],
+        ] as $candidate) {
+            $keyword = $candidate['keyword'];
+            $position = self::topLevelKeywordPosition($sql, $keyword);
+            if ($position === null) {
+                continue;
+            }
+
+            $value = trim(substr($sql, 0, $position));
+            $tail = trim(substr($sql, $position + strlen($keyword)));
+            if ($keyword === 'NOT NULL' && preg_match('/\bIS$/i', $value) === 1) {
+                continue;
+            }
+            if ($value === '' || $tail !== '') {
+                throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$keyword} needs one left operand");
+            }
+
+            return ['value' => $value, 'not' => $candidate['not']];
+        }
+
+        return null;
     }
 
     /**

@@ -696,6 +696,12 @@ CSS
         $t->same('.foo{aspect-ratio:auto 2/3}', $minifier->minify('.foo { aspect-ratio: auto 2 / 3 }'));
         $t->same('.foo{aspect-ratio:auto 2/3}', $minifier->minify('.foo { aspect-ratio: 2 / 3 auto }'));
     },
+    'css minifier maps upstream vertical-align value minification' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{vertical-align:middle}', $minifier->minify('.foo { vertical-align: middle }'));
+        $t->same('.foo{vertical-align:.3em}', $minifier->minify('.foo { vertical-align: 0.3em }'));
+    },
     'css minifier maps upstream srgb color-mix value normalization' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

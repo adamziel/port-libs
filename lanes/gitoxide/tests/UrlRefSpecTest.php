@@ -341,6 +341,35 @@ return [
             static fn () => GitUrl::expandHomePath('/~missing/repo.git', static fn (?string $user): ?string => null)
         );
     },
+    'git url canonicalizes relative file paths like gix-url access helpers' => static function (TestRunner $t): void {
+        $https = GitUrl::parse('https://github.com/byron/gitoxide');
+        $t->same('https://github.com/byron/gitoxide', $https->canonicalized('/srv/www/current')->toBytes());
+        $t->same('/byron/gitoxide', $https->canonicalized('/srv/www/current')->path());
+
+        $absolute = GitUrl::parse('/this/path/does/not/exist');
+        $t->same('/this/path/does/not/exist', $absolute->canonicalized('/srv/www/current')->path());
+        $t->same('/this/path/does/not/exist', $absolute->canonicalized('/srv/www/current')->toBytes());
+
+        $dot = GitUrl::parse('.');
+        $dotCanonical = $dot->canonicalized('/srv/www/current');
+        $t->same(GitUrl::SCHEME_FILE, $dotCanonical->scheme());
+        $t->same('/srv/www/current', $dotCanonical->path());
+        $t->same('/srv/www/current', $dotCanonical->toBytes());
+
+        $relative = GitUrl::parse('../site.git');
+        $relativeCanonical = $relative->canonicalized('/srv/www/current');
+        $t->same('/srv/www/site.git', $relativeCanonical->path());
+        $t->same('/srv/www/site.git', $relativeCanonical->toBytes());
+
+        $nested = GitUrl::parse('./mirrors/../site.git');
+        $nestedCanonical = $nested->canonicalized('/srv/www/current/');
+        $t->same('/srv/www/current/site.git', $nestedCanonical->path());
+        $t->same('/srv/www/current/site.git', $nestedCanonical->toBytes());
+
+        $fileUrl = GitUrl::parse('file:///var/cache/site.git');
+        $t->same('/var/cache/site.git', $fileUrl->canonicalized('/srv/www/current')->path());
+        $t->same('file:///var/cache/site.git', $fileUrl->canonicalized('/srv/www/current')->toBytes());
+    },
     'refspec parser maps upstream fetch instruction and prefix behavior' => static function (TestRunner $t): void {
         $cases = [
             'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391:' => [
@@ -679,6 +708,8 @@ return [
         $t->same($fixture['expectedHomeMirrorTail'], $summary['homeMirrorHome']['path']);
         $t->same($fixture['expectedHomeMirrorShellPath'], $summary['homeMirrorShellPath']);
         $t->same($fixture['expectedHomeMirrorExpandedPath'], $summary['homeMirrorExpandedPath']);
+        $t->same($fixture['expectedRelativeMirrorCanonicalPath'], $summary['relativeMirrorCanonical']['path']);
+        $t->same($fixture['expectedRelativeMirrorCanonicalUrl'], $summary['relativeMirrorCanonical']['normalized']);
         $t->same(true, $summary['deploymentRemoteSafe']);
         $t->same($fixture['expectedFetchInstructions'], array_column($summary['fetch'], 'instruction'));
         $t->same($fixture['expectedPushInstructions'], array_column($summary['push'], 'instruction'));

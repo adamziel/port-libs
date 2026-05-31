@@ -71,6 +71,7 @@ return [
         $t->same('(1<=monochrome<=4)', $parser->minifyList('(1 <= monochrome <= 4)'));
         $t->same('(horizontal-viewport-segments>=2)', $parser->minifyList('(horizontal-viewport-segments >= 2)'));
         $t->same('(vertical-viewport-segments<3)', $parser->minifyList('(3 > vertical-viewport-segments)'));
+        $t->same('(resolution>=2x)', $parser->minifyList('(resolution >= 2x)'));
         $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= 2)'));
         $t->same('(-moz-device-pixel-ratio<1.5)', $parser->minifyList('(-moz-device-pixel-ratio < 1.5)'));
         $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-min-device-pixel-ratio: 2)'));
@@ -286,6 +287,8 @@ return [
         $t->same('not (min--moz-device-pixel-ratio:1.5)', $parser->lowerRangeSyntaxList('(-moz-device-pixel-ratio < 1.5)'));
         $t->same('(-webkit-min-device-pixel-ratio:2) and (-webkit-max-device-pixel-ratio:3)', $parser->lowerRangeSyntaxList('(2 <= -webkit-device-pixel-ratio <= 3)'));
         $t->same('(not (-webkit-max-device-pixel-ratio:2)) and (not (-webkit-min-device-pixel-ratio:3))', $parser->lowerRangeSyntaxList('(2 < -webkit-device-pixel-ratio < 3)'));
+        $t->same('(min-resolution:2dppx)', $parser->useDppxResolutionUnitList($parser->lowerRangeSyntaxList('(resolution >= 2x)')));
+        $t->same('(min-resolution:.5dppx) and (max-resolution:1.5dppx)', $parser->useDppxResolutionUnitList($parser->lowerRangeSyntaxList('(.5x <= resolution <= 1.5x)')));
         $t->same('(min-width:.5px)', $parser->lowerRangeSyntaxList('(width >= 0.5px)'));
         $t->same('(min-width:.5px) and (max-width:1.5px)', $parser->lowerRangeSyntaxList('(0.5px <= width <= 1.50px)'));
         $t->same('(min-width:-.5px)', $parser->lowerRangeSyntaxList('(width >= -0.5px)'));

@@ -316,6 +316,10 @@ final class SparseCheckoutSpec
 
     private function matchesNonConePath(string $path, ?bool $isDirectory): bool
     {
+        if ($path === '') {
+            return true;
+        }
+
         $included = false;
         $matched = false;
         $matchedNegativePathspecRules = [];

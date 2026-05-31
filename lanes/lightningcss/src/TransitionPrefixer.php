@@ -329,9 +329,10 @@ final class TransitionPrefixer
         $lowerSimpleRanges = $targetOptions['mediaRangeSimpleNeedsFallback'] ?? false;
         $lowerIntervalRanges = $targetOptions['mediaRangeIntervalNeedsFallback'] ?? false;
         $usesXResolutionUnit = $targetOptions['mediaResolutionUsesXUnit'] ?? false;
+        $usesDppxResolutionUnit = $targetOptions['mediaResolutionUsesDppxUnit'] ?? false;
         $needsResolutionPrefixes = ($targetOptions['mediaResolutionNeedsWebkitPrefix'] ?? false)
             || ($targetOptions['mediaResolutionNeedsMozPrefix'] ?? false);
-        if ((!$lowerSimpleRanges && !$lowerIntervalRanges && !$needsResolutionPrefixes && !$usesXResolutionUnit) || preg_match('/^@media\b/i', $prelude) !== 1) {
+        if ((!$lowerSimpleRanges && !$lowerIntervalRanges && !$needsResolutionPrefixes && !$usesXResolutionUnit && !$usesDppxResolutionUnit) || preg_match('/^@media\b/i', $prelude) !== 1) {
             return $prelude;
         }
 
@@ -342,6 +343,9 @@ final class TransitionPrefixer
 
         $parser = new MediaQueryParser();
         $condition = $parser->lowerRangeSyntaxList($condition, $lowerSimpleRanges, $lowerIntervalRanges);
+        if ($usesDppxResolutionUnit) {
+            $condition = $parser->useDppxResolutionUnitList($condition);
+        }
         if ($needsResolutionPrefixes) {
             $condition = $this->prefixResolutionMediaQueries($condition, $targetOptions);
         }
@@ -469,13 +473,13 @@ final class TransitionPrefixer
 
     private function resolutionValueToDevicePixelRatio(string $value): ?string
     {
-        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(dppx|dpi|dpcm)$/i', trim($value), $matches) !== 1) {
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(dppx|x|dpi|dpcm)$/i', trim($value), $matches) !== 1) {
             return null;
         }
 
         $number = (float) $matches[1];
         $ratio = match (strtolower($matches[2])) {
-            'dppx' => $number,
+            'dppx', 'x' => $number,
             'dpi' => $number / 96,
             'dpcm' => $number / (96 / 2.54),
             default => null,
@@ -1216,6 +1220,7 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'ios_saf', [0], [15]),
             'mediaResolutionNeedsMozPrefix' => $this->targetInRange($normalized, 'firefox', [0], [15]),
             'mediaResolutionUsesXUnit' => $this->targetsSupportXResolutionUnit($normalized),
+            'mediaResolutionUsesDppxUnit' => $normalized !== [] && !$this->targetsSupportXResolutionUnit($normalized),
             'fontCqwSupported' => $this->targetsAllAtLeast($normalized, [
                 'android' => [105],
                 'chrome' => [105],

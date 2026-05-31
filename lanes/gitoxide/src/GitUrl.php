@@ -156,6 +156,31 @@ final class GitUrl
         };
     }
 
+    public function canonicalized(string $currentDirectory): self
+    {
+        if ($this->scheme !== self::SCHEME_FILE || self::isAbsoluteFilePath($this->path)) {
+            return $this;
+        }
+
+        $base = $currentDirectory === '' ? '.' : $currentDirectory;
+        if (!self::isAbsoluteFilePath($base)) {
+            $cwd = getcwd();
+            if ($cwd !== false && $cwd !== '') {
+                $base = rtrim($cwd, '/') . '/' . $base;
+            }
+        }
+
+        return new self(
+            $this->scheme,
+            $this->user,
+            $this->password,
+            $this->host,
+            $this->port,
+            self::normalizeFilePath(rtrim($base, '/') . '/' . $this->path),
+            $this->alternativeForm
+        );
+    }
+
     public function userArgumentSafe(): ?string
     {
         return $this->argumentSafe($this->user);
@@ -486,6 +511,50 @@ final class GitUrl
         }
 
         return $host;
+    }
+
+    private static function isAbsoluteFilePath(string $path): bool
+    {
+        return str_starts_with($path, '/') || preg_match('/^[A-Za-z]:[\/\\\\]/', $path) === 1;
+    }
+
+    private static function normalizeFilePath(string $path): string
+    {
+        $prefix = '';
+        $rest = $path;
+        if (preg_match('/^[A-Za-z]:[\/\\\\]/', $path) === 1) {
+            $prefix = substr($path, 0, 2);
+            $rest = ltrim(substr($path, 2), '/\\');
+        } elseif (str_starts_with($path, '/')) {
+            $prefix = '/';
+            $rest = ltrim($path, '/');
+        }
+
+        $segments = [];
+        foreach (explode('/', $rest) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                if ($segments !== [] && end($segments) !== '..') {
+                    array_pop($segments);
+                    continue;
+                }
+                if ($prefix !== '') {
+                    continue;
+                }
+            }
+            $segments[] = $segment;
+        }
+
+        if ($prefix === '/') {
+            return '/' . implode('/', $segments);
+        }
+        if ($prefix !== '') {
+            return $prefix . '/' . implode('/', $segments);
+        }
+
+        return $segments === [] ? '.' : implode('/', $segments);
     }
 
     private static function scpColonPosition(string $input): ?int

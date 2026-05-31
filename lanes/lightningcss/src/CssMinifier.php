@@ -2636,6 +2636,7 @@ final class CssMinifier
         $value = $this->minifyGradientFunctions($value);
         $value = $this->minifyBoxLengthListValue($property, $value);
         $value = $this->minifyBorderSpacingValue($property, $value);
+        $value = $this->minifyVerticalAlignValue($property, $value);
         if (str_starts_with($property, '--')) {
             if ($customPropertyColorCalc) {
                 $value = $this->minifyColorFunctionsAndHex($value);
@@ -3474,6 +3475,24 @@ final class CssMinifier
         }
 
         return implode(' ', $tokens);
+    }
+
+    private function minifyVerticalAlignValue(string $property, string $value): string
+    {
+        if (strtolower($property) !== 'vertical-align') {
+            return $value;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if (count($tokens) !== 1) {
+            return trim($value);
+        }
+
+        if (preg_match('/^[+-]?(?:0(?:\.0+)?|\d+\.\d+|\.\d+|\d+)(?:[a-z%]+)$/i', $tokens[0]) !== 1) {
+            return trim($value);
+        }
+
+        return $this->minifyLengthToken($tokens[0]);
     }
 
     private function minifyLengthToken(string $token): string

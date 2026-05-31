@@ -141,12 +141,22 @@ final class SQLiteSchemaImportExecutor
             throw new \InvalidArgumentException('SQLite schema import CREATE TABLE column list is malformed');
         }
         $body = substr($sql, $open + 1, $close - $open - 1);
+        $tableOptions = self::tableOptions(substr($sql, $close + 1));
+        $withoutRowid = $tableOptions['without_rowid'];
+        if ($withoutRowid) {
+            if (!self::hasPrimaryKeyConstraint($body)) {
+                throw new \InvalidArgumentException("PRIMARY KEY missing on table {$name}");
+            }
+            if (self::hasColumnAutoincrement($body)) {
+                throw new \InvalidArgumentException('AUTOINCREMENT not allowed on WITHOUT ROWID tables');
+            }
+        }
+
         $rootPage = $this->allocateRootPage($schema);
         $record = new SQLiteSchemaRecord('table', $name, $name, $rootPage, $sql, $this->allocateRowId($schema));
         $this->records[$schema][] = $record;
 
         $autoindexes = [];
-        $withoutRowid = preg_match('/\)\s*without\s+rowid\s*$/i', trim($sql)) === 1;
         $autoindexCount = self::autoIndexCount($body, $withoutRowid);
         for ($i = 1; $i <= $autoindexCount; $i++) {
             $indexName = 'sqlite_autoindex_' . $name . '_' . $i;
@@ -536,6 +546,125 @@ final class SQLiteSchemaImportExecutor
         }
 
         return $count;
+    }
+
+    /**
+     * @return array{without_rowid:bool,strict:bool}
+     */
+    private static function tableOptions(string $tail): array
+    {
+        $options = ['without_rowid' => false, 'strict' => false];
+        $tail = trim($tail);
+        if ($tail === '') {
+            return $options;
+        }
+
+        foreach (self::splitCommaTerms($tail) as $term) {
+            $option = trim($term);
+            if ($option === '') {
+                continue;
+            }
+            if (preg_match('/^strict$/i', $option) === 1) {
+                $options['strict'] = true;
+                continue;
+            }
+            if (preg_match('/^without\s+rowid$/i', $option) === 1) {
+                $options['without_rowid'] = true;
+                continue;
+            }
+            if (preg_match('/^without\s+(?<option>(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*))/i', $option, $matches) === 1) {
+                throw new \InvalidArgumentException('unknown table option: ' . self::unquoteIdentifier($matches['option']));
+            }
+
+            $name = self::leadingIdentifier($option);
+            throw new \InvalidArgumentException('unknown table option: ' . ($name ?? $option));
+        }
+
+        return $options;
+    }
+
+    private static function hasPrimaryKeyConstraint(string $body): bool
+    {
+        foreach (self::splitCommaTerms($body) as $term) {
+            if (preg_match('/^\s*(constraint\s+(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s+)?primary\s+key\b/i', $term) === 1) {
+                return true;
+            }
+            if (preg_match('/^\s*constraint\s+(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s+/i', $term) === 1) {
+                continue;
+            }
+            if (preg_match('/^\s*(unique|check|foreign)\b/i', $term) === 1) {
+                continue;
+            }
+
+            $nameLength = self::leadingIdentifierLength($term);
+            if ($nameLength === 0) {
+                continue;
+            }
+            $tail = trim(substr(trim($term), $nameLength));
+            if (preg_match('/\bprimary\s+key\b/i', self::withoutQuotedText($tail)) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function hasColumnAutoincrement(string $body): bool
+    {
+        foreach (self::splitCommaTerms($body) as $term) {
+            if (preg_match('/^\s*(constraint|primary|unique|check|foreign)\b/i', $term) === 1) {
+                continue;
+            }
+
+            $nameLength = self::leadingIdentifierLength($term);
+            if ($nameLength === 0) {
+                continue;
+            }
+            $tail = trim(substr(trim($term), $nameLength));
+            if (preg_match('/\bautoincrement\b/i', self::withoutQuotedText($tail)) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function withoutQuotedText(string $sql): string
+    {
+        $result = '';
+        $length = strlen($sql);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'" || $char === '"' || $char === '`') {
+                $quote = $char;
+                $result .= ' ';
+                for ($i++; $i < $length; $i++) {
+                    if ($sql[$i] === $quote) {
+                        if (($sql[$i + 1] ?? null) === $quote) {
+                            $i++;
+                            continue;
+                        }
+                        break;
+                    }
+                }
+                $result .= ' ';
+                continue;
+            }
+            if ($char === '[') {
+                $result .= ' ';
+                $close = strpos($sql, ']', $i + 1);
+                if ($close === false) {
+                    break;
+                }
+                $i = $close;
+                $result .= ' ';
+                continue;
+            }
+
+            $result .= $char;
+        }
+
+        return $result;
     }
 
     /**

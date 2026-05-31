@@ -8227,6 +8227,95 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @param array<string,mixed> $incomingChild
+     * @return array<string,mixed>
+     */
+    public static function fkey1PartialParentIndexRepairPlan(
+        array $parents,
+        array $children,
+        array $incomingChild,
+        string $parentKey = 'x',
+        string $childKey = 'a',
+        bool $fullUniqueIndexAdded = true
+    ): array {
+        $parentKey = self::identifier($parentKey, 'parent key');
+        $childKey = self::identifier($childKey, 'child key');
+        $incomingChildKey = self::requiredRowValue($incomingChild, $childKey, 'incoming child row');
+        $parentKeys = [];
+        $partialIndexedKeys = [];
+        $matchingParent = null;
+        $duplicateParentKeys = [];
+
+        foreach ($parents as $parent) {
+            $key = self::requiredRowValue($parent, $parentKey, 'parent row');
+            if (in_array($key, $parentKeys, true) && !in_array($key, $duplicateParentKeys, true)) {
+                $duplicateParentKeys[] = $key;
+            }
+            $parentKeys[] = $key;
+            if (($parent['y'] ?? null) < 2) {
+                $partialIndexedKeys[] = $key;
+            }
+            if ($key == $incomingChildKey && $matchingParent === null) {
+                $matchingParent = $parent;
+            }
+        }
+
+        $childKeysBefore = array_values(array_map(
+            static fn (array $row): mixed => self::requiredRowValue($row, $childKey, 'child row'),
+            $children
+        ));
+        $fullIndexUnique = $fullUniqueIndexAdded && $duplicateParentKeys === [];
+        $finalStatus = 'foreign-key-mismatch';
+        $finalError = 'foreign key mismatch - "c1" referencing "p1"';
+        $childRowsAfter = $children;
+        if ($fullIndexUnique) {
+            if ($matchingParent === null) {
+                $finalStatus = 'constraint-failed';
+                $finalError = 'FOREIGN KEY constraint failed';
+            } else {
+                $finalStatus = 'commit-ok';
+                $finalError = null;
+                $childRowsAfter[] = $incomingChild;
+            }
+        }
+
+        return [
+            'source' => 'fkey1.test fkey1-6.0..6.2',
+            'operation' => 'partial-parent-index-repair',
+            'parent_key' => $parentKey,
+            'child_key' => $childKey,
+            'partial_index_where' => 'y<2',
+            'partial_index_unique' => true,
+            'partial_indexed_parent_keys' => $partialIndexedKeys,
+            'partial_index_has_matching_entry' => in_array($incomingChildKey, $partialIndexedKeys, true),
+            'partial_index_satisfies_parent_key' => false,
+            'initial_status' => 'foreign-key-mismatch',
+            'initial_error' => 'foreign key mismatch - "c1" referencing "p1"',
+            'full_index_added' => $fullUniqueIndexAdded,
+            'full_index_unique' => $fullIndexUnique,
+            'duplicate_parent_keys' => $duplicateParentKeys,
+            'final_status' => $finalStatus,
+            'final_error' => $finalError,
+            'incoming_child_key' => $incomingChildKey,
+            'parent_key_values' => $parentKeys,
+            'child_keys_before' => $childKeysBefore,
+            'child_keys_after' => array_values(array_map(
+                static fn (array $row): mixed => self::requiredRowValue($row, $childKey, 'child row'),
+                $childRowsAfter
+            )),
+            'child_rows_after' => array_values($childRowsAfter),
+            'matched_parent_row' => $matchingParent,
+            'dependencies' => [
+                'sqlite-fkey1-partial-parent-index-does-not-satisfy-fk',
+                'sqlite-fkey1-full-unique-index-repairs-parent-key-lookup',
+                'sqlite-fkey1-child-insert-commits-after-nonpartial-unique-index',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{id:int,parent_id:?int,label?:string}> $rows
      * @return array<string,mixed>
      */

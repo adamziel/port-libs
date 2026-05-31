@@ -3208,6 +3208,91 @@ for ($seed = 1; $seed <= 48; $seed++) {
         };
 }
 
+$nullPostfixLimitExpr = static function (int $value, int $seed): string {
+    return match ($seed % 8) {
+        0 => "(NULL ISNULL) + {$value} - 1",
+        1 => "('x' NOTNULL) + {$value} - 1",
+        2 => "(0 NOT NULL) + {$value} - 1",
+        3 => "(nullif(1,1) ISNULL) + {$value} - 1",
+        4 => "(coalesce(NULL, 'x') NOTNULL) + {$value} - 1",
+        5 => "(substr('abc', 1, 1) NOT NULL) + {$value} - 1",
+        6 => "(NOT (1 ISNULL)) + {$value} - 1",
+        default => "(NOT (NULL NOTNULL)) + {$value} - 1",
+    };
+};
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = ($seed + 2) % 3;
+    $limitExpr = $nullPostfixLimitExpr($limitValue, $seed);
+    $offsetExpr = $nullPostfixLimitExpr($offsetValue, $seed + 3);
+    $sql = "UPDATE app_settings SET state = 'null_postfix_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update null postfix predicate limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($result['returning']), 'null_postfix_limit'), array_column($result['returning'], 'state'));
+            $t->contains('expr.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/expr.test');
+            $t->contains('e_expr.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/e_expr.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = $nullPostfixLimitExpr($limitValue, $seed + 1);
+    $offsetExpr = $nullPostfixLimitExpr($offsetValue, $seed + 5);
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue null postfix predicate subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+            $t->contains('expr.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/expr.test');
+            $t->contains('e_expr.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/e_expr.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+$nullPostfixLimitCases = [
+    'parse isnull true limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT NULL ISNULL')['limit'], 1],
+    'parse isnull false zero limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT 1 ISNULL')['limit'], 0],
+    'parse notnull true limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT 1 NOTNULL')['limit'], 1],
+    'parse notnull false offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT 2 OFFSET NULL NOTNULL')['offset'], 0],
+    'parse not null true limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 'x' NOT NULL")['limit'], 1],
+    'parse not null false offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET nullif(1,1) NOT NULL')['offset'], 0],
+    'parse parenthesized isnull limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT (NULL) ISNULL')['limit'], 1],
+    'parse expression notnull predicate limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length('abc') NOTNULL")['limit'], 1],
+    'parse negated isnull predicate limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT NOT (1 ISNULL)')['limit'], 1],
+    'parse negated notnull predicate offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET NOT (NULL NOTNULL)')['offset'], 1],
+    'malformed missing isnull operand rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT ISNULL'), InvalidArgumentException::class],
+    'malformed missing notnull operand rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT NOTNULL'), InvalidArgumentException::class],
+];
+
+foreach ($nullPostfixLimitCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity null postfix predicate ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            $t->contains('expr.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/expr.test');
+            return;
+        }
+        $t->same($expected, $callback());
+        $t->contains('expr.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/expr.test');
+        $t->contains('e_expr.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/e_expr.test');
+    };
+}
+
 $dateTimeLimitExpr = static function (int $value, int $seed): string {
     return match ($seed % 6) {
         0 => "unixepoch('1970-01-01 00:00:0{$value}')",

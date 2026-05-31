@@ -12,23 +12,44 @@ final class CustomAtRuleTransformer
     /** @var callable|null */
     private $ruleVisitor = null;
 
+    /** @var callable|null */
+    private $ruleExitVisitor = null;
+
     /** @var array<string, callable> */
     private array $ruleVisitors = [];
+
+    /** @var array<string, callable> */
+    private array $ruleExitVisitors = [];
 
     /** @var callable|null */
     private $genericRuleVisitor = null;
 
+    /** @var callable|null */
+    private $genericRuleExitVisitor = null;
+
     /** @var array<string, callable> */
     private array $unknownRuleVisitors = [];
+
+    /** @var array<string, callable> */
+    private array $unknownRuleExitVisitors = [];
 
     /** @var callable|null */
     private $genericUnknownRuleVisitor = null;
 
     /** @var callable|null */
+    private $genericUnknownRuleExitVisitor = null;
+
+    /** @var callable|null */
     private $styleRuleVisitor = null;
 
     /** @var callable|null */
+    private $styleRuleExitVisitor = null;
+
+    /** @var callable|null */
     private $mediaRuleVisitor = null;
+
+    /** @var callable|null */
+    private $mediaRuleExitVisitor = null;
 
     /** @var callable|null */
     private $mediaQueryVisitor = null;
@@ -251,6 +272,118 @@ final class CustomAtRuleTransformer
 
                             $changed = true;
                             foreach (self::normalizeRuleVisitorReplacement($replacement, 'Rule.media') as $nextRule) {
+                                $nextRules[] = $nextRule;
+                            }
+                        }
+
+                        $rules = $nextRules;
+                        if ($rules === []) {
+                            break;
+                        }
+                    }
+
+                    if (!$changed) {
+                        return null;
+                    }
+
+                    return count($rules) === 1 ? $rules[0] : $rules;
+                },
+            ],
+            'RuleExit' => [
+                'custom' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    foreach ($visitors as $visitor) {
+                        $callback = self::customRuleExitVisitorCallback($visitor, $rule['name']);
+                        if ($callback === null) {
+                            continue;
+                        }
+
+                        $replacement = $callback($rule, $transformer);
+                        if ($replacement !== null) {
+                            return $replacement;
+                        }
+                    }
+
+                    return null;
+                },
+                'unknown' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    $forwardedUnknown = false;
+                    foreach ($visitors as $visitor) {
+                        $callback = self::unknownRuleExitVisitorCallback($visitor, $rule['name']);
+                        if ($callback === null) {
+                            continue;
+                        }
+
+                        $replacement = $callback($rule, $transformer);
+                        if ($replacement !== null) {
+                            if (self::isUnknownRuleReplacement($replacement)) {
+                                $rule = self::normalizeUnknownRuleReplacement($rule, $replacement);
+                                $forwardedUnknown = true;
+                                continue;
+                            }
+
+                            return $replacement;
+                        }
+                    }
+
+                    return $forwardedUnknown ? ['type' => 'unknown', 'value' => $rule] : null;
+                },
+                'style' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    $rules = [$rule];
+                    $changed = false;
+                    foreach ($visitors as $visitor) {
+                        $callback = self::styleRuleExitVisitorCallback($visitor);
+                        if ($callback === null) {
+                            continue;
+                        }
+
+                        $nextRules = [];
+                        foreach ($rules as $currentRule) {
+                            $replacement = $callback($currentRule, $transformer);
+                            if ($replacement === null) {
+                                $nextRules[] = $currentRule;
+                                continue;
+                            }
+
+                            $changed = true;
+                            foreach (self::normalizeStyleRuleVisitorReplacement($currentRule, $replacement) as $nextRule) {
+                                $nextRules[] = $nextRule;
+                            }
+                        }
+
+                        $rules = $nextRules;
+                        if ($rules === []) {
+                            break;
+                        }
+                    }
+
+                    if (!$changed) {
+                        return null;
+                    }
+                    if ($rules === []) {
+                        return [];
+                    }
+
+                    return count($rules) === 1 ? $rules[0] : $rules;
+                },
+                'media' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    $rules = [$rule];
+                    $changed = false;
+                    foreach ($visitors as $visitor) {
+                        $callback = self::mediaRuleExitVisitorCallback($visitor);
+                        if ($callback === null) {
+                            continue;
+                        }
+
+                        $nextRules = [];
+                        foreach ($rules as $currentRule) {
+                            $replacement = $callback($currentRule, $transformer);
+                            if ($replacement === null) {
+                                $nextRules[] = $currentRule;
+                                continue;
+                            }
+
+                            $changed = true;
+                            foreach (self::normalizeRuleVisitorReplacement($replacement, 'RuleExit.media') as $nextRule) {
                                 $nextRules[] = $nextRule;
                             }
                         }
@@ -874,6 +1007,23 @@ final class CustomAtRuleTransformer
             }
         }
 
+        $ruleExitConfig = $visitor['RuleExit'] ?? null;
+        $ruleExitSubVisitors = is_array($ruleExitConfig) ? $ruleExitConfig : [];
+
+        $this->ruleExitVisitor = is_callable($ruleExitConfig) ? $ruleExitConfig : null;
+        $this->ruleExitVisitors = [];
+        $this->genericRuleExitVisitor = null;
+        $customExitVisitors = $ruleExitSubVisitors['custom'] ?? [];
+        if (is_callable($customExitVisitors)) {
+            $this->genericRuleExitVisitor = $customExitVisitors;
+        } elseif (is_array($customExitVisitors)) {
+            foreach ($customExitVisitors as $name => $callback) {
+                if (is_callable($callback)) {
+                    $this->ruleExitVisitors[strtolower((string) $name)] = $callback;
+                }
+            }
+        }
+
         $this->unknownRuleVisitors = [];
         $this->genericUnknownRuleVisitor = null;
         $unknownVisitors = $ruleSubVisitors['unknown'] ?? $visitor['unknown'] ?? [];
@@ -887,16 +1037,41 @@ final class CustomAtRuleTransformer
             }
         }
 
+        $this->unknownRuleExitVisitors = [];
+        $this->genericUnknownRuleExitVisitor = null;
+        $unknownExitVisitors = $ruleExitSubVisitors['unknown'] ?? [];
+        if (is_callable($unknownExitVisitors)) {
+            $this->genericUnknownRuleExitVisitor = $unknownExitVisitors;
+        } elseif (is_array($unknownExitVisitors)) {
+            foreach ($unknownExitVisitors as $name => $callback) {
+                if (is_callable($callback)) {
+                    $this->unknownRuleExitVisitors[strtolower((string) $name)] = $callback;
+                }
+            }
+        }
+
         $this->styleRuleVisitor = null;
         $styleVisitor = $ruleSubVisitors['style'] ?? $visitor['style'] ?? null;
         if (is_callable($styleVisitor)) {
             $this->styleRuleVisitor = $styleVisitor;
         }
 
+        $this->styleRuleExitVisitor = null;
+        $styleExitVisitor = $ruleExitSubVisitors['style'] ?? null;
+        if (is_callable($styleExitVisitor)) {
+            $this->styleRuleExitVisitor = $styleExitVisitor;
+        }
+
         $this->mediaRuleVisitor = null;
         $mediaVisitor = $ruleSubVisitors['media'] ?? $visitor['media'] ?? null;
         if (is_callable($mediaVisitor)) {
             $this->mediaRuleVisitor = $mediaVisitor;
+        }
+
+        $this->mediaRuleExitVisitor = null;
+        $mediaExitVisitor = $ruleExitSubVisitors['media'] ?? null;
+        if (is_callable($mediaExitVisitor)) {
+            $this->mediaRuleExitVisitor = $mediaExitVisitor;
         }
 
         $this->mediaQueryVisitor = is_callable($visitor['MediaQuery'] ?? null) ? $visitor['MediaQuery'] : null;
@@ -1650,9 +1825,12 @@ final class CustomAtRuleTransformer
                     }
 
                     $replacement = $this->callUnknownRuleVisitor($rule);
-                    $output .= $replacement === null
-                        ? $this->emitUnknownRule($rule, null)
-                        : $this->emitReplacement($replacement, null);
+                    if ($replacement === null) {
+                        $exitReplacement = $this->applyUnknownRuleExit($rule, null);
+                        $output .= $exitReplacement ?? $this->emitUnknownRule($rule, null);
+                    } else {
+                        $output .= $this->emitReplacement($replacement, null);
+                    }
                 }
             } else {
                 $selectors = $this->splitTopLevel($prelude, ',');
@@ -1692,9 +1870,11 @@ final class CustomAtRuleTransformer
 
             $replacement = $this->callUnknownRuleVisitor($rule);
 
-            return $replacement === null
-                ? $statement . ';'
-                : $this->emitReplacement($replacement, $parentSelectors);
+            if ($replacement === null) {
+                return $this->applyUnknownRuleExit($rule, $parentSelectors) ?? $statement . ';';
+            }
+
+            return $this->emitReplacement($replacement, $parentSelectors);
         }
 
         $rule = $this->buildCustomRule($name, $prelude, null, $parentSelectors);
@@ -1705,7 +1885,7 @@ final class CustomAtRuleTransformer
 
         $replacement = $this->callRuleVisitor($rule);
         if ($replacement === null) {
-            return $statement . ';';
+            return $this->applyCustomRuleExit($rule, $parentSelectors) ?? $statement . ';';
         }
 
         return $this->emitReplacement($replacement, $parentSelectors);
@@ -1791,9 +1971,12 @@ final class CustomAtRuleTransformer
                     }
 
                     $replacement = $this->callUnknownRuleVisitor($rule);
-                    $output .= $replacement === null
-                        ? $this->emitUnknownRule($rule, $selectors)
-                        : $this->emitReplacement($replacement, $selectors);
+                    if ($replacement === null) {
+                        $exitReplacement = $this->applyUnknownRuleExit($rule, $selectors);
+                        $output .= $exitReplacement ?? $this->emitUnknownRule($rule, $selectors);
+                    } else {
+                        $output .= $this->emitReplacement($replacement, $selectors);
+                    }
                 }
             } else {
                 $nestedSelectors = $this->resolveNestedSelectors($selectors, $nestedPrelude);
@@ -1945,6 +2128,10 @@ final class CustomAtRuleTransformer
         $bodyCss = $parentSelectors === null
             ? $this->processRuleList($body)
             : $this->processStyleBody($body, $parentSelectors);
+        $exitReplacement = $this->applyMediaRuleExit($this->buildMediaRule($query, $body, $parentSelectors), $parentSelectors);
+        if ($exitReplacement !== null) {
+            return $exitReplacement;
+        }
 
         return '@media ' . $queryCss . '{' . $bodyCss . '}';
     }
@@ -1978,7 +2165,7 @@ final class CustomAtRuleTransformer
 
         $replacement = $this->callRuleVisitor($rule);
         if ($replacement === null) {
-            return $prelude . '{' . $body . '}';
+            return $this->applyCustomRuleExit($rule, $parentSelectors) ?? $prelude . '{' . $body . '}';
         }
 
         return $this->emitReplacement($replacement, $parentSelectors);
@@ -2790,9 +2977,35 @@ final class CustomAtRuleTransformer
     /**
      * @param array{name:string} $rule
      */
+    private function callRuleExitVisitor(array $rule): mixed
+    {
+        $visitor = $this->ruleExitVisitors[$rule['name']] ?? $this->genericRuleExitVisitor;
+        if ($visitor === null) {
+            return null;
+        }
+
+        return $visitor($rule, $this);
+    }
+
+    /**
+     * @param array{name:string} $rule
+     */
     private function callUnknownRuleVisitor(array $rule): mixed
     {
         $visitor = $this->unknownRuleVisitors[$rule['name']] ?? $this->genericUnknownRuleVisitor;
+        if ($visitor === null) {
+            return null;
+        }
+
+        return $visitor($rule, $this);
+    }
+
+    /**
+     * @param array{name:string} $rule
+     */
+    private function callUnknownRuleExitVisitor(array $rule): mixed
+    {
+        $visitor = $this->unknownRuleExitVisitors[$rule['name']] ?? $this->genericUnknownRuleExitVisitor;
         if ($visitor === null) {
             return null;
         }
@@ -2810,6 +3023,89 @@ final class CustomAtRuleTransformer
         }
 
         return ($this->ruleVisitor)($rule, $this);
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     */
+    private function callAnyRuleExitVisitor(array $rule): mixed
+    {
+        if ($this->ruleExitVisitor === null) {
+            return null;
+        }
+
+        return ($this->ruleExitVisitor)($rule, $this);
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     * @param list<string>|null $parentSelectors
+     */
+    private function applyCustomRuleExit(array $rule, ?array $parentSelectors): ?string
+    {
+        $genericReplacement = $this->callAnyRuleExitVisitor(['type' => 'custom', 'value' => $rule]);
+        if ($genericReplacement !== null) {
+            return $this->emitReplacement($genericReplacement, $parentSelectors);
+        }
+
+        $replacement = $this->callRuleExitVisitor($rule);
+
+        return $replacement === null ? null : $this->emitReplacement($replacement, $parentSelectors);
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     * @param list<string>|null $parentSelectors
+     */
+    private function applyUnknownRuleExit(array $rule, ?array $parentSelectors): ?string
+    {
+        $genericReplacement = $this->callAnyRuleExitVisitor(['type' => 'unknown', 'value' => $rule]);
+        if ($genericReplacement !== null) {
+            return $this->emitReplacement($genericReplacement, $parentSelectors);
+        }
+
+        $replacement = $this->callUnknownRuleExitVisitor($rule);
+
+        return $replacement === null ? null : $this->emitReplacement($replacement, $parentSelectors);
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     */
+    private function applyStyleRuleExit(array $rule): ?string
+    {
+        $genericReplacement = $this->callAnyRuleExitVisitor(array_replace($rule, ['type' => 'style']));
+        if ($genericReplacement !== null) {
+            return $this->emitStyleRuleReplacement($genericReplacement, $rule);
+        }
+
+        if ($this->styleRuleExitVisitor === null) {
+            return null;
+        }
+
+        $replacement = ($this->styleRuleExitVisitor)($rule, $this);
+
+        return $replacement === null ? null : $this->emitStyleRuleReplacement($replacement, $rule);
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     * @param list<string>|null $parentSelectors
+     */
+    private function applyMediaRuleExit(array $rule, ?array $parentSelectors): ?string
+    {
+        $genericReplacement = $this->callAnyRuleExitVisitor($rule);
+        if ($genericReplacement !== null) {
+            return $this->emitReplacement($genericReplacement, $parentSelectors);
+        }
+
+        if ($this->mediaRuleExitVisitor === null) {
+            return null;
+        }
+
+        $replacement = ($this->mediaRuleExitVisitor)($rule, $this);
+
+        return $replacement === null ? null : $this->emitReplacement($replacement, $parentSelectors);
     }
 
     /**
@@ -3381,6 +3677,30 @@ final class CustomAtRuleTransformer
     /**
      * @param array<string, mixed> $visitor
      */
+    private static function customRuleExitVisitorCallback(array $visitor, string $ruleName): ?callable
+    {
+        $ruleConfig = $visitor['RuleExit'] ?? null;
+        if (is_callable($ruleConfig)) {
+            return $ruleConfig;
+        }
+
+        if (is_array($ruleConfig)) {
+            $customConfig = $ruleConfig['custom'] ?? null;
+            if (is_callable($customConfig)) {
+                return $customConfig;
+            }
+
+            if (is_array($customConfig)) {
+                return self::caseInsensitiveCallback($customConfig, $ruleName);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
     private static function unknownRuleVisitorCallback(array $visitor, string $ruleName): ?callable
     {
         $ruleConfig = $visitor['Rule'] ?? null;
@@ -3402,6 +3722,26 @@ final class CustomAtRuleTransformer
 
         if (is_array($unknownConfig)) {
             return self::caseInsensitiveCallback($unknownConfig, $ruleName);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function unknownRuleExitVisitorCallback(array $visitor, string $ruleName): ?callable
+    {
+        $ruleConfig = $visitor['RuleExit'] ?? null;
+        if (is_array($ruleConfig)) {
+            $unknownConfig = $ruleConfig['unknown'] ?? null;
+            if (is_callable($unknownConfig)) {
+                return $unknownConfig;
+            }
+
+            if (is_array($unknownConfig)) {
+                return self::caseInsensitiveCallback($unknownConfig, $ruleName);
+            }
         }
 
         return null;
@@ -3449,6 +3789,23 @@ final class CustomAtRuleTransformer
     /**
      * @param array<string, mixed> $visitor
      */
+    private static function styleRuleExitVisitorCallback(array $visitor): ?callable
+    {
+        $ruleConfig = $visitor['RuleExit'] ?? null;
+        if (is_callable($ruleConfig)) {
+            return $ruleConfig;
+        }
+
+        if (is_array($ruleConfig) && is_callable($ruleConfig['style'] ?? null)) {
+            return $ruleConfig['style'];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
     private static function mediaRuleVisitorCallback(array $visitor): ?callable
     {
         $ruleConfig = $visitor['Rule'] ?? null;
@@ -3463,6 +3820,23 @@ final class CustomAtRuleTransformer
         $mediaConfig = $visitor['media'] ?? null;
         if (is_callable($mediaConfig)) {
             return $mediaConfig;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function mediaRuleExitVisitorCallback(array $visitor): ?callable
+    {
+        $ruleConfig = $visitor['RuleExit'] ?? null;
+        if (is_callable($ruleConfig)) {
+            return $ruleConfig;
+        }
+
+        if (is_array($ruleConfig) && is_callable($ruleConfig['media'] ?? null)) {
+            return $ruleConfig['media'];
         }
 
         return null;
@@ -4485,7 +4859,17 @@ final class CustomAtRuleTransformer
         }
 
         if ($visitStyleRule && $this->styleRuleVisitor !== null) {
-            return $this->emitStyleRuleReplacement(($this->styleRuleVisitor)($rule, $this), $rule);
+            $styleReplacement = ($this->styleRuleVisitor)($rule, $this);
+            if ($styleReplacement !== null) {
+                return $this->emitStyleRuleReplacement($styleReplacement, $rule);
+            }
+        }
+
+        if ($visitStyleRule) {
+            $exitReplacement = $this->applyStyleRuleExit($rule);
+            if ($exitReplacement !== null) {
+                return $exitReplacement;
+            }
         }
 
         return $this->emitStyleRule($rule);

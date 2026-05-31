@@ -21,6 +21,8 @@ $homeMirrorExpandedPath = GitUrl::expandHomePath(
         ? $fixture['currentHomeDirectory']
         : ($fixture['homeDirectories'][$user] ?? null)
 );
+$relativeMirror = GitUrl::parse($fixture['relativeMirrorUrl']);
+$relativeMirrorCanonical = $relativeMirror->canonicalized($fixture['relativeMirrorCurrentDirectory']);
 $fetch = array_map(
     static fn (string $spec): array => RefSpec::parseFetch($spec)->toArray(),
     $fixture['fetchRefspecs']
@@ -56,6 +58,7 @@ $summary = [
     'homeMirrorHome' => $homeMirrorHome,
     'homeMirrorShellPath' => $homeMirrorShellPath,
     'homeMirrorExpandedPath' => $homeMirrorExpandedPath,
+    'relativeMirrorCanonical' => $relativeMirrorCanonical->toArray(),
     'fetch' => $fetch,
     'push' => $push,
     'oversizedRemoteRejected' => $oversizedRemoteRejected,
@@ -97,6 +100,12 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if ($summary['homeMirrorExpandedPath'] !== $fixture['expectedHomeMirrorExpandedPath']) {
         throw new RuntimeException('Unexpected expanded home path');
+    }
+    if ($summary['relativeMirrorCanonical']['path'] !== $fixture['expectedRelativeMirrorCanonicalPath']) {
+        throw new RuntimeException('Unexpected relative mirror canonical path');
+    }
+    if ($summary['relativeMirrorCanonical']['normalized'] !== $fixture['expectedRelativeMirrorCanonicalUrl']) {
+        throw new RuntimeException('Unexpected relative mirror canonical URL');
     }
     if (array_column($summary['fetch'], 'instruction') !== $fixture['expectedFetchInstructions']) {
         throw new RuntimeException('Unexpected fetch refspec instructions');

@@ -2921,6 +2921,18 @@ CSS;
             '@layer blocks{@media (min-resolution:2x){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['chrome' => 95])
         );
+        $t->same(
+            '@layer blocks{@media (resolution:1dppx){.wp-block-query{background:red}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (resolution: 1x) { .wp-block-query { background: red; } } }', ['chrome' => 50])
+        );
+        $t->same(
+            '@layer blocks{@media (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2x) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@layer blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (0.5x <= resolution <= 1.5x) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
+        );
     },
     'transition prefixer composes upstream mask longhands to shorthand prefixes' => static function (TestRunner $t): void {
         $css = <<<'CSS'

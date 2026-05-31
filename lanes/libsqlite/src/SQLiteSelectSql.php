@@ -6,6 +6,8 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteSelectSql
 {
+    private const MAX_VARIABLE_NUMBER = 32766;
+
     /**
      * @param array<string,list<array<string,mixed>>> $tables
      * @return list<array<string,mixed>>
@@ -466,12 +468,12 @@ final class SQLiteSelectSql
                     $index = $positionalIndex++;
                     $explicit = false;
                 } else {
-                    $index = (int) substr($token, 1);
+                    $index = self::explicitParameterIndex($token);
                     $positionalIndex = max($positionalIndex, $index + 1);
                     $explicit = true;
                 }
-                if ($index < 1) {
-                    throw new \InvalidArgumentException('SQLite SELECT SQL positional bind parameter index must be positive');
+                if (!$explicit && $index > self::MAX_VARIABLE_NUMBER) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL has too many SQL variables');
                 }
                 $result .= self::parameterLiteral(self::parameterValue($parameters, $index, $token, $explicit));
                 $i = $start - 1;
@@ -482,6 +484,9 @@ final class SQLiteSelectSql
                 $token = self::namedParameterToken($sql, $i);
                 if ($token !== null) {
                     if (!array_key_exists($token, $namedParameterIndexes)) {
+                        if ($positionalIndex > self::MAX_VARIABLE_NUMBER) {
+                            throw new \InvalidArgumentException('SQLite SELECT SQL has too many SQL variables');
+                        }
                         $namedParameterIndexes[$token] = $positionalIndex++;
                     }
                     $result .= self::parameterLiteral(self::parameterValue(
@@ -503,6 +508,22 @@ final class SQLiteSelectSql
         }
 
         return $result;
+    }
+
+    private static function explicitParameterIndex(string $token): int
+    {
+        $digits = substr($token, 1);
+        $normalized = ltrim($digits, '0');
+        if ($normalized === '') {
+            throw new \InvalidArgumentException('SQLite SELECT SQL variable number must be between ?1 and ?' . self::MAX_VARIABLE_NUMBER);
+        }
+
+        $max = (string) self::MAX_VARIABLE_NUMBER;
+        if (strlen($normalized) > strlen($max) || (strlen($normalized) === strlen($max) && strcmp($normalized, $max) > 0)) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL variable number must be between ?1 and ?' . self::MAX_VARIABLE_NUMBER);
+        }
+
+        return (int) $normalized;
     }
 
     private static function namedParameterToken(string $sql, int $offset): ?string
@@ -7037,7 +7058,16 @@ final class SQLiteSelectSql
     {
         foreach ($select as $term) {
             if (($term['type'] ?? null) === 'wildcard') {
-                return true;
+                $columns = $term['columns'] ?? null;
+                if (!is_array($columns) || !array_is_list($columns)) {
+                    return true;
+                }
+                foreach ($columns as $wildcardColumn) {
+                    if (is_string($wildcardColumn) && strcasecmp($wildcardColumn, $column) === 0) {
+                        return true;
+                    }
+                }
+                continue;
             }
             if (($term['alias'] ?? null) === $column) {
                 return true;

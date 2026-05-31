@@ -34,6 +34,11 @@ final class MediaQueryParser
         return $this->convertDppxResolutionUnits($queryList);
     }
 
+    public function useDppxResolutionUnitList(string $queryList): string
+    {
+        return $this->convertXResolutionUnits($queryList);
+    }
+
     public function alwaysMatchesList(string $queryList): bool
     {
         $queryList = trim($queryList);
@@ -769,6 +774,22 @@ final class MediaQueryParser
         return preg_replace_callback(
             '/' . $number . 'dppx(\s*(?:[<>]=?|=)\s*resolution\b)/i',
             fn (array $matches): string => $this->trimNumber($matches[1]) . 'x' . $matches[2],
+            $queryList
+        ) ?? $queryList;
+    }
+
+    private function convertXResolutionUnits(string $queryList): string
+    {
+        $number = '([+-]?(?:\d+|\d*\.\d+))';
+        $queryList = preg_replace_callback(
+            '/(\b(?:min-|max-)?resolution\s*(?::|[<>]=?|=)\s*)' . $number . 'x\b/i',
+            fn (array $matches): string => $matches[1] . $this->trimNumber($matches[2]) . 'dppx',
+            $queryList
+        ) ?? $queryList;
+
+        return preg_replace_callback(
+            '/' . $number . 'x(\s*(?:[<>]=?|=)\s*resolution\b)/i',
+            fn (array $matches): string => $this->trimNumber($matches[1]) . 'dppx' . $matches[2],
             $queryList
         ) ?? $queryList;
     }
