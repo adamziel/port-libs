@@ -707,9 +707,10 @@ return [
         $beforeColumnNoop = $map->writeVlq();
         $map->offsetColumns(1, 3, 2);
         $t->same($beforeColumnNoop, $map->writeVlq());
-        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
-            $map->offsetColumns(1, 3, -4);
-        });
+        $map->offsetColumns(1, 3, -4);
+        $t->same($beforeColumnNoop, $map->writeVlq());
+        $map->offsetColumns(2, 0, -1);
+        $t->same($beforeColumnNoop, $map->writeVlq());
         $map->offsetColumns(5, 3, -4);
         $t->same($beforeColumnNoop, $map->writeVlq());
 

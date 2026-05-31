@@ -1038,6 +1038,36 @@ CSS,
             ['pkg:button.css', './blocks/../blocks/card.css'],
         ], $resolved);
     },
+    'css bundler preserves resolver-returned filesystem paths like upstream' => static function (TestRunner $t) use ($withTempFiles): void {
+        $withTempFiles([
+            'entry.css' => '@import "pkg:tokens.css"; @import "pkg:card.css"; .entry { color: red }',
+            'vendor/tokens.css' => ':root { --brand: blue }',
+            'blocks/card.css' => '@import "pkg:button.css"; .card { color: green }',
+            'shared/button.css' => '.button { color: blue }',
+        ], static function (string $root) use ($t): void {
+            $resolved = [];
+            $code = (new CssBundler())->bundleFile(
+                $root . '/entry.css',
+                static function (string $specifier, string $originatingFile) use (&$resolved, $root): string {
+                    $resolved[] = [$specifier, $originatingFile];
+
+                    return match ($specifier) {
+                        'pkg:tokens.css' => $root . '/vendor/../vendor/tokens.css',
+                        'pkg:card.css' => $root . '/blocks/../blocks/card.css',
+                        'pkg:button.css' => $root . '/shared/../shared/button.css',
+                        default => throw new RuntimeException("Unexpected specifier {$specifier}"),
+                    };
+                }
+            );
+
+            $t->same(':root{--brand:blue}.button{color:#00f}.card{color:green}.entry{color:red}', $code);
+            $t->same([
+                ['pkg:tokens.css', $root . '/entry.css'],
+                ['pkg:card.css', $root . '/entry.css'],
+                ['pkg:button.css', $root . '/blocks/../blocks/card.css'],
+            ], $resolved);
+        });
+    },
     'css bundler maps upstream source provider read diagnostics' => static function (TestRunner $t): void {
         $initialReadRejected = false;
         try {

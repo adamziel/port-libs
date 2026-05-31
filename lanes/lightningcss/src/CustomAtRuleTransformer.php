@@ -1856,7 +1856,7 @@ final class CustomAtRuleTransformer
 
     /**
      * @param list<string>|null $parentSelectors
-     * @return array{name:string, prelude:string, bodyType:string|null, body:string, bodyRules:list<array<string, mixed>>, declarations:list<array{property:string, value:string, important:bool}>, context:string, parentSelectors:list<string>}
+     * @return array{name:string, prelude:string, preludeAst:mixed, bodyType:string|null, body:string, bodyAst:mixed, bodyRules:list<array<string, mixed>>, declarations:list<array{property:string, value:string, important:bool}>, context:string, parentSelectors:list<string>}
      */
     private function buildCustomRule(string $name, string $prelude, ?string $body, ?array $parentSelectors): array
     {
@@ -1878,6 +1878,7 @@ final class CustomAtRuleTransformer
 
         $preludeGrammar = $definition['prelude'] ?? null;
         $preludeValue = $this->parseCustomPreludeValue($name, $prelude, is_string($preludeGrammar) ? $preludeGrammar : null);
+        $preludeAst = $this->customPreludeAst($preludeValue, is_string($preludeGrammar) ? $preludeGrammar : null);
         $declarations = [];
         $bodyRules = [];
         if ($body !== null && $bodyType === 'declaration-list') {
@@ -1889,8 +1890,10 @@ final class CustomAtRuleTransformer
         return [
             'name' => $name,
             'prelude' => $preludeValue,
+            'preludeAst' => $preludeAst,
             'bodyType' => $bodyType,
             'body' => $body ?? '',
+            'bodyAst' => $this->customBodyAst($bodyType, $declarations, $bodyRules),
             'bodyRules' => $bodyRules,
             'declarations' => $declarations,
             'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
@@ -2263,6 +2266,154 @@ final class CustomAtRuleTransformer
         }
 
         return $prelude;
+    }
+
+    private function customPreludeAst(string $prelude, ?string $grammar): mixed
+    {
+        if ($grammar === null) {
+            return null;
+        }
+
+        return match ($grammar) {
+            '<custom-ident>' => [
+                'type' => 'custom-ident',
+                'value' => $prelude,
+            ],
+            '<dashed-ident>' => [
+                'type' => 'dashed-ident',
+                'value' => $prelude,
+            ],
+            '<length>' => $this->customLengthPreludeAst($prelude),
+            '<number>' => is_numeric($prelude)
+                ? ['type' => 'number', 'value' => (float) $prelude]
+                : ['type' => 'raw', 'value' => $prelude],
+            '<percentage>' => preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $prelude, $matches) === 1
+                ? ['type' => 'percentage', 'value' => (float) $matches[1] / 100]
+                : ['type' => 'raw', 'value' => $prelude],
+            '<string>' => $this->customStringPreludeAst($prelude),
+            default => ['type' => 'raw', 'value' => $prelude],
+        };
+    }
+
+    /**
+     * @return array{type:string,value:mixed}
+     */
+    private function customLengthPreludeAst(string $prelude): array
+    {
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z%]+)$/', $prelude, $matches) === 1) {
+            return [
+                'type' => 'length',
+                'value' => [
+                    'type' => 'value',
+                    'value' => [
+                        'unit' => strtolower($matches[2]),
+                        'value' => (float) $matches[1],
+                    ],
+                ],
+            ];
+        }
+
+        if ($prelude === '0') {
+            return [
+                'type' => 'length',
+                'value' => [
+                    'type' => 'value',
+                    'value' => [
+                        'unit' => 'px',
+                        'value' => 0.0,
+                    ],
+                ],
+            ];
+        }
+
+        return ['type' => 'raw', 'value' => $prelude];
+    }
+
+    /**
+     * @return array{type:string,value:string}
+     */
+    private function customStringPreludeAst(string $prelude): array
+    {
+        if (
+            strlen($prelude) >= 2
+            && (($prelude[0] === '"' && $prelude[strlen($prelude) - 1] === '"') || ($prelude[0] === "'" && $prelude[strlen($prelude) - 1] === "'"))
+        ) {
+            return [
+                'type' => 'string',
+                'value' => stripcslashes(substr($prelude, 1, -1)),
+            ];
+        }
+
+        return ['type' => 'string', 'value' => $prelude];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $declarations
+     * @param list<array<string, mixed>> $bodyRules
+     */
+    private function customBodyAst(?string $bodyType, array $declarations, array $bodyRules): mixed
+    {
+        if ($bodyType === null) {
+            return null;
+        }
+
+        if ($bodyType === 'declaration-list') {
+            return [
+                'type' => 'declaration-list',
+                'value' => $this->customDeclarationBlockAst($declarations),
+            ];
+        }
+
+        return [
+            'type' => 'rule-list',
+            'value' => $bodyRules,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{declarations:list<array<string, mixed>>, importantDeclarations:list<array<string, mixed>>}
+     */
+    private function customDeclarationBlockAst(array $entries): array
+    {
+        $normal = [];
+        $important = [];
+        foreach ($entries as $entry) {
+            $declaration = $this->customDeclarationAst($entry);
+            if (!empty($entry['important'])) {
+                $important[] = $declaration;
+            } else {
+                $normal[] = $declaration;
+            }
+        }
+
+        return [
+            'declarations' => $normal,
+            'importantDeclarations' => $important,
+        ];
+    }
+
+    /**
+     * @param array{property:string, value:string, important:bool} $entry
+     * @return array<string, mixed>
+     */
+    private function customDeclarationAst(array $entry): array
+    {
+        $declaration = $this->entryToVisitorDeclaration($entry);
+        if (($declaration['property'] ?? null) === 'custom') {
+            return [
+                'property' => 'custom',
+                'value' => [
+                    'name' => (string) ($declaration['name'] ?? $entry['property']),
+                    'value' => $declaration['value'] ?? [],
+                ],
+                'important' => $entry['important'],
+            ];
+        }
+
+        $declaration['important'] = $entry['important'];
+
+        return $declaration;
     }
 
     /**
@@ -2691,7 +2842,10 @@ final class CustomAtRuleTransformer
     private function returnedDeclarationValueToCss(array $declaration): string
     {
         if (isset($declaration['raw']) && is_string($declaration['raw'])) {
-            return $this->decodeCssEscapes($declaration['raw']);
+            return $this->rewriteDeclarationValue(
+                $this->decodeCssEscapes($declaration['raw']),
+                is_string($declaration['property'] ?? null) ? $declaration['property'] : null
+            );
         }
 
         $value = $declaration['value'] ?? '';
@@ -4361,7 +4515,15 @@ final class CustomAtRuleTransformer
             return null;
         }
 
-        if (isset($value['value']) && is_array($value['value'])) {
+        if (
+            isset($value['value'])
+            && is_array($value['value'])
+            && ($value['value']['type'] ?? null) === 'value'
+            && is_array($value['value']['value'] ?? null)
+        ) {
+            $unit = $value['value']['value']['unit'] ?? null;
+            $number = $value['value']['value']['value'] ?? null;
+        } elseif (isset($value['value']) && is_array($value['value'])) {
             $unit = $value['value']['unit'] ?? null;
             $number = $value['value']['value'] ?? null;
         } else {
@@ -4464,6 +4626,9 @@ final class CustomAtRuleTransformer
         }
         if (!is_array($value)) {
             return '';
+        }
+        if (array_is_list($value)) {
+            return implode(' ', array_map(fn (mixed $part): string => $this->serializeVisitorValue($part), $value));
         }
 
         if (isset($value['raw']) && is_string($value['raw'])) {

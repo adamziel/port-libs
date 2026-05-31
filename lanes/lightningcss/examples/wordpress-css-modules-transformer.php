@@ -189,6 +189,14 @@ CSS, [
     ],
 ]);
 
+$composeOnlyResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.cardShell {
+  composes: card from "./cards.module.css";
+}
+CSS, [
+    'hash' => 'BlockA',
+]);
+
 try {
     (new CssModulesTransformer())->transform(<<<'CSS'
 .card {
@@ -320,6 +328,8 @@ $actual = [
     'pseudoClassExports' => $pseudoClassResult['exports'],
     'rawPseudoFunction' => $rawPseudoFunctionResult['code'],
     'rawPseudoFunctionExports' => $rawPseudoFunctionResult['exports'],
+    'composeOnly' => $composeOnlyResult['code'],
+    'composeOnlyExports' => $composeOnlyResult['exports'],
 ];
 
 $expected = [
@@ -611,6 +621,20 @@ $expected = [
             'isReferenced' => false,
         ],
     ],
+    'composeOnly' => '.BlockA_cardShell{}',
+    'composeOnlyExports' => [
+        'cardShell' => [
+            'name' => 'BlockA_cardShell',
+            'composes' => [
+                [
+                    'type' => 'dependency',
+                    'name' => 'card',
+                    'specifier' => './cards.module.css',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+    ],
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -637,3 +661,4 @@ echo 'content-hash: ' . $actual['contentHash'] . PHP_EOL;
 echo 'dashed-idents: ' . $actual['dashedIdents'] . PHP_EOL;
 echo 'pseudo-classes: ' . $actual['pseudoClasses'] . PHP_EOL;
 echo 'raw-pseudo-function: ' . $actual['rawPseudoFunction'] . PHP_EOL;
+echo 'compose-only: ' . $actual['composeOnly'] . PHP_EOL;

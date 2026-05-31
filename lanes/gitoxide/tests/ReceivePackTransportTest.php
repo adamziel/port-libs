@@ -2019,6 +2019,45 @@ return [
         $t->same(null, $usernameOnlyProxyRequests[0]['headers']['Proxy-Authorization'] ?? null);
         $t->same([['http://proxy-user@proxy.example.test:8080', 'git.example.test', ['username' => 'proxy-user', 'password' => 'helper-secret']]], $usernameOnlyProxyStores);
 
+        $urlCredentialOverrideCalls = [];
+        $urlCredentialOverrideRequests = [];
+        $urlCredentialOverrideStores = [];
+        $urlCredentialOverrideTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$urlCredentialOverrideRequests, $packet, $flush): array {
+                $urlCredentialOverrideRequests[] = [
+                    'headers' => $headers,
+                    'httpOptions' => $httpOptions,
+                ];
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $packet("0000000000000000000000000000000000000000 capabilities^{}\0report-status\n") . $flush,
+                ];
+            },
+            [],
+            30.0,
+            [],
+            [
+                'proxy' => 'http://url-user:url-pass@proxy.example.test:8080',
+                'proxyCredentialHelper' => static function (string $proxyUrl, string $requestHost) use (&$urlCredentialOverrideCalls): array {
+                    $urlCredentialOverrideCalls[] = [$proxyUrl, $requestHost];
+
+                    return ['username' => 'helper-user', 'password' => 'helper-pass'];
+                },
+                'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$urlCredentialOverrideStores): void {
+                    $urlCredentialOverrideStores[] = [$proxyUrl, $requestHost, $credentials];
+                },
+            ]
+        );
+        $urlCredentialOverrideTransport->readAdvertisement();
+        $t->same([['http://url-user:url-pass@proxy.example.test:8080', 'git.example.test']], $urlCredentialOverrideCalls);
+        $t->same('http://proxy.example.test:8080', $urlCredentialOverrideRequests[0]['httpOptions']['proxyUrl']);
+        $t->same('Basic ' . base64_encode('helper-user:helper-pass'), $urlCredentialOverrideRequests[0]['httpOptions']['proxyAuthorization']);
+        $t->same(null, $urlCredentialOverrideRequests[0]['headers']['Proxy-Authorization'] ?? null);
+        $t->same([['http://url-user:url-pass@proxy.example.test:8080', 'git.example.test', ['username' => 'helper-user', 'password' => 'helper-pass']]], $urlCredentialOverrideStores);
+
         $redirectHelperCalls = [];
         $redirectHelperRequests = [];
         $redirectHelperStores = [];
@@ -2589,6 +2628,35 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy@git.example.test/repo.git', ['disallowShell' => 'yes']));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy:secret@git.example.test/repo.git'));
     },
+    'ssh receive-pack classifies upstream ssh program stderr lines' => static function (TestRunner $t): void {
+        $permission = 'byron@github.com: Permission denied (publickey).';
+        $t->same([
+            'kind' => 'permission_denied',
+            'message' => $permission,
+        ], SshReceivePackTransport::classifyErrorLine($permission));
+        $t->same('permission_denied', SshReceivePackTransport::classifyErrorLine('something permission denied something', 'simple')['kind']);
+
+        $resolve = 'ssh: Could not resolve hostname hostfoobar: nodename nor servname provided, or not known';
+        $t->same([
+            'kind' => 'connection_refused',
+            'message' => $resolve,
+        ], SshReceivePackTransport::classifyErrorLine($resolve));
+
+        $noRoute = 'ssh: connect to host example.org port 22: No route to host';
+        $t->same('not_found', SshReceivePackTransport::classifyErrorLine($noRoute)['kind']);
+        $t->same('not_found', SshReceivePackTransport::classifyErrorLine('banner exchange: Connection to 127.0.0.1 port 61024: Software caused connection abort')['kind']);
+        $t->same('not_found', SshReceivePackTransport::classifyErrorLine("Connection closed by 127.0.0.1 port 8888\n")['kind']);
+        $t->same('Connection closed by 127.0.0.1 port 8888', SshReceivePackTransport::classifyErrorLine("Connection closed by 127.0.0.1 port 8888\n")['message']);
+
+        $plink = 'FATAL ERROR: No supported authentication methods available (server sent: publickey)';
+        $t->same('permission_denied', SshReceivePackTransport::classifyErrorLine($plink, 'plink')['kind']);
+        $t->same('permission_denied', SshReceivePackTransport::classifyErrorLine('publickey', 'putty')['kind']);
+        $t->same('permission_denied', SshReceivePackTransport::classifyErrorLine('publickey', 'tortoiseplink')['kind']);
+
+        $t->same(null, SshReceivePackTransport::classifyErrorLine('remote banner: ready'));
+        $t->same(null, SshReceivePackTransport::classifyErrorLine('', 'ssh'));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::classifyErrorLine('publickey', 'unknown'));
+    },
     'ssh receive-pack urls and commands are validated without shelling out' => static function (TestRunner $t): void {
         $t->same([
             'host' => 'git.example.test',
@@ -2760,6 +2828,11 @@ return [
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@git.example.test'], $fixture['sshProtocolV2Context']['sshArguments']);
         $t->same('caller-provided-ssh-connector', $fixture['sshProtocolV2Context']['authenticationBoundary']);
         $t->same(false, str_contains($fixture['sshProtocolV2Context']['redactedCredentialContext'], 'password='));
+        $t->same('permission_denied', $fixture['sshErrorClassifications']['permissionDenied']['kind']);
+        $t->same('connection_refused', $fixture['sshErrorClassifications']['resolveHost']['kind']);
+        $t->same('not_found', $fixture['sshErrorClassifications']['connectionClosed']['kind']);
+        $t->same('permission_denied', $fixture['sshErrorClassifications']['plinkPublicKey']['kind']);
+        $t->same(null, $fixture['sshErrorClassifications']['unclassifiedBanner']);
     },
     'wordpress fixture stores smart http proxy credentials without leaking origin headers' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-smart-http-proxy-credentials.php';
@@ -2779,6 +2852,23 @@ return [
         $t->same($fixture['usernameOnlyProxyUrl'], $summary['usernameOnlyProxyCredentialUrl']);
         $t->same($fixture['usernameOnlyProxyAuthorizationSent'], $summary['usernameOnlyProxyAuthorizationSent']);
         $t->same(false, $summary['usernameOnlyOriginProxyHeaderLeaked']);
+        $t->same([['http://stale-user:stale-pass@wp-proxy.example.test:8080', 'git.example.test']], $fixture['urlCredentialProxyHelperCalls']);
+        $t->same('http://wp-proxy.example.test:8080', $fixture['urlCredentialProxyUrl']);
+        $t->same('Basic ' . base64_encode('helper-proxy-user:helper-proxy-pass'), $fixture['urlCredentialProxyAuthorizationSent']);
+        $t->same([['http://stale-user:stale-pass@wp-proxy.example.test:8080', 'git.example.test', ['username' => 'helper-proxy-user', 'password' => 'helper-proxy-pass']]], $fixture['urlCredentialProxyStores']);
+        $t->same(false, $fixture['urlCredentialOriginProxyHeaderLeaked']);
+        $t->contains('refs/heads/main', $fixture['urlCredentialProxyAdvertisementBytes']);
+        $t->same($fixture['urlCredentialProxyHelperCalls'], $summary['urlCredentialProxyHelperCalls']);
+        $t->same($fixture['urlCredentialProxyUrl'], $summary['urlCredentialProxyUrl']);
+        $t->same($fixture['urlCredentialProxyAuthorizationSent'], $summary['urlCredentialProxyAuthorizationSent']);
+        $t->same([
+            [
+                'proxyUrl' => 'http://stale-user:stale-pass@wp-proxy.example.test:8080',
+                'requestHost' => 'git.example.test',
+                'username' => 'helper-proxy-user',
+            ],
+        ], $summary['urlCredentialProxyCredentialsStored']);
+        $t->same(false, $summary['urlCredentialOriginProxyHeaderLeaked']);
         $t->same([
             'https://git.example.test/wp-content.git/info/refs?service=git-receive-pack',
             'https://git.example.test/redirected.git/info/refs?service=git-receive-pack',

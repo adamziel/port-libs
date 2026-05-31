@@ -188,7 +188,7 @@ final class CssBundler
         $this->resolver = $resolver;
         $this->reader = $reader;
         $this->filesystemReads = $filesystemReads;
-        $this->preserveResolverPaths = $reader !== null;
+        $this->preserveResolverPaths = $reader !== null || $filesystemReads;
         $this->sourceIndexes = [];
         $this->sourceMap = $sourceMapProjectRoot === null ? null : new SourceMap($sourceMapProjectRoot);
         $this->sourceMapProjectRoot = $sourceMapProjectRoot ?? '/';
@@ -1628,6 +1628,12 @@ final class CssBundler
         $hashes = $this->cssModuleOptions['hashes'] ?? null;
         if (is_array($hashes) && isset($hashes[$file])) {
             return $hashes[$file];
+        }
+        if (is_array($hashes)) {
+            $normalized = $this->normalizePath($file);
+            if (isset($hashes[$normalized])) {
+                return $hashes[$normalized];
+            }
         }
 
         if (is_callable($hashes)) {

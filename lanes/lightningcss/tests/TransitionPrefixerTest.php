@@ -828,6 +828,58 @@ return [
             $prefixer->prefixForTargets('.foo { position: sticky; }', ['safari' => 13])
         );
     },
+    'transition prefixer maps upstream overflow shorthand browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{overflow-x:hidden;overflow-y:auto}',
+            $prefixer->prefixForTargets('.foo { overflow: hidden auto; }', ['chrome' => 67])
+        );
+        $t->same(
+            '.foo{overflow:hidden auto}',
+            $prefixer->prefixForTargets('.foo { overflow: hidden auto; }', ['chrome' => 68])
+        );
+        $t->same(
+            '.foo{overflow:hidden}',
+            $prefixer->prefixForTargets('.foo { overflow: hidden hidden; }', ['chrome' => 67])
+        );
+        $t->same(
+            '.foo{overflow-x:hidden;overflow-y:auto}',
+            $prefixer->prefixForTargets('.foo { overflow-x: hidden; overflow-y: auto; }', ['chrome' => 67])
+        );
+        $t->same(
+            '.foo{overflow-x:hidden;overflow-y:auto}',
+            $prefixer->prefixForTargets('.foo { overflow: hidden; overflow-y: auto; }', ['chrome' => 67])
+        );
+        $t->same(
+            '.foo{overflow-x:hidden!important;overflow-y:auto!important}',
+            $prefixer->prefixForTargets('.foo { overflow: hidden auto !important; }', ['chrome' => 67])
+        );
+        $t->same(
+            '.foo{overflow-x:hidden;overflow-y:auto}',
+            $prefixer->prefixForTargets('.foo { overflow: hidden auto; }', ['firefox' => 60])
+        );
+        $t->same(
+            '.foo{overflow:hidden auto}',
+            $prefixer->prefixForTargets('.foo { overflow: hidden auto; }', ['firefox' => 61])
+        );
+        $t->same(
+            '.foo{overflow-x:hidden;overflow-y:auto}',
+            $prefixer->prefixForTargets('.foo { overflow: hidden auto; }', ['safari' => 13])
+        );
+        $t->same(
+            '.foo{overflow:hidden auto}',
+            $prefixer->prefixForTargets('.foo { overflow: hidden auto; }', ['safari' => '13.1'])
+        );
+        $t->same(
+            '.foo{overflow-x:hidden;overflow-y:auto}',
+            $prefixer->prefixForTargets('.foo { overflow: hidden auto; }', ['edge' => 78])
+        );
+        $t->same(
+            '.foo{overflow:hidden auto}',
+            $prefixer->prefixForTargets('.foo { overflow: hidden auto; }', ['edge' => 79])
+        );
+    },
     'transition prefixer maps upstream background clip text browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

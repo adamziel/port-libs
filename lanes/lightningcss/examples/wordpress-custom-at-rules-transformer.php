@@ -87,6 +87,7 @@ $colorAliases = [];
 $environmentTokens = [];
 $variableTokens = [];
 $customUnits = [];
+$parserAstSummary = [];
 $stylesheetExitRuleCount = 0;
 $transformer = new CustomAtRuleTransformer();
 
@@ -137,7 +138,10 @@ $transform = $transformer->transformWithDependencies($css, [
     [
         'Rule' => [
             'custom' => [
-                'tokens' => static function (array $rule) use (&$tokens): array {
+                'tokens' => static function (array $rule) use (&$tokens, &$parserAstSummary): array {
+                    $parserAstSummary['tokensPrelude'] = $rule['preludeAst'] ?? null;
+                    $parserAstSummary['tokensBodyType'] = $rule['bodyAst']['type'] ?? null;
+                    $parserAstSummary['tokensFirstDeclaration'] = $rule['bodyAst']['value']['declarations'][0]['value']['name'] ?? null;
                     foreach ($rule['declarations'] as $declaration) {
                         $tokens[$rule['prelude'] . '.' . $declaration['property']] = $declaration['value'];
                     }
@@ -155,7 +159,7 @@ $transform = $transformer->transformWithDependencies($css, [
             ],
         ],
     ],
-    static function (array $context) use (&$tokens, &$colorAliases, &$environmentTokens, &$variableTokens, &$customUnits): array {
+    static function (array $context) use (&$tokens, &$colorAliases, &$environmentTokens, &$variableTokens, &$customUnits, &$parserAstSummary): array {
         $addDependency = $context['addDependency'];
 
         return [
@@ -203,7 +207,9 @@ $transform = $transformer->transformWithDependencies($css, [
                     return [];
                 },
                 'custom' => [
-                    'responsive' => static function (array $rule): array {
+                    'responsive' => static function (array $rule) use (&$parserAstSummary): array {
+                        $parserAstSummary['responsiveBodyType'] = $rule['bodyAst']['type'] ?? null;
+                        $parserAstSummary['responsiveFirstRule'] = $rule['bodyAst']['value'][0]['type'] ?? null;
                         $mediaRules = [];
                         foreach ($rule['bodyRules'] as $bodyRule) {
                             if (($bodyRule['type'] ?? null) !== 'style') {
@@ -237,10 +243,15 @@ $transform = $transformer->transformWithDependencies($css, [
                             ],
                         ];
                     },
-                    'breakpoint' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->media(
-                        '(width <= ' . $rule['prelude'] . ')',
-                        $transformer->styleBlock($rule['body'])
-                    ),
+                    'breakpoint' => static function (array $rule, CustomAtRuleTransformer $transformer) use (&$parserAstSummary): array {
+                        $parserAstSummary['breakpointPrelude'] = $rule['preludeAst'] ?? null;
+                        $parserAstSummary['breakpointBodyType'] = $rule['bodyAst']['type'] ?? null;
+
+                        return $transformer->media(
+                            '(width <= ' . $rule['prelude'] . ')',
+                            $transformer->styleBlock($rule['body'])
+                        );
+                    },
                 ],
                 'media' => static function (array $media): ?array {
                     $mediaQueries = $media['value']['query']['mediaQueries'] ?? [];
@@ -518,7 +529,7 @@ $transform = $transformer->transformWithDependencies($css, [
 $result = $transform['code'];
 $dependencies = $transform['dependencies'];
 
-$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-hoverable .wp-block-card__cta{color:#ff0}.wp-block-card__viewport{color:#0f0;height:100vh}@supports (-webkit-touch-callout:none){.wp-block-card__viewport{height:-webkit-fill-available}}.wp-block-card__media{width:3rem;height:3rem}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{--wp-fluid-step:.25rem;font-size:calc(3*var(--wp-fluid-step));gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 .0625rem #056ef0;margin-left:1.25rem;margin-right:1.25rem}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}.wp-block-card.is-visitor-ready{outline-color:#056ef0}';
+$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:.625rem}@media (width>=782px){.md\\:wp-block-card__stack{margin:.625rem}}.wp-hoverable .wp-block-card__cta{color:#ff0}.wp-block-card__viewport{color:#0f0;height:100vh}@supports (-webkit-touch-callout:none){.wp-block-card__viewport{height:-webkit-fill-available}}.wp-block-card__media{width:3rem;height:3rem}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{--wp-fluid-step:.25rem;font-size:calc(3*var(--wp-fluid-step));gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 .0625rem #056ef0;margin-left:1.25rem;margin-right:1.25rem}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}.wp-block-card.is-visitor-ready{outline-color:#056ef0}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {
@@ -546,6 +557,18 @@ if (($argv[1] ?? null) === '--self-test') {
     }
     if ($customUnits !== ['--wp-fluid-step' => true]) {
         fwrite(STDERR, "Unexpected custom at-rule custom units:\n" . json_encode($customUnits) . "\n");
+        exit(1);
+    }
+    if ($parserAstSummary !== [
+        'tokensPrelude' => ['type' => 'custom-ident', 'value' => 'wp'],
+        'tokensBodyType' => 'declaration-list',
+        'tokensFirstDeclaration' => '--gap',
+        'responsiveBodyType' => 'rule-list',
+        'responsiveFirstRule' => 'style',
+        'breakpointPrelude' => ['type' => 'length', 'value' => ['type' => 'value', 'value' => ['unit' => 'px', 'value' => 782.0]]],
+        'breakpointBodyType' => 'rule-list',
+    ]) {
+        fwrite(STDERR, "Unexpected custom at-rule parser AST summary:\n" . json_encode($parserAstSummary) . "\n");
         exit(1);
     }
     if ($stylesheetExitRuleCount < 1) {

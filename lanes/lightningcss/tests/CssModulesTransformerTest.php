@@ -492,6 +492,81 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules preserves upstream empty rules for composes-only selectors' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
+        $localResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.foo {
+  composes: bar;
+}
+
+.bar {
+  color: red;
+}
+CSS);
+
+        $t->same('.EgL3uq_foo{}.EgL3uq_bar{color:red}', $localResult['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo', [$local('EgL3uq_bar')]),
+            'bar' => $export('EgL3uq_bar'),
+        ], $localResult['exports']);
+        $t->same([], $localResult['references']);
+
+        $globalResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.foo {
+  composes: bar from global;
+}
+
+.bar {
+  color: red;
+}
+CSS);
+
+        $t->same('.EgL3uq_foo{}.EgL3uq_bar{color:red}', $globalResult['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo', [$global('bar')]),
+            'bar' => $export('EgL3uq_bar'),
+        ], $globalResult['exports']);
+        $t->same([], $globalResult['references']);
+
+        $dependencyResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.foo {
+  composes: bar from "bar.css";
+}
+CSS);
+
+        $t->same('.EgL3uq_foo{}', $dependencyResult['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo', [$dependency('bar', 'bar.css')]),
+        ], $dependencyResult['exports']);
+        $t->same([], $dependencyResult['references']);
+
+        $selectorListResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.foo, .baz {
+  composes: bar;
+}
+
+.bar {
+  color: red;
+}
+CSS);
+
+        $t->same('.EgL3uq_foo,.EgL3uq_baz{}.EgL3uq_bar{color:red}', $selectorListResult['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo', [$local('EgL3uq_bar')]),
+            'baz' => $export('EgL3uq_baz', [$local('EgL3uq_bar')]),
+            'bar' => $export('EgL3uq_bar'),
+        ], $selectorListResult['exports']);
+        $t->same([], $selectorListResult['references']);
+
+        $unminified = (new CssModulesTransformer())->transform('.foo { composes: bar }', [
+            'minify' => false,
+        ]);
+
+        $t->same('.EgL3uq_foo{}', $unminified['code']);
+        $t->same([
+            'foo' => $export('EgL3uq_foo', [$local('EgL3uq_bar')]),
+        ], $unminified['exports']);
+        $t->same([], $unminified['references']);
+    },
     'css modules accepts upstream important priority on composes declarations' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
         $localResult = (new CssModulesTransformer())->transform(<<<'CSS'
 .test {

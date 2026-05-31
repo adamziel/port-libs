@@ -10,6 +10,7 @@ $block = new DeclarationBlock();
 
 $button = 'transition: opacity 200ms ease-in 50ms; color: var(--wp--preset--color--contrast)';
 $mismatched = 'transition: color 200ms; color: var(--wp--preset--color--primary)';
+$legacyMenu = '-ms-transition: opacity 200ms ease-in 50ms; color: var(--wp--preset--color--contrast)';
 
 $actual = [
     'duration' => $block->getProperty($button, 'transition-duration'),
@@ -17,6 +18,9 @@ $actual = [
     'updatedDuration' => $block->setProperty($button, 'transition-duration', '300ms'),
     'mismatchedPropertyList' => $block->setProperty($mismatched, 'transition-property', 'opacity, transform'),
     'removedDuration' => $block->removeProperty($button, 'transition-duration'),
+    'legacyDuration' => $block->getProperty($legacyMenu, '-ms-transition-duration'),
+    'legacyUpdatedDelay' => $block->setProperty($legacyMenu, '-ms-transition-delay', '75ms'),
+    'legacyRemovedDuration' => $block->removeProperty($legacyMenu, '-ms-transition-duration'),
 ];
 
 $expected = [
@@ -25,6 +29,9 @@ $expected = [
     'updatedDuration' => 'transition: opacity 300ms ease-in 50ms; color: var(--wp--preset--color--contrast)',
     'mismatchedPropertyList' => 'transition: color 200ms; color: var(--wp--preset--color--primary); transition-property: opacity, transform',
     'removedDuration' => 'transition-property: opacity; transition-delay: 50ms; transition-timing-function: ease-in; color: var(--wp--preset--color--contrast)',
+    'legacyDuration' => ['value' => '200ms', 'important' => false],
+    'legacyUpdatedDelay' => '-ms-transition: opacity 200ms ease-in 75ms; color: var(--wp--preset--color--contrast)',
+    'legacyRemovedDuration' => '-ms-transition-property: opacity; -ms-transition-delay: 50ms; -ms-transition-timing-function: ease-in; color: var(--wp--preset--color--contrast)',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

@@ -30,6 +30,7 @@ return [
     'sshSimplePortRejected' => $fixture['sshSimplePortRejected'],
     'sshCredentialContext' => $fixture['sshProtocolV2Context']['redactedCredentialContext'],
     'sshAuthenticationBoundary' => $fixture['sshProtocolV2Context']['authenticationBoundary'],
+    'sshErrorClassifications' => $fixture['sshErrorClassifications'],
     'gitDaemonServiceRequestPayload' => substr($fixture['gitDaemonServiceRequest'], 4),
     'gitDaemonUrlServiceRequestPayload' => substr($fixture['gitDaemonUrlServiceRequest'], 4),
     'gitDaemonValueOnlyExtraServiceRequestPayload' => substr($fixture['gitDaemonValueOnlyExtraServiceRequest'], 4),

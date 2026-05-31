@@ -505,6 +505,53 @@ CSS,
 
 echo 'filesystem-provider: resolved' . PHP_EOL;
 
+$withTempFiles([
+    'theme.css' => <<<'CSS'
+@import "pkg:presets.css";
+@import "pkg:blocks.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    'vendor/presets.css' => ':root { --wp--preset--color--brand: blue; }',
+    'blocks/query.css' => <<<'CSS'
+@import "pkg:button.css";
+.wp-block-query {
+  color: green;
+}
+CSS,
+    'shared/button.css' => '.wp-block-button__link { color: blue; }',
+], static function (string $root): void {
+    $resolved = [];
+    $filesystemBundle = (new CssBundler())->bundleFile(
+        $root . '/theme.css',
+        static function (string $specifier, string $originatingFile) use ($root, &$resolved): string {
+            $resolved[] = [$specifier, $originatingFile];
+
+            return match ($specifier) {
+                'pkg:presets.css' => $root . '/vendor/../vendor/presets.css',
+                'pkg:blocks.css' => $root . '/blocks/../blocks/query.css',
+                'pkg:button.css' => $root . '/shared/../shared/button.css',
+                default => throw new RuntimeException("Unexpected filesystem-backed specifier {$specifier}"),
+            };
+        }
+    );
+
+    if (
+        $filesystemBundle !== ':root{--wp--preset--color--brand:blue}.wp-block-button__link{color:#00f}.wp-block-query{color:green}.wp-site-blocks{color:red}'
+        || $resolved !== [
+            ['pkg:presets.css', $root . '/theme.css'],
+            ['pkg:blocks.css', $root . '/theme.css'],
+            ['pkg:button.css', $root . '/blocks/../blocks/query.css'],
+        ]
+    ) {
+        fwrite(STDERR, "Expected filesystem resolver-returned paths to remain import graph identities\n");
+        exit(1);
+    }
+});
+
+echo 'filesystem-resolver-raw-path: preserved' . PHP_EOL;
+
 $moduleBundle = (new CssBundler())->bundleCssModules('/modules/card.css', [
     '/modules/card.css' => <<<'CSS'
 @import "../tokens.module.css" supports(color: red);

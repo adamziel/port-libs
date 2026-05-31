@@ -5617,7 +5617,7 @@ final class DeclarationBlock
 
     private function transitionPrefixForProperty(string $property): ?string
     {
-        foreach (['-webkit-', '-moz-'] as $prefix) {
+        foreach (['-webkit-', '-moz-', '-ms-'] as $prefix) {
             if (str_starts_with($property, $prefix . 'transition')) {
                 return $this->baseTransitionProperty($property) === null ? null : $prefix;
             }
@@ -5632,7 +5632,7 @@ final class DeclarationBlock
 
     private function baseTransitionProperty(string $property): ?string
     {
-        foreach (['-webkit-', '-moz-'] as $prefix) {
+        foreach (['-webkit-', '-moz-', '-ms-'] as $prefix) {
             if (str_starts_with($property, $prefix)) {
                 $property = substr($property, strlen($prefix));
                 break;

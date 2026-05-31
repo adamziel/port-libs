@@ -101,11 +101,11 @@ $emptyLineOffsetMap->addMapping(0, 0, $emptyLineOffsetSource, 0, 0);
 $emptyLineOffsetMap->offsetLines(1, 2);
 $emptyLineOffsetBeforeColumnNoop = $emptyLineOffsetMap->toJson(null, false);
 $emptyLineOffsetMap->offsetColumns(1, 3, 2);
-$emptyLineColumnOffsetGuard = false;
+$emptyLineColumnOffsetGuard = true;
 try {
     $emptyLineOffsetMap->offsetColumns(1, 3, -4);
 } catch (InvalidArgumentException) {
-    $emptyLineColumnOffsetGuard = true;
+    $emptyLineColumnOffsetGuard = false;
 }
 $emptyLineOffsetMap->offsetColumns(5, 3, -4);
 $bufferRoundTripMap = SourceMap::fromBuffer('/', $emptyLineOffsetMap->toBuffer());

@@ -244,6 +244,7 @@ final class TransitionPrefixer
         $boxSizingChanged = $this->rewriteBoxSizingPrefixEntries($entries, $targetOptions);
         $objectFitChanged = $this->rewriteObjectFitPrefixEntries($entries, $targetOptions);
         $textCompatibilityPrefixChanged = $this->rewriteTextCompatibilityPrefixEntries($entries, $targetOptions);
+        $overflowShorthandChanged = $this->rewriteOverflowShorthandFallbackEntries($entries, $targetOptions);
         $transformPrefixChanged = $this->rewriteTransformPrefixEntries($entries, $targetOptions);
         $positionStickyChanged = $this->rewritePositionStickyPrefixEntries($entries, $targetOptions);
         $backgroundClipChanged = $this->rewriteBackgroundClipPrefixEntries($entries, $targetOptions);
@@ -284,7 +285,7 @@ final class TransitionPrefixer
         if ($logicalInsetFallback !== null) {
             return $logicalInsetFallback . implode('', $supportRules);
         }
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -953,6 +954,16 @@ final class TransitionPrefixer
                 || $this->targetAtLeast($normalized, 'opera', [15])
                 || $this->targetAtLeast($normalized, 'safari', [6, 1])
                 || $this->targetAtLeast($normalized, 'samsung', [4]),
+            'overflowShorthandNeedsLonghandFallback' => $this->targetsNeedFeatureFallback($normalized, [
+                'android' => [68],
+                'chrome' => [68],
+                'edge' => [79],
+                'firefox' => [61],
+                'ios_saf' => [13, 4],
+                'opera' => [48],
+                'safari' => [13, 1],
+                'samsung' => [10],
+            ]),
             'transformNeedsWebkit' => $transformNeedsWebkit,
             'transformNeedsMoz' => $transformNeedsMoz,
             'transformNeedsMs' => $transformNeedsMs,
@@ -3890,6 +3901,95 @@ final class TransitionPrefixer
         $entries = $rewritten;
 
         return $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteOverflowShorthandFallbackEntries(array &$entries, array $targetOptions): bool
+    {
+        if (!($targetOptions['overflowShorthandNeedsLonghandFallback'] ?? false)) {
+            return false;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        $count = count($entries);
+        for ($index = 0; $index < $count; $index++) {
+            $entry = $entries[$index];
+            if ($entry['property'] !== 'overflow') {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $parts = $this->overflowShorthandParts($entry['value']);
+            if ($parts === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $x = $parts[0];
+            $y = $parts[1] ?? $parts[0];
+            $next = $entries[$index + 1] ?? null;
+            if (
+                $next !== null
+                && !$entry['important']
+                && !$next['important']
+                && in_array($next['property'], ['overflow-x', 'overflow-y'], true)
+                && $this->isOverflowKeyword($next['value'])
+            ) {
+                if ($next['property'] === 'overflow-x') {
+                    $x = $next['value'];
+                } else {
+                    $y = $next['value'];
+                }
+
+                $index++;
+                $changed = true;
+            }
+
+            if ($x === $y) {
+                $rewritten[] = $this->entryWithValue($entry, $x);
+                $changed = $changed || $entry['value'] !== $x;
+                continue;
+            }
+
+            $rewritten[] = $this->declarationEntry('overflow-x', $x, $entry['important']);
+            $rewritten[] = $this->declarationEntry('overflow-y', $y, $entry['important']);
+            $changed = true;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+        return true;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function overflowShorthandParts(string $value): ?array
+    {
+        $parts = $this->splitWhitespaceTopLevel($value);
+        if (count($parts) < 1 || count($parts) > 2) {
+            return null;
+        }
+
+        foreach ($parts as $part) {
+            if (!$this->isOverflowKeyword($part)) {
+                return null;
+            }
+        }
+
+        return $parts;
+    }
+
+    private function isOverflowKeyword(string $value): bool
+    {
+        return in_array(strtolower($value), ['visible', 'hidden', 'clip', 'scroll', 'auto'], true);
     }
 
     /**

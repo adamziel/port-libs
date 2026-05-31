@@ -843,6 +843,17 @@ return [
                 'transition'
             )
         );
+        $t->same(
+            ['value' => '200ms', 'important' => false],
+            $block->getProperty('-ms-transition: opacity 200ms ease-in 50ms', '-ms-transition-duration')
+        );
+        $t->same(
+            ['value' => 'opacity 200ms ease-in 50ms', 'important' => true],
+            $block->getProperty(
+                '-ms-transition-property: opacity !important; -ms-transition-duration: 200ms !important; -ms-transition-delay: 50ms !important; -ms-transition-timing-function: ease-in !important',
+                '-ms-transition'
+            )
+        );
     },
     'declaration block reads upstream list style cssom shorthand and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
@@ -1665,6 +1676,18 @@ return [
             '-webkit-transition: opacity 200ms; transition-duration: 300ms',
             $block->setProperty('-webkit-transition: opacity 200ms', 'transition-duration', '300ms')
         );
+        $t->same(
+            '-ms-transition: opacity 300ms ease-in 50ms',
+            $block->setProperty('-ms-transition: opacity 200ms ease-in 50ms', '-ms-transition-duration', '300ms')
+        );
+        $t->same(
+            '-ms-transition: opacity 200ms ease-in 75ms',
+            $block->setProperty('-ms-transition: opacity 200ms ease-in 50ms', '-ms-transition-delay', '75ms')
+        );
+        $t->same(
+            '-ms-transition: opacity 200ms; -moz-transition-duration: 300ms',
+            $block->setProperty('-ms-transition: opacity 200ms', '-moz-transition-duration', '300ms')
+        );
     },
     'declaration block sets upstream list style cssom longhands in existing shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
@@ -2436,6 +2459,14 @@ return [
         $t->same(
             '-webkit-transition-property: opacity; -webkit-transition-delay: 0s; -webkit-transition-timing-function: ease',
             $block->removeProperty('-webkit-transition: opacity 200ms', '-webkit-transition-duration')
+        );
+        $t->same(
+            '-ms-transition-property: opacity; -ms-transition-delay: 50ms; -ms-transition-timing-function: ease-in',
+            $block->removeProperty('-ms-transition: opacity 200ms ease-in 50ms', '-ms-transition-duration')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('-ms-transition: opacity 200ms; -ms-transition-duration: 300ms; color: red', '-ms-transition')
         );
     },
     'declaration block removes upstream list style cssom longhands and shorthand' => static function (TestRunner $t): void {

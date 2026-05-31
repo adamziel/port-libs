@@ -191,6 +191,92 @@ CSS;
 
         $t->same('@media (width<=1024px){:root{foo:16px;bar:32px}}', $result);
     },
+    'custom at-rules expose upstream typed prelude and body parser aliases' => static function (TestRunner $t): void {
+        $definitions = [];
+        $seen = [];
+        $css = <<<'CSS'
+@tokens spacing {
+  space: 16px;
+  accent: yellow !important;
+}
+
+@breakpoint 1024px {
+  .card {
+    width: token('spacing.space');
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+            'breakpoint' => [
+                'prelude' => '<length>',
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'tokens' => static function (array $rule) use (&$definitions, &$seen): array {
+                        $seen['tokensPrelude'] = $rule['preludeAst'];
+                        $seen['tokensBodyType'] = $rule['bodyAst']['type'];
+                        $seen['tokensImportant'] = $rule['bodyAst']['value']['importantDeclarations'][0]['value']['name'] ?? null;
+
+                        foreach ($rule['bodyAst']['value']['declarations'] as $declaration) {
+                            if (($declaration['property'] ?? null) !== 'custom') {
+                                continue;
+                            }
+
+                            $definitions[$rule['preludeAst']['value'] . '.' . $declaration['value']['name']] = $declaration['value']['value'];
+                        }
+
+                        return [];
+                    },
+                    'breakpoint' => static function (array $rule) use (&$seen): array {
+                        $seen['breakpointPrelude'] = $rule['preludeAst'];
+                        $seen['breakpointBodyType'] = $rule['bodyAst']['type'];
+                        $seen['breakpointRuleType'] = $rule['bodyAst']['value'][0]['type'] ?? null;
+
+                        return [
+                            'type' => 'media',
+                            'value' => [
+                                'query' => [
+                                    'mediaQueries' => [[
+                                        'mediaType' => 'all',
+                                        'condition' => [
+                                            'type' => 'feature',
+                                            'value' => [
+                                                'type' => 'range',
+                                                'name' => 'width',
+                                                'operator' => 'less-than-equal',
+                                                'value' => $rule['preludeAst'],
+                                            ],
+                                        ],
+                                    ]],
+                                ],
+                                'rules' => $rule['bodyAst']['value'],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            'Function' => [
+                'token' => static function (array $arguments) use (&$definitions): ?array {
+                    return $definitions[$arguments[0] ?? ''] ?? null;
+                },
+            ],
+        ]);
+
+        $t->same('@media (width<=1024px){.card{width:16px}}', $result);
+        $t->same(['type' => 'custom-ident', 'value' => 'spacing'], $seen['tokensPrelude']);
+        $t->same('declaration-list', $seen['tokensBodyType']);
+        $t->same('accent', $seen['tokensImportant']);
+        $t->same(['type' => 'length', 'value' => ['type' => 'value', 'value' => ['unit' => 'px', 'value' => 1024.0]]], $seen['breakpointPrelude']);
+        $t->same('rule-list', $seen['breakpointBodyType']);
+        $t->same('style', $seen['breakpointRuleType']);
+    },
     'custom at-rules map upstream bundler mixin visitor after import resolution' => static function (TestRunner $t) use ($customDefinitions, $mixinVisitor): void {
         $mixins = [];
         $result = (new CustomAtRuleTransformer())->bundle('/apply.css', [

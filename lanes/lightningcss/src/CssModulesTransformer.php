@@ -7,6 +7,7 @@ namespace PortLibs\LightningCSS;
 final class CssModulesTransformer
 {
     private const PURE_NO_CHECK_MARKER = '/*__lightningcss-cssmodules-pure-no-check__*/';
+    private const PRESERVE_EMPTY_COMPOSES_DECLARATION = '--__lightningcss-cssmodules-preserve-empty-composes:0';
     private const HASH_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_-';
     private const U32_MASK = 0xffffffff;
     private const U32_BASE = 4294967296;
@@ -21,6 +22,7 @@ final class CssModulesTransformer
     private bool $container = true;
     private bool $customIdents = true;
     private bool $pure = false;
+    private bool $preserveEmptyComposesRules = true;
 
     /** @var array<string, string> */
     private array $pseudoClasses = [];
@@ -63,14 +65,17 @@ final class CssModulesTransformer
         $this->container = ($options['container'] ?? true) !== false;
         $this->customIdents = ($options['customIdents'] ?? $options['custom_idents'] ?? true) !== false;
         $this->pure = ($options['pure'] ?? false) === true;
+        $minify = ($options['minify'] ?? true) === true;
+        $this->preserveEmptyComposesRules = $minify;
         $this->pseudoClasses = $this->normalizePseudoClasses($options['pseudoClasses'] ?? $options['pseudo_classes'] ?? []);
         $this->exports = [];
         $this->references = [];
 
         [$css, $licenseComments] = $this->stripComments($css);
         $code = $this->transformRuleList($css, 0);
-        if (($options['minify'] ?? true) === true) {
+        if ($minify) {
             $code = (new NestingTransformer())->lower($code);
+            $code = $this->restorePreservedEmptyComposesRules($code);
         }
 
         $code = $this->prependLicenseComments($code, $licenseComments);
@@ -121,6 +126,7 @@ final class CssModulesTransformer
             [$rewrittenBody, $composes] = $this->rewriteStyleBody($body, $styleNestingDepth);
             $this->assertValidComposesSelector($prelude, $composes);
             $this->addComposesToLocals($locals, $composes);
+            $rewrittenBody = $this->preserveEmptyComposesRuleBody($rewrittenBody, $composes);
 
             $output .= $selector . '{' . $rewrittenBody . '}';
             $cursor = $close + 1;
@@ -406,6 +412,7 @@ final class CssModulesTransformer
                 [$rewrittenNestedBody, $nestedComposes] = $this->rewriteStyleBody($nestedBody, $styleNestingDepth + 1);
                 $this->assertValidComposesSelector($nestedPrelude, $nestedComposes);
                 $this->addComposesToLocals($locals, $nestedComposes);
+                $rewrittenNestedBody = $this->preserveEmptyComposesRuleBody($rewrittenNestedBody, $nestedComposes);
                 $output .= $selector . '{' . $rewrittenNestedBody . '}';
             }
 
@@ -413,6 +420,26 @@ final class CssModulesTransformer
         }
 
         return [$output, $composes];
+    }
+
+    /**
+     * @param list<array{type:string, name:string, specifier?:string}> $composes
+     */
+    private function preserveEmptyComposesRuleBody(string $body, array $composes): string
+    {
+        if (!$this->preserveEmptyComposesRules || $composes === [] || trim($body) !== '') {
+            return $body;
+        }
+
+        return self::PRESERVE_EMPTY_COMPOSES_DECLARATION . ';';
+    }
+
+    private function restorePreservedEmptyComposesRules(string $code): string
+    {
+        return str_replace([
+            '{' . self::PRESERVE_EMPTY_COMPOSES_DECLARATION . '}',
+            '{' . self::PRESERVE_EMPTY_COMPOSES_DECLARATION . ';}',
+        ], '{}', $code);
     }
 
     /**

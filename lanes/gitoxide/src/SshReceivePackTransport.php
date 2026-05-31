@@ -111,6 +111,42 @@ final class SshReceivePackTransport implements ReceivePackTransport
         return 'git-receive-pack ' . self::shellQuote($repositoryPath);
     }
 
+    /**
+     * @return array{kind: string, message: string}|null
+     */
+    public static function classifyErrorLine(string $line, string $programKind = 'ssh'): ?array
+    {
+        $kind = self::normalizeProgramKind($programKind);
+        $message = self::trimOneTrailingNewline($line);
+        if ($message === '') {
+            return null;
+        }
+
+        if ($kind === 'ssh' || $kind === 'simple') {
+            if (str_contains($message, 'Permission denied') || str_contains($message, 'permission denied')) {
+                return self::sshError('permission_denied', $message);
+            }
+            if (str_contains($message, 'resolve hostname')) {
+                return self::sshError('connection_refused', $message);
+            }
+            if (
+                str_contains($message, 'connect to host')
+                || str_contains($message, 'Connection to ')
+                || str_contains($message, 'Connection closed by ')
+            ) {
+                return self::sshError('not_found', $message);
+            }
+
+            return null;
+        }
+
+        if (str_contains($message, 'publickey')) {
+            return self::sshError('permission_denied', $message);
+        }
+
+        return null;
+    }
+
     public function readAdvertisement(): string
     {
         return $this->streamTransport->readAdvertisement();
@@ -475,5 +511,28 @@ final class SshReceivePackTransport implements ReceivePackTransport
     private static function shellQuote(string $value): string
     {
         return "'" . str_replace("'", "'\\''", $value) . "'";
+    }
+
+    /**
+     * @return array{kind: string, message: string}
+     */
+    private static function sshError(string $kind, string $message): array
+    {
+        return [
+            'kind' => $kind,
+            'message' => $message,
+        ];
+    }
+
+    private static function trimOneTrailingNewline(string $line): string
+    {
+        if (str_ends_with($line, "\r\n")) {
+            return substr($line, 0, -2);
+        }
+        if (str_ends_with($line, "\n") || str_ends_with($line, "\r")) {
+            return substr($line, 0, -1);
+        }
+
+        return $line;
     }
 }
