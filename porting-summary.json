@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 08:53:05 UTC",
-    "sourceCommit": "d47dc133c424b595a26aa0ce415c78f1aa11abeb",
-    "sourceCommitShort": "d47dc133c424",
+    "generated": "2026-05-31 08:57:47 UTC",
+    "sourceCommit": "377ff7d844d678bb02008f1be07734052779cde3",
+    "sourceCommitShort": "377ff7d844d6",
     "sourceBranch": "main",
-    "dashboardCommit": "39d456f09a11ac49d242a0722302c4c30ca78c68",
-    "dashboardCommitShort": "39d456f09a11",
+    "dashboardCommit": "dc96fed82c263a5927042f191eb83eda6fcb5835",
+    "dashboardCommitShort": "dc96fed82c26",
     "averageProgressPercent": "86.3",
     "lanes": [
         {
@@ -64,16 +64,16 @@
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1500",
-            "coverage": "1500 / 2886",
-            "php": "3161 pass / 0 fail",
+            "mapped": "1503",
+            "coverage": "1503 / 2886",
+            "php": "3273 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
-            "audit": "Accepted source commit d47dc133 after rep...",
-            "currentWork": "LooseObjectStore verifies object-path hashes, exact payload lengths, and structured objec...",
-            "nextTarget": "Keep integrating current-base Gitoxide handoffs for reflog, index/cache-tree, commit sign...",
+            "audit": "Accepted source commit 377ff7d8 after rep...",
+            "currentWork": "Commit exposes gpgsig verification helpers for signed-data range stripping; ReferenceStor...",
+            "nextTarget": "Keep integrating current-base Gitoxide handoffs for tree/pathspec walking, URL/refspec pa...",
             "blocker": "No current Gitoxide PHP blocker for the accepted batch.",
-            "commit": "d47dc13"
+            "commit": "377ff7d"
         },
         {
             "library": "libsqlite",
