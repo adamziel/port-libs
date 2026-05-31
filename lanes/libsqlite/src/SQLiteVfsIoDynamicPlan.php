@@ -2888,6 +2888,145 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function deleteDatabaseSidecarProfile(
+        string $scenario,
+        string $baseName,
+        string $journalFamily,
+        bool $shortNames = false,
+        bool $multiplex = false,
+        int $chunkCount = 0,
+        bool $targetIsDirectory = false,
+        bool $missingNestedTarget = false
+    ): array {
+        $scenario = trim($scenario);
+        $baseName = trim($baseName);
+        $journalFamily = strtolower(trim($journalFamily));
+
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite delete-database scenario requires a name');
+        }
+        if ($baseName === '') {
+            throw new \InvalidArgumentException('SQLite delete-database base name is required');
+        }
+        if (!in_array($journalFamily, ['journal', 'wal'], true)) {
+            throw new \InvalidArgumentException('SQLite delete-database journal family is unsupported');
+        }
+        if ($chunkCount < 0) {
+            throw new \InvalidArgumentException('SQLite delete-database chunk count must be non-negative');
+        }
+        if ($missingNestedTarget && $targetIsDirectory) {
+            throw new \InvalidArgumentException('SQLite delete-database target cannot be both a directory and a missing nested target');
+        }
+
+        $sidecars = self::deleteDatabaseSidecars($baseName, $journalFamily, $shortNames, $multiplex, $chunkCount);
+        $filesBefore = array_values(array_unique(array_merge([$baseName], $sidecars)));
+        sort($filesBefore, SORT_STRING);
+
+        $result = $targetIsDirectory ? 'SQLITE_ERROR' : 'SQLITE_OK';
+        $filesAfter = $targetIsDirectory ? $filesBefore : [];
+
+        return [
+            'status' => 'ok',
+            'script' => 'delete_db.test',
+            'scenario' => $scenario,
+            'upstream' => self::deleteDatabaseUpstream($scenario),
+            'base_name' => $baseName,
+            'journal_family' => $journalFamily,
+            'short_names' => $shortNames,
+            'multiplex' => $multiplex,
+            'chunk_count' => $chunkCount,
+            'target_is_directory' => $targetIsDirectory,
+            'missing_nested_target' => $missingNestedTarget,
+            'files_before_delete' => $filesBefore,
+            'sidecar_files' => $sidecars,
+            'files_after_delete' => $filesAfter,
+            'delete_result' => $missingNestedTarget ? 'SQLITE_OK' : $result,
+            'main_deleted' => !$targetIsDirectory,
+            'sidecars_deleted' => !$targetIsDirectory,
+            'delete_order' => array_values(array_merge($sidecars, [$baseName])),
+            'reason' => match (true) {
+                $targetIsDirectory => 'delete_database_refuses_directory_target',
+                $missingNestedTarget => 'delete_database_missing_nested_target_is_ok',
+                $multiplex && $journalFamily === 'wal' => 'delete_database_removes_wal_shm_and_multiplex_chunks',
+                $multiplex => 'delete_database_removes_rollback_journal_and_multiplex_chunks',
+                $journalFamily === 'wal' => 'delete_database_removes_wal_and_shm_sidecars',
+                default => 'delete_database_removes_rollback_journal_sidecar',
+            },
+            'dependencies' => [
+                'sqlite-upstream-delete-db-test',
+                'sqlite-vfs-delete-database-sidecars',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function deleteDatabaseSidecars(
+        string $baseName,
+        string $journalFamily,
+        bool $shortNames,
+        bool $multiplex,
+        int $chunkCount
+    ): array {
+        $files = [];
+        if ($journalFamily === 'wal') {
+            $files[] = $shortNames ? self::shortWalName($baseName) : $baseName . '-wal';
+            $files[] = $shortNames && !$multiplex ? self::shortShmName($baseName) : $baseName . '-shm';
+        } else {
+            $files[] = $shortNames ? self::shortJournalName($baseName) : $baseName . '-journal';
+        }
+
+        if ($multiplex) {
+            $stem = preg_replace('/\.[^.]+$/', '', $baseName) ?? $baseName;
+            for ($chunk = 1; $chunk <= $chunkCount; $chunk++) {
+                $files[] = $shortNames ? sprintf('%s.%03d', $stem, $chunk) : sprintf('%s%03d', $baseName, $chunk);
+            }
+        }
+
+        sort($files, SORT_STRING);
+        return array_values($files);
+    }
+
+    private static function shortJournalName(string $baseName): string
+    {
+        return preg_replace('/\.[^.]+$/', '.nal', $baseName) ?? ($baseName . '.nal');
+    }
+
+    private static function shortWalName(string $baseName): string
+    {
+        return preg_replace('/\.[^.]+$/', '.wal', $baseName) ?? ($baseName . '.wal');
+    }
+
+    private static function shortShmName(string $baseName): string
+    {
+        return preg_replace('/\.[^.]+$/', '.shm', $baseName) ?? ($baseName . '.shm');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function deleteDatabaseUpstream(string $scenario): array
+    {
+        return match ($scenario) {
+            'delete_db-1.1' => ['delete_db.test 1.1.0', 'delete_db.test 1.1.1'],
+            'delete_db-1.2' => ['delete_db.test 1.2.0', 'delete_db.test 1.2.1'],
+            'delete_db-1.3' => ['delete_db.test 1.3.0', 'delete_db.test 1.3.1'],
+            'delete_db-1.4' => ['delete_db.test 1.4.0', 'delete_db.test 1.4.1'],
+            'delete_db-2.1' => ['delete_db.test 2.1.0', 'delete_db.test 2.1.1'],
+            'delete_db-2.2' => ['delete_db.test 2.2.0', 'delete_db.test 2.2.1'],
+            'delete_db-2.3' => ['delete_db.test 2.3.0', 'delete_db.test 2.3.1'],
+            'delete_db-2.4' => ['delete_db.test 2.4.0', 'delete_db.test 2.4.1'],
+            'delete_db-3.0' => ['delete_db.test 3.0 directory target returns SQLITE_ERROR'],
+            'delete_db-3.1' => ['delete_db.test 3.1 missing nested target returns SQLITE_OK'],
+            default => throw new \InvalidArgumentException("Unsupported SQLite delete_db scenario: {$scenario}"),
+        };
+    }
+
+    /**
      * @return list<string>
      */
     private static function safeDeleteJournalUpstream(string $scenario): array
