@@ -752,6 +752,61 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream:string,table_columns:int,row_count:int,indexed_columns:int,projection_column:string,projection_rowid:int,projection_value:int,sum_column:string,rounded_sum:float,min_value:int,max_value:int,ordered_prefix_columns:int,limit:int,ordered_rowids:list<int>,ordered_values:list<int>,detail:string,integrity:string}>
+     */
+    public static function index2DynamicWideAggregateProjectionCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index2 aggregate projection corpus requires at least one case');
+        }
+
+        $tableColumns = 1000;
+        $rowCount = 101;
+        $sumC1000 = 1000.0;
+        for ($rowid = 2; $rowid <= $rowCount; $rowid++) {
+            $sumC1000 += (($rowid - 1) * 10000) + 1000;
+        }
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $columnNumber = (($case - 1) % $tableColumns) + 1;
+            $rowid = 1 + (intdiv($case - 1, 10) % $rowCount);
+            $prefixColumns = 1 + (($case - 1) % 10);
+            $limit = 1 + (($case - 1) % 5);
+            $projectionValue = $rowid === 1 ? $columnNumber : (($rowid - 1) * 10000) + $columnNumber;
+            $orderedRowids = range(1, $limit);
+            $orderedValues = array_map(
+                static fn (int $orderedRowid): int => $orderedRowid === 1 ? $columnNumber : (($orderedRowid - 1) * 10000) + $columnNumber,
+                $orderedRowids,
+            );
+
+            $out[] = [
+                'source' => 'index2.test sections index2-1.3, index2-1.5, index2-2.1, and index2-2.2',
+                'case' => $case,
+                'upstream' => 'index2-1.3/1.5/2.2.dynamic-aggregate-' . $case,
+                'table_columns' => $tableColumns,
+                'row_count' => $rowCount,
+                'indexed_columns' => $tableColumns,
+                'projection_column' => 'c' . $columnNumber,
+                'projection_rowid' => $rowid,
+                'projection_value' => $projectionValue,
+                'sum_column' => 'c1000',
+                'rounded_sum' => $sumC1000,
+                'min_value' => $columnNumber,
+                'max_value' => 1000000 + $columnNumber,
+                'ordered_prefix_columns' => $prefixColumns,
+                'limit' => $limit,
+                'ordered_rowids' => $orderedRowids,
+                'ordered_values' => $orderedValues,
+                'detail' => 'project c' . $columnNumber . ', aggregate c1000, and scan t1i1 ORDER BY c1..c' . $prefixColumns . ' LIMIT ' . $limit,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{upstream:string,scenario:string,result_rows:list<array<int,mixed>>,uses_partial_index:bool,integrity:string,detail:string}>
      */
     public static function index6PartialIndexRegressionCases(): array

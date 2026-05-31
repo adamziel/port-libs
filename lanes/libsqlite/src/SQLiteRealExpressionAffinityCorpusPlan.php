@@ -208,9 +208,9 @@ final class SQLiteRealExpressionAffinityCorpusPlan
         } elseif (self::isNumericAffinity($rightAffinity) && in_array($leftAffinity, ['TEXT', 'BLOB', 'NONE'], true)) {
             $left = SQLiteAffinityComparison::applyAffinity($left, 'NUMERIC');
         } elseif ($leftAffinity === 'TEXT' && $rightAffinity === 'NONE') {
-            $right = self::castText($right);
+            $right = self::applyTextColumnAffinity($right);
         } elseif ($rightAffinity === 'TEXT' && $leftAffinity === 'NONE') {
-            $left = self::castText($left);
+            $left = self::applyTextColumnAffinity($left);
         }
 
         return [
@@ -268,6 +268,15 @@ final class SQLiteRealExpressionAffinityCorpusPlan
         }
 
         return self::castReal($numeric);
+    }
+
+    private static function applyTextColumnAffinity(mixed $value): mixed
+    {
+        if ($value === null || is_string($value) || $value instanceof SQLiteBlobValue) {
+            return $value;
+        }
+
+        return self::castText($value);
     }
 
     private static function castText(mixed $value): ?string

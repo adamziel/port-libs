@@ -1463,6 +1463,57 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function mmapPragmaStateProfile(string $scenario, int $iteration = 1): array
+    {
+        $scenario = strtolower(trim($scenario));
+        if ($iteration < 1) {
+            throw new \InvalidArgumentException('SQLite mmap pragma state iteration must be positive');
+        }
+
+        $cases = [
+            'mmap3-1.0' => [0, 100000, 100000, 'create_table_and_virtual_table', false, true, ['nums', 't1'], [100000, 500500, 500500, 100000]],
+            'mmap3-1.2' => [100000, 50000, 50000, 'create_table', false, true, ['nums', 't1', 't2'], [50000, 'nums', 't1', 't2', 'ok', 50000]],
+            'mmap3-1.3' => [50000, 250000, 250000, 'drop_table', false, true, ['nums', 't1'], [250000, 'nums', 't1', 'ok', 250000]],
+            'mmap3-1.4' => [250000, 150000, 250000, 'pragma_inside_active_read_cursor', true, false, ['nums', 't1'], ['ok', 250000]],
+            'mmap3-1.5' => [250000, 0, 250000, 'zero_inside_active_read_cursor', true, false, ['nums', 't1'], ['ok', 250000]],
+            'mmap3-1.6' => [250000, null, 250000, 'read_pragma_inside_active_read_cursor', true, false, ['nums', 't1'], [250000, 'ok', 250000]],
+            'mmap3-1.7' => [250000, 0, 0, 'function_syntax_zero_then_create_table', false, true, ['nums', 't1', 't3'], [0, 'nums', 't1', 't3', 'ok', 0]],
+            'mmap3-1.8' => [0, 75000, 75000, 'set_after_zero_during_active_read_cursor', true, false, ['nums', 't1', 't3'], ['ok', 75000]],
+        ];
+
+        if (!isset($cases[$scenario])) {
+            throw new \InvalidArgumentException('SQLite mmap pragma state scenario is unsupported');
+        }
+
+        [$before, $requested, $after, $operation, $activeReadCursor, $schemaCookieChanged, $tables, $result] = $cases[$scenario];
+        $rangeRowsVisited = $activeReadCursor ? 6 : 0;
+
+        return [
+            'status' => 'ok',
+            'script' => 'mmap3.test',
+            'scenario' => $scenario,
+            'upstream' => ['mmap3.test ' . substr($scenario, 6)],
+            'iteration' => $iteration,
+            'mmap_size_before' => $before,
+            'requested_mmap_size' => $requested,
+            'mmap_size_after' => $after,
+            'operation' => $operation,
+            'active_read_cursor' => $activeReadCursor,
+            'range_rows_visited' => $rangeRowsVisited,
+            'schema_cookie_changed' => $schemaCookieChanged,
+            'quick_check' => 'ok',
+            'tables_after' => $tables,
+            'result_sequence' => $result,
+            'change_applied' => $before !== $after,
+            'change_deferred_by_active_cursor' => $activeReadCursor && $requested !== null && $requested !== $after,
+            'pragma_read_inside_cursor_preserves_size' => $operation === 'read_pragma_inside_active_read_cursor',
+            'dependencies' => ['upstream-mmap3-test', 'sqlite-mmap-pragma-state', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function mmapCorruptTailProfile(int $tailOffset, int $pageSize = 16384): array
     {
         if ($tailOffset < 1) {

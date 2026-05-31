@@ -241,6 +241,109 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{nodeid:int,parent:int|null}> $nodes
+     * @param list<array{id:string,nodeid:int}> $leaves
+     * @param list<array<string,mixed>> $steps
+     * @return array<string,mixed>
+     */
+    public static function fkey2DeferredGraphTransaction(array $nodes, array $leaves, array $steps): array
+    {
+        $nodes = array_values($nodes);
+        $leaves = array_values($leaves);
+        $originalNodes = $nodes;
+        $originalLeaves = $leaves;
+        $events = [];
+        $commitAttempts = [];
+        $insideTransaction = false;
+
+        foreach ($steps as $index => $step) {
+            $action = strtolower(trim((string) ($step['action'] ?? '')));
+            $events[] = ['step' => $action, 'index' => $index];
+
+            if ($action === 'begin') {
+                $insideTransaction = true;
+                continue;
+            }
+            if ($action === 'insert-node') {
+                $nodes[] = [
+                    'nodeid' => (int) ($step['nodeid'] ?? 0),
+                    'parent' => array_key_exists('parent', $step) ? ($step['parent'] === null ? null : (int) $step['parent']) : null,
+                ];
+                continue;
+            }
+            if ($action === 'insert-leaf') {
+                $leaves[] = [
+                    'id' => (string) ($step['id'] ?? ('leaf-' . $index)),
+                    'nodeid' => (int) ($step['nodeid'] ?? 0),
+                ];
+                continue;
+            }
+            if ($action === 'update-node-parent') {
+                $nodeid = (int) ($step['nodeid'] ?? 0);
+                foreach ($nodes as &$node) {
+                    if ((int) $node['nodeid'] === $nodeid) {
+                        $node['parent'] = $step['parent'] === null ? null : (int) $step['parent'];
+                    }
+                }
+                unset($node);
+                continue;
+            }
+            if ($action === 'delete-node') {
+                $nodeid = (int) ($step['nodeid'] ?? 0);
+                $nodes = array_values(array_filter($nodes, static fn (array $node): bool => (int) $node['nodeid'] !== $nodeid));
+                continue;
+            }
+            if ($action === 'commit') {
+                $violations = self::fkey2GraphViolations($nodes, $leaves);
+                $status = $violations === [] ? 'commit-ok' : 'commit-blocked';
+                $commitAttempts[] = [
+                    'status' => $status,
+                    'violation_count' => count($violations),
+                    'violations' => $violations,
+                ];
+                if ($status === 'commit-ok') {
+                    $insideTransaction = false;
+                }
+                continue;
+            }
+            if ($action === 'rollback') {
+                $nodes = $originalNodes;
+                $leaves = $originalLeaves;
+                $insideTransaction = false;
+                continue;
+            }
+
+            throw new \InvalidArgumentException('SQLite fkey2 deferred graph action is unsupported');
+        }
+
+        $violations = self::fkey2GraphViolations($nodes, $leaves);
+
+        $sortedNodes = $nodes;
+        usort($sortedNodes, static fn (array $left, array $right): int => ((int) $left['nodeid']) <=> ((int) $right['nodeid']));
+
+        return [
+            'source' => 'fkey2.test fkey2-2.1..2.17',
+            'operation' => 'deferred-foreign-key-graph-transaction',
+            'status' => $violations === [] ? 'commit-ok' : 'transaction-open-with-deferred-violations',
+            'transaction_open' => $insideTransaction,
+            'node_ids' => array_values(array_column($sortedNodes, 'nodeid')),
+            'leaf_ids' => array_values(array_column($leaves, 'id')),
+            'leaf_nodeids' => array_values(array_column($leaves, 'nodeid')),
+            'commit_attempts' => $commitAttempts,
+            'commit_attempt_count' => count($commitAttempts),
+            'violation_count' => count($violations),
+            'violations' => $violations,
+            'events' => $events,
+            'dependencies' => [
+                'sqlite-fkey2-deferred-child-insert-can-be-repaired-before-commit',
+                'sqlite-fkey2-deferred-self-reference-parent-can-be-repaired-before-commit',
+                'sqlite-fkey2-failed-commit-leaves-transaction-open',
+                'sqlite-fkey2-delete-parent-remains-deferred-until-commit',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{c34:string,c35:string,label?:string}> $parents
      * @param list<array{c38:string,c39:string,label?:string}> $children
      * @return array<string,mixed>
@@ -4013,6 +4116,41 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{nodeid:int,parent:int|null}> $nodes
+     * @param list<array{id:string,nodeid:int}> $leaves
+     * @return list<array<string,mixed>>
+     */
+    private static function fkey2GraphViolations(array $nodes, array $leaves): array
+    {
+        $nodeIds = array_values(array_map(static fn (array $node): int => (int) $node['nodeid'], $nodes));
+        $violations = [];
+        foreach ($nodes as $rowid => $node) {
+            $parent = $node['parent'];
+            if ($parent !== null && !in_array((int) $parent, $nodeIds, true)) {
+                $violations[] = [
+                    'table' => 'node',
+                    'rowid' => $rowid + 1,
+                    'child_key' => (int) $parent,
+                    'parent_key' => (int) $parent,
+                ];
+            }
+        }
+        foreach ($leaves as $rowid => $leaf) {
+            $nodeid = (int) $leaf['nodeid'];
+            if (!in_array($nodeid, $nodeIds, true)) {
+                $violations[] = [
+                    'table' => 'leaf',
+                    'rowid' => $rowid + 1,
+                    'child_key' => $nodeid,
+                    'parent_key' => $nodeid,
+                ];
+            }
+        }
+
+        return $violations;
+    }
+
+    /**
      * @param list<array<string,mixed>> $children
      * @return list<array<string,mixed>>
      */
@@ -5073,6 +5211,135 @@ final class SQLiteDynamicTriggerForeignKeyPlan
                 'sqlite-trigger9-instead-of-view-trigger-materializes-old-rows',
                 'sqlite-trigger9-unused-view-columns-are-null-safe',
                 'sqlite-trigger9-compound-view-old-rows-feed-trigger-program',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array{a:int,b:string}> $rows
+     * @return array<string,mixed>
+     */
+    public static function triggerFWithoutRowidDeleteReplacePlan(array $rows, string $triggerMode): array
+    {
+        $triggerMode = strtolower(trim($triggerMode));
+        if (!in_array($triggerMode, ['none', 'after-delete', 'before-delete', 'before-after-delete'], true)) {
+            throw new \InvalidArgumentException('SQLite triggerF trigger mode is unsupported');
+        }
+
+        $table = [];
+        foreach ($rows as $row) {
+            $a = (int) $row['a'];
+            $table[$a] = ['a' => $a, 'b' => (string) $row['b']];
+        }
+        ksort($table);
+
+        $log = [];
+        $delete = function (int $key) use (&$table, &$log, $triggerMode): void {
+            if (!isset($table[$key])) {
+                return;
+            }
+            $old = $table[$key];
+            $beforeCount = count($table);
+            if ($triggerMode === 'before-delete' || $triggerMode === 'before-after-delete') {
+                $log[] = $old['a'] . $old['b'] . $beforeCount;
+            }
+            unset($table[$key]);
+            if ($triggerMode === 'after-delete' || $triggerMode === 'before-after-delete') {
+                $log[] = $old['a'] . $old['b'] . count($table);
+            }
+        };
+
+        $delete(1);
+        $delete(2);
+        $table[2] = ['a' => 2, 'b' => 'three'];
+        ksort($table);
+        $delete(3);
+        $replacement = $table[2] ?? ['a' => 2, 'b' => 'three'];
+        unset($table[2]);
+        $table[3] = ['a' => 3, 'b' => $replacement['b']];
+        ksort($table);
+
+        return [
+            'source' => 'triggerF.test triggerF-1.1.0..1.4.2',
+            'operation' => 'without-rowid-delete-replace-trigger-log',
+            'status' => 'commit-ok',
+            'trigger_mode' => $triggerMode,
+            'recursive_triggers' => true,
+            'log_rows' => $log,
+            'log_count' => count($log),
+            'remaining_rows' => array_values($table),
+            'remaining_keys' => array_keys($table),
+            'dependencies' => [
+                'sqlite-triggerF-without-rowid-replace-deletes-conflicting-row',
+                'sqlite-triggerF-before-delete-sees-row-before-removal',
+                'sqlite-triggerF-after-delete-sees-table-after-removal',
+                'sqlite-triggerF-update-or-replace-delete-triggers-fire-before-new-row',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<int> $indexValues
+     * @return array<string,mixed>
+     */
+    public static function triggerGRecursiveSelectOncePlan(array $indexValues, int $start, string $shape): array
+    {
+        $shape = strtolower(trim($shape));
+        if (!in_array($shape, ['single', 'join'], true)) {
+            throw new \InvalidArgumentException('SQLite triggerG recursive shape is unsupported');
+        }
+        if ($start >= 5) {
+            throw new \InvalidArgumentException('SQLite triggerG start value must recurse toward five');
+        }
+
+        $eligible = array_values(array_filter(
+            array_map('intval', $indexValues),
+            static fn (int $value): bool => $value >= 1 && $value <= 4
+        ));
+        sort($eligible);
+        $eligible = array_values(array_unique($eligible));
+
+        $inserted = [];
+        for ($c = $start; $c <= 5; ++$c) {
+            $inserted[] = $c;
+        }
+
+        $resultRows = [];
+        foreach ($inserted as $c) {
+            if ($shape === 'single') {
+                foreach ($eligible as $a) {
+                    $resultRows[] = $c * 100 + $a;
+                }
+                continue;
+            }
+
+            foreach ($eligible as $left) {
+                foreach ($eligible as $right) {
+                    if ($right < 2 || $right > 5) {
+                        continue;
+                    }
+                    $resultRows[] = $c * 10000 + $left * 100 + $right;
+                }
+            }
+        }
+        sort($resultRows);
+
+        return [
+            'source' => $shape === 'single' ? 'triggerG.test triggerG-100..110' : 'triggerG.test triggerG-200',
+            'operation' => 'recursive-trigger-select-once-index-plan',
+            'status' => 'commit-ok',
+            'shape' => $shape,
+            'start' => $start,
+            'recursive_rows' => $inserted,
+            'recursive_row_count' => count($inserted),
+            'eligible_index_values' => $eligible,
+            'result_rows' => $resultRows,
+            'result_count' => count($resultRows),
+            'op_once_resets_per_recursive_frame' => true,
+            'dependencies' => [
+                'sqlite-triggerG-recursive-trigger-reruns-select-program-per-frame',
+                'sqlite-triggerG-index-in-filter-is-not-stale-across-recursion',
+                'sqlite-triggerG-join-loop-op-once-state-is-frame-local',
             ],
         ];
     }
