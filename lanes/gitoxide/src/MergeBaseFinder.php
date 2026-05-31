@@ -31,12 +31,15 @@ final class MergeBaseFinder
      */
     private array $commitTimeCache = [];
 
-    public function __construct(callable $readCommit)
+    public function __construct(
+        callable $readCommit,
+        private readonly bool $useCommitGraphGenerations = true,
+    )
     {
         $this->readCommit = \Closure::fromCallable($readCommit);
     }
 
-    public static function fromObjectDatabase(ObjectDatabase $database): self
+    public static function fromObjectDatabase(ObjectDatabase $database, bool $useCommitGraphGenerations = true): self
     {
         return new self(static function (string $oid) use ($database): Commit {
             $object = $database->read($oid);
@@ -45,7 +48,7 @@ final class MergeBaseFinder
             }
 
             return Commit::parse($object->body);
-        });
+        }, $useCommitGraphGenerations);
     }
 
     /**
@@ -324,6 +327,10 @@ final class MergeBaseFinder
 
     private function compareCommitPriority(string $left, string $right): int
     {
+        if (!$this->useCommitGraphGenerations) {
+            return $this->commitTime($right) <=> $this->commitTime($left);
+        }
+
         return $this->commitGeneration($right) <=> $this->commitGeneration($left)
             ?: $this->commitTime($right) <=> $this->commitTime($left);
     }

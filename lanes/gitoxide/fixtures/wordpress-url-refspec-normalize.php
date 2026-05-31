@@ -18,6 +18,7 @@ return [
     'fetchRefspecs' => [
         '+refs/heads/*:refs/remotes/origin/*',
         '^refs/heads/private',
+        '20260531:refs/remotes/origin/20260531',
         '+',
         '',
     ],
@@ -31,20 +32,30 @@ return [
     'expectedFetchInstructions' => [
         'fetch-and-update',
         'fetch-exclude',
+        'fetch-and-update',
         'fetch-only',
         'fetch-only',
     ],
     'expectedFetchNormalized' => [
         '+refs/heads/*:refs/remotes/origin/*',
         '^refs/heads/private',
+        '20260531:refs/remotes/origin/20260531',
         'HEAD',
         'HEAD',
     ],
     'expectedFetchPrefixes' => [
         'refs/heads/',
         null,
+        null,
         'HEAD',
         'HEAD',
+    ],
+    'expectedFetchExpandedPrefixes' => [
+        ['refs/heads/'],
+        [],
+        ['20260531', 'refs/20260531', 'refs/tags/20260531', 'refs/heads/20260531', 'refs/remotes/20260531', 'refs/remotes/20260531/HEAD'],
+        ['HEAD'],
+        ['HEAD'],
     ],
     'expectedPushInstructions' => [
         'push-matching',

@@ -217,7 +217,7 @@ final class RefSpec
         }
 
         $source = $this->operation === self::OP_FETCH ? $this->source : $this->destination;
-        if ($source === null || self::looksLikeObjectHash($source)) {
+        if ($source === null || self::looksLikeFullObjectHash($source)) {
             return [];
         }
         if (str_starts_with($source, 'refs/')) {
@@ -331,7 +331,7 @@ final class RefSpec
         if ($sourceHadPattern) {
             throw new \InvalidArgumentException('Negative glob patterns are not allowed');
         }
-        if (self::looksLikeObjectHash($source)) {
+        if (self::looksLikeObjectHashPrefix($source)) {
             throw new \InvalidArgumentException('Negative refspecs must not be object hashes');
         }
         if (!str_starts_with($source, 'refs/') && $source !== 'HEAD') {
@@ -339,9 +339,14 @@ final class RefSpec
         }
     }
 
-    private static function looksLikeObjectHash(string $value): bool
+    private static function looksLikeObjectHashPrefix(string $value): bool
     {
         return strlen($value) >= 4 && preg_match('/^[0-9a-fA-F]+$/', $value) === 1;
+    }
+
+    private static function looksLikeFullObjectHash(string $value): bool
+    {
+        return (strlen($value) === 40 || strlen($value) === 64) && preg_match('/^[0-9a-fA-F]+$/', $value) === 1;
     }
 
     private static function looksLikeRevspec(string $value): bool

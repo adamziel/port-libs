@@ -160,12 +160,14 @@ final class PathspecPattern
             return null;
         }
 
-        $positions = array_filter([
-            strpos($this->path, '*'),
-            strpos($this->path, '?'),
-        ], static fn (int|false $position): bool => $position !== false);
+        $length = strlen($this->path);
+        for ($i = 0; $i < $length; $i++) {
+            if (str_contains('*?[\\', $this->path[$i])) {
+                return $i;
+            }
+        }
 
-        return $positions === [] ? null : min($positions);
+        return null;
     }
 
     public function prefixDirectory(): string

@@ -25,6 +25,7 @@ $committedPrefixFailureScenarios = SQLiteJsonImportRollbackWalPlan::dynamicCommi
 $rollbackDisabledMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledMaterializedWalScenarios(18);
 $rollbackDisabledFollowupScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupScenarios(18);
 $rollbackDisabledFollowupFailureScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupFailureScenarios(18);
+$rollbackDisabledFollowupRecoveryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupRecoveryScenarios(18);
 
 $tests = [
     'sqlite application wal rollback json dynamic parity exposes requested scenario count' => static function (TestRunner $t) use ($scenarios): void {
@@ -303,6 +304,24 @@ $tests = [
     },
     'sqlite application wal rollback json dynamic parity rollback-disabled followup failure covers json text and jsonb rows' => static function (TestRunner $t) use ($rollbackDisabledFollowupFailureScenarios): void {
         $jsonModes = array_values(array_unique(array_column($rollbackDisabledFollowupFailureScenarios, 'jsonb_mode')));
+        sort($jsonModes);
+        $t->same([false, true], $jsonModes);
+    },
+    'sqlite application wal rollback json dynamic parity rollback-disabled followup recovery exposes requested scenario count' => static function (TestRunner $t) use ($rollbackDisabledFollowupRecoveryScenarios): void {
+        $t->same(18, count($rollbackDisabledFollowupRecoveryScenarios));
+    },
+    'sqlite application wal rollback json dynamic parity rollback-disabled followup recovery covers committed prefix frame counts' => static function (TestRunner $t) use ($rollbackDisabledFollowupRecoveryScenarios): void {
+        $prefixCounts = array_values(array_unique(array_column($rollbackDisabledFollowupRecoveryScenarios, 'committed_prefix_frame_count')));
+        sort($prefixCounts);
+        $t->same([5, 6, 7, 8], $prefixCounts);
+    },
+    'sqlite application wal rollback json dynamic parity rollback-disabled followup recovery covers both page sizes' => static function (TestRunner $t) use ($rollbackDisabledFollowupRecoveryScenarios): void {
+        $pageSizes = array_values(array_unique(array_column($rollbackDisabledFollowupRecoveryScenarios, 'page_size')));
+        sort($pageSizes);
+        $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json dynamic parity rollback-disabled followup recovery covers json text and jsonb rows' => static function (TestRunner $t) use ($rollbackDisabledFollowupRecoveryScenarios): void {
+        $jsonModes = array_values(array_unique(array_column($rollbackDisabledFollowupRecoveryScenarios, 'jsonb_mode')));
         sort($jsonModes);
         $t->same([false, true], $jsonModes);
     },
@@ -594,6 +613,116 @@ foreach ($rollbackDisabledFollowupFailureScenarios as $scenario) {
             $t->same($pageNumber, (int) $frameHeader['page_number']);
             $t->same($checksumSeed, [(int) $frameHeader['checksum_1'], (int) $frameHeader['checksum_2']]);
         }
+    };
+}
+
+foreach ($rollbackDisabledFollowupRecoveryScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $partialPlan = $scenario['partial_plan'];
+    $followupPlan = $scenario['followup_plan'];
+    $tailPlan = $scenario['tail_plan'];
+    $recoveryPlan = $scenario['recovery_plan'];
+    $prefix = 'sqlite application wal rollback json dynamic parity rollback disabled followup recovery seed ' . $seed . ' ';
+
+    $tests[$prefix . 'starts after partial followup and rolled back tail'] = static function (TestRunner $t) use ($partialPlan, $followupPlan, $tailPlan): void {
+        $t->same('partial_rollback', $partialPlan['status']);
+        $t->same('ready', $followupPlan['status']);
+        $t->same('rolled_back_current_json_batch', $tailPlan['status']);
+    };
+    $tests[$prefix . 'commits corrected recovery batch without rollback'] = static function (TestRunner $t) use ($recoveryPlan): void {
+        $t->same('ready', $recoveryPlan['status']);
+        $t->same(false, $recoveryPlan['rollback_required']);
+    };
+    $tests[$prefix . 'uses recovery transaction and savepoint names'] = static function (TestRunner $t) use ($recoveryPlan, $seed): void {
+        $t->same('application_disabled_followup_recovery_json_import_' . $seed, $recoveryPlan['transaction']);
+        $t->same('disabled_followup_recovery_json_batch_' . $seed, $recoveryPlan['savepoint']);
+    };
+    $tests[$prefix . 'starts from tail rollback database and wal bytes'] = static function (TestRunner $t) use ($tailPlan, $recoveryPlan): void {
+        $t->same($tailPlan['restored_database_bytes'], $recoveryPlan['database_bytes_before']);
+        $t->same($tailPlan['wal_bytes_after'], $recoveryPlan['wal_bytes_before']);
+    };
+    $tests[$prefix . 'preserves committed prefix wal bytes'] = static function (TestRunner $t) use ($tailPlan, $recoveryPlan): void {
+        $t->same($tailPlan['wal_bytes_after'], substr($recoveryPlan['wal_bytes_after'], 0, strlen($tailPlan['wal_bytes_after'])));
+    };
+    $tests[$prefix . 'appends only recovery success frames'] = static function (TestRunner $t) use ($recoveryPlan, $scenario): void {
+        $t->same(2, $recoveryPlan['materialized_wal_frame_count']);
+        $t->same($scenario['committed_prefix_frame_count'] + 2, $recoveryPlan['wal_frame_count_after']);
+        $t->same(false, $recoveryPlan['wal_truncated']);
+        $t->same(0, $recoveryPlan['discarded_wal_frame_count']);
+    };
+    $tests[$prefix . 'has no failed recovery statements'] = static function (TestRunner $t) use ($recoveryPlan): void {
+        $t->same([], $recoveryPlan['failed_statements']);
+        $t->same(0, $recoveryPlan['failed_statement_count']);
+    };
+    $tests[$prefix . 'records recovery applied pages'] = static function (TestRunner $t) use ($recoveryPlan, $scenario): void {
+        $t->same($scenario['expected_recovery_pages'], array_column($recoveryPlan['import_plan']['applied'], 'page_number'));
+    };
+    $tests[$prefix . 'records inserted recovery row'] = static function (TestRunner $t) use ($recoveryPlan, $scenario): void {
+        $t->same([false, true], array_column($recoveryPlan['import_plan']['applied'], 'inserted_setting'));
+        $t->same($scenario['expected_recovery_inserted_key'], $recoveryPlan['import_plan']['applied'][1]['key_name']);
+        $t->same(true, in_array($scenario['expected_recovery_inserted_id'], array_column($recoveryPlan['import_plan']['final_rows'], 'setting_id'), true));
+    };
+    $tests[$prefix . 'does not revive rolled back tail insert'] = static function (TestRunner $t) use ($recoveryPlan, $scenario): void {
+        $t->same(false, in_array($scenario['rejected_tail_inserted_key'], array_column($recoveryPlan['import_plan']['final_rows'], 'key_name'), true));
+    };
+    $tests[$prefix . 'retains tenant id in recovery applied rows'] = static function (TestRunner $t) use ($recoveryPlan, $scenario): void {
+        $t->same([$scenario['tenant_id'], $scenario['tenant_id']], array_column($recoveryPlan['import_plan']['applied'], 'tenant_id'));
+    };
+    $tests[$prefix . 'keeps jsonb mode on recovery catalog update'] = static function (TestRunner $t) use ($recoveryPlan, $scenario): void {
+        $value = $recoveryPlan['import_plan']['applied'][0]['key_value'];
+        $t->same($scenario['jsonb_mode'], $value instanceof SQLiteBlobValue);
+    };
+    $tests[$prefix . 'savepoint boundary carries committed prefix pages'] = static function (TestRunner $t) use ($recoveryPlan, $scenario): void {
+        $transactionPages = $recoveryPlan['import_plan']['savepoint_state'][0]['page_numbers'];
+        $expectedPages = array_values(array_unique($scenario['committed_prefix_pages']));
+        sort($transactionPages);
+        sort($expectedPages);
+        $t->same($expectedPages, $transactionPages);
+    };
+    $tests[$prefix . 'rollback preview starts after committed prefix'] = static function (TestRunner $t) use ($recoveryPlan, $scenario): void {
+        $t->same($scenario['committed_prefix_frame_count'], $recoveryPlan['wal_rollback_to_savepoint']['rollback_to_frame']);
+        $t->same($scenario['expected_recovery_pages'], $recoveryPlan['wal_rollback_to_savepoint']['discarded_page_numbers']);
+    };
+    $tests[$prefix . 'appended frame pages follow committed prefix'] = static function (TestRunner $t) use ($recoveryPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        foreach ($scenario['expected_recovery_pages'] as $index => $pageNumber) {
+            $frameOffset = 32 + (($scenario['committed_prefix_frame_count'] + $index) * $frameSize);
+            $frameHeader = unpack('Npage_number', substr($recoveryPlan['wal_bytes_after'], $frameOffset, 4));
+            $t->same($pageNumber, (int) $frameHeader['page_number']);
+        }
+    };
+    $tests[$prefix . 'appended checksums continue after committed prefix'] = static function (TestRunner $t) use ($recoveryPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($recoveryPlan['wal_bytes_after'], 0, 24), false);
+        for ($frameIndex = 0; $frameIndex < $scenario['committed_prefix_frame_count']; $frameIndex++) {
+            $frameOffset = 32 + ($frameIndex * $frameSize);
+            $frame = substr($recoveryPlan['wal_bytes_after'], $frameOffset, $frameSize);
+            $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($frame, 0, 8) . substr($frame, 24), false, $checksumSeed[0], $checksumSeed[1]);
+        }
+        foreach ($scenario['expected_recovery_pages'] as $index => $pageNumber) {
+            $frameOffset = 32 + (($scenario['committed_prefix_frame_count'] + $index) * $frameSize);
+            $frame = substr($recoveryPlan['wal_bytes_after'], $frameOffset, $frameSize);
+            $checksumSeed = PortLibs\LibSqlite\SQLiteWal::checksumPair(substr($frame, 0, 8) . substr($frame, 24), false, $checksumSeed[0], $checksumSeed[1]);
+            $frameHeader = unpack('Npage_number/Ncommit/Nsalt_1/Nsalt_2/Nchecksum_1/Nchecksum_2', substr($frame, 0, 24));
+            $t->same($pageNumber, (int) $frameHeader['page_number']);
+            $t->same($checksumSeed, [(int) $frameHeader['checksum_1'], (int) $frameHeader['checksum_2']]);
+        }
+    };
+    $tests[$prefix . 'only final recovery frame is a commit frame'] = static function (TestRunner $t) use ($recoveryPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $commits = [];
+        foreach ($scenario['expected_recovery_pages'] as $index => $_pageNumber) {
+            $frameOffset = 32 + (($scenario['committed_prefix_frame_count'] + $index) * $frameSize);
+            $frameHeader = unpack('Npage_number/Ncommit', substr($recoveryPlan['wal_bytes_after'], $frameOffset, 8));
+            $commits[] = (int) $frameHeader['commit'];
+        }
+        $t->same([0, intdiv(strlen($recoveryPlan['database_bytes_after_import']), $pageSize)], $commits);
+    };
+    $tests[$prefix . 'extends database image for inserted recovery page'] = static function (TestRunner $t) use ($recoveryPlan, $scenario): void {
+        $t->same(true, intdiv(strlen($recoveryPlan['database_bytes_after_import']), (int) $scenario['page_size']) >= $scenario['expected_recovery_pages'][1]);
     };
 }
 
@@ -1872,6 +2001,17 @@ $tests['sqlite application wal rollback json dynamic parity rejects zero rollbac
     $t->same('rejected', 'accepted');
 };
 
+$tests['sqlite application wal rollback json dynamic parity rejects zero rollback-disabled followup recovery scenarios'] = static function (TestRunner $t): void {
+    try {
+        SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupRecoveryScenarios(0);
+    } catch (InvalidArgumentException) {
+        $t->same('rejected', 'rejected');
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
 $tests['sqlite application wal rollback json dynamic parity explicit small batch remains deterministic'] = static function (TestRunner $t): void {
     $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(3);
     $t->same([101, 102, 103], array_column($smallBatch, 'tenant_id'));
@@ -2008,6 +2148,14 @@ $tests['sqlite application wal rollback json dynamic parity rollback-disabled fo
     $t->same([6, 7, 8, 5], array_column($smallBatch, 'committed_prefix_frame_count'));
     $t->same([[1321, 1621], [1322, 1622], [1323, 1623], [1324, 1624]], array_column($smallBatch, 'expected_tail_pages'));
     $t->same([9, 10, 11, 8], array_map(static fn (array $scenario): int => $scenario['tail_plan']['wal_frame_count_before'], $smallBatch));
+};
+
+$tests['sqlite application wal rollback json dynamic parity rollback-disabled followup recovery small batch remains deterministic'] = static function (TestRunner $t): void {
+    $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupRecoveryScenarios(4);
+    $t->same([8101, 8102, 8103, 8104], array_column($smallBatch, 'tenant_id'));
+    $t->same([6, 7, 8, 5], array_column($smallBatch, 'committed_prefix_frame_count'));
+    $t->same([[1321, 1721], [1322, 1722], [1323, 1723], [1324, 1724]], array_column($smallBatch, 'expected_recovery_pages'));
+    $t->same([8, 9, 10, 7], array_map(static fn (array $scenario): int => $scenario['recovery_plan']['wal_frame_count_after'], $smallBatch));
 };
 
 $tests['sqlite application wal rollback json dynamic parity rejects wal header page size mismatch'] = static function (TestRunner $t) use ($scenarios): void {

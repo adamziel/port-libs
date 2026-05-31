@@ -22,14 +22,14 @@ $commit = static fn (array $parents = []): Commit => new Commit(
         'committer' => ['CI <ci@example.test> 1700000000 +0000'],
     ],
 );
-$finder = static function (array $commits): MergeBaseFinder {
+$finder = static function (array $commits, bool $useCommitGraphGenerations = true): MergeBaseFinder {
     return new MergeBaseFinder(static function (string $oid) use ($commits): Commit {
         if (!isset($commits[$oid])) {
             throw new RuntimeException("Missing commit fixture: {$oid}");
         }
 
         return $commits[$oid];
-    });
+    }, $useCommitGraphGenerations);
 };
 
 return [
@@ -96,6 +96,46 @@ return [
         $t->same($newerBase, $mergeBase->mergeBase($leftMerge, $rightMerge));
         $t->same([$newerBase, $olderBase], $mergeBase->mergeBasesAgainst($leftMerge, [$rightMerge]));
         $t->same($newerBase, $mergeBase->mergeBaseAgainst($leftMerge, [$rightMerge]));
+    },
+    'maps upstream graph walk without commitgraph to commit time priority' => static function (TestRunner $t) use ($finder): void {
+        $oid = static fn (string $hex): string => str_repeat($hex, 20);
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+        $root = $oid('10');
+        $intermediate = $oid('20');
+        $olderDeepBase = $oid('30');
+        $newerShallowBase = $oid('40');
+        $leftMerge = $oid('50');
+        $rightMerge = $oid('60');
+        $commits = [
+            $root => $timedCommit(1700000000),
+            $intermediate => $timedCommit(1700000010, [$root]),
+            $olderDeepBase => $timedCommit(1700000020, [$intermediate]),
+            $newerShallowBase => $timedCommit(1700000100, [$root]),
+            $leftMerge => $timedCommit(1700000200, [$olderDeepBase, $newerShallowBase]),
+            $rightMerge => $timedCommit(1700000300, [$newerShallowBase, $olderDeepBase]),
+        ];
+
+        $withCommitGraph = $finder($commits);
+        $withoutCommitGraph = $finder($commits, false);
+
+        $t->same([$olderDeepBase, $newerShallowBase], $withCommitGraph->mergeBases($leftMerge, $rightMerge));
+        $t->same($olderDeepBase, $withCommitGraph->mergeBaseAgainst($leftMerge, [$rightMerge]));
+        $t->same([$newerShallowBase, $olderDeepBase], $withoutCommitGraph->mergeBases($leftMerge, $rightMerge));
+        $t->same($newerShallowBase, $withoutCommitGraph->mergeBase($leftMerge, $rightMerge));
+        $t->same([$newerShallowBase, $olderDeepBase], $withoutCommitGraph->mergeBasesAgainst($leftMerge, [$rightMerge]));
+        $t->same($newerShallowBase, $withoutCommitGraph->mergeBaseAgainst($leftMerge, [$rightMerge]));
     },
     'maps upstream graph walk against a hypothetical merge of other heads' => static function (TestRunner $t) use ($oid, $commit, $finder): void {
         $root = $oid('1');
@@ -239,6 +279,13 @@ return [
 
             return $fixture['commits'][$oid];
         });
+        $timeOnlyFinder = new MergeBaseFinder(static function (string $oid) use ($fixture): Commit {
+            if (!isset($fixture['commits'][$oid])) {
+                throw new RuntimeException("Missing commit fixture: {$oid}");
+            }
+
+            return $fixture['commits'][$oid];
+        }, useCommitGraphGenerations: false);
 
         $t->same($fixture['releaseBaseline'], $finder->mergeBaseMany($fixture['heads']));
         $t->same([$fixture['releaseBaseline']], $finder->mergeBasesMany($fixture['deploymentHeads']));
@@ -262,6 +309,12 @@ return [
         $t->same(true, $example['sha256ReviewBaseIsReleaseBaseline']);
         $t->same(true, $example['sha256GraphWalkKeepsReleaseBaseline']);
         $t->same(true, $example['sha256DeployBaseIsReleaseBaseline']);
+        $t->same($fixture['legacyDeepBaseline'], $finder->mergeBase($fixture['pluginCompatibilityReview'], $fixture['themeCompatibilityReview']));
+        $t->same($fixture['securityShallowBaseline'], $timeOnlyFinder->mergeBase($fixture['pluginCompatibilityReview'], $fixture['themeCompatibilityReview']));
+        $t->same($fixture['legacyDeepBaseline'], $example['compatibilityCommitGraphBase']);
+        $t->same($fixture['securityShallowBaseline'], $example['compatibilityNoCommitGraphBase']);
+        $t->same(true, $example['commitGraphBasePrefersDeeperLegacyBaseline']);
+        $t->same(true, $example['noCommitGraphBasePrefersNewerSecurityBaseline']);
     },
     'object database reader requires commit objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-' . bin2hex(random_bytes(4)) . '/.git';

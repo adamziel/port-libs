@@ -16,6 +16,13 @@ $finder = new MergeBaseFinder(static function (string $oid) use ($fixture): Comm
 
     return $fixture['commits'][$oid];
 });
+$timeOnlyFinder = new MergeBaseFinder(static function (string $oid) use ($fixture): Commit {
+    if (!isset($fixture['commits'][$oid])) {
+        throw new RuntimeException("Missing WordPress commit fixture: {$oid}");
+    }
+
+    return $fixture['commits'][$oid];
+}, useCommitGraphGenerations: false);
 
 $reviewBase = $finder->mergeBaseMany($fixture['heads']);
 $deploymentBase = $finder->mergeBaseMany($fixture['deploymentHeads']);
@@ -30,6 +37,16 @@ $sha256DeployBase = $finder->mergeBaseMany([
 ]);
 $hotfixBases = $finder->mergeBases($fixture['pluginHotfixReview'], $fixture['themeHotfixReview']);
 $hotfixBase = $hotfixBases[0] ?? null;
+$compatibilityCommitGraphBases = $finder->mergeBases(
+    $fixture['pluginCompatibilityReview'],
+    $fixture['themeCompatibilityReview'],
+);
+$compatibilityNoCommitGraphBases = $timeOnlyFinder->mergeBases(
+    $fixture['pluginCompatibilityReview'],
+    $fixture['themeCompatibilityReview'],
+);
+$compatibilityCommitGraphBase = $compatibilityCommitGraphBases[0] ?? null;
+$compatibilityNoCommitGraphBase = $compatibilityNoCommitGraphBases[0] ?? null;
 
 return [
     'reviewHeads' => $fixture['heads'],
@@ -49,6 +66,13 @@ return [
     'hotfixBases' => $hotfixBases,
     'hotfixBase' => $hotfixBase,
     'hotfixBasePrefersNewerSecurityBaseline' => $hotfixBase === $fixture['securityBaseline'],
+    'compatibilityHeads' => $fixture['compatibilityHeads'],
+    'compatibilityCommitGraphBases' => $compatibilityCommitGraphBases,
+    'compatibilityNoCommitGraphBases' => $compatibilityNoCommitGraphBases,
+    'compatibilityCommitGraphBase' => $compatibilityCommitGraphBase,
+    'compatibilityNoCommitGraphBase' => $compatibilityNoCommitGraphBase,
+    'commitGraphBasePrefersDeeperLegacyBaseline' => $compatibilityCommitGraphBase === $fixture['legacyDeepBaseline'],
+    'noCommitGraphBasePrefersNewerSecurityBaseline' => $compatibilityNoCommitGraphBase === $fixture['securityShallowBaseline'],
     'sha256ReviewHeads' => $fixture['sha256ReviewHeads'],
     'sha256ReviewBase' => $sha256ReviewBase,
     'sha256GraphWalkBase' => $sha256GraphWalkBase,

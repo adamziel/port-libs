@@ -110,6 +110,72 @@ return [
         $icase = PathspecSearch::fromSpecs([':(icase)WP-CONTENT/MU-PLUGINS/*.PHP']);
         $t->same(true, $icase->isIncluded('wp-content/mu-plugins/Loader.PHP', false));
     },
+    'matches upstream wildmatch brackets escapes and recursive directory globs during tree walks' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
+        $pathAwareSlashClass = PathspecSearch::fromSpecs([':(glob)wp-content/plugins/foo[/]bar.php']);
+        $shellSlashClass = PathspecSearch::fromSpecs(['wp-content/plugins/foo[/]bar.php']);
+        $digitClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/2026/[[:digit:]][[:digit:]]/photo.jpg']);
+
+        $t->same(false, $pathAwareSlashClass->isIncluded('wp-content/plugins/foo/bar.php', false));
+        $t->same(true, $shellSlashClass->isIncluded('wp-content/plugins/foo/bar.php', false));
+        $t->same(true, $digitClass->isIncluded('wp-content/uploads/2026/05/photo.jpg', false));
+        $t->same(false, $digitClass->isIncluded('wp-content/uploads/2026/ab/photo.jpg', false));
+
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $root = new Tree([
+            $tree('wp-content', new Tree([
+                $blob('theme.?son'),
+                $tree('plugins', new Tree([
+                    $tree('akismet', new Tree([$blob('block.json')])),
+                    $tree('gutenberg', new Tree([$blob('block.json'), $blob('block.gson')])),
+                    $tree('cache', new Tree([$blob('block.json')])),
+                    $tree('[literal]', new Tree([$blob('block.?son')])),
+                    $tree('aliteral', new Tree([$blob('block.?son')])),
+                ])),
+                $tree('themes', new Tree([
+                    $tree('site', new Tree([$blob('theme.?son'), $blob('theme.json')])),
+                ])),
+                $tree('uploads', new Tree([
+                    $tree('2026', new Tree([
+                        $tree('05', new Tree([$blob('photo.jpg')])),
+                        $tree('02', new Tree([$blob('photo.jpg')])),
+                    ])),
+                ])),
+            ])),
+        ]);
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            PathspecSearch::fromSpecs([
+                ':(glob)wp-content/plugins/[ag]*/block.[jt]son',
+                ':(glob)wp-content/uploads/2026/0[!1-4]/**',
+                ':(glob)wp-content/**/theme.\?son',
+                ':(glob)wp-content/plugins/\[literal\]/block.\?son',
+            ]),
+            static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+                if (!isset($objects[$entry->oid])) {
+                    throw new RuntimeException("Missing tree object for {$path}");
+                }
+
+                return $objects[$entry->oid];
+            },
+            includeTrees: false,
+        );
+
+        $t->same([
+            'wp-content/theme.?son',
+            'wp-content/plugins/akismet/block.json',
+            'wp-content/plugins/gutenberg/block.json',
+            'wp-content/plugins/[literal]/block.?son',
+            'wp-content/themes/site/theme.?son',
+            'wp-content/uploads/2026/05/photo.jpg',
+        ], $walkPaths($records));
+    },
     'matches directory-only pathspecs as verbatim and prefix matches' => static function (TestRunner $t): void {
         $search = PathspecSearch::fromSpecs(['wp-content/plugins/gutenberg/']);
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Gitoxide\Commit;
 
 $oid = static fn (string $hex): string => str_repeat($hex, 40);
+$oidPair = static fn (string $hex): string => str_repeat($hex, 20);
 $oid256 = static fn (string $hex): string => str_repeat($hex, 64);
 $commit = static fn (array $parents = [], int $seconds = 1700000000): Commit => new Commit(
     $oid('f'),
@@ -45,6 +46,11 @@ $legacyBaseline = $oid('9');
 $securityBaseline = $oid('a');
 $pluginHotfixReview = $oid('b');
 $themeHotfixReview = $oid('c');
+$compatibilityIntermediate = $oidPair('d1');
+$legacyDeepBaseline = $oidPair('d2');
+$securityShallowBaseline = $oidPair('d3');
+$pluginCompatibilityReview = $oidPair('d4');
+$themeCompatibilityReview = $oidPair('d5');
 $sha256Root = $oid256('1');
 $sha256Release = $oid256('2');
 $sha256PluginReview = $oid256('a');
@@ -67,6 +73,11 @@ return [
     'pluginHotfixReview' => $pluginHotfixReview,
     'themeHotfixReview' => $themeHotfixReview,
     'hotfixHeads' => [$pluginHotfixReview, $themeHotfixReview],
+    'legacyDeepBaseline' => $legacyDeepBaseline,
+    'securityShallowBaseline' => $securityShallowBaseline,
+    'pluginCompatibilityReview' => $pluginCompatibilityReview,
+    'themeCompatibilityReview' => $themeCompatibilityReview,
+    'compatibilityHeads' => [$pluginCompatibilityReview, $themeCompatibilityReview],
     'sha256ReleaseBaseline' => $sha256Release,
     'sha256PluginReview' => $sha256PluginReview,
     'sha256ThemeReview' => $sha256ThemeReview,
@@ -91,6 +102,11 @@ return [
         $securityBaseline => $commit([$release], 1700000200),
         $pluginHotfixReview => $commit([$legacyBaseline, $securityBaseline], 1700000300),
         $themeHotfixReview => $commit([$securityBaseline, $legacyBaseline], 1700000400),
+        $compatibilityIntermediate => $commit([$release], 1700000050),
+        $legacyDeepBaseline => $commit([$compatibilityIntermediate], 1700000060),
+        $securityShallowBaseline => $commit([$release], 1700000500),
+        $pluginCompatibilityReview => $commit([$legacyDeepBaseline, $securityShallowBaseline], 1700000600),
+        $themeCompatibilityReview => $commit([$securityShallowBaseline, $legacyDeepBaseline], 1700000700),
         $sha256Root => $commit256(),
         $sha256Release => $commit256([$sha256Root]),
         $sha256PluginReview => $commit256([$sha256Release]),

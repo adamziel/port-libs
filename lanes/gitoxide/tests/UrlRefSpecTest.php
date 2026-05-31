@@ -498,6 +498,48 @@ return [
         $t->same(null, $oneSidedPattern->prefix(), 'prefix still follows the parsed destination side for pushes');
         $t->same([], $oneSidedPattern->expandPrefixes());
     },
+    'refspec prefix expansion treats short hex names as partial refs and full object ids as objects' => static function (TestRunner $t): void {
+        $shortHexFetch = RefSpec::parseFetch('dead');
+        $t->same(null, $shortHexFetch->prefix());
+        $t->same([
+            'dead',
+            'refs/dead',
+            'refs/tags/dead',
+            'refs/heads/dead',
+            'refs/remotes/dead',
+            'refs/remotes/dead/HEAD',
+        ], $shortHexFetch->expandPrefixes());
+
+        $shortHexPushDelete = RefSpec::parsePush(':dead');
+        $t->same(RefSpec::INSTRUCTION_PUSH_DELETE, $shortHexPushDelete->instructionName());
+        $t->same(null, $shortHexPushDelete->prefix());
+        $t->same([
+            'dead',
+            'refs/dead',
+            'refs/tags/dead',
+            'refs/heads/dead',
+            'refs/remotes/dead',
+            'refs/remotes/dead/HEAD',
+        ], $shortHexPushDelete->expandPrefixes());
+
+        $shortNumericFetch = RefSpec::parseFetch('20260531');
+        $t->same([
+            '20260531',
+            'refs/20260531',
+            'refs/tags/20260531',
+            'refs/heads/20260531',
+            'refs/remotes/20260531',
+            'refs/remotes/20260531/HEAD',
+        ], $shortNumericFetch->expandPrefixes());
+
+        $sha1Fetch = RefSpec::parseFetch('e69de29bb2d1d6434b8b29ae775ad8c2e48c5391');
+        $t->same([], $sha1Fetch->expandPrefixes());
+
+        $sha256Fetch = RefSpec::parseFetch('b071221ea854da2958fba3a37527ca5cf32c4ebcd71ab0b68b6b8f10f04e93ad');
+        $t->same([], $sha256Fetch->expandPrefixes());
+
+        $t->throws(InvalidArgumentException::class, static fn () => RefSpec::parseFetch('^dead'));
+    },
     'wordpress fixture normalizes deployment remote and fetch push refspecs without git binary' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-url-refspec-normalize.php';
         $summary = require dirname(__DIR__) . '/examples/wordpress-url-refspec-normalize.php';
@@ -518,6 +560,7 @@ return [
         $t->same($fixture['expectedFetchNormalized'], array_column($summary['fetch'], 'normalized'));
         $t->same($fixture['expectedPushNormalized'], array_column($summary['push'], 'normalized'));
         $t->same($fixture['expectedFetchPrefixes'], array_column($summary['fetch'], 'prefix'));
+        $t->same($fixture['expectedFetchExpandedPrefixes'], array_column($summary['fetch'], 'expandedPrefixes'));
         $t->same($fixture['expectedPushPrefixes'], array_column($summary['push'], 'prefix'));
         $t->same('refs/remotes/origin/*', $summary['fetch'][0]['local']);
         $t->same('refs/heads/wp-release', $summary['push'][0]['remote']);

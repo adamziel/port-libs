@@ -44,6 +44,9 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     if (array_column($summary['fetch'], 'normalized') !== $fixture['expectedFetchNormalized']) {
         throw new RuntimeException('Unexpected normalized fetch refspecs');
     }
+    if (array_column($summary['fetch'], 'expandedPrefixes') !== $fixture['expectedFetchExpandedPrefixes']) {
+        throw new RuntimeException('Unexpected expanded fetch refspec prefixes');
+    }
     if (array_column($summary['push'], 'instruction') !== $fixture['expectedPushInstructions']) {
         throw new RuntimeException('Unexpected push refspec instructions');
     }
