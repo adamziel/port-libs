@@ -169,7 +169,7 @@
         }
     },
     "benchmarkDenominator": {
-        "status": "full-upstream-sqlite-script-denominator-admitted-and-focused-current-base-vfs-wal-returning-fk-json102-pager-cache-spill-slices-accepted",
+        "status": "full-upstream-sqlite-script-denominator-admitted-and-focused-current-base-vfs-wal-returning-fk-json102-pager-cache-spill-slices-accepted-application-wal-rollback-json-date-affinity-expression-affinity-select-on-truthiness",
         "total": 1589,
         "mapped": 1589,
         "latestMappedAddition": "The 2026-05-30 isolated bulk-upstream-runner-map-gap-closure-dynamic slice maps the final 117 real hydrated upstream SQLite test/*.test scripts from valuesfault.test through windowA.test through guarded current-source next1045-1161 evidence, moving mapped denominator coverage from 1472 / 1589 to 1589 / 1589. It preserves the accepted next981-1044 anchor, skips stale next965-980 overlap, claims focused PASS-line admission only through the lane-local runner evidence helper, and does not claim release/all parity.",
@@ -708,7 +708,7 @@
             "focusedUpstreamVeryquickShardCurrentSourceNext433Scripts": 1,
             "focusedUpstreamVeryquickShardCurrentSourceNext949Through964Scripts": 16
         },
-        "runnerStatus": "2026-05-31 supervisor batch at source a8642b9f8: focused accepted-file libsqlite gate passed 5 files / 96913 assertions / 0 failures including SQLiteNoDomainSpecificApiTest. Mapped coverage remains 1589 / 1589; release/all-runner parity remains open due the known JSON-table generated path rowid-cost blocker.",
+        "runnerStatus": "2026-05-31 supervisor batch at source 20cc40ca9: focused libsqlite gate passed 5 files / 76703 assertions / 0 failures. Mapped coverage remains 1589 / 1589. Full release/all-runner parity was not executed.",
         "warning": "The upstream veryquick permutation now has local runner parity. The 2026-05-30 bulk upstream suite denominator burnup B slice moves mapped coverage from 830 to 958 by admitting 128 focused suite-denominator rows through lane-local runner-gap evidence and focused PHP PASS gates. Full all/release permutations remain unexecuted, and release/all parity is not claimed. Accepted source commit b0d8a112 adds 5335 selected libsqlite pass assertions across where7 multi-index OR, e_select2 join associativity, and trigger1 temp-trigger rebind behavior; mapped denominator remains 1589 / 1589 and full release/all parity still requires separate closure evidence. Accepted source commit 244af0e12 adds seven selected native libsqlite slices with focused verification 8 files / 155391 assertions / 0 failures under memory_limit=2048M, lint, diff-check, source-neutral API guard, and touched example self-test. It is still not full release/all-runner parity.",
         "upstreamRuns": {
             "focusedResults": {
@@ -3424,7 +3424,7 @@
         }
     },
     "latestFocusedSlice": "VFS unix-excl WAL/read snapshots, RETURNING immediate FK barrier behavior, JSON102 select-SQL tree search predicates, and WAL cache-spill dynamic corpus behavior integrated.",
-    "latestNativePhpVerification": "2026-05-31 supervisor batch at source a8642b9f8: focused accepted-file libsqlite gate passed 5 files / 96913 assertions / 0 failures including SQLiteNoDomainSpecificApiTest. Mapped coverage remains 1589 / 1589; release/all-runner parity remains open due the known JSON-table generated path rowid-cost blocker.",
+    "latestNativePhpVerification": "Source commit 20cc40ca9 passed php -l on changed libsqlite PHP files, selected libsqlite memory_limit=2048M gate 5 files / 76703 assertions / 0 failures including SQLiteNoDomainSpecificApiTest, application WAL example self-test, no WordPress-specific source diff, and git diff --check. Full release/all-runner parity remains open.",
     "runnerStatus": "2026-05-31 supervisor batch at source a8642b9f8: focused accepted-file libsqlite gate passed 5 files / 96913 assertions / 0 failures including SQLiteNoDomainSpecificApiTest. Mapped coverage remains 1589 / 1589; release/all-runner parity remains open due the known JSON-table generated path rowid-cost blocker.",
     "latestCommit": "a8642b9f8e878e60ccdcfc5002ab80052960c301"
 }

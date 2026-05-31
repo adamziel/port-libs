@@ -1,17 +1,17 @@
 {
     "schemaVersion": 1,
     "library": "libsqlite",
-    "estimatedProgress": 99.1,
-    "suiteProgress": "Supervisor-integrated libsqlite VFS unix-excl WAL/read snapshots, RETURNING immediate FK barrier behavior, JSON102 select-SQL tree search predicates, and WAL cache-spill dynamic corpus behavior. Focused accepted-file gate passed 5 files / 96913 assertions / 0 failures including SQLiteNoDomainSpecificApiTest; selected evidence moves conservatively from 3849202 to 3946112 pass / 0 fail. Mapped coverage remains 1589 / 1589.",
-    "phpPass": 3966188,
+    "estimatedProgress": 99.2,
+    "suiteProgress": "Supervisor-integrated libsqlite application WAL rollback JSON dynamic parity plus real upstream date affinity, expression affinity, and e_select ON-truthiness dynamic corpus slices. Focused accepted gate passed 5 files / 76703 assertions / 0 failures including SQLiteNoDomainSpecificApiTest; no WordPress-specific libsqlite source text was introduced. Mapped coverage remains 1589 / 1589.",
+    "phpPass": 4042888,
     "phpFail": 0,
     "wordpressScenarios": "Source-neutral application/self-test coverage now includes WAL rollback JSON tails, FK parent-index diagnostics, row-value UPDATE/DELETE LIMIT execution, master-journal WAL pager behavior, PRAGMA lock_proxy_file and data_store_directory handling, SELECT/window planner behavior, trigger/fkey limits, expression-affinity and hex literal syntax, B-tree left-join/index/delete guards, JSON/JSONB update/subtype/char-built validity behavior, VFS fallocate/shared-lock/batch-atomic lifecycle behavior, pager crash recovery, and app-WAL post-checkpoint tail recovery. No WordPress-specific libsqlite API is accepted.",
-    "phase": "focused source integration accepted; full-lane parity blocked by pre-existing JSON-table rowid-cost failures",
-    "audit": "2026-05-31 supervisor follow-up batch at source fc38762cf: focused libsqlite gate passed 3 files / 20079 assertions / 0 failures, including SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext761776Test.php, SQLiteRowValueUpdateDeleteLimitDynamicParityTest.php, and SQLiteNoDomainSpecificApiTest.php. Cached libsqlite source diff added no WordPress/wordpress/WP_/wp_ text. Full libsqlite lane/release runner was not executed for this batch.",
-    "currentWork": "JSON-table generated path rowid-cost/reuse-policy blocker now passes in focused evidence, and row-value UPDATE/DELETE LIMIT expression parity expanded without adding WordPress-specific libsqlite source text.",
-    "blocker": "The named JSON-table generated path rowid-cost blocker is fixed in focused evidence. Full libsqlite release/all-runner parity is still unproven after this batch and must be rerun on tracked tests before declaring libsqlite complete.",
+    "phase": "focused source integration accepted; full-lane/release parity still requires a broader tracked run before completion",
+    "audit": "2026-05-31 supervisor batch at source 20cc40ca9: focused libsqlite gate passed 5 files / 76703 assertions / 0 failures, including SQLiteApplicationWalRollbackJsonDynamicParityTest.php, date affinity, expression affinity, e_select ON truthiness, and SQLiteNoDomainSpecificApiTest.php. Cached libsqlite source diff added no WordPress/wordpress/WP_/wp_ text. Full libsqlite lane/release runner was not executed for this batch.",
+    "currentWork": "Application WAL rollback JSON dynamic parity and real upstream date/expression/select dynamic corpus coverage integrated without WordPress-specific libsqlite source text.",
+    "blocker": "Full libsqlite release/all-runner parity is still unproven after this batch and must be rerun on tracked tests before declaring libsqlite complete.",
     "nextTask": "Run a broader tracked libsqlite full-lane/release parity gate before calling libsqlite complete; keep two SQLite workers on any remaining real-runner failures and source-neutral guard cleanup.",
-    "wordpressScenarioLatest": "No WordPress-specific libsqlite API or source text was introduced in the latest accepted batch. The latest source commit adds generic SQLite VFS, WAL, RETURNING/FK, JSON102, and pager corpus behavior.",
-    "latestCommit": "fc38762cf870ac6675fc1e4efb0e83a990db030e",
-    "commit": "a8642b9f8e878e60ccdcfc5002ab80052960c301"
+    "wordpressScenarioLatest": "No WordPress-specific libsqlite API or source text was introduced in the latest accepted batch. The latest source commit adds generic SQLite WAL rollback JSON, date affinity, expression affinity, and SELECT ON-truthiness corpus behavior.",
+    "latestCommit": "20cc40ca9bdc701723421d5a9c098ec4ff6b3877",
+    "commit": "20cc40ca9bdc701723421d5a9c098ec4ff6b3877"
 }

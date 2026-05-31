@@ -55,6 +55,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (AO cleanup + CSS/Git/SQLite parity batch
+  22:30 UTC): audited the visible tmux pool after the user's cleanup concern.
+  There is one attached `main` session, no extra `port-*` tmux sessions, and the
+  stale-session pruner killed `0`; all live `port-dev-*` windows had active
+  launcher/Codex descendants. The pool had slipped to `9` active isolated
+  workers, so the supervisor refilled it to `11`: `6` LightningCSS, `3`
+  Gitoxide, and `2` libsqlite, all launched on `gpt-5.5` xhigh priority with no
+  long sleepers. Source commit `20cc40ca9bdc701723421d5a9c098ec4ff6b3877`
+  (`ports: extend git css sqlite parity batch`) landed thirteen screened
+  handoffs while preserving older untracked libsqlite leftovers. Verification
+  passed PHP lint on `36` changed/new files, `git diff --check`, full Gitoxide
+  `39 files / 6017 assertions / 0 failures`, full LightningCSS `13 files /
+  4663 assertions / 0 failures`, focused libsqlite `5 files / 76703 assertions
+  / 0 failures` including `SQLiteNoDomainSpecificApiTest.php`, accepted
+  examples/self-tests, and a libsqlite source diff guard showing no
+  `WordPress|wordpress|WP_|wp_` text. Dashboard evidence now reports Gitoxide
+  `1653 / 2886` mapped and `6017 pass / 0 fail`, LightningCSS `2171 / 3532`
+  mapped and `4663 pass / 0 fail`, and libsqlite `1589 / 1589` mapped with
+  `4042888 pass / 0 fail`. The working-tree footprint is still sizable (`179`
+  `port-dev-*` worktree directories, `31G` total); cleanup must continue by
+  archiving/removing only consumed or safely classified worktrees.
+
 - 2026-05-31 supervisor continuation (window cleanup + CSS/Git/SQLite follow-up
   22:20 UTC): pushed `b5eea1a41` to make Gitoxide and LightningCSS refills
   close only completed ready `port-dev-*` windows before counting capacity;
