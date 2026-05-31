@@ -46,11 +46,30 @@
 - Root filesystem: current supervisor sample reports `/` at 452G size with about 351G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.0G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool includes
-  a LightningCSS surge currently targeted at 46 visible workers plus active
+  a LightningCSS surge currently targeted at 43 visible workers plus active
   libsqlite/Gitoxide workers; the latest refill started LightningCSS workers on
   `gpt-5.5` xhigh with the priority service tier and no long sleeper loop.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (LightningCSS visitor/modules/gradients
+  integration 18:05 UTC): source commit
+  `fcbc7a6c9983fad89791d078fb71c4b3df874a5e` (`ports: extend lightningcss
+  visitors modules gradients cssom`) landed seven verified LightningCSS
+  handoffs after excluding stale shared metadata. LightningCSS full lane
+  evidence moves from `2825` to `2881 pass / 0 fail`, with conservative mapped
+  coverage moving from `1616 / 3532` to `1637 / 3532`: native `Rule.media`
+  visitors, bundle source-map source collection, CSS Modules `@scope` prelude
+  scoping and pure-mode validation, upstream linear-gradient minifier cases,
+  Opera `object-fit` / `object-position` target-prefix boundaries, CSSOM
+  declaration property locations, and bundled import media-type boolean
+  conjunction. Gates passed: PHP lint on all changed and new PHP files,
+  `git diff --check -- lanes/lightningcss`, no WordPress/WP/wp_ text introduced
+  by the changed source diff, focused gate `8 files / 2589 assertions / 0
+  failures`, full LightningCSS lane `13 files / 2881 assertions / 0 failures`,
+  and six touched example smoke/self-test runs. Full upstream Rust/Node/WASM
+  runners were not executed for this isolated batch. The visible LightningCSS
+  pool was refilled to `43` workers on `gpt-5.5` xhigh priority at 18:04 UTC.
 
 - 2026-05-31 supervisor continuation (LightningCSS source-map/color/bundle
   integration 17:52 UTC): source commit
