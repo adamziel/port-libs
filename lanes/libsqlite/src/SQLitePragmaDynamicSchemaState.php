@@ -70,7 +70,7 @@ final class SQLitePragmaDynamicSchemaState
     public static function parse(string $sql): array
     {
         $trimmed = rtrim(trim($sql), " \t\r\n;");
-        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>cache_size|default_cache_size|cache_spill|freelist_count|page_count|max_page_count|schema_version|user_version)(?:\s*(?:=\s*(?<equals>[+-]?\d+|ON|OFF|TRUE|FALSE)|\(\s*(?<paren>[+-]?\d+|ON|OFF|TRUE|FALSE)\s*\)))?$/i', $trimmed, $matches)) {
+        if (!preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\s*\.\s*)?(?<pragma>cache_size|default_cache_size|cache_spill|freelist_count|page_count|max_page_count|schema_version|user_version)(?:\s*(?:=\s*(?<equals>[+-]?\d+|ON|OFF|YES|NO|TRUE|FALSE)|\(\s*(?<paren>[+-]?\d+|ON|OFF|YES|NO|TRUE|FALSE)\s*\)))?$/i', $trimmed, $matches)) {
             throw new \InvalidArgumentException('Unsupported SQLite dynamic schema PRAGMA SQL');
         }
 
@@ -284,8 +284,8 @@ final class SQLitePragmaDynamicSchemaState
 
         $upper = strtoupper(trim($value));
         return match ($upper) {
-            'ON', 'TRUE' => 1,
-            'OFF', 'FALSE' => 0,
+            'ON', 'YES', 'TRUE' => 1,
+            'OFF', 'NO', 'FALSE' => 0,
             default => self::signedInt($value, $label),
         };
     }

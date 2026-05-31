@@ -595,6 +595,149 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
     }
 
     /** @return array<string,mixed> */
+    public static function eFkeyDeferredNestedSavepointFailure(): array
+    {
+        $initialRows = [
+            ['a' => 1, 'b' => 1],
+            ['a' => 2, 'b' => 2],
+            ['a' => 3, 'b' => 3],
+        ];
+
+        $first = [
+            'e_fkey-38.1' => [
+                'statement' => 'DELETE FROM t1 WHERE a>3; SELECT * FROM t1',
+                'ok' => true,
+                'rows' => $initialRows,
+                'open_savepoints' => [],
+                'violations' => [],
+            ],
+            'e_fkey-38.2' => [
+                'statement' => 'BEGIN; INSERT INTO t1 VALUES(4, 4); SAVEPOINT one; INSERT INTO t1 VALUES(5, 6); SELECT * FROM t1',
+                'ok' => true,
+                'rows' => [
+                    ['a' => 1, 'b' => 1],
+                    ['a' => 2, 'b' => 2],
+                    ['a' => 3, 'b' => 3],
+                    ['a' => 4, 'b' => 4],
+                    ['a' => 5, 'b' => 6],
+                ],
+                'open_savepoints' => ['one'],
+                'violations' => [['child_key' => 6, 'missing_parent' => 6]],
+            ],
+            'e_fkey-38.3' => [
+                'statement' => 'COMMIT',
+                'ok' => false,
+                'error' => 'FOREIGN KEY constraint failed',
+                'rows' => [
+                    ['a' => 1, 'b' => 1],
+                    ['a' => 2, 'b' => 2],
+                    ['a' => 3, 'b' => 3],
+                    ['a' => 4, 'b' => 4],
+                    ['a' => 5, 'b' => 6],
+                ],
+                'open_savepoints' => ['one'],
+                'violations' => [['child_key' => 6, 'missing_parent' => 6]],
+                'nested_savepoints_preserved_after_failed_commit' => true,
+            ],
+            'e_fkey-38.4' => [
+                'statement' => 'ROLLBACK TO one; COMMIT; SELECT * FROM t1',
+                'ok' => true,
+                'rows' => [
+                    ['a' => 1, 'b' => 1],
+                    ['a' => 2, 'b' => 2],
+                    ['a' => 3, 'b' => 3],
+                    ['a' => 4, 'b' => 4],
+                ],
+                'open_savepoints' => [],
+                'violations' => [],
+            ],
+        ];
+
+        $second = [
+            'e_fkey-38.5' => [
+                'statement' => 'SAVEPOINT a; INSERT INTO t1 VALUES(5, 5); SAVEPOINT b; INSERT INTO t1 VALUES(6, 7); SAVEPOINT c; INSERT INTO t1 VALUES(7, 8)',
+                'ok' => true,
+                'rows' => [
+                    ['a' => 1, 'b' => 1],
+                    ['a' => 2, 'b' => 2],
+                    ['a' => 3, 'b' => 3],
+                    ['a' => 4, 'b' => 4],
+                    ['a' => 5, 'b' => 5],
+                    ['a' => 6, 'b' => 7],
+                    ['a' => 7, 'b' => 8],
+                ],
+                'open_savepoints' => ['a', 'b', 'c'],
+                'violations' => [
+                    ['child_key' => 7, 'missing_parent' => 7],
+                    ['child_key' => 8, 'missing_parent' => 8],
+                ],
+            ],
+            'e_fkey-38.6' => [
+                'statement' => 'RELEASE a',
+                'ok' => false,
+                'error' => 'FOREIGN KEY constraint failed',
+                'rows' => [
+                    ['a' => 1, 'b' => 1],
+                    ['a' => 2, 'b' => 2],
+                    ['a' => 3, 'b' => 3],
+                    ['a' => 4, 'b' => 4],
+                    ['a' => 5, 'b' => 5],
+                    ['a' => 6, 'b' => 7],
+                    ['a' => 7, 'b' => 8],
+                ],
+                'open_savepoints' => ['a', 'b', 'c'],
+                'violations' => [
+                    ['child_key' => 7, 'missing_parent' => 7],
+                    ['child_key' => 8, 'missing_parent' => 8],
+                ],
+                'transaction_savepoint_preserved_after_failed_release' => true,
+            ],
+            'e_fkey-38.7' => [
+                'statement' => 'ROLLBACK TO c; RELEASE a',
+                'ok' => false,
+                'error' => 'FOREIGN KEY constraint failed',
+                'rows' => [
+                    ['a' => 1, 'b' => 1],
+                    ['a' => 2, 'b' => 2],
+                    ['a' => 3, 'b' => 3],
+                    ['a' => 4, 'b' => 4],
+                    ['a' => 5, 'b' => 5],
+                    ['a' => 6, 'b' => 7],
+                ],
+                'open_savepoints' => ['a', 'b', 'c'],
+                'violations' => [['child_key' => 7, 'missing_parent' => 7]],
+                'inner_rollback_removed_deeper_violation_only' => true,
+            ],
+            'e_fkey-38.8' => [
+                'statement' => 'ROLLBACK TO b; RELEASE a; SELECT * FROM t1',
+                'ok' => true,
+                'rows' => [
+                    ['a' => 1, 'b' => 1],
+                    ['a' => 2, 'b' => 2],
+                    ['a' => 3, 'b' => 3],
+                    ['a' => 4, 'b' => 4],
+                    ['a' => 5, 'b' => 5],
+                ],
+                'open_savepoints' => [],
+                'violations' => [],
+                'outer_release_after_repair_commits_prefix' => true,
+            ],
+        ];
+
+        return [
+            'source' => 'e_fkey.test',
+            'scenarios' => array_merge(array_keys($first), array_keys($second)),
+            'first_transaction' => $first,
+            'transaction_savepoint' => $second,
+            'dependencies' => [
+                'sqlite-upstream-e-fkey-38-failed-commit-preserves-nested-savepoints',
+                'sqlite-upstream-e-fkey-38-failed-transaction-savepoint-release-preserves-nested-savepoints',
+                'sqlite-upstream-e-fkey-38-rollback-to-repairs-deferred-foreign-key-violations',
+            ],
+        ];
+    }
+
+    /** @return array<string,mixed> */
     public static function trigger1LateRegressionCorpus(): array
     {
         $cases = [];

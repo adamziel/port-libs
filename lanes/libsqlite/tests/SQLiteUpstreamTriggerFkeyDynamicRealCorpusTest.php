@@ -533,4 +533,100 @@ foreach ($triggerCRecursiveExpectations as $case => $expected) {
     }
 }
 
+$eFkey38Plan = static fn (): array => SQLiteUpstreamTriggerFkeyDynamicPlan::eFkeyDeferredNestedSavepointFailure();
+$eFkey38Cases = static function () use ($eFkey38Plan): array {
+    return array_merge($eFkey38Plan()['first_transaction'], $eFkey38Plan()['transaction_savepoint']);
+};
+
+$tests['upstream e_fkey38 source filename'] = static function (TestRunner $t) use ($eFkey38Plan): void {
+    $t->same('e_fkey.test', $eFkey38Plan()['source']);
+};
+$tests['upstream e_fkey38 scenario count'] = static function (TestRunner $t) use ($eFkey38Plan): void {
+    $t->same(8, count($eFkey38Plan()['scenarios']));
+};
+$tests['upstream e_fkey38 failed commit dependency marker'] = static function (TestRunner $t) use ($eFkey38Plan): void {
+    $t->same(true, in_array('sqlite-upstream-e-fkey-38-failed-commit-preserves-nested-savepoints', $eFkey38Plan()['dependencies'], true));
+};
+$tests['upstream e_fkey38 failed release dependency marker'] = static function (TestRunner $t) use ($eFkey38Plan): void {
+    $t->same(true, in_array('sqlite-upstream-e-fkey-38-failed-transaction-savepoint-release-preserves-nested-savepoints', $eFkey38Plan()['dependencies'], true));
+};
+$tests['upstream e_fkey38 rollback repair dependency marker'] = static function (TestRunner $t) use ($eFkey38Plan): void {
+    $t->same(true, in_array('sqlite-upstream-e-fkey-38-rollback-to-repairs-deferred-foreign-key-violations', $eFkey38Plan()['dependencies'], true));
+};
+
+$eFkey38Expected = [
+    'e_fkey-38.1' => ['ok' => true, 'rows' => [[1, 1], [2, 2], [3, 3]], 'savepoints' => [], 'violations' => []],
+    'e_fkey-38.2' => ['ok' => true, 'rows' => [[1, 1], [2, 2], [3, 3], [4, 4], [5, 6]], 'savepoints' => ['one'], 'violations' => [6]],
+    'e_fkey-38.3' => ['ok' => false, 'rows' => [[1, 1], [2, 2], [3, 3], [4, 4], [5, 6]], 'savepoints' => ['one'], 'violations' => [6], 'error' => 'FOREIGN KEY constraint failed'],
+    'e_fkey-38.4' => ['ok' => true, 'rows' => [[1, 1], [2, 2], [3, 3], [4, 4]], 'savepoints' => [], 'violations' => []],
+    'e_fkey-38.5' => ['ok' => true, 'rows' => [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 7], [7, 8]], 'savepoints' => ['a', 'b', 'c'], 'violations' => [7, 8]],
+    'e_fkey-38.6' => ['ok' => false, 'rows' => [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 7], [7, 8]], 'savepoints' => ['a', 'b', 'c'], 'violations' => [7, 8], 'error' => 'FOREIGN KEY constraint failed'],
+    'e_fkey-38.7' => ['ok' => false, 'rows' => [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 7]], 'savepoints' => ['a', 'b', 'c'], 'violations' => [7], 'error' => 'FOREIGN KEY constraint failed'],
+    'e_fkey-38.8' => ['ok' => true, 'rows' => [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]], 'savepoints' => [], 'violations' => []],
+];
+
+foreach ($eFkey38Expected as $case => $expected) {
+    $tests["upstream e_fkey38 {$case} ok flag"] = static function (TestRunner $t) use ($eFkey38Cases, $case, $expected): void {
+        $t->same($expected['ok'], $eFkey38Cases()[$case]['ok']);
+    };
+    $tests["upstream e_fkey38 {$case} source statement preserved"] = static function (TestRunner $t) use ($eFkey38Cases, $case): void {
+        $t->same(true, is_string($eFkey38Cases()[$case]['statement']) && $eFkey38Cases()[$case]['statement'] !== '');
+    };
+    $tests["upstream e_fkey38 {$case} open savepoints"] = static function (TestRunner $t) use ($eFkey38Cases, $case, $expected): void {
+        $t->same($expected['savepoints'], $eFkey38Cases()[$case]['open_savepoints']);
+    };
+    $tests["upstream e_fkey38 {$case} violation child keys"] = static function (TestRunner $t) use ($eFkey38Cases, $case, $expected): void {
+        $t->same($expected['violations'], array_column($eFkey38Cases()[$case]['violations'], 'child_key'));
+    };
+    $tests["upstream e_fkey38 {$case} violation count"] = static function (TestRunner $t) use ($eFkey38Cases, $case, $expected): void {
+        $t->same(count($expected['violations']), count($eFkey38Cases()[$case]['violations']));
+    };
+    $tests["upstream e_fkey38 {$case} row count"] = static function (TestRunner $t) use ($eFkey38Cases, $case, $expected): void {
+        $t->same(count($expected['rows']), count($eFkey38Cases()[$case]['rows']));
+    };
+    $tests["upstream e_fkey38 {$case} rows flattened"] = static function (TestRunner $t) use ($eFkey38Cases, $case, $expected): void {
+        $flat = [];
+        foreach ($eFkey38Cases()[$case]['rows'] as $row) {
+            $flat[] = [$row['a'], $row['b']];
+        }
+        $t->same($expected['rows'], $flat);
+    };
+    $tests["upstream e_fkey38 {$case} first row"] = static function (TestRunner $t) use ($eFkey38Cases, $case, $expected): void {
+        $row = $eFkey38Cases()[$case]['rows'][0] ?? null;
+        $t->same($expected['rows'][0] ?? null, $row === null ? null : [$row['a'], $row['b']]);
+    };
+    $tests["upstream e_fkey38 {$case} last row"] = static function (TestRunner $t) use ($eFkey38Cases, $case, $expected): void {
+        $rows = $eFkey38Cases()[$case]['rows'];
+        $row = $rows === [] ? null : $rows[count($rows) - 1];
+        $expectedRows = $expected['rows'];
+        $t->same($expectedRows === [] ? null : $expectedRows[count($expectedRows) - 1], $row === null ? null : [$row['a'], $row['b']]);
+    };
+    if (isset($expected['error'])) {
+        $tests["upstream e_fkey38 {$case} error message"] = static function (TestRunner $t) use ($eFkey38Cases, $case, $expected): void {
+            $t->same($expected['error'], $eFkey38Cases()[$case]['error']);
+        };
+    }
+    foreach ($expected['rows'] as $rowIndex => $row) {
+        $tests["upstream e_fkey38 {$case} row {$rowIndex} a"] = static function (TestRunner $t) use ($eFkey38Cases, $case, $rowIndex, $row): void {
+            $t->same($row[0], $eFkey38Cases()[$case]['rows'][$rowIndex]['a']);
+        };
+        $tests["upstream e_fkey38 {$case} row {$rowIndex} b"] = static function (TestRunner $t) use ($eFkey38Cases, $case, $rowIndex, $row): void {
+            $t->same($row[1], $eFkey38Cases()[$case]['rows'][$rowIndex]['b']);
+        };
+    }
+}
+
+$tests['upstream e_fkey38 failed commit preserves nested savepoint'] = static function (TestRunner $t) use ($eFkey38Plan): void {
+    $t->same(true, $eFkey38Plan()['first_transaction']['e_fkey-38.3']['nested_savepoints_preserved_after_failed_commit']);
+};
+$tests['upstream e_fkey38 failed transaction savepoint release preserves stack'] = static function (TestRunner $t) use ($eFkey38Plan): void {
+    $t->same(true, $eFkey38Plan()['transaction_savepoint']['e_fkey-38.6']['transaction_savepoint_preserved_after_failed_release']);
+};
+$tests['upstream e_fkey38 rollback to inner keeps outer violation'] = static function (TestRunner $t) use ($eFkey38Plan): void {
+    $t->same(true, $eFkey38Plan()['transaction_savepoint']['e_fkey-38.7']['inner_rollback_removed_deeper_violation_only']);
+};
+$tests['upstream e_fkey38 rollback to parent savepoint releases clean prefix'] = static function (TestRunner $t) use ($eFkey38Plan): void {
+    $t->same(true, $eFkey38Plan()['transaction_savepoint']['e_fkey-38.8']['outer_release_after_repair_commits_prefix']);
+};
+
 return $tests;

@@ -2674,4 +2674,49 @@ $tests['rowvalue update delete limit dynamic parity rowvalue4 null scalar truth 
         $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
     };
 
+$trimLimitCases = [
+    'outer update trim limit' => [
+        "UPDATE app_settings SET state = 'trim_outer' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT trim('xx2x', 'x') OFFSET ltrim('01', '0')",
+        [2, 3],
+        'trim_outer',
+    ],
+    'outer delete trim comma limit' => [
+        "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT rtrim('100', '0'), trim('--2--', '-')",
+        [2, 3],
+        null,
+    ],
+    'tuple update trim subquery limit' => [
+        "UPDATE app_settings SET state = 'trim_tuple' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT trim('**3**', '*') OFFSET ltrim('01', '0')) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1",
+        [2, 3, 5],
+        'trim_tuple',
+    ],
+    'tuple delete trim subquery limit' => [
+        "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT rtrim('400', '0') OFFSET trim('xx2x', 'x')) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1",
+        [2, 5, 8],
+        null,
+    ],
+];
+
+foreach ($trimLimitCases as $label => [$sql, $expectedIds, $state]) {
+    $tests['rowvalue update delete limit dynamic parity two argument trim ' . $label] =
+        static function (TestRunner $t) use ($execute, $sql, $expectedIds, $state): void {
+            $result = $execute($sql);
+            $t->same($expectedIds, $result['plan']->selectedIds);
+            $t->same($expectedIds, array_column($result['returning'], 'setting_id'));
+            if ($state !== null) {
+                $t->same(array_fill(0, count($expectedIds), $state), array_column($result['returning'], 'state'));
+            } else {
+                $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expectedIds)), array_column($result['tables']['app_settings'], 'setting_id'));
+            }
+            $t->contains('func.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+$tests['rowvalue update delete limit dynamic parity two argument trim null limit rejected'] =
+    static function (TestRunner $t) use ($execute): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => $execute("UPDATE app_settings SET state = 'bad_trim' WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT trim('123', NULL)"));
+        $t->contains('func.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test');
+    };
+
 return $tests;

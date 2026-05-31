@@ -1149,8 +1149,11 @@ final class SQLiteUpdateDeleteReturningSql
         if ($function === 'likelihood' && count($parts) !== 2) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT likelihood() needs two arguments');
         }
-        if (($function === 'upper' || $function === 'lower' || $function === 'trim' || $function === 'ltrim' || $function === 'rtrim') && count($parts) !== 1) {
+        if (($function === 'upper' || $function === 'lower') && count($parts) !== 1) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one argument");
+        }
+        if (($function === 'trim' || $function === 'ltrim' || $function === 'rtrim') && count($parts) !== 1 && count($parts) !== 2) {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs one or two arguments");
         }
         if (($function === 'substr' || $function === 'substring') && count($parts) !== 2 && count($parts) !== 3) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs two or three arguments");
@@ -1183,15 +1186,16 @@ final class SQLiteUpdateDeleteReturningSql
             return $function === 'upper' ? strtoupper((string) $values[0]) : strtolower((string) $values[0]);
         }
         if ($function === 'trim' || $function === 'ltrim' || $function === 'rtrim') {
-            if ($values[0] === null) {
+            if ($values[0] === null || (array_key_exists(1, $values) && $values[1] === null)) {
                 return null;
             }
             $value = (string) $values[0];
+            $characters = array_key_exists(1, $values) ? (string) $values[1] : " \t\n\r\0\x0B";
 
             return match ($function) {
-                'ltrim' => ltrim($value),
-                'rtrim' => rtrim($value),
-                default => trim($value),
+                'ltrim' => ltrim($value, $characters),
+                'rtrim' => rtrim($value, $characters),
+                default => trim($value, $characters),
             };
         }
         if ($function === 'substr' || $function === 'substring') {

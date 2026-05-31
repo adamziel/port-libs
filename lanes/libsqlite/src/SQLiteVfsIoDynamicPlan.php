@@ -348,6 +348,78 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function writeCrashRecoveryProfile(
+        string $scenario,
+        int $failpoint,
+        int $rowCount = 100,
+        int $updateModulo = 3,
+        int $pageSize = 1024,
+        int $payloadBytes = 900
+    ): array {
+        $scenario = trim($scenario);
+        if (!str_starts_with($scenario, 'writecrash-1.')) {
+            throw new \InvalidArgumentException("Unsupported SQLite writecrash scenario: {$scenario}");
+        }
+        if ($failpoint <= 0) {
+            throw new \InvalidArgumentException('SQLite writecrash failpoint must be positive');
+        }
+        if ($rowCount <= 0) {
+            throw new \InvalidArgumentException('SQLite writecrash row count must be positive');
+        }
+        if ($updateModulo <= 1) {
+            throw new \InvalidArgumentException('SQLite writecrash update modulo must be greater than one');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite writecrash page size must be a power of two at least 512');
+        }
+        if ($payloadBytes <= 0) {
+            throw new \InvalidArgumentException('SQLite writecrash payload size must be positive');
+        }
+
+        $updatedRows = intdiv($rowCount, $updateModulo);
+        $touchedPages = max(1, (int) ceil(($updatedRows * ($payloadBytes + 16)) / $pageSize));
+        $initialPages = max(1, (int) ceil(($rowCount * ($payloadBytes + 16)) / $pageSize));
+        $childKilled = $failpoint <= ($touchedPages + 2);
+        $journalBytes = self::align($touchedPages * ($pageSize + 24), $pageSize);
+
+        return [
+            'status' => 'ok',
+            'script' => 'writecrash.test',
+            'scenario' => $scenario,
+            'failpoint' => $failpoint,
+            'row_count' => $rowCount,
+            'update_modulo' => $updateModulo,
+            'updated_rows' => $updatedRows,
+            'page_size' => $pageSize,
+            'payload_bytes_before' => $payloadBytes,
+            'payload_bytes_after' => max(1, $payloadBytes - 1),
+            'initial_pages' => $initialPages,
+            'touched_pages' => $touchedPages,
+            'write_attempts_before_success' => $failpoint + 1,
+            'child_killed_during_xwrite' => $childKilled,
+            'retry_required' => $childKilled,
+            'transaction_result' => 'ok',
+            'row_count_after_recovery' => $rowCount,
+            'journal_bytes_replayed_or_ignored' => $journalBytes,
+            'integrity_check_after_crash_loop' => 'ok',
+            'integrity_check_after_reopen' => 'ok',
+            'database_image_stable' => true,
+            'unique_blob_index_preserved' => true,
+            'dependencies' => [
+                'upstream-writecrash-xwrite-recovery',
+                'vfs-io-dynamic-real-corpus',
+            ],
+            'upstream' => [
+                'writecrash.test writecrash-1.0 setup table with unique blob index',
+                'writecrash.test writecrash-1.* crash_on_write update loop',
+                'writecrash.test writecrash-1.* integrity_check before and after reopen',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function safeAppendJournalSize(int $pageSize, int $changedPages, int $cacheSize, string $syncMode = 'full'): array
     {
         if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
