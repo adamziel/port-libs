@@ -543,7 +543,7 @@ final class GitAttributes
                     $name = substr($class, $i + 2, $end - $i - 2);
                     $mapped = self::posixCharacterClassRegex($name);
                     if ($mapped === null) {
-                        return preg_quote('[' . ($negated ? '!' : '') . $class . ']', '~');
+                        return '(?!)';
                     }
                     $body .= $mapped;
                     $i = $end + 1;
@@ -573,18 +573,18 @@ final class GitAttributes
     private static function posixCharacterClassRegex(string $class): ?string
     {
         return match ($class) {
-            'alnum' => '[:alnum:]',
-            'alpha' => '[:alpha:]',
-            'blank' => '[:blank:]',
-            'cntrl' => '[:cntrl:]',
-            'digit' => '[:digit:]',
-            'graph' => '[:graph:]',
-            'lower' => '[:lower:]',
-            'print' => '[:print:]',
-            'punct' => '[:punct:]',
+            'alnum' => 'A-Za-z0-9',
+            'alpha' => 'A-Za-z',
+            'blank' => '\\x09-\\x0d ',
+            'cntrl' => '\\x00-\\x1f\\x7f',
+            'digit' => '0-9',
+            'graph' => '\\x21-\\x7e',
+            'lower' => 'a-z',
+            'print' => '\\x20-\\x7e',
+            'punct' => '\\x21-\\x2f\\x3a-\\x40\\x5b-\\x60\\x7b-\\x7e',
             'space' => ' ',
-            'upper' => '[:upper:]',
-            'xdigit' => '[:xdigit:]',
+            'upper' => 'A-Z',
+            'xdigit' => 'A-Fa-f0-9',
             default => null,
         };
     }

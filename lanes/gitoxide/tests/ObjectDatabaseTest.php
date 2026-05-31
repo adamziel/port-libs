@@ -313,6 +313,44 @@ return [
             $t->contains('Loose object path is not a regular file', $exception->getMessage());
         }
     },
+    'object database loose integrity applies allocation limits to primary and alternate stores' => static function (TestRunner $t) use ($looseObjectPath): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-alloc-limit-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateObjectsDir = $root . '/shared-cache/.git/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+        if (!mkdir($alternateObjectsDir, 0777, true) && !is_dir($alternateObjectsDir)) {
+            throw new RuntimeException("Unable to create alternate objects directory: {$alternateObjectsDir}");
+        }
+
+        $primaryObject = new GitObject('blob', 'bounded primary body');
+        $primaryOid = (new LooseObjectStore($gitDir))->write($primaryObject);
+        $oversizedOid = str_repeat('2', 40);
+        $oversizedPath = $looseObjectPath($root . '/shared-cache/.git', $oversizedOid);
+        if (!is_dir(dirname($oversizedPath)) && !mkdir(dirname($oversizedPath), 0777, true) && !is_dir(dirname($oversizedPath))) {
+            throw new RuntimeException('Unable to create oversized alternate loose object directory');
+        }
+        $compressed = gzcompress("blob 2048\0small");
+        if ($compressed === false) {
+            throw new RuntimeException('Unable to compress oversized alternate loose object fixture');
+        }
+        file_put_contents($oversizedPath, $compressed);
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $database = new ObjectDatabase($gitDir, looseObjectAllocationLimitBytes: 32);
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected alternate loose object allocation limit to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$oversizedOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Loose object declared size 2048 exceeds allocation limit 32 bytes', $exception->getMessage());
+        }
+        $t->same('bounded primary body', $database->read($primaryOid)->body);
+
+        $t->throws(InvalidArgumentException::class, static fn () => new ObjectDatabase($gitDir, looseObjectAllocationLimitBytes: -1));
+    },
     'object database reads object headers across packed loose and replacement stores' => static function (TestRunner $t) use ($writeWordPressPackFixture): void {
         [$gitDir, $fixture] = $writeWordPressPackFixture();
         $loose = new LooseObjectStore($gitDir);

@@ -9373,6 +9373,77 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * Model trigger1.test 10.0..10.11. TEMP triggers on main/temp/attached
+     * tables survive schema reload, rollback does not leak trigger body rows,
+     * and the unqualified trigger-body target is rebound when insert_log moves
+     * from main to an attached schema.
+     *
+     * @param list<array{schema:string,a:int,b:int,c:int}> $initialRows
+     * @param list<array{schema:string,a:int,b:int,c:int}> $rollbackRows
+     * @param list<array{schema:string,a:int,b:int,c:int}> $reloadRows
+     * @param list<array{schema:string,a:int,b:int,c:int}> $reboundRows
+     * @return array<string,mixed>
+     */
+    public static function trigger1TempTriggerReinstallRebindPlan(
+        array $initialRows,
+        array $rollbackRows,
+        array $reloadRows,
+        array $reboundRows,
+        string $attachedSchema = 'aux'
+    ): array {
+        $attachedSchema = self::identifier($attachedSchema, 'trigger1 attached schema');
+        if ($attachedSchema === 'main' || $attachedSchema === 'temp') {
+            throw new \InvalidArgumentException('SQLite trigger1 attached schema must not be main or temp');
+        }
+
+        $initialRows = self::trigger1TempTriggerRows($initialRows, $attachedSchema);
+        $rollbackRows = self::trigger1TempTriggerRows($rollbackRows, $attachedSchema);
+        $reloadRows = self::trigger1TempTriggerRows($reloadRows, $attachedSchema);
+        $reboundRows = self::trigger1TempTriggerRows($reboundRows, $attachedSchema);
+
+        $initialLog = self::trigger1TempTriggerLogRows($initialRows, 'main');
+        $rollbackAttempted = self::trigger1TempTriggerLogRows($rollbackRows, 'main');
+        $reloadLog = self::trigger1TempTriggerLogRows($reloadRows, 'main');
+        $reboundLog = self::trigger1TempTriggerLogRows($reboundRows, $attachedSchema);
+
+        return [
+            'source' => 'trigger1.test trigger1-10.0..10.11',
+            'operation' => 'temp-trigger-reinstall-and-body-rebind',
+            'status' => 'commit-ok',
+            'attached_schema' => $attachedSchema,
+            'trigger_names' => ['trig1', 'trig2', 'trig3'],
+            'trigger_target_schemas' => ['main', 'temp', $attachedSchema],
+            'initial_input_rows' => $initialRows,
+            'initial_log_rows' => $initialLog,
+            'initial_log_values' => self::trigger1TempTriggerLogValues($initialLog),
+            'initial_log_schema' => 'main',
+            'rollback_input_rows' => $rollbackRows,
+            'rollback_attempted_log_rows' => $rollbackAttempted,
+            'rollback_attempted_values' => self::trigger1TempTriggerLogValues($rollbackAttempted),
+            'rollback_committed_values' => self::trigger1TempTriggerLogValues($initialLog),
+            'transaction_rollback_preserves_log' => true,
+            'reload_input_rows' => $reloadRows,
+            'reload_log_rows' => $reloadLog,
+            'reload_log_values' => self::trigger1TempTriggerLogValues($reloadLog),
+            'temp_triggers_reinstalled_after_schema_reload' => true,
+            'reinstalled_trigger_names' => ['trig1', 'trig2', 'trig3'],
+            'rebound_log_schema' => $attachedSchema,
+            'rebound_input_rows' => $reboundRows,
+            'rebound_log_rows' => $reboundLog,
+            'rebound_log_values' => self::trigger1TempTriggerLogValues($reboundLog),
+            'body_rebound_to_attached_insert_log' => true,
+            'trigger_program_resolves_body_table_at_statement_compile_time' => true,
+            'log_table_column_names_can_change' => true,
+            'dependencies' => [
+                'sqlite-trigger1-temp-triggers-survive-schema-reload',
+                'sqlite-trigger1-trigger-body-name-resolution-is-statement-time',
+                'sqlite-trigger1-temp-trigger-rollback-does-not-leak-body-writes',
+                'sqlite-trigger1-attached-schema-trigger-target-remains-addressable',
+            ],
+        ];
+    }
+
+    /**
      * @return array<string,mixed>
      */
     public static function tempTriggerSharedCacheReloadPlan(int $seed, string $reloadKind, bool $attachedSchema = false): array
@@ -11616,6 +11687,83 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return (string) $value;
+    }
+
+    /**
+     * @param list<array{schema:string,a:int,b:int,c:int}> $rows
+     * @return list<array{schema:string,a:int,b:int,c:int}>
+     */
+    private static function trigger1TempTriggerRows(array $rows, string $attachedSchema): array
+    {
+        if ($rows === []) {
+            throw new \InvalidArgumentException('SQLite trigger1 temp trigger input rows are empty');
+        }
+
+        $normalized = [];
+        foreach ($rows as $row) {
+            $schema = self::identifier((string) ($row['schema'] ?? ''), 'trigger1 temp trigger row schema');
+            if (!in_array($schema, ['main', 'temp', $attachedSchema], true)) {
+                throw new \InvalidArgumentException('SQLite trigger1 temp trigger row schema is unsupported');
+            }
+
+            foreach (['a', 'b', 'c'] as $column) {
+                if (!array_key_exists($column, $row) || !is_int($row[$column])) {
+                    throw new \InvalidArgumentException("SQLite trigger1 temp trigger row {$column} value is malformed");
+                }
+            }
+
+            $normalized[] = [
+                'schema' => $schema,
+                'a' => $row['a'],
+                'b' => $row['b'],
+                'c' => $row['c'],
+            ];
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param list<array{schema:string,a:int,b:int,c:int}> $rows
+     * @return list<array{log_schema:string,trigger:string,db:string,d:int,e:int,f:int}>
+     */
+    private static function trigger1TempTriggerLogRows(array $rows, string $logSchema): array
+    {
+        $log = [];
+        foreach ($rows as $row) {
+            $trigger = match ($row['schema']) {
+                'main' => 'trig1',
+                'temp' => 'trig2',
+                default => 'trig3',
+            };
+            $log[] = [
+                'log_schema' => $logSchema,
+                'trigger' => $trigger,
+                'db' => $row['schema'],
+                'd' => $row['a'],
+                'e' => $row['b'],
+                'f' => $row['c'],
+            ];
+        }
+
+        return $log;
+    }
+
+    /**
+     * @param list<array{db:string,d:int,e:int,f:int}> $rows
+     * @return list<array{db:string,d:int,e:int,f:int}>
+     */
+    private static function trigger1TempTriggerLogValues(array $rows): array
+    {
+        return array_values(array_map(
+            static fn (array $row): array => [
+                'db' => $row['db'],
+                'd' => $row['d'],
+                'e' => $row['e'],
+                'f' => $row['f'],
+            ],
+            $rows
+        ));
     }
 
     /**

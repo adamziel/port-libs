@@ -39,6 +39,7 @@ final class ObjectDatabase
     private readonly string $replacementRefBase;
     private readonly ?PromisorObjectResolver $promisorResolver;
     private readonly string $objectHash;
+    private readonly ?int $looseObjectAllocationLimitBytes;
 
     public function __construct(
         string $gitDirectory,
@@ -46,6 +47,7 @@ final class ObjectDatabase
         string $replacementRefBase = 'refs/replace',
         ?PromisorObjectResolver $promisorResolver = null,
         string $objectHash = 'sha1',
+        ?int $looseObjectAllocationLimitBytes = null,
     )
     {
         $this->gitDirectory = $gitDirectory;
@@ -53,6 +55,7 @@ final class ObjectDatabase
         $this->replacementRefBase = $replacementRefBase;
         $this->promisorResolver = $promisorResolver;
         $this->objectHash = self::normalizeObjectHash($objectHash);
+        $this->looseObjectAllocationLimitBytes = self::normalizeLooseObjectAllocationLimit($looseObjectAllocationLimitBytes);
     }
 
     public function contains(string $oid): bool
@@ -347,12 +350,26 @@ final class ObjectDatabase
 
     public function withReplacementsIgnored(): self
     {
-        return new self($this->gitDirectory, true, $this->replacementRefBase, $this->promisorResolver, $this->objectHash);
+        return new self(
+            $this->gitDirectory,
+            true,
+            $this->replacementRefBase,
+            $this->promisorResolver,
+            $this->objectHash,
+            $this->looseObjectAllocationLimitBytes,
+        );
     }
 
     public function withPromisorResolver(PromisorObjectResolver $resolver): self
     {
-        return new self($this->gitDirectory, $this->ignoreReplacements, $this->replacementRefBase, $resolver, $this->objectHash);
+        return new self(
+            $this->gitDirectory,
+            $this->ignoreReplacements,
+            $this->replacementRefBase,
+            $resolver,
+            $this->objectHash,
+            $this->looseObjectAllocationLimitBytes,
+        );
     }
 
     public function write(GitObject $object): string
@@ -526,7 +543,11 @@ final class ObjectDatabase
 
     private function primaryLooseStore(): LooseObjectStore
     {
-        return LooseObjectStore::fromObjectsDirectory($this->objectDirectories()[0], $this->objectHash);
+        return LooseObjectStore::fromObjectsDirectory(
+            $this->objectDirectories()[0],
+            $this->objectHash,
+            $this->looseObjectAllocationLimitBytes,
+        );
     }
 
     /**
@@ -624,7 +645,11 @@ final class ObjectDatabase
         }
 
         $this->looseStores = array_map(
-            fn (string $objectsDirectory): LooseObjectStore => LooseObjectStore::fromObjectsDirectory($objectsDirectory, $this->objectHash),
+            fn (string $objectsDirectory): LooseObjectStore => LooseObjectStore::fromObjectsDirectory(
+                $objectsDirectory,
+                $this->objectHash,
+                $this->looseObjectAllocationLimitBytes,
+            ),
             $this->objectDirectories()
         );
 
@@ -846,5 +871,14 @@ final class ObjectDatabase
         ReferenceTarget::hashHexLength($normalized);
 
         return $normalized;
+    }
+
+    private static function normalizeLooseObjectAllocationLimit(?int $limit): ?int
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('Loose object allocation limit must not be negative');
+        }
+
+        return $limit;
     }
 }

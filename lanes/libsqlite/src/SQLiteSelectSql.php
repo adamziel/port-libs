@@ -2035,13 +2035,42 @@ final class SQLiteSelectSql
             'joins' => $source['joins'],
         ]);
         $hasExplicitAlias = trim(substr($sql, $offset)) !== '';
+        $columns = self::collectColumns($rows);
+        if ($columns === []) {
+            $columns = self::collectColumns(self::wildcardAnnotationRows($source));
+        }
+        if ($hasExplicitAlias) {
+            $columns = self::unqualifiedDerivedColumnNames($columns);
+        }
 
         return [
             'name' => 'join-group',
             'alias' => $alias,
             'rows' => $hasExplicitAlias ? self::unqualifiedDerivedRows($rows) : $rows,
+            'columns' => $columns,
             'qualifyRows' => $hasExplicitAlias,
         ];
+    }
+
+    /**
+     * @param list<string> $columns
+     * @return list<string>
+     */
+    private static function unqualifiedDerivedColumnNames(array $columns): array
+    {
+        $unqualified = [];
+        foreach ($columns as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite SELECT SQL derived rows must have named columns');
+            }
+            $name = str_contains($column, '.') ? substr($column, strrpos($column, '.') + 1) : $column;
+            if (in_array($name, $unqualified, true)) {
+                $name = $column;
+            }
+            $unqualified[] = $name;
+        }
+
+        return $unqualified;
     }
 
     /**
@@ -2855,16 +2884,17 @@ final class SQLiteSelectSql
             $rightRows = ($table['name'] === 'json_each' || $table['name'] === 'json_tree')
                 ? self::qualifiedJsonRows($table['rows'], $table['alias'])
                 : self::qualifiedRows($table['rows'], $table['alias']);
+            $rightColumns = self::tableReferenceResultColumns($table, $rightRows);
             if ($natural) {
-                $columns = self::naturalJoinColumns($leftRows, $rightRows);
+                $columns = self::naturalJoinColumnsFromColumnNames(self::collectColumns($leftRows), $rightColumns);
                 $join = [
                     'type' => $type,
                     'rows' => $rightRows,
-                    'predicate' => self::usingPredicate($columns, $leftRows, $rightRows),
+                    'predicate' => self::usingPredicate($columns, $leftRows, $rightRows, self::collectColumns($leftRows), $rightColumns),
                     'coalesceColumns' => $columns,
                 ];
                 if ($type === 'LEFT' || $type === 'FULL') {
-                    $join['rightColumns'] = self::collectColumns($rightRows);
+                    $join['rightColumns'] = $rightColumns;
                 }
 
                 return [$join, $remaining];
@@ -2915,7 +2945,7 @@ final class SQLiteSelectSql
                 }
             }
             if ($type === 'LEFT' || $type === 'FULL') {
-                $join['rightColumns'] = self::collectColumns($rightRows);
+                $join['rightColumns'] = self::tableReferenceResultColumns($table, $rightRows);
                 if ($join['rightColumns'] === [] && ($table['name'] === 'json_each' || $table['name'] === 'json_tree')) {
                     $join['rightColumns'] = self::qualifiedJsonTableColumns($table['alias']);
                 }
@@ -2948,13 +2978,20 @@ final class SQLiteSelectSql
             foreach ($columns as $column) {
                 self::assertBareIdentifier($column, 'SQLite SELECT SQL JOIN USING column');
             }
-            $join['predicate'] = self::usingPredicate($columns, $leftRows, $join['rows']);
+            $joinRightColumns = self::tableReferenceResultColumns($table, $join['rows']);
+            $join['predicate'] = self::usingPredicate(
+                $columns,
+                $leftRows,
+                $join['rows'],
+                self::collectColumns($leftRows),
+                $joinRightColumns,
+            );
             $join['coalesceColumns'] = $columns;
             if ($type === 'CROSS') {
                 $join['type'] = 'INNER';
             }
             if ($type === 'LEFT' || $type === 'FULL') {
-                $join['rightColumns'] = self::collectColumns($join['rows']);
+                $join['rightColumns'] = $joinRightColumns;
             }
 
             return [$join, $remaining];
@@ -3055,7 +3092,7 @@ final class SQLiteSelectSql
             $join['type'] = 'INNER';
         }
         if ($type === 'LEFT' || $type === 'FULL') {
-            $join['rightColumns'] = self::collectColumns($join['rows']);
+            $join['rightColumns'] = self::tableReferenceResultColumns($table, $join['rows']);
             if ($join['rightColumns'] === [] && ($table['name'] === 'json_each' || $table['name'] === 'json_tree')) {
                 $join['rightColumns'] = self::qualifiedJsonTableColumns($table['alias']);
             }
@@ -3366,25 +3403,71 @@ final class SQLiteSelectSql
      */
     private static function naturalJoinColumns(array $leftRows, array $rightRows): array
     {
-        $left = array_map(self::unqualifiedColumn(...), self::collectColumns($leftRows));
-        $right = array_map(self::unqualifiedColumn(...), self::collectColumns($rightRows));
+        return self::naturalJoinColumnsFromColumnNames(self::collectColumns($leftRows), self::collectColumns($rightRows));
+    }
+
+    /**
+     * @param list<string> $leftColumns
+     * @param list<string> $rightColumns
+     * @return list<string>
+     */
+    private static function naturalJoinColumnsFromColumnNames(array $leftColumns, array $rightColumns): array
+    {
+        $left = array_map(self::unqualifiedColumn(...), $leftColumns);
+        $right = array_map(self::unqualifiedColumn(...), $rightColumns);
 
         return array_values(array_intersect($left, $right));
+    }
+
+    /**
+     * @param array{name:string,alias:string,rows:list<array<string,mixed>>,columns?:list<string>} $table
+     * @param list<array<string,mixed>> $qualifiedRows
+     * @return list<string>
+     */
+    private static function tableReferenceResultColumns(array $table, array $qualifiedRows): array
+    {
+        $columns = self::collectColumns($qualifiedRows);
+        if ($columns !== []) {
+            return $columns;
+        }
+
+        $referenceColumns = $table['columns'] ?? [];
+        if (!is_array($referenceColumns) || !array_is_list($referenceColumns)) {
+            return [];
+        }
+
+        $qualified = [];
+        foreach ($referenceColumns as $column) {
+            if (!is_string($column) || $column === '') {
+                continue;
+            }
+            $qualified[] = str_contains($column, '.') ? $column : $table['alias'] . '.' . $column;
+        }
+
+        return array_values(array_unique($qualified));
     }
 
     /**
      * @param list<string> $columns
      * @param list<array<string,mixed>> $leftRows
      * @param list<array<string,mixed>> $rightRows
+     * @param list<string>|null $leftColumnNames
+     * @param list<string>|null $rightColumnNames
      * @return callable(array<string,mixed>,array<string,mixed>):bool
      */
-    private static function usingPredicate(array $columns, array $leftRows, array $rightRows): callable
+    private static function usingPredicate(
+        array $columns,
+        array $leftRows,
+        array $rightRows,
+        ?array $leftColumnNames = null,
+        ?array $rightColumnNames = null
+    ): callable
     {
         if ($columns === []) {
             return static fn (): bool => true;
         }
-        $leftColumns = self::resolveJoinColumnSets($columns, self::collectColumns($leftRows), 'left');
-        $rightColumns = self::resolveJoinColumnSets($columns, self::collectColumns($rightRows), 'right');
+        $leftColumns = self::resolveJoinColumnSets($columns, $leftColumnNames ?? self::collectColumns($leftRows), 'left');
+        $rightColumns = self::resolveJoinColumnSets($columns, $rightColumnNames ?? self::collectColumns($rightRows), 'right');
 
         return static function (array $left, array $right) use ($leftColumns, $rightColumns): bool {
             foreach ($leftColumns as $index => $leftColumn) {

@@ -14,10 +14,13 @@ $matcher = PathspecMatcher::fromSpecs($fixture['deploymentPathspecs']);
 $search = PathspecSearch::fromSpecs($fixture['deploymentPathspecs']);
 $classAttributes = GitAttributes::fromString(
     "wp-content/uploads/[[:digit:]][[:digit:]]/** dated-upload\n"
+    . "\"wp-content/uploads/slot[[:blank:]]/**\" whitespace-upload\n"
+    . "\"wp-content/uploads/[[:unknown:]]/**\" invalid-upload\n"
     . "wp-content/plugins/foo[/]bar.php slash-class\n",
     withBuiltInMacros: false,
 );
 $datedUploadSearch = PathspecSearch::fromSpecs([':(attr:dated-upload)wp-content/uploads/**']);
+$whitespaceUploadSearch = PathspecSearch::fromSpecs([':(attr:whitespace-upload)wp-content/uploads/**']);
 $searchSelected = [];
 foreach ($fixture['paths'] as $path => $isDirectory) {
     if ($search->isIncluded($path, $isDirectory, $attributes)) {
@@ -61,6 +64,17 @@ return [
     ),
     'datedUploadPathspecMatches' => $datedUploadSearch->isIncluded(
         'wp-content/uploads/05/photo.jpg',
+        false,
+        $classAttributes,
+    ),
+    'whitespaceUploadPathspecMatches' => $whitespaceUploadSearch->isIncluded(
+        "wp-content/uploads/slot\v/photo.jpg",
+        false,
+        $classAttributes,
+    ),
+    'invalidClassDoesNotMatchLiteral' => !PathspecMatcher::matchesOne(
+        ':(attr:invalid-upload)wp-content/uploads/**',
+        'wp-content/uploads/[[:unknown:]]/photo.jpg',
         false,
         $classAttributes,
     ),

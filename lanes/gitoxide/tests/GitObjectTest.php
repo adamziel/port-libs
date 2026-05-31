@@ -143,6 +143,44 @@ return [
         file_put_contents($badPath, 'not-zlib');
         $t->throws(RuntimeException::class, static fn () => $store->readHeader($badZlibOid));
     },
+    'loose object store enforces allocation limits from declared header size' => static function (TestRunner $t) use ($writeLooseStorage): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-alloc-limit-' . bin2hex(random_bytes(4)) . '/objects';
+        $oversizedOid = str_repeat('1', 40);
+        $writeLooseStorage($objectsDirectory, $oversizedOid, "blob 1000\0tiny");
+        $boundedStore = LooseObjectStore::fromObjectsDirectory($objectsDirectory, allocationLimitBytes: 16);
+
+        $t->same(16, $boundedStore->allocationLimitBytes());
+        $t->same([
+            'type' => 'blob',
+            'size' => 1000,
+            'headerLength' => strlen("blob 1000\0"),
+        ], $boundedStore->readHeader($oversizedOid));
+
+        try {
+            $boundedStore->read($oversizedOid);
+            throw new RuntimeException('Expected loose object allocation limit to reject declared body size');
+        } catch (RuntimeException $exception) {
+            $t->same('Loose object declared size 1000 exceeds allocation limit 16 bytes', $exception->getMessage());
+        }
+
+        try {
+            $boundedStore->verifyIntegrity();
+            throw new RuntimeException('Expected loose object allocation limit to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$oversizedOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Loose object declared size 1000 exceeds allocation limit 16 bytes', $exception->getMessage());
+        }
+
+        $unboundedStore = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+        try {
+            $unboundedStore->read($oversizedOid);
+            throw new RuntimeException('Expected unbounded loose object read to fail on exact body length');
+        } catch (InvalidArgumentException $exception) {
+            $t->same('Git object body length mismatch: expected 1000, got 4', $exception->getMessage());
+        }
+
+        $t->throws(InvalidArgumentException::class, static fn () => LooseObjectStore::fromObjectsDirectory($objectsDirectory, allocationLimitBytes: -1));
+    },
     'loose object integrity verifies object ids and decodes structured objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-integrity-' . bin2hex(random_bytes(4)) . '/.git';
         $store = new LooseObjectStore($gitDir);
@@ -280,5 +318,9 @@ return [
         $t->same(true, $summary['positiveSizeHeaderAccepted']);
         $t->same($fixture['expectedBlobOid'], $summary['positiveSizeCanonicalOid']);
         $t->same($fixture['positiveSizeLooseHeaderOid'], $summary['positiveSizeRawHeaderOid']);
+        $t->same($fixture['allocationLimitBytes'], $summary['allocationLimitBytes']);
+        $t->same(4096, $summary['oversizedHeaderSize']);
+        $t->same(true, $summary['allocationLimitRejected']);
+        $t->same($fixture['allocationLimitMessage'], $summary['allocationLimitMessage']);
     },
 ];

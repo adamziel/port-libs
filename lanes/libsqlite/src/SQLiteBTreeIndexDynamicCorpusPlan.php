@@ -9602,6 +9602,170 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,or_terms:list<string>,result_a:list<int>,result_rows:list<array<string,int>>,rows_after:list<int>,scan_steps:int,sort_steps:int,chosen_indexes:list<string>,uses_multi_index_or:bool,uses_full_scan:bool,uses_temp_sort:bool,deduplicates_rowids:bool,delete_count:int|null,detail:string,integrity:string}>
+     */
+    public static function where7MultiIndexOrOptimizerCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite where7 multi-index OR optimizer corpus requires at least one case');
+        }
+
+        $rows = [
+            ['a' => 1, 'b' => 2, 'c' => 3, 'd' => 4],
+            ['a' => 2, 'b' => 3, 'c' => 4, 'd' => 5],
+            ['a' => 3, 'b' => 4, 'c' => 6, 'd' => 8],
+            ['a' => 4, 'b' => 5, 'c' => 10, 'd' => 15],
+            ['a' => 5, 'b' => 10, 'c' => 100, 'd' => 1000],
+        ];
+
+        $template = static function (
+            string $section,
+            string $scenario,
+            string $statement,
+            array $orTerms,
+            callable $filter,
+            array $chosenIndexes,
+            int $scanSteps,
+            int $sortSteps,
+            string $detail,
+            bool $descending = false,
+            ?int $deleteCount = null,
+            array $rowsAfter = [],
+        ) use ($rows): array {
+            $resultRows = [];
+            foreach ($rows as $row) {
+                if ($filter($row)) {
+                    $resultRows[] = $row;
+                }
+            }
+
+            usort(
+                $resultRows,
+                static fn (array $left, array $right): int => $descending
+                    ? $right['a'] <=> $left['a']
+                    : $left['a'] <=> $right['a'],
+            );
+
+            return [
+                'section' => $section,
+                'scenario' => $scenario,
+                'statement' => $statement,
+                'or_terms' => $orTerms,
+                'result_rows' => $resultRows,
+                'result_a' => array_column($resultRows, 'a'),
+                'rows_after' => $rowsAfter,
+                'scan_steps' => $scanSteps,
+                'sort_steps' => $sortSteps,
+                'chosen_indexes' => $chosenIndexes,
+                'deduplicates_rowids' => count($resultRows) !== array_sum(array_map(
+                    static function (array $row) use ($orTerms): int {
+                        $matches = 0;
+                        foreach ($orTerms as $term) {
+                            $matches += match ($term) {
+                                'a<2' => $row['a'] < 2 ? 1 : 0,
+                                'a<3' => $row['a'] < 3 ? 1 : 0,
+                                'b=3', '3=b' => $row['b'] === 3 ? 1 : 0,
+                                'c=6' => $row['c'] === 6 ? 1 : 0,
+                                'c>10' => $row['c'] > 10 ? 1 : 0,
+                                'c>=10' => $row['c'] >= 10 ? 1 : 0,
+                                'c=4' => $row['c'] === 4 ? 1 : 0,
+                                'b>10' => $row['b'] > 10 ? 1 : 0,
+                                'd=5 AND b=3' => $row['d'] === 5 && $row['b'] === 3 ? 1 : 0,
+                                'c==100' => $row['c'] === 100 ? 1 : 0,
+                                'b BETWEEN 2 AND 4' => $row['b'] >= 2 && $row['b'] <= 4 ? 1 : 0,
+                                'b BETWEEN 0 AND 2' => $row['b'] >= 0 && $row['b'] <= 2 ? 1 : 0,
+                                'c BETWEEN 9 AND 999' => $row['c'] >= 9 && $row['c'] <= 999 ? 1 : 0,
+                                'd=8' => $row['d'] === 8 ? 1 : 0,
+                                'b=4' => $row['b'] === 4 ? 1 : 0,
+                                'a=11..399' => $row['a'] >= 11 && $row['a'] < 400 ? 1 : 0,
+                                'b=11..399' => $row['b'] >= 11 && $row['b'] < 400 ? 1 : 0,
+                                'c=11..399' => $row['c'] >= 11 && $row['c'] < 400 ? 1 : 0,
+                                'b=11..399 AND d!=0' => $row['b'] >= 11 && $row['b'] < 400 && $row['d'] !== 0 ? 1 : 0,
+                                'c=11..399 AND d IS NOT NULL' => $row['c'] >= 11 && $row['c'] < 400 ? 1 : 0,
+                                'a=b in 11..399' => $row['a'] === $row['b'] && $row['a'] >= 11 && $row['a'] < 400 ? 1 : 0,
+                                'b=c in 11..399' => $row['b'] === $row['c'] && $row['b'] >= 11 && $row['b'] < 400 ? 1 : 0,
+                                default => 0,
+                            };
+                        }
+
+                        return $matches;
+                    },
+                    $resultRows,
+                )),
+                'delete_count' => $deleteCount,
+                'detail' => $detail,
+            ];
+        };
+
+        $templates = [
+            $template(
+                'where7-1.1.1',
+                'DELETE with overlapping OR arms deletes each rowid once while count_changes reports two rows',
+                'DELETE FROM t WHERE a<2 OR a<3',
+                ['a<2', 'a<3'],
+                static fn (array $row): bool => $row['a'] < 3,
+                ['ta'],
+                0,
+                0,
+                'SEARCH t USING INDEX ta for overlapping OR terms; rowids are de-duplicated before delete',
+                false,
+                2,
+                [],
+            ),
+            $template('where7-1.2', 'equality OR terms on b and c use both indexes before ORDER BY rowid sort', 'SELECT a FROM t1 WHERE b=3 OR c=6 ORDER BY a', ['b=3', 'c=6'], static fn (array $row): bool => $row['b'] === 3 || $row['c'] === 6, ['t1b', 't1c'], 0, 1, 'MULTI-INDEX OR over t1b and t1c, followed by temp sort for ORDER BY a'),
+            $template('where7-1.3', 'unary plus on c disables the c index and forces a table scan', 'SELECT a FROM t1 WHERE b=3 OR +c=6 ORDER BY a', ['b=3', 'c=6'], static fn (array $row): bool => $row['b'] === 3 || $row['c'] === 6, [], 4, 0, 'SCAN t1 because +c prevents the second OR arm from using t1c'),
+            $template('where7-1.4', 'unary plus on b disables the b index and forces a table scan', 'SELECT a FROM t1 WHERE +b=3 OR c=6 ORDER BY 1', ['b=3', 'c=6'], static fn (array $row): bool => $row['b'] === 3 || $row['c'] === 6, [], 4, 0, 'SCAN t1 because +b prevents the first OR arm from using t1b'),
+            $template('where7-1.5', 'literal-left equality still uses the b index with c equality', 'SELECT a FROM t1 WHERE 3=b OR c=6 ORDER BY rowid', ['3=b', 'c=6'], static fn (array $row): bool => 3 === $row['b'] || $row['c'] === 6, ['t1b', 't1c'], 0, 1, 'MULTI-INDEX OR normalizes 3=b into b=3 before probing t1b'),
+            $template('where7-1.6', 'AND residual after an indexed OR union keeps both index probes', 'SELECT a FROM t1 WHERE (3=b OR c=6) AND +a>0 ORDER BY a', ['3=b', 'c=6'], static fn (array $row): bool => (3 === $row['b'] || $row['c'] === 6) && $row['a'] > 0, ['t1b', 't1c'], 0, 1, 'MULTI-INDEX OR probes t1b and t1c, then applies the +a residual'),
+            $template('where7-1.7', 'equality plus open range OR uses b equality and c range probes', 'SELECT a FROM t1 WHERE b=3 OR c>10', ['b=3', 'c>10'], static fn (array $row): bool => $row['b'] === 3 || $row['c'] > 10, ['t1b', 't1c'], 0, 0, 'MULTI-INDEX OR uses t1b equality and t1c range c>?'),
+            $template('where7-1.8', 'inclusive c range arm preserves rowid-order OR output', 'SELECT a FROM t1 WHERE b=3 OR c>=10', ['b=3', 'c>=10'], static fn (array $row): bool => $row['b'] === 3 || $row['c'] >= 10, ['t1b', 't1c'], 0, 0, 'MULTI-INDEX OR uses t1b equality and t1c range c>=?'),
+            $template('where7-1.9', 'three OR arms de-duplicate rowids across c range and c equality probes', 'SELECT a FROM t1 WHERE b=3 OR c>=10 OR c=4', ['b=3', 'c>=10', 'c=4'], static fn (array $row): bool => $row['b'] === 3 || $row['c'] >= 10 || $row['c'] === 4, ['t1b', 't1c'], 0, 0, 'MULTI-INDEX OR de-duplicates rowid 2 across b=3 and c=4'),
+            $template('where7-1.10', 'additional empty b range arm does not disturb OR-index output', 'SELECT a FROM t1 WHERE b=3 OR c>=10 OR c=4 OR b>10', ['b=3', 'c>=10', 'c=4', 'b>10'], static fn (array $row): bool => $row['b'] === 3 || $row['c'] >= 10 || $row['c'] === 4 || $row['b'] > 10, ['t1b', 't1c'], 0, 0, 'MULTI-INDEX OR keeps the empty b>? arm from adding duplicates'),
+            $template('where7-1.11', 'AND-qualified b equality arm unions with c equality arm', 'SELECT a FROM t1 WHERE (d=5 AND b=3) OR c==100 ORDER BY a', ['d=5 AND b=3', 'c==100'], static fn (array $row): bool => ($row['d'] === 5 && $row['b'] === 3) || $row['c'] === 100, ['t1b', 't1c'], 0, 1, 'MULTI-INDEX OR uses t1b with d residual and t1c equality'),
+            $template('where7-1.12', 'BETWEEN range arm unions with c equality and orders by a', 'SELECT a FROM t1 WHERE (b BETWEEN 2 AND 4) OR c=100 ORDER BY a', ['b BETWEEN 2 AND 4', 'c==100'], static fn (array $row): bool => ($row['b'] >= 2 && $row['b'] <= 4) || $row['c'] === 100, ['t1b', 't1c'], 0, 1, 'MULTI-INDEX OR uses t1b BETWEEN and t1c equality'),
+            $template('where7-1.13', 'descending ORDER BY after two range arms keeps indexed OR result membership', 'SELECT a FROM t1 WHERE (b BETWEEN 0 AND 2) OR (c BETWEEN 9 AND 999) ORDER BY +a DESC', ['b BETWEEN 0 AND 2', 'c BETWEEN 9 AND 999'], static fn (array $row): bool => ($row['b'] >= 0 && $row['b'] <= 2) || ($row['c'] >= 9 && $row['c'] <= 999), ['t1b', 't1c'], 0, 1, 'MULTI-INDEX OR feeds a descending temp sort', true),
+            $template('where7-1.14', 'unindexed d OR arm prevents OR-index union', 'SELECT a FROM t1 WHERE (d=8 OR c=6 OR b=4) AND +a>0', ['d=8', 'c=6', 'b=4'], static fn (array $row): bool => ($row['d'] === 8 || $row['c'] === 6 || $row['b'] === 4) && $row['a'] > 0, [], 4, 0, 'SCAN t1 because the d=8 OR arm has no usable index'),
+            $template('where7-1.15', 'residual before OR expression still scans when one arm lacks an index', 'SELECT a FROM t1 WHERE +a>=0 AND (d=8 OR c=6 OR b=4)', ['d=8', 'c=6', 'b=4'], static fn (array $row): bool => $row['a'] >= 0 && ($row['d'] === 8 || $row['c'] === 6 || $row['b'] === 4), [], 4, 0, 'SCAN t1 because the residual does not make d=8 indexable'),
+            $template('where7-1.20', 'hundreds of rowid/b equality OR terms can remain index-driven with an empty result', 'SELECT a FROM t1 WHERE a=11..399 OR b=11..399 ORDER BY a', ['a=11..399', 'b=11..399'], static fn (array $row): bool => ($row['a'] >= 11 && $row['a'] < 400) || ($row['b'] >= 11 && $row['b'] < 400), ['rowid', 't1b'], 0, 1, 'MULTI-INDEX OR compiles a large rowid/b term set without a full scan'),
+            $template('where7-1.21', 'large b/c equality OR term set returns the single c=100 row', 'SELECT a FROM t1 WHERE b=11..399 OR c=11..399 ORDER BY a', ['b=11..399', 'c=11..399'], static fn (array $row): bool => ($row['b'] >= 11 && $row['b'] < 400) || ($row['c'] >= 11 && $row['c'] < 400), ['t1b', 't1c'], 0, 1, 'MULTI-INDEX OR compiles a large b/c term set and returns rowid 5'),
+            $template('where7-1.22', 'large indexed OR set with d range residual preserves rowid 5', 'SELECT a FROM t1 WHERE (b=11..399 OR c=11..399) AND d>=0 AND d<9999 ORDER BY a', ['b=11..399', 'c=11..399'], static fn (array $row): bool => (($row['b'] >= 11 && $row['b'] < 400) || ($row['c'] >= 11 && $row['c'] < 400)) && $row['d'] >= 0 && $row['d'] < 9999, ['t1b', 't1c'], 0, 1, 'MULTI-INDEX OR applies d range residual after indexed b/c probes'),
+            $template('where7-1.23', 'large OR set with per-arm d predicates still returns rowid 5 once', 'SELECT a FROM t1 WHERE b/c=11..399 with per-arm d predicates ORDER BY a', ['b=11..399', 'c=11..399', 'b=11..399 AND d!=0', 'c=11..399 AND d IS NOT NULL'], static fn (array $row): bool => (($row['b'] >= 11 && $row['b'] < 400) || ($row['c'] >= 11 && $row['c'] < 400) || ($row['b'] >= 11 && $row['b'] < 400 && $row['d'] !== 0) || ($row['c'] >= 11 && $row['c'] < 400)), ['t1b', 't1c'], 0, 1, 'MULTI-INDEX OR de-duplicates rowid 5 across repeated c and c+d arms'),
+            $template('where7-1.31', 'large rowid plus b equality conjunction OR set remains index-driven but empty', 'SELECT a FROM t1 WHERE (a=11 AND b=11) OR ... ORDER BY a', ['a=b in 11..399'], static fn (array $row): bool => $row['a'] === $row['b'] && $row['a'] >= 11 && $row['a'] < 400, ['rowid', 't1b'], 0, 1, 'MULTI-INDEX OR compiles rowid and b equality conjunctions without matches'),
+            $template('where7-1.32', 'large b/c equality conjunction OR set remains index-driven but empty', 'SELECT a FROM t1 WHERE (b=11 AND c=11) OR ... ORDER BY a', ['b=c in 11..399'], static fn (array $row): bool => $row['b'] === $row['c'] && $row['b'] >= 11 && $row['b'] < 400, ['t1b', 't1c'], 0, 1, 'MULTI-INDEX OR compiles b/c equality conjunctions without matches'),
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $templateCase = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $out[] = [
+                'source' => 'where7.test sections where7-1.1.1 through where7-1.32',
+                'case' => $case,
+                'upstream_section' => $templateCase['section'],
+                'batch' => $batch,
+                'scenario' => $templateCase['scenario'] . ' dynamic batch ' . $batch,
+                'statement' => $templateCase['statement'],
+                'or_terms' => $templateCase['or_terms'],
+                'result_a' => $templateCase['result_a'],
+                'result_rows' => $templateCase['result_rows'],
+                'rows_after' => $templateCase['rows_after'],
+                'scan_steps' => $templateCase['scan_steps'],
+                'sort_steps' => $templateCase['sort_steps'],
+                'chosen_indexes' => $templateCase['chosen_indexes'],
+                'uses_multi_index_or' => $templateCase['chosen_indexes'] !== [] && $templateCase['scan_steps'] === 0,
+                'uses_full_scan' => $templateCase['scan_steps'] > 0,
+                'uses_temp_sort' => $templateCase['sort_steps'] > 0,
+                'deduplicates_rowids' => $templateCase['deduplicates_rowids'],
+                'delete_count' => $templateCase['delete_count'],
+                'detail' => $templateCase['detail'] . '; where7 dynamic replay ' . $batch,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,sql:string,table_shape:string,candidate_indexes:list<string>,chosen_index:string,rejected_indexes:list<string>,equality_prefix:list<string>,range_column:string,order_column:string,uses_temp_btree:bool,detail:string,integrity:string}>
      */
     public static function whereHCompositeSupersetIndexCases(int $cases = 1000): array

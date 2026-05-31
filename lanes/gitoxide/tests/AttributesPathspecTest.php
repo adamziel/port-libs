@@ -83,6 +83,26 @@ return [
         $t->same(true, $search->isIncluded('wp-content/uploads/52/photo.jpg', false, $attributes));
         $t->same(false, $search->isIncluded('wp-content/uploads/42/photo.jpg', false, $attributes));
     },
+    'attribute pathspec filters follow gix wildmatch POSIX blank and invalid class boundaries' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString("\"wp-content/uploads/slot[[:blank:]]/**\" whitespace-upload\n"
+            . "\"wp-content/uploads/[[:unknown:]]/**\" invalid-upload\n", withBuiltInMacros: false);
+
+        $t->same(['whitespace-upload' => true], $attributes->attributesForPath("wp-content/uploads/slot\v/photo.jpg", ['whitespace-upload']));
+        $t->same(['whitespace-upload' => true], $attributes->attributesForPath("wp-content/uploads/slot\t/photo.jpg", ['whitespace-upload']));
+        $t->same(['whitespace-upload' => true], $attributes->attributesForPath('wp-content/uploads/slot /photo.jpg', ['whitespace-upload']));
+        $t->same(['whitespace-upload' => null], $attributes->attributesForPath('wp-content/uploads/slotx/photo.jpg', ['whitespace-upload']));
+        $t->same(['invalid-upload' => null], $attributes->attributesForPath('wp-content/uploads/[[:unknown:]]/photo.jpg', ['invalid-upload']));
+
+        $search = PathspecSearch::fromSpecs([':(attr:whitespace-upload)wp-content/uploads/**']);
+        $t->same(true, $search->isIncluded("wp-content/uploads/slot\v/photo.jpg", false, $attributes));
+        $t->same(false, $search->isIncluded('wp-content/uploads/slotx/photo.jpg', false, $attributes));
+        $t->same(false, PathspecMatcher::matchesOne(
+            ':(attr:invalid-upload)wp-content/uploads/**',
+            'wp-content/uploads/[[:unknown:]]/photo.jpg',
+            false,
+            $attributes,
+        ));
+    },
     'pathspec parser accepts upstream attribute magic and escaped values' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/plugins/** deploy=plugin kind=one,two\n"
             . "wp-content/themes/** deploy=theme kind=one-two\n"

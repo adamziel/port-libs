@@ -281,6 +281,59 @@ return [
             'wp-content/uploads/2026/05/photo.jpg',
         ], $walkPaths($records));
     },
+    'matches gix wildmatch POSIX blank and invalid class boundaries during tree walks' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
+        $blankClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/slot[[:blank:]]/photo.jpg']);
+        $spaceClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/slot[[:space:]]/photo.jpg']);
+        $invalidClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/[[:unknown:]]/photo.jpg']);
+
+        $t->same(true, $blankClass->isIncluded("wp-content/uploads/slot\v/photo.jpg", false));
+        $t->same(true, $blankClass->isIncluded("wp-content/uploads/slot\t/photo.jpg", false));
+        $t->same(true, $blankClass->isIncluded('wp-content/uploads/slot /photo.jpg', false));
+        $t->same(false, $spaceClass->isIncluded("wp-content/uploads/slot\t/photo.jpg", false));
+        $t->same(true, $spaceClass->isIncluded('wp-content/uploads/slot /photo.jpg', false));
+        $t->same(true, $invalidClass->isIncluded('wp-content/uploads/[[:unknown:]]/photo.jpg', false));
+        $t->same(false, $invalidClass->isIncluded('wp-content/uploads/unknown/photo.jpg', false));
+
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $root = new Tree([
+            $tree('wp-content', new Tree([
+                $tree('uploads', new Tree([
+                    $tree("slot\v", new Tree([$blob('photo.jpg')])),
+                    $tree('slot ', new Tree([$blob('photo.jpg')])),
+                    $tree('[[:unknown:]]', new Tree([$blob('photo.jpg')])),
+                ])),
+            ])),
+        ]);
+
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            PathspecSearch::fromSpecs([
+                ':(glob)wp-content/uploads/slot[[:blank:]]/photo.jpg',
+                ':(glob)wp-content/uploads/[[:unknown:]]/photo.jpg',
+            ]),
+            static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+                if (!isset($objects[$entry->oid])) {
+                    throw new RuntimeException("Missing tree object for {$path}");
+                }
+
+                return $objects[$entry->oid];
+            },
+            includeTrees: false,
+        );
+
+        $t->same([
+            "wp-content/uploads/slot\v/photo.jpg",
+            'wp-content/uploads/slot /photo.jpg',
+            'wp-content/uploads/[[:unknown:]]/photo.jpg',
+        ], $walkPaths($records));
+    },
     'matches directory-only pathspecs as verbatim and prefix matches' => static function (TestRunner $t): void {
         $search = PathspecSearch::fromSpecs(['wp-content/plugins/gutenberg/']);
 

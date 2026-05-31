@@ -14,16 +14,27 @@ final class LooseObjectStore
 
     private readonly string $objectsDirectory;
     private readonly string $algorithm;
+    private readonly ?int $allocationLimitBytes;
 
-    public function __construct(string $gitDirectory, bool $pathIsObjectsDirectory = false, string $algorithm = 'sha1')
+    public function __construct(
+        string $gitDirectory,
+        bool $pathIsObjectsDirectory = false,
+        string $algorithm = 'sha1',
+        ?int $allocationLimitBytes = null,
+    )
     {
         $this->objectsDirectory = rtrim($pathIsObjectsDirectory ? $gitDirectory : $gitDirectory . '/objects', '/');
         $this->algorithm = self::normalizeAlgorithm($algorithm);
+        $this->allocationLimitBytes = self::normalizeAllocationLimit($allocationLimitBytes);
     }
 
-    public static function fromObjectsDirectory(string $objectsDirectory, string $algorithm = 'sha1'): self
+    public static function fromObjectsDirectory(
+        string $objectsDirectory,
+        string $algorithm = 'sha1',
+        ?int $allocationLimitBytes = null,
+    ): self
     {
-        return new self($objectsDirectory, true, $algorithm);
+        return new self($objectsDirectory, true, $algorithm, $allocationLimitBytes);
     }
 
     public function objectsDirectory(): string
@@ -34,6 +45,11 @@ final class LooseObjectStore
     public function objectHash(): string
     {
         return $this->algorithm;
+    }
+
+    public function allocationLimitBytes(): ?int
+    {
+        return $this->allocationLimitBytes;
     }
 
     public function write(GitObject $object): string
@@ -66,7 +82,14 @@ final class LooseObjectStore
             throw new \RuntimeException("Loose object path is not a regular file: {$oid}");
         }
 
-        $bytes = gzuncompress((string) file_get_contents($path));
+        $compressed = file_get_contents($path);
+        if ($compressed === false) {
+            throw new \RuntimeException("Unable to read loose object: {$oid}");
+        }
+
+        $this->assertWithinAllocationLimit($compressed, strtolower($oid));
+
+        $bytes = gzuncompress($compressed);
         if ($bytes === false) {
             throw new \RuntimeException("Unable to inflate loose object: {$oid}");
         }
@@ -256,6 +279,27 @@ final class LooseObjectStore
         }
 
         return $algorithm;
+    }
+
+    private static function normalizeAllocationLimit(?int $limit): ?int
+    {
+        if ($limit !== null && $limit < 0) {
+            throw new \InvalidArgumentException('Loose object allocation limit must not be negative');
+        }
+
+        return $limit;
+    }
+
+    private function assertWithinAllocationLimit(string $compressed, string $oid): void
+    {
+        if ($this->allocationLimitBytes === null) {
+            return;
+        }
+
+        $header = GitObject::decodeLooseHeader(self::inflateHeaderBytes($compressed, $oid));
+        if ($header['size'] > $this->allocationLimitBytes) {
+            throw new \RuntimeException("Loose object declared size {$header['size']} exceeds allocation limit {$this->allocationLimitBytes} bytes");
+        }
     }
 
     private static function hashHexLength(string $algorithm): int
