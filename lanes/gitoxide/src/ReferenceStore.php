@@ -1056,7 +1056,7 @@ final class ReferenceStore
             return;
         }
 
-        if (str_contains($message, "\n") || str_contains($message, "\r")) {
+        if (str_contains($message, "\n")) {
             throw new \InvalidArgumentException('Reflog message must not contain newline bytes');
         }
 

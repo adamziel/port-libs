@@ -147,6 +147,27 @@ final class SQLitePragmaSchemaCatalog
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public function executeVirtualTableSelect(string $sql): array
+    {
+        return SQLiteSelectSql::execute($sql, $this->virtualPragmaTables());
+    }
+
+    /**
+     * @return array<string, list<array<string, int|string|null>>>
+     */
+    public function virtualPragmaTables(): array
+    {
+        return [
+            'pragma_function_list' => $this->functionList(),
+            'pragma_module_list' => $this->moduleList(),
+            'pragma_collation_list' => $this->collationList(),
+            'pragma_pragma_list' => $this->pragmaList(),
+        ];
+    }
+
+    /**
      * @return list<SQLiteSchemaRecord>
      */
     public function records(): array

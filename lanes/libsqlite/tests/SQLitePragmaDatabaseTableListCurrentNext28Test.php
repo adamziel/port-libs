@@ -93,7 +93,7 @@ $cases = [
     'table-list main strict true' => ["pragma_table_list()", 'rows.1.strict', 1],
     'table-list main without-rowid false' => ["pragma_table_list()", 'rows.1.wr', 0],
     'table-list main view type' => ["pragma_table_list()", 'rows.2.type', 'view'],
-    'table-list main view ncol bounded' => ["pragma_table_list()", 'rows.2.ncol', 0],
+    'table-list main view ncol matches native view projection' => ["pragma_table_list()", 'rows.2.ncol', 2],
     'table-list main second table name' => ["pragma_table_list()", 'rows.3.name', 'wp_posts'],
     'table-list network table schema' => ["pragma_table_list()", 'rows.4.schema', 'network'],
     'table-list network table name' => ["pragma_table_list()", 'rows.4.name', 'wp_sitemeta'],
@@ -167,7 +167,7 @@ $tests['pragma database table list current next28 standalone catalog table-list'
     $rows = $catalog->executeTableValuedPragma('pragma_table_list()')['rows'];
     $t->same(2, count($rows));
     $t->same(['main', 'wp_options', 'table', 2, 0, 1], array_values($rows[0]));
-    $t->same(['main', 'wp_option_names', 'view', 0, 0, 0], array_values($rows[1]));
+    $t->same(['main', 'wp_option_names', 'view', 1, 0, 0], array_values($rows[1]));
     $t->same(1, count($catalog->executeTableValuedPragma("pragma_table_list('wp_options')")['rows']));
 };
 

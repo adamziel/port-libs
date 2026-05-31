@@ -230,7 +230,7 @@ final class PreparedReferenceTransaction
         if ($reflog['committer'] === null) {
             throw new \InvalidArgumentException('Reflog updates need a committer signature');
         }
-        if (str_contains($reflog['message'], "\n") || str_contains($reflog['message'], "\r")) {
+        if (str_contains($reflog['message'], "\n")) {
             throw new \InvalidArgumentException('Reflog message must not contain newline bytes');
         }
 

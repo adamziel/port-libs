@@ -6,9 +6,7 @@ cd "$ROOT"
 
 MAX_WORKERS="${MAX_WORKERS:-3}"
 AGENT_BIN="${AGENT_BIN:-codex}"
-AGENT_FAST_MODEL="${AGENT_FAST_MODEL:-gpt-5.5}"
-AGENT_FAST_REASONING="${AGENT_FAST_REASONING:-xhigh}"
-AGENT_FAST_SERVICE_TIER="${AGENT_FAST_SERVICE_TIER:-priority}"
+source "$ROOT/scripts/agent-fast-profile.sh"
 LANES=(gitoxide lightningcss markerpdf libsqlite readability pandoc quadrable syncthing difftastic rclone dolt esbuild)
 if [[ -n "${LANES_OVERRIDE:-}" ]]; then
   # Space-separated lane slugs, for example:

@@ -188,7 +188,7 @@ final class ReflogEntry
         if ($previous !== null && !$previous->isObject()) {
             $previous = null;
         }
-        if (str_contains($message, "\n") || str_contains($message, "\r")) {
+        if (str_contains($message, "\n")) {
             throw new \InvalidArgumentException('Reflog message must not contain newline bytes');
         }
 

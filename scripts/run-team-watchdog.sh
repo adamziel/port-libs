@@ -5,6 +5,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 AGENT_BIN="${AGENT_BIN:-codex}"
+source "$ROOT/scripts/agent-fast-profile.sh"
 INTERVAL_SECONDS="${WATCHDOG_INTERVAL_SECONDS:-60}"
 RESTART_LOAD_LIMIT="${WATCHDOG_RESTART_LOAD_LIMIT:-13}"
 WATCHDOG_USE_ISOLATED_LANE_WORKERS="${WATCHDOG_USE_ISOLATED_LANE_WORKERS:-1}"
@@ -287,7 +288,7 @@ start_lane_worker() {
   if is_truthy "$WATCHDOG_USE_ISOLATED_LANE_WORKERS"; then
     slice="$(lane_slice_label "$lane")"
     run_or_print_respawn "$session" \
-      "cd '$ROOT' && exec env AGENT_BIN='$AGENT_BIN' AGENT_FAST_MODEL='${AGENT_FAST_MODEL:-gpt-5.5}' AGENT_FAST_REASONING='${AGENT_FAST_REASONING:-xhigh}' AGENT_FAST_SERVICE_TIER='${AGENT_FAST_SERVICE_TIER:-priority}' '$ROOT/scripts/run-isolated-lane-worker.sh' '$lane' '$slice' '$session'"
+      "cd '$ROOT' && exec env AGENT_BIN='$AGENT_BIN' AGENT_FAST_MODEL='$AGENT_FAST_MODEL' AGENT_FAST_REASONING='$AGENT_FAST_REASONING' AGENT_FAST_SERVICE_TIER='$AGENT_FAST_SERVICE_TIER' '$ROOT/scripts/run-isolated-lane-worker.sh' '$lane' '$slice' '$session'"
     printf '%s restarted %s as isolated lane worker slice %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$session" "$slice"
     return
   fi

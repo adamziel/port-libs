@@ -6,9 +6,7 @@ SESSION_NAME="${1:?session name required}"
 PROMPT_FILE="${2:?prompt file required}"
 LOG_FILE="${3:?log file required}"
 AGENT_BIN="${AGENT_BIN:-codex}"
-AGENT_FAST_MODEL="${AGENT_FAST_MODEL:-gpt-5.5}"
-AGENT_FAST_REASONING="${AGENT_FAST_REASONING:-xhigh}"
-AGENT_FAST_SERVICE_TIER="${AGENT_FAST_SERVICE_TIER:-priority}"
+source "$ROOT/scripts/agent-fast-profile.sh"
 RUN_TMUX_AGENT_STAY_OPEN="${RUN_TMUX_AGENT_STAY_OPEN:-1}"
 
 cd "$ROOT" || exit 1

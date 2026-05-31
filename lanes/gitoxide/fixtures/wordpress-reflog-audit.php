@@ -18,11 +18,11 @@ return [
         'time' => '1770000000 +0000',
     ],
     'messages' => [
-        'deploy: publish audited block export',
+        "deploy: publish audited block export\rprogress=done",
         'deploy: rollback failed import review',
     ],
     'expectedForwardMessages' => [
-        'deploy: publish audited block export',
+        "deploy: publish audited block export\rprogress=done",
         'deploy: rollback failed import review',
     ],
     'expectedReverseNewOids' => [

@@ -41,6 +41,14 @@ return [
             InvalidArgumentException::class,
             static fn () => ReflogEntry::parse("{$zeros} {$zeros} one <foo@example.com> 1234567890 -0000message"),
         );
+
+        $angleMessage = 'rebase (pick): Replace Into<Range<u32>> by From<LineRange>';
+        $angleLine = "7b114132d03c468a9cd97836901553658c9792de 306cdbab5457c323d1201aa8a59b3639f600a758 First Last <first.last@example.com> 1727013187 +0200\t{$angleMessage}";
+        $angleEntry = ReflogEntry::parse($angleLine);
+        $t->same('First Last', $angleEntry->signature->name);
+        $t->same('first.last@example.com', $angleEntry->signature->email);
+        $t->same('1727013187 +0200', $angleEntry->signature->time);
+        $t->same($angleMessage, $angleEntry->message);
     },
     'reference store appends and parses reflog entries forward and reverse' => static function (TestRunner $t) use ($old, $new, $other, $zeros): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-reflog-forward-reverse-' . bin2hex(random_bytes(4));
@@ -169,6 +177,89 @@ return [
         $t->same("{$zeros} {$new} Deploy Bot <deploy@example.com> 1234 +0000\n", $line);
         $parsed = ReflogEntry::parse($line);
         $t->same('', $parsed->message);
+    },
+    'reflog append preserves carriage returns while rejecting line feeds like upstream' => static function (TestRunner $t) use ($old, $new, $other, $zeros): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-reflog-cr-message-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $message = "deploy: publish audited blocks\rprogress=done";
+
+        $line = ReflogEntry::appendLine(
+            ReferenceTarget::object($old),
+            ReferenceTarget::object($new),
+            $committer,
+            $message,
+        );
+        $t->same("{$old} {$new} Deploy Bot <deploy@example.com> 1234 +0000\t{$message}\n", $line);
+
+        $entry = ReflogEntry::parse($line);
+        $t->same($message, $entry->message);
+        $t->same($line, $entry->storageBytes());
+
+        $emptyStored = (new ReflogEntry($zeros, $old, $committer, ''))->storageBytes();
+        $t->same("{$zeros} {$old} Deploy Bot <deploy@example.com> 1234 +0000\t\n", $emptyStored);
+
+        $store->appendReflog(
+            'refs/heads/main',
+            ReferenceTarget::object($old),
+            ReferenceTarget::object($new),
+            $committer,
+            $message,
+        );
+        $entries = $store->reflogEntries('refs/heads/main');
+        $t->same(1, count($entries ?? []));
+        $t->same($message, $entries[0]->message);
+        $t->contains("\rprogress=done\n", (string) $store->reflogContents('refs/heads/main'));
+
+        $preparedStore = new ReferenceStore($dir . '-prepared');
+        $preparedStore
+            ->prepareLooseUpdateTransaction(
+                ['refs/heads/prepared' => ReferenceTarget::object($other)],
+                'sha1',
+                $committer,
+                $message,
+                true,
+            )
+            ->commit();
+        $preparedEntries = $preparedStore->reflogEntries('refs/heads/prepared');
+        $t->same(1, count($preparedEntries ?? []));
+        $t->same($message, $preparedEntries[0]->message);
+        $t->same($zeros, $preparedEntries[0]->previousOid);
+
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => ReflogEntry::appendLine(
+                ReferenceTarget::object($old),
+                ReferenceTarget::object($new),
+                $committer,
+                "bad\nline",
+            ),
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $store->appendReflog(
+                'refs/heads/line-feed',
+                null,
+                ReferenceTarget::object($new),
+                $committer,
+                "bad\nline",
+            ),
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static function () use ($dir, $committer, $new): void {
+                $lineFeedStore = new ReferenceStore($dir . '-line-feed-prepared');
+                $lineFeedStore
+                    ->prepareLooseUpdateTransaction(
+                        ['refs/heads/prepared' => ReferenceTarget::object($new)],
+                        'sha1',
+                        $committer,
+                        "bad\nline",
+                        true,
+                    )
+                    ->commit();
+            },
+        );
     },
     'reflog parser reports malformed iterator entries with line numbers' => static function (TestRunner $t) use ($old, $new, $zeros): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-reflog-malformed-' . bin2hex(random_bytes(4));

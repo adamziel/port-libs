@@ -20,9 +20,7 @@ refill_lane_on_exit() {
 trap refill_lane_on_exit EXIT
 
 AGENT_BIN="${AGENT_BIN:-codex}"
-AGENT_FAST_MODEL="${AGENT_FAST_MODEL:-gpt-5.5}"
-AGENT_FAST_REASONING="${AGENT_FAST_REASONING:-xhigh}"
-AGENT_FAST_SERVICE_TIER="${AGENT_FAST_SERVICE_TIER:-priority}"
+source "$ROOT/scripts/agent-fast-profile.sh"
 
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 SAFE_SESSION="$(printf '%s' "$SESSION" | tr -cs 'A-Za-z0-9._-' '-')"

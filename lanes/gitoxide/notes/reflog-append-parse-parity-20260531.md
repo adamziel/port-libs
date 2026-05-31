@@ -140,3 +140,50 @@ No new support component is needed. The slice reuses existing native reflog pars
 Non-overlap:
 
 This does not repeat the accepted reflog line parser, direct append, empty-directory recovery, tolerant parse diagnostics, prepared-reference reflog transactions, packed-ref transactions, send-pack status parsing, sparse-checkout, or commit-signature slices. It adds the remaining fixed-buffer reverse scan boundary from upstream `gix-ref` reflog iteration.
+
+## Follow-up: Carriage-Return Message Preservation
+
+Slice: `gitoxide-reflog-append-parse-parity-20260531T105402Z`
+
+Base accepted HEAD: `229ee6ac6ba54ebcac89b65db02638641eecef2d`
+
+Additional upstream source truth:
+
+- Read `gix-ref/src/store/file/log/line.rs`.
+- Read `gix-ref/tests/refs/file/log.rs`.
+- Read `gix-ref/src/store/file/loose/reflog.rs`.
+- Ran exact upstream check:
+  `timeout 180 cargo test -p gix-ref --test refs file::log::line::write_to::round_trips --features sha1,sha256 -- --exact --nocapture`
+  passed `1` test, `0` failed, `143` filtered.
+
+Mapped behavior:
+
+- The upstream reflog line writer rejects LF bytes in messages, but its message check is byte-specific and does not reject carriage-return bytes inside the message payload.
+- Reflog message parsing continues to split on the first tab and the first LF line terminator, so an embedded CR remains part of the parsed message.
+- Upstream parser coverage also keeps angle brackets inside tab-separated messages separate from the committer signature.
+
+Native changes:
+
+- Relaxed direct, prepared, and standalone reflog append validation to reject LF bytes while preserving CR bytes in the message.
+- Added focused parser coverage for angle brackets inside a reflog message.
+- Extended the WordPress reflog audit fixture with a CR-bearing deployment progress fragment so the example proves native audit-message preservation without invoking `git reflog`.
+
+Verification:
+
+- `php -l lanes/gitoxide/src/ReflogEntry.php`: pass.
+- `php -l lanes/gitoxide/src/ReferenceStore.php`: pass.
+- `php -l lanes/gitoxide/src/PreparedReferenceTransaction.php`: pass.
+- `php -l lanes/gitoxide/tests/ReflogTest.php`: pass.
+- `php -l lanes/gitoxide/fixtures/wordpress-reflog-audit.php`: pass.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReflogTest.php`: `1 test files, 124 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReferenceStoreTest.php`: `1 test files, 393 assertions, 0 failures`.
+- `php tools/run-tests.php lanes/gitoxide/tests`: `39 test files, 4300 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-reflog-audit.php`: exit `0`.
+
+Dependency closure:
+
+No new support component is needed. The slice reuses existing native reflog parsing, reference-store append, prepared transaction, and commit-signature helpers; no shell-out, live provider, credential, or external Git process is required.
+
+Non-overlap:
+
+This does not repeat the accepted direct append, empty-directory recovery, tolerant iterator diagnostics, bounded reverse scans, SHA-256 reflog IDs, prepared-reference transaction ordering, packed-ref sidecar refresh, or protocol/send-pack slices. It narrows the remaining reflog append message-byte validation gap against upstream writer behavior.

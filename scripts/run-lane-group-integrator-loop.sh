@@ -19,9 +19,7 @@ case "$GROUP" in
 esac
 
 AGENT_BIN="${AGENT_BIN:-codex}"
-AGENT_FAST_MODEL="${AGENT_FAST_MODEL:-gpt-5.5}"
-AGENT_FAST_REASONING="${AGENT_FAST_REASONING:-xhigh}"
-AGENT_FAST_SERVICE_TIER="${AGENT_FAST_SERVICE_TIER:-priority}"
+source "$ROOT/scripts/agent-fast-profile.sh"
 INTERVAL_SECONDS="${LANE_GROUP_INTEGRATOR_INTERVAL_SECONDS:-900}"
 SESSION_NAME="${SESSION_NAME:-port-integrator-${GROUP}}"
 PROMPT_FILE="${PROMPT_FILE:-$ROOT/.tmux-team/prompts/integrator-${GROUP}.md}"
