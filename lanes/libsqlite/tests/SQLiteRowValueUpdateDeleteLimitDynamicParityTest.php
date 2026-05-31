@@ -70,6 +70,11 @@ $updateHexLimit = "UPDATE app_settings SET state = 'hex_limit' WHERE load_policy
 $deleteHexCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT 0x1, 0x2";
 $updateRowValueExponentSubqueryLimit = "UPDATE app_settings SET state = 'exponent_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT 2e+0 OFFSET 1e0) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
 $deleteRowValueHexSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT 0x3 OFFSET 0x1) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+$updateBooleanLimit = "UPDATE app_settings SET state = 'bool_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT TRUE OFFSET FALSE";
+$deleteBooleanCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT TRUE, TRUE+TRUE";
+$updateRowValueBooleanSubqueryLimit = "UPDATE app_settings SET state = 'bool_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT TRUE+TRUE OFFSET FALSE) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+$deleteRowValueBooleanSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT TRUE+TRUE OFFSET TRUE) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+$updateFalseLimit = "UPDATE app_settings SET state = 'false_limit' WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT FALSE OFFSET TRUE";
 
 $cases = [
     'parse update negative offset retained' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateNegativeOffset)['offset'], -4],
@@ -160,6 +165,19 @@ $cases = [
     'update row-value exponent subquery returns source order' => [static fn (): mixed => array_column($execute($updateRowValueExponentSubqueryLimit)['returning'], 'setting_id'), [3, 5]],
     'delete row-value hexadecimal subquery window applies before tuple match' => [static fn (): mixed => $execute($deleteRowValueHexSubqueryLimit)['plan']->selectedIds, [2, 3, 5]],
     'delete row-value hexadecimal subquery keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueHexSubqueryLimit)['tables']['app_settings'], 'setting_id'), [1, 4, 6, 7, 8]],
+    'parse update boolean true limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateBooleanLimit)['limit'], 1],
+    'parse update boolean false offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateBooleanLimit)['offset'], 0],
+    'update boolean limit selects one ordered row' => [static fn (): mixed => $execute($updateBooleanLimit)['plan']->selectedIds, [5]],
+    'update boolean limit returns one source-order row' => [static fn (): mixed => array_column($execute($updateBooleanLimit)['returning'], 'setting_id'), [5]],
+    'parse delete boolean comma offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteBooleanCommaLimit)['offset'], 1],
+    'parse delete boolean comma count expression' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteBooleanCommaLimit)['limit'], 2],
+    'delete boolean comma limit skips first ordered row' => [static fn (): mixed => $execute($deleteBooleanCommaLimit)['plan']->selectedIds, [2, 3]],
+    'update row-value boolean subquery applies before tuple match' => [static fn (): mixed => $execute($updateRowValueBooleanSubqueryLimit)['plan']->selectedIds, [3, 6]],
+    'update row-value boolean subquery returns source order' => [static fn (): mixed => array_column($execute($updateRowValueBooleanSubqueryLimit)['returning'], 'setting_id'), [3, 6]],
+    'delete row-value boolean subquery applies before tuple match' => [static fn (): mixed => $execute($deleteRowValueBooleanSubqueryLimit)['plan']->selectedIds, [3, 5]],
+    'delete row-value boolean subquery keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueBooleanSubqueryLimit)['tables']['app_settings'], 'setting_id'), [1, 2, 4, 6, 7, 8]],
+    'update false limit selects no rows' => [static fn (): mixed => $execute($updateFalseLimit)['plan']->selectedIds, []],
+    'update false limit leaves result unchanged' => [static fn (): mixed => array_column($execute($updateFalseLimit)['tables']['app_settings'], 'state', 'setting_id'), [1 => 'live', 2 => 'live', 3 => 'stale', 4 => 'stale', 5 => 'queued', 6 => 'queued', 7 => null, 8 => 'stale']],
     'malformed cast null limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT CAST(NULL AS INTEGER)"), InvalidArgumentException::class],
     'malformed cast blob offset rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET CAST(X'ABCD' AS INT)"), InvalidArgumentException::class],
     'malformed nonintegral real cast limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT CAST('2.5' AS REAL)"), InvalidArgumentException::class],
@@ -286,6 +304,42 @@ for ($seed = 1; $seed <= 36; $seed++) {
             $t->same(0, SQLiteUpdateDeleteReturningSql::parse($sql)['offset']);
             $t->same($expected, $result['plan']->selectedIds);
             $t->same($expected, array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitExpr = $seed % 2 === 0 ? 'TRUE+TRUE' : 'TRUE';
+    $offsetExpr = $seed % 3 === 0 ? 'FALSE' : 'TRUE';
+    $limitValue = $seed % 2 === 0 ? 2 : 1;
+    $offsetValue = $seed % 3 === 0 ? 0 : 1;
+    $sql = "UPDATE app_settings SET state = 'bool_dyn' WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update boolean window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitExpr = $seed % 2 === 0 ? 'TRUE+TRUE' : 'TRUE';
+    $offsetExpr = $seed % 4 === 0 ? 'FALSE' : 'TRUE';
+    $limitValue = $seed % 2 === 0 ? 2 : 1;
+    $offsetValue = $seed % 4 === 0 ? 0 : 1;
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue boolean subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(min($limitValue, count($expected)), count($result['returning']));
         };
 }
 

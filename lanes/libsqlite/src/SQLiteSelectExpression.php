@@ -616,6 +616,9 @@ final class SQLiteSelectExpression
 
     private static function jsonOperatorPath(mixed $operand): string
     {
+        if ($operand instanceof SQLiteJsonSubtypeValue) {
+            $operand = $operand->json;
+        }
         if ($operand instanceof SQLiteBlobValue || is_bool($operand) || is_float($operand) || is_string($operand)) {
             $path = SQLiteJsonPath::normalizeOperatorPath($operand);
             if ($path === null) {

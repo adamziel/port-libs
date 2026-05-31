@@ -1798,6 +1798,79 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,table:string,index_name:string,index_columns:list<string>,transaction:string,duplicate_rows:list<array<int,mixed>>,pre_index_rows:list<array<int,mixed>>,expected_error:string,commit_result:list<mixed>,schema_objects_after_error:list<string>,integrity:string,leaves_index_residue:bool}>
+     */
+    public static function index3UniqueRollbackCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite upstream index3 unique rollback corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                't1',
+                'i1',
+                ['a'],
+                [[1], [1]],
+                'UNIQUE constraint failed: t1.a',
+            ],
+            [
+                't1',
+                'i1_ab',
+                ['a', 'b'],
+                [[1, 'same'], [1, 'same']],
+                'UNIQUE constraint failed: t1.a, t1.b',
+            ],
+            [
+                't_dup_text',
+                'i_dup_text',
+                ['label'],
+                [['alpha'], ['alpha']],
+                'UNIQUE constraint failed: t_dup_text.label',
+            ],
+            [
+                't_dup_null_mixed',
+                'i_dup_mixed',
+                ['a', 'b'],
+                [[null, 7], [null, 7], [2, 9], [2, 9]],
+                'UNIQUE constraint failed: t_dup_null_mixed.a, t_dup_null_mixed.b',
+            ],
+            [
+                't_dup_numeric',
+                'i_dup_numeric',
+                ['n'],
+                [['2'], [2], ['2.0']],
+                'UNIQUE constraint failed: t_dup_numeric.n',
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$table, $indexName, $columns, $duplicates, $error] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $rows[] = [
+                'source' => 'index3.test index3-1.1 through index3-1.4',
+                'case' => $case,
+                'upstream_section' => 'index3-1.' . (1 + (($case - 1) % 4)),
+                'batch' => $batch,
+                'table' => $table,
+                'index_name' => $indexName,
+                'index_columns' => $columns,
+                'transaction' => 'BEGIN; CREATE UNIQUE INDEX; catchsql COMMIT',
+                'duplicate_rows' => $duplicates,
+                'pre_index_rows' => $duplicates,
+                'expected_error' => $error,
+                'commit_result' => [0, ''],
+                'schema_objects_after_error' => [$table],
+                'integrity' => 'ok',
+                'leaves_index_residue' => false,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,storage:string,index_name:string,expression:string,predicate:string,result_rows:list<array<int,mixed>>,detail:string,uses_index:bool,collation:string,order:string,mutation_column:string|null,recomputes_index:bool,expected_refcount:int|null}>
      */
     public static function indexExpressionDynamicCases(int $cases = 1200): array

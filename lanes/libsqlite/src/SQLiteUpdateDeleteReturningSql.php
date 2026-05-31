@@ -668,6 +668,12 @@ final class SQLiteUpdateDeleteReturningSql
         if (strcasecmp($expression, 'NULL') === 0 || preg_match('/^X\'[0-9A-F]*\'$/i', $expression) === 1) {
             return null;
         }
+        if (strcasecmp($expression, 'TRUE') === 0) {
+            return 1;
+        }
+        if (strcasecmp($expression, 'FALSE') === 0) {
+            return 0;
+        }
         if (preg_match('/^CAST\s*\((.+)\s+AS\s+([A-Za-z]+)\s*\)$/is', $expression, $match) === 1) {
             $value = self::limitExpressionValue(trim($match[1]));
             return self::castLimitExpressionValue($value, strtoupper($match[2]));
@@ -1181,6 +1187,8 @@ final class SQLiteUpdateDeleteReturningSql
         if (
             preg_match("/^'.*'$/s", $expression) === 1
             || strcasecmp($expression, 'NULL') === 0
+            || strcasecmp($expression, 'TRUE') === 0
+            || strcasecmp($expression, 'FALSE') === 0
             || preg_match('/^-?(?:\d+|\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?$/', $expression) === 1
         ) {
             return self::literal($expression);
@@ -2132,6 +2140,12 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (strcasecmp($sql, 'NULL') === 0) {
             return null;
+        }
+        if (strcasecmp($sql, 'TRUE') === 0) {
+            return 1;
+        }
+        if (strcasecmp($sql, 'FALSE') === 0) {
+            return 0;
         }
         if (preg_match('/^-?\d+$/', $sql) === 1) {
             return (int) $sql;

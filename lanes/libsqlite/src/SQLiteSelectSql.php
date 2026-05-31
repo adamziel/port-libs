@@ -29,9 +29,7 @@ final class SQLiteSelectSql
     public static function recursiveCteCycleTrace(string $sql, array $tables, array $parameters = []): array
     {
         $sql = trim(rtrim(self::stripSqlComments(trim($sql)), ';'));
-        if ($parameters !== []) {
-            $sql = self::bindParameters($sql, $parameters);
-        }
+        $sql = self::bindParameters($sql, $parameters);
         [$entries, $mainSql, $recursive] = self::withEntries($sql);
         if (!$recursive) {
             throw new \InvalidArgumentException('SQLite SELECT SQL recursive CTE trace needs WITH RECURSIVE');
@@ -71,9 +69,7 @@ final class SQLiteSelectSql
     public static function plan(string $sql, array $tables, array $parameters = [], ?array $outerRow = null): array
     {
         $sql = trim(rtrim(self::stripSqlComments(trim($sql)), ';'));
-        if ($parameters !== []) {
-            $sql = self::bindParameters($sql, $parameters);
-        }
+        $sql = self::bindParameters($sql, $parameters);
         if (preg_match('/^with\s+/i', $sql) === 1) {
             [$tables, $sql, $cteNames] = self::materializeWithTables($sql, $tables);
         } else {
@@ -483,7 +479,7 @@ final class SQLiteSelectSql
             }
         }
 
-        throw new \InvalidArgumentException("SQLite SELECT SQL bind parameter {$token} is missing");
+        return null;
     }
 
     private static function parameterLiteral(mixed $value): string
@@ -4778,7 +4774,7 @@ final class SQLiteSelectSql
     {
         $before = $sql[$offset - 1] ?? '';
         $after = $sql[$offset + strlen($operator)] ?? '';
-        if (($operator === '>' || $operator === '<' || $operator === '=') && ($before === '<' || $before === '>' || $before === '!' || $after === '=' || $after === '>' || $after === '<')) {
+        if (($operator === '>' || $operator === '<' || $operator === '=') && ($before === '<' || $before === '>' || $before === '!' || $before === '-' || $after === '=' || $after === '>' || $after === '<')) {
             return false;
         }
         if (($operator === '>=' || $operator === '<=' || $operator === '<>' || $operator === '!=' || $operator === '==') && ($before === '<' || $before === '>' || $before === '!' || $before === '=' || $after === '=' || $after === '>')) {

@@ -91,7 +91,6 @@ $errorCases = [
     'fromless group by remains unsupported' => 'SELECT count(*) AS c GROUP BY c',
     'fromless having remains unsupported' => 'SELECT 1 AS v HAVING v = 1',
     'wildcard without source' => 'SELECT *',
-    'missing bind parameter' => 'SELECT ?1 AS v',
     'unknown column in constant row' => 'SELECT missing AS v',
 ];
 
@@ -100,5 +99,9 @@ foreach ($errorCases as $name => $sql) {
         $t->throws(InvalidArgumentException::class, static fn () => SQLiteSelectSql::execute($sql, []));
     };
 }
+
+$tests['select no FROM corpus treats unbound bind parameter as null'] = static function (TestRunner $t): void {
+    $t->same([['v' => null]], SQLiteSelectSql::execute('SELECT ?1 AS v', []));
+};
 
 return $tests;

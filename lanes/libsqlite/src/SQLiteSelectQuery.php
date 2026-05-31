@@ -14,16 +14,32 @@ final class SQLiteSelectQuery
     {
         $rows = self::sourceRows($plan);
         $rows = self::applyJoins($rows, $plan['joins'] ?? []);
+        $earlyLimitApplied = false;
 
         if (array_key_exists('where', $plan)) {
-            if (array_key_exists('select', $plan) && is_array($plan['select']) && array_is_list($plan['select'])) {
-                $rows = self::materializeFilterAliases($rows, $plan['select']);
-            }
             $where = $plan['where'];
             if (!is_array($where)) {
                 throw new \InvalidArgumentException('SQLite SELECT query where clause must be a predicate');
             }
+            if (array_key_exists('select', $plan) && is_array($plan['select']) && array_is_list($plan['select'])) {
+                $rows = self::materializeFilterAliases($rows, $plan['select'], $where);
+            }
             $rows = SQLiteSelectPredicate::filter($rows, $where);
+        }
+
+        if (
+            !array_key_exists('groupBy', $plan)
+            && !array_key_exists('distinct', $plan)
+            && !array_key_exists('orderBy', $plan)
+            && array_key_exists('limit', $plan)
+            && is_int($plan['limit'])
+        ) {
+            $earlyOffset = $plan['offset'] ?? 0;
+            if (!is_int($earlyOffset)) {
+                throw new \InvalidArgumentException('SQLite SELECT query offset must be an integer');
+            }
+            $rows = array_slice($rows, max(0, $earlyOffset), max(0, $plan['limit']));
+            $earlyLimitApplied = true;
         }
 
         if (array_key_exists('groupBy', $plan)) {
@@ -76,10 +92,10 @@ final class SQLiteSelectQuery
             if (!is_int($plan['limit'])) {
                 throw new \InvalidArgumentException('SQLite SELECT query limit must be an integer');
             }
-            $limit = $plan['limit'];
+            $limit = $earlyLimitApplied ? null : $plan['limit'];
         }
 
-        $offset = $plan['offset'] ?? 0;
+        $offset = $earlyLimitApplied ? 0 : ($plan['offset'] ?? 0);
         if (!is_int($offset)) {
             throw new \InvalidArgumentException('SQLite SELECT query offset must be an integer');
         }
@@ -92,12 +108,15 @@ final class SQLiteSelectQuery
      * @param list<array<string,mixed>> $select
      * @return list<array<string,mixed>>
      */
-    private static function materializeFilterAliases(array $rows, array $select): array
+    private static function materializeFilterAliases(array $rows, array $select, array $where): array
     {
         $aliases = [];
         foreach ($select as $expression) {
             $alias = $expression['alias'] ?? null;
             if (!is_string($alias) || $alias === '' || self::isFilterAliasUnsafe($expression)) {
+                continue;
+            }
+            if (!self::predicateReferencesColumn($where, $alias)) {
                 continue;
             }
             $sourceExpression = $expression['sourceExpression'] ?? $expression;
@@ -122,6 +141,36 @@ final class SQLiteSelectQuery
         }
 
         return $rows;
+    }
+
+    /**
+     * @param array<string,mixed> $predicate
+     */
+    private static function predicateReferencesColumn(array $predicate, string $column): bool
+    {
+        if (($predicate['type'] ?? null) === 'column' && ($predicate['name'] ?? null) === $column) {
+            return true;
+        }
+        if (($predicate['operator'] ?? null) === 'TRUTH' && isset($predicate['expression']) && is_array($predicate['expression'])) {
+            return self::predicateReferencesColumn($predicate['expression'], $column);
+        }
+        foreach (['left', 'right', 'operand', 'predicate', 'expression'] as $key) {
+            if (isset($predicate[$key]) && is_array($predicate[$key]) && self::predicateReferencesColumn($predicate[$key], $column)) {
+                return true;
+            }
+        }
+        foreach (['terms', 'values', 'arguments'] as $key) {
+            if (!isset($predicate[$key]) || !is_array($predicate[$key]) || !array_is_list($predicate[$key])) {
+                continue;
+            }
+            foreach ($predicate[$key] as $child) {
+                if (is_array($child) && self::predicateReferencesColumn($child, $column)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1243,7 +1292,7 @@ final class SQLiteSelectQuery
                 throw new \InvalidArgumentException('SQLite SELECT query HAVING clause must be a predicate');
             }
             if (array_key_exists('select', $plan) && is_array($plan['select']) && array_is_list($plan['select'])) {
-                $summaries = self::materializeFilterAliases($summaries, $plan['select']);
+                $summaries = self::materializeFilterAliases($summaries, $plan['select'], $groupBy['having']);
             }
             $summaries = SQLiteSelectPredicate::filter($summaries, $groupBy['having']);
         }
