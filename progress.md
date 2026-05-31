@@ -52,6 +52,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (Gitoxide/libsqlite integration 15:05 UTC):
+  source commit `99fdb5f4b17295c9c1b9a5bff902491a6dc8fcc3`
+  (`ports: add gitoxide tree merge and sqlite WAL checkpoint parity`) landed
+  two independent handoffs. Gitoxide now maps upstream gix-merge
+  `rename-within-rename-2` tree-baseline parity, moving Gitoxide evidence from
+  `4725` to `4740 pass / 0 fail` and mapped coverage from `1583 / 2886` to
+  `1584 / 2886`; verification passed PHP lint, `TreeMergeTest.php` `1 file /
+  495 assertions / 0 failures`, full Gitoxide lane `39 files / 4740
+  assertions / 0 failures`, touched example smoke, and diff checks. Libsqlite
+  now adds generic application WAL post-recovery restart/truncate checkpoint
+  parity after rollback-disabled JSON recovery, moving selected evidence from
+  `2927535` to `2927776 pass / 0 fail` while staying at `1589 / 1589` mapped.
+  Verification passed PHP lint, focused app-WAL plus source-neutral API guard
+  `2 files / 11109 assertions / 0 failures`, touched example self-test, and
+  diff checks. Full libsqlite lane was attempted honestly: `1024M` exhausted
+  memory in an existing pager/WAL dynamic test; the isolated file then passed
+  under `2048M` with `1 file / 59088 assertions / 0 failures`; a `2048M`
+  full-lane rerun later failed on existing untouched window-frame behavior in
+  `SQLiteRealUpstreamWindow2RowsFollowingDynamicTest.php`, so that blocker is
+  now the next full-runner closure target.
+
 - 2026-05-31 supervisor continuation (LightningCSS integration 14:30 UTC):
   source commit `de2bdca74cebaa7aa23bfc409149ef9c4d7bb1d4`
   (`ports: add lightningcss media grid flex parity`) landed four verified
