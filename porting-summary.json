@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 16:47:44 UTC",
-    "sourceCommit": "9ededa2949428f40aa13af09e5e3d80e995f54bf",
-    "sourceCommitShort": "9ededa294942",
+    "generated": "2026-05-31 16:52:06 UTC",
+    "sourceCommit": "35913132375e4ff72782ebae6dcc21290d6019bc",
+    "sourceCommitShort": "35913132375e",
     "sourceBranch": "main",
-    "dashboardCommit": "0f0c066dfa7cea5985486f0c91458defe7e4e28b",
-    "dashboardCommitShort": "0f0c066dfa7c",
+    "dashboardCommit": "23674942ac171f998097bc6ee98a3b370ac6d41c",
+    "dashboardCommitShort": "23674942ac17",
     "averageProgressPercent": "86.5",
     "lanes": [
         {
@@ -98,16 +98,16 @@
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1446",
-            "coverage": "1446 / 3532",
-            "php": "2313 pass / 0 fail",
+            "mapped": "1450",
+            "coverage": "1450 / 3532",
+            "php": "2321 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "native CSS parser/formatter/minifier, declaration CSSOM...",
-            "audit": "Supervisor accepted source commit 0fa3927...",
-            "currentWork": "Native LightningCSS now covers lch()/oklch() polar color-mix normalization and hue interp...",
-            "nextTarget": "Continue integrating current-base LightningCSS handoffs, prioritizing non-overlapping pro...",
-            "blocker": "No current LightningCSS PHP blocker for this batch.",
-            "commit": "0fa3927"
+            "audit": "Supervisor accepted source commit 3591313...",
+            "currentWork": "Native LightningCSS now covers WebKit clip-path target-prefix generation and stale-prefix...",
+            "nextTarget": "Continue current-base LightningCSS target-prefix work on non-overlapping browser-boundary...",
+            "blocker": "No current LightningCSS PHP blocker for this slice.",
+            "commit": "3591313"
         },
         {
             "library": "markerPDF",
