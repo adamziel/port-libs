@@ -52,6 +52,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS integration 13:10 UTC):
+  source commit `b7f6d299b798d8083f49bb0e4fe9af85de11624b`
+  (`ports: add lightningcss parser prefix and bundle parity`) landed seven
+  verified LightningCSS handoffs after excluding stale shared status/manifest
+  metadata. LightningCSS full lane evidence moves from `1265` to `1339 pass /
+  0 fail`, with conservative mapped coverage moving from `996 / 3532` to
+  `1042 / 3532`: +23 Color 4 value minifier checks, +6 UI target-prefix
+  boundaries, +4 custom at-rule visitor/parser cases, +1 CSS Modules
+  `:global`/`:local` rejection case, +3 license-comment minifier/bundler
+  checks, and +9 media range fallback checks; CSSOM border longhand removal is
+  verified but counted inside the existing DeclarationBlock cluster.
+  Verification passed PHP lint on changed/new LightningCSS PHP files, diff
+  checks, focused LightningCSS gate `7 files / 1178 assertions / 0 failures`,
+  full LightningCSS lane `13 files / 1339 assertions / 0 failures`, and seven
+  touched examples. Root aggregate and full upstream LightningCSS Rust/Node
+  runners were not run for this isolated batch.
+
 - 2026-05-31 supervisor continuation (Gitoxide/libsqlite source batch plus
   LightningCSS surge 13:00 UTC): source commit
   `b0d8a112b0f2a321e0df4cc8a588eb55c8abe338` (`ports: add git object
