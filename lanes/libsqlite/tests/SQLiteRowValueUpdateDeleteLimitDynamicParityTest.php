@@ -98,6 +98,10 @@ $updateRowValueOrdinalSecondSubqueryLimit = "UPDATE app_settings SET state = 'or
 $deleteRowValueOrdinalFirstSubqueryCommaLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY 1 DESC, 2 ASC LIMIT 1, 3) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
 $updateRowValueOrdinalExpressionProjectionLimit = "UPDATE app_settings SET state = 'ordinal_expr' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name || '' FROM app_setting_targets WHERE action = 'refresh' ORDER BY 2 ASC, 1 DESC LIMIT 2 OFFSET 1) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
 $deleteRowValueOrdinalLengthProjectionLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY 2 DESC, length(key_name) ASC LIMIT 3 OFFSET 1) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+$updateLengthLimit = "UPDATE app_settings SET state = 'length_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT length('abc') OFFSET length('x')";
+$deleteLengthCommaLimit = "DELETE FROM app_settings WHERE load_policy = 'lazy' RETURNING setting_id ORDER BY bytes ASC LIMIT length('x'), length('pq')";
+$updateRowValueLengthSubqueryLimit = "UPDATE app_settings SET state = 'length_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT length('abc') OFFSET length('x')) RETURNING setting_id, tenant_id, key_name, state ORDER BY setting_id LIMIT -1";
+$deleteRowValueLengthSubqueryLimit = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT length('pqrs') OFFSET length('xy')) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
 
 $cases = [
     'parse update negative offset retained' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateNegativeOffset)['offset'], -4],
@@ -261,6 +265,17 @@ $cases = [
     'update row-value ordinal expression projection returns source order' => [static fn (): mixed => array_column($execute($updateRowValueOrdinalExpressionProjectionLimit)['returning'], 'setting_id'), [2, 3]],
     'delete row-value ordinal with expression tie-break applies before tuple match' => [static fn (): mixed => $execute($deleteRowValueOrdinalLengthProjectionLimit)['plan']->selectedIds, [2, 5, 6]],
     'delete row-value ordinal with expression tie-break keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueOrdinalLengthProjectionLimit)['tables']['app_settings'], 'setting_id'), [1, 3, 4, 7, 8]],
+    'parse update length limit from text literal' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateLengthLimit)['limit'], 3],
+    'parse update length offset from text literal' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($updateLengthLimit)['offset'], 1],
+    'update length limit selects ordered lazy window' => [static fn (): mixed => $execute($updateLengthLimit)['plan']->selectedIds, [2, 3, 6]],
+    'update length limit returns source order' => [static fn (): mixed => array_column($execute($updateLengthLimit)['returning'], 'setting_id'), [2, 3, 6]],
+    'parse delete length comma offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteLengthCommaLimit)['offset'], 1],
+    'parse delete length comma count' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($deleteLengthCommaLimit)['limit'], 2],
+    'delete length comma limit selects ordered lazy window' => [static fn (): mixed => $execute($deleteLengthCommaLimit)['plan']->selectedIds, [2, 3]],
+    'update row-value length subquery applies before tuple match' => [static fn (): mixed => $execute($updateRowValueLengthSubqueryLimit)['plan']->selectedIds, [2, 3, 5]],
+    'update row-value length subquery returns source order' => [static fn (): mixed => array_column($execute($updateRowValueLengthSubqueryLimit)['returning'], 'setting_id'), [2, 3, 5]],
+    'delete row-value length subquery applies before tuple match' => [static fn (): mixed => $execute($deleteRowValueLengthSubqueryLimit)['plan']->selectedIds, [2, 5, 8]],
+    'delete row-value length subquery keeps unmatched rows' => [static fn (): mixed => array_column($execute($deleteRowValueLengthSubqueryLimit)['tables']['app_settings'], 'setting_id'), [1, 3, 4, 6, 7]],
     'malformed modulo zero limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 5%0"), InvalidArgumentException::class],
     'malformed coalesce all null limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT coalesce(NULL, NULL)"), InvalidArgumentException::class],
     'malformed nullif equal limit rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT nullif(2, 2)"), InvalidArgumentException::class],
@@ -722,11 +737,48 @@ for ($seed = 1; $seed <= 44; $seed++) {
         };
 }
 
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitText = str_repeat('a', ($seed % 4) + 1);
+    $offsetText = str_repeat('b', $seed % 3);
+    $limitValue = strlen($limitText);
+    $offsetValue = strlen($offsetText);
+    $sql = "UPDATE app_settings SET state = 'length_dyn' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT length('{$limitText}') OFFSET length('{$offsetText}')";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update length window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitText = str_repeat('c', ($seed % 3) + 1);
+    $offsetText = str_repeat('d', ($seed + 1) % 4);
+    $limitValue = strlen($limitText);
+    $offsetValue = strlen($offsetText);
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT length('{$limitText}') OFFSET length('{$offsetText}')) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue length subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
 $minMaxMalformed = [
     'malformed min null limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT min(1, NULL)",
     'malformed max blob offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET max(0, X'ABCD')",
     'malformed min nonintegral limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT min(2.5, 3)",
     'malformed max nonintegral offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET max(1.5, 1)",
+    'malformed length null limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT length(NULL)",
 ];
 
 foreach ($minMaxMalformed as $name => $sql) {

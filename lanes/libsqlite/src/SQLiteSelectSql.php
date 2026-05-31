@@ -1702,7 +1702,9 @@ final class SQLiteSelectSql
 
         $source = [
             'from' => $joins === []
-                ? ((($base['qualifyRows'] ?? false) === true) ? self::qualifiedSourceRows($base) : self::unqualifiedSourceRows($base))
+                ? (((($base['qualifyRows'] ?? false) === true) || self::predicateReferencesAlias($wherePredicate, $base['alias']))
+                    ? self::qualifiedSourceRows($base)
+                    : self::unqualifiedSourceRows($base))
                 : self::qualifiedSourceRows($base),
             'joins' => $joins,
         ];
@@ -1711,6 +1713,29 @@ final class SQLiteSelectSql
         }
 
         return $source;
+    }
+
+    /**
+     * @param mixed $predicate
+     */
+    private static function predicateReferencesAlias(mixed $predicate, string $alias): bool
+    {
+        if (!is_array($predicate) || $alias === '') {
+            return false;
+        }
+        if (($predicate['type'] ?? null) === 'column' && isset($predicate['name']) && is_string($predicate['name'])) {
+            return str_starts_with(strtolower($predicate['name']), strtolower($alias) . '.');
+        }
+        if (isset($predicate['column']) && is_string($predicate['column'])) {
+            return str_starts_with(strtolower($predicate['column']), strtolower($alias) . '.');
+        }
+        foreach ($predicate as $value) {
+            if (self::predicateReferencesAlias($value, $alias)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

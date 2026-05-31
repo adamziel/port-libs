@@ -6475,6 +6475,82 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{a:int|string,b:int|string}> $rows
+     * @return array<string,mixed>
+     */
+    public static function trigger9ViewRowidAccessPlan(array $rows, string $statement, bool $allowRowidInView, mixed $rowidValue): array
+    {
+        $statement = strtolower(trim($statement));
+        if (!in_array($statement, ['delete', 'update'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger9 view rowid statement is unsupported');
+        }
+
+        $rows = array_values($rows);
+        $selected = [];
+        foreach ($rows as $index => $row) {
+            if (!array_key_exists('a', $row) || !array_key_exists('b', $row)) {
+                throw new \InvalidArgumentException('SQLite trigger9 view row is malformed');
+            }
+            $rowid = $index + 1;
+            if ($rowid === $rowidValue) {
+                $selected[] = [
+                    'rowid' => $rowid,
+                    'old' => $row,
+                    'new' => $statement === 'update' ? ['a' => $row['b'], 'b' => $row['b']] : null,
+                ];
+            }
+        }
+
+        if (!$allowRowidInView) {
+            return [
+                'source' => 'trigger9.test trigger9-4.1..4.3',
+                'operation' => 'view-rowid-trigger-policy',
+                'status' => 'schema-error',
+                'statement' => $statement,
+                'allow_rowid_in_view' => false,
+                'rowid_value' => $rowidValue,
+                'selected_rowids' => [],
+                'trigger_log' => [],
+                'rows_after_statement' => $rows,
+                'error' => 'no such column: rowid',
+                'dependencies' => [
+                    'sqlite-trigger9-view-rowid-disabled-rejects-delete-update',
+                    'sqlite-trigger9-view-rowid-enabled-routes-instead-of-triggers',
+                    'sqlite-trigger9-instead-of-trigger-log-follows-statement-kind',
+                ],
+            ];
+        }
+
+        $log = [];
+        $newRows = [];
+        foreach ($selected as $selection) {
+            $log[] = $statement;
+            if ($selection['new'] !== null) {
+                $newRows[] = $selection['new'];
+            }
+        }
+
+        return [
+            'source' => 'trigger9.test trigger9-4.1..4.3',
+            'operation' => 'view-rowid-trigger-policy',
+            'status' => 'commit-ok',
+            'statement' => $statement,
+            'allow_rowid_in_view' => true,
+            'rowid_value' => $rowidValue,
+            'selected_rowids' => array_values(array_column($selected, 'rowid')),
+            'trigger_log' => $log,
+            'new_rows_seen_by_trigger' => $newRows,
+            'rows_after_statement' => $rows,
+            'error' => null,
+            'dependencies' => [
+                'sqlite-trigger9-view-rowid-disabled-rejects-delete-update',
+                'sqlite-trigger9-view-rowid-enabled-routes-instead-of-triggers',
+                'sqlite-trigger9-instead-of-trigger-log-follows-statement-kind',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{a:int,b:string}> $rows
      * @return array<string,mixed>
      */

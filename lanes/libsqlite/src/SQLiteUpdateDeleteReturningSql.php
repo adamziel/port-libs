@@ -696,6 +696,11 @@ final class SQLiteUpdateDeleteReturningSql
         if (preg_match('/^abs\s*\((.+)\)$/is', $expression, $match) === 1) {
             return abs(self::limitNumericValue($match[1]));
         }
+        if (preg_match('/^length\s*\((.+)\)$/is', $expression, $match) === 1) {
+            $value = self::limitExpressionValue(trim($match[1]));
+
+            return $value === null ? null : strlen((string) $value);
+        }
         if (preg_match('/^(coalesce|ifnull|nullif|min|max)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }

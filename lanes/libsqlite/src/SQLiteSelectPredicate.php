@@ -421,11 +421,17 @@ final class SQLiteSelectPredicate
             if (!is_string($column) || $column === '') {
                 throw new \InvalidArgumentException('SQLite SELECT predicate column operands need a non-empty column name');
             }
-            if (!array_key_exists($column, $row)) {
-                throw new \InvalidArgumentException("SQLite SELECT predicate row is missing column {$column}");
+            if (array_key_exists($column, $row)) {
+                return $row[$column];
+            }
+            if (str_contains($column, '.')) {
+                $suffix = substr($column, strrpos($column, '.') + 1);
+                if (array_key_exists($suffix, $row)) {
+                    return $row[$suffix];
+                }
             }
 
-            return $row[$column];
+            throw new \InvalidArgumentException("SQLite SELECT predicate row is missing column {$column}");
         }
 
         if (is_array($expression) && array_key_exists('type', $expression)) {
@@ -459,6 +465,13 @@ final class SQLiteSelectPredicate
         }
         if (array_key_exists($column, $row)) {
             return $row[$column];
+        }
+
+        if (str_contains($column, '.')) {
+            $suffix = substr($column, strrpos($column, '.') + 1);
+            if (array_key_exists($suffix, $row)) {
+                return $row[$suffix];
+            }
         }
 
         if (!str_contains($column, '.')) {
