@@ -1513,6 +1513,13 @@ final class CssBundler
                 continue;
             }
 
+            if ($char === '\\') {
+                $end = $this->cssEscapeEndOffset($value, $i);
+                $parts[array_key_last($parts)] .= substr($value, $i, $end - $i + 1);
+                $i = $end;
+                continue;
+            }
+
             if ($char === '"' || $char === "'") {
                 $quote = $char;
             } elseif ($char === '(') {
@@ -1560,6 +1567,11 @@ final class CssBundler
                     throw new CssBundleException('parser-error', 'CSS contains an unbalanced comment');
                 }
                 $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $i = $this->cssEscapeEndOffset($css, $i);
                 continue;
             }
 
@@ -1612,6 +1624,11 @@ final class CssBundler
                 continue;
             }
 
+            if ($char === '\\') {
+                $i = $this->cssEscapeEndOffset($value, $i);
+                continue;
+            }
+
             if ($char === '"' || $char === "'") {
                 $quote = $char;
                 continue;
@@ -1629,6 +1646,32 @@ final class CssBundler
         }
 
         throw new CssBundleException('parser-error', "CSS contains an unbalanced {$left}{$right} pair");
+    }
+
+    private function cssEscapeEndOffset(string $value, int $offset): int
+    {
+        $length = strlen($value);
+        if ($offset + 1 >= $length) {
+            return $offset;
+        }
+
+        $cursor = $offset + 1;
+        $next = $value[$cursor];
+        if (!ctype_xdigit($next)) {
+            return $next === "\r" && ($value[$cursor + 1] ?? '') === "\n" ? $cursor + 1 : $cursor;
+        }
+
+        $digits = 0;
+        while ($cursor < $length && $digits < 6 && ctype_xdigit($value[$cursor])) {
+            $cursor++;
+            $digits++;
+        }
+
+        if ($cursor < $length && ctype_space($value[$cursor])) {
+            return $value[$cursor] === "\r" && ($value[$cursor + 1] ?? '') === "\n" ? $cursor + 1 : $cursor;
+        }
+
+        return $cursor - 1;
     }
 
     private function skipWhitespaceAndComments(string $value, int $offset): int

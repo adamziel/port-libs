@@ -170,7 +170,26 @@ final class CustomMediaTransformer
         $resolved = $this->resolveMediaQueryList($media, []);
         $this->currentMediaLocation = $previousMediaLocation;
 
-        return '@import' . $prefix . $resolved;
+        return '@import' . $this->normalizeImportPrefixSource($prefix) . $resolved;
+    }
+
+    private function normalizeImportPrefixSource(string $prefix): string
+    {
+        $offset = $this->skipWhitespaceAndComments($prefix, 0);
+        if (!$this->startsFunction($prefix, $offset, 'url')) {
+            return $prefix;
+        }
+
+        $open = $offset + strlen($this->readIdentifier($prefix, $offset));
+        $close = $this->findMatchingDelimiter($prefix, $open, '(', ')');
+        $rawSource = trim(substr($prefix, $open + 1, $close - $open - 1));
+        $source = (($rawSource[0] ?? '') === '"' || ($rawSource[0] ?? '') === "'")
+            ? $this->cssStringTokenValue($rawSource)
+            : $this->decodeCssEscapes($rawSource);
+
+        return substr($prefix, 0, $offset)
+            . '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $source) . '"'
+            . substr($prefix, $close + 1);
     }
 
     private function importMediaTailOffset(string $rest): ?int
@@ -258,6 +277,85 @@ final class CustomMediaTransformer
         }
 
         throw new \InvalidArgumentException('Import rule contains an unbalanced string');
+    }
+
+    private function cssStringTokenValue(string $token): string
+    {
+        $token = trim($token);
+        $quote = $token[0] ?? '';
+        if (($quote !== '"' && $quote !== "'") || substr($token, -1) !== $quote) {
+            return $token;
+        }
+
+        return $this->decodeCssEscapes(substr($token, 1, -1));
+    }
+
+    private function decodeCssEscapes(string $token): string
+    {
+        $output = '';
+        $length = strlen($token);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $token[$i];
+            if ($char !== '\\') {
+                $output .= $char;
+                continue;
+            }
+
+            if ($i + 1 >= $length) {
+                $output .= '\\';
+                continue;
+            }
+
+            $next = $token[$i + 1];
+            if ($next === "\r") {
+                $i++;
+                if (($token[$i + 1] ?? '') === "\n") {
+                    $i++;
+                }
+                continue;
+            }
+
+            if ($next === "\n" || $next === "\f") {
+                $i++;
+                continue;
+            }
+
+            if (!ctype_xdigit($next)) {
+                $output .= $next;
+                $i++;
+                continue;
+            }
+
+            $hex = '';
+            $cursor = $i + 1;
+            while ($cursor < $length && strlen($hex) < 6 && ctype_xdigit($token[$cursor])) {
+                $hex .= $token[$cursor];
+                $cursor++;
+            }
+
+            if ($cursor < $length && ctype_space($token[$cursor])) {
+                $cursor++;
+            }
+
+            $output .= $this->codepointToUtf8((int) hexdec($hex));
+            $i = $cursor - 1;
+        }
+
+        return $output;
+    }
+
+    private function codepointToUtf8(int $codepoint): string
+    {
+        if ($codepoint <= 0 || $codepoint > 0x10ffff) {
+            $codepoint = 0xfffd;
+        }
+
+        if (function_exists('mb_chr')) {
+            return mb_chr($codepoint, 'UTF-8');
+        }
+
+        return html_entity_decode('&#x' . dechex($codepoint) . ';', ENT_NOQUOTES, 'UTF-8');
     }
 
     private function readIdentifier(string $value, int $offset): string
@@ -746,6 +844,10 @@ final class CustomMediaTransformer
                 $i = $end + 1;
                 continue;
             }
+            if ($char === '\\') {
+                $i = $this->cssEscapeEndOffset($css, $i);
+                continue;
+            }
 
             if (strncasecmp(substr($css, $i, $keywordLength), $keyword, $keywordLength) !== 0) {
                 continue;
@@ -784,6 +886,8 @@ final class CustomMediaTransformer
 
             if ($char === '"' || $char === "'") {
                 $quote = $char;
+            } elseif ($char === '\\') {
+                $i = $this->cssEscapeEndOffset($css, $i);
             } elseif ($char === '/' && ($css[$i + 1] ?? '') === '*') {
                 $end = strpos($css, '*/', $i + 2);
                 if ($end === false) {
@@ -827,6 +931,8 @@ final class CustomMediaTransformer
 
             if ($char === '"' || $char === "'") {
                 $quote = $char;
+            } elseif ($char === '\\') {
+                $i = $this->cssEscapeEndOffset($source, $i);
             } elseif ($char === '/' && ($source[$i + 1] ?? '') === '*') {
                 $end = strpos($source, '*/', $i + 2);
                 if ($end === false) {
@@ -844,6 +950,32 @@ final class CustomMediaTransformer
         }
 
         throw new \InvalidArgumentException('Media query contains unbalanced parentheses');
+    }
+
+    private function cssEscapeEndOffset(string $value, int $offset): int
+    {
+        $length = strlen($value);
+        if ($offset + 1 >= $length) {
+            return $offset;
+        }
+
+        $cursor = $offset + 1;
+        $next = $value[$cursor];
+        if (!ctype_xdigit($next)) {
+            return $next === "\r" && ($value[$cursor + 1] ?? '') === "\n" ? $cursor + 1 : $cursor;
+        }
+
+        $digits = 0;
+        while ($cursor < $length && $digits < 6 && ctype_xdigit($value[$cursor])) {
+            $cursor++;
+            $digits++;
+        }
+
+        if ($cursor < $length && ctype_space($value[$cursor])) {
+            return $value[$cursor] === "\r" && ($value[$cursor + 1] ?? '') === "\n" ? $cursor + 1 : $cursor;
+        }
+
+        return $cursor - 1;
     }
 
     /**
@@ -873,6 +1005,11 @@ final class CustomMediaTransformer
 
             if ($char === '"' || $char === "'") {
                 $quote = $char;
+            } elseif ($char === '\\') {
+                $end = $this->cssEscapeEndOffset($value, $i);
+                $parts[array_key_last($parts)] .= substr($value, $i, $end - $i + 1);
+                $i = $end;
+                continue;
             } elseif ($char === '/' && ($value[$i + 1] ?? '') === '*') {
                 $end = strpos($value, '*/', $i + 2);
                 if ($end === false) {

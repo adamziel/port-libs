@@ -157,7 +157,7 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
-    'css modules pure mode enforces upstream local selector boundaries' => static function (TestRunner $t) use ($export): void {
+    'css modules pure mode enforces upstream local selector boundaries' => static function (TestRunner $t) use ($export, $local): void {
         $transformer = new CssModulesTransformer();
 
         $passing = [
@@ -179,10 +179,33 @@ CSS;
         $t->same('.wp-block-button{color:red}', $noCheck['code']);
         $t->same([], $noCheck['exports']);
 
-        $local = $transformer->transform('div:has(.my-class) { color: red }', ['pure' => true]);
+        $licenseNoCheck = $transformer->transform(<<<'CSS'
+/*! Theme block license */
+/* cssmodules-pure-no-check */ :global(.wp-block-button) {
+  color: red;
+}
+
+.card {
+  composes: base;
+  color: yellow;
+}
+
+.base {
+  color: blue;
+}
+CSS, [
+            'pure' => true,
+        ]);
+        $t->same("/*! Theme block license */\n.wp-block-button{color:red}.EgL3uq_card{color:#ff0}.EgL3uq_base{color:#00f}", $licenseNoCheck['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+        ], $licenseNoCheck['exports']);
+
+        $localResult = $transformer->transform('div:has(.my-class) { color: red }', ['pure' => true]);
         $t->same([
             'my-class' => $export('EgL3uq_my-class'),
-        ], $local['exports']);
+        ], $localResult['exports']);
     },
     'css modules pure mode rejects upstream impure global selectors' => static function (TestRunner $t): void {
         $transformer = new CssModulesTransformer();

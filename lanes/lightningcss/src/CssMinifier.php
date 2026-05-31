@@ -6239,21 +6239,42 @@ final class CssMinifier
                 continue;
             }
 
-            if (!$this->isIdentifierStart($char)) {
+            $dashedIdentifierStart = $char === '-' && isset($value[$i + 1]) && $this->isIdentifierStart($value[$i + 1]);
+            if (!$this->isIdentifierStart($char) && !$dashedIdentifierStart) {
                 $output .= $char;
                 continue;
             }
 
             $identifier = $this->readIdentifier($value, $i);
             $next = $i + strlen($identifier);
-            if (($value[$next] ?? '') !== '(' || !in_array(strtolower($identifier), ['linear-gradient', 'repeating-linear-gradient'], true)) {
+            $name = strtolower($identifier);
+            if (($value[$next] ?? '') !== '(' || !in_array($name, [
+                'linear-gradient',
+                'repeating-linear-gradient',
+                'radial-gradient',
+                'repeating-radial-gradient',
+                '-webkit-radial-gradient',
+                '-moz-radial-gradient',
+                '-o-radial-gradient',
+                '-webkit-repeating-radial-gradient',
+                '-moz-repeating-radial-gradient',
+                '-o-repeating-radial-gradient',
+                'conic-gradient',
+                'repeating-conic-gradient',
+                '-webkit-gradient',
+            ], true)) {
                 $output .= $identifier;
                 $i = $next - 1;
                 continue;
             }
 
             [$function, $offset] = $this->readFunctionRaw($value, $i);
-            $output .= $this->minifyLinearGradientFunction($function);
+            $output .= match (true) {
+                $name === 'linear-gradient' || $name === 'repeating-linear-gradient' => $this->minifyLinearGradientFunction($function),
+                str_contains($name, 'radial-gradient') => $this->minifyRadialGradientFunction($function),
+                $name === 'conic-gradient' || $name === 'repeating-conic-gradient' => $this->minifyConicGradientFunction($function),
+                default => $this->minifyLegacyWebkitGradientFunction($function),
+            };
             $i = $offset;
         }
 
@@ -6313,6 +6334,221 @@ final class CssMinifier
         }
 
         return $name . '(' . implode(',', $serialized) . ')';
+    }
+
+    private function minifyRadialGradientFunction(string $function): string
+    {
+        if (preg_match('/^((?:(?:-webkit|-moz|-o)-)?(?:repeating-)?radial-gradient)\((.*)\)$/is', trim($function), $matches) !== 1) {
+            return $function;
+        }
+
+        $name = strtolower($matches[1]);
+        $parts = $this->splitTopLevel($matches[2], ',');
+        if (count($parts) < 2) {
+            return $function;
+        }
+
+        $prelude = $this->minifyRadialGradientPrelude($parts[0]);
+        if ($prelude !== null) {
+            array_shift($parts);
+        }
+
+        $serialized = [];
+        if ($prelude !== null && $prelude !== '') {
+            $serialized[] = $prelude;
+        }
+
+        foreach ($parts as $part) {
+            $css = $this->serializeLinearGradientPart($this->parseLinearGradientPart($part));
+            if ($css !== '') {
+                $serialized[] = $css;
+            }
+        }
+
+        if (count($serialized) < 2) {
+            return $function;
+        }
+
+        return $name . '(' . implode(',', $serialized) . ')';
+    }
+
+    private function minifyConicGradientFunction(string $function): string
+    {
+        if (preg_match('/^((?:repeating-)?conic-gradient)\((.*)\)$/is', trim($function), $matches) !== 1) {
+            return $function;
+        }
+
+        $name = strtolower($matches[1]);
+        $parts = $this->splitTopLevel($matches[2], ',');
+        if (count($parts) < 2) {
+            return $function;
+        }
+
+        $prelude = $this->minifyConicGradientPrelude($parts[0]);
+        if ($prelude !== null) {
+            array_shift($parts);
+        }
+
+        $serialized = [];
+        if ($prelude !== null && $prelude !== '') {
+            $serialized[] = $prelude;
+        }
+
+        foreach ($parts as $part) {
+            $css = $this->serializeLinearGradientPart($this->parseConicGradientPart($part));
+            if ($css !== '') {
+                $serialized[] = $css;
+            }
+        }
+
+        if (count($serialized) < 2) {
+            return $function;
+        }
+
+        return $name . '(' . implode(',', $serialized) . ')';
+    }
+
+    private function minifyLegacyWebkitGradientFunction(string $function): string
+    {
+        if (preg_match('/^-webkit-gradient\((.*)\)$/is', trim($function), $matches) !== 1) {
+            return $function;
+        }
+
+        $parts = $this->splitTopLevel($matches[1], ',');
+        if (count($parts) < 6 || strcasecmp(trim($parts[0]), 'radial') !== 0) {
+            return $function;
+        }
+
+        $parts[0] = 'radial';
+        $parts[1] = $this->minifyLegacyWebkitGradientPoint($parts[1]);
+        $parts[2] = $this->minifyPlainNumberToken($parts[2]);
+        $parts[3] = $this->minifyLegacyWebkitGradientPoint($parts[3]);
+        $parts[4] = $this->minifyPlainNumberToken($parts[4]);
+
+        for ($i = 5; $i < count($parts); $i++) {
+            $parts[$i] = $this->minifyLegacyWebkitGradientColorStop($parts[$i]);
+        }
+
+        return '-webkit-gradient(' . implode(',', $parts) . ')';
+    }
+
+    private function minifyRadialGradientPrelude(string $part): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($part));
+        if ($tokens === []) {
+            return null;
+        }
+
+        $shape = null;
+        $extent = null;
+        $sizes = [];
+        $position = null;
+
+        for ($i = 0; $i < count($tokens); $i++) {
+            $token = $tokens[$i];
+            $lower = strtolower($token);
+
+            if ($lower === 'at') {
+                $position = $this->minifyGradientPosition(array_slice($tokens, $i + 1));
+                if ($position === null) {
+                    return null;
+                }
+                break;
+            }
+
+            if ($lower === 'circle' || $lower === 'ellipse') {
+                if ($shape !== null) {
+                    return null;
+                }
+                $shape = $lower;
+                continue;
+            }
+
+            if (in_array($lower, ['closest-side', 'farthest-side', 'closest-corner', 'farthest-corner'], true)) {
+                if ($extent !== null || $sizes !== []) {
+                    return null;
+                }
+                $extent = $lower;
+                continue;
+            }
+
+            if ($this->isRadialGradientSizeToken($token)) {
+                if ($extent !== null || count($sizes) >= 2) {
+                    return null;
+                }
+                $sizes[] = $this->minifyGradientPositionComponent($token) ?? $this->minifyNumericDimensionToken($token);
+                continue;
+            }
+
+            return null;
+        }
+
+        if ($shape === 'circle' && count($sizes) > 1) {
+            return null;
+        }
+
+        $components = [];
+        if ($sizes !== []) {
+            $components[] = implode(' ', $sizes);
+        } else {
+            if ($shape === 'circle') {
+                $components[] = 'circle';
+            }
+            if ($extent !== null && $extent !== 'farthest-corner') {
+                $components[] = $extent;
+            }
+        }
+
+        if ($position !== null && $position !== '') {
+            $components[] = 'at ' . $position;
+        }
+
+        return implode(' ', $components);
+    }
+
+    private function minifyConicGradientPrelude(string $part): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($part));
+        if ($tokens === []) {
+            return null;
+        }
+
+        $angle = null;
+        $position = null;
+        $index = 0;
+
+        if (strtolower($tokens[0]) === 'from') {
+            if (!isset($tokens[1])) {
+                return null;
+            }
+            $angle = $this->minifyConicFromAngle($tokens[1]);
+            if ($angle === null) {
+                return null;
+            }
+            $index = 2;
+        }
+
+        if (isset($tokens[$index]) && strtolower($tokens[$index]) === 'at') {
+            $position = $this->minifyGradientPosition(array_slice($tokens, $index + 1));
+            if ($position === null) {
+                return null;
+            }
+            $index = count($tokens);
+        }
+
+        if ($index !== count($tokens)) {
+            return null;
+        }
+
+        $components = [];
+        if ($angle !== null && !$this->isZeroConicAngle($angle)) {
+            $components[] = 'from ' . $angle;
+        }
+        if ($position !== null && $position !== '') {
+            $components[] = 'at ' . $position;
+        }
+
+        return implode(' ', $components);
     }
 
     /**
@@ -6394,6 +6630,33 @@ final class CssMinifier
         ];
     }
 
+    /**
+     * @return array{kind:string,value?:string,color?:string,positions?:list<string>}
+     */
+    private function parseConicGradientPart(string $part): array
+    {
+        $part = trim($part);
+        if ($part === '') {
+            return ['kind' => 'raw', 'value' => ''];
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($part);
+        if ($tokens === []) {
+            return ['kind' => 'raw', 'value' => $part];
+        }
+
+        $color = array_shift($tokens);
+
+        return [
+            'kind' => 'stop',
+            'color' => $this->minifyColorKeywords($color),
+            'positions' => array_map(
+                fn (string $token): string => $this->minifyConicGradientPositionToken($token),
+                $tokens
+            ),
+        ];
+    }
+
     private function isLinearGradientPositionToken(string $token): bool
     {
         $token = trim($token);
@@ -6414,6 +6677,21 @@ final class CssMinifier
         return $this->minifyNumericDimensionToken($token);
     }
 
+    private function minifyConicGradientPositionToken(string $token): string
+    {
+        $token = trim($token);
+        $percent = $this->linearGradientPercentPosition($token);
+        if ($percent !== null) {
+            return $this->minifyNumber($percent) . '%';
+        }
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(deg|grad|rad|turn)$/i', $token, $matches) === 1) {
+            return $this->minifyNumber((float) $matches[1]) . strtolower($matches[2]);
+        }
+
+        return $this->minifyNumericDimensionToken($token);
+    }
+
     private function linearGradientPercentPosition(string $token): ?float
     {
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', trim($token), $matches) !== 1) {
@@ -6421,6 +6699,153 @@ final class CssMinifier
         }
 
         return (float) $matches[1];
+    }
+
+    private function isRadialGradientSizeToken(string $token): bool
+    {
+        $token = trim($token);
+
+        return $this->minifyGradientPositionComponent($token) !== null
+            || preg_match('/^(?:calc|min|max|clamp)\(/i', $token) === 1;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function minifyGradientPosition(array $tokens): ?string
+    {
+        $tokens = array_values(array_filter(array_map(static fn (string $token): string => trim($token), $tokens), static fn (string $token): bool => $token !== ''));
+        if ($tokens === [] || count($tokens) > 2) {
+            return null;
+        }
+
+        if (count($tokens) === 1) {
+            $lower = strtolower($tokens[0]);
+            if ($lower === 'center') {
+                return '';
+            }
+            if (in_array($lower, ['top', 'right', 'bottom', 'left'], true)) {
+                return $lower;
+            }
+
+            $component = $this->minifyGradientPositionComponent($tokens[0]);
+
+            return $component === '50%' ? '' : $component;
+        }
+
+        $first = strtolower($tokens[0]);
+        $second = strtolower($tokens[1]);
+        $horizontal = ['left' => '0', 'center' => '50%', 'right' => '100%'];
+        $vertical = ['top' => '0', 'center' => '50%', 'bottom' => '100%'];
+
+        if (isset($vertical[$first], $horizontal[$second])) {
+            $x = $horizontal[$second];
+            $y = $vertical[$first];
+        } elseif (isset($horizontal[$first], $vertical[$second])) {
+            $x = $horizontal[$first];
+            $y = $vertical[$second];
+        } else {
+            $x = $this->minifyGradientPositionComponent($tokens[0]);
+            $y = $this->minifyGradientPositionComponent($tokens[1]);
+            if ($x === null || $y === null) {
+                return null;
+            }
+        }
+
+        if ($x === '50%' && $y === '50%') {
+            return '';
+        }
+        if ($y === '50%') {
+            return $x;
+        }
+
+        return $x . ' ' . $y;
+    }
+
+    private function minifyGradientPositionComponent(string $token): ?string
+    {
+        $token = strtolower(trim($token));
+        if (in_array($token, ['left', 'top'], true)) {
+            return '0';
+        }
+        if (in_array($token, ['right', 'bottom'], true)) {
+            return '100%';
+        }
+        if ($token === 'center') {
+            return '50%';
+        }
+
+        $percent = $this->linearGradientPercentPosition($token);
+        if ($percent !== null) {
+            return abs($percent) < 0.0000001 ? '0' : $this->minifyNumber($percent) . '%';
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:px|em|rem|ch|ex|vw|vh|vmin|vmax|svw|svh|lvw|lvh|dvw|dvh|cqw|cqh|cqi|cqb|cqmin|cqmax)$/i', $token) === 1) {
+            return $this->minifyNumericDimensionToken($token);
+        }
+
+        return null;
+    }
+
+    private function minifyConicFromAngle(string $token): ?string
+    {
+        $degrees = $this->parseLinearGradientAngleDegrees($token);
+        if ($degrees === null) {
+            return null;
+        }
+
+        return $this->minifyNumber($degrees) . 'deg';
+    }
+
+    private function isZeroConicAngle(string $angle): bool
+    {
+        return preg_match('/^0(?:deg)?$/', $angle) === 1;
+    }
+
+    private function minifyLegacyWebkitGradientPoint(string $point): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($point));
+        if ($tokens === []) {
+            return trim($point);
+        }
+
+        $components = [];
+        foreach ($tokens as $token) {
+            $component = $this->minifyGradientPositionComponent($token);
+            if ($component === null) {
+                return trim($point);
+            }
+            $components[] = $component;
+        }
+
+        return implode(' ', $components);
+    }
+
+    private function minifyLegacyWebkitGradientColorStop(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^(from|to)\((.*)\)$/is', $value, $matches) === 1) {
+            return strtolower($matches[1]) . '(' . $this->minifyColorKeywords(trim($matches[2])) . ')';
+        }
+
+        if (preg_match('/^color-stop\((.*)\)$/is', $value, $matches) !== 1) {
+            return $value;
+        }
+
+        $parts = $this->splitTopLevel($matches[1], ',');
+        if (count($parts) !== 2) {
+            return $value;
+        }
+
+        $position = trim($parts[0]);
+        $percent = $this->linearGradientPercentPosition($position);
+        if ($percent !== null) {
+            $position = $this->minifyNumber($percent / 100);
+        } else {
+            $position = $this->minifyPlainNumberToken($position);
+        }
+
+        return 'color-stop(' . $position . ',' . $this->minifyColorKeywords(trim($parts[1])) . ')';
     }
 
     /**

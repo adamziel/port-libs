@@ -100,6 +100,19 @@ CSS;
             $transformAndMinify($css)
         );
     },
+    'custom media transformer preserves escaped url delimiters while resolving import tails' => static function (TestRunner $t) use ($transformAndMinify): void {
+        $css = <<<'CSS'
+@custom-media --wide (min-width: 782px);
+
+@import url(./blocks/icon\).css) screen and (--wide);
+@import url(./blocks/icon\(.css) (--wide);
+CSS;
+
+        $t->same(
+            '@import "./blocks/icon).css" screen and (width>=782px);@import "./blocks/icon(.css" (width>=782px);',
+            $transformAndMinify($css)
+        );
+    },
     'custom media transformer resolves import media tails after layer modifiers and comments' => static function (TestRunner $t) use ($transformAndMinify): void {
         $css = <<<'CSS'
 @custom-media --wide (min-width: 782px);

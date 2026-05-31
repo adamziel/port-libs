@@ -53,6 +53,10 @@ final class DeclarationBlock
     ];
 
     private const BORDER_SIDES = ['top', 'right', 'bottom', 'left'];
+    private const LOGICAL_BORDER_AXES = [
+        'block' => ['start' => 'block-start', 'end' => 'block-end'],
+        'inline' => ['start' => 'inline-start', 'end' => 'inline-end'],
+    ];
     private const BORDER_COMPONENTS = ['width', 'style', 'color'];
     private const BORDER_STYLES = ['none', 'hidden', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset'];
     private const BORDER_WIDTH_KEYWORDS = ['thin', 'medium', 'thick'];
@@ -3834,6 +3838,10 @@ final class DeclarationBlock
             return null;
         }
 
+        if ($this->isLogicalBorderProperty($property)) {
+            return $this->getLogicalBorderProperty($entries, $property);
+        }
+
         $sides = $this->resolveBorderSides($entries);
         if ($property === 'border') {
             return $this->composeBorderShorthand($sides);
@@ -3852,6 +3860,91 @@ final class DeclarationBlock
         }
 
         return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getLogicalBorderProperty(array $entries, string $property): ?array
+    {
+        $sides = $this->resolveLogicalBorderSides($entries);
+
+        if (preg_match('/^border-(block|inline)$/', $property, $matches) === 1) {
+            return $this->composeLogicalBorderAxisShorthand($sides, $matches[1]);
+        }
+
+        if (preg_match('/^border-(block|inline)-(width|style|color)$/', $property, $matches) === 1) {
+            return $this->composeLogicalBorderComponentShorthand($sides, $matches[1], $matches[2]);
+        }
+
+        if (preg_match('/^border-(block|inline)-(start|end)$/', $property, $matches) === 1) {
+            return $this->composeBorderSideShorthand($sides[$this->logicalBorderSideKey($matches[1], $matches[2])]);
+        }
+
+        if (preg_match('/^border-(block|inline)-(start|end)-(width|style|color)$/', $property, $matches) === 1) {
+            return $sides[$this->logicalBorderSideKey($matches[1], $matches[2])][$matches[3]];
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array<string, array<string, array{value:string, important:bool}|null>>
+     */
+    private function resolveLogicalBorderSides(array $entries): array
+    {
+        $sides = [];
+        foreach (self::LOGICAL_BORDER_AXES as $axis => $axisSides) {
+            foreach ($axisSides as $side) {
+                $sides[$side] = array_fill_keys(self::BORDER_COMPONENTS, null);
+            }
+        }
+
+        foreach ($entries as $entry) {
+            $property = $entry['property'];
+            $important = $entry['important'];
+
+            if (preg_match('/^border-(block|inline)$/', $property, $matches) === 1) {
+                $components = $this->completeBorderComponents($this->parseBorderValue($entry['value']));
+                foreach (self::LOGICAL_BORDER_AXES[$matches[1]] as $side) {
+                    $this->applyBorderComponents($sides[$side], $components, $important);
+                }
+                continue;
+            }
+
+            if (preg_match('/^border-(block|inline)-(width|style|color)$/', $property, $matches) === 1) {
+                $expanded = $this->expandLogicalBorderComponentShorthand($entry['value']);
+                if ($expanded === null) {
+                    continue;
+                }
+
+                $component = $matches[2];
+                foreach (self::LOGICAL_BORDER_AXES[$matches[1]] as $logicalSide => $side) {
+                    $sides[$side][$component] = [
+                        'value' => $expanded[$logicalSide],
+                        'important' => $important,
+                    ];
+                }
+                continue;
+            }
+
+            if (preg_match('/^border-(block|inline)-(start|end)$/', $property, $matches) === 1) {
+                $components = $this->completeBorderComponents($this->parseBorderValue($entry['value']));
+                $this->applyBorderComponents($sides[$this->logicalBorderSideKey($matches[1], $matches[2])], $components, $important);
+                continue;
+            }
+
+            if (preg_match('/^border-(block|inline)-(start|end)-(width|style|color)$/', $property, $matches) === 1) {
+                $sides[$this->logicalBorderSideKey($matches[1], $matches[2])][$matches[3]] = [
+                    'value' => $entry['value'],
+                    'important' => $important,
+                ];
+            }
+        }
+
+        return $sides;
     }
 
     /**
@@ -4026,6 +4119,67 @@ final class DeclarationBlock
     }
 
     /**
+     * @param array<string, array<string, array{value:string, important:bool}|null>> $sides
+     * @return array{value:string, important:bool}|null
+     */
+    private function composeLogicalBorderComponentShorthand(array $sides, string $axis, string $component): ?array
+    {
+        $values = [];
+        $important = null;
+        foreach (self::LOGICAL_BORDER_AXES[$axis] as $logicalSide => $side) {
+            $part = $sides[$side][$component];
+            if ($part === null) {
+                return null;
+            }
+            if ($important === null) {
+                $important = $part['important'];
+            } elseif ($part['important'] !== $important) {
+                return null;
+            }
+            $values[$logicalSide] = $part['value'];
+        }
+
+        return [
+            'value' => $this->compressLogicalBorderAxisShorthand($values['start'], $values['end']),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, array{value:string, important:bool}|null>> $sides
+     * @return array{value:string, important:bool}|null
+     */
+    private function composeLogicalBorderAxisShorthand(array $sides, string $axis): ?array
+    {
+        $firstSide = $sides[self::LOGICAL_BORDER_AXES[$axis]['start']];
+        $parts = [];
+        foreach (self::BORDER_COMPONENTS as $component) {
+            if ($firstSide[$component] === null) {
+                return null;
+            }
+        }
+
+        foreach (self::LOGICAL_BORDER_AXES[$axis] as $side) {
+            foreach (self::BORDER_COMPONENTS as $component) {
+                if ($sides[$side][$component] === null || $sides[$side][$component] !== $firstSide[$component]) {
+                    return null;
+                }
+                $parts[] = $sides[$side][$component];
+            }
+        }
+
+        $important = $this->sameImportant($parts);
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->composeBorderValue($firstSide),
+            'important' => $important,
+        ];
+    }
+
+    /**
      * @param array<string, array{value:string, important:bool}|null> $side
      * @return array{value:string, important:bool}|null
      */
@@ -4062,16 +4216,78 @@ final class DeclarationBlock
         ]);
     }
 
+    /**
+     * @param array{width:string, style:string, color:string} $components
+     */
+    private function composeBorderValueFromComponents(array $components): string
+    {
+        return implode(' ', [
+            $components['width'],
+            $components['style'],
+            $components['color'],
+        ]);
+    }
+
+    private function compressLogicalBorderAxisShorthand(string $start, string $end): string
+    {
+        return $start === $end ? $start : $start . ' ' . $end;
+    }
+
+    /**
+     * @return array{axis:string, side:string, component:string}|null
+     */
+    private function logicalBorderLonghandParts(string $property): ?array
+    {
+        if (preg_match('/^border-(block|inline)-(start|end)-(width|style|color)$/', $property, $matches) !== 1) {
+            return null;
+        }
+
+        return [
+            'axis' => $matches[1],
+            'side' => $matches[2],
+            'component' => $matches[3],
+        ];
+    }
+
+    private function physicalBorderPropertyConflictsWithLogicalLonghand(string $property, string $component): bool
+    {
+        if ($property === 'border') {
+            return true;
+        }
+
+        if ($property === "border-{$component}") {
+            return true;
+        }
+
+        if (preg_match('/^border-(top|right|bottom|left)$/', $property) === 1) {
+            return true;
+        }
+
+        return preg_match('/^border-(top|right|bottom|left)-' . preg_quote($component, '/') . '$/', $property) === 1;
+    }
+
     private function isBorderProperty(string $property): bool
     {
         return $property === 'border'
+            || $this->isLogicalBorderProperty($property)
             || preg_match('/^border-(?:width|style|color)$/', $property) === 1
             || preg_match('/^border-(?:top|right|bottom|left)(?:-(?:width|style|color))?$/', $property) === 1;
     }
 
+    private function isLogicalBorderProperty(string $property): bool
+    {
+        return preg_match('/^border-(?:block|inline)(?:-(?:width|style|color|(?:start|end)(?:-(?:width|style|color))?))?$/', $property) === 1;
+    }
+
     private function isBorderComponentLonghand(string $property): bool
     {
-        return preg_match('/^border-(?:top|right|bottom|left)-(?:width|style|color)$/', $property) === 1;
+        return preg_match('/^border-(?:top|right|bottom|left)-(?:width|style|color)$/', $property) === 1
+            || $this->isLogicalBorderComponentLonghand($property);
+    }
+
+    private function isLogicalBorderComponentLonghand(string $property): bool
+    {
+        return preg_match('/^border-(?:block|inline)-(?:start|end)-(?:width|style|color)$/', $property) === 1;
     }
 
     /**
@@ -4089,6 +4305,22 @@ final class DeclarationBlock
 
         if (in_array($property, ['border-width', 'border-style', 'border-color'], true)) {
             return $this->borderComponentLonghands(substr($property, strlen('border-')));
+        }
+
+        if (preg_match('/^border-(block|inline)$/', $property, $matches) === 1) {
+            return array_merge(
+                $this->logicalBorderComponentLonghands($matches[1], 'width'),
+                $this->logicalBorderComponentLonghands($matches[1], 'style'),
+                $this->logicalBorderComponentLonghands($matches[1], 'color')
+            );
+        }
+
+        if (preg_match('/^border-(block|inline)-(width|style|color)$/', $property, $matches) === 1) {
+            return $this->logicalBorderComponentLonghands($matches[1], $matches[2]);
+        }
+
+        if (preg_match('/^border-(block|inline)-(start|end)$/', $property, $matches) === 1) {
+            return $this->logicalBorderSideLonghands($matches[1], $matches[2]);
         }
 
         if (preg_match('/^border-(top|right|bottom|left)$/', $property, $matches) !== 1) {
@@ -4111,6 +4343,35 @@ final class DeclarationBlock
             static fn (string $side): string => "border-{$side}-{$component}",
             self::BORDER_SIDES
         );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function logicalBorderComponentLonghands(string $axis, string $component): array
+    {
+        return array_map(
+            static fn (string $side): string => "border-{$side}-{$component}",
+            array_values(self::LOGICAL_BORDER_AXES[$axis])
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function logicalBorderSideLonghands(string $axis, string $side): array
+    {
+        $logicalSide = $this->logicalBorderSideKey($axis, $side);
+
+        return array_map(
+            static fn (string $component): string => "border-{$logicalSide}-{$component}",
+            self::BORDER_COMPONENTS
+        );
+    }
+
+    private function logicalBorderSideKey(string $axis, string $side): string
+    {
+        return self::LOGICAL_BORDER_AXES[$axis][$side];
     }
 
     /**
@@ -4305,6 +4566,43 @@ final class DeclarationBlock
             return $values;
         }
 
+        if (preg_match('/^border-(block|inline)$/', $property, $matches) === 1) {
+            $components = $this->completeBorderComponents($this->parseBorderValue($value));
+            $values = [];
+            foreach (self::LOGICAL_BORDER_AXES[$matches[1]] as $side) {
+                foreach (self::BORDER_COMPONENTS as $component) {
+                    $values["border-{$side}-{$component}"] = $components[$component];
+                }
+            }
+
+            return $values;
+        }
+
+        if (preg_match('/^border-(block|inline)-(width|style|color)$/', $property, $matches) === 1) {
+            $expanded = $this->expandLogicalBorderComponentShorthand($value);
+            if ($expanded === null) {
+                return null;
+            }
+
+            $values = [];
+            foreach (self::LOGICAL_BORDER_AXES[$matches[1]] as $logicalSide => $side) {
+                $values["border-{$side}-{$matches[2]}"] = $expanded[$logicalSide];
+            }
+
+            return $values;
+        }
+
+        if (preg_match('/^border-(block|inline)-(start|end)$/', $property, $matches) === 1) {
+            $components = $this->completeBorderComponents($this->parseBorderValue($value));
+            $side = $this->logicalBorderSideKey($matches[1], $matches[2]);
+
+            return [
+                "border-{$side}-width" => $components['width'],
+                "border-{$side}-style" => $components['style'],
+                "border-{$side}-color" => $components['color'],
+            ];
+        }
+
         if (preg_match('/^border-(top|right|bottom|left)$/', $property, $matches) === 1) {
             $components = $this->completeBorderComponents($this->parseBorderValue($value));
 
@@ -4316,6 +4614,22 @@ final class DeclarationBlock
         }
 
         return null;
+    }
+
+    /**
+     * @return array{start:string,end:string}|null
+     */
+    private function expandLogicalBorderComponentShorthand(string $value): ?array
+    {
+        $parts = $this->splitWhitespaceTopLevel($value);
+        if (count($parts) < 1 || count($parts) > 2) {
+            return null;
+        }
+
+        return [
+            'start' => $parts[0],
+            'end' => $parts[1] ?? $parts[0],
+        ];
     }
 
     /**
@@ -7721,6 +8035,10 @@ final class DeclarationBlock
         if ($containerValue !== null) {
             return $this->parseEntries($containerValue);
         }
+        $logicalBorderValue = $this->setLogicalBorderLonghand($entries, $property, $value, $important);
+        if ($logicalBorderValue !== null) {
+            return $this->parseEntries($logicalBorderValue);
+        }
 
         $lastMatch = null;
         foreach ($entries as $index => $entry) {
@@ -7742,6 +8060,74 @@ final class DeclarationBlock
         }
 
         return $entries;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setLogicalBorderLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        $parts = $this->logicalBorderLonghandParts($property);
+        if ($parts === null) {
+            return null;
+        }
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($this->physicalBorderPropertyConflictsWithLogicalLonghand($entries[$index]['property'], $parts['component'])) {
+                break;
+            }
+
+            if ($entries[$index]['property'] === "border-{$parts['axis']}-{$parts['component']}") {
+                if ($entries[$index]['important'] !== $important) {
+                    return null;
+                }
+
+                $expanded = $this->expandLogicalBorderComponentShorthand($entries[$index]['value']);
+                if ($expanded === null) {
+                    continue;
+                }
+                $expanded[$parts['side']] = $value;
+                $entries[$index] = [
+                    'property' => $entries[$index]['property'],
+                    'value' => $this->compressLogicalBorderAxisShorthand($expanded['start'], $expanded['end']),
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] === "border-{$parts['axis']}-{$parts['side']}") {
+                if ($entries[$index]['important'] !== $important) {
+                    return null;
+                }
+
+                $components = $this->completeBorderComponents($this->parseBorderValue($entries[$index]['value']));
+                $components[$parts['component']] = $value;
+                $entries[$index] = [
+                    'property' => $entries[$index]['property'],
+                    'value' => $this->composeBorderValueFromComponents($components),
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] === "border-{$parts['axis']}") {
+                return null;
+            }
+        }
+
+        return null;
     }
 
     /**

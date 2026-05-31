@@ -292,6 +292,41 @@ return [
             $block->getProperty('border: 1px solid red !important', 'border-style')
         );
     },
+    'declaration block reads upstream logical border cssom shorthands and longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $blockBorder = 'border-block: 2px solid var(--wp--preset--color--contrast)';
+
+        $t->same(
+            ['value' => 'var(--wp--preset--color--contrast)', 'important' => false],
+            $block->getProperty($blockBorder, 'border-block-start-color')
+        );
+        $t->same(['value' => '2px', 'important' => false], $block->getProperty($blockBorder, 'border-block-end-width'));
+        $t->same(['value' => 'solid', 'important' => false], $block->getProperty($blockBorder, 'border-block-start-style'));
+        $t->same(
+            ['value' => '2px solid var(--wp--preset--color--contrast)', 'important' => false],
+            $block->getProperty($blockBorder, 'border-block')
+        );
+        $t->same(
+            ['value' => '2px 4px', 'important' => false],
+            $block->getProperty('border-block-start-width: 2px; border-block-end-width: 4px', 'border-block-width')
+        );
+        $t->same(
+            ['value' => 'red green', 'important' => false],
+            $block->getProperty('border-inline-start-color: red; border-inline-end-color: green', 'border-inline-color')
+        );
+        $t->same(
+            ['value' => '1px dashed blue', 'important' => true],
+            $block->getProperty(
+                'border-inline-start-width: 1px !important; border-inline-end-width: 1px !important; border-inline-start-style: dashed !important; border-inline-end-style: dashed !important; border-inline-start-color: blue !important; border-inline-end-color: blue !important',
+                'border-inline'
+            )
+        );
+        $t->same(
+            null,
+            $block->getProperty('border-block-start-width: 1px !important; border-block-end-width: 1px', 'border-block-width')
+        );
+        $t->same(null, $block->getProperty('border: 1px solid red', 'border-block-start-color'));
+    },
     'declaration block reads upstream border image cssom longhands and shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $borderImage = 'border-image: url("frame.svg") 10 40 10 40 fill / 12px / 2 round round';
@@ -1067,6 +1102,34 @@ return [
             $block->setProperty('border: 1px solid red', 'border-right-color', 'green')
         );
     },
+    'declaration block sets upstream logical border cssom longhands in existing shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'border-block-color: blue green',
+            $block->setProperty('border-block-color: red green', 'border-block-start-color', 'blue')
+        );
+        $t->same(
+            'border-inline-width: 2px',
+            $block->setProperty('border-inline-width: 1px 2px', 'border-inline-start-width', '2px')
+        );
+        $t->same(
+            'border-inline-start: 1px dashed red',
+            $block->setProperty('border-inline-start: 1px solid red', 'border-inline-start-style', 'dashed')
+        );
+        $t->same(
+            'border-block: 1px solid red; border-block-start-color: blue',
+            $block->setProperty('border-block: 1px solid red', 'border-block-start-color', 'blue')
+        );
+        $t->same(
+            'border-block-start-color: blue; border-block-color: red green !important',
+            $block->setProperty('border-block-color: red green !important', 'border-block-start-color', 'blue')
+        );
+        $t->same(
+            'border-block-color: green; border-top-color: red; border-block-start-color: blue',
+            $block->setProperty('border-block-color: green; border-top-color: red', 'border-block-start-color', 'blue')
+        );
+    },
     'declaration block sets upstream flex flow cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -1663,6 +1726,37 @@ return [
         $t->same(
             'color: blue; border-top-width: 1px !important; border-right-width: 1px !important; border-bottom-width: 1px !important; border-top-style: solid !important; border-right-style: solid !important; border-bottom-style: solid !important; border-left-style: solid !important; border-top-color: red !important; border-right-color: red !important; border-bottom-color: red !important; border-left-color: red !important',
             $block->removeProperty('border: 1px solid red !important; border-left-width: 4px; color: blue', 'border-left-width')
+        );
+    },
+    'declaration block removes upstream logical border longhands by splitting shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'border-inline-start-width: 1px; border-inline-end-width: 1px; border-inline-start-style: solid; border-inline-end-style: solid; border-inline-end-color: red',
+            $block->removeProperty('border-inline: 1px solid red', 'border-inline-start-color')
+        );
+        $t->same(
+            'border-block-start-width: 2px',
+            $block->removeProperty('border-block-width: 2px 4px', 'border-block-end-width')
+        );
+        $t->same(
+            'border-block-start-width: 2px; border-block-start-color: red',
+            $block->removeProperty('border-block-start: 2px solid red', 'border-block-start-style')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty(
+                'border-block-color: red green; border-block-start-color: blue; border-block-end-color: orange; color: red',
+                'border-block-color'
+            )
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('border-block: 1px solid red; border-block-start-color: blue; color: red', 'border-block')
+        );
+        $t->same(
+            'color: red; border-inline-start-width: 1px !important; border-inline-end-width: 1px !important; border-inline-start-style: solid !important; border-inline-end-style: solid !important; border-inline-end-color: red !important',
+            $block->removeProperty('border-inline: 1px solid red !important; color: red; border-inline-start-color: blue', 'border-inline-start-color')
         );
     },
     'declaration block removes upstream shorthand groups and included longhands' => static function (TestRunner $t): void {

@@ -532,6 +532,34 @@ return [
             $prefixer->prefixForTargets('.foo { -o-object-fit: cover; object-fit: cover; -o-object-position: center; object-position: center; }', ['opera' => 12])
         );
     },
+    'transition prefixer maps upstream border-image target boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '.foo { border-image: url(border.png) 30 fill / 10px / 4px round; }';
+        $modern = '.foo{border-image:url(border.png) 30 fill/10px/4px round}';
+        $webkit = '.foo{-webkit-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}';
+        $moz = '.foo{-moz-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}';
+        $opera = '.foo{-o-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}';
+        $allLegacy = '.foo{-webkit-border-image:url(border.png) 30 fill/10px/4px round;-moz-border-image:url(border.png) 30 fill/10px/4px round;-o-border-image:url(border.png) 30 fill/10px/4px round;border-image:url(border.png) 30 fill/10px/4px round}';
+        $stalePrefixed = '.foo { -webkit-border-image: url(border.png) 30 fill / 10px / 4px round; -moz-border-image: url(border.png) 30 fill / 10px / 4px round; -o-border-image: url(border.png) 30 fill / 10px / 4px round; border-image: url(border.png) 30 fill / 10px / 4px round; }';
+
+        $t->same($allLegacy, $prefixer->prefixForTargets($css, ['chrome' => 14, 'firefox' => 14, 'opera' => '12.1']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['chrome' => 14]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['chrome' => 15]));
+        $t->same($moz, $prefixer->prefixForTargets($css, ['firefox' => '3.5']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['firefox' => 3]));
+        $t->same($moz, $prefixer->prefixForTargets($css, ['firefox' => 14]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['firefox' => 15]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => '5.1']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => 6]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['ios_saf' => 5]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['ios_saf' => 6]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['android' => '4.2']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['android' => '4.3']));
+        $t->same($opera, $prefixer->prefixForTargets($css, ['opera' => '12.1']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['opera' => '12.2']));
+        $t->same($webkit, $prefixer->prefixForTargets($stalePrefixed, ['safari' => '5.1']));
+        $t->same($modern, $prefixer->prefixForTargets($stalePrefixed, ['chrome' => 15, 'firefox' => 15, 'opera' => '12.2', 'safari' => 6]));
+    },
     'transition prefixer maps upstream legacy text and sticky prefix helpers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

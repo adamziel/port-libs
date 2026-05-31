@@ -167,6 +167,25 @@ if ($sharedPresetBundle !== ':root{--wp--preset--spacing--block-gap:1rem}.wp-sit
 
 echo 'parent-relative-import: resolved' . PHP_EOL;
 
+$escapedDelimiterBundle = (new CssBundler())->bundle('/escaped-delimiters.css', [
+    '/escaped-delimiters.css' => <<<'CSS'
+@import url(blocks/icon\).css);
+@import url(blocks/icon\(.css);
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/blocks/icon).css' => '.wp-block-icon-close { color: blue; }',
+    '/blocks/icon(.css' => '.wp-block-icon-open { color: green; }',
+]);
+
+if ($escapedDelimiterBundle !== '.wp-block-icon-close{color:#00f}.wp-block-icon-open{color:green}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected escaped url() delimiters to stay inside import paths\n");
+    exit(1);
+}
+
+echo 'escaped-url-delimiters: resolved' . PHP_EOL;
+
 $mediaBooleanBundle = (new CssBundler())->bundle('/entry.css', [
     '/entry.css' => '@import "print.css" layer(theme.blocks) print; .entry { color: red }',
     '/print.css' => '@import "wide.css" not screen and (width >= 240px); .wp-block-query { color: blue }',

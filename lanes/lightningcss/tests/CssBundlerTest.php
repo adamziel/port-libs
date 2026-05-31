@@ -433,6 +433,34 @@ CSS,
             ], '/entry.css')
         );
     },
+    'css bundler resolves escaped url delimiters in import graph like upstream' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '.close{color:#00f}.open{color:green}.entry{color:red}',
+            $bundle([
+                '/entry.css' => <<<'CSS'
+@import url(./icons\).css);
+@import url(./icons\(.css);
+.entry { color: red }
+CSS,
+                '/icons).css' => '.close { color: blue }',
+                '/icons(.css' => '.open { color: green }',
+            ], '/entry.css')
+        );
+
+        $resolved = [];
+        $t->same(
+            '.remote{color:green}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import url(pkg:icons\).css); .entry { color: red }',
+                '/vendor/icons).css' => '.remote { color: green }',
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+                $resolved[] = [$specifier, $originatingFile];
+
+                return '/vendor/' . substr($specifier, strlen('pkg:'));
+            })
+        );
+        $t->same([['pkg:icons).css', '/entry.css']], $resolved);
+    },
     'css bundler combines nested media conditions across import graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print and (color){.c{color:green}}@media print{.b{color:#ff0}}.a{color:red}',

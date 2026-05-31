@@ -813,6 +813,90 @@ final class SourceMap
         return 'data:application/json;charset=utf-8;base64,' . base64_encode($this->toJson($sourceRoot));
     }
 
+    public function toBuffer(): string
+    {
+        return json_encode(
+            [
+                'format' => 'port-libs-lightningcss-sourcemap-buffer-v1',
+                'sources' => $this->sources,
+                'sourcesContent' => $this->sourceContentsForJson(),
+                'names' => $this->names,
+                'mappings' => $this->getMappings(),
+                'generatedLineCount' => $this->generatedLineCount,
+            ],
+            JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+        );
+    }
+
+    public static function fromBuffer(string $projectRoot, string $buffer): self
+    {
+        $data = json_decode($buffer, true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($data)) {
+            throw new InvalidArgumentException('Source map buffer must decode to an object.');
+        }
+
+        if (($data['format'] ?? null) !== 'port-libs-lightningcss-sourcemap-buffer-v1') {
+            throw new InvalidArgumentException('Unsupported source map buffer format.');
+        }
+
+        $sources = self::listOfStrings($data['sources'] ?? [], 'buffer sources');
+        $sourcesContent = self::listOfStrings($data['sourcesContent'] ?? [], 'buffer sourcesContent');
+        $names = self::listOfStrings($data['names'] ?? [], 'buffer names');
+        $mappings = self::listOfMappingArrays($data['mappings'] ?? []);
+        $generatedLineCount = $data['generatedLineCount'] ?? 0;
+        if (!is_int($generatedLineCount)) {
+            throw new InvalidArgumentException('Source map buffer generatedLineCount must be an integer.');
+        }
+        self::assertUnsigned32Value($generatedLineCount, 'buffer generated line count');
+
+        $map = new self($projectRoot);
+        $map->sources = $sources;
+        foreach ($sources as $index => $source) {
+            $map->sourceIndexes[$source] = $index;
+        }
+
+        foreach ($sourcesContent as $index => $content) {
+            if (!array_key_exists($index, $sources)) {
+                break;
+            }
+
+            $map->sourcesContent[$index] = $content;
+        }
+
+        $map->names = $names;
+        foreach ($names as $index => $name) {
+            $map->nameIndexes[$name] = $index;
+        }
+
+        $maxGeneratedLine = -1;
+        foreach ($mappings as $order => $mapping) {
+            $sourceIndex = $mapping['sourceIndex'];
+            $nameIndex = $mapping['nameIndex'];
+            if ($sourceIndex !== null && !array_key_exists($sourceIndex, $sources)) {
+                throw new OutOfBoundsException('Source map buffer mapping references unknown source index: ' . $sourceIndex);
+            }
+
+            if ($nameIndex !== null && !array_key_exists($nameIndex, $names)) {
+                throw new OutOfBoundsException('Source map buffer mapping references unknown name index: ' . $nameIndex);
+            }
+
+            $map->mappings[] = [
+                'generatedLine' => $mapping['generatedLine'],
+                'generatedColumn' => $mapping['generatedColumn'],
+                'sourceIndex' => $sourceIndex,
+                'originalLine' => $mapping['originalLine'],
+                'originalColumn' => $mapping['originalColumn'],
+                'nameIndex' => $nameIndex,
+                'order' => $order,
+            ];
+            $maxGeneratedLine = max($maxGeneratedLine, $mapping['generatedLine']);
+        }
+
+        $map->generatedLineCount = max($generatedLineCount, $maxGeneratedLine + 1, 0);
+
+        return $map;
+    }
+
     /**
      * @return list<array{generatedLine:int,generatedColumn:int,sourceIndex:int|null,originalLine:int|null,originalColumn:int|null,nameIndex:int|null}>
      */
@@ -1205,6 +1289,80 @@ final class SourceMap
         }
 
         return $strings;
+    }
+
+    /**
+     * @param mixed $value
+     * @return list<array{generatedLine:int,generatedColumn:int,sourceIndex:int|null,originalLine:int|null,originalColumn:int|null,nameIndex:int|null}>
+     */
+    private static function listOfMappingArrays(mixed $value): array
+    {
+        if (!is_array($value)) {
+            throw new InvalidArgumentException('Source map buffer mappings must be a list.');
+        }
+
+        $mappings = [];
+        foreach (array_values($value) as $entry) {
+            if (!is_array($entry)) {
+                throw new InvalidArgumentException('Source map buffer mapping entries must be objects.');
+            }
+
+            foreach (['generatedLine', 'generatedColumn'] as $required) {
+                if (!array_key_exists($required, $entry) || !is_int($entry[$required])) {
+                    throw new InvalidArgumentException('Source map buffer mapping ' . $required . ' must be an integer.');
+                }
+            }
+
+            $sourceIndex = $entry['sourceIndex'] ?? null;
+            $originalLine = $entry['originalLine'] ?? null;
+            $originalColumn = $entry['originalColumn'] ?? null;
+            $nameIndex = $entry['nameIndex'] ?? null;
+            foreach (['sourceIndex' => $sourceIndex, 'originalLine' => $originalLine, 'originalColumn' => $originalColumn, 'nameIndex' => $nameIndex] as $label => $item) {
+                if ($item !== null && !is_int($item)) {
+                    throw new InvalidArgumentException('Source map buffer mapping ' . $label . ' must be an integer or null.');
+                }
+            }
+
+            $hasSource = $sourceIndex !== null;
+            if ($hasSource !== ($originalLine !== null) || $hasSource !== ($originalColumn !== null)) {
+                throw new InvalidArgumentException('Source map buffer source-backed mappings require original line and column.');
+            }
+            if ($sourceIndex === null && $nameIndex !== null) {
+                throw new InvalidArgumentException('Source map buffer generated-only mappings cannot include names.');
+            }
+
+            self::assertUnsigned32Value($entry['generatedLine'], 'buffer generated line');
+            self::assertUnsigned32Value($entry['generatedColumn'], 'buffer generated column');
+            if ($originalLine !== null) {
+                self::assertUnsigned32Value($originalLine, 'buffer original line');
+            }
+
+            if ($originalColumn !== null) {
+                self::assertUnsigned32Value($originalColumn, 'buffer original column');
+            }
+
+            $mappings[] = [
+                'generatedLine' => $entry['generatedLine'],
+                'generatedColumn' => $entry['generatedColumn'],
+                'sourceIndex' => $sourceIndex,
+                'originalLine' => $originalLine,
+                'originalColumn' => $originalColumn,
+                'nameIndex' => $nameIndex,
+            ];
+        }
+
+        return $mappings;
+    }
+
+    private static function assertUnsigned32Value(int $value, string $label): void
+    {
+        if ($value < 0) {
+            throw new InvalidArgumentException(ucfirst($label) . ' must be non-negative.');
+        }
+
+        if ($value > self::MAX_UNSIGNED_32) {
+            throw new InvalidArgumentException(ucfirst($label) . ' must fit in unsigned 32-bit range.');
+        }
     }
 
     /**

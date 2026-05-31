@@ -46,6 +46,11 @@ $css = <<<'CSS'
   }
 }
 
+.wp-block-card__viewport {
+  color: red;
+  height: 100vh;
+}
+
 .wp-block-card__media {
   size: 48px;
 }
@@ -363,20 +368,57 @@ $transform = $transformer->transformWithDependencies($css, [
                     }
                 }
 
+                $supportsRule = null;
+                foreach ($rule['declarations'] as $declaration) {
+                    if (($declaration['property'] ?? null) !== 'height' || ($declaration['value'] ?? null) !== '100vh') {
+                        continue;
+                    }
+
+                    $supportsRule = [
+                        'type' => 'supports',
+                        'value' => [
+                            'condition' => [
+                                'type' => 'declaration',
+                                'propertyId' => ['property' => '-webkit-touch-callout'],
+                                'value' => 'none',
+                            ],
+                            'rules' => [[
+                                'type' => 'style',
+                                'value' => [
+                                    'selectors' => $rule['value']['selectors'],
+                                    'declarations' => [
+                                        'declarations' => [[
+                                            'property' => 'height',
+                                            'value' => [
+                                                'type' => 'stretch',
+                                                'vendorPrefix' => ['webkit'],
+                                            ],
+                                        ]],
+                                        'importantDeclarations' => [],
+                                    ],
+                                ],
+                            ]],
+                        ],
+                    ];
+                    break;
+                }
+
                 $fallbackSelectors = [];
                 foreach ($rule['selectors'] as $selector) {
                     if (str_contains($selector, ':focus-visible')) {
                         $fallbackSelectors[] = str_replace(':focus-visible', '.focus-visible', $selector);
                     }
                 }
-                if ($fallbackSelectors === []) {
-                    return $rule;
+                $rules = [];
+                if ($fallbackSelectors !== []) {
+                    $rules[] = array_replace($rule, ['selectors' => $fallbackSelectors]);
+                }
+                $rules[] = $rule;
+                if ($supportsRule !== null) {
+                    $rules[] = $supportsRule;
                 }
 
-                return [
-                    array_replace($rule, ['selectors' => $fallbackSelectors]),
-                    $rule,
-                ];
+                return count($rules) === 1 ? $rule : $rules;
             },
         ],
     ],
@@ -410,7 +452,7 @@ $transform = $transformer->transformWithDependencies($css, [
 $result = $transform['code'];
 $dependencies = $transform['dependencies'];
 
-$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-hoverable .wp-block-card__cta{color:#ff0}.wp-block-card__media{width:3rem;height:3rem}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 .0625rem #056ef0;margin-left:1.25rem;margin-right:1.25rem}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}.wp-block-card.is-visitor-ready{outline-color:#056ef0}';
+$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-hoverable .wp-block-card__cta{color:#ff0}.wp-block-card__viewport{color:red;height:100vh}@supports (-webkit-touch-callout:none){.wp-block-card__viewport{height:-webkit-fill-available}}.wp-block-card__media{width:3rem;height:3rem}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 .0625rem #056ef0;margin-left:1.25rem;margin-right:1.25rem}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}.wp-block-card.is-visitor-ready{outline-color:#056ef0}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {

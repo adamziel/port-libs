@@ -398,6 +398,59 @@ return [
             SourceMap::fromDataUrl(str_replace('application/json', 'text/plain', $dataUrl));
         });
     },
+    'source map round trips upstream buffer snapshots after offsets' => static function (TestRunner $t): void {
+        $map = new SourceMap('/srv/www/site/wp-content/themes/example');
+        $style = $map->addSource('/srv/www/site/wp-content/themes/example/style.css');
+        $block = $map->addSource('blocks/card.css');
+        $map->setSourceContent($style, ".theme{color:green}\n");
+        $map->setSourceContent($block, ".card{color:red}\n");
+        $map->addMapping(0, 0, $style, 1, 0, 'theme');
+        $map->addGeneratedMapping(0, 18);
+        $map->addMapping(1, 2, $block, 4, 3, 'card');
+        $map->offsetColumns(0, 18, 4);
+        $map->offsetLines(2, 2);
+
+        $buffer = $map->toBuffer();
+        $bufferData = json_decode($buffer, true, 512, JSON_THROW_ON_ERROR);
+        $restored = SourceMap::fromBuffer('/srv/www/site/wp-content/themes/example', $buffer);
+
+        $t->same('port-libs-lightningcss-sourcemap-buffer-v1', $bufferData['format']);
+        $t->same(4, $bufferData['generatedLineCount']);
+        $t->same($map->writeVlq(), $restored->writeVlq());
+        $t->same($map->toArray(null, false), $restored->toArray(null, false));
+        $t->same(';;', substr($restored->writeVlq(), -2));
+        $t->same($style, $restored->addSource('/srv/www/site/wp-content/themes/example/style.css'));
+        $t->same($block, $restored->getSourceIndex('file:///srv/www/site/wp-content/themes/example/blocks/card.css'));
+        $t->same(".card{color:red}\n", $restored->getSourceContent($block));
+        $t->same('card', $restored->getName(1));
+        $t->same(
+            [
+                ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 1, 'originalColumn' => 0, 'nameIndex' => 0],
+                ['generatedLine' => 0, 'generatedColumn' => 22, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
+                ['generatedLine' => 1, 'generatedColumn' => 2, 'sourceIndex' => 1, 'originalLine' => 4, 'originalColumn' => 3, 'nameIndex' => 1],
+            ],
+            $restored->getMappings()
+        );
+
+        $t->throws(InvalidArgumentException::class, static function (): void {
+            SourceMap::fromBuffer('/', '{"format":"unknown","sources":[],"sourcesContent":[],"names":[],"mappings":[],"generatedLineCount":0}');
+        });
+        $t->throws(OutOfBoundsException::class, static function () use ($bufferData): void {
+            $broken = $bufferData;
+            $broken['mappings'][0]['sourceIndex'] = 99;
+            SourceMap::fromBuffer('/', json_encode($broken, JSON_THROW_ON_ERROR));
+        });
+        $t->throws(InvalidArgumentException::class, static function () use ($bufferData): void {
+            $broken = $bufferData;
+            $broken['mappings'][1]['nameIndex'] = 0;
+            SourceMap::fromBuffer('/', json_encode($broken, JSON_THROW_ON_ERROR));
+        });
+        $t->throws(InvalidArgumentException::class, static function () use ($bufferData): void {
+            $broken = $bufferData;
+            $broken['mappings'][1]['originalColumn'] = 3;
+            SourceMap::fromBuffer('/', json_encode($broken, JSON_THROW_ON_ERROR));
+        });
+    },
     'source map normalizes upstream project-root source paths' => static function (TestRunner $t): void {
         $map = new SourceMap('/srv/www/site/wp-content/themes/example');
         $style = $map->addSource('/srv/www/site/wp-content/themes/example/style.css');

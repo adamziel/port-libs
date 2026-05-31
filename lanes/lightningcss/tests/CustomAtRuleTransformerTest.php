@@ -1412,6 +1412,106 @@ CSS;
 
         $t->same('.foo{color:red}.visitor-ready{color:#0f0;width:32px}', $result);
     },
+    'custom at-rules emit upstream returned supports rules from style visitors' => static function (TestRunner $t): void {
+        $seenHeight = null;
+        $result = (new CustomAtRuleTransformer())->transform('.foo { color: red; height: 100vh; }', [], [
+            'Rule' => [
+                'style' => static function (array $rule) use (&$seenHeight): array {
+                    foreach ($rule['declarations'] as $declaration) {
+                        if (($declaration['property'] ?? null) === 'height') {
+                            $seenHeight = $declaration['value'];
+                        }
+                    }
+
+                    $fallbackRule = [
+                        'type' => 'style',
+                        'value' => [
+                            'selectors' => $rule['value']['selectors'],
+                            'declarations' => [
+                                'declarations' => [[
+                                    'property' => 'height',
+                                    'value' => [
+                                        'type' => 'stretch',
+                                        'vendorPrefix' => ['webkit'],
+                                    ],
+                                ]],
+                                'importantDeclarations' => [],
+                            ],
+                        ],
+                    ];
+
+                    return [
+                        $rule,
+                        [
+                            'type' => 'supports',
+                            'value' => [
+                                'condition' => [
+                                    'type' => 'declaration',
+                                    'propertyId' => ['property' => '-webkit-touch-callout'],
+                                    'value' => 'none',
+                                ],
+                                'rules' => [$fallbackRule],
+                            ],
+                        ],
+                    ];
+                },
+            ],
+        ]);
+
+        $t->same('.foo{color:red;height:100vh}@supports (-webkit-touch-callout:none){.foo{height:-webkit-fill-available}}', $result);
+        $t->same('100vh', $seenHeight);
+    },
+    'custom at-rules emit upstream returned supports rules from custom parser bodies' => static function (TestRunner $t): void {
+        $seenBodyRuleType = null;
+        $result = (new CustomAtRuleTransformer())->transform('@viewport-fix { .wp-block-cover { height: 100vh; } }', [
+            'viewport-fix' => [
+                'prelude' => null,
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'viewport-fix' => static function (array $rule) use (&$seenBodyRuleType): array {
+                        $seenBodyRuleType = $rule['bodyRules'][0]['type'] ?? null;
+                        $fallbackRule = [
+                            'type' => 'style',
+                            'value' => [
+                                'selectors' => $rule['bodyRules'][0]['value']['selectors'],
+                                'declarations' => [
+                                    'declarations' => [[
+                                        'property' => 'height',
+                                        'value' => [
+                                            'type' => 'stretch',
+                                            'vendorPrefix' => ['webkit'],
+                                        ],
+                                    ]],
+                                    'importantDeclarations' => [],
+                                ],
+                            ],
+                        ];
+
+                        return [
+                            ...$rule['bodyRules'],
+                            [
+                                'type' => 'supports',
+                                'value' => [
+                                    'condition' => [
+                                        'type' => 'declaration',
+                                        'propertyId' => ['property' => '-webkit-touch-callout'],
+                                        'value' => 'none',
+                                    ],
+                                    'rules' => [$fallbackRule],
+                                ],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-cover{height:100vh}@supports (-webkit-touch-callout:none){.wp-block-cover{height:-webkit-fill-available}}', $result);
+        $t->same('style', $seenBodyRuleType);
+    },
     'custom at-rules compose upstream Selector prefix visitors' => static function (TestRunner $t): void {
         $seenSelectorTypes = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([

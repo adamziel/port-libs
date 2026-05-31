@@ -266,6 +266,7 @@ final class TransitionPrefixer
             ? false
             : $this->rewriteListStyleFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $borderRadiusChanged = $this->rewriteBorderRadiusPrefixEntries($entries, $targetOptions);
+        $borderImageChanged = $this->rewriteBorderImagePrefixEntries($entries, $targetOptions);
         $imageSetChanged = $this->rewriteImageSetPrefixEntries($entries, $targetOptions);
         $clampChanged = $this->rewriteClampFallbackEntries($entries, $targetOptions);
         $colorChanged = $insideAdvancedColorSupports
@@ -281,7 +282,7 @@ final class TransitionPrefixer
         if ($logicalInsetFallback !== null) {
             return $logicalInsetFallback . implode('', $supportRules);
         }
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -984,6 +985,12 @@ final class TransitionPrefixer
                 || $this->targetAtLeast($normalized, 'safari', [5])
                 || $this->targetAtLeast($normalized, 'firefox', [4])
             ),
+            'borderImageNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 2])
+                || $this->targetInRange($normalized, 'chrome', [4], [14])
+                || $this->targetInRange($normalized, 'ios_saf', [3, 2], [5])
+                || $this->targetInRange($normalized, 'safari', [3, 1], [5, 1]),
+            'borderImageNeedsMoz' => $this->targetInRange($normalized, 'firefox', [3, 5], [14]),
+            'borderImageNeedsO' => $this->targetInRange($normalized, 'opera', [11], [12, 1]),
             'clampNeedsMaxMinFallback' => $this->targetInRange($normalized, 'safari', [0], [12]),
             'logicalInsetNeedsFallback' => $logicalPropertiesIncluded || (!$logicalPropertiesExcluded && (
                 $this->targetInRange($normalized, 'android', [0], [86, 255, 255])
@@ -3319,6 +3326,19 @@ final class TransitionPrefixer
     {
         return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'clip-path', [
             '-webkit-' => $targetOptions['clipPathNeedsWebkit'] ?? false,
+        ]);
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteBorderImagePrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'border-image', [
+            '-webkit-' => $targetOptions['borderImageNeedsWebkit'] ?? false,
+            '-moz-' => $targetOptions['borderImageNeedsMoz'] ?? false,
+            '-o-' => $targetOptions['borderImageNeedsO'] ?? false,
         ]);
     }
 

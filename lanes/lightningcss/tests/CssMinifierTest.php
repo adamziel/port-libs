@@ -150,6 +150,44 @@ CSS
         $t->same('.foo{background:linear-gradient(#ff0,red 30% 40%,#00f)}', $minifier->minify('.foo { background: linear-gradient(yellow, red 30%, red 40%, blue); }'));
         $t->same('.foo{background:linear-gradient(#00f,#ff0)}', $minifier->minify('.foo { background: linear-gradient(0, yellow, blue); }'));
     },
+    'css minifier maps upstream radial and conic gradient value normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{background:radial-gradient(#ff0,#00f)}', $minifier->minify('.foo { background: radial-gradient(yellow, blue) }'));
+        $t->same('.foo{background:radial-gradient(at 0 0,#ff0,#00f)}', $minifier->minify('.foo { background: radial-gradient(at top left, yellow, blue) }'));
+        $t->same('.foo{background:radial-gradient(5em at 0 0,#ff0,#00f)}', $minifier->minify('.foo { background: radial-gradient(5em circle at top left, yellow, blue) }'));
+        $t->same('.foo{background:radial-gradient(circle at 100%,#333,#333 50%,#eee 75%,#333 75%)}', $minifier->minify('.foo { background: radial-gradient(circle at 100%, #333, #333 50%, #eee 75%, #333 75%) }'));
+        $t->same('.foo{background:radial-gradient(circle at 100%,#333,#333 50%,#eee 75%,#333 75%)}', $minifier->minify('.foo { background: radial-gradient(farthest-corner circle at 100% 50%, #333, #333 50%, #eee 75%, #333 75%) }'));
+        $t->same('.foo{background:radial-gradient(circle,#333,#333 50%,#eee 75%,#333 75%)}', $minifier->minify('.foo { background: radial-gradient(farthest-corner circle at 50% 50%, #333, #333 50%, #eee 75%, #333 75%) }'));
+        $t->same('.foo{background:radial-gradient(at top,#e66465,#0000)}', $minifier->minify('.foo { background: radial-gradient(ellipse at top, #e66465, transparent) }'));
+        $t->same('.foo{background:radial-gradient(20px,#ff0,#00f)}', $minifier->minify('.foo { background: radial-gradient(20px, yellow, blue) }'));
+        $t->same('.foo{background:radial-gradient(20px,#ff0,#00f)}', $minifier->minify('.foo { background: radial-gradient(circle 20px, yellow, blue) }'));
+        $t->same('.foo{background:radial-gradient(20px 40px,#ff0,#00f)}', $minifier->minify('.foo { background: radial-gradient(20px 40px, yellow, blue) }'));
+        $t->same('.foo{background:radial-gradient(20px 40px,#ff0,#00f)}', $minifier->minify('.foo { background: radial-gradient(ellipse 20px 40px, yellow, blue) }'));
+        $t->same('.foo{background:radial-gradient(30px 40px,#ff0,#00f)}', $minifier->minify('.foo { background: radial-gradient(ellipse calc(20px + 10px) 40px, yellow, blue) }'));
+        $t->same('.foo{background:radial-gradient(circle farthest-side,#ff0,#00f)}', $minifier->minify('.foo { background: radial-gradient(circle farthest-side, yellow, blue) }'));
+        $t->same('.foo{background:radial-gradient(circle farthest-side,#ff0,#00f)}', $minifier->minify('.foo { background: radial-gradient(farthest-side circle, yellow, blue) }'));
+        $t->same('.foo{background:radial-gradient(farthest-side,#ff0,#00f)}', $minifier->minify('.foo { background: radial-gradient(ellipse farthest-side, yellow, blue) }'));
+        $t->same('.foo{background:radial-gradient(farthest-side,#ff0,#00f)}', $minifier->minify('.foo { background: radial-gradient(farthest-side ellipse, yellow, blue) }'));
+        $t->same('.foo{background:-webkit-radial-gradient(#ff0,#00f)}', $minifier->minify('.foo { background: -webkit-radial-gradient(yellow, blue) }'));
+        $t->same('.foo{background:-moz-radial-gradient(#ff0,#00f)}', $minifier->minify('.foo { background: -moz-radial-gradient(yellow, blue) }'));
+        $t->same('.foo{background:-o-radial-gradient(#ff0,#00f)}', $minifier->minify('.foo { background: -o-radial-gradient(yellow, blue) }'));
+        $t->same('.foo{background:repeating-radial-gradient(20px,#ff0,#00f)}', $minifier->minify('.foo { background: repeating-radial-gradient(circle 20px, yellow, blue) }'));
+        $t->same('.foo{background:-webkit-repeating-radial-gradient(20px,#ff0,#00f)}', $minifier->minify('.foo { background: -webkit-repeating-radial-gradient(circle 20px, yellow, blue) }'));
+        $t->same('.foo{background:-moz-repeating-radial-gradient(20px,#ff0,#00f)}', $minifier->minify('.foo { background: -moz-repeating-radial-gradient(circle 20px, yellow, blue) }'));
+        $t->same('.foo{background:-o-repeating-radial-gradient(20px,#ff0,#00f)}', $minifier->minify('.foo { background: -o-repeating-radial-gradient(circle 20px, yellow, blue) }'));
+        $t->same('.foo{background:-webkit-gradient(radial,50% 50%,0,50% 50%,100,from(#00f),to(#ff0))}', $minifier->minify('.foo { background: -webkit-gradient(radial, center center, 0, center center, 100, from(blue), to(yellow)) }'));
+        $t->same('.foo{background:conic-gradient(#f06,gold)}', $minifier->minify('.foo { background: conic-gradient(#f06, gold) }'));
+        $t->same('.foo{background:conic-gradient(#f06,gold)}', $minifier->minify('.foo { background: conic-gradient(at 50% 50%, #f06, gold) }'));
+        $t->same('.foo{background:conic-gradient(#f06,gold)}', $minifier->minify('.foo { background: conic-gradient(from 0deg, #f06, gold) }'));
+        $t->same('.foo{background:conic-gradient(#f06,gold)}', $minifier->minify('.foo { background: conic-gradient(from 0, #f06, gold) }'));
+        $t->same('.foo{background:conic-gradient(#f06,gold)}', $minifier->minify('.foo { background: conic-gradient(from 0deg at center, #f06, gold) }'));
+        $t->same('.foo{background:conic-gradient(#fff -50%,#000 150%)}', $minifier->minify('.foo { background: conic-gradient(white -50%, black 150%) }'));
+        $t->same('.foo{background:conic-gradient(#fff -180deg,#000 540deg)}', $minifier->minify('.foo { background: conic-gradient(white -180deg, black 540deg) }'));
+        $t->same('.foo{background:conic-gradient(from 45deg,#fff,#000,#fff)}', $minifier->minify('.foo { background: conic-gradient(from 45deg, white, black, white) }'));
+        $t->same('.foo{background:repeating-conic-gradient(from 45deg,#fff,#000,#fff)}', $minifier->minify('.foo { background: repeating-conic-gradient(from 45deg, white, black, white) }'));
+        $t->same('.foo{background:repeating-conic-gradient(#000 0deg 25%,#fff 0deg 50%)}', $minifier->minify('.foo { background: repeating-conic-gradient(black 0deg 25%, white 0deg 50%) }'));
+    },
     'css minifier maps upstream rgb relative color sRGB origins' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $cases = [

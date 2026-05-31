@@ -60,10 +60,13 @@ final class CssModulesTransformer
         $this->exports = [];
         $this->references = [];
 
-        $code = $this->transformRuleList($this->stripComments($css), 0);
+        [$css, $licenseComments] = $this->stripComments($css);
+        $code = $this->transformRuleList($css, 0);
         if (($options['minify'] ?? true) === true) {
             $code = (new NestingTransformer())->lower($code);
         }
+
+        $code = $this->prependLicenseComments($code, $licenseComments);
 
         return [
             'code' => $code,
@@ -2370,9 +2373,13 @@ final class CssModulesTransformer
         return preg_match('/^-?(?:[A-Za-z_]|-[A-Za-z_])[A-Za-z0-9_-]*$/', $value) === 1;
     }
 
-    private function stripComments(string $css): string
+    /**
+     * @return array{0:string,1:list<string>}
+     */
+    private function stripComments(string $css): array
     {
         $output = '';
+        $licenseComments = [];
         $quote = null;
         $length = strlen($css);
 
@@ -2399,9 +2406,12 @@ final class CssModulesTransformer
             if ($char === '/' && ($css[$i + 1] ?? '') === '*') {
                 $end = strpos($css, '*/', $i + 2);
                 if ($end === false) {
-                    return $output;
+                    return [$output, $licenseComments];
                 }
-                if (str_contains(substr($css, $i + 2, $end - $i - 2), 'cssmodules-pure-no-check')) {
+                $comment = substr($css, $i, $end - $i + 2);
+                if (($css[$i + 2] ?? '') === '!') {
+                    $licenseComments[] = trim($comment);
+                } elseif (str_contains(substr($css, $i + 2, $end - $i - 2), 'cssmodules-pure-no-check')) {
                     $output .= self::PURE_NO_CHECK_MARKER;
                 }
                 $i = $end + 1;
@@ -2411,6 +2421,23 @@ final class CssModulesTransformer
             $output .= $char;
         }
 
-        return $output;
+        return [$output, $licenseComments];
+    }
+
+    /**
+     * @param list<string> $licenseComments
+     */
+    private function prependLicenseComments(string $css, array $licenseComments): string
+    {
+        if ($licenseComments === []) {
+            return $css;
+        }
+
+        $prefix = implode("\n", $licenseComments);
+        if ($css === '') {
+            return $prefix;
+        }
+
+        return $prefix . "\n" . $css;
     }
 }

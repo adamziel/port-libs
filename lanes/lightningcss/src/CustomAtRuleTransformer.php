@@ -1871,6 +1871,9 @@ final class CustomAtRuleTransformer
         if (($replacement['type'] ?? null) === 'media' && isset($replacement['value']) && is_array($replacement['value'])) {
             return $this->emitReturnedMediaRule($replacement['value'], $parentSelectors);
         }
+        if (($replacement['type'] ?? null) === 'supports' && isset($replacement['value']) && is_array($replacement['value'])) {
+            return $this->emitReturnedSupportsRule($replacement['value'], $parentSelectors);
+        }
 
         $kind = (string) ($replacement['kind'] ?? '');
         if ($kind === 'remove') {
@@ -1929,6 +1932,59 @@ final class CustomAtRuleTransformer
         }
 
         return '@media ' . $query . '{' . $body . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @param list<string>|null $parentSelectors
+     */
+    private function emitReturnedSupportsRule(array $value, ?array $parentSelectors): string
+    {
+        $condition = $this->returnedSupportsConditionToCss(is_array($value['condition'] ?? null) ? $value['condition'] : []);
+        $rules = $value['rules'] ?? [];
+        if (!is_array($rules)) {
+            $rules = [];
+        }
+
+        $body = '';
+        foreach ($rules as $rule) {
+            $body .= $this->emitReplacement($rule, $parentSelectors);
+        }
+
+        return '@supports ' . $condition . '{' . $body . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $condition
+     */
+    private function returnedSupportsConditionToCss(array $condition): string
+    {
+        $type = strtolower((string) ($condition['type'] ?? ''));
+        if ($type === 'declaration') {
+            $propertyId = $condition['propertyId'] ?? null;
+            $property = is_array($propertyId)
+                ? (string) ($propertyId['property'] ?? '')
+                : (string) ($condition['property'] ?? '');
+
+            return '(' . $property . ':' . $this->serializeVisitorValue($condition['value'] ?? '') . ')';
+        }
+
+        if (($type === 'and' || $type === 'or') && isset($condition['value']) && is_array($condition['value'])) {
+            $parts = [];
+            foreach ($condition['value'] as $child) {
+                if (is_array($child)) {
+                    $parts[] = $this->returnedSupportsConditionToCss($child);
+                }
+            }
+
+            return implode(' ' . $type . ' ', array_filter($parts, static fn (string $part): bool => $part !== ''));
+        }
+
+        if ($type === 'not' && isset($condition['value']) && is_array($condition['value'])) {
+            return 'not ' . $this->returnedSupportsConditionToCss($condition['value']);
+        }
+
+        return trim((string) ($condition['raw'] ?? ''));
     }
 
     /**
@@ -3185,6 +3241,12 @@ final class CustomAtRuleTransformer
         if (($replacement['kind'] ?? null) === 'remove') {
             return '';
         }
+        if (
+            isset($replacement['type'])
+            && in_array($replacement['type'], ['ignored', 'media', 'style', 'supports', 'unknown'], true)
+        ) {
+            return $this->emitReplacement($replacement, null);
+        }
 
         $rule = array_replace($fallbackRule, $replacement);
         if (array_key_exists('selector', $replacement) && !array_key_exists('selectors', $replacement)) {
@@ -3537,6 +3599,18 @@ final class CustomAtRuleTransformer
         }
         if ($type === 'length-percentage' && isset($value['value']) && is_array($value['value'])) {
             return $this->serializeVisitorValue($value['value']);
+        }
+        if ($type === 'stretch') {
+            $prefixes = $value['vendorPrefix'] ?? [];
+            if (is_array($prefixes)) {
+                foreach ($prefixes as $prefix) {
+                    if (strtolower((string) $prefix) === 'webkit') {
+                        return '-webkit-fill-available';
+                    }
+                }
+            }
+
+            return 'stretch';
         }
         if ($type === 'dimension' && isset($value['value']) && is_array($value['value'])) {
             $dimension = $value['value'];

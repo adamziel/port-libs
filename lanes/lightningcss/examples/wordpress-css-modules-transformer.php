@@ -177,6 +177,25 @@ CSS, [
     'pure' => true,
 ]);
 
+$licensePureNoCheck = (new CssModulesTransformer())->transform(<<<'CSS'
+/*! Block CSS delivery license */
+/* cssmodules-pure-no-check */ :global(.wp-block-button) {
+  color: red;
+}
+
+.licenseCard {
+  composes: card;
+  color: yellow;
+}
+
+.card {
+  color: blue;
+}
+CSS, [
+    'hash' => 'BlockA',
+    'pure' => true,
+]);
+
 try {
     (new CssModulesTransformer())->transform(<<<'CSS'
 :global(.wp-block-button) {
@@ -199,6 +218,8 @@ $actual = [
     'invalidGlobalList' => $invalidGlobalList,
     'invalidLocalComposes' => $invalidLocalComposes,
     'pureNoCheck' => $pureNoCheck['code'],
+    'licensePureNoCheck' => $licensePureNoCheck['code'],
+    'licensePureNoCheckExports' => $licensePureNoCheck['exports'],
     'pureGlobal' => $pureGlobal,
     'contentHash' => $contentHashResult['code'],
     'contentHashExports' => $contentHashResult['exports'],
@@ -320,6 +341,24 @@ $expected = [
     'invalidGlobalList' => 'rejected',
     'invalidLocalComposes' => 'rejected',
     'pureNoCheck' => '.wp-block-button{color:red}',
+    'licensePureNoCheck' => "/*! Block CSS delivery license */\n.wp-block-button{color:red}.BlockA_licenseCard{color:#ff0}.BlockA_card{color:#00f}",
+    'licensePureNoCheckExports' => [
+        'licenseCard' => [
+            'name' => 'BlockA_licenseCard',
+            'composes' => [
+                [
+                    'type' => 'local',
+                    'name' => 'BlockA_card',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+        'card' => [
+            'name' => 'BlockA_card',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+    ],
     'pureGlobal' => 'rejected',
     'contentHash' => '.hePdSq-cardHash{background:#fff}',
     'contentHashExports' => [
@@ -378,6 +417,7 @@ echo 'invalid-composes: ' . $actual['invalidComposes'] . PHP_EOL;
 echo 'invalid-global-list: ' . $actual['invalidGlobalList'] . PHP_EOL;
 echo 'invalid-local-composes: ' . $actual['invalidLocalComposes'] . PHP_EOL;
 echo 'pure-no-check: ' . $actual['pureNoCheck'] . PHP_EOL;
+echo 'license-pure-no-check: ' . $actual['licensePureNoCheck'] . PHP_EOL;
 echo 'pure-global: ' . $actual['pureGlobal'] . PHP_EOL;
 echo 'content-hash: ' . $actual['contentHash'] . PHP_EOL;
 echo 'dashed-idents: ' . $actual['dashedIdents'] . PHP_EOL;
