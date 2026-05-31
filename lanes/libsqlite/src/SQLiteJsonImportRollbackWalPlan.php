@@ -1210,6 +1210,60 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicFrameChecksumMismatchScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL frame-checksum dynamic parity requires at least one scenario');
+        }
+
+        $prefixScenarios = self::dynamicPreexistingWalScenarios($scenarioCount);
+        $scenarios = [];
+        foreach ($prefixScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $pageSize = (int) $base['page_size'];
+            $frameSize = 24 + $pageSize;
+            $targetFrame = (int) $base['preexisting_frames'] + 1;
+            $walBytes = self::scenarioChecksummedWalBytes($pageSize, (int) $base['wal_frames_before'], 0x9000 + $seed, 0x9100 + $seed);
+            $frameOffset = 32 + (($targetFrame - 1) * $frameSize);
+            $checksumOffset = $frameOffset + 16 + (($seed % 2) * 4);
+            $corruptWalBytes = substr_replace($walBytes, pack('N', 0xa5000000 + $seed), $checksumOffset, 4);
+            $exceptionMessage = null;
+
+            try {
+                self::plan(
+                    $base['input_rows'],
+                    $base['input_mutations'],
+                    [
+                        'database_bytes' => $base['database_bytes'],
+                        'page_size' => $pageSize,
+                        'wal_bytes' => $corruptWalBytes,
+                        'transaction' => 'application_frame_checksum_wal_' . $seed,
+                        'savepoint' => 'frame_checksum_wal_batch_' . $seed,
+                        'pre_savepoint_wal_pages' => $base['pre_savepoint_wal_pages'],
+                    ]
+                );
+            } catch (\InvalidArgumentException $exception) {
+                $exceptionMessage = $exception->getMessage();
+            }
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $base['tenant_id'],
+                'page_size' => $pageSize,
+                'preexisting_frames' => $base['preexisting_frames'],
+                'target_frame' => $targetFrame,
+                'checksum_offset' => $checksumOffset,
+                'corrupt_wal_bytes' => $corruptWalBytes,
+                'exception_message' => $exceptionMessage,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
      * @param array<string,mixed> $importPlan
      */
     private static function assertRollbackFramesExist(array $importPlan, int $walFrameCount): void
@@ -1269,6 +1323,22 @@ final class SQLiteJsonImportRollbackWalPlan
         return $bytes;
     }
 
+    private static function scenarioChecksummedWalBytes(int $pageSize, int $frames, int $saltOne, int $saltTwo): string
+    {
+        $prefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 0, $saltOne, $saltTwo);
+        $checksum = SQLiteWal::checksumPair($prefix, false);
+        $bytes = $prefix . pack('N*', $checksum[0], $checksum[1]);
+        $seed = SQLiteWal::checksumPair(substr($bytes, 0, 24), false);
+        for ($frame = 1; $frame <= $frames; $frame++) {
+            $page = str_pad("app-json-dynamic-checksum-wal-frame:{$frame}", $pageSize, "\0");
+            $framePrefix = pack('N*', $frame + 1, 0, $saltOne, $saltTwo);
+            $seed = SQLiteWal::checksumPair(substr($framePrefix, 0, 8) . $page, false, $seed[0], $seed[1]);
+            $bytes .= $framePrefix . pack('N*', $seed[0], $seed[1]) . $page;
+        }
+
+        return $bytes;
+    }
+
     /**
      * @return array{frame_count:int,frame_size:int}
      */
@@ -1309,6 +1379,19 @@ final class SQLiteJsonImportRollbackWalPlan
                 throw new \InvalidArgumentException(
                     'SQLite Application JSON import rollback WAL frame ' . $frame . ' salt does not match the WAL header'
                 );
+            }
+            if ((int) $frameHeader['checksum_1'] !== 0 || (int) $frameHeader['checksum_2'] !== 0) {
+                $seed = $seed ?? SQLiteWal::checksumPair(substr($walBytes, 0, 24), false);
+                $page = substr($walBytes, $offset + 24, $pageSize);
+                $seed = SQLiteWal::checksumPair(substr($walBytes, $offset, 8) . $page, false, $seed[0], $seed[1]);
+                if ((int) $frameHeader['checksum_1'] !== $seed[0] || (int) $frameHeader['checksum_2'] !== $seed[1]) {
+                    throw new \InvalidArgumentException(
+                        'SQLite Application JSON import rollback WAL frame ' . $frame . ' checksum does not match the frame payload'
+                    );
+                }
+            } elseif (isset($seed)) {
+                $page = substr($walBytes, $offset + 24, $pageSize);
+                $seed = SQLiteWal::checksumPair(substr($walBytes, $offset, 8) . $page, false, $seed[0], $seed[1]);
             }
         }
 

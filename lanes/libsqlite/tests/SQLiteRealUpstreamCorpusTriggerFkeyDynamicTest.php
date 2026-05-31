@@ -377,6 +377,164 @@ foreach ($deleteMatrixActions as $action => $childRowsAfter) {
     }
 }
 
+$triggerRepairCases = [
+    'trigger2-2 before update trigger rewrites child before restrict check' => [
+        'update',
+        ['setting_id' => 901],
+        static fn (array $row): bool => $row['setting_id'] === 1,
+        ['on_update' => 'restrict', 'deferred' => false],
+        [
+            ['name' => 'before_update_repair_child', 'timing' => 'before', 'event' => 'update', 'action' => 'update-child', 'match' => 'old.setting_id', 'set' => ['setting_id' => 'new.setting_id']],
+            ['name' => 'after_update_audit_repair', 'timing' => 'after', 'event' => 'update', 'action' => 'audit', 'values' => ['new_id' => 'new.setting_id']],
+        ],
+        [901, 2, 4],
+        [],
+        ['before_update_repair_child', 'after_update_audit_repair'],
+        [],
+    ],
+    'trigger2-2 after update trigger repairs no action before statement end' => [
+        'update',
+        ['setting_id' => 902],
+        static fn (array $row): bool => $row['setting_id'] === 1,
+        ['on_update' => 'no action', 'deferred' => false],
+        [
+            ['name' => 'after_update_repair_child', 'timing' => 'after', 'event' => 'update', 'action' => 'update-child', 'match' => 'old.setting_id', 'set' => ['setting_id' => 'new.setting_id']],
+        ],
+        [902, 2, 4],
+        ['no action'],
+        ['after_update_repair_child'],
+        [
+            ['child_index' => 0, 'child_key' => 1, 'parent' => 'setting_id', 'ordinal' => 0, 'phase' => 'statement'],
+        ],
+    ],
+    'trigger1-9 before update trigger changes NEW image returned to caller' => [
+        'update',
+        ['setting_id' => 903, 'key_name' => 'raw'],
+        static fn (array $row): bool => $row['setting_id'] === 1,
+        ['on_update' => 'cascade', 'deferred' => false],
+        [
+            ['name' => 'before_update_normalize_new', 'timing' => 'before', 'event' => 'update', 'action' => 'set-new', 'set' => ['key_name' => 'normalized'], 'values' => ['new_name' => 'new.key_name']],
+        ],
+        [903, 2, 4],
+        ['cascade'],
+        ['before_update_normalize_new'],
+        [],
+    ],
+    'trigger2-3 after update trigger inserts valid child against new parent key' => [
+        'update',
+        ['setting_id' => 904],
+        static fn (array $row): bool => $row['setting_id'] === 1,
+        ['on_update' => 'cascade', 'deferred' => false],
+        [
+            ['name' => 'after_update_insert_child', 'timing' => 'after', 'event' => 'update', 'action' => 'insert-child', 'row' => ['child_id' => 90, 'setting_id' => 'new.setting_id', 'payload' => 'after-update']],
+        ],
+        [904, 2, 4, 904],
+        ['cascade'],
+        ['after_update_insert_child'],
+        [],
+    ],
+    'fkey2-12 after update trigger inserts deferred orphan child' => [
+        'update',
+        ['setting_id' => 905],
+        static fn (array $row): bool => $row['setting_id'] === 1,
+        ['on_update' => 'cascade', 'deferred' => true],
+        [
+            ['name' => 'after_update_insert_orphan_child', 'timing' => 'after', 'event' => 'update', 'action' => 'insert-child', 'row' => ['child_id' => 91, 'setting_id' => 999, 'payload' => 'orphan']],
+        ],
+        [905, 2, 4, 999],
+        ['cascade'],
+        ['after_update_insert_orphan_child'],
+        [
+            ['child_index' => 3, 'child_key' => 999, 'parent' => 'setting_id', 'ordinal' => 0, 'phase' => 'after-trigger'],
+        ],
+    ],
+    'trigger2-4 before delete trigger moves child before restrict check' => [
+        'delete',
+        null,
+        static fn (array $row): bool => $row['setting_id'] === 1,
+        ['on_delete' => 'restrict', 'deferred' => false],
+        [
+            ['name' => 'before_delete_repair_child', 'timing' => 'before', 'event' => 'delete', 'action' => 'update-child', 'match' => 'old.setting_id', 'set' => ['setting_id' => 4]],
+            ['name' => 'after_delete_audit_repair', 'timing' => 'after', 'event' => 'delete', 'action' => 'audit', 'values' => ['old_id' => 'old.setting_id']],
+        ],
+        [4, 2, 4],
+        [],
+        ['before_delete_repair_child', 'after_delete_audit_repair'],
+        [],
+    ],
+    'fkey2-12 after delete trigger inserts deferred orphan child' => [
+        'delete',
+        null,
+        static fn (array $row): bool => $row['setting_id'] === 1,
+        ['on_delete' => 'cascade', 'deferred' => true],
+        [
+            ['name' => 'after_delete_insert_orphan_child', 'timing' => 'after', 'event' => 'delete', 'action' => 'insert-child', 'row' => ['child_id' => 92, 'setting_id' => 999, 'payload' => 'orphan-delete']],
+        ],
+        [2, 4, 999],
+        ['cascade-delete'],
+        ['after_delete_insert_orphan_child'],
+        [
+            ['child_index' => 2, 'child_key' => 999, 'parent' => 'setting_id', 'ordinal' => 0, 'phase' => 'after-trigger'],
+        ],
+    ],
+    'trigger1-6 false WHEN update trigger is skipped before cascade' => [
+        'update',
+        ['setting_id' => 906],
+        static fn (array $row): bool => $row['setting_id'] === 1,
+        ['on_update' => 'cascade', 'deferred' => false],
+        [
+            ['name' => 'before_update_false_when', 'timing' => 'before', 'event' => 'update', 'action' => 'set-new', 'when' => ['old.setting_id', '=', 2], 'set' => ['key_name' => 'skipped']],
+            ['name' => 'after_update_true_when', 'timing' => 'after', 'event' => 'update', 'action' => 'audit', 'when' => ['new.setting_id', '=', 906], 'values' => ['new_id' => 'new.setting_id']],
+        ],
+        [906, 2, 4],
+        ['cascade'],
+        ['after_update_true_when'],
+        [],
+    ],
+    'trigger1-6 false WHEN delete trigger is skipped before cascade' => [
+        'delete',
+        null,
+        static fn (array $row): bool => $row['setting_id'] === 1,
+        ['on_delete' => 'cascade', 'deferred' => false],
+        [
+            ['name' => 'before_delete_false_when', 'timing' => 'before', 'event' => 'delete', 'action' => 'update-child', 'when' => ['old.setting_id', '=', 2], 'match' => 'old.setting_id', 'set' => ['setting_id' => 4]],
+            ['name' => 'after_delete_true_when', 'timing' => 'after', 'event' => 'delete', 'action' => 'audit', 'when' => ['old.setting_id', '=', 1], 'values' => ['old_id' => 'old.setting_id']],
+        ],
+        [2, 4],
+        ['cascade-delete'],
+        ['after_delete_true_when'],
+        [],
+    ],
+];
+
+foreach ($triggerRepairCases as $name => [$event, $assignments, $where, $fk, $triggers, $expectedChildKeys, $expectedActions, $expectedTriggers, $expectedViolations]) {
+    $tests['real upstream corpus trigger fkey dynamic ' . $name] = static function (TestRunner $t) use ($parentRows, $childRows, $returning, $name, $event, $assignments, $where, $fk, $triggers, $expectedChildKeys, $expectedActions, $expectedTriggers, $expectedViolations): void {
+        $plan = $event === 'update'
+            ? SQLiteTriggerForeignKeyReturningPlan::updateParents($parentRows, $childRows, $assignments, $where, ['parent_key' => 'setting_id', 'child_key' => 'setting_id'] + $fk, $triggers, $returning, 'setting_id')
+            : SQLiteTriggerForeignKeyReturningPlan::deleteParents($parentRows, $childRows, $where, ['parent_key' => 'setting_id', 'child_key' => 'setting_id'] + $fk, $triggers, $returning, 'setting_id');
+
+        $t->same(1, $plan['changes']);
+        $t->same($expectedChildKeys, array_column($plan['child'], 'setting_id'));
+        $t->same($expectedActions, array_column($plan['foreign_key_actions'], 'action'));
+        $t->same($expectedTriggers, array_column($plan['trigger_effects'], 'trigger'));
+        $t->same($expectedViolations, $plan['foreign_key_violations']);
+        $t->same([$event], array_values(array_unique(array_column($plan['yielded'], 'event'))));
+        $t->same([0], array_column($plan['yielded'], 'ordinal'));
+        $t->same([1], array_column($plan['yielded'], 'old_key'));
+        if ($event === 'update') {
+            $t->same([(int) $assignments['setting_id']], array_column($plan['yielded'], 'new_key'));
+            $t->same([(int) $assignments['setting_id']], array_column(array_column($plan['yielded'], 'returning'), 'new_id'));
+        } else {
+            $t->same([1], array_column($plan['yielded'], 'new_key'));
+            $t->same([1], array_column(array_column($plan['yielded'], 'returning'), 'old_id'));
+        }
+        if ($name === 'trigger1-9 before update trigger changes NEW image returned to caller') {
+            $t->same(['normalized', 'beta', 'gamma', 'delta'], array_column($plan['parent'], 'key_name'));
+            $t->same(['normalized'], array_column(array_column($plan['yielded'], 'returning'), 'name'));
+        }
+    };
+}
+
 $guardCases = [
     'triggerE-1 rejects malformed trigger action' => static fn (): array => SQLiteTriggerForeignKeyReturningPlan::updateParents($parentRows, $childRows, ['setting_id' => 9], static fn (): bool => true, ['parent_key' => 'setting_id', 'child_key' => 'setting_id'], [['timing' => 'after', 'event' => 'update', 'action' => 'explode']], $returning, 'setting_id'),
     'fkey2 malformed action is rejected' => static fn (): array => SQLiteTriggerForeignKeyReturningPlan::deleteParents($parentRows, $childRows, static fn (): bool => true, ['parent_key' => 'setting_id', 'child_key' => 'setting_id', 'on_delete' => 'explode'], [], $returning, 'setting_id'),
@@ -395,11 +553,14 @@ $tests['real upstream corpus trigger fkey dynamic cites upstream source files'] 
         'fkey2.test fkey2-11.* CASCADE actions',
         'fkey2.test fkey2-12.* RESTRICT actions',
         'fkey6.test defer_foreign_keys does not defer RESTRICT',
+        'trigger1.test trigger1-6.* WHEN clauses skip non-matching trigger bodies',
+        'trigger1.test trigger1-9.* BEFORE trigger NEW image mutation',
         'trigger2.test trigger2-4.* cascaded and recursive trigger execution',
+        'trigger2.test trigger2-2.* BEFORE and AFTER trigger timing around row changes',
         'triggerG.test triggerG-100 recursive trigger OP_Once behavior',
     ];
 
-    $t->same(7, count($upstream));
+    $t->same(10, count($upstream));
     $t->same(true, str_contains(implode("\n", $upstream), 'triggerG-100'));
     $t->same(true, str_contains(implode("\n", $upstream), 'fkey2-11'));
     $t->same(true, str_contains(implode("\n", $upstream), 'fkey6.test'));

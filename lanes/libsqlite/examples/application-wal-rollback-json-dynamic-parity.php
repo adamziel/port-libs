@@ -16,6 +16,7 @@ $preexistingRetryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexisting
 $missingWalTailScenarios = SQLiteJsonImportRollbackWalPlan::dynamicMissingWalTailScenarios(4);
 $partialWalTailScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPartialWalTailScenarios(4);
 $frameHeaderMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFrameHeaderMismatchScenarios(4);
+$frameChecksumMismatchScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFrameChecksumMismatchScenarios(4);
 $summary = [
     'scenario' => 'application-wal-rollback-json-dynamic-parity',
     'scenarioCount' => count($scenarios),
@@ -28,6 +29,7 @@ $summary = [
     'missingWalTailScenarioCount' => count($missingWalTailScenarios),
     'partialWalTailScenarioCount' => count($partialWalTailScenarios),
     'frameHeaderMismatchScenarioCount' => count($frameHeaderMismatchScenarios),
+    'frameChecksumMismatchScenarioCount' => count($frameChecksumMismatchScenarios),
     'statuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $scenarios),
     'preexistingWalStatuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $preexistingWalScenarios),
     'tenantCollisionStatuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $tenantCollisionScenarios),
@@ -58,6 +60,9 @@ $summary = [
     'frameHeaderMismatchMessages' => array_map(static fn (array $scenario): ?string => $scenario['exception_message'], $frameHeaderMismatchScenarios),
     'frameHeaderMismatchTargetFrames' => array_map(static fn (array $scenario): int => $scenario['target_frame'], $frameHeaderMismatchScenarios),
     'frameHeaderMismatchCorruptions' => array_map(static fn (array $scenario): string => $scenario['corruption'], $frameHeaderMismatchScenarios),
+    'frameChecksumMismatchMessages' => array_map(static fn (array $scenario): ?string => $scenario['exception_message'], $frameChecksumMismatchScenarios),
+    'frameChecksumMismatchTargetFrames' => array_map(static fn (array $scenario): int => $scenario['target_frame'], $frameChecksumMismatchScenarios),
+    'frameChecksumMismatchOffsets' => array_map(static fn (array $scenario): int => $scenario['checksum_offset'], $frameChecksumMismatchScenarios),
     'restoredPages' => array_map(static fn (array $scenario): array => $scenario['plan']['rollback_to_savepoint']['restored_page_numbers'], $scenarios),
 ];
 
@@ -72,6 +77,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['missingWalTailScenarioCount'] === 4);
     assert($summary['partialWalTailScenarioCount'] === 4);
     assert($summary['frameHeaderMismatchScenarioCount'] === 4);
+    assert($summary['frameChecksumMismatchScenarioCount'] === 4);
     assert($summary['statuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['preexistingWalStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['tenantCollisionStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
@@ -102,6 +108,10 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['frameHeaderMismatchCorruptions'] === ['salt_mismatch', 'zero_page', 'salt_mismatch', 'zero_page']);
     assert($summary['frameHeaderMismatchMessages'][0] === 'SQLite Application JSON import rollback WAL frame 4 salt does not match the WAL header');
     assert($summary['frameHeaderMismatchMessages'][1] === 'SQLite Application JSON import rollback WAL frame 5 has an invalid page number');
+    assert($summary['frameChecksumMismatchTargetFrames'] === [4, 5, 6, 3]);
+    assert($summary['frameChecksumMismatchMessages'][0] === 'SQLite Application JSON import rollback WAL frame 4 checksum does not match the frame payload');
+    assert($summary['frameChecksumMismatchMessages'][1] === 'SQLite Application JSON import rollback WAL frame 5 checksum does not match the frame payload');
+    assert($summary['frameChecksumMismatchOffsets'][0] === 1664);
     assert($summary['restoredPages'][0] === [3, 11]);
     fwrite(STDOUT, "application-wal-rollback-json-dynamic-parity self-test passed\n");
     return;

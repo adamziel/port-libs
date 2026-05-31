@@ -207,6 +207,59 @@ $tests['real upstream corpus vfs io dynamic io rollback journal writes follow de
     }
 };
 
+$quickBalanceCases = [];
+foreach ([1024, 2048, 4096] as $pageSize) {
+    foreach ([180, 200, 230, 260, 300] as $payloadBytes) {
+        $profile = SQLiteVfsIoDynamicPlan::quickBalanceDynamicWriteProfile($pageSize, $payloadBytes, 1);
+        $quickBalanceCases[] = [$pageSize, $payloadBytes, $profile['quick_balance_row'] + 2];
+    }
+}
+
+$tests['real upstream corpus vfs io dynamic quick balance write counts follow io 1'] = static function (TestRunner $t) use ($quickBalanceCases): void {
+    foreach ($quickBalanceCases as [$pageSize, $payloadBytes, $insertedRows]) {
+        $profile = SQLiteVfsIoDynamicPlan::quickBalanceDynamicWriteProfile($pageSize, $payloadBytes, $insertedRows);
+
+        $t->same('ok', $profile['status']);
+        $t->same('io.test', $profile['script']);
+        $t->same($pageSize, $profile['page_size']);
+        $t->same($payloadBytes, $profile['payload_bytes']);
+        $t->same($insertedRows, $profile['row_count']);
+        $t->same(intdiv($pageSize - 16, $payloadBytes + 8), $profile['root_leaf_capacity']);
+        $t->same($profile['root_leaf_capacity'] + 1, $profile['split_row']);
+        $t->same(($profile['root_leaf_capacity'] * 2) + 1, $profile['quick_balance_row']);
+        $t->same(1, $profile['split_events']);
+        $t->same(1, $profile['quick_balance_events']);
+        $t->same(4, $profile['events'][$profile['split_row'] - 1]['database_writes']);
+        $t->same('two_leaf_pages_root_and_change_counter', $profile['events'][$profile['split_row'] - 1]['reason']);
+        $t->same(3, $profile['events'][$profile['quick_balance_row'] - 1]['database_writes']);
+        $t->same('quick_balance_new_leaf_root_and_change_counter', $profile['events'][$profile['quick_balance_row'] - 1]['reason']);
+        $t->same('io.test io-1.3', $profile['events'][$profile['split_row'] - 1]['upstream']);
+        $t->same('io.test io-1.5', $profile['events'][$profile['quick_balance_row'] - 1]['upstream']);
+        $t->same(true, in_array('io.test io-1.3', $profile['upstream'], true));
+        $t->same(true, in_array('io.test io-1.5', $profile['upstream'], true));
+        $t->same(true, in_array('sqlite-vfs-quick-balance-traffic', $profile['dependencies'], true));
+        $t->same(true, in_array('vfs-io-dynamic-real-corpus', $profile['dependencies'], true));
+    }
+};
+
+$tests['real upstream corpus vfs io dynamic quick balance root fill inserts stay two writes'] = static function (TestRunner $t): void {
+    $profile = SQLiteVfsIoDynamicPlan::quickBalanceDynamicWriteProfile(1024, 230, 9);
+
+    $t->same(4, $profile['root_leaf_capacity']);
+    $t->same(true, $profile['canonical_io_1_shape']);
+    $t->same([2, 2, 2, 2], array_column(array_slice($profile['events'], 0, 4), 'database_writes'));
+    $t->same(4, $profile['events'][4]['database_writes']);
+    $t->same([2, 2, 2], array_column(array_slice($profile['events'], 5, 3), 'database_writes'));
+    $t->same(3, $profile['events'][8]['database_writes']);
+    $t->same(['io.test io-1.1', 'io.test io-1.2', 'io.test io-1.3', 'io.test io-1.4', 'io.test io-1.5'], $profile['upstream']);
+};
+
+$tests['real upstream corpus vfs io dynamic quick balance profile rejects malformed inputs'] = static function (TestRunner $t): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::quickBalanceDynamicWriteProfile(1000, 230, 9));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::quickBalanceDynamicWriteProfile(1024, 0, 9));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteVfsIoDynamicPlan::quickBalanceDynamicWriteProfile(1024, 230, 0));
+};
+
 $defaultPageSizeCases = [
     [[], 512, 1024],
     [[], 1024, 1024],
