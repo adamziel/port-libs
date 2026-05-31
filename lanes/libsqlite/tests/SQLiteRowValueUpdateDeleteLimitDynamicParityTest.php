@@ -1074,4 +1074,78 @@ foreach ($concatMalformed as $name => $sql) {
     };
 }
 
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitInput = $limitValue + ($seed % 2 === 0 ? 0.49 : -0.49);
+    $offsetInput = $offsetValue + ($seed % 2 === 0 ? 0.24 : -0.24);
+    $sql = sprintf(
+        "UPDATE app_settings SET state = 'round_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT round('%.2f') OFFSET round('%.2f')",
+        $limitInput,
+        $offsetInput,
+    );
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update round expression window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitInput = $limitValue + ($seed % 2 === 0 ? 0.49 : -0.49);
+    $offsetInput = $offsetValue + ($seed % 2 === 0 ? 0.24 : -0.24);
+    $sql = sprintf(
+        "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT round('%.2f') OFFSET round('%.2f')) RETURNING setting_id ORDER BY setting_id LIMIT -1",
+        $limitInput,
+        $offsetInput,
+    );
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue round subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = ($seed + 2) % 3;
+    $sql = "UPDATE app_settings SET state = 'round_precision' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT round({$limitValue}.04, 1) OFFSET round({$offsetValue}.04, 1)";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update round precision window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+$roundMalformed = [
+    'malformed round null limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT round(NULL)",
+    'malformed round blob offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET round(X'ABCD')",
+    'malformed round text limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT round('abc')",
+    'malformed round nonintegral precision result rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT round(2.44, 1)",
+    'malformed round arity rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT round()",
+];
+
+foreach ($roundMalformed as $name => $sql) {
+    $tests['rowvalue update delete limit dynamic parity ' . $name] = static function (TestRunner $t) use ($sql): void {
+        $t->throws(InvalidArgumentException::class, static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($sql));
+    };
+}
+
 return $tests;

@@ -34,6 +34,8 @@ final class SQLiteGroupedAggregate
             }
         }
 
+        $groups = self::sortGroupsByKey($groups, $groupColumns);
+
         $summaries = [];
         foreach ($groups as $group) {
             $values = $group['values'];
@@ -51,6 +53,11 @@ final class SQLiteGroupedAggregate
             ];
             foreach (self::invariantColumns($group['rows']) as $column => $value) {
                 if (!array_key_exists($column, $summary)) {
+                    $summary[$column] = $value;
+                }
+            }
+            foreach (($group['rows'][0] ?? []) as $column => $value) {
+                if (is_string($column) && !array_key_exists($column, $summary)) {
                     $summary[$column] = $value;
                 }
             }
@@ -366,6 +373,28 @@ final class SQLiteGroupedAggregate
         }
 
         throw new \InvalidArgumentException('SQLite GROUP BY values must be scalar, BLOB, or NULL');
+    }
+
+    /**
+     * @param array<string,array{group:mixed,groupValues:array<string,mixed>,rows:list<array<string,mixed>>,values:list<mixed>}> $groups
+     * @param non-empty-list<string> $groupColumns
+     * @return list<array{group:mixed,groupValues:array<string,mixed>,rows:list<array<string,mixed>>,values:list<mixed>}>
+     */
+    private static function sortGroupsByKey(array $groups, array $groupColumns): array
+    {
+        $ordered = array_values($groups);
+        usort($ordered, static function (array $left, array $right) use ($groupColumns): int {
+            foreach ($groupColumns as $column) {
+                $comparison = self::compareSqlValues($left['groupValues'][$column], $right['groupValues'][$column]);
+                if ($comparison !== 0) {
+                    return $comparison;
+                }
+            }
+
+            return 0;
+        });
+
+        return $ordered;
     }
 
     /**

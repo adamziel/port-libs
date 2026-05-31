@@ -2632,6 +2632,71 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function schemaReadLockStatusProfile(
+        bool $firstConnectionWrites,
+        bool $secondConnectionWrites,
+        bool $firstCommits,
+        string $tempSchemaState = 'closed',
+        int $schemaReadCount = 1
+    ): array {
+        $tempSchemaState = strtolower(trim($tempSchemaState));
+        if (!in_array($tempSchemaState, ['closed', 'unlocked'], true)) {
+            throw new \InvalidArgumentException('SQLite lock7 schema-read temp schema state is unsupported');
+        }
+        if ($schemaReadCount < 1) {
+            throw new \InvalidArgumentException('SQLite lock7 schema-read profile requires at least one schema read');
+        }
+
+        $firstInitial = ['main' => 'unlocked', 'temp' => $tempSchemaState];
+        $secondInitial = ['main' => 'unlocked', 'temp' => $tempSchemaState];
+        $firstAfterWrite = $firstConnectionWrites ? ['main' => 'reserved', 'temp' => $tempSchemaState] : $firstInitial;
+        $secondAfterBlockedWrite = $secondConnectionWrites && $firstConnectionWrites
+            ? ['main' => 'unlocked', 'temp' => $tempSchemaState]
+            : ($secondConnectionWrites ? ['main' => 'reserved', 'temp' => $tempSchemaState] : $secondInitial);
+        $secondWriteResult = $secondConnectionWrites && $firstConnectionWrites ? 'database is locked' : 'ok';
+
+        return [
+            'status' => 'ok',
+            'script' => 'lock7.test',
+            'upstream' => [
+                'lock7.test lock7-1.1 both connections BEGIN',
+                'lock7.test lock7-1.2 db1 PRAGMA lock_status remains main unlocked temp closed',
+                'lock7.test lock7-1.3 db2 PRAGMA lock_status remains main unlocked temp closed',
+                'lock7.test lock7-1.4 first writer upgrades to reserved',
+                'lock7.test lock7-1.5 second writer is blocked without retaining shared lock',
+                'lock7.test lock7-1.6 db1 lock_status main reserved temp closed',
+                'lock7.test lock7-1.7 db2 lock_status main unlocked temp closed',
+                'lock7.test lock7-1.8 first writer COMMIT releases lock',
+            ],
+            'schema_read_count' => $schemaReadCount,
+            'temp_schema_state' => $tempSchemaState,
+            'first_connection_writes' => $firstConnectionWrites,
+            'second_connection_writes' => $secondConnectionWrites,
+            'first_commits' => $firstCommits,
+            'schema_read_establishes_shared_lock' => false,
+            'first_initial_lock_status' => $firstInitial,
+            'second_initial_lock_status' => $secondInitial,
+            'first_after_write_lock_status' => $firstAfterWrite,
+            'second_after_blocked_write_lock_status' => $secondAfterBlockedWrite,
+            'second_write_result' => $secondWriteResult,
+            'first_after_commit_lock_status' => $firstCommits ? ['main' => 'unlocked', 'temp' => $tempSchemaState] : $firstAfterWrite,
+            'write_conflict_requires_reserved_lock' => $firstConnectionWrites && $secondConnectionWrites,
+            'busy_handler_invoked' => $secondWriteResult === 'database is locked',
+            'integrity_check' => 'ok',
+            'reason' => $firstConnectionWrites
+                ? 'schema_read_releases_shared_lock_before_first_writer_reserves_database'
+                : 'schema_read_transaction_keeps_database_unlocked_without_write_upgrade',
+            'dependencies' => [
+                'sqlite-upstream-lock7-test',
+                'sqlite-vfs-schema-read-lock-status',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     private static function safeDeleteJournalUpstream(string $scenario): array

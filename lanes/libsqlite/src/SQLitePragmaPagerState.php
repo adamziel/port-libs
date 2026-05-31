@@ -33,12 +33,14 @@ final class SQLitePragmaPagerState
         foreach ($schemas as $schema => $state) {
             $name = self::normalizeSchemaName((string) $schema);
             $default = self::normalizeDefaultCacheSize((int) ($state['default_cache_size'] ?? $builtInDefaultCacheSize), $builtInDefaultCacheSize);
+            $cacheSize = (int) ($state['cache_size'] ?? $default);
+            $pageSize = (int) ($state['page_size'] ?? 4096);
             $this->schemas[$name] = [
-                'cache_size' => (int) ($state['cache_size'] ?? $default),
+                'cache_size' => $cacheSize,
                 'default_cache_size' => $default,
                 'synchronous' => self::normalizeSynchronous($state['synchronous'] ?? 2),
-                'page_size' => self::normalizePageSize((int) ($state['page_size'] ?? 4096)),
-                'cache_spill' => self::normalizeCacheSpill($state['cache_spill'] ?? $default, (int) ($state['cache_size'] ?? $default), (int) ($state['page_size'] ?? 4096)),
+                'page_size' => self::normalizePageSize($pageSize),
+                'cache_spill' => self::normalizeCacheSpill($state['cache_spill'] ?? $cacheSize, $cacheSize, $pageSize),
                 'dirty_default' => (bool) ($state['dirty_default'] ?? false),
             ];
         }

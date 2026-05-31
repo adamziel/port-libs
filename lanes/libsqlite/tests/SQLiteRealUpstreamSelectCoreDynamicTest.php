@@ -397,6 +397,96 @@ foreach ([3, 7, 15, 31] as $upper) {
     };
 }
 
+/**
+ * @param list<array{a:?int,b:?int}> $rows
+ * @return list<mixed>
+ */
+$select5GroupByExpressionExpected = static function (array $rows): array {
+    $groups = [];
+    foreach ($rows as $row) {
+        $absB = $row['b'] === null ? null : abs($row['b']);
+        $key = ($row['a'] === null ? 'N' : 'I' . $row['a']) . ':' . ($absB === null ? 'N' : 'I' . $absB);
+        $groups[$key] ??= ['a' => $row['a'], 'absB' => $absB, 'b' => $row['b']];
+    }
+
+    usort($groups, static function (array $left, array $right): int {
+        foreach (['a', 'absB'] as $column) {
+            if ($left[$column] === $right[$column]) {
+                continue;
+            }
+            if ($left[$column] === null) {
+                return -1;
+            }
+            if ($right[$column] === null) {
+                return 1;
+            }
+
+            return $left[$column] <=> $right[$column];
+        }
+
+        return 0;
+    });
+
+    $quoted = [];
+    foreach ($groups as $group) {
+        $quoted[] = $group['a'] === null ? 'NULL' : (string) $group['a'];
+        $quoted[] = '|';
+    }
+
+    return $quoted;
+};
+
+$select5GroupByExpressionRows = [
+    'dynamic signed b values collapse by abs expression' => [
+        ['a' => 2, 'b' => -4],
+        ['a' => 2, 'b' => 4],
+        ['a' => null, 'b' => -4],
+        ['a' => 1, 'b' => null],
+    ],
+    'dynamic null a and null abs sort before numeric keys' => [
+        ['a' => 3, 'b' => 2],
+        ['a' => null, 'b' => null],
+        ['a' => null, 'b' => 2],
+        ['a' => 3, 'b' => -2],
+    ],
+    'dynamic repeated numeric a keeps one grouped expression row' => [
+        ['a' => 5, 'b' => -1],
+        ['a' => 5, 'b' => 1],
+        ['a' => 4, 'b' => 1],
+        ['a' => 4, 'b' => -1],
+    ],
+    'dynamic mixed null and zero expression keys' => [
+        ['a' => 0, 'b' => 0],
+        ['a' => null, 'b' => 0],
+        ['a' => 0, 'b' => null],
+        ['a' => null, 'b' => null],
+    ],
+];
+
+$tests['real upstream corpus select5.test select5-9.1 exact quote projection with null expression bucket'] = static function (TestRunner $t) use ($assertFlatValues, $flatValues): void {
+    $tables = [
+        't1' => [
+            ['a' => 1, 'b' => null],
+            ['a' => null, 'b' => null],
+            ['a' => 1, 'b' => null],
+        ],
+    ];
+
+    $actual = SQLiteSelectSql::execute("SELECT quote(a), quote(b), '|' FROM t1 GROUP BY a, abs(b)", $tables);
+    $assertFlatValues($t, ['NULL', 'NULL', '|', '1', 'NULL', '|'], $actual, $flatValues);
+    $t->contains('select5-9.1', 'select5.test select5-9.1 exact quote projection with NULL group key');
+};
+
+foreach ($select5GroupByExpressionRows as $name => $rows) {
+    $tests['real upstream corpus select5.test select5-9.1 ' . $name] = static function (TestRunner $t) use ($rows, $select5GroupByExpressionExpected, $assertFlatValues, $flatValues): void {
+        $tables = ['t1' => $rows];
+        $expected = $select5GroupByExpressionExpected($rows);
+        $actual = SQLiteSelectSql::execute("SELECT quote(a), '|' FROM t1 GROUP BY a, abs(b)", $tables);
+        $assertFlatValues($t, $expected, $actual, $flatValues);
+        $t->contains('select5-9.1', 'select5.test select5-9.1 expression GROUP BY over NULL values');
+    };
+}
+
 $select6Cases = [
     'select6.test select6-1.0 distinct subquery source setup' => ['SELECT DISTINCT y FROM t1 ORDER BY y', [1, 2, 3, 4, 5]],
     'select6.test select6-1.1 from subquery wildcard' => ['SELECT * FROM (SELECT x, y FROM t1 WHERE x<2)', [1, 1]],
@@ -814,6 +904,56 @@ foreach ([1, 2, 3, 4, 5, 6, 7, 8] as $upper) {
         $t->contains('selectF.test', "selectF.test selectF-2 dynamic wildcard compound filtered upper {$upper}");
         $t->true(count($expected) >= min($upper, 3) * 3);
     };
+}
+
+$select8TablesFor = static function (int $seed): array {
+    $artists = ['one', 'two', 'three', 'four', 'five', 'six', 'seven'];
+    $rows = [];
+    $songid = 1;
+    foreach ($artists as $index => $artist) {
+        $repeat = (($seed + $index) % 4) + 1;
+        for ($copy = 0; $copy < $repeat; $copy++) {
+            $rows[] = [
+                'songid' => $songid++,
+                'artist' => $copy % 2 === 0 ? $artist : strtoupper($artist),
+                'timesplayed' => (($seed * ($index + 3)) + ($copy * 5)) % 23 + 1,
+            ];
+        }
+    }
+
+    return ['songs' => $rows];
+};
+
+$select8ExpectedGroupedRows = static function (array $tables): array {
+    $groups = [];
+    foreach ($tables['songs'] as $row) {
+        $key = strtolower((string) $row['artist']);
+        if (!isset($groups[$key])) {
+            $groups[$key] = [
+                'artist' => $row['artist'],
+                'total' => 0,
+            ];
+        }
+        $groups[$key]['total'] += $row['timesplayed'];
+    }
+
+    ksort($groups, SORT_STRING);
+
+    return array_values($groups);
+};
+
+for ($seed = 1; $seed <= 250; $seed++) {
+    $tables = $select8TablesFor($seed);
+    $resultRows = $select8ExpectedGroupedRows($tables);
+    foreach ([[1, 1], [2, 1], [-1, 2], [3, 0]] as [$limit, $offset]) {
+        $expected = $flatValues(array_slice($resultRows, $offset, $limit < 0 ? null : $limit));
+        $tests["real upstream corpus select8.test select8-1 dynamic distinct grouped aggregate seed {$seed} limit {$limit} offset {$offset}"] = static function (TestRunner $t) use ($select8TablesFor, $seed, $limit, $offset, $expected, $assertFlatValues, $flatValues): void {
+            $sql = "SELECT DISTINCT artist,sum(timesplayed) AS total FROM songs GROUP BY lower(artist) LIMIT {$limit} OFFSET {$offset}";
+            $assertFlatValues($t, $expected, SQLiteSelectSql::execute($sql, $select8TablesFor($seed)), $flatValues);
+            $t->contains('select8.test', "select8.test select8-1 dynamic distinct grouped aggregate seed {$seed}");
+            $t->contains('GROUP BY lower(artist)', $sql);
+        };
+    }
 }
 
 return $tests;

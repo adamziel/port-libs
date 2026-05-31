@@ -722,7 +722,7 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : self::textLength((string) $value);
         }
-        if (preg_match('/^(coalesce|ifnull|nullif|min|max)\s*\((.*)\)$/is', $expression, $match) === 1) {
+        if (preg_match('/^(coalesce|ifnull|nullif|min|max|round)\s*\((.*)\)$/is', $expression, $match) === 1) {
             return self::evaluateLimitScalarFunction(strtolower($match[1]), $match[2]);
         }
         $predicate = self::evaluateLimitPredicateExpression($expression);
@@ -943,8 +943,31 @@ final class SQLiteUpdateDeleteReturningSql
         if (($function === 'min' || $function === 'max') && $parts === []) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs at least one argument");
         }
+        if ($function === 'round' && count($parts) !== 1 && count($parts) !== 2) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT round() needs one or two arguments');
+        }
 
         $values = array_map(static fn (string $part): int|float|string|null => self::limitExpressionValue($part), $parts);
+        if ($function === 'round') {
+            if ($values[0] === null) {
+                return null;
+            }
+            if (!is_int($values[0]) && !is_float($values[0]) && !(is_string($values[0]) && is_numeric($values[0]))) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT round() value must be numeric');
+            }
+            $precision = 0;
+            if (array_key_exists(1, $values)) {
+                if ($values[1] === null) {
+                    return null;
+                }
+                if (!is_int($values[1]) && !is_float($values[1]) && !(is_string($values[1]) && is_numeric($values[1]))) {
+                    throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT round() precision must be numeric');
+                }
+                $precision = max(0, (int) $values[1]);
+            }
+
+            return round((float) $values[0], $precision);
+        }
         if ($function === 'nullif') {
             return $values[0] == $values[1] ? null : $values[0];
         }
@@ -1499,6 +1522,32 @@ final class SQLiteUpdateDeleteReturningSql
             $value = self::evaluateExpression(trim($match[1]), $row);
 
             return $value === null ? null : self::textLength((string) $value);
+        }
+        if (preg_match('/^round\s*\((.*)\)$/is', $expression, $match) === 1) {
+            $parts = self::splitComma($match[1]);
+            if (count($parts) !== 1 && count($parts) !== 2) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE round() needs one or two arguments');
+            }
+            $value = self::evaluateExpression($parts[0], $row);
+            if ($value === null) {
+                return null;
+            }
+            if (!is_int($value) && !is_float($value) && !(is_string($value) && is_numeric($value))) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE round() value must be numeric');
+            }
+            $precision = 0;
+            if (array_key_exists(1, $parts)) {
+                $precisionValue = self::evaluateExpression($parts[1], $row);
+                if ($precisionValue === null) {
+                    return null;
+                }
+                if (!is_int($precisionValue) && !is_float($precisionValue) && !(is_string($precisionValue) && is_numeric($precisionValue))) {
+                    throw new \InvalidArgumentException('SQLite UPDATE/DELETE round() precision must be numeric');
+                }
+                $precision = max(0, (int) $precisionValue);
+            }
+
+            return round((float) $value, $precision);
         }
         if (preg_match('/^nullif\s*\((.*)\)$/is', $expression, $match) === 1) {
             $parts = self::splitComma($match[1]);

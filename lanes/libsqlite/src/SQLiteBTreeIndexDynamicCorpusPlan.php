@@ -490,6 +490,58 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,column_count:int,row_count:int,column_name:string,column_position:int,first_row_value:int,last_row_value:int,selected_column:string,selected_value:int,index_name:string,index_columns:list<string>,order_by:list<string>,limit:int,result_rows:list<list<int>>,detail:string,integrity:string}>
+     */
+    public static function index2WideColumnIndexCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite index2 dynamic corpus requires at least one case');
+        }
+
+        $out = [];
+        $indexColumns = [];
+        for ($column = 1; $column <= 1000; $column++) {
+            $indexColumns[] = 'c' . $column;
+        }
+
+        for ($case = 1; $case <= $cases; $case++) {
+            $columnPosition = (($case - 1) % 1000) + 1;
+            $rowOffset = intdiv($case - 1, 1000);
+            $selectedColumn = 'c' . $columnPosition;
+            $firstRowValue = $columnPosition;
+            $lastRowValue = 1000000 + $columnPosition;
+            $resultRows = [];
+            for ($row = 0; $row < 5; $row++) {
+                $base = $row === 0 ? 0 : $row * 10000;
+                $resultRows[] = [$base + $columnPosition];
+            }
+
+            $out[] = [
+                'source' => 'index2.test sections index2-1.1 through index2-2.2',
+                'case' => $case,
+                'upstream_section' => $columnPosition <= 5 ? 'index2-2.2' : 'index2-2.1',
+                'column_count' => 1000,
+                'row_count' => 101,
+                'column_name' => $selectedColumn,
+                'column_position' => $columnPosition,
+                'first_row_value' => $firstRowValue,
+                'last_row_value' => $lastRowValue,
+                'selected_column' => $selectedColumn,
+                'selected_value' => ($rowOffset * 10000) + $columnPosition,
+                'index_name' => 't1i1',
+                'index_columns' => $indexColumns,
+                'order_by' => ['c1', 'c2', 'c3', 'c4', 'c5', 'c6'],
+                'limit' => 5,
+                'result_rows' => $resultRows,
+                'detail' => 'SCAN t1 USING COVERING INDEX t1i1',
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{upstream:string,scenario:string,row_count:int,blob_bytes:int,index_name:string,cache_size:int|null,expected_integrity:string,requires_external_sort:bool,unique_error:string|null,duplicate_value:int|null}>
      */
     public static function index4LargeBuildCases(): array
@@ -6290,6 +6342,86 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
             . ' idxInsert=' . ($idxInsert ? 'yes' : 'no')
             . ' idxStr=' . $idxStr
             . ' sorter=no';
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,operator:string|null,limit:int,offset:int,accepted_constraints:list<string>,fallback_constraints:list<string>,left_values:list<string>,right_values:list<string>,result_rows:list<list<string>>,detail:string,batch:int}>
+     */
+    public static function bestindexCLimitOffsetConstraintCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindexC LIMIT/OFFSET dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            ['bestindexC-1.2.t_unionall.1', 'UNION ALL compound forwards LIMIT only', 'UNION ALL', 8, 0, ['limit', 'offset'], ['limit'], ['a', 'b', 'c', 'd', 'e', 'f'], ['A', 'B', 'C', 'D', 'E', 'F', 'a', 'b']],
+            ['bestindexC-1.2.t_union.2', 'UNION compound forwards reduced LIMIT', 'UNION', 4, 0, ['limit', 'offset'], ['limit'], ['a', 'b', 'c', 'd', 'e', 'f'], ['A', 'B', 'C', 'D', 'E', 'F', 'a', 'b']],
+            ['bestindexC-1.2.t_intersect.3', 'INTERSECT compound preserves LIMIT and OFFSET constraints', 'INTERSECT', 4, 2, ['limit', 'offset'], ['offset'], ['a', 'b', 'c', 'd', 'e', 'f'], ['A', 'B', 'C', 'D', 'E', 'F', 'a', 'b']],
+            ['bestindexC-1.2.t_except.4', 'EXCEPT compound preserves large OFFSET even when rowset is exhausted', 'EXCEPT', 8, 4, ['limit', 'offset'], ['offset'], ['a', 'b', 'c', 'd', 'e', 'f'], ['A', 'B', 'C', 'D', 'E', 'F', 'a', 'b']],
+            ['bestindexC-2.1', 'EXCEPT pushes LIMIT into virtual-table row production', 'EXCEPT', 3, 0, ['limit', 'offset'], ['limit'], ['a', 'b', 'c', 'd', 'e', 'f'], ['a', 'b', 'e', 'f']],
+            ['bestindexC-3.4', 'series virtual table applies LIMIT/OFFSET after range predicate', null, 4, 1, ['limit', 'offset'], ['limit', 'offset'], ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], []],
+            ['bestindexC-3.5', 'virtual table falls back when xBestIndex declines LIMIT', null, 5, 3, ['offset'], ['offset'], ['a', 'b', 'c', 'd', 'e', 'f'], []],
+            ['bestindexC-3.6', 'virtual table falls back when xBestIndex declines OFFSET', null, 5, 3, ['limit'], ['limit'], ['a', 'b', 'c', 'd', 'e', 'f'], []],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $operator, $limit, $offset, $accepted, $fallback, $left, $right] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $rows = self::bestindexCLimitOffsetRows($operator, $left, $right, $limit, $offset, $section);
+
+            $out[] = [
+                'source' => 'bestindexC.test sections 1.2 through 3.6',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'operator' => $operator,
+                'limit' => $limit,
+                'offset' => $offset,
+                'accepted_constraints' => $accepted,
+                'fallback_constraints' => $fallback,
+                'left_values' => $left,
+                'right_values' => $right,
+                'result_rows' => $rows,
+                'detail' => 'xBestIndex constraints=' . implode(',', $accepted)
+                    . ' fallback=' . implode(',', $fallback)
+                    . ' limit=' . $limit . ' offset=' . $offset
+                    . ' dynamic batch ' . $batch,
+                'batch' => $batch,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param list<string> $left
+     * @param list<string> $right
+     * @return list<list<string>>
+     */
+    private static function bestindexCLimitOffsetRows(?string $operator, array $left, array $right, int $limit, int $offset, string $section): array
+    {
+        if ($section === 'bestindexC-3.4') {
+            $values = array_values(array_filter($left, static fn (string $value): bool => (int) $value > 2));
+        } elseif ($operator === 'UNION ALL') {
+            $values = array_merge($left, $right);
+        } elseif ($operator === 'UNION') {
+            $values = array_values(array_unique(array_merge($left, $right)));
+            sort($values, SORT_STRING);
+        } elseif ($operator === 'INTERSECT') {
+            $values = array_values(array_intersect($left, $right));
+            sort($values, SORT_STRING);
+        } elseif ($operator === 'EXCEPT') {
+            $values = array_values(array_diff($left, $right));
+            sort($values, SORT_STRING);
+        } else {
+            $values = $left;
+        }
+
+        return array_map(
+            static fn (string $value): array => [$value],
+            array_slice(array_values($values), $offset, $limit),
+        );
     }
 
     /**

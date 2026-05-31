@@ -202,6 +202,35 @@ foreach (SQLiteBTreeIndexDynamicCorpusPlan::index6PartialJoinAndUpdateCases() as
     };
 }
 
+// Source truth: SQLite upstream test/index2.test index2-1.1 through 2.2.
+// The upstream script builds a 1000-column table, fills 101 wide rows, creates
+// a 1000-column index, and verifies ordered lookup through the leading terms.
+foreach (SQLiteBTreeIndexDynamicCorpusPlan::index2WideColumnIndexCases(1000) as $case) {
+    $tests['real upstream index2 wide column index case ' . $case['case']] = static function (TestRunner $t) use ($case): void {
+        $t->same('index2.test sections index2-1.1 through index2-2.2', $case['source']);
+        $t->true($case['case'] >= 1 && $case['case'] <= 1000);
+        $t->true($case['upstream_section'] === 'index2-2.1' || $case['upstream_section'] === 'index2-2.2');
+        $t->same(1000, $case['column_count']);
+        $t->same(101, $case['row_count']);
+        $t->same('c' . $case['column_position'], $case['column_name']);
+        $t->same($case['column_name'], $case['selected_column']);
+        $t->same($case['column_position'], $case['first_row_value']);
+        $t->same(1000000 + $case['column_position'], $case['last_row_value']);
+        $t->same('t1i1', $case['index_name']);
+        $t->same(1000, count($case['index_columns']));
+        $t->same('c1', $case['index_columns'][0]);
+        $t->same('c1000', $case['index_columns'][999]);
+        $t->same(['c1', 'c2', 'c3', 'c4', 'c5', 'c6'], $case['order_by']);
+        $t->same(5, $case['limit']);
+        $t->same([[9], [10009], [20009], [30009], [40009]], SQLiteBTreeIndexDynamicCorpusPlan::index2WideColumnIndexCases(9)[8]['result_rows']);
+        $t->same($case['column_position'], $case['result_rows'][0][0]);
+        $t->same(10000 + $case['column_position'], $case['result_rows'][1][0]);
+        $t->same(40000 + $case['column_position'], $case['result_rows'][4][0]);
+        $t->true(str_contains($case['detail'], 'COVERING INDEX t1i1'));
+        $t->same('ok', $case['integrity']);
+    };
+}
+
 // Source truth: SQLite upstream test/index4.test index4-1.1 through 2.2.
 // These cases cover large CREATE INDEX builds, cache-limited builds, empty and
 // single-row tables, and duplicate-key rollback during UNIQUE index creation.

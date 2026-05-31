@@ -8,10 +8,10 @@ use InvalidArgumentException;
 
 final class SQLitePragmaRuntimeState
 {
-    /** @var array<string,array{schema_version:int,user_version:int,cache_size:int,cache_spill:int|null,dirty_pages:int,lock:string,file:string|null}> */
+    /** @var array<string,array{schema_version:int,user_version:int,application_id:int,cache_size:int,cache_spill:int|null,dirty_pages:int,lock:string,file:string|null}> */
     private array $schemas = [];
 
-    /** @var array<string,array{schema_version:int,user_version:int,cache_size:int,cache_spill:int|null,dirty_pages:int,lock:string,file:string|null}>|null */
+    /** @var array<string,array{schema_version:int,user_version:int,application_id:int,cache_size:int,cache_spill:int|null,dirty_pages:int,lock:string,file:string|null}>|null */
     private ?array $transactionSnapshot = null;
 
     public function __construct(
@@ -19,13 +19,14 @@ final class SQLitePragmaRuntimeState
         int $userVersion = 0,
         int $cacheSize = 2000,
         ?int $cacheSpill = null,
+        int $applicationId = 0,
     ) {
-        $this->schemas['main'] = $this->schemaState($schemaVersion, $userVersion, $cacheSize, $cacheSpill, null);
-        $this->schemas['temp'] = $this->schemaState(0, 0, $cacheSize, $cacheSpill, '');
+        $this->schemas['main'] = $this->schemaState($schemaVersion, $userVersion, $applicationId, $cacheSize, $cacheSpill, null);
+        $this->schemas['temp'] = $this->schemaState(0, 0, 0, $cacheSize, $cacheSpill, '');
     }
 
     /**
-     * @return array{schema:string,schema_version:int,user_version:int,cache_size:int,cache_spill:int,lock:string}
+     * @return array{schema:string,schema_version:int,user_version:int,application_id:int,cache_size:int,cache_spill:int,lock:string}
      */
     public function pragma(string $sql, bool $defensive = false): array
     {
@@ -46,6 +47,14 @@ final class SQLitePragmaRuntimeState
         if ($name === 'user_version') {
             if ($value !== null) {
                 $this->schemas[$schema]['user_version'] = $this->integerValue($value, 'user_version');
+            }
+
+            return $this->stateRow($schema);
+        }
+
+        if ($name === 'application_id') {
+            if ($value !== null) {
+                $this->schemas[$schema]['application_id'] = $this->integerValue($value, 'application_id');
             }
 
             return $this->stateRow($schema);
@@ -78,7 +87,7 @@ final class SQLitePragmaRuntimeState
     }
 
     /**
-     * @return array{operation:string,schema:string,file:string|null,schema_version:int,user_version:int,cache_size:int,cache_spill:int,lock:string}
+     * @return array{operation:string,schema:string,file:string|null,schema_version:int,user_version:int,application_id:int,cache_size:int,cache_spill:int,lock:string}
      */
     public function attach(string $schemaName, string $fileName): array
     {
@@ -91,7 +100,7 @@ final class SQLitePragmaRuntimeState
         }
 
         $main = $this->schemas['main'];
-        $this->schemas[$schema] = $this->schemaState(0, 0, $main['cache_size'], $main['cache_spill'], $fileName);
+        $this->schemas[$schema] = $this->schemaState(0, 0, 0, $main['cache_size'], $main['cache_spill'], $fileName);
 
         return ['operation' => 'attach', 'schema' => $schema] + $this->stateRow($schema);
     }
@@ -178,7 +187,7 @@ final class SQLitePragmaRuntimeState
     }
 
     /**
-     * @return array{schema:string,schema_version:int,user_version:int,cache_size:int,cache_spill:int,lock:string,file:string|null}
+     * @return array{schema:string,schema_version:int,user_version:int,application_id:int,cache_size:int,cache_spill:int,lock:string,file:string|null}
      */
     public function state(string $schemaName = 'main'): array
     {
@@ -189,7 +198,7 @@ final class SQLitePragmaRuntimeState
     }
 
     /**
-     * @return array<string,array{schema_version:int,user_version:int,cache_size:int,cache_spill:int|null,dirty_pages:int,lock:string,file:string|null}>
+     * @return array<string,array{schema_version:int,user_version:int,application_id:int,cache_size:int,cache_spill:int|null,dirty_pages:int,lock:string,file:string|null}>
      */
     public function snapshot(): array
     {
@@ -202,7 +211,7 @@ final class SQLitePragmaRuntimeState
     private function parsePragma(string $sql): array
     {
         $trimmed = rtrim(trim($sql), ';');
-        if (preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\.)?(?<name>schema_version|user_version|cache_size|cache_spill)\s*(?:=\s*(?<eq>.+)|\(\s*(?<paren>.*?)\s*\))?$/i', $trimmed, $matches) !== 1) {
+        if (preg_match('/^pragma\s+(?:(?<schema>[A-Za-z_][A-Za-z0-9_]*)\.)?(?<name>schema_version|user_version|application_id|cache_size|cache_spill)\s*(?:=\s*(?<eq>.+)|\(\s*(?<paren>.*?)\s*\))?$/i', $trimmed, $matches) !== 1) {
             throw new InvalidArgumentException('SQLite runtime pragma SQL is not supported');
         }
 
@@ -223,13 +232,14 @@ final class SQLitePragmaRuntimeState
     }
 
     /**
-     * @return array{schema_version:int,user_version:int,cache_size:int,cache_spill:int|null,dirty_pages:int,lock:string,file:string|null}
+     * @return array{schema_version:int,user_version:int,application_id:int,cache_size:int,cache_spill:int|null,dirty_pages:int,lock:string,file:string|null}
      */
-    private function schemaState(int $schemaVersion, int $userVersion, int $cacheSize, ?int $cacheSpill, ?string $fileName): array
+    private function schemaState(int $schemaVersion, int $userVersion, int $applicationId, int $cacheSize, ?int $cacheSpill, ?string $fileName): array
     {
         return [
             'schema_version' => $schemaVersion,
             'user_version' => $userVersion,
+            'application_id' => $applicationId,
             'cache_size' => max(0, $cacheSize),
             'cache_spill' => $cacheSpill,
             'dirty_pages' => 0,
@@ -239,7 +249,7 @@ final class SQLitePragmaRuntimeState
     }
 
     /**
-     * @return array{schema:string,schema_version:int,user_version:int,cache_size:int,cache_spill:int,lock:string,file:string|null}
+     * @return array{schema:string,schema_version:int,user_version:int,application_id:int,cache_size:int,cache_spill:int,lock:string,file:string|null}
      */
     private function stateRow(string $schema): array
     {
@@ -249,6 +259,7 @@ final class SQLitePragmaRuntimeState
             'schema' => $schema,
             'schema_version' => $state['schema_version'],
             'user_version' => $state['user_version'],
+            'application_id' => $state['application_id'],
             'cache_size' => $state['cache_size'],
             'cache_spill' => $this->cacheSpillEffectiveValue($schema),
             'lock' => $state['lock'],
