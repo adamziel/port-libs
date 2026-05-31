@@ -496,6 +496,42 @@ return [
             $prefixer->prefixForTargets('.foo { box-sizing: border-box; }', ['android' => 4])
         );
     },
+    'transition prefixer maps upstream object-fit Opera browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{object-fit:cover}',
+            $prefixer->prefixForTargets('.foo { object-fit: cover; }', ['opera' => '10.5'])
+        );
+        $t->same(
+            '.foo{-o-object-fit:cover;object-fit:cover}',
+            $prefixer->prefixForTargets('.foo { object-fit: cover; }', ['opera' => '10.6'])
+        );
+        $t->same(
+            '.foo{-o-object-fit:cover;object-fit:cover}',
+            $prefixer->prefixForTargets('.foo { object-fit: cover; }', ['opera' => '12.1'])
+        );
+        $t->same(
+            '.foo{object-fit:cover}',
+            $prefixer->prefixForTargets('.foo { object-fit: cover; }', ['opera' => 13])
+        );
+        $t->same(
+            '.foo{-o-object-position:center top;object-position:center top}',
+            $prefixer->prefixForTargets('.foo { object-position: center top; }', ['opera' => 12])
+        );
+        $t->same(
+            '.foo{object-position:center top}',
+            $prefixer->prefixForTargets('.foo { object-position: center top; }', ['opera' => 13])
+        );
+        $t->same(
+            '.foo{object-fit:cover;object-position:center}',
+            $prefixer->prefixForTargets('.foo { -o-object-fit: cover; object-fit: cover; -o-object-position: center; object-position: center; }', ['opera' => 13])
+        );
+        $t->same(
+            '.foo{-o-object-fit:cover;object-fit:cover;-o-object-position:center;object-position:center}',
+            $prefixer->prefixForTargets('.foo { -o-object-fit: cover; object-fit: cover; -o-object-position: center; object-position: center; }', ['opera' => 12])
+        );
+    },
     'transition prefixer maps upstream legacy text and sticky prefix helpers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

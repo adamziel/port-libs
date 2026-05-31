@@ -25,6 +25,39 @@ return [
             $block->getProperty('padding: 1rem 2rem 3rem 4rem !important', 'padding')
         );
     },
+    'declaration block maps cssom declaration source ranges' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $backgroundValue = 'url("/theme/a;b.css") !important';
+        $customProperty = '--wp--preset--color--contrast';
+        $customValue = 'var(--wp--preset--color--contrast)';
+        $source = "  color: red;\n  background: {$backgroundValue};\n  {$customProperty}: {$customValue};";
+        $customKeyEnd = 3 + strlen($customProperty);
+        $customValueStart = $customKeyEnd + 2;
+
+        $t->same(
+            [
+                'key' => ['start' => ['line' => 1, 'column' => 3], 'end' => ['line' => 1, 'column' => 8]],
+                'value' => ['start' => ['line' => 1, 'column' => 10], 'end' => ['line' => 1, 'column' => 13]],
+            ],
+            $block->propertyLocation($source, 0)
+        );
+        $t->same(
+            [
+                'key' => ['start' => ['line' => 2, 'column' => 3], 'end' => ['line' => 2, 'column' => 13]],
+                'value' => ['start' => ['line' => 2, 'column' => 15], 'end' => ['line' => 2, 'column' => 15 + strlen($backgroundValue)]],
+            ],
+            $block->propertyLocation($source, 1)
+        );
+        $t->same(
+            [
+                'key' => ['start' => ['line' => 3, 'column' => 3], 'end' => ['line' => 3, 'column' => $customKeyEnd]],
+                'value' => ['start' => ['line' => 3, 'column' => $customValueStart], 'end' => ['line' => 3, 'column' => $customValueStart + strlen($customValue)]],
+            ],
+            $block->propertyLocation($source, 2)
+        );
+        $t->same(null, $block->propertyLocation($source, 3));
+        $t->throws(InvalidArgumentException::class, static fn () => $block->propertyLocation($source, -1));
+    },
     'declaration block reads upstream cssom important bucket before normal declarations' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

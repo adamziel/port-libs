@@ -83,7 +83,9 @@ final class CssMinifier
                 continue;
             }
 
-            if ($pendingSpace && $this->needsSpaceBefore($output, $char)) {
+            if ($pendingSpace && $this->needsSelectorDescendantSpaceAfterAttribute($output, $css, $i)) {
+                $output .= ' ';
+            } elseif ($pendingSpace && $this->needsSpaceBefore($output, $char)) {
                 $output .= ' ';
             }
             $pendingSpace = false;
@@ -1672,6 +1674,19 @@ final class CssMinifier
             && (ctype_alnum($next) || $next === '_' || $next === '-' || $next === '.' || $next === '#');
     }
 
+    private function needsSelectorDescendantSpaceAfterAttribute(string $output, string $css, int $offset): bool
+    {
+        if ($output === '' || $output[strlen($output) - 1] !== ']') {
+            return false;
+        }
+        $next = $css[$offset] ?? '';
+        if (!($next === '*' || $next === '.' || $next === '#' || $next === '[' || ctype_alpha($next))) {
+            return false;
+        }
+
+        return $this->isSelectorContextAhead($css, $offset);
+    }
+
     private function startsDescendantPseudoClass(string $css, int $offset): bool
     {
         return preg_match('/^:(?:(?:is|where|not|has)\(|scope\b)/i', substr($css, $offset)) === 1;
@@ -2483,6 +2498,7 @@ final class CssMinifier
         $value = $this->minifyFontValue($property, $value);
         $value = $this->minifyColorSchemeValue($property, $value);
         $value = $this->minifyImageSetFunctions($value);
+        $value = $this->minifyGradientFunctions($value);
         $value = $this->minifyBoxLengthListValue($property, $value);
         if (str_starts_with($property, '--')) {
             if ($customPropertyColorCalc) {
@@ -6188,6 +6204,377 @@ final class CssMinifier
         $type = ($matches[2] ?? '') !== '' ? $matches[2] : trim($matches[3] ?? '');
 
         return 'type("' . str_replace('"', '\\"', $type) . '")';
+    }
+
+    private function minifyGradientFunctions(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($this->startsUrlFunction($value, $i)) {
+                [$url, $offset] = $this->readFunctionRaw($value, $i);
+                $output .= $url;
+                $i = $offset;
+                continue;
+            }
+
+            if (!$this->isIdentifierStart($char)) {
+                $output .= $char;
+                continue;
+            }
+
+            $identifier = $this->readIdentifier($value, $i);
+            $next = $i + strlen($identifier);
+            if (($value[$next] ?? '') !== '(' || !in_array(strtolower($identifier), ['linear-gradient', 'repeating-linear-gradient'], true)) {
+                $output .= $identifier;
+                $i = $next - 1;
+                continue;
+            }
+
+            [$function, $offset] = $this->readFunctionRaw($value, $i);
+            $output .= $this->minifyLinearGradientFunction($function);
+            $i = $offset;
+        }
+
+        return $output;
+    }
+
+    private function minifyLinearGradientFunction(string $function): string
+    {
+        if (preg_match('/^((?:repeating-)?linear-gradient)\((.*)\)$/is', trim($function), $matches) !== 1) {
+            return $function;
+        }
+
+        $name = strtolower($matches[1]);
+        $parts = $this->splitTopLevel($matches[2], ',');
+        if (count($parts) < 2) {
+            return $function;
+        }
+
+        $direction = $this->parseLinearGradientDirection($parts[0]);
+        if ($direction !== null) {
+            array_shift($parts);
+        }
+
+        $gradientParts = array_map(
+            fn (string $part): array => $this->parseLinearGradientPart($part),
+            $parts
+        );
+
+        $prefix = $direction['prefix'] ?? null;
+        if ($direction !== null && !$this->linearGradientPartsHaveSafeColors($gradientParts)) {
+            $prefix = $direction['original'];
+        } elseif (($direction['reverse'] ?? false) && $this->canReverseLinearGradientParts($gradientParts)) {
+            $gradientParts = array_reverse(array_map(
+                fn (array $part): array => $this->invertLinearGradientPartPercentages($part),
+                $gradientParts
+            ));
+            $prefix = null;
+        }
+
+        $gradientParts = $this->mergeAdjacentLinearGradientStops($gradientParts);
+
+        $serialized = [];
+        if ($prefix !== null) {
+            $serialized[] = $prefix;
+        }
+
+        foreach ($gradientParts as $index => $part) {
+            $css = $this->serializeLinearGradientPart($part);
+            if ($css === '' || ($part['kind'] === 'hint' && $this->isDefaultLinearGradientHint($part['value'], $index, $gradientParts))) {
+                continue;
+            }
+            $serialized[] = $css;
+        }
+
+        if (count($serialized) < 2) {
+            return $function;
+        }
+
+        return $name . '(' . implode(',', $serialized) . ')';
+    }
+
+    /**
+     * @return array{prefix:?string,reverse:bool,original:string}|null
+     */
+    private function parseLinearGradientDirection(string $part): ?array
+    {
+        $normalized = strtolower(preg_replace('/\s+/', ' ', trim($part)) ?? trim($part));
+        if (str_starts_with($normalized, 'to ')) {
+            if ($normalized === 'to bottom') {
+                return ['prefix' => null, 'reverse' => false, 'original' => $normalized];
+            }
+            if ($normalized === 'to top') {
+                return ['prefix' => '0deg', 'reverse' => true, 'original' => $normalized];
+            }
+
+            return ['prefix' => $normalized, 'reverse' => false, 'original' => $normalized];
+        }
+
+        $degrees = $this->parseLinearGradientAngleDegrees($part);
+        if ($degrees === null) {
+            return null;
+        }
+
+        $angle = $this->minifyNumber($degrees) . 'deg';
+        if ($this->linearGradientDegreesEqual($degrees, 180.0)) {
+            return ['prefix' => null, 'reverse' => false, 'original' => $angle];
+        }
+        if ($this->linearGradientDegreesEqual($degrees, 0.0)) {
+            return ['prefix' => '0deg', 'reverse' => true, 'original' => $angle];
+        }
+
+        return ['prefix' => $angle, 'reverse' => false, 'original' => $angle];
+    }
+
+    private function parseLinearGradientAngleDegrees(string $token): ?float
+    {
+        $token = trim($token);
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:deg|grad|rad|turn)?$/i', $token) !== 1) {
+            return null;
+        }
+
+        return $this->parseHueDegrees($token);
+    }
+
+    private function linearGradientDegreesEqual(float $left, float $right): bool
+    {
+        return abs($left - $right) < 0.000001 || abs(abs($left - $right) - 360.0) < 0.000001;
+    }
+
+    /**
+     * @return array{kind:string,value?:string,color?:string,positions?:list<string>}
+     */
+    private function parseLinearGradientPart(string $part): array
+    {
+        $part = trim($part);
+        if ($part === '') {
+            return ['kind' => 'raw', 'value' => ''];
+        }
+
+        if ($this->isLinearGradientPositionToken($part)) {
+            return ['kind' => 'hint', 'value' => $this->minifyLinearGradientPositionToken($part)];
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($part);
+        if ($tokens === []) {
+            return ['kind' => 'raw', 'value' => $part];
+        }
+
+        $color = array_shift($tokens);
+
+        return [
+            'kind' => 'stop',
+            'color' => $this->minifyColorKeywords($color),
+            'positions' => array_map(
+                fn (string $token): string => $this->minifyLinearGradientPositionToken($token),
+                $tokens
+            ),
+        ];
+    }
+
+    private function isLinearGradientPositionToken(string $token): bool
+    {
+        $token = trim($token);
+
+        return $this->linearGradientPercentPosition($token) !== null
+            || preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:px|em|rem|ch|ex|vw|vh|vmin|vmax|svw|svh|lvw|lvh|dvw|dvh|cqw|cqh|cqi|cqb|cqmin|cqmax)$/i', $token) === 1
+            || preg_match('/^(?:calc|min|max|clamp)\(/i', $token) === 1;
+    }
+
+    private function minifyLinearGradientPositionToken(string $token): string
+    {
+        $token = trim($token);
+        $percent = $this->linearGradientPercentPosition($token);
+        if ($percent !== null) {
+            return $this->minifyNumber($percent) . '%';
+        }
+
+        return $this->minifyNumericDimensionToken($token);
+    }
+
+    private function linearGradientPercentPosition(string $token): ?float
+    {
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', trim($token), $matches) !== 1) {
+            return null;
+        }
+
+        return (float) $matches[1];
+    }
+
+    /**
+     * @param list<array{kind:string,value?:string,color?:string,positions?:list<string>}> $parts
+     */
+    private function canReverseLinearGradientParts(array $parts): bool
+    {
+        foreach ($parts as $part) {
+            if ($part['kind'] === 'hint') {
+                if (!isset($part['value']) || $this->linearGradientPercentPosition($part['value']) === null) {
+                    return false;
+                }
+                continue;
+            }
+            if ($part['kind'] !== 'stop') {
+                return false;
+            }
+            foreach ($part['positions'] ?? [] as $position) {
+                if ($this->linearGradientPercentPosition($position) === null) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array{kind:string,value?:string,color?:string,positions?:list<string>}> $parts
+     */
+    private function linearGradientPartsHaveSafeColors(array $parts): bool
+    {
+        foreach ($parts as $part) {
+            if ($part['kind'] === 'hint') {
+                continue;
+            }
+            if ($part['kind'] !== 'stop' || !isset($part['color']) || !$this->isSafeLinearGradientColorToken($part['color'])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isSafeLinearGradientColorToken(string $token): bool
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return false;
+        }
+        if ($this->parseSerializedSrgbColor($token) !== null) {
+            return true;
+        }
+
+        return preg_match('/^(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark)\(/i', $token) === 1;
+    }
+
+    /**
+     * @param array{kind:string,value?:string,color?:string,positions?:list<string>} $part
+     * @return array{kind:string,value?:string,color?:string,positions?:list<string>}
+     */
+    private function invertLinearGradientPartPercentages(array $part): array
+    {
+        if ($part['kind'] === 'hint' && isset($part['value'])) {
+            $part['value'] = $this->invertLinearGradientPercentToken($part['value']);
+
+            return $part;
+        }
+
+        if ($part['kind'] === 'stop') {
+            $positions = [];
+            foreach ($part['positions'] ?? [] as $position) {
+                $positions[] = $this->invertLinearGradientPercentToken($position);
+            }
+            sort($positions, SORT_NATURAL);
+            $part['positions'] = $positions;
+        }
+
+        return $part;
+    }
+
+    private function invertLinearGradientPercentToken(string $token): string
+    {
+        $percent = $this->linearGradientPercentPosition($token);
+        if ($percent === null) {
+            return $token;
+        }
+
+        return $this->minifyNumber(100.0 - $percent) . '%';
+    }
+
+    /**
+     * @param list<array{kind:string,value?:string,color?:string,positions?:list<string>}> $parts
+     * @return list<array{kind:string,value?:string,color?:string,positions?:list<string>}>
+     */
+    private function mergeAdjacentLinearGradientStops(array $parts): array
+    {
+        $merged = [];
+        $count = count($parts);
+
+        for ($i = 0; $i < $count; $i++) {
+            $current = $parts[$i];
+            $next = $parts[$i + 1] ?? null;
+            if ($next !== null
+                && $current['kind'] === 'stop'
+                && $next['kind'] === 'stop'
+                && ($current['color'] ?? null) === ($next['color'] ?? null)
+                && count($current['positions'] ?? []) === 1
+                && count($next['positions'] ?? []) === 1
+            ) {
+                $current['positions'] = [
+                    $current['positions'][0],
+                    $next['positions'][0],
+                ];
+                $merged[] = $current;
+                $i++;
+                continue;
+            }
+
+            $merged[] = $current;
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @param array{kind:string,value?:string,color?:string,positions?:list<string>} $part
+     */
+    private function serializeLinearGradientPart(array $part): string
+    {
+        if ($part['kind'] === 'hint') {
+            return $part['value'] ?? '';
+        }
+        if ($part['kind'] !== 'stop') {
+            return $part['value'] ?? '';
+        }
+
+        $positions = $part['positions'] ?? [];
+
+        return trim(($part['color'] ?? '') . ($positions === [] ? '' : ' ' . implode(' ', $positions)));
+    }
+
+    /**
+     * @param list<array{kind:string,value?:string,color?:string,positions?:list<string>}> $parts
+     */
+    private function isDefaultLinearGradientHint(string $value, int $index, array $parts): bool
+    {
+        if ($index === 0 || $index === count($parts) - 1) {
+            return false;
+        }
+
+        $percent = $this->linearGradientPercentPosition($value);
+
+        return $percent !== null && abs($percent - 50.0) < 0.000001;
     }
 
     /**

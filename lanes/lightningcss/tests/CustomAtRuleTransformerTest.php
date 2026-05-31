@@ -695,6 +695,118 @@ CSS;
 
         $t->same('@media (prefers-color-scheme:editor){.wp-block-card{color:#ff0}.wp-block-card .wp-block-card__title{color:red}}', $result);
     },
+    'custom at-rules visit upstream native media boolean rule visitors' => static function (TestRunner $t): void {
+        $seenQuery = null;
+        $result = (new CustomAtRuleTransformer())->transform('@media (hover) { .foo { color: red; } }', [], [
+            'Rule' => [
+                'media' => static function (array $media) use (&$seenQuery): ?array {
+                    $mediaQueries = $media['value']['query']['mediaQueries'];
+                    $seenQuery = $mediaQueries[0];
+                    $condition = $mediaQueries[0]['condition'] ?? null;
+                    if (
+                        !is_array($condition)
+                        || ($condition['type'] ?? null) !== 'feature'
+                        || ($condition['value']['type'] ?? null) !== 'boolean'
+                        || ($condition['value']['name'] ?? null) !== 'hover'
+                    ) {
+                        return null;
+                    }
+
+                    foreach ($media['value']['rules'] as &$rule) {
+                        if (($rule['type'] ?? null) !== 'style') {
+                            continue;
+                        }
+                        foreach ($rule['value']['selectors'] as &$selector) {
+                            array_unshift(
+                                $selector,
+                                ['type' => 'class', 'name' => 'hoverable'],
+                                ['type' => 'combinator', 'value' => 'descendant']
+                            );
+                        }
+                        unset($selector);
+                    }
+                    unset($rule);
+
+                    return $media['value']['rules'];
+                },
+            ],
+        ]);
+
+        $t->same('.hoverable .foo{color:red}', $result);
+        $t->same('all', $seenQuery['mediaType']);
+        $t->same('hover', $seenQuery['condition']['value']['name'] ?? null);
+    },
+    'custom at-rules clone upstream native media plain-feature visitor rules' => static function (TestRunner $t): void {
+        $seenFeature = null;
+        $css = <<<'CSS'
+@media (prefers-color-scheme: dark) {
+  body {
+    background: black;
+  }
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'media' => static function (array $media) use (&$seenFeature): ?array {
+                    $query = $media['value']['query']['mediaQueries'][0] ?? null;
+                    $condition = is_array($query) ? ($query['condition'] ?? null) : null;
+                    $feature = is_array($condition) ? ($condition['value'] ?? null) : null;
+                    $seenFeature = $feature;
+                    if (
+                        !is_array($feature)
+                        || ($feature['type'] ?? null) !== 'plain'
+                        || ($feature['name'] ?? null) !== 'prefers-color-scheme'
+                        || ($feature['value']['value'] ?? null) !== 'dark'
+                    ) {
+                        return null;
+                    }
+
+                    $mediaRule = $media;
+                    $clonedRules = [];
+                    foreach ($mediaRule['value']['rules'] as &$rule) {
+                        if (($rule['type'] ?? null) !== 'style') {
+                            continue;
+                        }
+
+                        $clonedSelectors = [];
+                        foreach ($rule['value']['selectors'] as &$selector) {
+                            $clonedSelectors[] = [
+                                ['type' => 'type', 'name' => 'html'],
+                                ['type' => 'attribute', 'name' => 'theme', 'operation' => ['operator' => 'equal', 'value' => 'dark']],
+                                ['type' => 'combinator', 'value' => 'descendant'],
+                                ...$selector,
+                            ];
+                            array_unshift(
+                                $selector,
+                                ['type' => 'type', 'name' => 'html'],
+                                [
+                                    'type' => 'pseudo-class',
+                                    'kind' => 'not',
+                                    'selectors' => [[
+                                        ['type' => 'attribute', 'name' => 'theme', 'operation' => ['operator' => 'equal', 'value' => 'light']],
+                                    ]],
+                                ],
+                                ['type' => 'combinator', 'value' => 'descendant']
+                            );
+                        }
+                        unset($selector);
+
+                        $clone = $rule;
+                        $clone['value']['selectors'] = $clonedSelectors;
+                        $clonedRules[] = $clone;
+                    }
+                    unset($rule);
+
+                    return [$mediaRule, ...$clonedRules];
+                },
+            ],
+        ]);
+
+        $t->same('@media (prefers-color-scheme:dark){html:not([theme=light]) body{background:#000}}html[theme="dark"] body{background:#000}', $result);
+        $t->same('prefers-color-scheme', $seenFeature['name'] ?? null);
+        $t->same('dark', $seenFeature['value']['value'] ?? null);
+    },
     'custom at-rules compose upstream known style rule visitors' => static function (TestRunner $t): void {
         $visitor = CustomAtRuleTransformer::composeVisitors([
             [

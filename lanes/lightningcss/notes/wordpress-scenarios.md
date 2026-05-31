@@ -92,6 +92,8 @@ This isolated CSS Modules micro-slice extends the same build-free block delivery
 
 This isolated filter-boundary run updates `examples/wordpress-filter-prefixer.php` to model a sticky glass header compiled for Chrome 52/Safari 14 versus Chrome 53/Safari 14: `backdrop-filter` still gets the Safari `-webkit-` guard, while `filter` drops its stale WebKit prefix exactly at the Chrome 53 upstream boundary. No new support component is needed; it reuses `TransitionPrefixer` target-version routing and declaration scanning.
 
+This isolated object-fit boundary run adds `examples/wordpress-object-fit-prefixer.php` to model featured-image and cover-video CSS compiled for Opera 10.5, 10.6, 12.1, and 13: the legacy Opera 10.6 through 12.1 range receives `-o-object-fit` and `-o-object-position`, while Opera 10.5 and 13 keep only modern declarations. No new support component is needed; it reuses `TransitionPrefixer` target-version routing, declaration scanning, and existing stale-prefix cleanup.
+
 ## Next Task
 
 Continue current-base LightningCSS handoffs for remaining CSSOM shorthand splitting/removal parity, custom at-rule parser/visitor parity, target-prefix browser boundaries, media-query range/layer handling, property-value color/font/grid coverage, and source-map/bundler integration. Reject status-only markers and avoid repeating the accepted CSSOM priority-bucket or this background CSSOM read/write slice.

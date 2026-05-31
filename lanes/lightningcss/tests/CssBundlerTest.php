@@ -122,6 +122,72 @@ CSS,
         $t->same(':root{--theme-gap:1rem}.entry{color:red}', $readerBundle);
         $t->same(['style.css', '../shared/tokens.css'], $reads);
     },
+    'css bundler collects upstream source map sources across resolved import graph' => static function (TestRunner $t): void {
+        $result = (new CssBundler())->bundleWithSourceMap('/theme/entry.css', [
+            '/theme/entry.css' => <<<'CSS'
+@import "https://cdn.example/base.css";
+@import "pkg:tokens.css";
+@import "card.css";
+@import "escaped\000020hero.css";
+.entry { color: red }
+CSS,
+            '/theme/tokens.css' => ':root { --gap: 1rem }',
+            '/theme/card.css' => '@import "../shared/button.css"; .card { color: green }',
+            '/shared/button.css' => '.button { color: blue }',
+            '/theme/escaped hero.css' => '.hero { color: purple }',
+        ], static function (string $specifier, string $originatingFile): array|string {
+            if (str_starts_with($specifier, 'https:')) {
+                return ['external' => $specifier];
+            }
+
+            if (str_starts_with($specifier, 'pkg:')) {
+                return '/theme/' . substr($specifier, strlen('pkg:'));
+            }
+
+            return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+        }, '/theme');
+
+        $t->same(
+            '@import "https://cdn.example/base.css";:root{--gap:1rem}.button{color:#00f}.card{color:green}.hero{color:purple}.entry{color:red}',
+            $result['code']
+        );
+
+        $sourceMap = $result['sourceMap']->toArray(null, false);
+        $t->same(['entry.css', 'tokens.css', 'card.css', '../shared/button.css', 'escaped hero.css'], $sourceMap['sources']);
+        $t->same([
+            "@import \"https://cdn.example/base.css\";\n@import \"pkg:tokens.css\";\n@import \"card.css\";\n@import \"escaped\\000020hero.css\";\n.entry { color: red }",
+            ':root { --gap: 1rem }',
+            '@import "../shared/button.css"; .card { color: green }',
+            '.button { color: blue }',
+            '.hero { color: purple }',
+        ], $sourceMap['sourcesContent']);
+        $t->same('', $sourceMap['mappings']);
+    },
+    'css bundler source map follows reader-backed source provider resolution' => static function (TestRunner $t): void {
+        $files = [
+            '/theme/entry.css' => '@import "tokens.css"; @import "../shared/button.css"; .entry { color: red }',
+            '/theme/tokens.css' => ':root { --gap: 1rem }',
+            '/shared/button.css' => '.button { color: blue }',
+        ];
+        $reads = [];
+        $result = (new CssBundler())->bundleWithReaderSourceMap(
+            '/theme/entry.css',
+            static function (string $file) use (&$reads, $files): string {
+                $reads[] = $file;
+                if (!array_key_exists($file, $files)) {
+                    throw new RuntimeException("Missing reader source {$file}");
+                }
+
+                return $files[$file];
+            },
+            null,
+            '/theme'
+        );
+
+        $t->same(':root{--gap:1rem}.button{color:#00f}.entry{color:red}', $result['code']);
+        $t->same(['/theme/entry.css', '/theme/tokens.css', '/shared/button.css'], $reads);
+        $t->same(['entry.css', 'tokens.css', '../shared/button.css'], $result['sourceMap']->toArray(null, false)['sources']);
+    },
     'css bundler maps upstream EOF import without semicolon' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '.b{color:green}',
@@ -353,6 +419,43 @@ CSS,
             $bundle([
                 '/a.css' => '@import "b.css" print; .a { color: red }',
                 '/b.css' => '@import "c.css" (color), (orientation: landscape);',
+                '/c.css' => '.c { color: green }',
+            ], '/a.css')
+        );
+    },
+    'css bundler maps upstream media type boolean semantics through layered range imports' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@media print and (width>=240px){@layer theme.blocks{.wide{color:green}}}@media print{@layer theme.blocks{.print{color:#00f}}}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "print.css" layer(theme.blocks) print; .entry { color: red }',
+                '/print.css' => '@import "wide.css" not screen and (width >= 240px); .print { color: blue }',
+                '/wide.css' => '.wide { color: green }',
+            ], '/entry.css')
+        );
+
+        $t->same(
+            '@media screen{@layer theme.blocks{.screen{color:#00f}}}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "screen.css" layer(theme.blocks) screen; .entry { color: red }',
+                '/screen.css' => '@import "print.css" print; .screen { color: blue }',
+                '/print.css' => '.print { color: green }',
+            ], '/entry.css')
+        );
+
+        $t->same(
+            '@media not screen and (width>=240px){.c{color:green}}@media not screen{.b{color:#00f}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" not screen; .a { color: red }',
+                '/b.css' => '@import "c.css" not screen and (width >= 240px); .b { color: blue }',
+                '/c.css' => '.c { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" not all; .a { color: red }',
+                '/b.css' => '@import "c.css" screen; .b { color: blue }',
                 '/c.css' => '.c { color: green }',
             ], '/a.css')
         );

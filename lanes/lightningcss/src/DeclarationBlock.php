@@ -318,6 +318,135 @@ final class DeclarationBlock
     }
 
     /**
+     * Returns the source ranges for the declaration at the given zero-based index.
+     *
+     * @return array{
+     *     key: array{start: array{line:int,column:int}, end: array{line:int,column:int}},
+     *     value: array{start: array{line:int,column:int}, end: array{line:int,column:int}}
+     * }|null
+     */
+    public function propertyLocation(
+        string $block,
+        int $index,
+        int $startLine = 1,
+        int $startColumn = 1
+    ): ?array {
+        if ($index < 0) {
+            throw new \InvalidArgumentException('CSS declaration index cannot be negative');
+        }
+
+        foreach ($this->declarationSourceSpans($block) as $entryIndex => $span) {
+            if ($entryIndex !== $index) {
+                continue;
+            }
+
+            return [
+                'key' => [
+                    'start' => $this->sourceLocationForRelativeOffset($block, $span['keyStart'], $startLine, $startColumn),
+                    'end' => $this->sourceLocationForRelativeOffset($block, $span['keyEnd'], $startLine, $startColumn),
+                ],
+                'value' => [
+                    'start' => $this->sourceLocationForRelativeOffset($block, $span['valueStart'], $startLine, $startColumn),
+                    'end' => $this->sourceLocationForRelativeOffset($block, $span['valueEnd'], $startLine, $startColumn),
+                ],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array{keyStart:int,keyEnd:int,valueStart:int,valueEnd:int}>
+     */
+    private function declarationSourceSpans(string $block): array
+    {
+        $spans = [];
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $braceDepth = 0;
+        $length = strlen($block);
+        $segmentStart = 0;
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $block[$i];
+            if ($quote !== null) {
+                if ($char === '\\' && $i + 1 < $length) {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '/' && ($block[$i + 1] ?? '') === '*') {
+                $end = strpos($block, '*/', $i + 2);
+                if ($end === false) {
+                    break;
+                }
+                $i = $end + 1;
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === '{') {
+                $braceDepth++;
+            } elseif ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+            } elseif ($char === ';' && $parenDepth === 0 && $bracketDepth === 0 && $braceDepth === 0) {
+                $this->appendDeclarationSourceSpan($spans, $block, $segmentStart, $i);
+                $segmentStart = $i + 1;
+            }
+        }
+
+        $this->appendDeclarationSourceSpan($spans, $block, $segmentStart, $length);
+
+        return $spans;
+    }
+
+    /**
+     * @param list<array{keyStart:int,keyEnd:int,valueStart:int,valueEnd:int}> $spans
+     */
+    private function appendDeclarationSourceSpan(array &$spans, string $block, int $start, int $end): void
+    {
+        $start = $this->skipCssWhitespaceAndCommentsForward($block, $start, $end);
+        $end = $this->trimCssWhitespaceAndCommentsBackward($block, $end, $start);
+        if ($start >= $end) {
+            return;
+        }
+
+        $colon = $this->findTopLevelColonInRange($block, $start, $end);
+        if ($colon === null) {
+            return;
+        }
+
+        $keyStart = $this->skipCssWhitespaceAndCommentsForward($block, $start, $colon);
+        $keyEnd = $this->trimCssWhitespaceAndCommentsBackward($block, $colon, $keyStart);
+        $valueStart = $this->skipCssWhitespaceAndCommentsForward($block, $colon + 1, $end);
+        $valueEnd = $this->trimCssWhitespaceAndCommentsBackward($block, $end, $valueStart);
+        if ($keyStart >= $keyEnd || $valueStart >= $valueEnd) {
+            return;
+        }
+
+        $spans[] = [
+            'keyStart' => $keyStart,
+            'keyEnd' => $keyEnd,
+            'valueStart' => $valueStart,
+            'valueEnd' => $valueEnd,
+        ];
+    }
+
+    /**
      * @return array{value:string, important:bool}|null
      */
     public function getProperty(string $block, string $property): ?array
@@ -9904,6 +10033,122 @@ final class DeclarationBlock
         }
 
         return [rtrim(substr($beforeImportant, 0, -1)), true];
+    }
+
+    private function findTopLevelColonInRange(string $value, int $start, int $end): ?int
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $braceDepth = 0;
+
+        for ($i = $start; $i < $end; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\' && $i + 1 < $end) {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '/' && ($value[$i + 1] ?? '') === '*') {
+                $commentEnd = strpos($value, '*/', $i + 2);
+                if ($commentEnd === false || $commentEnd + 2 > $end) {
+                    return null;
+                }
+                $i = $commentEnd + 1;
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === '{') {
+                $braceDepth++;
+            } elseif ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+            } elseif ($char === ':' && $parenDepth === 0 && $bracketDepth === 0 && $braceDepth === 0) {
+                return $i;
+            }
+        }
+
+        return null;
+    }
+
+    private function skipCssWhitespaceAndCommentsForward(string $source, int $offset, int $end): int
+    {
+        while ($offset < $end) {
+            if (ctype_space($source[$offset])) {
+                $offset++;
+                continue;
+            }
+            if ($source[$offset] === '/' && ($source[$offset + 1] ?? '') === '*') {
+                $commentEnd = strpos($source, '*/', $offset + 2);
+                if ($commentEnd === false || $commentEnd + 2 > $end) {
+                    return $end;
+                }
+                $offset = $commentEnd + 2;
+                continue;
+            }
+
+            break;
+        }
+
+        return $offset;
+    }
+
+    private function trimCssWhitespaceAndCommentsBackward(string $source, int $end, int $start): int
+    {
+        while ($end > $start) {
+            while ($end > $start && ctype_space($source[$end - 1])) {
+                $end--;
+            }
+            if ($end - 2 >= $start && substr($source, $end - 2, 2) === '*/') {
+                $commentStart = strrpos(substr($source, 0, $end - 2), '/*');
+                if ($commentStart !== false && $commentStart >= $start) {
+                    $end = $commentStart;
+                    continue;
+                }
+            }
+
+            break;
+        }
+
+        return $end;
+    }
+
+    /**
+     * @return array{line:int,column:int}
+     */
+    private function sourceLocationForRelativeOffset(
+        string $source,
+        int $offset,
+        int $startLine,
+        int $startColumn
+    ): array {
+        $line = $startLine;
+        $column = $startColumn;
+        $length = min($offset, strlen($source));
+        for ($i = 0; $i < $length; $i++) {
+            if ($source[$i] === "\n") {
+                $line++;
+                $column = 1;
+                continue;
+            }
+            $column++;
+        }
+
+        return ['line' => $line, 'column' => $column];
     }
 
     /**

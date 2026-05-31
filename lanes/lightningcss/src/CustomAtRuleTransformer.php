@@ -25,6 +25,9 @@ final class CustomAtRuleTransformer
     private $styleRuleVisitor = null;
 
     /** @var callable|null */
+    private $mediaRuleVisitor = null;
+
+    /** @var callable|null */
     private $styleSheetVisitor = null;
 
     /** @var callable|null */
@@ -193,6 +196,41 @@ final class CustomAtRuleTransformer
 
                     if ($rules === []) {
                         return [];
+                    }
+
+                    return count($rules) === 1 ? $rules[0] : $rules;
+                },
+                'media' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    $rules = [$rule];
+                    $changed = false;
+                    foreach ($visitors as $visitor) {
+                        $callback = self::mediaRuleVisitorCallback($visitor);
+                        if ($callback === null) {
+                            continue;
+                        }
+
+                        $nextRules = [];
+                        foreach ($rules as $currentRule) {
+                            $replacement = $callback($currentRule, $transformer);
+                            if ($replacement === null) {
+                                $nextRules[] = $currentRule;
+                                continue;
+                            }
+
+                            $changed = true;
+                            foreach (self::normalizeRuleVisitorReplacement($replacement, 'Rule.media') as $nextRule) {
+                                $nextRules[] = $nextRule;
+                            }
+                        }
+
+                        $rules = $nextRules;
+                        if ($rules === []) {
+                            break;
+                        }
+                    }
+
+                    if (!$changed) {
+                        return null;
                     }
 
                     return count($rules) === 1 ? $rules[0] : $rules;
@@ -577,7 +615,7 @@ final class CustomAtRuleTransformer
             }
         }
         foreach ($visitor as $name => $callback) {
-            if (is_string($name) && is_callable($callback) && !in_array($name, ['Rule', 'Function', 'Token', 'custom', 'unknown'], true)) {
+            if (is_string($name) && is_callable($callback) && !in_array($name, ['Rule', 'Function', 'Token', 'custom', 'unknown', 'media'], true)) {
                 $this->ruleVisitors[strtolower($name)] = $callback;
             }
         }
@@ -599,6 +637,12 @@ final class CustomAtRuleTransformer
         $styleVisitor = $visitor['Rule']['style'] ?? $visitor['style'] ?? null;
         if (is_callable($styleVisitor)) {
             $this->styleRuleVisitor = $styleVisitor;
+        }
+
+        $this->mediaRuleVisitor = null;
+        $mediaVisitor = $visitor['Rule']['media'] ?? $visitor['media'] ?? null;
+        if (is_callable($mediaVisitor)) {
+            $this->mediaRuleVisitor = $mediaVisitor;
         }
 
         $this->styleSheetVisitor = is_callable($visitor['StyleSheet'] ?? null) ? $visitor['StyleSheet'] : null;
@@ -1119,6 +1163,8 @@ final class CustomAtRuleTransformer
             } elseif ($type === 'combinator') {
                 $value = (string) ($component['value'] ?? '');
                 $selector = rtrim($selector) . ($value === 'descendant' ? ' ' : $value);
+            } elseif ($type === 'attribute') {
+                $selector .= $this->serializeAttributeSelectorComponent($component);
             } else {
                 $selector .= (string) ($component['value'] ?? '');
             }
@@ -1321,7 +1367,9 @@ final class CustomAtRuleTransformer
 
             if (str_starts_with($prelude, '@')) {
                 [$name, $atPrelude] = $this->parseAtPrelude($prelude);
-                if ($this->isCustomAtRule($name)) {
+                if ($name === 'media') {
+                    $output .= $this->processMediaRule($atPrelude, $body, null);
+                } elseif ($this->isCustomAtRule($name)) {
                     $output .= $this->processCustomAtRule($prelude, $body, null);
                 } else {
                     $rule = $this->buildUnknownRule($name, $atPrelude, $body, null);
@@ -1430,7 +1478,9 @@ final class CustomAtRuleTransformer
 
             if (str_starts_with($nestedPrelude, '@')) {
                 [$name, $atPrelude] = $this->parseAtPrelude($nestedPrelude);
-                if ($this->isCustomAtRule($name)) {
+                if ($name === 'media') {
+                    $output .= $this->processMediaRule($atPrelude, $nestedBody, $selectors);
+                } elseif ($this->isCustomAtRule($name)) {
                     $output .= $this->processCustomAtRule($nestedPrelude, $nestedBody, $selectors);
                 } elseif (str_starts_with($nestedPrelude, '@nest ')) {
                     $nestedSelectors = $this->resolveNestedSelectors($selectors, substr($nestedPrelude, 6));
@@ -1451,6 +1501,27 @@ final class CustomAtRuleTransformer
         }
 
         return $output . $this->emitDeclarationRule($selectors, $declarations);
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     */
+    private function processMediaRule(string $query, string $body, ?array $parentSelectors): string
+    {
+        if ($this->mediaRuleVisitor !== null) {
+            $rule = $this->buildMediaRule($query, $body, $parentSelectors);
+            $replacement = ($this->mediaRuleVisitor)($rule, $this);
+            if ($replacement !== null) {
+                return $this->emitReplacement($replacement, $parentSelectors);
+            }
+        }
+
+        $queryCss = $this->rewriteAtRulePreludeValue($query);
+        $bodyCss = $parentSelectors === null
+            ? $this->processRuleList($body)
+            : $this->processStyleBody($body, $parentSelectors);
+
+        return '@media ' . $queryCss . '{' . $bodyCss . '}';
     }
 
     /**
@@ -1529,6 +1600,169 @@ final class CustomAtRuleTransformer
             'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
             'parentSelectors' => $parentSelectors ?? [],
         ];
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     * @return array{type:string,value:array{query:array<string, mixed>,rules:list<array<string, mixed>>},context:string,parentSelectors:list<string>}
+     */
+    private function buildMediaRule(string $query, string $body, ?array $parentSelectors): array
+    {
+        return [
+            'type' => 'media',
+            'value' => [
+                'query' => $this->parseMediaQueryForVisitor($query),
+                'rules' => $this->parseReturnedRuleList($body, $parentSelectors),
+            ],
+            'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
+            'parentSelectors' => $parentSelectors ?? [],
+        ];
+    }
+
+    /**
+     * @return array{mediaQueries:list<array<string, mixed>>}
+     */
+    private function parseMediaQueryForVisitor(string $queryList): array
+    {
+        try {
+            $queries = $this->splitTopLevel((new MediaQueryParser())->minifyList($queryList), ',');
+        } catch (\InvalidArgumentException) {
+            $queries = $this->splitTopLevel($queryList, ',');
+        }
+        $mediaQueries = [];
+        foreach ($queries as $query) {
+            $query = trim($query);
+            if ($query !== '') {
+                $mediaQueries[] = $this->parseSingleMediaQueryForVisitor($query);
+            }
+        }
+
+        return ['mediaQueries' => $mediaQueries];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseSingleMediaQueryForVisitor(string $query): array
+    {
+        $mediaType = 'all';
+        $conditionCss = $query;
+
+        if (preg_match('/^(not|only)\s+(screen|print|all)\s+and\s+(.+)$/i', $query, $matches) === 1) {
+            return [
+                'mediaType' => strtolower($matches[1]) . ' ' . strtolower($matches[2]),
+                'condition' => $this->parseMediaConditionForVisitor($matches[3]) ?? ['raw' => trim($matches[3])],
+            ];
+        }
+        if (preg_match('/^(screen|print|all)\s+and\s+(.+)$/i', $query, $matches) === 1) {
+            $mediaType = strtolower($matches[1]);
+            $conditionCss = $matches[2];
+        } elseif (preg_match('/^(not|only)\s+(screen|print|all)$/i', $query, $matches) === 1) {
+            return ['mediaType' => strtolower($matches[1]) . ' ' . strtolower($matches[2])];
+        } elseif (preg_match('/^(screen|print|all)$/i', $query, $matches) === 1) {
+            return ['mediaType' => strtolower($matches[1])];
+        }
+
+        $condition = $this->parseMediaConditionForVisitor($conditionCss);
+        if ($condition === null) {
+            return ['mediaType' => $mediaType, 'condition' => ['raw' => $conditionCss]];
+        }
+
+        return ['mediaType' => $mediaType, 'condition' => $condition];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function parseMediaConditionForVisitor(string $condition): ?array
+    {
+        $condition = trim($condition);
+        if (strlen($condition) >= 2 && $condition[0] === '(' && $condition[strlen($condition) - 1] === ')') {
+            return $this->parseMediaFeatureForVisitor(substr($condition, 1, -1));
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{type:string,value:array<string, mixed>}
+     */
+    private function parseMediaFeatureForVisitor(string $feature): array
+    {
+        $feature = trim($feature);
+        if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)\s*:\s*(.+)$/', $feature, $matches) === 1) {
+            return [
+                'type' => 'feature',
+                'value' => [
+                    'type' => 'plain',
+                    'name' => strtolower($matches[1]),
+                    'value' => $this->parseMediaFeatureValueForVisitor($matches[2]),
+                ],
+            ];
+        }
+        if (preg_match('/^([_a-zA-Z-][_a-zA-Z0-9-]*)\s*(<=|>=|<|>|=)\s*(.+)$/', $feature, $matches) === 1) {
+            return [
+                'type' => 'feature',
+                'value' => [
+                    'type' => 'range',
+                    'name' => strtolower($matches[1]),
+                    'operator' => $this->mediaComparisonName($matches[2]),
+                    'value' => $this->parseMediaFeatureValueForVisitor($matches[3]),
+                ],
+            ];
+        }
+
+        return [
+            'type' => 'feature',
+            'value' => [
+                'type' => 'boolean',
+                'name' => strtolower($feature),
+            ],
+        ];
+    }
+
+    private function mediaComparisonName(string $operator): string
+    {
+        return match ($operator) {
+            '<' => 'less-than',
+            '<=' => 'less-than-equal',
+            '>' => 'greater-than',
+            '>=' => 'greater-than-equal',
+            default => 'equal',
+        };
+    }
+
+    private function parseMediaFeatureValueForVisitor(string $value): mixed
+    {
+        $value = trim($value);
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-zA-Z%]+)$/', $value, $matches) === 1) {
+            return [
+                'type' => 'length',
+                'unit' => strtolower($matches[2]),
+                'value' => (float) $matches[1],
+            ];
+        }
+        if (
+            strlen($value) >= 2
+            && (($value[0] === '"' && $value[strlen($value) - 1] === '"') || ($value[0] === "'" && $value[strlen($value) - 1] === "'"))
+        ) {
+            return [
+                'type' => 'token',
+                'raw' => $value,
+                'value' => [
+                    'type' => 'string',
+                    'value' => stripcslashes(substr($value, 1, -1)),
+                ],
+            ];
+        }
+        if (preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $value) === 1) {
+            return [
+                'type' => 'ident',
+                'value' => strtolower($value),
+            ];
+        }
+
+        return ['type' => 'raw', 'value' => $value];
     }
 
     private function parseCustomPreludeValue(string $name, string $prelude, ?string $grammar): string
@@ -1761,6 +1995,9 @@ final class CustomAtRuleTransformer
     private function serializeReturnedMediaFeatureValue(mixed $value): string
     {
         if (is_array($value)) {
+            if (in_array(($value['type'] ?? null), ['length', 'dimension', 'rgb', 'token', 'raw', 'var', 'env', 'function', 'ident'], true)) {
+                return $this->serializeVisitorValue($value);
+            }
             if (($value['type'] ?? null) === 'length' && isset($value['value']) && is_array($value['value'])) {
                 return $this->serializeVisitorValue([
                     'type' => 'length',
@@ -1941,23 +2178,32 @@ final class CustomAtRuleTransformer
             } elseif ($type === 'type') {
                 $css .= (string) ($component['name'] ?? '');
             } elseif ($type === 'pseudo-class') {
-                $css .= ':' . (string) ($component['kind'] ?? '');
+                $css .= $this->serializePseudoClassComponent($component);
             } elseif ($type === 'combinator') {
                 $value = (string) ($component['value'] ?? 'descendant');
                 $css = rtrim($css);
                 $css .= $value === 'descendant' ? ' ' : $value;
             } elseif ($type === 'attribute') {
-                $css .= '[' . (string) ($component['name'] ?? '');
-                $operation = $component['operation'] ?? null;
-                if (is_array($operation) && isset($operation['operator'], $operation['value'])) {
-                    $operator = $operation['operator'] === 'equal' ? '=' : (string) $operation['operator'];
-                    $css .= $operator . (string) $operation['value'];
-                }
-                $css .= ']';
+                $css .= $this->serializeAttributeSelectorComponent($component);
             }
         }
 
         return trim($css);
+    }
+
+    /**
+     * @param array<string, mixed> $component
+     */
+    private function serializeAttributeSelectorComponent(array $component): string
+    {
+        $css = '[' . (string) ($component['name'] ?? '');
+        $operation = $component['operation'] ?? null;
+        if (is_array($operation) && isset($operation['operator'], $operation['value'])) {
+            $operator = $operation['operator'] === 'equal' ? '=' : (string) $operation['operator'];
+            $css .= $operator . (string) $operation['value'];
+        }
+
+        return $css . ']';
     }
 
     private function escapeSelectorIdentifier(string $identifier): string
@@ -2087,6 +2333,28 @@ final class CustomAtRuleTransformer
         $styleConfig = $visitor['style'] ?? null;
         if (is_callable($styleConfig)) {
             return $styleConfig;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function mediaRuleVisitorCallback(array $visitor): ?callable
+    {
+        $ruleConfig = $visitor['Rule'] ?? null;
+        if (is_callable($ruleConfig)) {
+            return $ruleConfig;
+        }
+
+        if (is_array($ruleConfig) && is_callable($ruleConfig['media'] ?? null)) {
+            return $ruleConfig['media'];
+        }
+
+        $mediaConfig = $visitor['media'] ?? null;
+        if (is_callable($mediaConfig)) {
+            return $mediaConfig;
         }
 
         return null;
@@ -2382,6 +2650,34 @@ final class CustomAtRuleTransformer
         }
 
         return [$rule];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function normalizeRuleVisitorReplacement(mixed $replacement, string $visitorName): array
+    {
+        if ($replacement === false || $replacement === []) {
+            return [];
+        }
+        if (!is_array($replacement)) {
+            throw new \InvalidArgumentException($visitorName . ' visitor must return a rule array, list of rules, or null');
+        }
+        if (array_is_list($replacement)) {
+            $rules = [];
+            foreach ($replacement as $item) {
+                foreach (self::normalizeRuleVisitorReplacement($item, $visitorName) as $rule) {
+                    $rules[] = $rule;
+                }
+            }
+
+            return $rules;
+        }
+        if (($replacement['kind'] ?? null) === 'remove') {
+            return [];
+        }
+
+        return [$replacement];
     }
 
     /**
@@ -3533,7 +3829,9 @@ final class CustomAtRuleTransformer
             $body = substr($css, $nextBlock + 1, $close - $nextBlock - 1);
             if (str_starts_with($prelude, '@')) {
                 [$name, $atPrelude] = $this->parseAtPrelude($prelude);
-                $rules[] = ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $atPrelude, $body, $parentSelectors)];
+                $rules[] = $name === 'media'
+                    ? $this->buildMediaRule($atPrelude, $body, $parentSelectors)
+                    : ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $atPrelude, $body, $parentSelectors)];
             } else {
                 $selectors = $parentSelectors === null
                     ? $this->splitTopLevel($prelude, ',')

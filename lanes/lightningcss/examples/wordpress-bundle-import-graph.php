@@ -100,6 +100,26 @@ if (!str_contains($themeBundle, '.wp-block-cover{color:purple}')) {
     exit(1);
 }
 
+$mappedThemeBundle = (new CssBundler())->bundleWithSourceMap('/theme.css', $files, null, '/');
+$mappedThemeSources = $mappedThemeBundle['sourceMap']->toArray(null, false)['sources'];
+if (
+    $mappedThemeBundle['code'] !== $themeBundle
+    || $mappedThemeSources !== [
+        'theme.css',
+        'tokens.css',
+        'blocks/card.css',
+        'shared/buttons.css',
+        'shared/buttons-contrast.css',
+        'blocks/print.css',
+        'blocks/escaped hero.css',
+    ]
+) {
+    fwrite(STDERR, "Expected source-map source collection to follow block-theme import graph\n");
+    exit(1);
+}
+
+echo 'source-map-sources: collected' . PHP_EOL;
+
 $sharedPresetBundle = (new CssBundler())->bundle('style.css', [
     'style.css' => <<<'CSS'
 @import "../shared/presets.css";
@@ -120,6 +140,19 @@ if ($sharedPresetBundle !== ':root{--wp--preset--spacing--block-gap:1rem}.wp-sit
 }
 
 echo 'parent-relative-import: resolved' . PHP_EOL;
+
+$mediaBooleanBundle = (new CssBundler())->bundle('/entry.css', [
+    '/entry.css' => '@import "print.css" layer(theme.blocks) print; .entry { color: red }',
+    '/print.css' => '@import "wide.css" not screen and (width >= 240px); .wp-block-query { color: blue }',
+    '/wide.css' => '.wp-block-query.is-wide { color: green }',
+]);
+
+if ($mediaBooleanBundle !== '@media print and (width>=240px){@layer theme.blocks{.wp-block-query.is-wide{color:green}}}@media print{@layer theme.blocks{.wp-block-query{color:#00f}}}.entry{color:red}') {
+    fwrite(STDERR, "Unexpected layered media import boolean/range output\n");
+    exit(1);
+}
+
+echo 'media-boolean-layer-range: simplified' . PHP_EOL;
 
 try {
     (new CssBundler())->bundle('/broken-theme.css', [

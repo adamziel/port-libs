@@ -150,6 +150,10 @@ final class CssModulesTransformer
             return $this->rewriteContainerPrelude($prelude);
         }
 
+        if (preg_match('/^@scope\b/i', $trimmedPrelude) === 1) {
+            return $this->rewriteScopePrelude($prelude);
+        }
+
         return $prelude;
     }
 
@@ -246,6 +250,76 @@ final class CssModulesTransformer
             'revert',
             'revert-layer',
         ], true);
+    }
+
+    private function rewriteScopePrelude(string $prelude): string
+    {
+        if (preg_match('/^(\s*@scope\b)(.*)$/is', $prelude, $matches) !== 1) {
+            return $prelude;
+        }
+
+        $tail = $matches[2];
+        $cursor = $this->skipCssWhitespace($tail, 0);
+        $start = null;
+        $end = null;
+
+        if (($tail[$cursor] ?? '') === '(') {
+            $close = $this->findMatchingParen($tail, $cursor);
+            $start = substr($tail, $cursor + 1, $close - $cursor - 1);
+            $cursor = $this->skipCssWhitespace($tail, $close + 1);
+        }
+
+        if ($this->startsWithScopeToKeyword($tail, $cursor)) {
+            $cursor = $this->skipCssWhitespace($tail, $cursor + 2);
+            if (($tail[$cursor] ?? '') !== '(') {
+                throw new \InvalidArgumentException('CSS @scope rule is missing a scope limit selector');
+            }
+
+            $close = $this->findMatchingParen($tail, $cursor);
+            $end = substr($tail, $cursor + 1, $close - $cursor - 1);
+            $cursor = $this->skipCssWhitespace($tail, $close + 1);
+        }
+
+        $output = $matches[1];
+        if ($start !== null) {
+            $output .= ' (' . $this->rewriteScopeSelectorList($start) . ')';
+        }
+
+        if ($end !== null) {
+            $output .= ' to (' . $this->rewriteScopeSelectorList($end) . ')';
+        }
+
+        return $output . substr($tail, $cursor);
+    }
+
+    private function rewriteScopeSelectorList(string $selectorList): string
+    {
+        if ($this->pure) {
+            $this->assertPureSelectorList($selectorList);
+        }
+
+        return $this->rewriteSelectorList($selectorList)[0];
+    }
+
+    private function startsWithScopeToKeyword(string $value, int $offset): bool
+    {
+        if (strncasecmp(substr($value, $offset, 2), 'to', 2) !== 0) {
+            return false;
+        }
+
+        $next = $value[$offset + 2] ?? '';
+
+        return $next === '' || !$this->isIdentChar($next);
+    }
+
+    private function skipCssWhitespace(string $value, int $offset): int
+    {
+        $length = strlen($value);
+        while ($offset < $length && ctype_space($value[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
     }
 
     /**

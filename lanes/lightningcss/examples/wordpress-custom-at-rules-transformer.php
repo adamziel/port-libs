@@ -40,6 +40,12 @@ $css = <<<'CSS'
   }
 }
 
+@media (hover) {
+  .wp-block-card__cta {
+    color: yellow;
+  }
+}
+
 .wp-block-card__media {
   size: 48px;
 }
@@ -219,6 +225,36 @@ $transform = $transformer->transformWithDependencies($css, [
                         $transformer->styleBlock($rule['body'])
                     ),
                 ],
+                'media' => static function (array $media): ?array {
+                    $mediaQueries = $media['value']['query']['mediaQueries'] ?? [];
+                    $condition = $mediaQueries[0]['condition'] ?? null;
+                    if (
+                        count($mediaQueries) !== 1
+                        || !is_array($condition)
+                        || ($condition['type'] ?? null) !== 'feature'
+                        || ($condition['value']['type'] ?? null) !== 'boolean'
+                        || ($condition['value']['name'] ?? null) !== 'hover'
+                    ) {
+                        return null;
+                    }
+
+                    foreach ($media['value']['rules'] as &$rule) {
+                        if (($rule['type'] ?? null) !== 'style') {
+                            continue;
+                        }
+                        foreach ($rule['value']['selectors'] as &$selector) {
+                            array_unshift(
+                                $selector,
+                                ['type' => 'class', 'name' => 'wp-hoverable'],
+                                ['type' => 'combinator', 'value' => 'descendant']
+                            );
+                        }
+                        unset($selector);
+                    }
+                    unset($rule);
+
+                    return $media['value']['rules'];
+                },
             ],
             'Token' => [
                 'at-keyword' => static function (array $token) use (&$colorAliases): ?string {
@@ -374,7 +410,7 @@ $transform = $transformer->transformWithDependencies($css, [
 $result = $transform['code'];
 $dependencies = $transform['dependencies'];
 
-$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card__media{width:3rem;height:3rem}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 .0625rem #056ef0;margin-left:1.25rem;margin-right:1.25rem}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}.wp-block-card.is-visitor-ready{outline-color:#056ef0}';
+$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-hoverable .wp-block-card__cta{color:#ff0}.wp-block-card__media{width:3rem;height:3rem}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 .0625rem #056ef0;margin-left:1.25rem;margin-right:1.25rem}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}.wp-block-card.is-visitor-ready{outline-color:#056ef0}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {

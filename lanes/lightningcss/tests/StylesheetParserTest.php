@@ -44,6 +44,49 @@ return [
         $t->same(['& > .wp-block-columns'], $group->rules[1]->rules[0]->selectors);
         $t->same('grid', $group->rules[1]->rules[0]->declarations['display']);
     },
+    'stylesheet parser maps upstream cssom declaration property locations' => static function (TestRunner $t): void {
+        $parser = new StylesheetParser();
+        $css = <<<'CSS'
+.foo {
+  color: green;
+}
+.bar {
+  color: red;
+  background: pink;
+}
+
+@media print {
+  .baz {
+    color: green;
+  }
+}
+CSS;
+
+        $t->same(
+            [
+                'key' => ['start' => ['line' => 5, 'column' => 3], 'end' => ['line' => 5, 'column' => 8]],
+                'value' => ['start' => ['line' => 5, 'column' => 10], 'end' => ['line' => 5, 'column' => 13]],
+            ],
+            $parser->propertyLocation($css, [1], 0)
+        );
+        $t->same(
+            [
+                'key' => ['start' => ['line' => 6, 'column' => 3], 'end' => ['line' => 6, 'column' => 13]],
+                'value' => ['start' => ['line' => 6, 'column' => 15], 'end' => ['line' => 6, 'column' => 19]],
+            ],
+            $parser->propertyLocation($css, [1], 1)
+        );
+        $t->same(
+            [
+                'key' => ['start' => ['line' => 11, 'column' => 5], 'end' => ['line' => 11, 'column' => 10]],
+                'value' => ['start' => ['line' => 11, 'column' => 12], 'end' => ['line' => 11, 'column' => 17]],
+            ],
+            $parser->propertyLocation($css, [2, 0], 0)
+        );
+        $t->same(null, $parser->propertyLocation($css, [2, 0], 1));
+        $t->same(null, $parser->propertyLocation($css, [99], 0));
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->propertyLocation($css, [], 0));
+    },
     'stylesheet parser ignores comments but preserves braces in strings' => static function (TestRunner $t): void {
         $rules = (new StylesheetParser())->parse('.notice { /* hidden */ content: "{}"; }');
 

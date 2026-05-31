@@ -800,6 +800,64 @@ CSS);
             'negated' => $export('EgL3uq_negated'),
         ], $topLevel['exports']);
     },
+    'css modules scopes upstream scope rule preludes while preserving composes exports' => static function (TestRunner $t) use ($export, $local, $global): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+@scope (.scopeRoot) to (:global(.legacy-stop), .scopeLimit) {
+  .card {
+    composes: base;
+    color: red;
+  }
+
+  .base {
+    color: blue;
+  }
+}
+CSS);
+
+        $t->same('@scope(.EgL3uq_scopeRoot) to (.legacy-stop,.EgL3uq_scopeLimit){:scope .EgL3uq_card{color:red}:scope .EgL3uq_base{color:#00f}}', $result['code']);
+        $t->same([
+            'scopeRoot' => $export('EgL3uq_scopeRoot'),
+            'scopeLimit' => $export('EgL3uq_scopeLimit'),
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $globalLocal = (new CssModulesTransformer())->transform(<<<'CSS'
+@scope (:global(.wp-block) :local(.card-scope)) to (:global(.stop)) {
+  .card {
+    composes: utility from global;
+    color: yellow;
+  }
+}
+CSS);
+
+        $t->same('@scope(.wp-block .EgL3uq_card-scope) to (.stop){:scope .EgL3uq_card{color:#ff0}}', $globalLocal['code']);
+        $t->same([
+            'card-scope' => $export('EgL3uq_card-scope'),
+            'card' => $export('EgL3uq_card', [$global('utility')]),
+        ], $globalLocal['exports']);
+        $t->same([], $globalLocal['references']);
+    },
+    'css modules pure mode validates upstream scope rule selector boundaries' => static function (TestRunner $t) use ($export): void {
+        $transformer = new CssModulesTransformer();
+
+        $accepted = $transformer->transform('@scope (.a) to (.b) { .foo { color: red } }', ['pure' => true]);
+        $t->same('@scope(.EgL3uq_a) to (.EgL3uq_b){:scope .EgL3uq_foo{color:red}}', $accepted['code']);
+        $t->same([
+            'a' => $export('EgL3uq_a'),
+            'b' => $export('EgL3uq_b'),
+            'foo' => $export('EgL3uq_foo'),
+        ], $accepted['exports']);
+
+        foreach ([
+            '@scope (div) { .foo { color: red } }',
+            '@scope (.a) to (div) { .foo { color: red } }',
+            '@scope (.a) to (.b) { div { color: red } }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform($css, ['pure' => true]));
+        }
+    },
     'css modules scopes upstream dashed idents and records dependency references' => static function (TestRunner $t) use ($export, $dashed): void {
         $css = <<<'CSS'
 .foo {

@@ -137,6 +137,19 @@ CSS
         $t->same('.foo{color:red}', $minifier->minify('.foo { color: hwb(none none none) }'));
         $t->same('.foo{color:#000}', $minifier->minify('.foo { color: rgb(none none none) }'));
     },
+    'css minifier maps upstream linear gradient value normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('.foo{background:linear-gradient(#ff0,#00f)}', $minifier->minify('.foo { background: linear-gradient(to bottom, yellow, blue); }'));
+        $t->same('.foo{background:linear-gradient(#ff0,#00f)}', $minifier->minify('.foo { background: linear-gradient(180deg, yellow, blue); }'));
+        $t->same('.foo{background:linear-gradient(#ff0,#00f)}', $minifier->minify('.foo { background: linear-gradient(0.5turn, yellow, blue); }'));
+        $t->same('.foo{background:linear-gradient(#ff0,#00f)}', $minifier->minify('.foo { background: linear-gradient(to top, blue, yellow); }'));
+        $t->same('.foo{background:linear-gradient(#ff0 80%,#00f 90%)}', $minifier->minify('.foo { background: linear-gradient(to top, blue 10%, yellow 20%); }'));
+        $t->same('.foo{background:linear-gradient(0deg,#00f 10px,#ff0 20px)}', $minifier->minify('.foo { background: linear-gradient(to top, blue 10px, yellow 20px); }'));
+        $t->same('.foo{background:linear-gradient(#ff0,#00f)}', $minifier->minify('.foo { background: linear-gradient(yellow, 50%, blue); }'));
+        $t->same('.foo{background:linear-gradient(#ff0,red 30% 40%,#00f)}', $minifier->minify('.foo { background: linear-gradient(yellow, red 30%, red 40%, blue); }'));
+        $t->same('.foo{background:linear-gradient(#00f,#ff0)}', $minifier->minify('.foo { background: linear-gradient(0, yellow, blue); }'));
+    },
     'css minifier maps upstream rgb relative color sRGB origins' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $cases = [

@@ -15,6 +15,40 @@ final class StylesheetParser
     }
 
     /**
+     * Returns declaration key/value source ranges for the rule addressed by a zero-based rule path.
+     *
+     * @param list<int> $rulePath
+     * @return array{
+     *     key: array{start: array{line:int,column:int}, end: array{line:int,column:int}},
+     *     value: array{start: array{line:int,column:int}, end: array{line:int,column:int}}
+     * }|null
+     */
+    public function propertyLocation(string $css, array $rulePath, int $declarationIndex): ?array
+    {
+        if ($rulePath === []) {
+            throw new \InvalidArgumentException('CSS rule path cannot be empty');
+        }
+        if ($declarationIndex < 0) {
+            throw new \InvalidArgumentException('CSS declaration index cannot be negative');
+        }
+        foreach ($rulePath as $index) {
+            if ($index < 0) {
+                throw new \InvalidArgumentException('CSS rule path indexes cannot be negative');
+            }
+        }
+
+        $block = $this->locateRuleBlock($css, $rulePath, 0, strlen($css), true);
+        if ($block === null) {
+            return null;
+        }
+
+        $body = substr($css, $block['bodyStart'], $block['bodyEnd'] - $block['bodyStart']);
+        $origin = $this->sourceLocationForOffset($css, $block['bodyStart']);
+
+        return (new DeclarationBlock())->propertyLocation($body, $declarationIndex, $origin['line'], $origin['column']);
+    }
+
+    /**
      * @return list<CssRule>
      */
     private function parseRuleList(string $css): array
@@ -141,6 +175,88 @@ final class StylesheetParser
     }
 
     /**
+     * @param list<int> $rulePath
+     * @return array{bodyStart:int,bodyEnd:int}|null
+     */
+    private function locateRuleBlock(
+        string $css,
+        array $rulePath,
+        int $start,
+        int $end,
+        bool $countAtRuleStatements
+    ): ?array {
+        $target = $rulePath[0];
+        $index = 0;
+        $cursor = $start;
+
+        while (true) {
+            $cursor = $this->skipWhitespaceAndComments($css, $cursor, $end);
+            if ($cursor >= $end) {
+                return null;
+            }
+
+            $nextBlock = $this->findNextTopLevel($css, '{', $cursor, $end);
+            $nextStatement = $countAtRuleStatements ? $this->findNextTopLevel($css, ';', $cursor, $end) : null;
+            if ($nextStatement !== null && ($nextBlock === null || $nextStatement < $nextBlock)) {
+                $statement = trim(substr($css, $cursor, $nextStatement - $cursor));
+                if ($statement !== '' && str_starts_with($statement, '@')) {
+                    if ($index === $target) {
+                        return null;
+                    }
+                    $index++;
+                }
+                $cursor = $nextStatement + 1;
+                continue;
+            }
+
+            if ($nextBlock === null) {
+                return null;
+            }
+
+            $prelude = trim(substr($css, $cursor, $nextBlock - $cursor));
+            if ($prelude === '') {
+                return null;
+            }
+
+            $close = $this->findMatchingBrace($css, $nextBlock);
+            if ($close > $end) {
+                return null;
+            }
+            if ($index === $target) {
+                $bodyStart = $nextBlock + 1;
+                if (count($rulePath) === 1) {
+                    return ['bodyStart' => $bodyStart, 'bodyEnd' => $close];
+                }
+
+                return $this->locateRuleBlock($css, array_slice($rulePath, 1), $bodyStart, $close, false);
+            }
+
+            $index++;
+            $cursor = $close + 1;
+        }
+    }
+
+    /**
+     * @return array{line:int,column:int}
+     */
+    private function sourceLocationForOffset(string $source, int $offset): array
+    {
+        $line = 1;
+        $column = 1;
+        $length = min($offset, strlen($source));
+        for ($i = 0; $i < $length; $i++) {
+            if ($source[$i] === "\n") {
+                $line++;
+                $column = 1;
+                continue;
+            }
+            $column++;
+        }
+
+        return ['line' => $line, 'column' => $column];
+    }
+
+    /**
      * @return list<string>
      */
     private function splitTopLevel(string $value, string $delimiter): array
@@ -186,22 +302,30 @@ final class StylesheetParser
         return array_values(array_filter(array_map('trim', $parts), static fn (string $part): bool => $part !== ''));
     }
 
-    private function findNextTopLevel(string $css, string $needle, int $start): ?int
+    private function findNextTopLevel(string $css, string $needle, int $start, ?int $end = null): ?int
     {
         $quote = null;
         $parenDepth = 0;
         $bracketDepth = 0;
-        $length = strlen($css);
+        $length = min($end ?? strlen($css), strlen($css));
         for ($i = $start; $i < $length; $i++) {
             $char = $css[$i];
             if ($quote !== null) {
-                if ($char === '\\') {
+                if ($char === '\\' && $i + 1 < $length) {
                     $i++;
                     continue;
                 }
                 if ($char === $quote) {
                     $quote = null;
                 }
+                continue;
+            }
+            if ($char === '/' && ($css[$i + 1] ?? '') === '*') {
+                $commentEnd = strpos($css, '*/', $i + 2);
+                if ($commentEnd === false || $commentEnd + 2 > $length) {
+                    return null;
+                }
+                $i = $commentEnd + 1;
                 continue;
             }
             if ($char === '"' || $char === "'") {
@@ -242,7 +366,7 @@ final class StylesheetParser
         for ($i = $open; $i < $length; $i++) {
             $char = $css[$i];
             if ($quote !== null) {
-                if ($char === '\\') {
+                if ($char === '\\' && $i + 1 < $length) {
                     $i++;
                     continue;
                 }
@@ -254,6 +378,12 @@ final class StylesheetParser
 
             if ($char === '"' || $char === "'") {
                 $quote = $char;
+            } elseif ($char === '/' && ($css[$i + 1] ?? '') === '*') {
+                $commentEnd = strpos($css, '*/', $i + 2);
+                if ($commentEnd === false) {
+                    throw new \InvalidArgumentException('CSS comment is missing a closing marker');
+                }
+                $i = $commentEnd + 1;
             } elseif ($char === '{') {
                 $depth++;
             } elseif ($char === '}') {
@@ -272,6 +402,28 @@ final class StylesheetParser
         $length = strlen($css);
         while ($offset < $length && ctype_space($css[$offset])) {
             $offset++;
+        }
+
+        return $offset;
+    }
+
+    private function skipWhitespaceAndComments(string $css, int $offset, int $end): int
+    {
+        while ($offset < $end) {
+            if (ctype_space($css[$offset])) {
+                $offset++;
+                continue;
+            }
+            if ($css[$offset] === '/' && ($css[$offset + 1] ?? '') === '*') {
+                $commentEnd = strpos($css, '*/', $offset + 2);
+                if ($commentEnd === false || $commentEnd + 2 > $end) {
+                    return $end;
+                }
+                $offset = $commentEnd + 2;
+                continue;
+            }
+
+            break;
         }
 
         return $offset;

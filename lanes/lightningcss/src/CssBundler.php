@@ -20,6 +20,8 @@ final class CssBundler
     /** @var array<string, int> */
     private array $sourceIndexes = [];
 
+    private ?SourceMap $sourceMap = null;
+
     private bool $cssModules = false;
 
     /** @var array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,container?:bool,projectRoot?:string,project_root?:string} */
@@ -72,6 +74,42 @@ final class CssBundler
     }
 
     /**
+     * @return array{code:string, sourceMap:SourceMap}
+     *
+     * @param array<string, string> $files
+     * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
+     */
+    public function bundleWithSourceMap(string $entry, array $files, ?callable $resolver = null, string $projectRoot = '/'): array
+    {
+        $result = $this->bundleInternal($entry, $files, $resolver, false, [], null, false, $projectRoot);
+
+        return [
+            'code' => $result['code'],
+            'sourceMap' => $result['sourceMap'],
+        ];
+    }
+
+    /**
+     * @return array{code:string, sourceMap:SourceMap}
+     *
+     * @param callable(string): string $reader
+     * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
+     */
+    public function bundleWithReaderSourceMap(
+        string $entry,
+        callable $reader,
+        ?callable $resolver = null,
+        string $projectRoot = '/'
+    ): array {
+        $result = $this->bundleInternal($entry, [], $resolver, false, [], $reader, false, $projectRoot);
+
+        return [
+            'code' => $result['code'],
+            'sourceMap' => $result['sourceMap'],
+        ];
+    }
+
+    /**
      * @return array{
      *   code:string,
      *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
@@ -89,7 +127,8 @@ final class CssBundler
     /**
      * @return array{
      *   code:string,
-     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>
+     *   exports:array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}>,
+     *   sourceMap?:SourceMap
      * }
      *
      * @param callable(string): string $reader
@@ -133,7 +172,8 @@ final class CssBundler
         bool $cssModules,
         array $cssModuleOptions = [],
         ?callable $reader = null,
-        bool $filesystemReads = false
+        bool $filesystemReads = false,
+        ?string $sourceMapProjectRoot = null
     ): array
     {
         $this->files = [];
@@ -145,6 +185,7 @@ final class CssBundler
         $this->reader = $reader;
         $this->filesystemReads = $filesystemReads;
         $this->sourceIndexes = [];
+        $this->sourceMap = $sourceMapProjectRoot === null ? null : new SourceMap($sourceMapProjectRoot);
         $this->stylesheets = [];
         $this->cssModules = $cssModules;
         $this->cssModuleOptions = $cssModuleOptions;
@@ -168,6 +209,7 @@ final class CssBundler
         return [
             'code' => $code,
             'exports' => $exports,
+            ...($this->sourceMap === null ? [] : ['sourceMap' => $this->sourceMap]),
         ];
     }
 
@@ -204,6 +246,11 @@ final class CssBundler
         ];
 
         $source = $this->readFile($file, $rule);
+        if ($this->sourceMap !== null) {
+            $sourceMapIndex = $this->sourceMap->addSource($file);
+            $this->sourceMap->setSourceContent($sourceMapIndex, $source);
+        }
+
         $cssModuleResult = null;
         if ($this->cssModules) {
             $cssModuleResult = (new CssModulesTransformer())->transform($source, $this->cssModuleTransformOptions($file));
@@ -986,17 +1033,7 @@ final class CssBundler
         $queries = [];
         foreach ($this->splitTopLevel($parent, ',') as $parentQuery) {
             foreach ($this->splitTopLevel($child, ',') as $childQuery) {
-                if ($this->isNegatedMediaQuery($parentQuery) && $this->isNegatedMediaQuery($childQuery)) {
-                    throw new CssBundleException(
-                        'unsupported-media-boolean-logic',
-                        'Unsupported boolean logic in @import media query',
-                        $file,
-                        $loc['line'],
-                        $loc['column'],
-                    );
-                }
-
-                $queries[] = $this->andMediaQuery($parentQuery, $childQuery);
+                $queries[] = $this->andMediaQuery($parentQuery, $childQuery, $file, $loc);
             }
         }
 
@@ -1014,23 +1051,182 @@ final class CssBundler
         return implode(', ', array_values($deduped));
     }
 
-    private function andMediaQuery(string $a, string $b): string
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function andMediaQuery(string $a, string $b, string $file, array $loc): string
     {
-        $a = trim($a);
-        $b = trim($b);
-        if ($a === '' || strcasecmp($a, 'all') === 0) {
-            return $b;
-        }
-        if ($b === '' || strcasecmp($b, 'all') === 0 || strcasecmp($a, $b) === 0) {
-            return $a;
+        $a = $this->parseMediaQueryForCombination($a);
+        $b = $this->parseMediaQueryForCombination($b);
+        [$qualifier, $type] = $this->combineMediaTypeForAnd($a, $b, $file, $loc);
+
+        $condition = $a['condition'];
+        if ($b['condition'] !== null) {
+            $condition = $condition === null || $condition === $b['condition']
+                ? $b['condition']
+                : $this->combineMediaConditionsForAnd($condition, $b['condition']);
         }
 
-        return $a . ' and ' . $b;
+        return $this->serializeMediaQueryForCombination($qualifier, $type, $condition);
     }
 
-    private function isNegatedMediaQuery(string $query): bool
+    /**
+     * @return array{qualifier:?string,type:string,condition:?string}
+     */
+    private function parseMediaQueryForCombination(string $query): array
     {
-        return preg_match('/^\s*not\s+/i', $query) === 1;
+        $query = (new MediaQueryParser())->minifyList($query, true);
+        if (preg_match('/^(?:(not|only)\s+)?([_a-zA-Z-][_a-zA-Z0-9-]*)(?:\s+and\s+(.+))?$/i', $query, $matches) === 1) {
+            return [
+                'qualifier' => isset($matches[1]) && $matches[1] !== '' ? strtolower($matches[1]) : null,
+                'type' => strtolower($matches[2]),
+                'condition' => isset($matches[3]) && trim($matches[3]) !== '' ? trim($matches[3]) : null,
+            ];
+        }
+
+        return [
+            'qualifier' => null,
+            'type' => 'all',
+            'condition' => $query,
+        ];
+    }
+
+    /**
+     * @param array{qualifier:?string,type:string,condition:?string} $a
+     * @param array{qualifier:?string,type:string,condition:?string} $b
+     * @param array{line:int,column:int} $loc
+     * @return array{?string,string}
+     */
+    private function combineMediaTypeForAnd(array $a, array $b, string $file, array $loc): array
+    {
+        if (($a['qualifier'] === 'not' && $a['type'] === 'all') || ($b['qualifier'] === 'not' && $b['type'] === 'all')) {
+            return ['not', 'all'];
+        }
+
+        if ($a['qualifier'] === 'not' && $b['qualifier'] === 'not') {
+            if ($a['type'] === $b['type']) {
+                return ['not', $a['type']];
+            }
+
+            throw new CssBundleException(
+                'unsupported-media-boolean-logic',
+                'Unsupported boolean logic in @import media query',
+                $file,
+                $loc['line'],
+                $loc['column'],
+            );
+        }
+
+        if ($a['type'] === 'all') {
+            return [$b['qualifier'], $b['type']];
+        }
+        if ($b['type'] === 'all') {
+            return [$a['qualifier'], $a['type']];
+        }
+        if ($a['qualifier'] === 'not') {
+            return [$b['qualifier'], $b['type']];
+        }
+        if ($b['qualifier'] === 'not') {
+            return [$a['qualifier'], $a['type']];
+        }
+        if ($a['type'] !== $b['type']) {
+            return ['not', 'all'];
+        }
+
+        return [null, $a['type']];
+    }
+
+    private function combineMediaConditionsForAnd(string $a, string $b): string
+    {
+        return $this->wrapMediaConditionForAnd($a) . ' and ' . $this->wrapMediaConditionForAnd($b);
+    }
+
+    private function wrapMediaConditionForAnd(string $condition): string
+    {
+        return $this->containsTopLevelMediaOperator($condition, 'or') ? '(' . $condition . ')' : $condition;
+    }
+
+    private function serializeMediaQueryForCombination(?string $qualifier, string $type, ?string $condition): string
+    {
+        $prefix = '';
+        if ($qualifier !== null) {
+            $prefix .= $qualifier . ' ';
+        }
+
+        if ($type !== 'all' || $qualifier !== null || $condition === null) {
+            $prefix .= $type;
+        }
+
+        if ($condition === null) {
+            return trim($prefix);
+        }
+
+        if ($prefix === '') {
+            return $condition;
+        }
+
+        if ($this->containsTopLevelMediaOperator($condition, 'or')) {
+            $condition = '(' . $condition . ')';
+        }
+
+        return trim($prefix) . ' and ' . $condition;
+    }
+
+    private function containsTopLevelMediaOperator(string $condition, string $operator): bool
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $length = strlen($condition);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $condition[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                continue;
+            }
+
+            if ($parenDepth !== 0 || !ctype_alpha($char)) {
+                continue;
+            }
+
+            $start = $i;
+            while ($i < $length && preg_match('/[-_a-zA-Z0-9]/', $condition[$i]) === 1) {
+                $i++;
+            }
+            $identifier = substr($condition, $start, $i - $start);
+            $previous = $condition[$start - 1] ?? '';
+            $next = $condition[$i] ?? '';
+            if (strcasecmp($identifier, $operator) === 0
+                && ($previous === '' || preg_match('/[-_a-zA-Z0-9]/', $previous) !== 1)
+                && ($next === '' || preg_match('/[-_a-zA-Z0-9]/', $next) !== 1)
+            ) {
+                return true;
+            }
+
+            $i--;
+        }
+
+        return false;
     }
 
     private function combineSupportsAnd(?string $parent, ?string $child): ?string
