@@ -653,6 +653,92 @@ final class SQLiteJsonImportRollbackWalPlan
     /**
      * @return list<array<string,mixed>>
      */
+    public static function dynamicMalformedInsertedInitialValueScenarios(int $scenarioCount = 18): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL malformed inserted-initial-value dynamic parity requires at least one scenario');
+        }
+
+        $scenarios = [];
+        for ($seed = 1; $seed <= $scenarioCount; $seed++) {
+            $pageSize = $seed % 2 === 0 ? 1024 : 512;
+            $tenantId = 6100 + $seed;
+            $basePage = 44 + ($seed % 7);
+            $insertPage = 430 + $seed;
+            $walFramesBefore = 4 + ($seed % 5);
+            $insertSettingId = $seed * 7000 + 2;
+            $jsonbMode = $seed % 2 === 1;
+
+            $rows = [
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 7000 + 1,
+                    'key_name' => 'malformed_insert_base_payload_' . $seed,
+                    'key_value' => json_encode(['enabled' => false, 'seed' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'yes',
+                    'page_number' => $basePage,
+                ],
+            ];
+
+            $mutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'malformed_insert_enable_base_' . $seed,
+                    'key_name' => 'malformed_insert_base_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'malformed_insert_initial_value_' . $seed,
+                    'key_name' => 'malformed_insert_new_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.source',
+                    'value' => 'discarded-' . $seed,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $insertSettingId,
+                    'insert_load_policy' => 'no',
+                    'initial_value' => '{"broken":',
+                    'page_number' => $insertPage,
+                    'wal_frame_index' => 2,
+                ],
+            ];
+
+            $databaseBytes = self::scenarioDatabaseBytes($pageSize, max($insertPage, $basePage));
+            $walBytes = self::scenarioWalBytes($pageSize, $walFramesBefore, 0x8800 + $seed, 0x8900 + $seed);
+            $plan = self::plan($rows, $mutations, [
+                'database_bytes' => $databaseBytes,
+                'page_size' => $pageSize,
+                'wal_bytes' => $walBytes,
+                'transaction' => 'application_malformed_insert_json_import_' . $seed,
+                'savepoint' => 'malformed_insert_json_batch_' . $seed,
+            ]);
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $tenantId,
+                'page_size' => $pageSize,
+                'jsonb_mode' => $jsonbMode,
+                'insert_setting_id' => $insertSettingId,
+                'insert_page' => $insertPage,
+                'wal_frames_before' => $walFramesBefore,
+                'expected_restored_pages' => [$basePage],
+                'expected_failed_statement' => 'malformed_insert_initial_value_' . $seed,
+                'expected_error' => 'SQLite JSON5 input ended before a value',
+                'database_bytes' => $databaseBytes,
+                'wal_bytes' => $walBytes,
+                'plan' => $plan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
     public static function dynamicDeferredFailureScenarios(int $scenarioCount = 16): array
     {
         if ($scenarioCount < 1) {

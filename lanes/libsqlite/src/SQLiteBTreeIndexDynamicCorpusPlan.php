@@ -9894,6 +9894,21 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<int>
+     */
+    private static function deleteRangeKeys(int $start, int $end, callable $keep): array
+    {
+        $keys = [];
+        for ($value = $start; $value <= $end; $value++) {
+            if ($keep($value)) {
+                $keys[] = $value;
+            }
+        }
+
+        return $keys;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,kind:string,sql:string,result_code:int,error:string|null,result_rows:list<array<int,mixed>>,expected:list<mixed>,uses_index:bool,index_name:string|null,catalog_indexes:list<string>,integrity:string,detail:string}>
      */
     public static function indexTestTailSchemaAffinityCases(int $cases = 1000): array
@@ -9940,6 +9955,57 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
             $template['case'] = $case;
             $template['detail'] .= '; dynamic replay ' . (intdiv($case - 1, count($templates)) + 1);
             $out[] = $template;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,table_name:string,index_name:string|null,predicate:string,initial_rows:int,deleted_rows:int,remaining_rows:int,remaining_keys:list<int>,count_changes:bool,uses_index:bool,large_delete:bool,integrity:string,detail:string}>
+     */
+    public static function deleteIndexedRowListDynamicCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite delete.test indexed row-list dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            ['delete-3.1.2/3.1.3', 'unindexed equality delete removes one row and preserves ordered survivors', 'table1', null, 'f1=3', 4, 1, [1, 2, 4], false, false, false, 'table scan delete before CREATE INDEX'],
+            ['delete-3.1.4/3.1.5', 'indexed equality miss reports zero count_changes rows', 'table1', 'index1', 'f1=3', 3, 0, [1, 2, 4], true, true, false, 'SEARCH table1 USING INDEX index1 (f1=?) with no matching row'],
+            ['delete-3.1.6.1/3.1.7', 'indexed equality hit reports one changed row and updates index entries', 'table1', 'index1', 'f1=2', 3, 1, [1, 4], true, true, false, 'SEARCH table1 USING INDEX index1 (f1=?) removes the matching index cell'],
+            ['delete-5.1.1/5.1.2', 'delete-all with count_changes on returns the number of remaining indexed rows', 'table1', 'index1', 'all rows', 2, 2, [], true, true, false, 'DELETE FROM table1 drains table and index btrees'],
+            ['delete-5.2.2/5.2.4', 'bulk delete-all toggles count_changes result shape while clearing two hundred rows', 'table1', 'index1', 'all rows', 200, 200, [], false, true, false, 'bulk table clear frees indexed row entries without returning count rows'],
+            ['delete-5.3', 'repeated modular equality deletes leave one hundred fifty indexed rows', 'table1', 'index1', 'f1 in 1..200 step 4', 200, 50, self::deleteRangeKeys(1, 200, static fn (int $value): bool => (($value - 1) % 4) !== 0), false, true, false, 'fifty point deletes remove every fourth index key'],
+            ['delete-5.4.1/5.4.2', 'range delete removes keys greater than fifty after prior modular deletes', 'table1', 'index1', 'f1>50', 150, 113, self::deleteRangeKeys(1, 50, static fn (int $value): bool => (($value - 1) % 4) !== 0), false, true, false, 'indexed range delete leaves thirty seven low keys'],
+            ['delete-5.5', 'second modular equality pass leaves the exact upstream key list', 'table1', 'index1', 'f1 in 1..70 step 3', 37, 12, [2, 3, 6, 8, 11, 12, 14, 15, 18, 20, 23, 24, 26, 27, 30, 32, 35, 36, 38, 39, 42, 44, 47, 48, 50], false, true, false, 'interleaved point deletes preserve ordered index scan output'],
+            ['delete-5.6/5.7', 'low-key cleanup then inequality delete isolates one survivor', 'table1', 'index1', 'f1<40 then f1!=48', 25, 24, [48], false, true, false, 'indexed range cleanup followed by inequality delete leaves key 48 only'],
+            ['delete-6.5.1/6.5.2', 'large indexed row-list delete removes 2993 rows and keeps first seven keys', 'table1', 'index1', 'f1>7', 3000, 2993, [1, 2, 3, 4, 5, 6, 7], false, true, true, 'VDBE row-list overflow path deletes high keys from an indexed table'],
+            ['delete-6.6', 'large unindexed sibling delete matches the indexed table survivor set', 'table2', null, 'f1>7', 3000, 2993, [1, 2, 3, 4, 5, 6, 7], false, false, true, 'row-list overflow path has the same logical survivors without an index'],
+            ['delete-6.7/6.10', 'full delete permits subsequent insert into emptied table btree', 'table1/table2', 'index1', 'all rows; insert (2,3)', 8, 7, [2], false, true, true, 'empty btree root remains reusable after large delete'],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $table, $index, $predicate, $initial, $deleted, $remaining, $countChanges, $usesIndex, $largeDelete, $detail] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'delete.test sections delete-3.1.1 through delete-6.11',
+                'case' => $case,
+                'upstream_section' => $section,
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+                'scenario' => $scenario,
+                'table_name' => $table,
+                'index_name' => $index,
+                'predicate' => $predicate,
+                'initial_rows' => $initial,
+                'deleted_rows' => $deleted,
+                'remaining_rows' => count($remaining),
+                'remaining_keys' => $remaining,
+                'count_changes' => $countChanges,
+                'uses_index' => $usesIndex,
+                'large_delete' => $largeDelete,
+                'integrity' => 'ok',
+                'detail' => $detail . '; dynamic replay ' . (intdiv($case - 1, count($templates)) + 1),
+            ];
         }
 
         return $out;
@@ -10787,6 +10853,150 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     private static function sqlitePartialIndexBoundValueMatches(int $predicate, mixed $value): bool
     {
         return is_int($value) && $value === $predicate;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,batch:int,upstream_section:string,scenario:string,statement:string,index_name:string|null,expression:string|null,uses_expression_index:bool,result_rows:list<list<mixed>>,result_count:int,expected_error:string|null,detail:string,integrity:string}>
+     */
+    public static function indexexpr2LateExpressionIndexRegressionCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite indexexpr2 late dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'indexexpr2-5.1/5.4',
+                'OR expression-index union preserves both matching rows after abs(a) and abs(b) indexes are added',
+                'SELECT * FROM t5 WHERE abs(a)=2 or abs(b)=9',
+                't5a/t5b',
+                'abs(a), abs(b)',
+                true,
+                [[2, 4], [3, 9]],
+                null,
+                'MULTI-INDEX OR using t5a and t5b expression indexes',
+                'ok',
+            ],
+            [
+                'indexexpr2-6.1.1/6.1.3',
+                'CAST expression index on integer affinity matches integer, text, text-prefix, and real rows',
+                'SELECT a, b FROM x1 WHERE CAST(b AS INTEGER) = 123',
+                'x1i',
+                'CAST(b AS INTEGER)',
+                true,
+                [[1, 123], [2, '123'], [3, '123abc'], [4, 123.0]],
+                null,
+                'SEARCH x1 USING INDEX x1i (<expr>=?)',
+                'ok',
+            ],
+            [
+                'indexexpr2-6.2.1/6.2.3',
+                'CAST expression index on text affinity matches integer and text renderings only',
+                'SELECT a, b FROM x1 WHERE CAST(b AS TEXT) = 123',
+                'x1i2',
+                'CAST(b AS TEXT)',
+                true,
+                [[1, 123], [2, '123']],
+                null,
+                'SEARCH x1 USING INDEX x1i2 (<expr>=?)',
+                'ok',
+            ],
+            [
+                'indexexpr2-7.1/7.3',
+                'ABS expression-index build overflows on int64 minimum and leaves no catalog residue before REINDEX',
+                'CREATE INDEX i0 ON t0(ABS(c0)); SELECT sql FROM sqlite_master WHERE tbl_name = \'t0\'; REINDEX',
+                'i0',
+                'ABS(c0)',
+                false,
+                [['CREATE TABLE t0(c0)']],
+                'integer overflow',
+                'expected integer overflow; follow-up c0 index and REINDEX succeed',
+                'expected-error',
+            ],
+            [
+                'indexexpr2-8.1/8.3',
+                'partial index with NULL row still returns row for BETWEEN truthiness arithmetic wrappers',
+                'SELECT * FROM t0 WHERE 1 || (34 BETWEEN c0 AND 33) ORDER BY c0',
+                'i0',
+                'c0 WHERE c0 NOT NULL',
+                false,
+                [[null]],
+                null,
+                'SCAN t0; partial index i0 not usable for NULL no-match proof',
+                'ok',
+            ],
+            [
+                'indexexpr2-8.4/8.5',
+                'LEFT JOIN no-match rows survive arithmetic wrappers around ON-clause and BETWEEN expressions',
+                'SELECT * FROM t1 LEFT JOIN t2 WHERE 1 || (10 BETWEEN y AND b)',
+                null,
+                null,
+                false,
+                [[1, 2, null, null], [3, 4, null, null]],
+                null,
+                'LEFT JOIN no-match loop keeps two outer rows',
+                'ok',
+            ],
+            [
+                'indexexpr2-9.0',
+                'correlated aggregate subquery resolves expression-index abs(b) from the outer row',
+                'SELECT *, (SELECT max(c+abs(b)) FROM t2 GROUP BY d ORDER BY d LIMIT 1) AS subq FROM t1 WHERE a=5',
+                't1x',
+                'a, abs(b)',
+                true,
+                [[5, -5, 205], [5, 20, 220]],
+                null,
+                'SEARCH t1 USING INDEX t1x (a=?) with correlated abs(b) aggregate',
+                'ok',
+            ],
+            [
+                'indexexpr2-10.0/10.1',
+                'collated indexed expression loses stale collate flag when resolved into aggregate column',
+                'SELECT count(+a COLLATE NOCASE IN (SELECT 1)) FROM t2 GROUP BY SUBSTR(0,0)',
+                't2x',
+                '+a COLLATE NOCASE',
+                true,
+                [[4]],
+                null,
+                'SCAN t2 USING INDEX t2x without stale EP_Collate on aggregate term',
+                'ok',
+            ],
+            [
+                'indexexpr2-11.0',
+                'generated-column expression index resolves outer aggregate references against the correct loop',
+                'SELECT * FROM t3 AS a0 WHERE (SELECT sum(-a0.a=b) FROM t3 GROUP BY b) GROUP BY b',
+                't3x',
+                'b, a',
+                true,
+                [[44, -44]],
+                null,
+                'SEARCH t3 USING INDEX t3x with generated column b AS (-a)',
+                'ok',
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $indexName, $expression, $usesIndex, $rows, $error, $detail, $integrity] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'indexexpr2.test sections indexexpr2-5.0 through indexexpr2-11.0',
+                'case' => $case,
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'statement' => $statement,
+                'index_name' => $indexName,
+                'expression' => $expression,
+                'uses_expression_index' => $usesIndex,
+                'result_rows' => $rows,
+                'result_count' => count($rows),
+                'expected_error' => $error,
+                'detail' => $detail,
+                'integrity' => $integrity,
+            ];
+        }
+
+        return $out;
     }
 
     /**

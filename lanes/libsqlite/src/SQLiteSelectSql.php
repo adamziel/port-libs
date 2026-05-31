@@ -19,7 +19,7 @@ final class SQLiteSelectSql
 
         $rows = SQLiteSelectQuery::execute($plan);
 
-        return self::stripHiddenOrderColumns($rows, $plan);
+        return self::stripInternalMetadata(self::stripHiddenOrderColumns($rows, $plan));
     }
 
     /**
@@ -60,6 +60,20 @@ final class SQLiteSelectSql
         }
 
         throw new \InvalidArgumentException('SQLite SELECT SQL recursive CTE trace did not find a recursive entry');
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function stripInternalMetadata(array $rows): array
+    {
+        foreach ($rows as $index => $row) {
+            unset($row['__sqlite_column_affinities'], $row['__sqlite_column_collations']);
+            $rows[$index] = $row;
+        }
+
+        return $rows;
     }
 
     /**

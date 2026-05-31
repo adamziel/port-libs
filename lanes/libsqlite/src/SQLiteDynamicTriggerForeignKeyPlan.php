@@ -9374,6 +9374,139 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{a:int,b:int}> $rows
+     * @param list<array<string,mixed>> $operations
+     * @return array<string,mixed>
+     */
+    public static function deferredForeignKeySavepointBoundaryPlan(array $rows, array $operations): array
+    {
+        $initial = self::deferredSavepointRows($rows);
+        $rows = $initial;
+        $inTransaction = false;
+        $savepoints = [];
+        $events = [];
+        $blockedBoundaries = [];
+
+        foreach ($operations as $stepIndex => $operation) {
+            $action = strtolower(trim((string) ($operation['action'] ?? '')));
+            if ($action === 'begin') {
+                if ($inTransaction || $savepoints !== []) {
+                    throw new \InvalidArgumentException('SQLite e_fkey savepoint BEGIN cannot nest inside an open transaction');
+                }
+                $inTransaction = true;
+                $events[] = ['step' => 'begin', 'status' => 'ok', 'rows' => $rows, 'open_savepoints' => []];
+                continue;
+            }
+
+            if ($action === 'savepoint') {
+                $name = self::identifier((string) ($operation['name'] ?? ''), 'savepoint name');
+                $isTransaction = !$inTransaction && $savepoints === [];
+                $savepoints[] = [
+                    'name' => $name,
+                    'rows' => $rows,
+                    'transaction' => $isTransaction,
+                ];
+                if ($isTransaction) {
+                    $inTransaction = true;
+                }
+                $events[] = ['step' => 'savepoint', 'name' => $name, 'transaction_savepoint' => $isTransaction, 'status' => 'ok', 'rows' => $rows, 'open_savepoints' => self::deferredSavepointNames($savepoints)];
+                continue;
+            }
+
+            if ($action === 'insert') {
+                $rows[] = [
+                    'a' => self::nonNegativeInteger($operation['a'] ?? null, 'insert a'),
+                    'b' => self::nonNegativeInteger($operation['b'] ?? null, 'insert b'),
+                ];
+                $rows = self::sortRows($rows);
+                $events[] = ['step' => 'insert', 'status' => 'ok', 'rows' => $rows, 'open_savepoints' => self::deferredSavepointNames($savepoints)];
+                continue;
+            }
+
+            if ($action === 'update-a') {
+                $from = self::nonNegativeInteger($operation['from'] ?? null, 'update from');
+                $to = self::nonNegativeInteger($operation['to'] ?? null, 'update to');
+                foreach ($rows as $index => $row) {
+                    if ((int) $row['a'] === $from) {
+                        $rows[$index]['a'] = $to;
+                    }
+                }
+                $rows = self::sortRows($rows);
+                $events[] = ['step' => 'update-a', 'status' => 'ok', 'rows' => $rows, 'open_savepoints' => self::deferredSavepointNames($savepoints)];
+                continue;
+            }
+
+            if ($action === 'rollback-to') {
+                $name = self::identifier((string) ($operation['name'] ?? ''), 'rollback savepoint name');
+                $index = self::deferredSavepointIndex($savepoints, $name);
+                $rows = $savepoints[$index]['rows'];
+                $savepoints = array_slice($savepoints, 0, $index + 1);
+                $events[] = ['step' => 'rollback-to', 'name' => $name, 'status' => 'ok', 'rows' => $rows, 'open_savepoints' => self::deferredSavepointNames($savepoints)];
+                continue;
+            }
+
+            if ($action === 'release') {
+                $name = self::identifier((string) ($operation['name'] ?? ''), 'release savepoint name');
+                $index = self::deferredSavepointIndex($savepoints, $name);
+                $released = $savepoints[$index];
+                $isTransactionBoundary = (bool) $released['transaction'];
+                $violations = self::deferredSelfViolations($rows);
+                if ($isTransactionBoundary && $violations !== []) {
+                    $blockedBoundaries[] = ['step' => 'release', 'name' => $name, 'violation_count' => count($violations), 'open_savepoints' => self::deferredSavepointNames($savepoints)];
+                    $events[] = ['step' => 'release', 'name' => $name, 'status' => 'constraint-failed', 'rows' => $rows, 'open_savepoints' => self::deferredSavepointNames($savepoints)];
+                    continue;
+                }
+
+                $savepoints = array_slice($savepoints, 0, $index);
+                if ($isTransactionBoundary) {
+                    $inTransaction = false;
+                }
+                $events[] = ['step' => 'release', 'name' => $name, 'status' => 'ok', 'rows' => $rows, 'open_savepoints' => self::deferredSavepointNames($savepoints)];
+                continue;
+            }
+
+            if ($action === 'commit') {
+                $violations = self::deferredSelfViolations($rows);
+                if ($violations !== []) {
+                    $blockedBoundaries[] = ['step' => 'commit', 'violation_count' => count($violations), 'open_savepoints' => self::deferredSavepointNames($savepoints)];
+                    $events[] = ['step' => 'commit', 'status' => 'constraint-failed', 'rows' => $rows, 'open_savepoints' => self::deferredSavepointNames($savepoints)];
+                    continue;
+                }
+                $inTransaction = false;
+                $savepoints = [];
+                $events[] = ['step' => 'commit', 'status' => 'ok', 'rows' => $rows, 'open_savepoints' => []];
+                continue;
+            }
+
+            throw new \InvalidArgumentException("SQLite e_fkey savepoint operation {$stepIndex} is unsupported");
+        }
+
+        $violations = self::deferredSelfViolations($rows);
+
+        return [
+            'source' => 'e_fkey.test e_fkey-36.1..38.8',
+            'operation' => 'deferred-foreign-key-savepoint-boundary',
+            'status' => $violations === [] && $blockedBoundaries === [] ? 'commit-ok' : ($violations === [] ? 'repaired-after-blocked-boundary' : 'deferred-violation-open'),
+            'initial_rows' => $initial,
+            'rows' => $rows,
+            'row_pairs' => array_map(static fn (array $row): string => $row['a'] . ':' . $row['b'], $rows),
+            'transaction_open' => $inTransaction,
+            'open_savepoints' => self::deferredSavepointNames($savepoints),
+            'blocked_boundaries' => $blockedBoundaries,
+            'blocked_boundary_count' => count($blockedBoundaries),
+            'violation_count' => count($violations),
+            'violations' => $violations,
+            'events' => $events,
+            'dependencies' => [
+                'sqlite-e-fkey-nested-savepoint-release-can-leave-deferred-violation',
+                'sqlite-e-fkey-transaction-savepoint-release-checks-deferred-violations',
+                'sqlite-e-fkey-failed-commit-preserves-nested-savepoints',
+                'sqlite-e-fkey-rollback-to-savepoint-restores-deferred-violation-counter',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
@@ -9410,5 +9543,75 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return (string) $value;
+    }
+
+    /**
+     * @param list<array{a:int,b:int}> $rows
+     * @return list<array{a:int,b:int}>
+     */
+    private static function deferredSavepointRows(array $rows): array
+    {
+        if ($rows === []) {
+            throw new \InvalidArgumentException('SQLite e_fkey savepoint rows are empty');
+        }
+
+        return self::sortRows(array_map(static fn (array $row): array => [
+            'a' => self::nonNegativeInteger($row['a'] ?? null, 'row a'),
+            'b' => self::nonNegativeInteger($row['b'] ?? null, 'row b'),
+        ], $rows));
+    }
+
+    private static function nonNegativeInteger(mixed $value, string $label): int
+    {
+        if (!is_int($value) || $value < 0) {
+            throw new \InvalidArgumentException("SQLite {$label} must be a non-negative integer");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param list<array{name:string,rows:list<array{a:int,b:int}>,transaction:bool}> $savepoints
+     * @return list<string>
+     */
+    private static function deferredSavepointNames(array $savepoints): array
+    {
+        return array_values(array_map(static fn (array $savepoint): string => $savepoint['name'], $savepoints));
+    }
+
+    /**
+     * @param list<array{name:string,rows:list<array{a:int,b:int}>,transaction:bool}> $savepoints
+     */
+    private static function deferredSavepointIndex(array $savepoints, string $name): int
+    {
+        foreach ($savepoints as $index => $savepoint) {
+            if ($savepoint['name'] === $name) {
+                return $index;
+            }
+        }
+
+        throw new \InvalidArgumentException('SQLite e_fkey savepoint is not open');
+    }
+
+    /**
+     * @param list<array{a:int,b:int}> $rows
+     * @return list<array{rowid:int,child_key:int}>
+     */
+    private static function deferredSelfViolations(array $rows): array
+    {
+        $parents = [];
+        foreach ($rows as $row) {
+            $parents[(int) $row['a']] = true;
+        }
+
+        $violations = [];
+        foreach ($rows as $index => $row) {
+            $childKey = (int) $row['b'];
+            if (!isset($parents[$childKey])) {
+                $violations[] = ['rowid' => $index + 1, 'child_key' => $childKey];
+            }
+        }
+
+        return $violations;
     }
 }

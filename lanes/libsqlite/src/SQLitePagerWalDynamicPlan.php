@@ -204,6 +204,119 @@ final class SQLitePagerWalDynamicPlan
         ];
     }
 
+    /**
+     * @return array{status:string,scenario:string,hook_fired:bool,hook_database:string,wal_hook_entry_count:int,auto_checkpoint_threshold:int|null,checkpoint_attempted:bool,checkpoint_database_pages:int,wal_log_frames:int,wal_size_bytes:int,database_size_bytes:int,wal_reused_from_start:bool,source:string,dependencies:list<string>}
+     */
+    public static function walHookCheckpointScenario(
+        string $scenario,
+        int $pageSize,
+        int $databasePages,
+        int $walFrames,
+        ?int $autoCheckpointThreshold,
+        bool $hookRunsCheckpoint
+    ): array {
+        $scenario = strtolower(trim($scenario));
+        if (!in_array($scenario, ['schema-create', 'row-insert', 'hook-checkpoint', 'auto-checkpoint'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite WAL hook checkpoint scenario: {$scenario}");
+        }
+        if ($pageSize < 512 || $databasePages < 1 || $walFrames < 0) {
+            throw new \InvalidArgumentException('SQLite WAL hook checkpoint scenario requires positive page/database inputs');
+        }
+        if ($autoCheckpointThreshold !== null && $autoCheckpointThreshold < 1) {
+            throw new \InvalidArgumentException('SQLite WAL auto-checkpoint threshold must be positive when provided');
+        }
+
+        $thresholdReached = $autoCheckpointThreshold !== null && $walFrames >= $autoCheckpointThreshold;
+        $checkpointAttempted = $hookRunsCheckpoint || $thresholdReached;
+        $checkpointedFrames = $checkpointAttempted ? $walFrames : 0;
+        $reused = $thresholdReached && $scenario === 'auto-checkpoint';
+
+        return [
+            'status' => $checkpointAttempted ? 'wal-hook-checkpoint-attempted' : 'wal-hook-recorded',
+            'scenario' => $scenario,
+            'hook_fired' => true,
+            'hook_database' => 'main',
+            'wal_hook_entry_count' => $walFrames,
+            'auto_checkpoint_threshold' => $autoCheckpointThreshold,
+            'checkpoint_attempted' => $checkpointAttempted,
+            'checkpoint_database_pages' => max($databasePages, $checkpointedFrames > 0 ? $databasePages : 0),
+            'wal_log_frames' => $reused ? $autoCheckpointThreshold + 1 : $walFrames,
+            'wal_size_bytes' => 32 + (($reused ? $autoCheckpointThreshold + 1 : $walFrames) * ($pageSize + 24)),
+            'database_size_bytes' => $databasePages * $pageSize,
+            'wal_reused_from_start' => $reused,
+            'source' => $scenario === 'auto-checkpoint'
+                ? 'upstream walhook.test walhook-2.1 through walhook-2.9 wal_autocheckpoint frame threshold and WAL reuse'
+                : 'upstream walhook.test walhook-1.1 through walhook-1.5 sqlite3_wal_hook callback and checkpoint from hook',
+            'dependencies' => ['real-upstream-corpus-walhook', 'sqlite-wal-hook-autocheckpoint'],
+        ];
+    }
+
+    /**
+     * @return array{status:string,scenario:string,vfs_shm_version:int,locking_mode:string,requested_journal_mode:string,result_journal_mode:string,wal_sidecar_exists:bool,shared_memory_used:bool,select_status:string,exclusive_required:bool,normal_locking_allowed:bool,error:?string,source:string,dependencies:list<string>}
+     */
+    public static function walNoShmExclusiveScenario(
+        string $scenario,
+        int $vfsShmVersion,
+        string $lockingMode,
+        string $requestedJournalMode,
+        bool $otherSharedReader = false
+    ): array {
+        $scenario = strtolower(trim($scenario));
+        if (!in_array($scenario, ['convert-without-exclusive', 'convert-exclusive', 'drop-to-delete', 'exclusive-lock-blocked', 'normal-after-heap-index'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite WAL no-SHM scenario: {$scenario}");
+        }
+        if ($vfsShmVersion < 1) {
+            throw new \InvalidArgumentException('SQLite WAL no-SHM scenario requires a positive VFS SHM version');
+        }
+        $lockingMode = strtolower(trim($lockingMode));
+        if (!in_array($lockingMode, ['normal', 'exclusive'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite WAL no-SHM locking mode: {$lockingMode}");
+        }
+        $requestedJournalMode = self::mode($requestedJournalMode);
+
+        $versionOneNoShm = $vfsShmVersion === 1;
+        $exclusive = $lockingMode === 'exclusive';
+        $canUseWal = !$versionOneNoShm || $exclusive;
+        $blocked = $otherSharedReader && $exclusive && $requestedJournalMode !== 'wal';
+
+        if ($requestedJournalMode === 'wal' && !$canUseWal) {
+            $result = 'delete';
+            $walExists = false;
+            $selectStatus = 'ok';
+            $error = null;
+            $status = 'wal-no-shm-exclusive-required';
+        } elseif ($blocked) {
+            $result = 'wal';
+            $walExists = true;
+            $selectStatus = 'database is locked';
+            $error = 'database is locked';
+            $status = 'wal-no-shm-exclusive-lock-blocked';
+        } else {
+            $result = $requestedJournalMode;
+            $walExists = $requestedJournalMode === 'wal';
+            $selectStatus = 'ok';
+            $error = null;
+            $status = $requestedJournalMode === 'wal' ? 'wal-no-shm-exclusive-open' : 'wal-no-shm-rollback-open';
+        }
+
+        return [
+            'status' => $status,
+            'scenario' => $scenario,
+            'vfs_shm_version' => $vfsShmVersion,
+            'locking_mode' => $lockingMode,
+            'requested_journal_mode' => $requestedJournalMode,
+            'result_journal_mode' => $result,
+            'wal_sidecar_exists' => $walExists,
+            'shared_memory_used' => !$versionOneNoShm && $result === 'wal',
+            'select_status' => $selectStatus,
+            'exclusive_required' => $versionOneNoShm && $requestedJournalMode === 'wal',
+            'normal_locking_allowed' => !($versionOneNoShm && $result === 'wal' && $exclusive),
+            'error' => $error,
+            'source' => 'upstream walnoshm.test walnoshm-1.2 through walnoshm-3.2 exclusive WAL without xShm primitives',
+            'dependencies' => ['real-upstream-corpus-walnoshm', 'sqlite-wal-no-shm-exclusive'],
+        ];
+    }
+
     private static function mode(string $mode): string
     {
         $mode = strtolower(trim($mode));

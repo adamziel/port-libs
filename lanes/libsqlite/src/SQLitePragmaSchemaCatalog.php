@@ -670,6 +670,13 @@ final class SQLitePragmaSchemaCatalog
         }
 
         return match (substr($name, strlen('pragma_'))) {
+            'table_info' => self::plainVirtualColumns(['cid', 'name', 'type', 'notnull', 'dflt_value', 'pk'], ['arg', 'schema']),
+            'table_xinfo' => self::plainVirtualColumns(['cid', 'name', 'type', 'notnull', 'dflt_value', 'pk', 'hidden'], ['arg', 'schema']),
+            'index_list' => self::plainVirtualColumns(['seq', 'name', 'unique', 'origin', 'partial'], ['arg', 'schema']),
+            'index_info' => self::plainVirtualColumns(['seqno', 'cid', 'name'], ['arg', 'schema']),
+            'index_xinfo' => self::plainVirtualColumns(['seqno', 'cid', 'name', 'desc', 'coll', 'key'], ['arg', 'schema']),
+            'foreign_key_list' => self::plainVirtualColumns(['id', 'seq', 'table', 'from', 'to', 'on_update', 'on_delete', 'match'], ['arg', 'schema']),
+            'table_list' => self::plainVirtualColumns(['schema', 'name', 'type', 'ncol', 'wr', 'strict'], ['arg']),
             'function_list' => self::plainVirtualColumns(['name', 'builtin', 'type', 'enc', 'narg', 'flags']),
             'module_list', 'pragma_list' => self::plainVirtualColumns(['name']),
             default => null,
@@ -678,11 +685,12 @@ final class SQLitePragmaSchemaCatalog
 
     /**
      * @param list<string> $names
+     * @param list<string> $hiddenNames
      * @return list<array{name: string, type: string, notNull: bool, default: string|null, primaryKey: int, hidden: int}>
      */
-    private static function plainVirtualColumns(array $names): array
+    private static function plainVirtualColumns(array $names, array $hiddenNames = []): array
     {
-        return array_map(
+        $columns = array_map(
             static fn (string $name): array => [
                 'name' => $name,
                 'type' => '',
@@ -693,6 +701,18 @@ final class SQLitePragmaSchemaCatalog
             ],
             $names,
         );
+        foreach ($hiddenNames as $name) {
+            $columns[] = [
+                'name' => $name,
+                'type' => '',
+                'notNull' => false,
+                'default' => null,
+                'primaryKey' => 0,
+                'hidden' => 1,
+            ];
+        }
+
+        return $columns;
     }
 
     /**
@@ -703,6 +723,10 @@ final class SQLitePragmaSchemaCatalog
     {
         $rows = [];
         foreach ($columns as $cid => $column) {
+            if ($column['hidden'] !== 0 && !$includeHidden) {
+                continue;
+            }
+
             $row = [
                 'cid' => $cid,
                 'name' => $column['name'],

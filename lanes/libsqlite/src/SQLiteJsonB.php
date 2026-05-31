@@ -215,17 +215,33 @@ final class SQLiteJsonB
         }
 
         $document = self::decodeForEdit($bytes);
-        self::applyMutation($document, $operation, self::parsePath($path), $value);
+        self::applyMutation($document, $operation, self::parseMutationPath($operation, $path), $value);
         for ($offset = 0; $offset < count($pathValuePairs); $offset += 2) {
             $nextPath = $pathValuePairs[$offset];
             if (!is_string($nextPath)) {
                 throw new \InvalidArgumentException('SQLite JSONB mutation path must be a string');
             }
 
-            self::applyMutation($document, $operation, self::parsePath($nextPath), $pathValuePairs[$offset + 1]);
+            self::applyMutation($document, $operation, self::parseMutationPath($operation, $nextPath), $pathValuePairs[$offset + 1]);
         }
 
         return self::encode($document);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function parseMutationPath(string $operation, string $path): array
+    {
+        try {
+            return self::parsePath($path);
+        } catch (\InvalidArgumentException $exception) {
+            if ($operation === 'arrayInsert') {
+                self::throwArrayInsertPathError();
+            }
+
+            throw $exception;
+        }
     }
 
     private static function mergePatch(mixed $target, mixed $patch, int $depth): mixed

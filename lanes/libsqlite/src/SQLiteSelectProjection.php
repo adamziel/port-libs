@@ -20,6 +20,7 @@ final class SQLiteSelectProjection
         $projectedRows = [];
         foreach ($rows as $row) {
             $projected = [];
+            $projectedAffinities = [];
             foreach ($expressions as $index => $expression) {
                 if (($expression['type'] ?? null) === 'wildcard') {
                     foreach (self::wildcardValues($row, $expression) as $alias => $value) {
@@ -32,7 +33,14 @@ final class SQLiteSelectProjection
                 $evaluationRow = ($expression['hiddenOrderColumn'] ?? false) === true
                     ? array_merge($row, $projected)
                     : $row;
-                self::appendProjectedValue($projected, $alias, self::projectedValue(self::evaluateExpression($evaluationRow, $expression)));
+                $projectedAlias = self::appendProjectedValue($projected, $alias, self::projectedValue(self::evaluateExpression($evaluationRow, $expression)));
+                $affinity = self::projectedAffinity($row, $expression);
+                if ($affinity !== null) {
+                    $projectedAffinities[$projectedAlias] = $affinity;
+                }
+            }
+            if ($projectedAffinities !== []) {
+                $projected['__sqlite_column_affinities'] = $projectedAffinities;
             }
             $projectedRows[] = $projected;
         }
@@ -216,20 +224,54 @@ final class SQLiteSelectProjection
     /**
      * @param array<string,mixed> $projected
      */
-    private static function appendProjectedValue(array &$projected, string $alias, mixed $value): void
+    private static function appendProjectedValue(array &$projected, string $alias, mixed $value): string
     {
         if (!array_key_exists($alias, $projected)) {
             $projected[$alias] = $value;
-            return;
+            return $alias;
         }
 
         for ($suffix = 2; ; $suffix++) {
             $candidate = $alias . '#' . $suffix;
             if (!array_key_exists($candidate, $projected)) {
                 $projected[$candidate] = $value;
-                return;
+                return $candidate;
             }
         }
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     */
+    private static function projectedAffinity(array $row, array $expression): ?string
+    {
+        if (($expression['type'] ?? null) === 'collate' && isset($expression['operand']) && is_array($expression['operand'])) {
+            return self::projectedAffinity($row, $expression['operand']);
+        }
+        if (($expression['type'] ?? null) !== 'column') {
+            return null;
+        }
+        $name = $expression['name'] ?? null;
+        if (!is_string($name) || $name === '') {
+            return null;
+        }
+        $affinities = $row['__sqlite_column_affinities'] ?? null;
+        if (!is_array($affinities)) {
+            return null;
+        }
+        $candidates = [$name];
+        if (str_contains($name, '.')) {
+            $candidates[] = substr($name, strrpos($name, '.') + 1);
+        }
+        foreach ($candidates as $candidate) {
+            $affinity = $affinities[$candidate] ?? null;
+            if (is_string($affinity) && $affinity !== '') {
+                return $affinity;
+            }
+        }
+
+        return null;
     }
 
     private static function projectedValue(mixed $value): mixed
