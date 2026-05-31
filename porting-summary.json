@@ -1,11 +1,11 @@
 {
-    "generated": "2026-05-31 13:25:15 UTC",
-    "sourceCommit": "1c057c12e3e48a5519e5b4be69c9bac23e39a737",
-    "sourceCommitShort": "1c057c12e3e4",
+    "generated": "2026-05-31 13:31:47 UTC",
+    "sourceCommit": "b5247e480ceb7571155a19a973b177b62823e612",
+    "sourceCommitShort": "b5247e480ceb",
     "sourceBranch": "main",
-    "dashboardCommit": "b7dec3d8eefd834a8f8a275f646c67ec8767f294",
-    "dashboardCommitShort": "b7dec3d8eefd",
-    "averageProgressPercent": "86.7",
+    "dashboardCommit": "2384187c12865bf30dd41d4f5713d8c07d86060f",
+    "dashboardCommitShort": "2384187c1286",
+    "averageProgressPercent": "86.8",
     "lanes": [
         {
             "library": "difftastic",
@@ -94,20 +94,20 @@
         },
         {
             "library": "LightningCSS",
-            "progressPercent": "77.0",
+            "progressPercent": "79.0",
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1069",
-            "coverage": "1069 / 3532",
-            "php": "1417 pass / 0 fail",
+            "mapped": "1130",
+            "coverage": "1130 / 3532",
+            "php": "1525 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "static upstream inventory plus upstream Rust/Node/WASM...",
-            "audit": "Accepted source commit 1c057c12e3e48a5519...",
-            "currentWork": "Native LightningCSS now covers additional upstream media-query minification cases, cascad...",
+            "audit": "Accepted source commit b5247e480ceb757115...",
+            "currentWork": "Native LightningCSS now covers advanced Color 4 function minification, legacy text/sticky...",
             "nextTarget": "Keep the visible LightningCSS surge workers on current-base handoffs for source-map/bundl...",
             "blocker": "No current LightningCSS implementation blocker for this batch.",
-            "commit": "1c057c1"
+            "commit": "b5247e4"
         },
         {
             "library": "markerPDF",
