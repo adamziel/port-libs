@@ -6308,3 +6308,24 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
   caught four new/worse JSON101/JSON1/JSONB regressions. Pager/WAL
   default-memory pressure, known-red broad clusters, remaining app-WAL
   conflicts, and release/all-runner parity remain blockers before gitoxide.
+
+## Supervisor Integration 2026-05-31T06:10Z Libsqlite Eighty-Second Sweep
+
+- Integrated 20 current-base libsqlite handoffs as source commit
+  `eb41cd6d4 libsqlite: add eighty-second current corpus sweep`.
+- Public selected libsqlite evidence moves from `2437016` to `2461734 pass / 0
+  fail`, a net `+24718` PASS-line increase after subtracting `3692` accepted
+  base-overlap PASS lines. Mapped coverage remains `1589 / 1589`.
+- Verification passed PHP lint for 20 changed/new PHP files, `git diff --check
+  -- lanes/libsqlite`, no WordPress/wp source text in changed accepted
+  libsqlite source, no new numbered `CurrentNext`/`CurrentSourceNext` class
+  symbols, focused selected tests with `memory_limit=1024M` `16 files / 240493
+  assertions / 0 failures / 28410 PASS lines`, base overlap with
+  `memory_limit=1024M` `4 files / 72938 assertions / 0 failures / 3692 PASS
+  lines`, and a direct related guard with `memory_limit=1024M` `86 files /
+  2072318 assertions / 1 baseline-identical known-red failure / 129823 PASS
+  lines`.
+- Parked three conflict candidates: two row-value update/delete parity handoffs
+  and one older app-WAL handoff. Pager/WAL default-memory pressure, known-red
+  broad clusters, rejected VFS/JSON regressions, remaining app-WAL conflicts,
+  and release/all-runner parity remain blockers before gitoxide.
