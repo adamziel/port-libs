@@ -52,6 +52,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS source-only integration
+  16:55 UTC): source commit
+  `18c5d92abc4e399c320225bf777d56edb40efcb9` (`ports: extend lightningcss
+  custom bundle media cssom maps`) landed five verified LightningCSS handoffs
+  after excluding stale shared metadata and deferring overlapping
+  property-value/CSS Modules candidates. LightningCSS full lane evidence moves
+  from `2321` to `2361 pass / 0 fail`, with conservative mapped coverage
+  moving from `1450 / 3532` to `1458 / 3532`: custom at-rule
+  Declaration/DeclarationExit visitor composition, file-backed bundle resolver
+  SourceProvider reads, explicit `not`/`only` media-type range fallback
+  serialization in layers, container CSSOM shorthand/longhand manipulation,
+  and SourceMap unsigned 32-bit offset overflow guards. Gates passed: PHP lint
+  on changed PHP files, `git diff --check -- lanes/lightningcss`, no
+  WordPress/WP/wp_ text introduced by the changed source diff, focused gate
+  `6 files / 1176 assertions / 0 failures`, full LightningCSS lane `13 files /
+  2361 assertions / 0 failures`, and three touched examples exiting 0. Full
+  upstream Rust/Node/WASM runners were not executed for this isolated batch.
+
 - 2026-05-31 supervisor continuation (LightningCSS clip-path integration
   16:52 UTC): source commit
   `35913132375e4ff72782ebae6dcc21290d6019bc` (`ports: extend lightningcss
