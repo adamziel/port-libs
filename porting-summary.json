@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 14:07:22 UTC",
-    "sourceCommit": "2dc30de6add1847dadae8185f66c50e6a6668ac1",
-    "sourceCommitShort": "2dc30de6add1",
+    "generated": "2026-05-31 14:12:29 UTC",
+    "sourceCommit": "de2bdca74cebaa7aa23bfc409149ef9c4d7bb1d4",
+    "sourceCommitShort": "de2bdca74ceb",
     "sourceBranch": "main",
-    "dashboardCommit": "e3b0b34884be16fa9bd3f33969d13eba8f775e22",
-    "dashboardCommitShort": "e3b0b34884be",
+    "dashboardCommit": "5ffcc18007fccbdcaaf02e5122be9188a81923db",
+    "dashboardCommitShort": "5ffcc18007fc",
     "averageProgressPercent": "86.8",
     "lanes": [
         {
@@ -98,16 +98,16 @@
             "suite": "static-upstream-inventory-plus-runner-evidence",
             "benchmark": "static-upstream-inventory-plus-runner-evidence",
             "denominator": "3532",
-            "mapped": "1175",
-            "coverage": "1175 / 3532",
-            "php": "1683 pass / 0 fail",
+            "mapped": "1232",
+            "coverage": "1232 / 3532",
+            "php": "1759 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "static upstream inventory plus upstream Rust/Node/WASM...",
-            "audit": "Accepted source commit 2dc30de6add1847dad...",
-            "currentWork": "Native LightningCSS now covers resolved CSS Modules dependency stylesheets with missing c...",
+            "audit": "Accepted source commit de2bdca74cebaa7aa2...",
+            "currentWork": "Native LightningCSS now covers invalid media range and condition validation inside cascad...",
             "nextTarget": "Keep the visible LightningCSS surge workers on current-base handoffs for flex longhand/bo...",
             "blocker": "No current LightningCSS implementation blocker for this batch.",
-            "commit": "2dc30de"
+            "commit": "de2bdca"
         },
         {
             "library": "markerPDF",
