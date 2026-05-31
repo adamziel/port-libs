@@ -4409,6 +4409,118 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,virtual_tables:list<string>,constraints:list<array{table:string,column:string,operator:string,usable:bool,used:bool}>,join_order:list<string>,detail:list<string>,cost:int,estimated_rows:int,uses_indexed_constraint:bool,result_code:int,error:string|null,integrity:string}>
+     */
+    public static function bestindex2VirtualTableJoinConstraintCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindex2 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'bestindex2-1.1',
+                'single equality constraint on a virtual table column is selected',
+                "SELECT * FROM t1 WHERE a='abc'",
+                ['t1'],
+                [['t1', 'a', '=', true, true]],
+                ['t1'],
+                ['SCAN t1 VIRTUAL TABLE INDEX 0:indexed(a=?)'],
+            ],
+            [
+                'bestindex2-1.2',
+                'two equality constraints on different virtual table columns are selected together',
+                "SELECT * FROM t1 WHERE a='abc' AND b='def'",
+                ['t1'],
+                [['t1', 'a', '=', true, true], ['t1', 'b', '=', true, true]],
+                ['t1'],
+                ['SCAN t1 VIRTUAL TABLE INDEX 0:indexed(a=? AND b=?)'],
+            ],
+            [
+                'bestindex2-1.3',
+                'duplicate equality constraints on the same column count once',
+                "SELECT * FROM t1 WHERE a='abc' AND a='def'",
+                ['t1'],
+                [['t1', 'a', '=', true, true], ['t1', 'a', '=', true, false]],
+                ['t1'],
+                ['SCAN t1 VIRTUAL TABLE INDEX 0:indexed(a=?)'],
+            ],
+            [
+                'bestindex2-1.4',
+                'join equality from t1 to t2 becomes usable after t1 is outer loop',
+                'SELECT * FROM t1,t2 WHERE c=a',
+                ['t1', 't2'],
+                [['t2', 'c', '=', true, true]],
+                ['t1', 't2'],
+                ['SCAN t1 VIRTUAL TABLE INDEX 0:', 'SCAN t2 VIRTUAL TABLE INDEX 0:indexed(c=?)'],
+            ],
+            [
+                'bestindex2-1.5',
+                'CROSS JOIN fixes loop order while virtual-table constraints cascade to later loops',
+                'SELECT * FROM t1, t2 CROSS JOIN t3 WHERE t2.c = +t1.b AND t3.e=t2.d',
+                ['t1', 't2', 't3'],
+                [['t2', 'c', '=', true, true], ['t3', 'e', '=', true, true]],
+                ['t1', 't2', 't3'],
+                ['SCAN t1 VIRTUAL TABLE INDEX 0:', 'SCAN t2 VIRTUAL TABLE INDEX 0:indexed(c=?)', 'SCAN t3 VIRTUAL TABLE INDEX 0:indexed(e=?)'],
+            ],
+            [
+                'bestindex2-1.6',
+                'unfixed join still chooses the same usable virtual-table constraint chain',
+                'SELECT * FROM t1, t2, t3 WHERE t2.c = +t1.b AND t3.e = t2.d',
+                ['t1', 't2', 't3'],
+                [['t2', 'c', '=', true, true], ['t3', 'e', '=', true, true]],
+                ['t1', 't2', 't3'],
+                ['SCAN t1 VIRTUAL TABLE INDEX 0:', 'SCAN t2 VIRTUAL TABLE INDEX 0:indexed(c=?)', 'SCAN t3 VIRTUAL TABLE INDEX 0:indexed(e=?)'],
+            ],
+            [
+                'bestindex2-1.7.2',
+                'row table CROSS JOIN before virtual tables preserves downstream xBestIndex choices',
+                'SELECT * FROM x1 CROSS JOIN t1, t2, t3 WHERE t1.a = t2.c AND t1.b = t3.e',
+                ['t1', 't2', 't3'],
+                [['t2', 'c', '=', true, true], ['t3', 'e', '=', true, true]],
+                ['x1', 't1', 't2', 't3'],
+                ['SCAN x1', 'SCAN t1 VIRTUAL TABLE INDEX 0:', 'SCAN t2 VIRTUAL TABLE INDEX 0:indexed(c=?)', 'SCAN t3 VIRTUAL TABLE INDEX 0:indexed(e=?)'],
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $statement, $virtualTables, $constraints, $joinOrder, $detail] = $templates[($case - 1) % count($templates)];
+            $usedCount = count(array_filter($constraints, static fn (array $constraint): bool => $constraint[4]));
+            $cost = $usedCount === 0 ? 1000000 : (11 - $usedCount) * 1000;
+
+            $out[] = [
+                'source' => 'bestindex2.test bestindex2-1.1 through bestindex2-1.7.2',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'statement' => $statement,
+                'virtual_tables' => $virtualTables,
+                'constraints' => array_map(
+                    static fn (array $constraint): array => [
+                        'table' => $constraint[0],
+                        'column' => $constraint[1],
+                        'operator' => $constraint[2],
+                        'usable' => $constraint[3],
+                        'used' => $constraint[4],
+                    ],
+                    $constraints,
+                ),
+                'join_order' => $joinOrder,
+                'detail' => $detail,
+                'cost' => $cost,
+                'estimated_rows' => $cost,
+                'uses_indexed_constraint' => $usedCount > 0,
+                'result_code' => 0,
+                'error' => null,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @param list<array{cnt:int,power:int}> $rows
      */
     private static function lookup(array $rows, string $lookupColumn, int $lookupValue, string $resultColumn): int

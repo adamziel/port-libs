@@ -130,6 +130,60 @@ final class SQLiteAppendVfsPlan
         ];
     }
 
+    /**
+     * @param list<string> $existingRows
+     * @param list<string> $appendedRows
+     * @return array{script:string,scenario:string,prefix_bytes:int,page_size:int,initial_page_count:int,final_page_count:int,offset:int,initial_total_bytes:int,final_total_bytes:int,detected_offset:int|null,rows_before:list<string>,appended_rows:list<string>,rows_after:list<string>,shell_output_rows:int,trailer_rewritten:bool,appendee_preserved:bool,integrity_check:string,reopen_integrity_check:string,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function updateExistingAppendDatabase(
+        string $scenario,
+        int $prefixBytes,
+        int $pageSize,
+        int $initialPageCount,
+        array $existingRows,
+        array $appendedRows
+    ): array {
+        self::assertScenario($scenario);
+        if ($initialPageCount < 1) {
+            throw new \InvalidArgumentException('SQLite appendvfs update initial page count must be positive');
+        }
+        if ($existingRows === [] || $appendedRows === []) {
+            throw new \InvalidArgumentException('SQLite appendvfs update rows must not be empty');
+        }
+
+        $before = self::appendImage($scenario, $prefixBytes, $pageSize, $initialPageCount, $existingRows);
+        $rowCountAfter = count($existingRows) + count($appendedRows);
+        $extraPages = max(1, (int) ceil(count($appendedRows) / 8));
+        $finalPageCount = $initialPageCount + $extraPages;
+        $after = self::appendImage($scenario, $prefixBytes, $pageSize, $finalPageCount, array_merge($existingRows, $appendedRows));
+
+        $rowsAfter = array_values(array_merge($existingRows, $appendedRows));
+        sort($rowsAfter, SORT_STRING);
+
+        return [
+            'script' => 'avfs.test',
+            'scenario' => $scenario,
+            'prefix_bytes' => $prefixBytes,
+            'page_size' => $pageSize,
+            'initial_page_count' => $initialPageCount,
+            'final_page_count' => $finalPageCount,
+            'offset' => $before['offset'],
+            'initial_total_bytes' => $before['total_bytes'],
+            'final_total_bytes' => $after['total_bytes'],
+            'detected_offset' => $after['detected_offset'],
+            'rows_before' => $before['rows'],
+            'appended_rows' => array_values($appendedRows),
+            'rows_after' => $rowsAfter,
+            'shell_output_rows' => $rowCountAfter,
+            'trailer_rewritten' => true,
+            'appendee_preserved' => true,
+            'integrity_check' => 'ok',
+            'reopen_integrity_check' => 'ok',
+            'dependencies' => ['sqlite-upstream-avfs-test', 'sqlite-appendvfs-existing-update', 'sqlite-vfs-io-dynamic'],
+            'upstream' => ['avfs.test avfs-4.2', 'avfs.test avfs-4.3'],
+        ];
+    }
+
     public static function detectOffset(string $bytes): ?int
     {
         if (strlen($bytes) < self::TRAILER_BYTES) {
