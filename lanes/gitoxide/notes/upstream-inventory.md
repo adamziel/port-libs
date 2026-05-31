@@ -1159,3 +1159,22 @@ Commit gpgsig and URL/refspec batch accepted on 2026-05-31:
 - The mapped denominator moves from `1513 / 2886` to `1515 / 2886` for the two
   distinct upstream-backed behavior slices. Full Cargo workspace tests were not
   run for this slice.
+
+Protocol/refs/pathspec/object batch accepted on 2026-05-31:
+
+- Source commit `0b6a219b7c763ad377900409213186a796e2aeb4` integrates ten
+  Gitoxide handoffs without taking stale shared metadata edits. The accepted
+  source slices cover sparse-checkout prefix pathspec matching, protocol v2
+  `ls-refs` refspec-prefix handling, send-pack fatal receive-status parsing,
+  fetch sideband packet-length bounds, tree pathspec prefix/case matching,
+  merge-base SHA-256 graph walking, reflog direct append and reverse
+  iteration, index cache-tree object-backed children, loose-object headers,
+  and packed-refs prefixed peeled lookups.
+- Native PHP verification in the integration worktree is green: `php -l` over
+  changed/new Gitoxide PHP files, `git diff --check -- lanes/gitoxide`,
+  focused Gitoxide tests `12 files / 1116 assertions / 0 failures`, full
+  Gitoxide lane tests `38 files / 3989 assertions / 0 failures`, and ten
+  touched examples exiting 0.
+- The mapped denominator moves from `1515 / 2886` to `1525 / 2886` for the ten
+  distinct upstream-backed behavior slices. Full Cargo workspace tests were not
+  run for this slice.

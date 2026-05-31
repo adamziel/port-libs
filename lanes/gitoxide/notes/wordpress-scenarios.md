@@ -333,6 +333,17 @@ attribute suffixes while matching set/unset state, so filters such as
 `:(attr:-diff=legacy)` can select must-use plugin content without accepting a
 malformed attribute value expression.
 
+## WordPress Protocol, Refs, Pathspec, And Object Examples
+
+The latest accepted batch extends the native Gitoxide examples for deployment
+selection and repository inspection: sparse checkout now handles prefix
+pathspecs, protocol v2 `ls-refs` handles refspec-prefix requests, fetch/push
+examples cover sideband packet bounds and fatal receive-status reports, tree
+walking handles prefix/case pathspecs, merge-base checks support SHA-256
+object ids, reflog audit flows cover direct append/reverse iteration, index
+cache-tree checks handle object-backed children, loose-object inspection covers
+headers, and packed-reference lookups return prefixed peeled values.
+
 ## Next Task
 
 Broaden protocol/transport runner evidence with a controlled focused crate probe, deepen mmap-specific packed-ref race parity beyond metadata/hash invalidation if needed, or map another focused `gix-merge` tree fixture.

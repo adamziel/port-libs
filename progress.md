@@ -52,6 +52,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 09:47 UTC):
+  source commit `0b6a219b7c763ad377900409213186a796e2aeb4` (`ports: add
+  sqlite corpus and gitoxide protocol slices`) landed seventeen handoffs after
+  excluding stale shared metadata. Libsqlite gained trigger/FK diagnostics,
+  window frame/filter behavior, pager/WAL autocheckpoint corpus, SELECT
+  NATURAL/USING wildcard semantics, B-tree covering/OR behavior, PRAGMA
+  schema/index-info expressions, and application WAL rollback JSON parity;
+  selected libsqlite evidence moves from `2840323` to `2847028 pass / 0 fail`,
+  mapped coverage stays `1589 / 1589`. Gitoxide gained sparse-checkout prefix
+  pathspecs, protocol v2 ls-refs refspec prefixes, send-pack fatal
+  receive-status parsing, fetch sideband packet bounds, tree pathspec
+  prefix/case matching, merge-base SHA-256 graph walking, reflog direct
+  append/iteration, index cache-tree object-backed children, loose-object
+  headers, and packed-refs prefixed peeled lookups; full Gitoxide evidence
+  moves from `3855` to `3989 pass / 0 fail`, mapped coverage moves from
+  `1515 / 2886` to `1525 / 2886`. Verification passed PHP lint, `git diff
+  --check`, libsqlite focused tests `9 files / 182112 assertions / 0 failures`,
+  Gitoxide focused tests `12 files / 1116 assertions / 0 failures`, full
+  Gitoxide lane `38 files / 3989 assertions / 0 failures`, ten Gitoxide
+  examples, and changed-source guards for no new libsqlite WordPress/wp or
+  numbered CurrentSourceNext source text.
+
 - 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 09:55 UTC):
   source commit `e319fe192cd0103ff34e7b509ead36237f4955fd` (`ports: add
   sqlite affinity and gitoxide parsing slices`) landed five handoffs after
