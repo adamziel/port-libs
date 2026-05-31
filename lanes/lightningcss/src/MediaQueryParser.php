@@ -6,14 +6,14 @@ namespace PortLibs\LightningCSS;
 
 final class MediaQueryParser
 {
-    public function minifyList(string $queryList): string
+    public function minifyList(string $queryList, bool $allowCompactedNegation = false): string
     {
         $queries = $this->splitTopLevel($queryList, ',');
         if ($queries === []) {
             return '';
         }
 
-        return implode(',', array_map(fn (string $query): string => $this->minifyQuery($query), $queries));
+        return implode(',', array_map(fn (string $query): string => $this->minifyQuery($query, $allowCompactedNegation), $queries));
     }
 
     public function lowerRangeSyntaxList(string $queryList, bool $lowerSimpleRanges = true, bool $lowerIntervalRanges = true): string
@@ -34,7 +34,7 @@ final class MediaQueryParser
         return $this->convertDppxResolutionUnits($queryList);
     }
 
-    private function minifyQuery(string $query): string
+    private function minifyQuery(string $query, bool $allowCompactedNegation): string
     {
         $query = trim($query);
         if ($query === '') {
@@ -45,19 +45,20 @@ final class MediaQueryParser
         }
 
         $query = $this->normalizeWhitespace($query);
-        $query = $this->normalizeParentheses($query);
+        $query = $this->normalizeParentheses($query, $allowCompactedNegation);
         $query = preg_replace('/\b(and|or)\b/i', ' $1 ', $query) ?? $query;
         $query = $this->normalizeWhitespace($query);
         $this->validateTopLevelConditionFunctions($query);
         $query = $this->normalizeBooleanConditionGroups($query);
         $query = $this->invertNegatedSimpleRangeConditions($query);
+        $query = $this->normalizeRedundantTopLevelConditionWrappers($query);
         $query = preg_replace_callback('/^(not|only)\s+(screen|print|all)\b/i', static fn (array $m): string => strtolower($m[1]) . ' ' . strtolower($m[2]), $query) ?? $query;
         $query = preg_replace_callback('/^(screen|print|all)\b/i', static fn (array $m): string => strtolower($m[1]), $query) ?? $query;
 
         return trim($query);
     }
 
-    private function normalizeParentheses(string $source): string
+    private function normalizeParentheses(string $source, bool $allowCompactedNegation): string
     {
         $output = '';
         $quote = null;
@@ -90,30 +91,37 @@ final class MediaQueryParser
 
             $close = $this->findMatchingDelimiter($source, $i, '(', ')');
             $inner = substr($source, $i + 1, $close - $i - 1);
-            $output .= '(' . $this->minifyParenthesized($inner) . ')';
+            $output .= '(' . $this->minifyParenthesized($inner, $allowCompactedNegation) . ')';
             $i = $close;
         }
 
         return $output;
     }
 
-    private function minifyParenthesized(string $inner): string
+    private function minifyParenthesized(string $inner, bool $allowCompactedNegation): string
     {
         $inner = trim($inner);
         if ($inner === '') {
             throw new \InvalidArgumentException('Empty brackets are invalid in media query conditions');
         }
 
+        if ($allowCompactedNegation && strncasecmp($inner, 'not(', 4) === 0) {
+            $close = $this->findMatchingDelimiter($inner, 3, '(', ')');
+            if ($close === strlen($inner) - 1) {
+                $inner = 'not ' . substr($inner, 3);
+            }
+        }
+
         if ($this->containsTopLevelKeyword($inner, 'and') || $this->containsTopLevelKeyword($inner, 'or')) {
-            return $this->normalizeParentheses($this->normalizeWhitespace($inner));
+            return $this->normalizeParentheses($this->normalizeWhitespace($inner), $allowCompactedNegation);
         }
 
         if (preg_match('/^not\s+(.+)$/i', $inner, $matches) === 1) {
-            return 'not ' . $this->normalizeParentheses($this->normalizeWhitespace($matches[1]));
+            return 'not ' . $this->normalizeParentheses($this->normalizeWhitespace($matches[1]), $allowCompactedNegation);
         }
 
         if ($inner[0] === '(') {
-            return $this->normalizeParentheses($this->normalizeWhitespace($inner));
+            return $this->normalizeParentheses($this->normalizeWhitespace($inner), $allowCompactedNegation);
         }
 
         return $this->minifyFeature($inner);
@@ -607,6 +615,41 @@ final class MediaQueryParser
         }
 
         return $this->normalizeWhitespace($output);
+    }
+
+    private function normalizeRedundantTopLevelConditionWrappers(string $query): string
+    {
+        $mediaPrefix = $this->extractExplicitMediaTypePrefix($query);
+        if ($mediaPrefix !== null) {
+            $condition = $this->collapseSingleFeatureWrapper($mediaPrefix['condition']);
+            $prefix = $mediaPrefix['qualifier'] === null
+                ? $mediaPrefix['type']
+                : $mediaPrefix['qualifier'] . ' ' . $mediaPrefix['type'];
+
+            return $prefix . ' and ' . $condition;
+        }
+
+        return $this->collapseSingleFeatureWrapper($query);
+    }
+
+    private function collapseSingleFeatureWrapper(string $condition): string
+    {
+        $condition = trim($condition);
+        while (str_starts_with($condition, '((') && str_ends_with($condition, '))')) {
+            $innerClose = $this->findMatchingDelimiter($condition, 1, '(', ')');
+            if ($innerClose !== strlen($condition) - 2) {
+                break;
+            }
+
+            $inner = substr($condition, 2, $innerClose - 2);
+            if ($this->containsTopLevelKeyword($inner, 'and') || $this->containsTopLevelKeyword($inner, 'or')) {
+                break;
+            }
+
+            $condition = '(' . $inner . ')';
+        }
+
+        return $condition;
     }
 
     private function invertSimpleRangeFeature(string $feature): ?string

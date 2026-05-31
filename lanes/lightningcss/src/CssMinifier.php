@@ -1405,7 +1405,7 @@ final class CssMinifier
                 continue;
             }
 
-            $parts[] = (new MediaQueryParser())->minifyList($tail);
+            $parts[] = (new MediaQueryParser())->minifyList($tail, allowCompactedNegation: true);
             break;
         }
 
@@ -1872,7 +1872,7 @@ final class CssMinifier
             }
 
             $prelude = trim(substr($css, $position + 6, $open - ($position + 6)));
-            $minifiedPrelude = $prelude === '' ? '' : $parser->minifyList($prelude);
+            $minifiedPrelude = $prelude === '' ? '' : $parser->minifyList($prelude, allowCompactedNegation: true);
             if ($minifiedPrelude === '' || strcasecmp($minifiedPrelude, 'all') === 0) {
                 $close = $this->findMatchingBraceInCss($css, $open);
                 $body = substr($css, $open + 1, $close - $open - 1);

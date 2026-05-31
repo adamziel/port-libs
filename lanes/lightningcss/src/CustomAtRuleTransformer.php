@@ -1291,7 +1291,7 @@ final class CustomAtRuleTransformer
 
     /**
      * @param list<string>|null $parentSelectors
-     * @return array{name:string, prelude:string, bodyType:string|null, body:string, declarations:list<array{property:string, value:string, important:bool}>, context:string, parentSelectors:list<string>}
+     * @return array{name:string, prelude:string, bodyType:string|null, body:string, bodyRules:list<array<string, mixed>>, declarations:list<array{property:string, value:string, important:bool}>, context:string, parentSelectors:list<string>}
      */
     private function buildCustomRule(string $name, string $prelude, ?string $body, ?array $parentSelectors): array
     {
@@ -1314,8 +1314,11 @@ final class CustomAtRuleTransformer
         $preludeGrammar = $definition['prelude'] ?? null;
         $preludeValue = $this->parseCustomPreludeValue($name, $prelude, is_string($preludeGrammar) ? $preludeGrammar : null);
         $declarations = [];
+        $bodyRules = [];
         if ($body !== null && $bodyType === 'declaration-list') {
             $declarations = $this->declarationBlock->parseEntries($body);
+        } elseif ($body !== null && in_array($bodyType, ['rule-list', 'style-block'], true)) {
+            $bodyRules = $this->parseReturnedRuleList($body, $bodyType === 'style-block' ? $parentSelectors : null);
         }
 
         return [
@@ -1323,6 +1326,7 @@ final class CustomAtRuleTransformer
             'prelude' => $preludeValue,
             'bodyType' => $bodyType,
             'body' => $body ?? '',
+            'bodyRules' => $bodyRules,
             'declarations' => $declarations,
             'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
             'parentSelectors' => $parentSelectors ?? [],
@@ -1423,6 +1427,15 @@ final class CustomAtRuleTransformer
         if (self::isUnknownRuleReplacement($replacement)) {
             return $this->emitUnknownRule($replacement['value'], $parentSelectors);
         }
+        if (($replacement['type'] ?? null) === 'ignored') {
+            return '';
+        }
+        if (($replacement['type'] ?? null) === 'style' && isset($replacement['value']) && is_array($replacement['value'])) {
+            return $this->emitReturnedStyleRule($replacement['value']);
+        }
+        if (($replacement['type'] ?? null) === 'media' && isset($replacement['value']) && is_array($replacement['value'])) {
+            return $this->emitReturnedMediaRule($replacement['value'], $parentSelectors);
+        }
 
         $kind = (string) ($replacement['kind'] ?? '');
         if ($kind === 'remove') {
@@ -1461,6 +1474,316 @@ final class CustomAtRuleTransformer
         }
 
         throw new \InvalidArgumentException("Unsupported custom at-rule replacement kind: {$kind}");
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @param list<string>|null $parentSelectors
+     */
+    private function emitReturnedMediaRule(array $value, ?array $parentSelectors): string
+    {
+        $query = $this->returnedMediaQueryToCss(is_array($value['query'] ?? null) ? $value['query'] : []);
+        $rules = $value['rules'] ?? [];
+        if (!is_array($rules)) {
+            $rules = [];
+        }
+
+        $body = '';
+        foreach ($rules as $rule) {
+            $body .= $this->emitReplacement($rule, $parentSelectors);
+        }
+
+        return '@media ' . $query . '{' . $body . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     */
+    private function returnedMediaQueryToCss(array $query): string
+    {
+        $mediaQueries = $query['mediaQueries'] ?? null;
+        if (!is_array($mediaQueries)) {
+            return trim((string) ($query['raw'] ?? ''));
+        }
+
+        $parts = [];
+        foreach ($mediaQueries as $mediaQuery) {
+            if (!is_array($mediaQuery)) {
+                continue;
+            }
+            if (isset($mediaQuery['raw']) && is_string($mediaQuery['raw'])) {
+                $parts[] = trim($mediaQuery['raw']);
+                continue;
+            }
+
+            $condition = $mediaQuery['condition'] ?? null;
+            $mediaType = strtolower((string) ($mediaQuery['mediaType'] ?? 'all'));
+            $conditionCss = is_array($condition) ? $this->returnedMediaConditionToCss($condition) : '';
+            if ($mediaType === '' || $mediaType === 'all') {
+                $parts[] = $conditionCss === '' ? 'all' : $conditionCss;
+                continue;
+            }
+
+            $parts[] = $conditionCss === '' ? $mediaType : $mediaType . ' and ' . $conditionCss;
+        }
+
+        return implode(',', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $condition
+     */
+    private function returnedMediaConditionToCss(array $condition): string
+    {
+        if (($condition['type'] ?? null) === 'feature' && isset($condition['value']) && is_array($condition['value'])) {
+            $feature = $condition['value'];
+            $name = (string) ($feature['name'] ?? '');
+            if (($feature['type'] ?? null) === 'boolean') {
+                return '(' . $name . ')';
+            }
+            if (($feature['type'] ?? null) === 'plain') {
+                return '(' . $name . ':' . $this->serializeReturnedMediaFeatureValue($feature['value'] ?? '') . ')';
+            }
+            if (($feature['type'] ?? null) === 'range') {
+                return '(' . $name . $this->mediaComparisonOperator((string) ($feature['operator'] ?? 'equal')) . $this->serializeReturnedMediaFeatureValue($feature['value'] ?? '') . ')';
+            }
+        }
+
+        if (($condition['type'] ?? null) === 'operation' && isset($condition['conditions']) && is_array($condition['conditions'])) {
+            $operator = strtolower((string) ($condition['operator'] ?? 'and'));
+            $parts = [];
+            foreach ($condition['conditions'] as $child) {
+                if (is_array($child)) {
+                    $parts[] = $this->returnedMediaConditionToCss($child);
+                }
+            }
+
+            return implode(' ' . $operator . ' ', array_filter($parts, static fn (string $part): bool => $part !== ''));
+        }
+
+        if (($condition['type'] ?? null) === 'not' && isset($condition['value']) && is_array($condition['value'])) {
+            return 'not ' . $this->returnedMediaConditionToCss($condition['value']);
+        }
+
+        return trim((string) ($condition['raw'] ?? ''));
+    }
+
+    private function mediaComparisonOperator(string $operator): string
+    {
+        return match ($operator) {
+            'less-than' => '<',
+            'less-than-equal' => '<=',
+            'greater-than' => '>',
+            'greater-than-equal' => '>=',
+            default => '=',
+        };
+    }
+
+    private function serializeReturnedMediaFeatureValue(mixed $value): string
+    {
+        if (is_array($value)) {
+            if (($value['type'] ?? null) === 'length' && isset($value['value']) && is_array($value['value'])) {
+                return $this->serializeVisitorValue([
+                    'type' => 'length',
+                    'value' => $value['value'],
+                ]);
+            }
+            if (isset($value['value'])) {
+                return $this->serializeVisitorValue($value['value']);
+            }
+        }
+
+        return $this->serializeVisitorValue($value);
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function emitReturnedStyleRule(array $value): string
+    {
+        $selectors = $this->serializeReturnedSelectors(is_array($value['selectors'] ?? null) ? $value['selectors'] : []);
+        $declarations = $value['declarations'] ?? [];
+        $body = '';
+        if (is_array($declarations)) {
+            foreach ($this->returnedDeclarationBlockEntries($declarations) as $entry) {
+                foreach ($this->returnedDeclarationToCss($entry) as $declarationCss) {
+                    $body .= $declarationCss;
+                }
+            }
+        }
+
+        if ($selectors === [] || $body === '') {
+            return '';
+        }
+
+        return implode(',', $selectors) . '{' . $body . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $block
+     * @return list<array<string, mixed>>
+     */
+    private function returnedDeclarationBlockEntries(array $block): array
+    {
+        $entries = [];
+        foreach (['declarations', 'importantDeclarations'] as $key) {
+            $declarations = $block[$key] ?? [];
+            if (!is_array($declarations)) {
+                continue;
+            }
+            foreach ($declarations as $declaration) {
+                if (!is_array($declaration)) {
+                    continue;
+                }
+                if ($key === 'importantDeclarations') {
+                    $declaration['important'] = true;
+                }
+                $entries[] = $declaration;
+            }
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @param array<string, mixed> $declaration
+     * @return list<string>
+     */
+    private function returnedDeclarationToCss(array $declaration): array
+    {
+        $property = (string) ($declaration['property'] ?? '');
+        if ($property === 'unparsed' && isset($declaration['value']) && is_array($declaration['value'])) {
+            $propertyId = $declaration['value']['propertyId'] ?? [];
+            if (is_array($propertyId) && isset($propertyId['property'])) {
+                $property = (string) $propertyId['property'];
+            }
+        }
+        if ($property === '') {
+            return [];
+        }
+
+        $value = $this->returnedDeclarationValueToCss($declaration);
+        $important = !empty($declaration['important']) ? ' !important' : '';
+        $properties = [$property];
+        $vendorPrefixes = $declaration['vendorPrefix'] ?? [];
+        if (is_array($vendorPrefixes) && $vendorPrefixes !== [] && $property[0] !== '-') {
+            $properties = [];
+            foreach ($vendorPrefixes as $prefix) {
+                $prefix = strtolower((string) $prefix);
+                $properties[] = '-' . trim($prefix, '-') . '-' . $property;
+            }
+        }
+
+        return array_map(
+            static fn (string $prefixedProperty): string => $prefixedProperty . ':' . $value . $important . ';',
+            $properties
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $declaration
+     */
+    private function returnedDeclarationValueToCss(array $declaration): string
+    {
+        if (isset($declaration['raw']) && is_string($declaration['raw'])) {
+            return $this->decodeCssEscapes($declaration['raw']);
+        }
+
+        $value = $declaration['value'] ?? '';
+        if (is_array($value) && ($declaration['property'] ?? null) === 'unparsed' && isset($value['value'])) {
+            $value = $value['value'];
+        }
+
+        if (is_array($value) && array_is_list($value)) {
+            return implode(' ', array_map(fn (mixed $part): string => $this->serializeVisitorValue($part), $value));
+        }
+
+        return $this->serializeVisitorValue($value);
+    }
+
+    private function decodeCssEscapes(string $value): string
+    {
+        return preg_replace_callback(
+            '/\\\\([0-9a-fA-F]{1,6})\s?|\\\\(.)/s',
+            static function (array $matches): string {
+                if (($matches[1] ?? '') !== '') {
+                    $codepoint = hexdec($matches[1]);
+                    if (function_exists('mb_chr')) {
+                        return mb_chr($codepoint, 'UTF-8');
+                    }
+
+                    return $codepoint < 256 ? chr($codepoint) : '';
+                }
+
+                return (string) ($matches[2] ?? '');
+            },
+            $value
+        ) ?? $value;
+    }
+
+    /**
+     * @param list<mixed> $selectors
+     * @return list<string>
+     */
+    private function serializeReturnedSelectors(array $selectors): array
+    {
+        $serialized = [];
+        foreach ($selectors as $selector) {
+            if (is_string($selector)) {
+                $serialized[] = trim($selector);
+                continue;
+            }
+            if (!is_array($selector)) {
+                continue;
+            }
+            $serialized[] = $this->serializeReturnedSelector($selector);
+        }
+
+        return array_values(array_filter($serialized, static fn (string $selector): bool => $selector !== ''));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $selector
+     */
+    private function serializeReturnedSelector(array $selector): string
+    {
+        $css = '';
+        foreach ($selector as $component) {
+            if (!is_array($component)) {
+                continue;
+            }
+            $type = (string) ($component['type'] ?? '');
+            if ($type === 'universal') {
+                $css .= '*';
+            } elseif ($type === 'class') {
+                $css .= '.' . $this->escapeSelectorIdentifier((string) ($component['name'] ?? ''));
+            } elseif ($type === 'id') {
+                $css .= '#' . $this->escapeSelectorIdentifier((string) ($component['name'] ?? ''));
+            } elseif ($type === 'type') {
+                $css .= (string) ($component['name'] ?? '');
+            } elseif ($type === 'pseudo-class') {
+                $css .= ':' . (string) ($component['kind'] ?? '');
+            } elseif ($type === 'combinator') {
+                $value = (string) ($component['value'] ?? 'descendant');
+                $css = rtrim($css);
+                $css .= $value === 'descendant' ? ' ' : $value;
+            } elseif ($type === 'attribute') {
+                $css .= '[' . (string) ($component['name'] ?? '');
+                $operation = $component['operation'] ?? null;
+                if (is_array($operation) && isset($operation['operator'], $operation['value'])) {
+                    $operator = $operation['operator'] === 'equal' ? '=' : (string) $operation['operator'];
+                    $css .= $operator . (string) $operation['value'];
+                }
+                $css .= ']';
+            }
+        }
+
+        return trim($css);
+    }
+
+    private function escapeSelectorIdentifier(string $identifier): string
+    {
+        return preg_replace('/([^_a-zA-Z0-9-])/', '\\\\$1', $identifier) ?? $identifier;
     }
 
     /**
@@ -2615,6 +2938,26 @@ final class CustomAtRuleTransformer
                 return $this->formatNumber($length['value']) . $length['unit'];
             }
         }
+        if ($type === 'length-percentage' && isset($value['value']) && is_array($value['value'])) {
+            return $this->serializeVisitorValue($value['value']);
+        }
+        if ($type === 'dimension' && isset($value['value']) && is_array($value['value'])) {
+            $dimension = $value['value'];
+            if (isset($dimension['unit'], $dimension['value']) && is_string($dimension['unit']) && (is_int($dimension['value']) || is_float($dimension['value']))) {
+                return $this->formatNumber($dimension['value']) . strtolower($dimension['unit']);
+            }
+        }
+        if ($type === 'rgb') {
+            $r = max(0, min(255, (int) ($value['r'] ?? 0)));
+            $g = max(0, min(255, (int) ($value['g'] ?? 0)));
+            $b = max(0, min(255, (int) ($value['b'] ?? 0)));
+            $alpha = $value['alpha'] ?? 1;
+            if ($alpha === 1 || $alpha === 1.0) {
+                return sprintf('#%02x%02x%02x', $r, $g, $b);
+            }
+
+            return 'rgba(' . $r . ',' . $g . ',' . $b . ',' . $this->formatNumber((float) $alpha) . ')';
+        }
         if ($type === 'token' && isset($value['value']) && is_array($value['value'])) {
             $token = $value['value'];
             if (($token['type'] ?? null) === 'string') {
@@ -2891,6 +3234,180 @@ final class CustomAtRuleTransformer
         $name = $variable['name'] ?? [];
 
         return is_array($name) && isset($name['ident']) && is_string($name['ident']) ? $name['ident'] : '';
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     * @return list<array<string, mixed>>
+     */
+    private function parseReturnedRuleList(string $css, ?array $parentSelectors): array
+    {
+        $rules = [];
+        $cursor = 0;
+        $length = strlen($css);
+
+        while (true) {
+            $cursor = $this->skipWhitespace($css, $cursor);
+            if ($cursor >= $length) {
+                break;
+            }
+
+            $nextBlock = $this->findNextTopLevel($css, '{', $cursor);
+            $nextStatement = $this->findNextTopLevel($css, ';', $cursor);
+
+            if ($nextStatement !== null && ($nextBlock === null || $nextStatement < $nextBlock)) {
+                $statement = trim(substr($css, $cursor, $nextStatement - $cursor));
+                if ($statement !== '' && str_starts_with($statement, '@')) {
+                    [$name, $prelude] = $this->parseAtPrelude($statement);
+                    $rules[] = ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $prelude, null, $parentSelectors)];
+                }
+                $cursor = $nextStatement + 1;
+                continue;
+            }
+
+            if ($nextBlock === null) {
+                break;
+            }
+
+            $prelude = trim(substr($css, $cursor, $nextBlock - $cursor));
+            $close = $this->findMatchingBrace($css, $nextBlock);
+            $body = substr($css, $nextBlock + 1, $close - $nextBlock - 1);
+            if (str_starts_with($prelude, '@')) {
+                [$name, $atPrelude] = $this->parseAtPrelude($prelude);
+                $rules[] = ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $atPrelude, $body, $parentSelectors)];
+            } else {
+                $selectors = $parentSelectors === null
+                    ? $this->splitTopLevel($prelude, ',')
+                    : $this->resolveNestedSelectors($parentSelectors, $prelude);
+                $rules[] = [
+                    'type' => 'style',
+                    'value' => [
+                        'selectors' => array_map(fn (string $selector): array => $this->parseReturnedSelector($selector), $selectors),
+                        'declarations' => [
+                            'declarations' => $this->parseReturnedDeclarations($body),
+                            'importantDeclarations' => [],
+                        ],
+                    ],
+                ];
+            }
+
+            $cursor = $close + 1;
+        }
+
+        return $rules;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function parseReturnedDeclarations(string $css): array
+    {
+        return array_map(
+            static fn (array $entry): array => [
+                'property' => $entry['property'],
+                'raw' => $entry['value'],
+                'important' => $entry['important'],
+            ],
+            $this->declarationBlock->parseEntries($css)
+        );
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function parseReturnedSelector(string $selector): array
+    {
+        $selector = trim($selector);
+        if ($selector === '*') {
+            return [['type' => 'universal']];
+        }
+
+        $components = [];
+        foreach (preg_split('/(\s+|[>+~])/', $selector, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY) ?: [] as $part) {
+            if (trim($part) === '') {
+                $components[] = ['type' => 'combinator', 'value' => 'descendant'];
+                continue;
+            }
+            if (in_array($part, ['>', '+', '~'], true)) {
+                $components[] = ['type' => 'combinator', 'value' => $part];
+                continue;
+            }
+
+            foreach ($this->parseCompoundReturnedSelector($part) as $component) {
+                $components[] = $component;
+            }
+        }
+
+        return $components;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function parseCompoundReturnedSelector(string $selector): array
+    {
+        $components = [];
+        $offset = 0;
+        $length = strlen($selector);
+        while ($offset < $length) {
+            $char = $selector[$offset];
+            if ($char === '.') {
+                $name = $this->readSelectorIdentifier($selector, $offset + 1);
+                $components[] = ['type' => 'class', 'name' => $this->unescapeSelectorIdentifier($name)];
+                $offset += strlen($name) + 1;
+                continue;
+            }
+            if ($char === '#') {
+                $name = $this->readSelectorIdentifier($selector, $offset + 1);
+                $components[] = ['type' => 'id', 'name' => $this->unescapeSelectorIdentifier($name)];
+                $offset += strlen($name) + 1;
+                continue;
+            }
+            if ($char === ':') {
+                $name = $this->readSelectorIdentifier($selector, $offset + 1);
+                $components[] = ['type' => 'pseudo-class', 'kind' => $name];
+                $offset += strlen($name) + 1;
+                continue;
+            }
+            if ($char === '*') {
+                $components[] = ['type' => 'universal'];
+                $offset++;
+                continue;
+            }
+            $name = $this->readSelectorIdentifier($selector, $offset);
+            if ($name === '') {
+                $offset++;
+                continue;
+            }
+            $components[] = ['type' => 'type', 'name' => $this->unescapeSelectorIdentifier($name)];
+            $offset += strlen($name);
+        }
+
+        return $components;
+    }
+
+    private function readSelectorIdentifier(string $selector, int $offset): string
+    {
+        $identifier = '';
+        $length = strlen($selector);
+        for ($i = $offset; $i < $length; $i++) {
+            $char = $selector[$i];
+            if ($char === '\\' && $i + 1 < $length) {
+                $identifier .= $char . $selector[++$i];
+                continue;
+            }
+            if (!preg_match('/[-_a-zA-Z0-9]/', $char)) {
+                break;
+            }
+            $identifier .= $char;
+        }
+
+        return $identifier;
+    }
+
+    private function unescapeSelectorIdentifier(string $identifier): string
+    {
+        return str_replace('\\:', ':', $identifier);
     }
 
     /**

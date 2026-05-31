@@ -1170,6 +1170,14 @@ CSS
             $minifier->minify('@import "foo.css" screen and (orientation: landscape);')
         );
         $t->same(
+            '@import "foo.css" (width>=960px);',
+            $minifier->minify('@import "foo.css" (not (width < 960px));')
+        );
+        $t->same(
+            '@import "foo.css" screen and (width>=960px);',
+            $minifier->minify('@import "foo.css" screen and (not (width < 960px));')
+        );
+        $t->same(
             '@import "foo.css" supports(display:flex);',
             $minifier->minify('@import url(foo.css) supports(display: flex);')
         );

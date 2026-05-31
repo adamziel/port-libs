@@ -212,6 +212,21 @@ final class SourceMap
         $this->addMapping($offsetLine, $offsetColumn, $sourceIndex, $originalLine, $originalColumn, $name);
     }
 
+    public function addGeneratedMappingWithOffset(
+        int $generatedLine,
+        int $generatedColumn,
+        int $lineOffset,
+        int $columnOffset
+    ): void {
+        $this->assertNonNegative($generatedLine, 'generated line');
+        $this->assertNonNegative($generatedColumn, 'generated column');
+
+        $offsetLine = $this->offsetNonNegative($generatedLine, $lineOffset, 'generated line + line offset');
+        $offsetColumn = $this->offsetNonNegative($generatedColumn, $columnOffset, 'generated column + column offset');
+
+        $this->addGeneratedMapping($offsetLine, $offsetColumn);
+    }
+
     public function addPrinterMapping(
         int $generatedLine,
         int $generatedColumn,

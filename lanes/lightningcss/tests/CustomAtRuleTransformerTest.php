@@ -284,6 +284,101 @@ CSS;
 
         $t->same('.m-1{margin:10px}@media (width>=500px){.sm\\:m-1{margin:10px}}', $result);
     },
+    'custom at-rules emit upstream returned media raw rule objects' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@breakpoints {
+  .m-1 {
+    margin: 10px;
+  }
+}
+CSS;
+
+        $seenBodyRules = [];
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'breakpoints' => [
+                'prelude' => null,
+                'body' => 'rule-list',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'breakpoints' => static function (array $rule) use (&$seenBodyRules): array {
+                        $seenBodyRules = $rule['bodyRules'];
+                        $mediaRules = [];
+                        foreach ($rule['bodyRules'] as $bodyRule) {
+                            if (($bodyRule['type'] ?? null) !== 'style') {
+                                continue;
+                            }
+                            $clone = $bodyRule;
+                            foreach ($clone['value']['selectors'] as &$selector) {
+                                foreach ($selector as &$component) {
+                                    if (($component['type'] ?? null) === 'class') {
+                                        $component['name'] = 'sm:' . $component['name'];
+                                    }
+                                }
+                                unset($component);
+                            }
+                            unset($selector);
+                            $mediaRules[] = $clone;
+                        }
+
+                        return [
+                            ...$rule['bodyRules'],
+                            [
+                                'type' => 'media',
+                                'value' => [
+                                    'query' => [
+                                        'mediaQueries' => [
+                                            ['raw' => '(min-width: 500px)'],
+                                        ],
+                                    ],
+                                    'rules' => $mediaRules,
+                                ],
+                            ],
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.m-1{margin:10px}@media (width>=500px){.sm\\:m-1{margin:10px}}', $result);
+        $t->same('style', $seenBodyRules[0]['type']);
+        $t->same('m-1', $seenBodyRules[0]['value']['selectors'][0][0]['name']);
+    },
+    'custom at-rules emit upstream returned style and ignored rule objects' => static function (TestRunner $t): void {
+        $result = (new CustomAtRuleTransformer())->transform('@skip unused; @tailwind base; .keep { color: red; }', [
+            'skip' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'skip' => static fn (): array => ['type' => 'ignored'],
+                ],
+                'unknown' => [
+                    'tailwind' => static fn (): array => [
+                        'type' => 'style',
+                        'value' => [
+                            'selectors' => [
+                                [
+                                    ['type' => 'universal'],
+                                ],
+                            ],
+                            'declarations' => [
+                                'declarations' => [
+                                    ['property' => 'visibility', 'raw' => 'hi\\64 den'],
+                                    ['property' => 'transition', 'vendorPrefix' => ['moz'], 'raw' => '200ms test'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $t->same('*{visibility:hidden;-moz-transition:test .2s}.keep{color:red}', $result);
+        $t->same(0, substr_count($result, '@skip'));
+    },
     'custom at-rules map upstream composed custom rule visitors' => static function (TestRunner $t): void {
         $visitor = CustomAtRuleTransformer::composeVisitors([
             [

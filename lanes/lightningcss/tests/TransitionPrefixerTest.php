@@ -444,6 +444,58 @@ return [
             $prefixer->prefixForTargets('.foo { appearance: none; }', ['safari' => 16])
         );
     },
+    'transition prefixer maps upstream box-sizing browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box}',
+            $prefixer->prefixForTargets('.foo { box-sizing: border-box; }', ['chrome' => 9, 'firefox' => 28])
+        );
+        $t->same(
+            '.foo{box-sizing:border-box}',
+            $prefixer->prefixForTargets('.foo { -webkit-box-sizing: border-box; -moz-box-sizing: border-box; box-sizing: border-box; }', ['chrome' => 10, 'firefox' => 29])
+        );
+        $t->same(
+            '.foo{-webkit-box-sizing:border-box;box-sizing:border-box}',
+            $prefixer->prefixForTargets('.foo { box-sizing: border-box; }', ['chrome' => 9])
+        );
+        $t->same(
+            '.foo{box-sizing:border-box}',
+            $prefixer->prefixForTargets('.foo { box-sizing: border-box; }', ['chrome' => 10])
+        );
+        $t->same(
+            '.foo{-moz-box-sizing:border-box;box-sizing:border-box}',
+            $prefixer->prefixForTargets('.foo { box-sizing: border-box; }', ['firefox' => 28])
+        );
+        $t->same(
+            '.foo{box-sizing:border-box}',
+            $prefixer->prefixForTargets('.foo { box-sizing: border-box; }', ['firefox' => 29])
+        );
+        $t->same(
+            '.foo{-webkit-box-sizing:border-box;box-sizing:border-box}',
+            $prefixer->prefixForTargets('.foo { box-sizing: border-box; }', ['safari' => 5])
+        );
+        $t->same(
+            '.foo{box-sizing:border-box}',
+            $prefixer->prefixForTargets('.foo { box-sizing: border-box; }', ['safari' => 6])
+        );
+        $t->same(
+            '.foo{-webkit-box-sizing:border-box;box-sizing:border-box}',
+            $prefixer->prefixForTargets('.foo { box-sizing: border-box; }', ['ios_saf' => '4.2'])
+        );
+        $t->same(
+            '.foo{box-sizing:border-box}',
+            $prefixer->prefixForTargets('.foo { box-sizing: border-box; }', ['ios_saf' => '4.3'])
+        );
+        $t->same(
+            '.foo{-webkit-box-sizing:border-box;box-sizing:border-box}',
+            $prefixer->prefixForTargets('.foo { box-sizing: border-box; }', ['android' => 3])
+        );
+        $t->same(
+            '.foo{box-sizing:border-box}',
+            $prefixer->prefixForTargets('.foo { box-sizing: border-box; }', ['android' => 4])
+        );
+    },
     'transition prefixer maps upstream legacy text and sticky prefix helpers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -1728,6 +1780,14 @@ CSS;
         $t->same(
             '@layer blocks{@media only screen and (min-width:240px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media only screen and (width >= 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media only screen and (min-width:240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media only screen and (not (width < 240px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (hover) and ((min-width:240px)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (hover) and (not (width < 240px)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
             '@layer blocks{@media screen and not (max-width:max(10px,1rem)){.wp-block-query{color:#ff0}}}',

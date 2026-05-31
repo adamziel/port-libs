@@ -100,6 +100,27 @@ if (!str_contains($themeBundle, '.wp-block-cover{color:purple}')) {
     exit(1);
 }
 
+$sharedPresetBundle = (new CssBundler())->bundle('style.css', [
+    'style.css' => <<<'CSS'
+@import "../shared/presets.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '../shared/presets.css' => <<<'CSS'
+:root {
+  --wp--preset--spacing--block-gap: 1rem;
+}
+CSS,
+]);
+
+if ($sharedPresetBundle !== ':root{--wp--preset--spacing--block-gap:1rem}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected parent-relative shared preset import to resolve\n");
+    exit(1);
+}
+
+echo 'parent-relative-import: resolved' . PHP_EOL;
+
 try {
     (new CssBundler())->bundle('/broken-theme.css', [
         '/broken-theme.css' => '.wp-site-blocks { color: red } @import "tokens.css";',

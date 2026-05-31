@@ -116,6 +116,29 @@ return [
             $map->addMappingWithOffset(0, 0, $entry, 0, 0, 0, -1);
         });
     },
+    'source map offsets upstream generated-only mappings' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('theme.css');
+
+        $map->addGeneratedMappingWithOffset(0, 5, 2, 7);
+        $map->addMappingWithOffset(0, 0, $sourceIndex, 0, 0, 2, 18, 'rule');
+        $map->addGeneratedMappingWithOffset(1, 2, 2, 0);
+
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+
+        $t->same(';;Y,MAAAA;E', $map->writeVlq());
+        $t->same([2, 2, 3], array_column($decoded, 'generatedLine'));
+        $t->same([12, 18, 2], array_column($decoded, 'generatedColumn'));
+        $t->same([null, 0, null], array_column($decoded, 'sourceIndex'));
+        $t->same([null, 0, null], array_column($decoded, 'originalLine'));
+        $t->same([null, 0, null], array_column($decoded, 'nameIndex'));
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->addGeneratedMappingWithOffset(0, 0, -1, 0);
+        });
+        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+            $map->addGeneratedMappingWithOffset(0, 0, 0, -1);
+        });
+    },
     'source map replaces overlapped source-map lines when merging nested maps' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $entry = $map->addSource('entry.css');

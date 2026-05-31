@@ -96,6 +96,32 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler preserves leading parent segments in relative import resolution' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            ':root{--theme-gap:1rem}.entry{color:red}',
+            $bundle([
+                'style.css' => '@import "../shared/tokens.css"; .entry { color: red }',
+                '../shared/tokens.css' => ':root { --theme-gap: 1rem }',
+            ], 'style.css')
+        );
+
+        $reads = [];
+        $readerFiles = [
+            'style.css' => '@import "../shared/tokens.css"; .entry { color: red }',
+            '../shared/tokens.css' => ':root { --theme-gap: 1rem }',
+        ];
+        $readerBundle = (new CssBundler())->bundleWithReader('style.css', static function (string $file) use (&$reads, $readerFiles): string {
+            $reads[] = $file;
+            if (!array_key_exists($file, $readerFiles)) {
+                throw new RuntimeException("Missing reader fixture {$file}");
+            }
+
+            return $readerFiles[$file];
+        });
+
+        $t->same(':root{--theme-gap:1rem}.entry{color:red}', $readerBundle);
+        $t->same(['style.css', '../shared/tokens.css'], $reads);
+    },
     'css bundler maps upstream EOF import without semicolon' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '.b{color:green}',

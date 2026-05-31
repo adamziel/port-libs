@@ -180,10 +180,38 @@ $transform = $transformer->transformWithDependencies($css, [
                     return [];
                 },
                 'custom' => [
-                    'responsive' => static function (array $rule, CustomAtRuleTransformer $transformer): array {
+                    'responsive' => static function (array $rule): array {
+                        $mediaRules = [];
+                        foreach ($rule['bodyRules'] as $bodyRule) {
+                            if (($bodyRule['type'] ?? null) !== 'style') {
+                                continue;
+                            }
+                            $clone = $bodyRule;
+                            foreach ($clone['value']['selectors'] as &$selector) {
+                                foreach ($selector as &$component) {
+                                    if (($component['type'] ?? null) === 'class') {
+                                        $component['name'] = 'md:' . $component['name'];
+                                    }
+                                }
+                                unset($component);
+                            }
+                            unset($selector);
+                            $mediaRules[] = $clone;
+                        }
+
                         return [
-                            $transformer->ruleList($rule['body']),
-                            $transformer->media('(min-width: 782px)', '.md\\:wp-block-card__stack{margin:10px}'),
+                            ...$rule['bodyRules'],
+                            [
+                                'type' => 'media',
+                                'value' => [
+                                    'query' => [
+                                        'mediaQueries' => [
+                                            ['raw' => '(min-width: 782px)'],
+                                        ],
+                                    ],
+                                    'rules' => $mediaRules,
+                                ],
+                            ],
                         ];
                     },
                     'breakpoint' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->media(
@@ -346,7 +374,7 @@ $transform = $transformer->transformWithDependencies($css, [
 $result = $transform['code'];
 $dependencies = $transform['dependencies'];
 
-$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:.625rem}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card__media{width:3rem;height:3rem}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 .0625rem #056ef0;margin-left:1.25rem;margin-right:1.25rem}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}.wp-block-card.is-visitor-ready{outline-color:#056ef0}';
+$expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card__media{width:3rem;height:3rem}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 .0625rem #056ef0;margin-left:1.25rem;margin-right:1.25rem}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}.wp-block-card.is-visitor-ready{outline-color:#056ef0}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {

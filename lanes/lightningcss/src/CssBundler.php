@@ -1220,7 +1220,14 @@ final class CssBundler
                 continue;
             }
             if ($part === '..') {
-                array_pop($parts);
+                if ($parts !== [] && end($parts) !== '..') {
+                    array_pop($parts);
+                    continue;
+                }
+
+                if (!$absolute) {
+                    $parts[] = '..';
+                }
                 continue;
             }
             $parts[] = $part;
