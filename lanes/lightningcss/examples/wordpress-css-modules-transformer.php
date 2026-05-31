@@ -25,7 +25,7 @@ $css = <<<'CSS'
 }
 
 .cardTitle {
-  composes: heading from "./typography.module.css";
+  composes: heading from "./typography\ components.module.css";
   color: yellow;
 }
 
@@ -178,7 +178,7 @@ $expected = [
                 [
                     'type' => 'dependency',
                     'name' => 'heading',
-                    'specifier' => './typography.module.css',
+                    'specifier' => './typography components.module.css',
                 ],
             ],
             'isReferenced' => false,

@@ -38,7 +38,7 @@ final class TransitionPrefixer
      */
     public function prefixForTargets(string $css, array $targets): string
     {
-        return $this->rewriteRuleList((new CssMinifier())->minify($css), false, $this->targetOptions($targets));
+        return $this->rewriteRuleList((new CssMinifier())->minify($css, preserveFontTargetFallbacks: true), false, $this->targetOptions($targets));
     }
 
     /**
@@ -270,13 +270,14 @@ final class TransitionPrefixer
         $lightDarkChanged = $this->rewriteLightDarkFallbackEntries($entries, $targetOptions);
         $lightDarkSerializationChanged = $this->rewriteLightDarkAdvancedColorSerializationEntries($entries, $targetOptions);
         $alphaHexChanged = $this->rewriteAlphaHexFallbackEntries($entries, $targetOptions);
+        $fontTargetChanged = $this->rewriteFontTargetFallbackEntries($entries, $targetOptions);
         $logicalInsetFallback = ($targetOptions['logicalInsetNeedsFallback'] ?? false)
             ? $this->rewriteLogicalInsetFallbackRule($selectors, $entries)
             : null;
         if ($logicalInsetFallback !== null) {
             return $logicalInsetFallback . implode('', $supportRules);
         }
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $colorSchemeChanged || $printColorAdjustChanged || $uiPrefixChanged || $textCompatibilityPrefixChanged || $positionStickyChanged || $backgroundClipChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $imageSetChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $fontTargetChanged) {
             return $selectors . '{' . $this->serializeDeclarations($entries) . '}' . implode('', $supportRules);
         }
 
@@ -965,6 +966,58 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'ios_saf', [0], [15]),
             'mediaResolutionNeedsMozPrefix' => $this->targetInRange($normalized, 'firefox', [0], [15]),
             'mediaResolutionUsesXUnit' => $this->targetsSupportXResolutionUnit($normalized),
+            'fontCqwSupported' => $this->targetsAllAtLeast($normalized, [
+                'android' => [105],
+                'chrome' => [105],
+                'edge' => [105],
+                'firefox' => [110],
+                'ios_saf' => [16],
+                'opera' => [72],
+                'safari' => [16],
+                'samsung' => [20],
+            ]),
+            'fontSystemUiNeedsFallback' => $this->targetInRange($normalized, 'safari', [0], [8])
+                || $this->targetInRange($normalized, 'firefox', [0], [91]),
+            'fontSystemUiSupported' => $this->targetsAllAtLeast($normalized, [
+                'android' => [145],
+                'chrome' => [56],
+                'edge' => [79],
+                'firefox' => [92],
+                'ios_saf' => [11],
+                'opera' => [43],
+                'safari' => [11],
+                'samsung' => [6],
+            ]),
+            'fontXxxLargeSupported' => $this->targetsAllAtLeast($normalized, [
+                'android' => [79],
+                'chrome' => [79],
+                'edge' => [79],
+                'firefox' => [79],
+                'ios_saf' => [16, 4],
+                'opera' => [57],
+                'safari' => [16, 4],
+                'samsung' => [12],
+            ]),
+            'fontVariableWeightSupported' => $this->targetsAllAtLeast($normalized, [
+                'android' => [62],
+                'chrome' => [62],
+                'edge' => [17],
+                'firefox' => [61],
+                'ios_saf' => [11],
+                'opera' => [46],
+                'safari' => [11],
+                'samsung' => [8],
+            ]),
+            'fontObliqueAngleSupported' => $this->targetsAllAtLeast($normalized, [
+                'android' => [62],
+                'chrome' => [62],
+                'edge' => [79],
+                'firefox' => [61],
+                'ios_saf' => [11, 3],
+                'opera' => [46],
+                'safari' => [11, 1],
+                'samsung' => [8],
+            ]),
             'keyframesNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [42])
                 || $this->targetInRange($normalized, 'ios_saf', [3], [8, 0])
@@ -972,6 +1025,399 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'safari', [4], [8]),
             'keyframesNeedsMoz' => $this->targetInRange($normalized, 'firefox', [5], [15]),
         ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteFontTargetFallbackEntries(array &$entries, array $targetOptions): bool
+    {
+        $changed = false;
+        $rewritten = [];
+
+        foreach ($entries as $entry) {
+            if (!$entry['important'] && ($targetOptions['fontSystemUiNeedsFallback'] ?? false)) {
+                $fallback = $this->fontSystemUiFallbackValue($entry['property'], $entry['value']);
+                if ($fallback !== null && $fallback !== $entry['value']) {
+                    $entry = $this->entryWithValue($entry, $fallback);
+                    $changed = true;
+                }
+            }
+
+            if (!$entry['important'] && $this->fontDeclarationSupportsTargetFallback($entry['property'], $entry['value'], $targetOptions)) {
+                $last = array_key_last($rewritten);
+                if ($last !== null
+                    && $rewritten[$last]['property'] === $entry['property']
+                    && !$rewritten[$last]['important']
+                    && !$this->containsCustomPropertyReference($rewritten[$last]['value'])
+                ) {
+                    array_pop($rewritten);
+                    $changed = true;
+                }
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+
+        return true;
+    }
+
+    private function fontSystemUiFallbackValue(string $property, string $value): ?string
+    {
+        if ($property === 'font-family') {
+            return $this->expandSystemUiFontFamilyList($value);
+        }
+
+        if ($property !== 'font') {
+            return null;
+        }
+
+        $familyOffset = $this->fontShorthandFamilyOffset($value);
+        if ($familyOffset === null) {
+            return null;
+        }
+
+        $prefix = rtrim(substr($value, 0, $familyOffset));
+        $family = substr($value, $familyOffset);
+        $expanded = $this->expandSystemUiFontFamilyList($family);
+        if ($expanded === trim($family)) {
+            return null;
+        }
+
+        return $prefix . ' ' . $expanded;
+    }
+
+    private function expandSystemUiFontFamilyList(string $value): string
+    {
+        $families = $this->splitTopLevel($value, ',');
+        $fallbacks = [
+            '-apple-system',
+            'BlinkMacSystemFont',
+            'Segoe UI',
+            'Roboto',
+            'Noto Sans',
+            'Ubuntu',
+            'Cantarell',
+            'Helvetica Neue',
+        ];
+        $expanded = [];
+        $seen = [];
+        $changed = false;
+
+        foreach ($families as $family) {
+            $family = trim($family);
+            if ($family === '') {
+                continue;
+            }
+
+            $key = strtolower($family);
+            if (isset($seen[$key])) {
+                $changed = true;
+                continue;
+            }
+
+            $expanded[] = $family;
+            $seen[$key] = true;
+
+            if ($key !== 'system-ui') {
+                continue;
+            }
+
+            foreach ($fallbacks as $fallback) {
+                $fallbackKey = strtolower($fallback);
+                if (isset($seen[$fallbackKey])) {
+                    continue;
+                }
+
+                $expanded[] = $fallback;
+                $seen[$fallbackKey] = true;
+                $changed = true;
+            }
+        }
+
+        return $changed ? implode(',', $expanded) : trim($value);
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function fontDeclarationSupportsTargetFallback(string $property, string $value, array $targetOptions): bool
+    {
+        if ($this->containsCustomPropertyReference($value)) {
+            return false;
+        }
+
+        return match ($property) {
+            'font-size' => $this->fontSizeValueSupportedForTargetFallback($value, $targetOptions),
+            'font-weight' => $this->fontWeightValueSupportedForTargetFallback($value, $targetOptions),
+            'font-family' => $this->fontFamilyValueSupportedForTargetFallback($value, $targetOptions),
+            'font-style' => $this->fontStyleValueSupportedForTargetFallback($value, $targetOptions),
+            'font' => $this->fontShorthandValueSupportedForTargetFallback($value, $targetOptions),
+            default => false,
+        };
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function fontSizeValueSupportedForTargetFallback(string $value, array $targetOptions): bool
+    {
+        $lower = strtolower(trim($value));
+        if ($lower === 'xxx-large') {
+            return $targetOptions['fontXxxLargeSupported'] ?? false;
+        }
+
+        if (preg_match('/cq(?:w|h|i|b|min|max)\b/i', $value) === 1) {
+            return $targetOptions['fontCqwSupported'] ?? false;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function fontWeightValueSupportedForTargetFallback(string $value, array $targetOptions): bool
+    {
+        if (!($targetOptions['fontVariableWeightSupported'] ?? false)) {
+            return false;
+        }
+
+        $value = trim($value);
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) !== 1) {
+            return false;
+        }
+
+        $weight = (float) $value;
+
+        return fmod($weight, 100.0) !== 0.0;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function fontFamilyValueSupportedForTargetFallback(string $value, array $targetOptions): bool
+    {
+        return ($targetOptions['fontSystemUiSupported'] ?? false) && $this->fontFamilyUsesSystemUi($value);
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function fontStyleValueSupportedForTargetFallback(string $value, array $targetOptions): bool
+    {
+        return ($targetOptions['fontObliqueAngleSupported'] ?? false)
+            && preg_match('/^oblique\s+[+-]?(?:\d+|\d*\.\d+)(?:deg|grad|rad|turn)?$/i', trim($value)) === 1;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function fontShorthandValueSupportedForTargetFallback(string $value, array $targetOptions): bool
+    {
+        $familyOffset = $this->fontShorthandFamilyOffset($value);
+        if ($familyOffset === null) {
+            return false;
+        }
+
+        $prefix = trim(substr($value, 0, $familyOffset));
+        $family = substr($value, $familyOffset);
+        $tokens = $this->splitWhitespaceTopLevel($prefix);
+        $sizeToken = '';
+        foreach ($tokens as $token) {
+            $parts = $this->splitTopLevel($token, '/');
+            $candidate = $parts[0] ?? $token;
+            if ($this->isFontTargetSizeToken($candidate)) {
+                $sizeToken = $candidate;
+            }
+        }
+
+        $hasTargetFeature = false;
+        if ($sizeToken !== '') {
+            $lowerSize = strtolower(trim($sizeToken));
+            if ($lowerSize === 'xxx-large') {
+                if (!($targetOptions['fontXxxLargeSupported'] ?? false)) {
+                    return false;
+                }
+                $hasTargetFeature = true;
+            } elseif (preg_match('/cq(?:w|h|i|b|min|max)\b/i', $sizeToken) === 1) {
+                if (!($targetOptions['fontCqwSupported'] ?? false)) {
+                    return false;
+                }
+                $hasTargetFeature = true;
+            }
+        }
+
+        if ($this->fontFamilyUsesSystemUi($family)) {
+            if (!($targetOptions['fontSystemUiSupported'] ?? false)) {
+                return false;
+            }
+            $hasTargetFeature = true;
+        }
+
+        return $hasTargetFeature;
+    }
+
+    private function fontFamilyUsesSystemUi(string $value): bool
+    {
+        foreach ($this->splitTopLevel($value, ',') as $family) {
+            if (strcasecmp(trim($family), 'system-ui') === 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function fontShorthandFamilyOffset(string $value): ?int
+    {
+        $tokens = $this->splitWhitespaceTopLevelWithOffsets($value);
+        foreach ($tokens as $token) {
+            $parts = $this->splitTopLevel($token['token'], '/');
+            if (count($parts) <= 2 && $this->isFontTargetSizeToken($parts[0] ?? '')) {
+                return $this->skipWhitespace($value, $token['end']);
+            }
+
+            if ($this->isFontTargetPreSizeToken($token['token'])) {
+                continue;
+            }
+
+            return null;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array{token:string,start:int,end:int}>
+     */
+    private function splitWhitespaceTopLevelWithOffsets(string $value): array
+    {
+        $tokens = [];
+        $token = '';
+        $tokenStart = null;
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($tokenStart === null) {
+                    $tokenStart = $i;
+                }
+                $token .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $token .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif (ctype_space($char) && $parenDepth === 0 && $bracketDepth === 0) {
+                if ($token !== '' && $tokenStart !== null) {
+                    $tokens[] = ['token' => $token, 'start' => $tokenStart, 'end' => $i];
+                    $token = '';
+                    $tokenStart = null;
+                }
+                continue;
+            }
+
+            if ($tokenStart === null) {
+                $tokenStart = $i;
+            }
+            $token .= $char;
+        }
+
+        if ($token !== '' && $tokenStart !== null) {
+            $tokens[] = ['token' => $token, 'start' => $tokenStart, 'end' => $length];
+        }
+
+        return $tokens;
+    }
+
+    private function skipWhitespace(string $value, int $offset): int
+    {
+        $length = strlen($value);
+        while ($offset < $length && ctype_space($value[$offset])) {
+            $offset++;
+        }
+
+        return $offset;
+    }
+
+    private function isFontTargetPreSizeToken(string $token): bool
+    {
+        $lower = strtolower(trim($token));
+        if ($lower === '' || $lower === 'normal') {
+            return true;
+        }
+
+        if (in_array($lower, ['italic', 'oblique', 'small-caps', 'bold', 'bolder', 'lighter'], true)) {
+            return true;
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $lower) === 1) {
+            return true;
+        }
+
+        return $this->isFontTargetStretchToken($lower);
+    }
+
+    private function isFontTargetSizeToken(string $token): bool
+    {
+        $lower = strtolower(trim($token));
+        if (in_array($lower, [
+            'xx-small',
+            'x-small',
+            'small',
+            'medium',
+            'large',
+            'x-large',
+            'xx-large',
+            'xxx-large',
+            'larger',
+            'smaller',
+        ], true)) {
+            return true;
+        }
+
+        return preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:[a-z]+|%))$/i', $lower) === 1
+            || preg_match('/^(?:calc|min|max|clamp)\(/i', $lower) === 1;
+    }
+
+    private function isFontTargetStretchToken(string $token): bool
+    {
+        return in_array(strtolower(trim($token)), [
+            'ultra-condensed',
+            'extra-condensed',
+            'condensed',
+            'semi-condensed',
+            'semi-expanded',
+            'expanded',
+            'extra-expanded',
+            'ultra-expanded',
+        ], true) || preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)%)$/', trim($token)) === 1;
     }
 
     private function normalizeBrowserTargetName(string $browser): ?string
@@ -1037,6 +1483,30 @@ final class TransitionPrefixer
     {
         return isset($targets[$browser])
             && $targets[$browser] >= $this->encodedTargetVersion($minimum[0], $minimum[1] ?? 0, $minimum[2] ?? 0);
+    }
+
+    /**
+     * @param array<string, int> $targets
+     * @param array<string, array{0:int,1?:int,2?:int}> $minimums
+     */
+    private function targetsAllAtLeast(array $targets, array $minimums): bool
+    {
+        if ($targets === []) {
+            return false;
+        }
+
+        foreach ($targets as $browser => $version) {
+            if (!isset($minimums[$browser])) {
+                return false;
+            }
+
+            $minimum = $minimums[$browser];
+            if ($version < $this->encodedTargetVersion($minimum[0], $minimum[1] ?? 0, $minimum[2] ?? 0)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

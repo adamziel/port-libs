@@ -200,6 +200,79 @@ return [
             ])
         );
     },
+    'transition prefixer maps upstream font target fallback boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $systemFallback = 'system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Noto Sans,Ubuntu,Cantarell,Helvetica Neue';
+
+        $t->same(
+            '.foo{font-family:Helvetica,' . $systemFallback . ',sans-serif}',
+            $prefixer->prefixForTargets('.foo { font-family: Helvetica, system-ui, sans-serif; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{font:100%/1.5 Helvetica,' . $systemFallback . ',sans-serif}',
+            $prefixer->prefixForTargets('.foo { font: 100%/1.5 Helvetica, system-ui, sans-serif; }', ['safari' => 8])
+        );
+        $t->same(
+            '.foo{font-family:ui-sans-serif,' . $systemFallback . ',Arial,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol,Noto Color Emoji}',
+            $prefixer->prefixForTargets(
+                '.foo { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji"; }',
+                ['firefox' => 91]
+            )
+        );
+
+        $t->same(
+            '.foo{font-size:22px;font-size:max(2cqw,22px)}',
+            $prefixer->prefixForTargets('.foo { font-size: 22px; font-size: max(2cqw, 22px); }', ['safari' => 14])
+        );
+        $t->same(
+            '.foo{font-size:max(2cqw,22px)}',
+            $prefixer->prefixForTargets('.foo { font-size: 22px; font-size: max(2cqw, 22px); }', ['safari' => 16])
+        );
+        $t->same(
+            '.foo{font-size:22px;font-size:xxx-large}',
+            $prefixer->prefixForTargets('.foo { font-size: 22px; font-size: xxx-large; }', ['chrome' => 70])
+        );
+        $t->same(
+            '.foo{font-size:xxx-large}',
+            $prefixer->prefixForTargets('.foo { font-size: 22px; font-size: xxx-large; }', ['chrome' => 80])
+        );
+        $t->same(
+            '.foo{font-weight:700;font-weight:789}',
+            $prefixer->prefixForTargets('.foo { font-weight: 700; font-weight: 789; }', ['chrome' => 60])
+        );
+        $t->same(
+            '.foo{font-weight:789}',
+            $prefixer->prefixForTargets('.foo { font-weight: 700; font-weight: 789; }', ['chrome' => 80])
+        );
+        $t->same(
+            '.foo{font-family:Helvetica;font-family:system-ui}',
+            $prefixer->prefixForTargets('.foo { font-family: Helvetica; font-family: system-ui; }', ['chrome' => 50])
+        );
+        $t->same(
+            '.foo{font-family:system-ui}',
+            $prefixer->prefixForTargets('.foo { font-family: Helvetica; font-family: system-ui; }', ['chrome' => 80])
+        );
+        $t->same(
+            '.foo{font-style:oblique;font-style:oblique 40deg}',
+            $prefixer->prefixForTargets('.foo { font-style: oblique; font-style: oblique 40deg; }', ['firefox' => 50])
+        );
+        $t->same(
+            '.foo{font-style:oblique 40deg}',
+            $prefixer->prefixForTargets('.foo { font-style: oblique; font-style: oblique 40deg; }', ['firefox' => 80])
+        );
+        $t->same(
+            '.foo{font:22px Helvetica;font:xxx-large system-ui}',
+            $prefixer->prefixForTargets('.foo { font: 22px Helvetica; font: xxx-large system-ui; }', ['chrome' => 70])
+        );
+        $t->same(
+            '.foo{font:xxx-large system-ui}',
+            $prefixer->prefixForTargets('.foo { font: 22px Helvetica; font: xxx-large system-ui; }', ['chrome' => 80])
+        );
+        $t->same(
+            '.foo{font:var(--fallback);font:xxx-large system-ui}',
+            $prefixer->prefixForTargets('.foo { font: var(--fallback); font: xxx-large system-ui; }', ['chrome' => 50])
+        );
+    },
     'transition prefixer maps upstream print-color-adjust target boundary' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -1507,6 +1580,18 @@ CSS;
             '@layer blocks{@media not (max-width:0){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width > 0) { .wp-block-query { color: yellow; } } }', ['chrome' => 85])
         );
+        $t->same(
+            '@layer blocks{@media (width:240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width = 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (width:240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (240px = width) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (width=240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width = 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 64])
+        );
     },
     'transition prefixer maps upstream typed media range fallbacks inside layers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
@@ -1547,6 +1632,14 @@ CSS;
                 'firefox' => 60,
                 'exclude' => ['MediaRangeSyntax'],
             ])
+        );
+        $t->same(
+            '@layer blocks{@media (theme-state:expanded){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (theme-state = expanded) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (--wp-breakpoint:env(--wp-breakpoint)){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (--wp-breakpoint = env(--wp-breakpoint)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->throws(
             InvalidArgumentException::class,

@@ -324,6 +324,28 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules decodes escaped dependency specifiers in composes metadata' => static function (TestRunner $t) use ($export, $dependency): void {
+        $css = <<<'CSS'
+.test {
+  composes: foo from "./theme\ components.css";
+  composes: bar from "./theme\000020components.css";
+  composes: icon from "./icons\2f arrow.css";
+  background: white;
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css);
+
+        $t->same('.EgL3uq_test{background:#fff}', $result['code']);
+        $t->same([
+            'test' => $export('EgL3uq_test', [
+                $dependency('foo', './theme components.css'),
+                $dependency('bar', './theme components.css'),
+                $dependency('icon', './icons/arrow.css'),
+            ]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
     'css modules parses upstream composes from delimiters strictly' => static function (TestRunner $t) use ($export, $local, $dependency): void {
         $css = <<<'CSS'
 .test {

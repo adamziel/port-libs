@@ -65,6 +65,10 @@ final class SourceMap
     public function setSourceContent(int $sourceIndex, string $content): void
     {
         $this->assertSourceIndex($sourceIndex);
+        for ($i = count($this->sourcesContent); $i < $sourceIndex; $i++) {
+            $this->sourcesContent[$i] = '';
+        }
+
         $this->sourcesContent[$sourceIndex] = $content;
     }
 
@@ -138,7 +142,7 @@ final class SourceMap
             $mappedIndex = $this->addSource($source);
             $sourceIndexes[$index] = $mappedIndex;
             if (array_key_exists($index, $sourceMap->sourcesContent)) {
-                $this->sourcesContent[$mappedIndex] = $sourceMap->sourcesContent[$index];
+                $this->setSourceContent($mappedIndex, $sourceMap->sourcesContent[$index]);
             }
         }
 
@@ -232,7 +236,7 @@ final class SourceMap
             $mappedIndex = $this->addSource($source);
             $sourceIndexes[$index] = $mappedIndex;
             if (array_key_exists($index, $originalSourceMap->sourcesContent)) {
-                $this->sourcesContent[$mappedIndex] = $originalSourceMap->sourcesContent[$index];
+                $this->setSourceContent($mappedIndex, $originalSourceMap->sourcesContent[$index]);
             }
         }
 
@@ -501,7 +505,15 @@ final class SourceMap
         }
 
         $sources = self::listOfStrings($data['sources'] ?? [], 'sources');
-        $sourcesContent = self::listOfNullableStrings($data['sourcesContent'] ?? [], 'sourcesContent');
+        $rawSourcesContent = self::listOfNullableStrings($data['sourcesContent'] ?? [], 'sourcesContent');
+        $sourcesContent = [];
+        foreach ($sources as $index => $_source) {
+            $sourcesContent[] = $rawSourcesContent[$index] ?? '';
+            if ($sourcesContent[$index] === null) {
+                $sourcesContent[$index] = '';
+            }
+        }
+
         $names = self::listOfStrings($data['names'] ?? [], 'names');
 
         $map = new self($projectRoot);
@@ -518,6 +530,25 @@ final class SourceMap
         }
 
         return self::fromArray($data, $projectRoot);
+    }
+
+    public static function fromDataUrl(string $dataUrl, string $projectRoot = '/'): self
+    {
+        [$mimeType, $payload, $isBase64] = self::parseDataUrl($dataUrl);
+        if (strtolower($mimeType) !== 'application/json') {
+            throw new InvalidArgumentException('Source map data URL MIME type must be application/json.');
+        }
+
+        if ($isBase64) {
+            $json = base64_decode($payload, true);
+            if ($json === false) {
+                throw new InvalidArgumentException('Source map data URL payload must be valid base64.');
+            }
+
+            return self::fromJson($json, $projectRoot);
+        }
+
+        return self::fromJson(rawurldecode($payload), $projectRoot);
     }
 
     /**
@@ -650,6 +681,11 @@ final class SourceMap
     public function toJson(?string $sourceRoot = null, bool $includeSourceRoot = true): string
     {
         return json_encode($this->toArray($sourceRoot, $includeSourceRoot), JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+    }
+
+    public function toDataUrl(?string $sourceRoot = null): string
+    {
+        return 'data:application/json;charset=utf-8;base64,' . base64_encode($this->toJson($sourceRoot));
     }
 
     /**
@@ -1026,6 +1062,39 @@ final class SourceMap
     }
 
     /**
+     * @return array{0:string,1:string,2:bool}
+     */
+    private static function parseDataUrl(string $dataUrl): array
+    {
+        if (!str_starts_with(strtolower($dataUrl), 'data:')) {
+            throw new InvalidArgumentException('Source map data URL must use the data: scheme.');
+        }
+
+        $comma = strpos($dataUrl, ',');
+        if ($comma === false) {
+            throw new InvalidArgumentException('Source map data URL is missing a payload separator.');
+        }
+
+        $metadata = substr($dataUrl, 5, $comma - 5);
+        $payload = substr($dataUrl, $comma + 1);
+        $parts = $metadata === '' ? [] : explode(';', $metadata);
+        $mimeType = $parts[0] ?? 'text/plain';
+        if ($mimeType === '') {
+            $mimeType = 'text/plain';
+        }
+
+        $isBase64 = false;
+        foreach (array_slice($parts, 1) as $parameter) {
+            if (strtolower($parameter) === 'base64') {
+                $isBase64 = true;
+                break;
+            }
+        }
+
+        return [$mimeType, $payload, $isBase64];
+    }
+
+    /**
      * @param array{
      *     generatedLine:int,
      *     generatedColumn:int,
@@ -1054,12 +1123,6 @@ final class SourceMap
      */
     private function sourceContentsForJson(): array
     {
-        $contents = [];
-        $count = count($this->sources);
-        for ($i = 0; $i < $count; $i++) {
-            $contents[] = $this->sourcesContent[$i] ?? null;
-        }
-
-        return $contents;
+        return array_values($this->sourcesContent);
     }
 }

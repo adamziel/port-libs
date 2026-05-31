@@ -231,6 +231,48 @@ return [
             SourceMap::fromJson('{"version":3,"mappings":"A","sources":[7],"names":[]}');
         });
     },
+    'source map imports upstream json defaults and data URLs' => static function (TestRunner $t): void {
+        $jsonWithoutContents = SourceMap::fromJson('{"version":3,"sourceRoot":"/","mappings":";C","sources":["file.js"],"names":[]}');
+        $jsonWithNullContents = SourceMap::fromJson('{"version":3,"sourceRoot":"/","mappings":";C","sources":["file.js"],"sourcesContent":[null],"names":[]}');
+
+        $t->same([''], $jsonWithoutContents->toArray(null, false)['sourcesContent']);
+        $t->same([''], $jsonWithNullContents->toArray(null, false)['sourcesContent']);
+        $t->same(
+            '{"version":3,"sourceRoot":"/","mappings":";C","sources":["file.js"],"sourcesContent":[""],"names":[]}',
+            $jsonWithoutContents->toJson('/')
+        );
+
+        $sparseContents = new SourceMap();
+        $sparseContents->addSource('first.css');
+        $second = $sparseContents->addSource('second.css');
+        $sparseContents->setSourceContent($second, '.second{}');
+        $t->same(['', '.second{}'], $sparseContents->toArray(null, false)['sourcesContent']);
+
+        $sourceOnly = new SourceMap();
+        $sourceOnly->addSource('file.css');
+        $t->same([], $sourceOnly->toArray(null, false)['sourcesContent']);
+
+        $dataUrlMap = new SourceMap();
+        $dataUrlMap->addGeneratedMapping(1, 1);
+        $dataUrl = $dataUrlMap->toDataUrl('/');
+        $t->same(
+            'data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJzb3VyY2VSb290IjoiLyIsIm1hcHBpbmdzIjoiO0MiLCJzb3VyY2VzIjpbXSwic291cmNlc0NvbnRlbnQiOltdLCJuYW1lcyI6W119',
+            $dataUrl
+        );
+
+        $roundTrip = SourceMap::fromDataUrl($dataUrl);
+        $t->same(';C', $roundTrip->writeVlq());
+        $t->same(
+            [['generatedLine' => 1, 'generatedColumn' => 1, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null]],
+            SourceMap::decodeVlq($roundTrip->writeVlq())
+        );
+
+        $percentEncoded = 'data:application/json,' . rawurlencode('{"version":3,"sourceRoot":"/","mappings":";C","sources":[],"sourcesContent":[],"names":[]}');
+        $t->same(';C', SourceMap::fromDataUrl($percentEncoded)->writeVlq());
+        $t->throws(InvalidArgumentException::class, static function () use ($dataUrl): void {
+            SourceMap::fromDataUrl(str_replace('application/json', 'text/plain', $dataUrl));
+        });
+    },
     'source map normalizes upstream project-root source paths' => static function (TestRunner $t): void {
         $map = new SourceMap('/srv/www/site/wp-content/themes/example');
         $style = $map->addSource('/srv/www/site/wp-content/themes/example/style.css');

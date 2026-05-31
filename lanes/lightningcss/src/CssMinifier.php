@@ -20,7 +20,7 @@ final class CssMinifier
         ];
     }
 
-    public function minify(string $css): string
+    public function minify(string $css, bool $preserveFontTargetFallbacks = false): string
     {
         [$css, $licenseComments] = $this->stripComments($css);
         $output = '';
@@ -105,7 +105,7 @@ final class CssMinifier
         $css = $this->composePositionDeclarationBlocks($css);
         $css = $this->composeGridDeclarationBlocks($css);
         $css = $this->composeBorderRadiusDeclarationBlocks($css);
-        $css = $this->composeFontDeclarationBlocks($css);
+        $css = $this->composeFontDeclarationBlocks($css, $preserveFontTargetFallbacks);
         $css = $this->composeListStyleDeclarationBlocks($css);
         $css = $this->composeTextEmphasisDeclarationBlocks($css);
         $css = $this->composeTransitionDeclarationBlocks($css);
@@ -7386,7 +7386,7 @@ final class CssMinifier
         return $output;
     }
 
-    private function composeFontDeclarationBlocks(string $css): string
+    private function composeFontDeclarationBlocks(string $css, bool $preserveTargetFallbacks = false): string
     {
         $output = '';
         $cursor = 0;
@@ -7400,9 +7400,9 @@ final class CssMinifier
             }
 
             $close = $this->findMatchingBraceInCss($css, $open);
-            $body = $this->composeFontDeclarationBlocks(substr($css, $open + 1, $close - $open - 1));
+            $body = $this->composeFontDeclarationBlocks(substr($css, $open + 1, $close - $open - 1), $preserveTargetFallbacks);
             if (!str_contains($body, '{')) {
-                $body = $this->composeFontDeclarationList($body);
+                $body = $this->composeFontDeclarationList($body, $preserveTargetFallbacks);
             }
 
             $output .= substr($css, $cursor, $open - $cursor + 1) . $body . '}';
@@ -7727,7 +7727,7 @@ final class CssMinifier
         return $horizontalValue . '/' . implode(' ', $this->compressBoxSideValues($vertical));
     }
 
-    private function composeFontDeclarationList(string $body): string
+    private function composeFontDeclarationList(string $body, bool $preserveTargetFallbacks = false): string
     {
         if (stripos($body, 'font') === false && stripos($body, 'line-height') === false) {
             return $body;
@@ -7738,7 +7738,7 @@ final class CssMinifier
             return $body;
         }
 
-        $this->rewriteFontGroup($entries);
+        $this->rewriteFontGroup($entries, $preserveTargetFallbacks);
 
         return $this->serializeDeclarationEntriesForComposition($entries);
     }
@@ -8286,7 +8286,7 @@ final class CssMinifier
     /**
      * @param list<array{property:string,name:string,value:string,important:bool,drop:bool}> $entries
      */
-    private function rewriteFontGroup(array &$entries): void
+    private function rewriteFontGroup(array &$entries, bool $preserveTargetFallbacks = false): void
     {
         $properties = [
             'font' => 'font',
@@ -8320,8 +8320,14 @@ final class CssMinifier
         }
 
         if ($lastShorthand !== null) {
+            $preserveEarlierFontFallbacks = $preserveTargetFallbacks
+                && $this->fontShorthandHasTargetFallbackBoundary($entries[$lastShorthand]['value']);
+
             foreach ($relevantIndices as $index) {
-                if ($index < $lastShorthand) {
+                if (
+                    $index < $lastShorthand
+                    && (!$preserveEarlierFontFallbacks || $entries[$index]['property'] !== 'font')
+                ) {
                     $entries[$index]['drop'] = true;
                 }
             }
@@ -8419,6 +8425,11 @@ final class CssMinifier
             'important' => false,
             'drop' => false,
         ];
+    }
+
+    private function fontShorthandHasTargetFallbackBoundary(string $value): bool
+    {
+        return (bool) preg_match('/(?:^|[\s,])system-ui(?:[\s,]|$)|(?:^|[\s\/])xxx-large(?:[\s\/]|$)|(?:\d|\.)cq(?:w|h|i|b|min|max)\b/i', $value);
     }
 
     private function serializeContainerShorthand(string $name, string $type): string

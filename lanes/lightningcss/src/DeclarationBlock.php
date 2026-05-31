@@ -101,6 +101,20 @@ final class DeclarationBlock
         'grid-auto-rows',
         'grid-auto-columns',
     ];
+    private const PLACE_ALIGNMENT_SHORTHANDS = [
+        'place-content' => [
+            'align' => 'align-content',
+            'justify' => 'justify-content',
+        ],
+        'place-self' => [
+            'align' => 'align-self',
+            'justify' => 'justify-self',
+        ],
+        'place-items' => [
+            'align' => 'align-items',
+            'justify' => 'justify-items',
+        ],
+    ];
     private const GAP_LONGHANDS = [
         'row-gap',
         'column-gap',
@@ -272,6 +286,13 @@ final class DeclarationBlock
         $gridValue = $this->getGridProperty($entries, $property);
         if ($gridValue !== null) {
             return $gridValue;
+        }
+        $placeAlignmentValue = $this->getPlaceAlignmentProperty($entries, $property);
+        if ($placeAlignmentValue !== null) {
+            return $placeAlignmentValue;
+        }
+        if ($this->isPlaceAlignmentProperty($property)) {
+            return null;
         }
         $gapValue = $this->getGapProperty($entries, $property);
         if ($gapValue !== null) {
@@ -1886,6 +1907,438 @@ final class DeclarationBlock
             || in_array($property, self::GRID_TEMPLATE_COMPONENTS, true)
             || in_array($property, self::GRID_AUTO_COMPONENTS, true)
             || in_array($property, self::GRID_AREA_COMPONENTS, true);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{value:string, important:bool}|null
+     */
+    private function getPlaceAlignmentProperty(array $entries, string $property): ?array
+    {
+        $shorthand = $this->placeAlignmentShorthandForProperty($property);
+        if ($shorthand === null) {
+            return null;
+        }
+
+        $components = [
+            'align' => null,
+            'justify' => null,
+        ];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $shorthand) {
+                $parsed = $this->parsePlaceAlignmentComponents($shorthand, $entry['value']);
+                if ($parsed === null) {
+                    continue;
+                }
+
+                $components['align'] = [
+                    'value' => $parsed['align'],
+                    'important' => $entry['important'],
+                ];
+                $components['justify'] = [
+                    'value' => $parsed['justify'],
+                    'important' => $entry['important'],
+                ];
+                continue;
+            }
+
+            $slot = $this->placeAlignmentLonghandSlot($shorthand, $entry['property']);
+            if ($slot === null) {
+                continue;
+            }
+
+            $normalized = $this->normalizePlaceAlignmentComponent($shorthand, $slot, $entry['value']);
+            if ($normalized === null) {
+                continue;
+            }
+
+            $components[$slot] = [
+                'value' => $normalized,
+                'important' => $entry['important'],
+            ];
+        }
+
+        $longhands = self::PLACE_ALIGNMENT_SHORTHANDS[$shorthand];
+        if ($property === $longhands['align']) {
+            return $components['align'];
+        }
+        if ($property === $longhands['justify']) {
+            return $components['justify'];
+        }
+
+        $important = $this->sameImportant(array_values($components));
+        if ($important === null) {
+            return null;
+        }
+
+        return [
+            'value' => $this->serializePlaceAlignmentComponents(
+                $shorthand,
+                $components['align']['value'],
+                $components['justify']['value']
+            ),
+            'important' => $important,
+        ];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function setPlaceAlignmentLonghand(array $entries, string $property, string $value, bool $important): ?string
+    {
+        $shorthand = $this->placeAlignmentShorthandForLonghand($property);
+        if ($shorthand === null) {
+            return null;
+        }
+
+        $slot = $this->placeAlignmentLonghandSlot($shorthand, $property);
+        if ($slot === null) {
+            return null;
+        }
+
+        $value = $this->normalizePlaceAlignmentComponent($shorthand, $slot, $value);
+        if ($value === null) {
+            return null;
+        }
+
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                $entries[$index] = [
+                    'property' => $property,
+                    'value' => $value,
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== $shorthand) {
+                continue;
+            }
+            if ($entries[$index]['important'] !== $important) {
+                return null;
+            }
+
+            $components = $this->parsePlaceAlignmentComponents($shorthand, $entries[$index]['value']);
+            if ($components === null) {
+                continue;
+            }
+
+            $components[$slot] = $value;
+            $entries[$index] = [
+                'property' => $shorthand,
+                'value' => $this->serializePlaceAlignmentComponents($shorthand, $components['align'], $components['justify']),
+                'important' => $important,
+            ];
+
+            return $this->serializeEntries($entries);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     */
+    private function removePlaceAlignmentLonghand(array $entries, string $property): string
+    {
+        $shorthand = $this->placeAlignmentShorthandForLonghand($property);
+        if ($shorthand === null) {
+            return $this->serializeEntries($entries);
+        }
+
+        $slot = $this->placeAlignmentLonghandSlot($shorthand, $property);
+        if ($slot === null) {
+            return $this->serializeEntries($entries);
+        }
+
+        $result = [];
+        foreach ($entries as $entry) {
+            if ($entry['property'] === $property) {
+                continue;
+            }
+
+            if ($entry['property'] !== $shorthand) {
+                $result[] = $entry;
+                continue;
+            }
+
+            $components = $this->parsePlaceAlignmentComponents($shorthand, $entry['value']);
+            if ($components === null) {
+                $result[] = $entry;
+                continue;
+            }
+
+            $remainingSlot = $slot === 'align' ? 'justify' : 'align';
+            $result[] = [
+                'property' => self::PLACE_ALIGNMENT_SHORTHANDS[$shorthand][$remainingSlot],
+                'value' => $components[$remainingSlot],
+                'important' => $entry['important'],
+            ];
+        }
+
+        return $this->serializeEntries($result);
+    }
+
+    /**
+     * @return array{align:string, justify:string}|null
+     */
+    private function parsePlaceAlignmentComponents(string $shorthand, string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(strtolower(trim($value)));
+        if ($tokens === [] || count($tokens) > 4) {
+            return null;
+        }
+
+        $maxAlignLength = min(2, count($tokens));
+        for ($alignLength = 1; $alignLength <= $maxAlignLength; $alignLength++) {
+            $align = $this->normalizePlaceAlignmentComponent(
+                $shorthand,
+                'align',
+                implode(' ', array_slice($tokens, 0, $alignLength))
+            );
+            if ($align === null) {
+                continue;
+            }
+
+            $remaining = array_slice($tokens, $alignLength);
+            if ($remaining === []) {
+                return [
+                    'align' => $align,
+                    'justify' => $this->defaultPlaceAlignmentJustify($shorthand, $align),
+                ];
+            }
+            if (count($remaining) > 2) {
+                continue;
+            }
+
+            $justify = $this->normalizePlaceAlignmentComponent($shorthand, 'justify', implode(' ', $remaining));
+            if ($justify !== null) {
+                return [
+                    'align' => $align,
+                    'justify' => $justify,
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function normalizePlaceAlignmentComponent(string $shorthand, string $slot, string $value): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(strtolower(trim($value)));
+        if ($tokens === [] || count($tokens) > 2) {
+            return null;
+        }
+
+        $baseline = $this->normalizeBaselinePosition($tokens);
+        if ($baseline !== null) {
+            if ($shorthand === 'place-content' && $slot === 'justify') {
+                return null;
+            }
+
+            return $baseline;
+        }
+
+        if ($slot === 'justify' && $shorthand === 'place-items') {
+            $legacy = $this->normalizeLegacyJustify($tokens);
+            if ($legacy !== null) {
+                return $legacy;
+            }
+        }
+
+        if (count($tokens) === 1) {
+            $token = $tokens[0];
+            if ($this->isPlaceAlignmentSingleKeyword($shorthand, $slot, $token)) {
+                return $token;
+            }
+
+            return null;
+        }
+
+        if (!in_array($tokens[0], ['safe', 'unsafe'], true)) {
+            return null;
+        }
+
+        $position = $tokens[1];
+        if ($this->isPlaceAlignmentPositionKeyword($shorthand, $slot, $position)) {
+            return $tokens[0] . ' ' . $position;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function normalizeBaselinePosition(array $tokens): ?string
+    {
+        if ($tokens === ['baseline'] || $tokens === ['first', 'baseline']) {
+            return 'baseline';
+        }
+        if ($tokens === ['last', 'baseline']) {
+            return 'last baseline';
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function normalizeLegacyJustify(array $tokens): ?string
+    {
+        if (count($tokens) !== 2) {
+            return null;
+        }
+
+        if ($tokens[0] === 'legacy' && in_array($tokens[1], ['left', 'right', 'center'], true)) {
+            return 'legacy ' . $tokens[1];
+        }
+        if ($tokens[1] === 'legacy' && in_array($tokens[0], ['left', 'right', 'center'], true)) {
+            return 'legacy ' . $tokens[0];
+        }
+
+        return null;
+    }
+
+    private function isPlaceAlignmentSingleKeyword(string $shorthand, string $slot, string $token): bool
+    {
+        if ($shorthand === 'place-content') {
+            if (in_array($token, ['normal', 'space-between', 'space-around', 'space-evenly', 'stretch'], true)) {
+                return true;
+            }
+
+            return $this->isPlaceAlignmentPositionKeyword($shorthand, $slot, $token);
+        }
+
+        if ($shorthand === 'place-self' && $slot === 'align' && $token === 'auto') {
+            return true;
+        }
+        if ($shorthand === 'place-self' && $slot === 'justify' && $token === 'auto') {
+            return true;
+        }
+
+        if (in_array($token, ['normal', 'stretch'], true)) {
+            return true;
+        }
+
+        return $this->isPlaceAlignmentPositionKeyword($shorthand, $slot, $token);
+    }
+
+    private function isPlaceAlignmentPositionKeyword(string $shorthand, string $slot, string $token): bool
+    {
+        $contentPositions = ['center', 'start', 'end', 'flex-start', 'flex-end'];
+        $selfPositions = ['center', 'start', 'end', 'self-start', 'self-end', 'flex-start', 'flex-end'];
+
+        if ($shorthand === 'place-content') {
+            if ($slot === 'justify' && in_array($token, ['left', 'right'], true)) {
+                return true;
+            }
+
+            return in_array($token, $contentPositions, true);
+        }
+
+        if ($slot === 'justify' && in_array($token, ['left', 'right'], true)) {
+            return true;
+        }
+
+        return in_array($token, $selfPositions, true);
+    }
+
+    private function defaultPlaceAlignmentJustify(string $shorthand, string $align): string
+    {
+        if ($shorthand === 'place-content' && $this->isBaselineAlignmentValue($align)) {
+            return 'start';
+        }
+
+        return $align;
+    }
+
+    private function serializePlaceAlignmentComponents(string $shorthand, string $align, string $justify): string
+    {
+        if ($this->placeAlignmentCanOmitJustify($shorthand, $align, $justify)) {
+            return $align;
+        }
+
+        return $align . ' ' . $justify;
+    }
+
+    private function placeAlignmentCanOmitJustify(string $shorthand, string $align, string $justify): bool
+    {
+        if ($shorthand === 'place-content') {
+            if ($this->isBaselineAlignmentValue($align)) {
+                return false;
+            }
+
+            return $align === $justify;
+        }
+
+        if ($justify === 'auto' && $shorthand === 'place-self') {
+            return true;
+        }
+        if ($justify === 'normal' && $align === 'normal') {
+            return true;
+        }
+        if ($justify === 'stretch' && $align === 'normal') {
+            return true;
+        }
+        if ($this->isBaselineAlignmentValue($justify) && $align === $justify) {
+            return true;
+        }
+
+        return $align === $justify && $this->isSelfPositionAlignmentValue($align);
+    }
+
+    private function isBaselineAlignmentValue(string $value): bool
+    {
+        return $value === 'baseline' || $value === 'last baseline';
+    }
+
+    private function isSelfPositionAlignmentValue(string $value): bool
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if (count($tokens) === 2 && in_array($tokens[0], ['safe', 'unsafe'], true)) {
+            $value = $tokens[1];
+        }
+
+        return in_array($value, ['center', 'start', 'end', 'self-start', 'self-end', 'flex-start', 'flex-end'], true);
+    }
+
+    private function isPlaceAlignmentProperty(string $property): bool
+    {
+        return $this->placeAlignmentShorthandForProperty($property) !== null;
+    }
+
+    private function placeAlignmentShorthandForProperty(string $property): ?string
+    {
+        if (isset(self::PLACE_ALIGNMENT_SHORTHANDS[$property])) {
+            return $property;
+        }
+
+        return $this->placeAlignmentShorthandForLonghand($property);
+    }
+
+    private function placeAlignmentShorthandForLonghand(string $property): ?string
+    {
+        foreach (self::PLACE_ALIGNMENT_SHORTHANDS as $shorthand => $longhands) {
+            if ($property === $longhands['align'] || $property === $longhands['justify']) {
+                return $shorthand;
+            }
+        }
+
+        return null;
+    }
+
+    private function placeAlignmentLonghandSlot(string $shorthand, string $property): ?string
+    {
+        foreach (self::PLACE_ALIGNMENT_SHORTHANDS[$shorthand] ?? [] as $slot => $longhand) {
+            if ($property === $longhand) {
+                return $slot;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -4360,6 +4813,10 @@ final class DeclarationBlock
         if ($gridValue !== null) {
             return $this->parseEntries($gridValue);
         }
+        $placeAlignmentValue = $this->setPlaceAlignmentLonghand($entries, $property, $value, $important);
+        if ($placeAlignmentValue !== null) {
+            return $this->parseEntries($placeAlignmentValue);
+        }
         $gapValue = $this->setGapLonghand($entries, $property, $value, $important);
         if ($gapValue !== null) {
             return $this->parseEntries($gapValue);
@@ -5303,6 +5760,12 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
+        if ($this->placeAlignmentShorthandForLonghand($property) !== null) {
+            $normalEntries = $this->parseEntries($this->removePlaceAlignmentLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removePlaceAlignmentLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+        }
         if ($this->isGapLonghand($property)) {
             $normalEntries = $this->parseEntries($this->removeGapLonghand($normalEntries, $property));
             $importantEntries = $this->parseEntries($this->removeGapLonghand($importantEntries, $property));
@@ -5405,6 +5868,10 @@ final class DeclarationBlock
         $gridLonghands = $this->gridShorthandLonghands($property);
         if ($gridLonghands !== null) {
             return $gridLonghands;
+        }
+
+        if (isset(self::PLACE_ALIGNMENT_SHORTHANDS[$property])) {
+            return array_values(self::PLACE_ALIGNMENT_SHORTHANDS[$property]);
         }
 
         if ($property === 'border-image') {

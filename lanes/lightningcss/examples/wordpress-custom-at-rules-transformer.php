@@ -70,7 +70,7 @@ $environmentTokens = [];
 $variableTokens = [];
 $transformer = new CustomAtRuleTransformer();
 
-$result = $transformer->transform($css, [
+$transform = $transformer->transformWithDependencies($css, [
     'tokens' => [
         'prelude' => '<custom-ident>',
         'body' => 'declaration-list',
@@ -91,23 +91,31 @@ $result = $transformer->transform($css, [
         'body' => 'style-block',
     ],
 ], CustomAtRuleTransformer::composeVisitors([
+    static function (array $context): array {
+        $addDependency = $context['addDependency'];
+
+        return [
+            'Rule' => [
+                'unknown' => [
+                    'asset' => static function (array $rule) use ($addDependency): array {
+                        $addDependency(['type' => 'script', 'path' => $rule['preludeTokens'][0]['value']['value']]);
+
+                        return [];
+                    },
+                    'block-color' => static function (array $rule): array {
+                        $rule['name'] = 'wp-accent';
+
+                        return [
+                            'type' => 'unknown',
+                            'value' => $rule,
+                        ];
+                    },
+                ],
+            ],
+        ];
+    },
     [
         'Rule' => [
-            'unknown' => [
-                'asset' => static function (array $rule) use (&$dependencies): array {
-                    $dependencies[] = ['type' => 'script', 'path' => $rule['preludeTokens'][0]['value']['value']];
-
-                    return [];
-                },
-                'block-color' => static function (array $rule): array {
-                    $rule['name'] = 'wp-accent';
-
-                    return [
-                        'type' => 'unknown',
-                        'value' => $rule,
-                    ];
-                },
-            ],
             'custom' => [
                 'tokens' => static function (array $rule) use (&$tokens): array {
                     foreach ($rule['declarations'] as $declaration) {
@@ -127,90 +135,94 @@ $result = $transformer->transform($css, [
             ],
         ],
     ],
-    [
-        'Rule' => [
-            'unknown' => static function (array $rule) use (&$dependencies, &$colorAliases, &$environmentTokens, &$variableTokens): ?array {
-                if ($rule['name'] === 'asset-style') {
-                    $dependencies[] = ['type' => 'style', 'path' => $rule['preludeTokens'][0]['value']['value']];
+    static function (array $context) use (&$tokens, &$colorAliases, &$environmentTokens, &$variableTokens): array {
+        $addDependency = $context['addDependency'];
+
+        return [
+            'Rule' => [
+                'unknown' => static function (array $rule) use ($addDependency, &$colorAliases, &$environmentTokens, &$variableTokens): ?array {
+                    if ($rule['name'] === 'asset-style') {
+                        $addDependency(['type' => 'style', 'path' => $rule['preludeTokens'][0]['value']['value']]);
+
+                        return [];
+                    }
+                    if ($rule['name'] === 'token') {
+                        $colorAliases[$rule['preludeTokens'][0]['value']] = $rule['preludeTokens'][1]['value'];
+
+                        return [];
+                    }
+                    if ($rule['name'] === 'env-token') {
+                        $environmentTokens[$rule['preludeTokens'][0]['value']] = [
+                            'raw' => $rule['preludeTokens'][1]['value'],
+                        ];
+
+                        return [];
+                    }
+                    if ($rule['name'] === 'var-token') {
+                        $variableTokens[$rule['preludeTokens'][0]['value']] = [
+                            'raw' => $rule['preludeTokens'][1]['value'],
+                        ];
+
+                        return [];
+                    }
+
+                    if (!empty($rule['hasBlock'])) {
+                        return null;
+                    }
+
+                    $colorAliases[$rule['name']] = $rule['prelude'];
 
                     return [];
-                }
-                if ($rule['name'] === 'token') {
-                    $colorAliases[$rule['preludeTokens'][0]['value']] = $rule['preludeTokens'][1]['value'];
+                },
+                'custom' => [
+                    'responsive' => static function (array $rule, CustomAtRuleTransformer $transformer): array {
+                        return [
+                            $transformer->ruleList($rule['body']),
+                            $transformer->media('(min-width: 782px)', '.md\\:wp-block-card__stack{margin:10px}'),
+                        ];
+                    },
+                    'breakpoint' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->media(
+                        '(width <= ' . $rule['prelude'] . ')',
+                        $transformer->styleBlock($rule['body'])
+                    ),
+                ],
+            ],
+            'Token' => [
+                'at-keyword' => static function (array $token) use (&$colorAliases): ?string {
+                    return $colorAliases[$token['value']] ?? null;
+                },
+            ],
+            'Function' => [
+                'token' => static function (array $arguments) use (&$tokens): ?string {
+                    return $tokens[$arguments[0] ?? ''] ?? null;
+                },
+            ],
+            'EnvironmentVariable' => static function (array $environmentVariable) use (&$environmentTokens): ?array {
+                $name = $environmentVariable['name']['ident'] ?? null;
 
-                    return [];
-                }
-                if ($rule['name'] === 'env-token') {
-                    $environmentTokens[$rule['preludeTokens'][0]['value']] = [
-                        'raw' => $rule['preludeTokens'][1]['value'],
-                    ];
-
-                    return [];
-                }
-                if ($rule['name'] === 'var-token') {
-                    $variableTokens[$rule['preludeTokens'][0]['value']] = [
-                        'raw' => $rule['preludeTokens'][1]['value'],
-                    ];
-
-                    return [];
-                }
-
-                if (!empty($rule['hasBlock'])) {
-                    return null;
-                }
-
-                $colorAliases[$rule['name']] = $rule['prelude'];
-
-                return [];
+                return is_string($name) ? ($environmentTokens[$name] ?? null) : null;
             },
-            'custom' => [
-                'responsive' => static function (array $rule, CustomAtRuleTransformer $transformer): array {
+            'Variable' => static function (array $variable) use (&$variableTokens): ?array {
+                $name = $variable['name']['ident'] ?? null;
+
+                return is_string($name) ? ($variableTokens[$name] ?? null) : null;
+            },
+            'FunctionExit' => [
+                'wp-size' => static function (array $function): ?array {
+                    $argument = $function['arguments'][0] ?? null;
+                    if (!is_array($argument) || ($argument['value']['value'] ?? null) !== 'card') {
+                        return null;
+                    }
+
                     return [
-                        $transformer->ruleList($rule['body']),
-                        $transformer->media('(min-width: 782px)', '.md\\:wp-block-card__stack{margin:10px}'),
+                        'type' => 'length',
+                        'unit' => 'px',
+                        'value' => 32,
                     ];
                 },
-                'breakpoint' => static fn (array $rule, CustomAtRuleTransformer $transformer): array => $transformer->media(
-                    '(width <= ' . $rule['prelude'] . ')',
-                    $transformer->styleBlock($rule['body'])
-                ),
             ],
-        ],
-        'Token' => [
-            'at-keyword' => static function (array $token) use (&$colorAliases): ?string {
-                return $colorAliases[$token['value']] ?? null;
-            },
-        ],
-        'Function' => [
-            'token' => static function (array $arguments) use (&$tokens): ?string {
-                return $tokens[$arguments[0] ?? ''] ?? null;
-            },
-        ],
-        'EnvironmentVariable' => static function (array $environmentVariable) use (&$environmentTokens): ?array {
-            $name = $environmentVariable['name']['ident'] ?? null;
-
-            return is_string($name) ? ($environmentTokens[$name] ?? null) : null;
-        },
-        'Variable' => static function (array $variable) use (&$variableTokens): ?array {
-            $name = $variable['name']['ident'] ?? null;
-
-            return is_string($name) ? ($variableTokens[$name] ?? null) : null;
-        },
-        'FunctionExit' => [
-            'wp-size' => static function (array $function): ?array {
-                $argument = $function['arguments'][0] ?? null;
-                if (!is_array($argument) || ($argument['value']['value'] ?? null) !== 'card') {
-                    return null;
-                }
-
-                return [
-                    'type' => 'length',
-                    'unit' => 'px',
-                    'value' => 32,
-                ];
-            },
-        ],
-    ],
+        ];
+    },
     [
         'FunctionExit' => static function (array $function): ?array {
             if ($function['name'] !== 'wp-rem') {
@@ -267,6 +279,8 @@ $result = $transformer->transform($css, [
         ],
     ],
 ]));
+$result = $transform['code'];
+$dependencies = $transform['dependencies'];
 
 $expected = '@media (width<=782px){.wp-block-card{padding:24px}}.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{gap:2rem;outline-color:#056ef0;box-shadow:0 0 0 1px #056ef0;margin-left:20px;margin-right:20px}.wp-block-card.focus-visible{outline-color:#056ef0}.wp-block-card:focus-visible{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
 

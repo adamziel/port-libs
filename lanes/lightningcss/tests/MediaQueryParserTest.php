@@ -110,6 +110,10 @@ return [
         $t->same('(min-monochrome:1) and (max-monochrome:4)', $parser->lowerRangeSyntaxList('(1 <= monochrome <= 4)'));
         $t->same('(max-device-width:480px)', $parser->lowerRangeSyntaxList('(device-width <= 480px)'));
         $t->same('(min-horizontal-viewport-segments:2)', $parser->lowerRangeSyntaxList('(horizontal-viewport-segments >= 2)'));
+        $t->same('(width:240px)', $parser->lowerRangeSyntaxList('(width = 240px)'));
+        $t->same('(width:240px)', $parser->lowerRangeSyntaxList('(240px = width)'));
+        $t->same('(theme-state:expanded)', $parser->lowerRangeSyntaxList('(theme-state = expanded)'));
+        $t->same('(--wp-breakpoint:env(--wp-breakpoint))', $parser->lowerRangeSyntaxList('(--wp-breakpoint = env(--wp-breakpoint))'));
     },
     'media query parser rejects upstream invalid typed range features' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
@@ -134,6 +138,7 @@ return [
             '(100px <= width > 200px)',
             '(100px > width < 200px)',
             '(1 < color-index > 3)',
+            '(100px = width = 200px)',
         ] as $query) {
             $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList($query));
         }

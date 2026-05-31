@@ -367,6 +367,33 @@ return [
         );
         $t->same(null, $block->getProperty('-webkit-flex-flow: row', 'flex-direction'));
     },
+    'declaration block reads upstream place alignment cssom shorthands and longhands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(['value' => 'center space-between', 'important' => false], $block->getProperty('place-content: center space-between', 'place-content'));
+        $t->same(['value' => 'center', 'important' => false], $block->getProperty('place-content: center space-between', 'align-content'));
+        $t->same(['value' => 'space-between', 'important' => false], $block->getProperty('place-content: center space-between', 'justify-content'));
+        $t->same(['value' => 'baseline start', 'important' => false], $block->getProperty('place-content: first baseline', 'place-content'));
+        $t->same(['value' => 'baseline', 'important' => false], $block->getProperty('place-content: first baseline', 'align-content'));
+        $t->same(['value' => 'start', 'important' => false], $block->getProperty('place-content: first baseline', 'justify-content'));
+        $t->same(
+            ['value' => 'safe center unsafe right', 'important' => true],
+            $block->getProperty('align-content: safe center !important; justify-content: unsafe right !important', 'place-content')
+        );
+        $t->same(null, $block->getProperty('align-content: center !important; justify-content: end', 'place-content'));
+        $t->same(['value' => 'auto end', 'important' => false], $block->getProperty('place-self: auto end', 'place-self'));
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty('place-self: auto end', 'align-self'));
+        $t->same(['value' => 'end', 'important' => false], $block->getProperty('place-self: auto end', 'justify-self'));
+        $t->same(['value' => 'normal', 'important' => false], $block->getProperty('place-items: normal stretch', 'place-items'));
+        $t->same(['value' => 'normal', 'important' => false], $block->getProperty('place-items: normal stretch', 'align-items'));
+        $t->same(['value' => 'stretch', 'important' => false], $block->getProperty('place-items: normal stretch', 'justify-items'));
+        $t->same(['value' => 'stretch stretch', 'important' => false], $block->getProperty('place-items: stretch', 'place-items'));
+        $t->same(['value' => 'stretch stretch', 'important' => false], $block->getProperty('place-self: stretch', 'place-self'));
+        $t->same(
+            ['value' => 'last baseline legacy left', 'important' => false],
+            $block->getProperty('align-items: last baseline; justify-items: left legacy', 'place-items')
+        );
+    },
     'declaration block reads upstream gap cssom shorthand and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -707,6 +734,38 @@ return [
         $t->same(
             'flex-flow: wrap; -webkit-flex-direction: column',
             $block->setProperty('flex-flow: row wrap', '-webkit-flex-direction', 'column')
+        );
+    },
+    'declaration block sets upstream place alignment cssom longhands in existing shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'place-content: start space-between',
+            $block->setProperty('place-content: center space-between', 'align-content', 'start')
+        );
+        $t->same(
+            'place-content: center',
+            $block->setProperty('place-content: center space-between', 'justify-content', 'center')
+        );
+        $t->same(
+            'place-content: baseline end',
+            $block->setProperty('place-content: first baseline', 'justify-content', 'end')
+        );
+        $t->same(
+            'place-self: auto end',
+            $block->setProperty('place-self: auto start', 'justify-self', 'end')
+        );
+        $t->same(
+            'place-items: stretch center',
+            $block->setProperty('place-items: flex-end center', 'align-items', 'stretch')
+        );
+        $t->same(
+            'align-content: start; place-content: center space-between !important',
+            $block->setProperty('place-content: center space-between !important', 'align-content', 'start')
+        );
+        $t->same(
+            'place-items: baseline legacy right',
+            $block->setProperty('place-items: baseline legacy left', 'justify-items', 'right legacy')
         );
     },
     'declaration block sets upstream gap cssom longhands in existing shorthands' => static function (TestRunner $t): void {
@@ -1158,6 +1217,34 @@ return [
         $t->same('flex-wrap: wrap', $block->removeProperty('flex-flow: column wrap', 'flex-direction'));
         $t->same('flex-flow: column wrap', $block->removeProperty('flex-flow: column wrap', '-webkit-flex-direction'));
         $t->same('-webkit-flex-wrap: wrap', $block->removeProperty('-webkit-flex-flow: column wrap', '-webkit-flex-direction'));
+    },
+    'declaration block removes upstream place alignment cssom longhands and shorthands' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'justify-content: space-between',
+            $block->removeProperty('place-content: center space-between', 'align-content')
+        );
+        $t->same(
+            'align-content: baseline',
+            $block->removeProperty('place-content: first baseline', 'justify-content')
+        );
+        $t->same(
+            'align-self: auto',
+            $block->removeProperty('place-self: auto end', 'justify-self')
+        );
+        $t->same(
+            'align-items: normal',
+            $block->removeProperty('place-items: normal stretch', 'justify-items')
+        );
+        $t->same(
+            'color: red',
+            $block->removeProperty('align-items: center; place-items: end center; justify-items: legacy left; color: red', 'place-items')
+        );
+        $t->same(
+            'color: red; justify-items: stretch !important',
+            $block->removeProperty('place-items: center stretch !important; align-items: end; color: red', 'align-items')
+        );
     },
     'declaration block removes upstream gap cssom longhands and shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();

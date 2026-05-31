@@ -1312,7 +1312,7 @@ final class CssBundler
             return false;
         }
 
-        $previous = $value[$offset - 1] ?? '';
+        $previous = $offset > 0 ? $value[$offset - 1] : '';
         $next = $value[$offset + $length] ?? '';
 
         return ($previous === '' || !$this->isIdentifierChar($previous)) && $next === '(';

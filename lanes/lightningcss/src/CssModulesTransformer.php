@@ -527,7 +527,62 @@ final class CssModulesTransformer
             return null;
         }
 
-        return substr($token, 1, -1);
+        return $this->decodeCssStringToken(substr($token, 1, -1));
+    }
+
+    private function decodeCssStringToken(string $token): string
+    {
+        $output = '';
+        $length = strlen($token);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $token[$i];
+            if ($char !== '\\') {
+                $output .= $char;
+                continue;
+            }
+
+            if ($i + 1 >= $length) {
+                $output .= '\\';
+                continue;
+            }
+
+            $next = $token[$i + 1];
+            if ($next === "\r") {
+                $i++;
+                if (($token[$i + 1] ?? '') === "\n") {
+                    $i++;
+                }
+                continue;
+            }
+
+            if ($next === "\n" || $next === "\f") {
+                $i++;
+                continue;
+            }
+
+            if (!ctype_xdigit($next)) {
+                $output .= $next;
+                $i++;
+                continue;
+            }
+
+            $hex = '';
+            $cursor = $i + 1;
+            while ($cursor < $length && strlen($hex) < 6 && ctype_xdigit($token[$cursor])) {
+                $hex .= $token[$cursor];
+                $cursor++;
+            }
+
+            if ($cursor < $length && ctype_space($token[$cursor])) {
+                $cursor++;
+            }
+
+            $output .= $this->codepointToUtf8((int) hexdec($hex));
+            $i = $cursor - 1;
+        }
+
+        return $output;
     }
 
     private function parseComposesIdent(string $token): ?string

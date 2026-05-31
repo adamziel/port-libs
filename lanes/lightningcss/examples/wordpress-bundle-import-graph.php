@@ -15,7 +15,7 @@ $files = [
 @layer reset, theme.blocks;
 @import "tokens.css";
 @import "blocks/card.css" layer(theme.blocks) screen and (--wp-wide);
-@import "blocks/print.css" supports(print-color-adjust: exact) print;
+@import url(blocks/print.css) supports(print-color-adjust: exact) print;
 
 .wp-site-blocks {
   color: red;

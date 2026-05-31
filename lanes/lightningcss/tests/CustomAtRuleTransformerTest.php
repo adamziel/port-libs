@@ -350,6 +350,88 @@ CSS;
         $t->same('foo.js', $dependencies[0]);
         $t->same(['name' => 'dep2', 'prelude' => '"bar.js"', 'string' => 'bar.js'], $dependencies[1]);
     },
+    'custom at-rules compose upstream visitor factories with dependencies' => static function (TestRunner $t): void {
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            static function (array $context): array {
+                $addDependency = $context['addDependency'];
+
+                return [
+                    'Rule' => [
+                        'unknown' => [
+                            'dep' => static function (array $rule) use ($addDependency): array {
+                                $addDependency([
+                                    'type' => 'file',
+                                    'filePath' => $rule['preludeTokens'][0]['value']['value'],
+                                ]);
+
+                                return [];
+                            },
+                        ],
+                    ],
+                ];
+            },
+            static function (array $context): array {
+                $addDependency = $context['addDependency'];
+
+                return [
+                    'Rule' => [
+                        'unknown' => [
+                            'dep2' => static function (array $rule) use ($addDependency): array {
+                                $addDependency([
+                                    'type' => 'file',
+                                    'filePath' => $rule['preludeTokens'][0]['value']['value'],
+                                ]);
+
+                                return [];
+                            },
+                        ],
+                    ],
+                ];
+            },
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transformWithDependencies(
+            '@dep "foo.js"; @dep2 "bar.js"; .foo { width: 32px; }',
+            [],
+            $visitor
+        );
+
+        $t->same('.foo{width:32px}', $result['code']);
+        $t->same([
+            ['type' => 'file', 'filePath' => 'foo.js'],
+            ['type' => 'file', 'filePath' => 'bar.js'],
+        ], $result['dependencies']);
+    },
+    'custom at-rules collect visitor factory dependencies after bundling' => static function (TestRunner $t): void {
+        $visitor = static function (array $context): array {
+            $addDependency = $context['addDependency'];
+
+            return [
+                'Rule' => [
+                    'unknown' => [
+                        'dep' => static function (array $rule) use ($addDependency): array {
+                            $addDependency([
+                                'type' => 'file',
+                                'filePath' => $rule['preludeTokens'][0]['value']['value'],
+                            ]);
+
+                            return [];
+                        },
+                    ],
+                ],
+            ];
+        };
+
+        $result = (new CustomAtRuleTransformer())->bundleWithDependencies('/entry.css', [
+            '/entry.css' => '@import "./deps.css"; .entry { width: 16px; }',
+            '/deps.css' => '@dep "tokens.json";',
+        ], [], $visitor);
+
+        $t->same('.entry{width:16px}', $result['code']);
+        $t->same([
+            ['type' => 'file', 'filePath' => 'tokens.json'],
+        ], $result['dependencies']);
+    },
     'custom at-rules map upstream composed unknown rules and token visitors' => static function (TestRunner $t): void {
         $declared = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([

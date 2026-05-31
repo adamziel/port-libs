@@ -57,6 +57,9 @@ final class CustomAtRuleTransformer
     /** @var callable|null */
     private $genericTokenVisitor = null;
 
+    /** @var list<array<string, mixed>> */
+    private array $dependencies = [];
+
     private DeclarationBlock $declarationBlock;
 
     private CssMinifier $minifier;
@@ -70,11 +73,39 @@ final class CustomAtRuleTransformer
     /**
      * Compose a small subset of LightningCSS visitors used by custom at-rule transforms.
      *
-     * @param list<array<string, mixed>> $visitors
-     * @return array<string, mixed>
+     * @param list<array<string, mixed>|callable(array<string, mixed>): array<string, mixed>> $visitors
+     * @return array<string, mixed>|callable(array<string, mixed>): array<string, mixed>
      */
-    public static function composeVisitors(array $visitors): array
+    public static function composeVisitors(array $visitors): array|callable
     {
+        $hasVisitorFactory = false;
+        foreach ($visitors as $visitor) {
+            if (is_callable($visitor)) {
+                $hasVisitorFactory = true;
+                break;
+            }
+        }
+
+        if ($hasVisitorFactory) {
+            return static function (array $context = []) use ($visitors): array {
+                $resolvedVisitors = [];
+                foreach ($visitors as $visitor) {
+                    $resolved = is_callable($visitor) ? $visitor($context) : $visitor;
+                    if (!is_array($resolved)) {
+                        throw new \InvalidArgumentException('Visitor factory must return a visitor array');
+                    }
+                    $resolvedVisitors[] = $resolved;
+                }
+
+                $composed = self::composeVisitors($resolvedVisitors);
+                if (!is_array($composed)) {
+                    throw new \InvalidArgumentException('Composed visitor factory resolved to another factory');
+                }
+
+                return $composed;
+            };
+        }
+
         if (count($visitors) === 1) {
             return $visitors[0];
         }
@@ -252,20 +283,36 @@ final class CustomAtRuleTransformer
 
     /**
      * @param array<string, array{prelude?:string, body?:string}> $customAtRules
-     * @param array<string, mixed> $visitor
+     * @param array<string, mixed>|callable(array<string, mixed>): array<string, mixed> $visitor
      * @param array<string, callable> $functionVisitors
      */
-    public function transform(string $css, array $customAtRules, array $visitor = [], array $functionVisitors = []): string
+    public function transform(string $css, array $customAtRules, array|callable $visitor = [], array $functionVisitors = []): string
     {
+        return $this->transformWithDependencies($css, $customAtRules, $visitor, $functionVisitors)['code'];
+    }
+
+    /**
+     * @return array{code:string, dependencies:list<array<string, mixed>>}
+     *
+     * @param array<string, array{prelude?:string, body?:string}> $customAtRules
+     * @param array<string, mixed>|callable(array<string, mixed>): array<string, mixed> $visitor
+     * @param array<string, callable> $functionVisitors
+     */
+    public function transformWithDependencies(string $css, array $customAtRules, array|callable $visitor = [], array $functionVisitors = []): array
+    {
+        $this->dependencies = [];
         $this->configure($customAtRules, $visitor, $functionVisitors);
 
-        return $this->minifier->minify($this->processRuleList($this->stripComments($css)));
+        return [
+            'code' => $this->minifier->minify($this->processRuleList($this->stripComments($css))),
+            'dependencies' => $this->dependencies,
+        ];
     }
 
     /**
      * @param array<string, string> $files
      * @param array<string, array{prelude?:string, body?:string}> $customAtRules
-     * @param array<string, mixed> $visitor
+     * @param array<string, mixed>|callable(array<string, mixed>): array<string, mixed> $visitor
      * @param callable|null $resolver
      * @param array<string, callable> $functionVisitors
      */
@@ -273,13 +320,33 @@ final class CustomAtRuleTransformer
         string $entry,
         array $files,
         array $customAtRules,
-        array $visitor = [],
+        array|callable $visitor = [],
         ?callable $resolver = null,
         array $functionVisitors = [],
     ): string {
+        return $this->bundleWithDependencies($entry, $files, $customAtRules, $visitor, $resolver, $functionVisitors)['code'];
+    }
+
+    /**
+     * @return array{code:string, dependencies:list<array<string, mixed>>}
+     *
+     * @param array<string, string> $files
+     * @param array<string, array{prelude?:string, body?:string}> $customAtRules
+     * @param array<string, mixed>|callable(array<string, mixed>): array<string, mixed> $visitor
+     * @param callable|null $resolver
+     * @param array<string, callable> $functionVisitors
+     */
+    public function bundleWithDependencies(
+        string $entry,
+        array $files,
+        array $customAtRules,
+        array|callable $visitor = [],
+        ?callable $resolver = null,
+        array $functionVisitors = [],
+    ): array {
         $css = (new CssBundler())->bundle($entry, $files, $resolver);
 
-        return $this->transform($css, $customAtRules, $visitor, $functionVisitors);
+        return $this->transformWithDependencies($css, $customAtRules, $visitor, $functionVisitors);
     }
 
     /**
@@ -334,11 +401,13 @@ final class CustomAtRuleTransformer
 
     /**
      * @param array<string, array{prelude?:string, body?:string}> $customAtRules
-     * @param array<string, mixed> $visitor
+     * @param array<string, mixed>|callable(array<string, mixed>): array<string, mixed> $visitor
      * @param array<string, callable> $functionVisitors
      */
-    private function configure(array $customAtRules, array $visitor, array $functionVisitors): void
+    private function configure(array $customAtRules, array|callable $visitor, array $functionVisitors): void
     {
+        $visitor = $this->resolveVisitor($visitor);
+
         $this->customAtRules = [];
         foreach ($customAtRules as $name => $definition) {
             $this->customAtRules[strtolower($name)] = $definition;
@@ -450,6 +519,29 @@ final class CustomAtRuleTransformer
                 }
             }
         }
+    }
+
+    /**
+     * @param array<string, mixed>|callable(array<string, mixed>): array<string, mixed> $visitor
+     * @return array<string, mixed>
+     */
+    private function resolveVisitor(array|callable $visitor): array
+    {
+        if (!is_callable($visitor)) {
+            return $visitor;
+        }
+
+        $dependencies = &$this->dependencies;
+        $resolved = $visitor([
+            'addDependency' => static function (array $dependency) use (&$dependencies): void {
+                $dependencies[] = $dependency;
+            },
+        ]);
+        if (!is_array($resolved)) {
+            throw new \InvalidArgumentException('Visitor factory must return a visitor array');
+        }
+
+        return $resolved;
     }
 
     private function processRuleList(string $css): string

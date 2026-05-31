@@ -125,7 +125,7 @@ final class MediaQueryParser
             throw new \InvalidArgumentException("Invalid media query feature: {$feature}");
         }
 
-        if (preg_match('/^(.+?)\s*(<=|>=|<|>)\s*([_a-zA-Z-][_a-zA-Z0-9-]*)\s*(<=|>=|<|>)\s*(.+)$/', $feature, $matches) === 1) {
+        if (preg_match('/^(.+?)\s*(<=|>=|<|>|=)\s*([_a-zA-Z-][_a-zA-Z0-9-]*)\s*(<=|>=|<|>|=)\s*(.+)$/', $feature, $matches) === 1) {
             if (!$this->isValidIntervalComparisonPair($matches[2], $matches[4])) {
                 throw new \InvalidArgumentException("Invalid media query range feature: {$feature}");
             }
@@ -802,9 +802,10 @@ final class MediaQueryParser
     {
         $feature = trim($feature);
         $ident = '[_a-zA-Z-][_a-zA-Z0-9-]*';
-        $operator = '<=|>=|<|>';
+        $intervalOperator = '<=|>=|<|>';
+        $simpleOperator = '<=|>=|<|>|=';
 
-        if (preg_match('/^(.+?)\s*(' . $operator . ')\s*(' . $ident . ')\s*(' . $operator . ')\s*(.+)$/', $feature, $matches) === 1) {
+        if (preg_match('/^(.+?)\s*(' . $intervalOperator . ')\s*(' . $ident . ')\s*(' . $intervalOperator . ')\s*(.+)$/', $feature, $matches) === 1) {
             if (!$lowerIntervalRanges) {
                 return null;
             }
@@ -834,7 +835,7 @@ final class MediaQueryParser
             ];
         }
 
-        if (preg_match('/^(' . $ident . ')\s*(' . $operator . ')\s*(.+)$/', $feature, $matches) !== 1) {
+        if (preg_match('/^(' . $ident . ')\s*(' . $simpleOperator . ')\s*(.+)$/', $feature, $matches) !== 1) {
             return null;
         }
 
@@ -899,6 +900,7 @@ final class MediaQueryParser
             '<=' => ['css' => '(max-' . $feature . ':' . $value . ')', 'bareNot' => false],
             '>' => ['css' => 'not (max-' . $feature . ':' . $value . ')', 'bareNot' => true],
             '<' => ['css' => 'not (min-' . $feature . ':' . $value . ')', 'bareNot' => true],
+            '=' => ['css' => '(' . $feature . ':' . $value . ')', 'bareNot' => false],
             default => ['css' => '(' . $feature . $operator . $value . ')', 'bareNot' => false],
         };
     }

@@ -127,6 +127,31 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler maps upstream url import modifiers with trailing media' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@media print{.b{color:green}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import url(b.css) print; .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@supports (display:flex){@media print{.b{color:green}}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import url(b.css) supports(display: flex) print; .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@media screen{@layer theme.tokens{:root{--gap:1rem}}}.theme{color:red}',
+            $bundle([
+                '/theme.css' => '@import url(tokens.css) layer(theme.tokens) screen; .theme { color: red }',
+                '/tokens.css' => ':root { --gap: 1rem }',
+            ], '/theme.css')
+        );
+    },
     'css bundler combines nested media conditions across import graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print and (color){.c{color:green}}@media print{.b{color:#ff0}}.a{color:red}',
