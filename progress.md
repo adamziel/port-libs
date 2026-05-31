@@ -51,6 +51,18 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (libsqlite batch sample 08:36 UTC):
+  Libsqlite source commit `87399694830d86b8f0edf5864ae23885cedaa131`
+  (`libsqlite: add json vfs pager corpus batch`) landed three current-base
+  handoffs: JSON109 select-SQL array insert behavior, VFS reservebytes
+  file-control/VACUUM header-byte behavior, and pager/WAL `walfault.test`
+  sections 3 through 15. Verification passed PHP lint for changed PHP files,
+  `git diff --check -- lanes/libsqlite`, focused guard `5 files / 185629
+  assertions / 0 failures`, the no-domain API guard, and the changed-source
+  WordPress/numeric-suffix guard. Net selected movement is `+3008`, moving
+  libsqlite from `2832911` to `2835919 pass / 0 fail`; mapped coverage remains
+  `1589 / 1589`.
+
 - 2026-05-31 supervisor continuation (mixed batch sample 08:32 UTC):
   Source commit `e5a23effae900e9187f890104ede8f77a0d81319`
   (`integrate libsqlite trigger and gitoxide protocol batch`) landed one
