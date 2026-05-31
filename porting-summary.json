@@ -1,10 +1,10 @@
 {
-    "generated": "2026-05-31 12:49:02 UTC",
-    "sourceCommit": "95a46ca3aa20fe4b86175e1e40bedaca2f4ab3f9",
-    "sourceCommitShort": "95a46ca3aa20",
+    "generated": "2026-05-31 12:54:38 UTC",
+    "sourceCommit": "0a0e1350d0e1a9867a1029e527a87325f564d2a8",
+    "sourceCommitShort": "0a0e1350d0e1",
     "sourceBranch": "main",
-    "dashboardCommit": "ffdc935f245052a6aed243ea27ee95d8f9a7ff21",
-    "dashboardCommitShort": "ffdc935f2450",
+    "dashboardCommit": "3656298bcf9c050de50d6d963d0a05f1cdc5c7e8",
+    "dashboardCommitShort": "3656298bcf9c",
     "averageProgressPercent": "86.6",
     "lanes": [
         {
@@ -64,16 +64,16 @@
             "suite": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "benchmark": "targeted-object-ref-commit-token-iterator-commit-write-...",
             "denominator": "2886",
-            "mapped": "1573",
-            "coverage": "1573 / 2886",
-            "php": "4589 pass / 0 fail",
+            "mapped": "1574",
+            "coverage": "1574 / 2886",
+            "php": "4599 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "targeted upstream inventory and native PHP behavior sli...",
-            "audit": "Accepted source commit 95a46ca3aa20fe4b86...",
-            "currentWork": "Committed Gitoxide SSH receive-pack alias/home-path command boundary handling and smart H...",
+            "audit": "Accepted source commit 0a0e1350d0e1a9867a...",
+            "currentWork": "Committed Gitoxide config includeIf malformed bracket and unsupported POSIX class behavio...",
             "nextTarget": "Keep active Gitoxide workers on current-base handoffs for pack/index, smart HTTP, SSH tra...",
-            "blocker": "No current Gitoxide PHP blocker for the accepted batch.",
-            "commit": "95a46ca"
+            "blocker": "No current Gitoxide PHP blocker for the accepted config slice.",
+            "commit": "0a0e135"
         },
         {
             "library": "libsqlite",
@@ -100,14 +100,14 @@
             "denominator": "3532",
             "mapped": "996",
             "coverage": "996 / 3532",
-            "php": "1257 pass / 0 fail",
+            "php": "1265 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "static upstream inventory plus upstream Rust/Node/WASM...",
-            "audit": "Accepted source commit 95a46ca3aa20fe4b86...",
-            "currentWork": "Native LightningCSS now extends source-map VLQ offset handling, bundler import graph/laye...",
+            "audit": "Accepted source commit 0a0e1350d0e1a9867a...",
+            "currentWork": "Native LightningCSS now updates compatible background shorthands from background-* longha...",
             "nextTarget": "Keep the visible LightningCSS surge workers on current-base handoffs for media-query rang...",
             "blocker": "No current LightningCSS implementation blocker for this slice.",
-            "commit": "95a46ca"
+            "commit": "0a0e135"
         },
         {
             "library": "markerPDF",
