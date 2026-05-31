@@ -48,6 +48,33 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 00:43 UTC):
+  Latest libsqlite source is integrated as `ba91cc49a`
+  (`libsqlite: add thirty-fourth current corpus sweep`). The batch accepted 12
+  non-app-WAL handoffs: row-value UPDATE/DELETE LIMIT parity, B-tree index3
+  unique rollback matrix behavior, date4 real-date behavior, expression
+  unbound-parameter affinity, JSON102 operator JSONB behavior, pager WAL
+  dynamic behavior, PRAGMA schema version/name-collision behavior, trigger/FK
+  triggerE behavior, UPSERT/RETURNING SELECT-source behavior, VFS sync-matrix
+  behavior, and window1 view-trigger behavior. Supervisor fixed a missed
+  HAVING call-site in the worker SELECT alias materialization change before
+  acceptance. Verification passed PHP lint for `19` changed/new PHP files,
+  `git diff --check -- lanes/libsqlite`, focused selected tests `13 files /
+  232978 assertions / 0 failures / 22589 PASS lines`, accepted-base overlap `2
+  files / 1022 assertions / 0 failures / 391 PASS lines`, targeted SQL/row-
+  value/upsert/select tests `6 files / 35642 assertions / 0 failures / 7002
+  PASS lines`, B-tree related tests `26 files / 832747 assertions / 0 failures
+  / 53413 PASS lines`, trigger related tests `14 files / 67520 assertions / 0
+  failures / 59071 PASS lines`, and no-domain-specific API guard `1 file / 3
+  assertions / 0 failures`. Honest selected movement is `+22198`, so the
+  public row should move to `1366198 pass / 0 fail` with coverage still `1589
+  / 1589`. A deliberately oversized 495-file SQL/expression diagnostic sweep
+  was not counted as an acceptance gate; it exposed known broad-suite failures
+  plus one new HAVING alias call-site error that was fixed, after which the
+  focused and targeted gates passed. App-WAL remains parked unless
+  independently proved; libsqlite remains active until full functional/release/
+  all-runner gates are done before moving the team to gitoxide.
+
 - 2026-05-31 supervisor continuation (integration sample 00:25 UTC):
   Latest libsqlite source is integrated as `1b788002e`
   (`libsqlite: add thirty-third current corpus sweep`). The batch accepted 11
