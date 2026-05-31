@@ -6179,3 +6179,23 @@ Freeze active writers/status publishers and duplicate root/focused PHP loops, tr
 - Two notes-only markers were skipped. Pager/WAL default-memory pressure remains
   a libsqlite blocker even though the high-memory focused and related gates are
   green; gitoxide remains queued behind libsqlite completion.
+
+## Supervisor Integration 2026-05-31T05:18Z Libsqlite Seventy-Sixth Sweep
+
+- Integrated 17 current-base libsqlite handoffs as source commit
+  `72d4a7017 libsqlite: add seventy-sixth current corpus sweep`.
+- Public selected libsqlite evidence moves from `2228722` to `2260947 pass / 0
+  fail`, a net `+32225` PASS-line increase after subtracting `2941` accepted
+  base-overlap PASS lines. Mapped coverage remains `1589 / 1589`.
+- Verification passed PHP lint for 24 changed/new PHP files, `git diff --check
+  -- lanes/libsqlite`, no WordPress/wp source text in changed accepted
+  libsqlite source, no new numbered `CurrentNext`/`CurrentSourceNext` class
+  symbols, focused selected tests with `memory_limit=1024M` `16 files / 354512
+  assertions / 0 failures / 35166 PASS lines`, base overlap `2 files / 9420
+  assertions / 0 failures / 2941 PASS lines`, and related guard with
+  `memory_limit=1024M` `938 files / 12292914 assertions / 0 failures / 1929364
+  PASS lines`.
+- Accepted the app-WAL tenant JSON source-neutral cleanup; `SQLiteTenantJsonWalImportPlan.php`
+  now has no `wordpress`/`wp_` source matches. One date conflict was parked and
+  one notes-only marker was skipped. Pager/WAL default-memory pressure and
+  release/all-runner parity remain blockers before gitoxide.
