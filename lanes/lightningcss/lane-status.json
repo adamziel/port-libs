@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 92,
-    "suiteProgress": "Supervisor-integrated LightningCSS grid/CSS Modules/media/CSSOM/bundler/prefix batch adds grid auto-flow/template-area separation, border-spacing minification, bundled CSS Modules repeated source-index composes, composes comment-token separators, media range import graph/prefix coverage, block-form invalid import-layer diagnostics, logical-axis CSSOM fallback ordering, and multi-column prefixing coverage. Verification passed PHP lint on 37 changed/new PHP files, git diff --check, no WordPress/WP/wp_ source symbols under lanes/lightningcss/src or lanes/gitoxide/src, 13 changed/new example smoke runs, full LightningCSS lane 13 files / 4016 assertions / 0 failures, and full Gitoxide lane 39 files / 5390 assertions / 0 failures.",
-    "phpPass": 4016,
+    "estimatedProgress": 92.1,
+    "suiteProgress": "Supervisor-integrated LightningCSS SourceMap/CSSOM/media/bundler/CSS Modules batch adds SourceMap empty-map CR line splitting, generated-line span/accessor guards, negated equality media ranges in layers, flex/CSSOM priority/comment handling, bundle charset/import graph behavior, CSS Modules compose flattening, and media-layer minifier coverage. Verification passed PHP lint on 25 changed/new PHP files, touched example smoke runs, git diff --check, no WordPress/WP/wp_ source symbols under lanes/lightningcss/src, focused DeclarationBlock 1 file / 709 assertions / 0 failures, and full LightningCSS lane 13 files / 4081 assertions / 0 failures.",
+    "phpPass": 4081,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source 0dc9078d: full LightningCSS lane passed 13 files / 4016 assertions / 0 failures. Conservative mapped coverage moves from 2047 / 3532 to 2056 / 3532: +2 grid auto-flow/template-area separation checks, +6 border-spacing value minifier checks, and +1 bundled CSS Modules repeated source-index composes behavior. CSS Modules comment-token compose separators, media range import graph/prefix coverage, block-form invalid import-layer diagnostics, logical-axis CSSOM fallback ordering, and multi-column prefixing deepen already represented clusters.",
-    "currentWork": "Grid auto-flow/template-area separation, border-spacing minification, bundled CSS Modules repeated composes, CSS Modules comment-token separators, media range import graph/prefix coverage, block-form import-layer diagnostics, logical-axis CSSOM fallback ordering, and multi-column prefixing are integrated from screened worker handoffs.",
+    "audit": "2026-05-31 supervisor batch at source 7e7a1f78: full LightningCSS lane passed 13 files / 4081 assertions / 0 failures. Conservative mapped coverage moves from 2056 / 3532 to 2057 / 3532: +1 SourceMap add_empty_map CR line-splitting behavior. SourceMap generated-line spans/accessors, negated equality range media queries, flex/CSSOM priority/comment handling, charset/import graph behavior, CSS Modules local/global compose flattening, and media layer minifier behavior deepen already represented clusters.",
+    "currentWork": "SourceMap empty-map line splitting and generated-line accessors, media-query range/layer parsing, CSSOM flex/priority/comment handling, bundle @charset/import graph behavior, CSS Modules compose flattening, and media-layer minifier behavior are integrated from screened worker handoffs.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch; continue current-base PHP parity slices with focused tests, examples, manifest-backed mapping, and periodic full-lane PHP gates.",
-    "latestCommit": "0dc9078d9e6ff278850e9c0f033edec89583d6d1",
-    "nextTask": "Keep LightningCSS as the main worker pool; prioritize current-base handoffs that add new mapped property-value, target-prefix, CSS Modules, bundler, CSSOM, media, and source-map coverage while rejecting stale duplicate clusters.",
-    "commit": "0dc9078d9e6ff278850e9c0f033edec89583d6d1"
+    "latestCommit": "7e7a1f782c8e6d002e1b2e803071a34f5eceb93b",
+    "nextTask": "Keep LightningCSS as the main worker pool and prioritize fresh current-base handoffs that add new mapped target-prefix, property-value, parser/CSSOM/source-map/bundler/CSS Modules coverage; reject duplicate status-only or already-covered clusters.",
+    "commit": "7e7a1f782c8e6d002e1b2e803071a34f5eceb93b"
 }
