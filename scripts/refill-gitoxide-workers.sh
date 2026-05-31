@@ -7,11 +7,17 @@ cd "$ROOT"
 
 TMUX_SESSION="${TMUX_SESSION:-main}"
 TARGET="${GITOXIDE_TARGET_WORKERS:-5}"
+TARGET_CEILING="${GITOXIDE_TARGET_CEILING:-3}"
+if [[ "$TARGET_CEILING" =~ ^[0-9]+$ && "$TARGET" =~ ^[0-9]+$ && "$TARGET_CEILING" -gt 0 && "$TARGET" -gt "$TARGET_CEILING" ]]; then
+  TARGET="$TARGET_CEILING"
+fi
 MAX_STARTS="${GITOXIDE_MAX_REFILL_STARTS:-6}"
 LOCK_FILE="$ROOT/.tmux-team/tmp/refill-gitoxide-workers.lock"
 LOG_DIR="$ROOT/.tmux-team/logs"
 INDEX_FILE="$ROOT/.tmux-team/tmp/gitoxide-dynamic-domain-index"
 LAUNCHED_FILE="$ROOT/.tmux-team/tmp/gitoxide-launched-slices.tsv"
+HANDOFF_CANDIDATES_DIR="$ROOT/.tmux-team/tmp/handoff-candidates"
+HANDOFF_CONSUMED_DIR="$ROOT/.tmux-team/tmp/handoff-consumed"
 mkdir -p "$LOG_DIR" "$ROOT/.tmux-team/tmp"
 
 exec 9>"$LOCK_FILE"
@@ -26,9 +32,43 @@ exec >>"$log" 2>&1
 BASE_REF="${GITOXIDE_REFILL_BASE_REF:-origin/main}"
 BASE_SHA="$(git rev-parse --verify "$BASE_REF")"
 
+CURRENT_TMUX_WINDOW=""
+if [[ -n "${TMUX_PANE:-}" ]]; then
+  CURRENT_TMUX_WINDOW="$(tmux display-message -p -t "$TMUX_PANE" '#W' 2>/dev/null || true)"
+fi
+
 active_count() {
   tmux list-windows -t "$TMUX_SESSION" -F '#W' 2>/dev/null |
     awk '/^port-dev-gitoxide-/ {count++} END {print count + 0}'
+}
+
+active_session_exists() {
+  local name="$1"
+  ps -eo args= |
+    awk -v name="$name" '
+      $1 == "bash" && ($2 == "scripts/run-isolated-lane-worker.sh" || $2 ~ /\/scripts\/run-isolated-lane-worker\.sh$/) && $3 == "gitoxide" && $5 == name {found=1}
+      $1 == "node" && $2 == "/usr/local/bin/codex" && $0 ~ /\/\.tmux-team\/worktrees\// && index($0, "/" name "-") {found=1}
+      END {exit found ? 0 : 1}
+    '
+}
+
+ready_exists_for_session() {
+  local name="$1"
+  compgen -G "$HANDOFF_CANDIDATES_DIR/${name}-*.ready" >/dev/null ||
+    compgen -G "$HANDOFF_CONSUMED_DIR/${name}-*.ready" >/dev/null
+}
+
+close_completed_ready_windows() {
+  local name
+  tmux list-windows -t "$TMUX_SESSION" -F '#W' 2>/dev/null |
+    while IFS= read -r name; do
+      [[ "$name" == port-dev-gitoxide-* ]] || continue
+      [[ "$name" != "$CURRENT_TMUX_WINDOW" ]] || continue
+      if ! active_session_exists "$name" && ready_exists_for_session "$name"; then
+        printf '%s closing completed ready pane %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$name"
+        tmux kill-window -t "$TMUX_SESSION:$name" || true
+      fi
+    done
 }
 
 window_exists() {
@@ -80,6 +120,7 @@ if ! [[ "$idx" =~ ^[0-9]+$ ]]; then
 fi
 
 starts=0
+close_completed_ready_windows || true
 while [[ "$(active_count)" -lt "$TARGET" && "$starts" -lt "$MAX_STARTS" ]]; do
   entry="${slices[$((idx % ${#slices[@]}))]}"
   slug="${entry%%:*}"
