@@ -52,6 +52,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 10:44 UTC):
+  source commit `6505233a67eaced3c2ff0285a8a6a1cf73df84f6` (`ports: add
+  sqlite vfs trigger json returning and gitoxide refs slices`) landed nine
+  handoffs after excluding stale shared metadata. Libsqlite gained VFS
+  `zerodamage` POWERSAFE_OVERWRITE journal/WAL sizing, JSON102 guarded
+  `json_each` over mixed scalar/JSON rows, row-value UPDATE/DELETE LIMIT
+  LIKE/GLOB expression parity, FTS5 virtual-table INSERT RETURNING after peer
+  writes, and fkey2 conflict-policy foreign-key statement/transaction
+  preservation; selected libsqlite evidence moves from `2874050` to `2878175
+  pass / 0 fail`, mapped coverage stays `1589 / 1589`. Gitoxide gained commit
+  object/storage `gpgsig` verification, checkout index cache-tree verification,
+  bounded reverse reflog diagnostics, and packed-ref peeled sidecar refresh;
+  full Gitoxide evidence moves from `4183` to `4256 pass / 0 fail`, mapped
+  coverage moves from `1539 / 2886` to `1543 / 2886`. Verification passed PHP
+  lint, `git diff --check`, libsqlite selected tests `6 files / 88297
+  assertions / 0 failures`, Gitoxide focused tests `5 files / 841 assertions /
+  0 failures`, full Gitoxide lane `39 files / 4256 assertions / 0 failures`,
+  four touched examples, and changed-source guards for no new libsqlite
+  WordPress/wp or numbered CurrentSourceNext source text. Durable tmux docs now
+  record that all newly started subagents/workers must use `gpt-5.5`, xhigh
+  reasoning, and the fast/priority service tier unless the user replaces that
+  rule.
+
 - 2026-05-31 supervisor continuation (mixed libsqlite/Gitoxide batch 10:26 UTC):
   source commit `c2ea3c3042dcbd9a2ad7f67af733cd60e70ffad4` (`ports: add
   sqlite btree select pragma and gitoxide object pack slices`) landed nine
