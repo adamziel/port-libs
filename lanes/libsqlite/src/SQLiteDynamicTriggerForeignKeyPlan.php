@@ -874,6 +874,60 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{a:int}> $rows
+     * @return array<string,mixed>
+     */
+    public static function triggerRaiseExpressionPowerOfTwo(array $rows, string $conflictAction = 'abort'): array
+    {
+        $conflictAction = strtolower(trim($conflictAction));
+        if (!in_array($conflictAction, ['abort', 'fail', 'rollback'], true)) {
+            throw new \InvalidArgumentException('SQLite trigger1-24 RAISE action is unsupported');
+        }
+
+        $inserted = [];
+        $failed = null;
+        foreach (array_values($rows) as $index => $row) {
+            if (!array_key_exists('a', $row)) {
+                throw new \InvalidArgumentException('SQLite trigger1-24 row is missing column a');
+            }
+
+            $value = (int) $row['a'];
+            if (($value & ($value - 1)) !== 0) {
+                $failed = [
+                    'index' => $index,
+                    'value' => $value,
+                    'message' => sprintf('attempt to insert %d where is not a power of 2', $value),
+                ];
+                break;
+            }
+
+            $inserted[] = ['a' => $value];
+        }
+
+        $rolledBack = $failed !== null && in_array($conflictAction, ['abort', 'rollback'], true);
+
+        return [
+            'source' => 'trigger1.test trigger1-24.1..24.2',
+            'operation' => 'trigger-raise-expression-message',
+            'status' => $failed === null ? 'commit-ok' : 'constraint-failed',
+            'raise_action' => $conflictAction,
+            'trigger_expression' => "format('attempt to insert %d where is not a power of 2',new.a)",
+            'attempted_values' => array_values(array_map(static fn (array $row): int => (int) $row['a'], $rows)),
+            'inserted_values' => $rolledBack ? [] : array_values(array_column($inserted, 'a')),
+            'failed_index' => $failed['index'] ?? null,
+            'failed_value' => $failed['value'] ?? null,
+            'error_message' => $failed['message'] ?? null,
+            'statement_rolled_back' => $rolledBack,
+            'prior_successes_preserved' => $failed !== null && !$rolledBack && $inserted !== [],
+            'dependencies' => [
+                'sqlite-trigger1-raise-message-accepts-sql-expression',
+                'sqlite-trigger1-raise-expression-can-reference-new-row',
+                'sqlite-trigger1-raise-abort-rolls-back-statement',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @param list<int> $updatedColumns
      * @return array<string,mixed>
