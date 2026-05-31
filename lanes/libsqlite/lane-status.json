@@ -2,16 +2,16 @@
   "schemaVersion": 1,
   "library": "libsqlite",
   "estimatedProgress": 99.5,
-  "suiteProgress": "Supervisor-integrated libsqlite source-neutral date affinity decimal REAL suffix, expression-affinity encoding/cast, and e_select USING collation dynamic corpus behavior. Focused gate passed 4 files / 51046 assertions / 0 failures including SQLiteNoDomainSpecificApiTest; conservative accepted pass-unit delta is +51043. Mapped coverage remains 1589 / 1589.",
-  "phpPass": 4349076,
+  "suiteProgress": "Supervisor-integrated libsqlite source-neutral B-tree where5 null-comparison dynamic corpus behavior and PRAGMA count_changes trigger behavior. Focused gate passed 3 files / 57493 assertions / 0 failures including SQLiteNoDomainSpecificApiTest; conservative accepted pass-unit delta is +57490. Mapped coverage remains 1589 / 1589.",
+  "phpPass": 4406566,
   "phpFail": 0,
   "wordpressScenarios": "Source-neutral application/self-test coverage now includes WAL rollback JSON tails, FK parent-index diagnostics, row-value UPDATE/DELETE LIMIT execution, master-journal WAL pager behavior, PRAGMA lock_proxy_file and data_store_directory handling, SELECT/window planner behavior, trigger/fkey limits, expression-affinity and hex literal syntax, B-tree left-join/index/delete guards, JSON/JSONB update/subtype/char-built validity behavior, VFS fallocate/shared-lock/batch-atomic lifecycle behavior, pager crash recovery, and app-WAL post-checkpoint tail recovery. No WordPress-specific libsqlite API is accepted.",
   "phase": "focused source integration accepted; full-lane/release parity still requires a broader tracked run before completion",
-  "audit": "2026-05-31 supervisor batch at source a364d0704019: focused libsqlite gate passed 4 files / 51046 assertions / 0 failures, including date affinity decimal REAL suffix 6000-6999, expression-affinity encoding/cast dynamic corpus behavior, e_select USING collation dynamic corpus behavior, and SQLiteNoDomainSpecificApiTest.php. Cached libsqlite source diff added no WordPress/wordpress/WP_/wp_ text and no CurrentSourceNext/numbered Plan suffixes. Full libsqlite lane/release runner was not executed for this batch.",
-  "currentWork": "Source-neutral SQLite date affinity decimal REAL suffix, expression-affinity encoding/cast, and e_select USING collation dynamic corpus behavior integrated without WordPress-specific libsqlite source text.",
+  "audit": "2026-05-31 supervisor batch at source 1989e5a96: focused libsqlite gate passed 3 files / 57493 assertions / 0 failures, including B-tree where5 null-comparison dynamic corpus behavior, PRAGMA count_changes trigger behavior, and SQLiteNoDomainSpecificApiTest.php. Cached libsqlite source diff added no WordPress/wordpress/WP_/wp_ text and no CurrentSourceNext/numbered Plan suffixes. Full libsqlite lane/release runner was not executed for this batch.",
+  "currentWork": "Source-neutral SQLite B-tree where5 null-comparison dynamic corpus behavior and PRAGMA count_changes trigger behavior integrated without WordPress-specific libsqlite source text.",
   "blocker": "Full libsqlite release/all-runner parity is still unproven after this batch and must be rerun on tracked tests before declaring libsqlite complete.",
   "nextTask": "Run a broader tracked libsqlite full-lane/release parity gate before calling libsqlite complete; keep two SQLite workers on any remaining real-runner failures and source-neutral guard cleanup.",
-  "wordpressScenarioLatest": "No WordPress-specific libsqlite API or source text was introduced in the latest accepted batch. The latest source commit adds generic SQLite date affinity, expression-affinity encoding/cast, and e_select USING collation dynamic corpus behavior.",
-  "latestCommit": "a364d07040190b68b467cd69fb969339b783a7fe",
-  "commit": "a364d07040190b68b467cd69fb969339b783a7fe"
+  "wordpressScenarioLatest": "No WordPress-specific libsqlite API or source text was introduced in the latest accepted batch. The latest source commit adds generic SQLite B-tree where5 null-comparison dynamic corpus behavior and PRAGMA count_changes trigger behavior.",
+  "latestCommit": "1989e5a96f0f1720d0a7356738c9226ca0c6c6b8",
+  "commit": "1989e5a96f0f1720d0a7356738c9226ca0c6c6b8"
 }

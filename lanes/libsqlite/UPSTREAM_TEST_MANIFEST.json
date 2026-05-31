@@ -708,7 +708,7 @@
       "focusedUpstreamVeryquickShardCurrentSourceNext433Scripts": 1,
       "focusedUpstreamVeryquickShardCurrentSourceNext949Through964Scripts": 16
     },
-    "runnerStatus": "2026-05-31 supervisor batch at source a364d0704019: focused libsqlite gate passed 4 files / 51046 assertions / 0 failures. Mapped coverage remains 1589 / 1589. Full libsqlite release/all runner was not executed.",
+    "runnerStatus": "2026-05-31 supervisor batch at source 1989e5a96: focused libsqlite gate passed 3 files / 57493 assertions / 0 failures. Mapped coverage remains 1589 / 1589. Full libsqlite release/all runner was not executed.",
     "warning": "The upstream veryquick permutation now has local runner parity. The 2026-05-30 bulk upstream suite denominator burnup B slice moves mapped coverage from 830 to 958 by admitting 128 focused suite-denominator rows through lane-local runner-gap evidence and focused PHP PASS gates. Full all/release permutations remain unexecuted, and release/all parity is not claimed. Accepted source commit b0d8a112 adds 5335 selected libsqlite pass assertions across where7 multi-index OR, e_select2 join associativity, and trigger1 temp-trigger rebind behavior; mapped denominator remains 1589 / 1589 and full release/all parity still requires separate closure evidence. Accepted source commit 244af0e12 adds seven selected native libsqlite slices with focused verification 8 files / 155391 assertions / 0 failures under memory_limit=2048M, lint, diff-check, source-neutral API guard, and touched example self-test. It is still not full release/all-runner parity.",
     "upstreamRuns": {
       "focusedResults": {
@@ -3423,10 +3423,10 @@
       "focusedUpstreamVeryquickShardCurrentSourceNext431": "The 2026-05-28 isolated current-source next431 suite veryquick-shard runner slice maps one additional runner-countability blocker row for launcher Base accepted HEAD fca16e3d, current integration source 8a447f44, lane-local zero-error guarded runner artifact rows, duplicate-runner gates, exact 96 focused PASS-line admission, focused current-source veryquick shard scope, and no release/all parity claim."
     }
   },
-  "latestFocusedSlice": "2026-05-31T23:45Z supervisor batch: date affinity decimal REAL suffix 6000-6999, expression-affinity encoding/cast, and e_select USING collation dynamic corpus behavior.",
-  "latestNativePhpVerification": "2026-05-31 source a364d0704019: focused libsqlite gate 4 files / 51046 assertions / 0 failures including SQLiteNoDomainSpecificApiTest.php.",
-  "runnerStatus": "2026-05-31 supervisor batch at source a8642b9f8: focused accepted-file libsqlite gate passed 5 files / 96913 assertions / 0 failures including SQLiteNoDomainSpecificApiTest. Mapped coverage remains 1589 / 1589; release/all-runner parity remains open due the known JSON-table generated path rowid-cost blocker.",
-  "latestCommit": "a364d07040190b68b467cd69fb969339b783a7fe",
+  "latestFocusedSlice": "2026-05-31T23:55Z supervisor batch: B-tree where5 null-comparison dynamic corpus behavior and PRAGMA count_changes trigger behavior.",
+  "latestNativePhpVerification": "2026-05-31 source 1989e5a96: focused libsqlite gate 3 files / 57493 assertions / 0 failures including SQLiteNoDomainSpecificApiTest.php.",
+  "runnerStatus": "2026-05-31 supervisor batch at source 1989e5a96: focused accepted-file libsqlite gate passed 3 files / 57493 assertions / 0 failures including SQLiteNoDomainSpecificApiTest. Mapped coverage remains 1589 / 1589; release/all-runner parity remains open.",
+  "latestCommit": "1989e5a96f0f1720d0a7356738c9226ca0c6c6b8",
   "latestFocusedCorpusBatch20260531T2250Z": {
     "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
     "selectedPassIncrease": 2411,
