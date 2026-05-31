@@ -391,6 +391,15 @@ return [
         $t->same('@layer blocks{@media (hover) or (100px<=width<=200px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (hover) o\\72 (100px <= w\\69 dth <= 200px) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (theme-state=expanded){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (theme\\2d state = exp\\61 nded) { .foo { color: yellow } } }'));
     },
+    'css minifier treats comments as media query token separators inside layers' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same('@layer blocks{@media screen and (width>=240px){.wp-block-query{color:#ff0}}}', $minifier->minify('@layer blocks { @media screen/* migration */and (width >= 240px) { .wp-block-query { color: yellow } } }'));
+        $t->same('@layer blocks{@media only screen and (width>=240px){.wp-block-query{color:#ff0}}}', $minifier->minify('@layer blocks { @media only/* legacy */screen/* migration */and (min-width: 240px) { .wp-block-query { color: yellow } } }'));
+        $t->same('@layer blocks{@media not screen and (width>=240px){.wp-block-query{color:#ff0}}}', $minifier->minify('@layer blocks { @media not/* legacy */screen/* migration */and (width >= 240px) { .wp-block-query { color: yellow } } }'));
+        $t->same('@layer blocks{@media (width>=600px){.wp-block-query{color:#7fff00}}}', $minifier->minify('@layer blocks { @media all/* token */and (min-width: 600px) { .wp-block-query { color: chartreuse } } }'));
+        $t->same('@layer blocks{@media (hover) or (100px<=width<=200px){.wp-block-query{color:#ff0}}}', $minifier->minify('@layer blocks { @media (hover)/* migration */or/* breakpoint */(100px <= width <= 200px) { .wp-block-query { color: yellow } } }'));
+    },
     'css minifier rejects invalid media ranges inside cascade layers' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

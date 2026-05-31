@@ -6,9 +6,11 @@ require __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\Gitoxide\Commit;
 use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\GitTag;
 use PortLibs\Gitoxide\LooseObjectStore;
 use PortLibs\Gitoxide\LooseReferenceStore;
 use PortLibs\Gitoxide\ObjectDatabase;
+use PortLibs\Gitoxide\Tree;
 
 $fixture = require __DIR__ . '/../fixtures/wordpress-pack-data.php';
 $gitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-' . bin2hex(random_bytes(4)) . '/.git';
@@ -69,6 +71,24 @@ $sha256Database = new ObjectDatabase($sha256GitDir, objectHash: 'sha256');
 $sha256Object = new GitObject('blob', 'SHA-256-addressed WordPress deployment snapshot.');
 $sha256Oid = $sha256Database->write($sha256Object);
 $sha256Header = $sha256Database->readHeader(strtoupper($sha256Oid));
+$sha256OidBytes = hex2bin($sha256Oid);
+if ($sha256OidBytes === false) {
+    throw new RuntimeException('Unable to decode SHA-256 loose object id for tree fixture');
+}
+$sha256TreeObject = new GitObject('tree', "100644 block.html\0" . $sha256OidBytes);
+$sha256TreeOid = $sha256Database->write($sha256TreeObject);
+$sha256ParsedTree = Tree::parse($sha256TreeObject->body, 'sha256');
+$sha256Commit = new Commit(
+    $sha256TreeOid,
+    [],
+    'WordPress Importer <importer@example.test> 1710000000 +0000',
+    'WordPress Deploy Bot <deploy@example.test> 1710000300 +0000',
+    "Publish SHA-256 deployment snapshot\n",
+    [],
+);
+$sha256CommitOid = $sha256Database->write($sha256Commit->object());
+$sha256Tag = new GitTag($sha256CommitOid, 'commit', 'deploy/sha256-integrity', null, "Verified SHA-256 deployment object graph\n");
+$sha256TagOid = $sha256Database->write($sha256Tag->object());
 $sha256Integrity = $sha256Database->verifyLooseIntegrity();
 
 $blockedGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-directory-blocker-' . bin2hex(random_bytes(4)) . '/.git';
@@ -184,6 +204,10 @@ return [
     'sha256LooseHeaderSource' => $sha256Header['source'],
     'sha256LooseIntegrityObjects' => $sha256Integrity[0]['statistics']['numObjects'],
     'sha256LooseIntegrityVerified' => in_array($sha256Oid, $sha256Integrity[0]['statistics']['verifiedObjectIds'], true),
+    'sha256StructuredTreeEntryOidLength' => strlen($sha256ParsedTree->entries[0]->oid),
+    'sha256StructuredIntegrityVerified' => in_array($sha256TreeOid, $sha256Integrity[0]['statistics']['verifiedObjectIds'], true)
+        && in_array($sha256CommitOid, $sha256Integrity[0]['statistics']['verifiedObjectIds'], true)
+        && in_array($sha256TagOid, $sha256Integrity[0]['statistics']['verifiedObjectIds'], true),
     'looseIntegrityDirectoryBlockerRejected' => $looseIntegrityDirectoryBlockerRejected,
     'looseIntegrityNestedCandidateRejected' => $looseIntegrityNestedCandidateRejected,
     'looseIntegritySizeMismatchRejected' => $looseIntegritySizeMismatchRejected,

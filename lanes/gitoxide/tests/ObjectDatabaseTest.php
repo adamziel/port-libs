@@ -807,8 +807,10 @@ return [
         $t->same(64, $summary['sha256LooseObjectOidLength']);
         $t->same(true, $summary['sha256LooseObjectReadable']);
         $t->same('loose', $summary['sha256LooseHeaderSource']);
-        $t->same(1, $summary['sha256LooseIntegrityObjects']);
+        $t->same(4, $summary['sha256LooseIntegrityObjects']);
         $t->same(true, $summary['sha256LooseIntegrityVerified']);
+        $t->same(64, $summary['sha256StructuredTreeEntryOidLength']);
+        $t->same(true, $summary['sha256StructuredIntegrityVerified']);
         $t->same(true, $summary['looseIntegrityDirectoryBlockerRejected']);
         $t->same(true, $summary['looseIntegrityNestedCandidateRejected']);
         $t->same(true, $summary['looseIntegritySizeMismatchRejected']);

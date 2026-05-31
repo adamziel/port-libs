@@ -913,6 +913,96 @@ CSS;
         $t->same(['type' => 'raw', 'value' => '#056ef0'], $seenPreludeTokens[1]);
         $t->same(['type' => 'at-keyword', 'value' => '--wp-accent', 'raw' => '@--wp-accent'], $seenValueTokens[0]);
     },
+    'custom at-rules compose upstream Token scalar visitors in declaration values' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Token' => [
+                    'ident' => static function (array $token) use (&$seen): ?string {
+                        $seen[] = $token;
+
+                        return $token['value'] === 'draft' ? 'published' : null;
+                    },
+                    'hash' => static function (array $token) use (&$seen): array {
+                        $seen[] = $token;
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'hash',
+                                'value' => '123456',
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Token' => [
+                    'id-hash' => static function (array $token) use (&$seen): array {
+                        $seen[] = $token;
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'id-hash',
+                                'value' => 'wp-card-live',
+                            ],
+                        ];
+                    },
+                    'string' => static function (array $token) use (&$seen): array {
+                        $seen[] = $token;
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'string',
+                                'value' => 'live',
+                            ],
+                        ];
+                    },
+                    'number' => static function (array $token) use (&$seen): array {
+                        $seen[] = $token;
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'number',
+                                'value' => $token['value'] * 2,
+                            ],
+                        ];
+                    },
+                    'percentage' => static function (array $token) use (&$seen): array {
+                        $seen[] = $token;
+
+                        return [
+                            'type' => 'token',
+                            'value' => [
+                                'type' => 'percentage',
+                                'value' => $token['value'] * 2,
+                            ],
+                        ];
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+.wp-block-card {
+  --wp-state: draft;
+  --wp-color-token: #056ef0;
+  --wp-anchor-token: #card;
+  --wp-label: "draft";
+  --wp-columns: 3;
+  --wp-progress: 25%;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.wp-block-card{--wp-state:published;--wp-color-token:#123456;--wp-anchor-token:#wp-card-live;--wp-label:"live";--wp-columns:6;--wp-progress:50%}', $result);
+        $t->same(['ident', 'hash', 'id-hash', 'string', 'number', 'percentage'], array_column($seen, 'type'));
+        $t->same(['draft', '056ef0', 'card', 'draft', 3.0, 0.25], array_column($seen, 'value'));
+    },
     'custom at-rules compose upstream Token dimension custom-unit visitors' => static function (TestRunner $t): void {
         $customUnits = [];
         $seenPreludeToken = null;

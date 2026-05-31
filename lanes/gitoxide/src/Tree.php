@@ -18,20 +18,21 @@ final class Tree
         }
     }
 
-    public static function fromObject(GitObject $object): self
+    public static function fromObject(GitObject $object, string $algorithm = 'sha1'): self
     {
         if ($object->type !== 'tree') {
             throw new \InvalidArgumentException("Expected a tree object, got {$object->type}");
         }
 
-        return self::parse($object->body);
+        return self::parse($object->body, $algorithm);
     }
 
-    public static function parse(string $body): self
+    public static function parse(string $body, string $algorithm = 'sha1'): self
     {
         $entries = [];
         $offset = 0;
         $length = strlen($body);
+        $objectIdBytes = intdiv(ReferenceTarget::hashHexLength($algorithm), 2);
 
         while ($offset < $length) {
             $space = strpos($body, ' ', $offset);
@@ -49,16 +50,16 @@ final class Tree
             }
 
             $oidStart = $nul + 1;
-            if ($oidStart + 20 > $length) {
+            if ($oidStart + $objectIdBytes > $length) {
                 throw new \InvalidArgumentException('Tree entry object id is truncated');
             }
 
             $entries[] = new TreeEntry(
                 $mode,
                 substr($body, $nameStart, $nul - $nameStart),
-                bin2hex(substr($body, $oidStart, 20)),
+                bin2hex(substr($body, $oidStart, $objectIdBytes)),
             );
-            $offset = $oidStart + 20;
+            $offset = $oidStart + $objectIdBytes;
         }
 
         return new self($entries);

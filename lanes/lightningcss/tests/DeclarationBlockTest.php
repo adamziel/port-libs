@@ -391,6 +391,10 @@ return [
 
         $t->same(['value' => 'red', 'important' => false], $block->getProperty('background: red', 'background'));
         $t->same(['value' => 'red', 'important' => false], $block->getProperty('background: red', 'background-color'));
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty('background: red', 'background-image'));
+        $t->same(['value' => '0 0', 'important' => false], $block->getProperty('background: red', 'background-position'));
+        $t->same(['value' => 'repeat', 'important' => false], $block->getProperty('background: red', 'background-repeat'));
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty('background: red', 'background-size'));
         $t->same(['value' => 'red', 'important' => false], $block->getProperty('background: red url(foo.png)', 'background-color'));
         $t->same(
             ['value' => 'red', 'important' => false],
@@ -2509,6 +2513,27 @@ return [
         $t->same(
             'color: red; background-position-y: 10px !important',
             $block->removeProperty('background-position: 20px 10px !important; color: red; background-position-x: 30px', 'background-position-x')
+        );
+    },
+    'declaration block removes upstream background shorthand-derived longhands by splitting shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $fullBackground = 'background: red url(hero.jpg) 20px 10px no-repeat fixed border-box content-box; color: blue';
+
+        $t->same(
+            'background-image: url(hero.jpg); background-position-x: 20px; background-position-y: 10px; background-repeat: no-repeat; background-size: auto; background-attachment: fixed; background-origin: border-box; background-clip: content-box; color: blue',
+            $block->removeProperty($fullBackground, 'background-color')
+        );
+        $t->same(
+            'background-color: red; background-position-x: 20px; background-position-y: 10px; background-repeat: no-repeat; background-size: auto; background-attachment: fixed; background-origin: border-box; background-clip: content-box; color: blue',
+            $block->removeProperty($fullBackground, 'background-image')
+        );
+        $t->same(
+            'background-color: red; background-image: url(hero.jpg); background-position-y: 10px; background-repeat: no-repeat; background-size: auto; background-attachment: fixed; background-origin: border-box; background-clip: content-box; color: blue',
+            $block->removeProperty($fullBackground, 'background-position-x')
+        );
+        $t->same(
+            'background-color: transparent; background-image: url(hero.jpg); background-position-x: 20px; background-position-y: 10px; background-repeat: repeat; background-attachment: scroll; background-origin: padding-box; background-clip: border-box; color: blue',
+            $block->removeProperty('background: url(hero.jpg) 20px 10px / cover; color: blue', 'background-size')
         );
     },
     'declaration block removes upstream border longhands by splitting shorthands' => static function (TestRunner $t): void {

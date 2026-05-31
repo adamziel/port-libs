@@ -133,6 +133,41 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => (new LooseObjectStore($gitDir))->read($oid));
         $t->throws(InvalidArgumentException::class, static fn () => new LooseObjectStore($gitDir, false, 'md5'));
     },
+    'loose object integrity decodes sha256 tree commit and tag payloads with the store hash kind' => static function (TestRunner $t): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-sha256-structured-' . bin2hex(random_bytes(4)) . '/.git';
+        $store = new LooseObjectStore($gitDir, false, 'sha256');
+
+        $blob = new GitObject('blob', 'WordPress SHA-256 structured object body');
+        $blobOid = $store->write($blob);
+        $treeBody = "100644 block.html\0" . hex2bin($blobOid);
+        $tree = new GitObject('tree', $treeBody);
+        $treeOid = $store->write($tree);
+        $commit = new Commit(
+            $treeOid,
+            [],
+            'WordPress Importer <importer@example.test> 1710000000 +0000',
+            'WordPress Deploy Bot <deploy@example.test> 1710000300 +0000',
+            "Import SHA-256 block snapshot\n",
+            [],
+        );
+        $commitOid = $store->write($commit->object());
+        $tag = new GitTag($commitOid, 'commit', 'deploy/sha256-integrity', null, "Verified SHA-256 deployment object graph\n");
+        $tagOid = $store->write($tag->object());
+
+        $parsedTree = Tree::parse($treeBody, 'sha256');
+        $t->same(1, count($parsedTree->entries));
+        $t->same($blobOid, $parsedTree->entries[0]->oid);
+        $t->same(64, strlen($parsedTree->entries[0]->oid));
+        $t->same($treeOid, Commit::parse($commit->storageBytes(), 'sha256')->tree);
+        $t->same($commitOid, GitTag::parse($tag->storageBytes(), 'sha256')->target);
+
+        $expected = [$blobOid, $treeOid, $commitOid, $tagOid];
+        sort($expected, SORT_STRING);
+        $t->same([
+            'numObjects' => 4,
+            'verifiedObjectIds' => $expected,
+        ], $store->verifyIntegrity());
+    },
     'loose object store reads bounded headers before full body integrity checks' => static function (TestRunner $t) use ($looseObjectPath, $writeLooseStorage): void {
         $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-header-' . bin2hex(random_bytes(4)) . '/objects';
         $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);

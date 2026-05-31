@@ -374,6 +374,74 @@ return [
         $t->same('matched', $config->value('user', null, 'literal'));
     },
 
+    'conditional include reversed ranges stay warning-free and match gix byte ranges' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
+        $t->same('override-value', $loadConditionalValue('onbranch:release/[z-a]ite', [
+            'branchName' => 'refs/heads/release/zite',
+        ]));
+        $t->same('base-value', $loadConditionalValue('onbranch:release/[z-a]ite', [
+            'branchName' => 'refs/heads/release/mite',
+        ]));
+        $t->same('override-value', $loadConditionalValue('onbranch:release/[!z-a]ite', [
+            'branchName' => 'refs/heads/release/mite',
+        ]));
+        $t->same('base-value', $loadConditionalValue('onbranch:release/[!z-a]ite', [
+            'branchName' => 'refs/heads/release/zite',
+        ]));
+
+        $root = $tmpDir();
+        $worktree = $root . '/deploy/site-z';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/literal-start.config', "[section]\nvalue = reversed-start\n");
+        $write($worktree . '/middle.config', "[section]\nmiddle = should-not-load\n");
+        $write($worktree . '/icase.config', "[section]\nicase = reversed-icase\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:deploy/site-[z-a]/"]
+        path = ../literal-start.config
+        [includeIf "gitdir:deploy/site-[!z-a]/"]
+        path = ../middle.config
+        [includeIf "gitdir/i:DEPLOY/SITE-[Z-A]/"]
+        path = ../icase.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('reversed-start', $config->value('section', null, 'value'));
+        $t->same(null, $config->value('section', null, 'middle'));
+        $t->same('reversed-icase', $config->value('section', null, 'icase'));
+
+        $root = $tmpDir();
+        $write($root . '/literal-start-url', "[user]\nliteralStart = matched\n");
+        $write($root . '/middle-url', "[user]\nmiddle = should-not-load\n");
+        $write($root . '/config', <<<CFG
+        [remote "site"]
+        url = https://git.example.test/wp-content/site-z.git
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[z-a].git"]
+        path = "literal-start-url"
+        [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[!z-a].git"]
+        path = "middle-url"
+        CFG);
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same('matched', $config->value('user', null, 'literalStart'));
+        $t->same(null, $config->value('user', null, 'middle'));
+    },
+
+    'conditional include icase POSIX class names are normalized like gix wildmatch' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $root = $tmpDir();
+        $worktree = $root . '/wp-content/plugins';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/include.config', "[section]\nvalue = uppercase-posix-name\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir/i:WP-CONTENT/[[:UPPER:]]LUGINS/"]
+        path = ../include.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('uppercase-posix-name', $config->value('section', null, 'value'));
+    },
+
     'conditional include POSIX bracket classes match gix wildmatch classes' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
         $t->same('override-value', $loadConditionalValue('onbranch:deploy/[[:alpha:]]ite', ['branchName' => 'refs/heads/deploy/site']));
         $t->same('base-value', $loadConditionalValue('onbranch:deploy/[[:digit:]]ite', ['branchName' => 'refs/heads/deploy/site']));
@@ -842,6 +910,8 @@ return [
         $t->same('matched', $fixture['bracketUrlPolicy']);
         $t->same('matched', $fixture['posixUrlPolicy']);
         $t->same('matched', $fixture['escapedHyphenUrlPolicy']);
+        $t->same('matched', $fixture['reversedRangeStartUrlPolicy']);
+        $t->same(null, $fixture['reversedRangeMiddleUrlPolicy']);
         $t->same('matched', $fixture['legacyBytePolicy']);
         $t->same('matched', $fixture['literalTildePathPolicy']);
         $t->same('matched', $fixture['installPrefixPathPolicy']);
@@ -866,6 +936,8 @@ return [
         $t->same($fixture['bracketUrlPolicy'], $summary['bracketUrlPolicy']);
         $t->same($fixture['posixUrlPolicy'], $summary['posixUrlPolicy']);
         $t->same($fixture['escapedHyphenUrlPolicy'], $summary['escapedHyphenUrlPolicy']);
+        $t->same($fixture['reversedRangeStartUrlPolicy'], $summary['reversedRangeStartUrlPolicy']);
+        $t->same($fixture['reversedRangeMiddleUrlPolicy'], $summary['reversedRangeMiddleUrlPolicy']);
         $t->same($fixture['legacyBytePolicy'], $summary['legacyBytePolicy']);
         $t->same($fixture['literalTildePathPolicy'], $summary['literalTildePathPolicy']);
         $t->same($fixture['installPrefixPathPolicy'], $summary['installPrefixPathPolicy']);

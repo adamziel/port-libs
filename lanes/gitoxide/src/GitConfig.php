@@ -660,7 +660,10 @@ final class GitConfig
             if ($byte === '[') {
                 $end = self::findCharacterClassEnd($pattern, $index);
                 if ($end !== null) {
-                    $classRegex = self::characterClassRegex(substr($pattern, $index + 1, $end - $index - 1));
+                    $classRegex = self::characterClassRegex(
+                        substr($pattern, $index + 1, $end - $index - 1),
+                        $ignoreCase,
+                    );
                     $regex .= $classRegex === null ? '(?!)' : '(?!/)' . $classRegex;
                     $index = $end;
                     continue;
@@ -712,10 +715,10 @@ final class GitConfig
         return null;
     }
 
-    private static function characterClassRegex(string $class): ?string
+    private static function characterClassRegex(string $class, bool $ignoreCase): ?string
     {
         if ($class === '') {
-            return preg_quote('[]', '~');
+            return '(?!)';
         }
 
         $negated = false;
@@ -724,74 +727,146 @@ final class GitConfig
             $class = substr($class, 1);
         }
 
-        $body = '';
+        $matchedBytes = [];
+        $previousByte = null;
         $length = strlen($class);
-        for ($index = 0; $index < $length; $index++) {
+        for ($index = 0; $index < $length;) {
             $byte = $class[$index];
-            if ($byte === '\\') {
-                if ($index + 1 < $length) {
-                    $body .= self::escapeEscapedCharacterClassByte($class[++$index]);
-                } else {
-                    $body .= '\\\\';
+            if (
+                $byte === '-'
+                && $previousByte !== null
+                && $index + 1 < $length
+                && $class[$index + 1] !== ']'
+            ) {
+                $index++;
+                [$rangeEnd, $index] = self::readCharacterClassRangeEnd($class, $index);
+                if ($rangeEnd === null) {
+                    return null;
                 }
+
+                $start = $ignoreCase ? self::asciiLowerByte($previousByte) : $previousByte;
+                $end = $ignoreCase ? self::asciiLowerByte($rangeEnd) : $rangeEnd;
+                if ($start <= $end) {
+                    for ($rangeByte = $start; $rangeByte <= $end; $rangeByte++) {
+                        $matchedBytes[$rangeByte] = true;
+                    }
+                } elseif ($ignoreCase) {
+                    for ($rangeByte = $end; $rangeByte <= $start; $rangeByte++) {
+                        $matchedBytes[$rangeByte] = true;
+                    }
+                }
+                $previousByte = null;
                 continue;
             }
+
+            if ($byte === '\\') {
+                $index++;
+                $literal = $index < $length ? ord($class[$index]) : ord('\\');
+                $matchedBytes[$literal] = true;
+                $previousByte = $literal;
+                $index++;
+                continue;
+            }
+
             if ($byte === '[' && ($class[$index + 1] ?? '') === ':') {
                 $end = strpos($class, ':]', $index + 2);
                 if ($end !== false) {
                     $name = substr($class, $index + 2, $end - $index - 2);
-                    $mapped = self::posixCharacterClassRegex($name);
+                    $mapped = self::posixCharacterClassBytes($ignoreCase ? strtolower($name) : $name);
                     if ($mapped === null) {
                         return null;
                     }
-                    $body .= $mapped;
-                    $index = $end + 1;
+                    foreach ($mapped as $mappedByte) {
+                        $matchedBytes[$mappedByte] = true;
+                    }
+                    $previousByte = null;
+                    $index = $end + 2;
                     continue;
                 }
             }
 
-            $body .= self::escapeCharacterClassByte($byte);
+            $literal = ord($byte);
+            $matchedBytes[$literal] = true;
+            $previousByte = $literal;
+            $index++;
         }
 
-        if ($body === '') {
-            return preg_quote('[]', '~');
+        if ($matchedBytes === []) {
+            return '(?!)';
         }
 
-        return '[' . ($negated ? '^' : '') . $body . ']';
+        return '[' . ($negated ? '^' : '') . self::bytesToCharacterClassBody($matchedBytes) . ']';
     }
 
-    private static function escapeCharacterClassByte(string $byte): string
+    /**
+     * @return array{?int, int}
+     */
+    private static function readCharacterClassRangeEnd(string $class, int $index): array
     {
-        return match ($byte) {
-            '\\' => '\\\\',
-            ']' => '\\]',
-            '^' => '\\^',
-            '~' => '\\~',
-            default => $byte,
-        };
+        if ($class[$index] === '\\') {
+            $index++;
+            if ($index >= strlen($class)) {
+                return [null, $index];
+            }
+
+            return [ord($class[$index]), $index + 1];
+        }
+
+        return [ord($class[$index]), $index + 1];
     }
 
-    private static function escapeEscapedCharacterClassByte(string $byte): string
+    private static function asciiLowerByte(int $byte): int
     {
-        return preg_quote($byte, '~');
+        return $byte >= 65 && $byte <= 90 ? $byte + 32 : $byte;
     }
 
-    private static function posixCharacterClassRegex(string $class): ?string
+    /**
+     * @param array<int, true> $bytes
+     */
+    private static function bytesToCharacterClassBody(array $bytes): string
     {
-        return match ($class) {
-            'alnum' => 'A-Za-z0-9',
-            'alpha' => 'A-Za-z',
-            'blank' => '\x09-\x0D ',
-            'cntrl' => '\x00-\x1F\x7F',
-            'digit' => '0-9',
-            'graph' => '\x21-\x7E',
-            'lower' => 'a-z',
-            'print' => '\x20-\x7E',
-            'punct' => '\x21-\x2F\x3A-\x40\x5B-\x60\x7B-\x7E',
-            'space' => ' ',
-            'upper' => 'A-Z',
-            'xdigit' => 'A-Fa-f0-9',
+        ksort($bytes, SORT_NUMERIC);
+
+        $body = '';
+        foreach (array_keys($bytes) as $byte) {
+            $body .= sprintf('\\x%02X', $byte);
+        }
+
+        return $body;
+    }
+
+    /**
+     * @return list<int>|null
+     */
+    private static function posixCharacterClassBytes(string $class): ?array
+    {
+        $ranges = match ($class) {
+            'alnum' => [[48, 57], [65, 90], [97, 122]],
+            'alpha' => [[65, 90], [97, 122]],
+            'blank' => [[9, 13], [32, 32]],
+            'cntrl' => [[0, 31], [127, 127]],
+            'digit' => [[48, 57]],
+            'graph' => [[33, 126]],
+            'lower' => [[97, 122]],
+            'print' => [[32, 126]],
+            'punct' => [[33, 47], [58, 64], [91, 96], [123, 126]],
+            'space' => [[32, 32]],
+            'upper' => [[65, 90]],
+            'xdigit' => [[48, 57], [65, 70], [97, 102]],
             default => null,
         };
+
+        if ($ranges === null) {
+            return null;
+        }
+
+        $bytes = [];
+        foreach ($ranges as [$start, $end]) {
+            for ($byte = $start; $byte <= $end; $byte++) {
+                $bytes[] = $byte;
+            }
+        }
+
+        return $bytes;
     }
 }

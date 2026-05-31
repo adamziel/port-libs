@@ -394,6 +394,10 @@ final class CssMinifier
                 if (($css[$i + 2] ?? '') === '!') {
                     $licenseComments[] = trim($comment);
                 }
+                $next = $css[$end + 2] ?? '';
+                if ($next !== '' && $this->needsSpaceBefore($output, $next)) {
+                    $output .= ' ';
+                }
                 $i = $end + 1;
                 continue;
             }

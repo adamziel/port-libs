@@ -68,6 +68,17 @@ final class DeclarationBlock
         'background-origin',
         'background-clip',
     ];
+    private const BACKGROUND_SHORTHAND_SPLIT_LONGHANDS = [
+        'background-color',
+        'background-image',
+        'background-position-x',
+        'background-position-y',
+        'background-repeat',
+        'background-size',
+        'background-attachment',
+        'background-origin',
+        'background-clip',
+    ];
     private const BACKGROUND_POSITION_LONGHANDS = [
         'background-position-x',
         'background-position-y',
@@ -6653,7 +6664,11 @@ final class DeclarationBlock
         $components = [];
         foreach ($entries as $entry) {
             if ($entry['property'] === 'background') {
-                $components = $this->backgroundComponentsFromShorthand($entry['value'], $entry['important']);
+                $components = $this->backgroundComponentsFromShorthand(
+                    $entry['value'],
+                    $entry['important'],
+                    $property !== 'background'
+                );
                 continue;
             }
 
@@ -6691,14 +6706,14 @@ final class DeclarationBlock
     /**
      * @return array<string, array{value:string, important:bool}>
      */
-    private function backgroundComponentsFromShorthand(string $value, bool $important): array
+    private function backgroundComponentsFromShorthand(string $value, bool $important, bool $includeInitialValues = false): array
     {
         $layers = $this->parseBackgroundLayers($value);
         $components = [
             'background' => ['value' => $value, 'important' => $important],
         ];
         foreach (self::BACKGROUND_LONGHANDS as $longhand) {
-            $longhandValue = $this->backgroundLonghandFromLayers($layers, $longhand);
+            $longhandValue = $this->backgroundLonghandFromLayers($layers, $longhand, $includeInitialValues);
             if ($longhandValue !== null) {
                 $components[$longhand] = ['value' => $longhandValue, 'important' => $important];
             }
@@ -6848,27 +6863,21 @@ final class DeclarationBlock
     /**
      * @param list<array{raw:string,image:?string,color:?string,position:?string,positionX:?string,positionY:?string,size:?string,repeat:?string,attachment:?string,origin:?string,clip:?string}> $layers
      */
-    private function backgroundLonghandFromLayers(array $layers, string $property): ?string
+    private function backgroundLonghandFromLayers(array $layers, string $property, bool $includeInitialValues = false): ?string
     {
         if ($property === 'background-color') {
-            for ($i = count($layers) - 1; $i >= 0; $i--) {
-                if ($layers[$i]['color'] !== null) {
-                    return $layers[$i]['color'];
-                }
-            }
-
-            return null;
+            return ($layers[array_key_last($layers)]['color'] ?? null) ?? ($includeInitialValues ? 'transparent' : null);
         }
 
         $values = [];
         foreach ($layers as $layer) {
             $value = match ($property) {
-                'background-image' => $layer['image'],
-                'background-position' => $layer['position'],
-                'background-position-x' => $layer['positionX'],
-                'background-position-y' => $layer['positionY'],
-                'background-size' => $layer['size'],
-                'background-repeat' => $layer['repeat'],
+                'background-image' => $layer['image'] ?? ($includeInitialValues ? 'none' : null),
+                'background-position' => $layer['position'] ?? ($includeInitialValues ? '0 0' : null),
+                'background-position-x' => $layer['positionX'] ?? ($includeInitialValues ? '0' : null),
+                'background-position-y' => $layer['positionY'] ?? ($includeInitialValues ? '0' : null),
+                'background-size' => $layer['size'] ?? ($includeInitialValues ? 'auto' : null),
+                'background-repeat' => $layer['repeat'] ?? ($includeInitialValues ? 'repeat' : null),
                 'background-attachment' => $layer['attachment'] ?? 'scroll',
                 'background-origin' => $layer['origin'] ?? 'padding-box',
                 'background-clip' => $layer['clip'] ?? 'border-box',
@@ -6933,10 +6942,10 @@ final class DeclarationBlock
 
         for ($i = 0; $i < $layerCount; $i++) {
             $layer = [];
-            if (($color !== null && $i === $layerCount - 1) && (($images[$i] ?? null) === null)) {
+            if (($color !== null && $i === $layerCount - 1) && $this->isDefaultBackgroundImage($images[$i] ?? null)) {
                 $layer[] = $color;
             }
-            if (($images[$i] ?? null) !== null) {
+            if (!$this->isDefaultBackgroundImage($images[$i] ?? null)) {
                 $layer[] = $images[$i];
             }
             $position = null;
@@ -6949,14 +6958,14 @@ final class DeclarationBlock
             if ($position === null && $size !== null && !$this->isDefaultBackgroundSize($size)) {
                 $position = '0 0';
             }
-            if ($position !== null) {
+            if ($position !== null && (!$this->isDefaultBackgroundPosition($position) || ($size !== null && !$this->isDefaultBackgroundSize($size)))) {
                 $layer[] = $position;
             }
             if ($size !== null && !$this->isDefaultBackgroundSize($size)) {
                 $layer[] = '/';
                 $layer[] = $size;
             }
-            if (($repeats[$i] ?? null) !== null) {
+            if (($repeats[$i] ?? null) !== null && !$this->isDefaultBackgroundRepeat($repeats[$i])) {
                 $layer[] = $this->compressBackgroundRepeat($repeats[$i]);
             }
             if (($attachments[$i] ?? null) !== null && !$this->isDefaultBackgroundAttachment($attachments[$i])) {
@@ -6976,7 +6985,7 @@ final class DeclarationBlock
                     $layer[] = $clip;
                 }
             }
-            if ($color !== null && $i === $layerCount - 1 && ($images[$i] ?? null) !== null) {
+            if ($color !== null && $i === $layerCount - 1 && !$this->isDefaultBackgroundImage($images[$i] ?? null)) {
                 array_unshift($layer, $color);
             }
             $result[] = implode(' ', array_values(array_filter($layer, static fn (string $part): bool => $part !== '')));
@@ -7099,6 +7108,21 @@ final class DeclarationBlock
     private function isDefaultBackgroundSize(string $size): bool
     {
         return in_array(strtolower(trim($size)), ['auto', 'auto auto'], true);
+    }
+
+    private function isDefaultBackgroundImage(?string $image): bool
+    {
+        return $image === null || strtolower(trim($image)) === 'none';
+    }
+
+    private function isDefaultBackgroundPosition(string $position): bool
+    {
+        return in_array(strtolower(trim($position)), ['0', '0 0', '0% 0%'], true);
+    }
+
+    private function isDefaultBackgroundRepeat(string $repeat): bool
+    {
+        return in_array(strtolower(trim($repeat)), ['repeat', 'repeat repeat'], true);
     }
 
     private function isDefaultBackgroundAttachment(string $attachment): bool
@@ -11166,9 +11190,9 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
-        if ($this->isBackgroundPositionLonghand($property)) {
-            $normalEntries = $this->parseEntries($this->removeBackgroundPositionLonghand($normalEntries, $property));
-            $importantEntries = $this->parseEntries($this->removeBackgroundPositionLonghand($importantEntries, $property));
+        if (in_array($property, self::BACKGROUND_SHORTHAND_SPLIT_LONGHANDS, true)) {
+            $normalEntries = $this->parseEntries($this->removeBackgroundLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeBackgroundLonghand($importantEntries, $property));
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
@@ -11371,7 +11395,7 @@ final class DeclarationBlock
     /**
      * @param list<array{property:string, value:string, important:bool}> $entries
      */
-    private function removeBackgroundPositionLonghand(array $entries, string $property): string
+    private function removeBackgroundLonghand(array $entries, string $property): string
     {
         $result = [];
         foreach ($entries as $entry) {
@@ -11379,28 +11403,44 @@ final class DeclarationBlock
                 continue;
             }
 
-            if ($entry['property'] !== 'background-position') {
+            if ($this->isBackgroundPositionLonghand($property) && $entry['property'] === 'background-position') {
+                [$x, $y] = $this->splitBackgroundPositionList($entry['value']);
+                if ($x === null || $y === null) {
+                    $result[] = $entry;
+                    continue;
+                }
+
+                if ($property !== 'background-position-x') {
+                    $result[] = [
+                        'property' => 'background-position-x',
+                        'value' => $x,
+                        'important' => $entry['important'],
+                    ];
+                }
+                if ($property !== 'background-position-y') {
+                    $result[] = [
+                        'property' => 'background-position-y',
+                        'value' => $y,
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($entry['property'] !== 'background') {
                 $result[] = $entry;
                 continue;
             }
 
-            [$x, $y] = $this->splitBackgroundPositionList($entry['value']);
-            if ($x === null || $y === null) {
-                $result[] = $entry;
-                continue;
-            }
+            $components = $this->backgroundComponentsFromShorthand($entry['value'], $entry['important'], true);
+            foreach (self::BACKGROUND_SHORTHAND_SPLIT_LONGHANDS as $longhand) {
+                if ($longhand === $property || !isset($components[$longhand])) {
+                    continue;
+                }
 
-            if ($property !== 'background-position-x') {
                 $result[] = [
-                    'property' => 'background-position-x',
-                    'value' => $x,
-                    'important' => $entry['important'],
-                ];
-            }
-            if ($property !== 'background-position-y') {
-                $result[] = [
-                    'property' => 'background-position-y',
-                    'value' => $y,
+                    'property' => $longhand,
+                    'value' => $components[$longhand]['value'],
                     'important' => $entry['important'],
                 ];
             }

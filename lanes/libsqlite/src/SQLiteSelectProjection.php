@@ -97,6 +97,9 @@ final class SQLiteSelectProjection
             if (!is_string($column) || $column === '') {
                 throw new \InvalidArgumentException('SQLite SELECT projection row columns must be non-empty strings');
             }
+            if (self::isInternalMetadataColumn($column)) {
+                continue;
+            }
 
             if ($prefix !== null) {
                 $qualifiedPrefix = $prefix . '.';
@@ -125,6 +128,14 @@ final class SQLiteSelectProjection
         }
 
         return $values;
+    }
+
+    private static function isInternalMetadataColumn(string $column): bool
+    {
+        return $column === '__sqlite_column_affinities'
+            || $column === '__sqlite_column_collations'
+            || str_ends_with($column, '.__sqlite_column_affinities')
+            || str_ends_with($column, '.__sqlite_column_collations');
     }
 
     /**
@@ -164,6 +175,9 @@ final class SQLiteSelectProjection
             if (!is_string($column) || $column === '') {
                 throw new \InvalidArgumentException('SQLite SELECT projection row columns must be non-empty strings');
             }
+            if (self::isInternalMetadataColumn($column)) {
+                continue;
+            }
             if (!str_contains($column, '.')) {
                 continue;
             }
@@ -179,6 +193,9 @@ final class SQLiteSelectProjection
             if (!is_string($column) || $column === '' || str_contains($column, '.')) {
                 continue;
             }
+            if (self::isInternalMetadataColumn($column)) {
+                continue;
+            }
             if (isset($qualifiedAliases[$column])) {
                 $coalescedAliases[$column] = true;
             }
@@ -192,6 +209,9 @@ final class SQLiteSelectProjection
         foreach ($row as $column => $value) {
             if (!is_string($column) || $column === '') {
                 throw new \InvalidArgumentException('SQLite SELECT projection row columns must be non-empty strings');
+            }
+            if (self::isInternalMetadataColumn($column)) {
+                continue;
             }
             if (!str_contains($column, '.')) {
                 continue;

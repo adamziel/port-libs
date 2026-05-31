@@ -443,11 +443,21 @@ final class SQLiteSelectResult
             if (array_key_exists($target, $row)) {
                 throw new \InvalidArgumentException("SQLite JOIN result has ambiguous column {$column}");
             }
-            self::valueKey($value);
+            if (!self::isInternalMetadataColumn($target)) {
+                self::valueKey($value);
+            }
             $row[$target] = $value;
         }
 
         return $row;
+    }
+
+    private static function isInternalMetadataColumn(string $column): bool
+    {
+        return $column === '__sqlite_column_affinities'
+            || $column === '__sqlite_column_collations'
+            || str_ends_with($column, '.__sqlite_column_affinities')
+            || str_ends_with($column, '.__sqlite_column_collations');
     }
 
     /**
@@ -458,6 +468,9 @@ final class SQLiteSelectResult
         foreach ($row as $column => $value) {
             if (!is_string($column) || $column === '') {
                 throw new \InvalidArgumentException('SQLite SELECT result rows must have named columns');
+            }
+            if (self::isInternalMetadataColumn($column)) {
+                continue;
             }
             self::valueKey($value);
         }
@@ -473,6 +486,9 @@ final class SQLiteSelectResult
         foreach ($rows as $row) {
             self::assertRow($row);
             foreach ($row as $column => $unused) {
+                if (is_string($column) && self::isInternalMetadataColumn($column)) {
+                    continue;
+                }
                 if (!in_array($column, $columns, true)) {
                     $columns[] = $column;
                 }

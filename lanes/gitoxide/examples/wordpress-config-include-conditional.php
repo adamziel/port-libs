@@ -19,6 +19,8 @@ return [
     'bracketUrlPolicy' => $fixture['bracketUrlPolicy'],
     'posixUrlPolicy' => $fixture['posixUrlPolicy'],
     'escapedHyphenUrlPolicy' => $fixture['escapedHyphenUrlPolicy'],
+    'reversedRangeStartUrlPolicy' => $fixture['reversedRangeStartUrlPolicy'],
+    'reversedRangeMiddleUrlPolicy' => $fixture['reversedRangeMiddleUrlPolicy'],
     'legacyBytePolicy' => $fixture['legacyBytePolicy'],
     'literalTildePathPolicy' => $fixture['literalTildePathPolicy'],
     'installPrefixPathPolicy' => $fixture['installPrefixPathPolicy'],

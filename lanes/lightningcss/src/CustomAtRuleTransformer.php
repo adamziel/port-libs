@@ -560,36 +560,14 @@ final class CustomAtRuleTransformer
                 return $changed ? $current : null;
             },
             'Token' => [
-                'at-keyword' => static function (array $token, self $transformer) use ($visitors): mixed {
-                    foreach ($visitors as $visitor) {
-                        $callback = self::tokenVisitorCallback($visitor, 'at-keyword');
-                        if ($callback === null) {
-                            continue;
-                        }
-
-                        $replacement = $callback($token, $transformer);
-                        if ($replacement !== null) {
-                            return $replacement;
-                        }
-                    }
-
-                    return null;
-                },
-                'dimension' => static function (array $token, self $transformer) use ($visitors): mixed {
-                    foreach ($visitors as $visitor) {
-                        $callback = self::tokenVisitorCallback($visitor, 'dimension');
-                        if ($callback === null) {
-                            continue;
-                        }
-
-                        $replacement = $callback($token, $transformer);
-                        if ($replacement !== null) {
-                            return $replacement;
-                        }
-                    }
-
-                    return null;
-                },
+                'ident' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'ident', $token, $transformer),
+                'at-keyword' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'at-keyword', $token, $transformer),
+                'hash' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'hash', $token, $transformer),
+                'id-hash' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'id-hash', $token, $transformer),
+                'string' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'string', $token, $transformer),
+                'number' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'number', $token, $transformer),
+                'percentage' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'percentage', $token, $transformer),
+                'dimension' => static fn (array $token, self $transformer): mixed => self::callComposedTokenVisitors($visitors, 'dimension', $token, $transformer),
             ],
             'Selector' => static function (array $selector, self $transformer) use ($visitors): mixed {
                 $current = $selector;
@@ -4023,6 +4001,27 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @param list<array<string, mixed>> $visitors
+     * @param array<string, mixed> $token
+     */
+    private static function callComposedTokenVisitors(array $visitors, string $tokenType, array $token, self $transformer): mixed
+    {
+        foreach ($visitors as $visitor) {
+            $callback = self::tokenVisitorCallback($visitor, $tokenType);
+            if ($callback === null) {
+                continue;
+            }
+
+            $replacement = $callback($token, $transformer);
+            if ($replacement !== null) {
+                return $replacement;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * @param array<string, mixed> $visitor
      */
     private static function unknownRuleVisitorCallback(array $visitor, string $ruleName): ?callable
@@ -6097,6 +6096,9 @@ final class CustomAtRuleTransformer
             if (($token['type'] ?? null) === 'at-keyword') {
                 return '@' . (string) ($token['value'] ?? '');
             }
+            if (($token['type'] ?? null) === 'hash' || ($token['type'] ?? null) === 'id-hash') {
+                return '#' . (string) ($token['value'] ?? '');
+            }
             if (($token['type'] ?? null) === 'delim') {
                 return (string) ($token['value'] ?? '');
             }
@@ -6112,6 +6114,18 @@ final class CustomAtRuleTransformer
         }
         if ($type === 'raw') {
             return (string) ($value['value'] ?? '');
+        }
+        if ($type === 'ident') {
+            return (string) ($value['value'] ?? '');
+        }
+        if ($type === 'hash' || $type === 'id-hash') {
+            return '#' . (string) ($value['value'] ?? '');
+        }
+        if ($type === 'string') {
+            return '"' . addcslashes((string) ($value['value'] ?? ''), "\\\"") . '"';
+        }
+        if ($type === 'number' && (is_int($value['value'] ?? null) || is_float($value['value'] ?? null))) {
+            return $this->formatNumber($value['value']);
         }
         if ($type === 'var') {
             return $this->serializeVariableValue(is_array($value['value'] ?? null) ? $value['value'] : $value);
@@ -6327,26 +6341,45 @@ final class CustomAtRuleTransformer
         }
 
         $output = '';
-        $quote = null;
         $length = strlen($value);
         for ($i = 0; $i < $length; $i++) {
             $char = $value[$i];
-            if ($quote !== null) {
-                $output .= $char;
-                if ($char === '\\' && $i + 1 < $length) {
-                    $output .= $value[++$i];
-                    continue;
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $raw = $char;
+                $i++;
+                while ($i < $length) {
+                    $raw .= $value[$i];
+                    if ($value[$i] === '\\' && $i + 1 < $length) {
+                        $i++;
+                        $raw .= $value[$i];
+                    } elseif ($value[$i] === $quote) {
+                        break;
+                    }
+                    $i++;
                 }
-                if ($char === $quote) {
-                    $quote = null;
-                }
+
+                $replacement = $this->tokenVisitorEnabled('string')
+                    ? $this->callTokenVisitor('string', [
+                        'type' => 'string',
+                        'value' => stripcslashes(substr($raw, 1, -1)),
+                        'raw' => $raw,
+                    ])
+                    : null;
+                $output .= $replacement ?? $raw;
                 continue;
             }
 
-            if ($char === '"' || $char === "'") {
-                $quote = $char;
-                $output .= $char;
-                continue;
+            if (preg_match('/[a-zA-Z_-][-_a-zA-Z0-9]*(?=\()/A', substr($value, $i), $matches) === 1) {
+                $name = $matches[0];
+                $open = $i + strlen($name);
+                $close = $this->findMatchingParen($value, $open);
+                if ($close !== null) {
+                    $argumentsCss = substr($value, $open + 1, $close - $open - 1);
+                    $output .= $name . '(' . $this->rewriteValueTokens($argumentsCss) . ')';
+                    $i = $close;
+                    continue;
+                }
             }
 
             if ($char === '@' && preg_match('/@(--[-_a-zA-Z0-9]+|-?[_a-zA-Z][-_a-zA-Z0-9]*)/A', substr($value, $i), $matches) === 1) {
@@ -6359,6 +6392,26 @@ final class CustomAtRuleTransformer
                 $output .= $replacement ?? $raw;
                 $i += strlen($raw) - 1;
                 continue;
+            }
+
+            if ($char === '#' && preg_match('/#([-_a-zA-Z0-9]+)/A', substr($value, $i), $matches) === 1) {
+                $raw = $matches[0];
+                $before = $i > 0 ? $value[$i - 1] : '';
+                $after = $value[$i + strlen($raw)] ?? '';
+                if (
+                    ($before === '' || !preg_match('/[-_a-zA-Z0-9]/', $before))
+                    && ($after === '' || !preg_match('/[-_a-zA-Z0-9]/', $after))
+                ) {
+                    $hashType = preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $matches[1]) === 1 ? 'id-hash' : 'hash';
+                    $replacement = $this->callTokenVisitor($hashType, [
+                        'type' => $hashType,
+                        'value' => $matches[1],
+                        'raw' => $raw,
+                    ]);
+                    $output .= $replacement ?? $raw;
+                    $i += strlen($raw) - 1;
+                    continue;
+                }
             }
 
             if (preg_match('/([+-]?(?:\d+|\d*\.\d+))(--[-_a-zA-Z0-9]+)/A', substr($value, $i), $matches) === 1) {
@@ -6383,10 +6436,72 @@ final class CustomAtRuleTransformer
                 }
             }
 
+            if (preg_match('/([+-]?(?:\d+|\d*\.\d+))%/A', substr($value, $i), $matches) === 1) {
+                $raw = $matches[0];
+                $before = $i > 0 ? $value[$i - 1] : '';
+                $after = $value[$i + strlen($raw)] ?? '';
+                if (
+                    ($before === '' || !preg_match('/[-_a-zA-Z0-9.]/', $before))
+                    && ($after === '' || !preg_match('/[-_a-zA-Z0-9]/', $after))
+                ) {
+                    $replacement = $this->callTokenVisitor('percentage', [
+                        'type' => 'percentage',
+                        'value' => (float) $matches[1] / 100,
+                        'raw' => $raw,
+                    ]);
+                    $output .= $replacement ?? $raw;
+                    $i += strlen($raw) - 1;
+                    continue;
+                }
+            }
+
+            if (preg_match('/[+-]?(?:\d+|\d*\.\d+)/A', substr($value, $i), $matches) === 1) {
+                $raw = $matches[0];
+                $before = $i > 0 ? $value[$i - 1] : '';
+                $after = $value[$i + strlen($raw)] ?? '';
+                if (
+                    ($before === '' || !preg_match('/[-_a-zA-Z0-9.]/', $before))
+                    && ($after === '' || !preg_match('/[-_a-zA-Z0-9.]/', $after))
+                ) {
+                    $replacement = $this->callTokenVisitor('number', [
+                        'type' => 'number',
+                        'value' => (float) $raw,
+                        'raw' => $raw,
+                    ]);
+                    $output .= $replacement ?? $raw;
+                    $i += strlen($raw) - 1;
+                    continue;
+                }
+            }
+
+            if (preg_match('/-?[_a-zA-Z][-_a-zA-Z0-9]*/A', substr($value, $i), $matches) === 1) {
+                $raw = $matches[0];
+                $before = $i > 0 ? $value[$i - 1] : '';
+                $after = $value[$i + strlen($raw)] ?? '';
+                if (
+                    ($before === '' || !preg_match('/[-_a-zA-Z0-9]/', $before))
+                    && ($after === '' || !preg_match('/[-_a-zA-Z0-9]/', $after))
+                ) {
+                    $replacement = $this->callTokenVisitor('ident', [
+                        'type' => 'ident',
+                        'value' => $raw,
+                        'raw' => $raw,
+                    ]);
+                    $output .= $replacement ?? $raw;
+                    $i += strlen($raw) - 1;
+                    continue;
+                }
+            }
+
             $output .= $char;
         }
 
         return $output;
+    }
+
+    private function tokenVisitorEnabled(string $type): bool
+    {
+        return $this->genericTokenVisitor !== null || isset($this->tokenVisitors[strtolower($type)]);
     }
 
     /**

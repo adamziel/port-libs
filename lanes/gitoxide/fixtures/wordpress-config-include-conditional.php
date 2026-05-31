@@ -63,6 +63,16 @@ $write($repo . '/escaped-hyphen-url.config', <<<CFG
 escapedHyphenUrl = matched
 CFG);
 
+$write($repo . '/reversed-range-start-url.config', <<<CFG
+[wordpress]
+reversedRangeStartUrl = matched
+CFG);
+
+$write($repo . '/reversed-range-middle-url.config', <<<CFG
+[wordpress]
+reversedRangeMiddleUrl = should-not-load
+CFG);
+
 $write($repo . '/legacy-byte.config', <<<CFG
 [wordpress]
 legacyByte = matched
@@ -162,6 +172,10 @@ url = https://git.example.test/wp-content.git
 url = https://git.example.test/wp-content/site-7.git
 [remote "literal-hyphen"]
 url = https://git.example.test/wp-content/site--.git
+[remote "reversed-range"]
+url = https://git.example.test/wp-content/site-z.git
+[remote "reversed-range-middle"]
+url = https://git.example.test/wp-content/range-middle-m.git
 [remote "legacy-byte"]
 url = https://git.example.test/wp-content/legacy-{$legacyByte}.git
 [remote "backslash-url"]
@@ -188,6 +202,10 @@ path = ../bracket-url.config
 path = ../posix-url.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[a\\\\-c].git"]
 path = ../escaped-hyphen-url.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/site-[z-a].git"]
+path = ../reversed-range-start-url.config
+[includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/range-middle-[z-a].git"]
+path = ../reversed-range-middle-url.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/wp-content/legacy-?.git"]
 path = ../legacy-byte.config
 [includeIf "gitdir:wp-content.git/"]
@@ -254,6 +272,8 @@ return [
     'bracketUrlPolicy' => $config->value('wordpress', null, 'bracketUrl'),
     'posixUrlPolicy' => $config->value('wordpress', null, 'posixUrl'),
     'escapedHyphenUrlPolicy' => $config->value('wordpress', null, 'escapedHyphenUrl'),
+    'reversedRangeStartUrlPolicy' => $config->value('wordpress', null, 'reversedRangeStartUrl'),
+    'reversedRangeMiddleUrlPolicy' => $config->value('wordpress', null, 'reversedRangeMiddleUrl'),
     'legacyBytePolicy' => $config->value('wordpress', null, 'legacyByte'),
     'literalTildePathPolicy' => $config->value('wordpress', null, 'literalTildePath'),
     'installPrefixPathPolicy' => $config->value('wordpress', null, 'installPrefixPath'),

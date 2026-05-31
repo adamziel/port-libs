@@ -200,7 +200,7 @@ final class LooseObjectStore
                 throw new \RuntimeException("Loose object hash mismatch: expected {$oid}, got {$actual}");
             }
 
-            self::decodeForIntegrity($object, $oid);
+            self::decodeForIntegrity($object, $oid, $this->algorithm);
             $verified[] = $oid;
         }
 
@@ -422,14 +422,14 @@ final class LooseObjectStore
         return $inflated;
     }
 
-    private static function decodeForIntegrity(GitObject $object, string $oid): void
+    private static function decodeForIntegrity(GitObject $object, string $oid, string $algorithm): void
     {
         try {
             match ($object->type) {
                 'blob' => null,
-                'tree' => Tree::parse($object->body),
-                'commit' => Commit::parse($object->body),
-                'tag' => GitTag::parse($object->body),
+                'tree' => Tree::parse($object->body, $algorithm),
+                'commit' => Commit::parse($object->body, $algorithm),
+                'tag' => GitTag::parse($object->body, $algorithm),
             };
         } catch (\InvalidArgumentException $exception) {
             throw new \RuntimeException("{$object->type} object {$oid} could not be decoded: {$exception->getMessage()}", 0, $exception);

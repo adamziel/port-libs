@@ -71,11 +71,23 @@ final class SQLiteSelectSql
     private static function stripInternalMetadata(array $rows): array
     {
         foreach ($rows as $index => $row) {
-            unset($row['__sqlite_column_affinities'], $row['__sqlite_column_collations']);
+            foreach (array_keys($row) as $column) {
+                if (is_string($column) && self::isInternalMetadataColumn($column)) {
+                    unset($row[$column]);
+                }
+            }
             $rows[$index] = $row;
         }
 
         return $rows;
+    }
+
+    private static function isInternalMetadataColumn(string $column): bool
+    {
+        return $column === '__sqlite_column_affinities'
+            || $column === '__sqlite_column_collations'
+            || str_ends_with($column, '.__sqlite_column_affinities')
+            || str_ends_with($column, '.__sqlite_column_collations');
     }
 
     /**
@@ -3605,6 +3617,9 @@ final class SQLiteSelectSql
         $columns = [];
         foreach ($rows as $row) {
             foreach ($row as $column => $unused) {
+                if (is_string($column) && self::isInternalMetadataColumn($column)) {
+                    continue;
+                }
                 if (!in_array($column, $columns, true)) {
                     $columns[] = $column;
                 }
@@ -3700,6 +3715,7 @@ final class SQLiteSelectSql
                     $rightValue,
                     self::coalescedJoinColumnAffinity($left, $leftColumn),
                     self::coalescedJoinColumnAffinity($right, $rightColumn),
+                    self::coalescedJoinColumnCollation($left, $leftColumn),
                 )) {
                     return false;
                 }
@@ -3763,6 +3779,35 @@ final class SQLiteSelectSql
 
     /**
      * @param array<string,mixed> $row
+     * @param list<string> $columns
+     */
+    private static function coalescedJoinColumnCollation(array $row, array $columns): string
+    {
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $row)) {
+                continue;
+            }
+            $collation = self::joinColumnCollation($row, $column);
+            if ($collation !== null) {
+                return $collation;
+            }
+            if ($row[$column] !== null) {
+                return 'BINARY';
+            }
+        }
+
+        foreach ($columns as $column) {
+            $collation = self::joinColumnCollation($row, $column);
+            if ($collation !== null) {
+                return $collation;
+            }
+        }
+
+        return 'BINARY';
+    }
+
+    /**
+     * @param array<string,mixed> $row
      */
     private static function joinColumnAffinity(array $row, string $column): ?string
     {
@@ -3793,6 +3838,50 @@ final class SQLiteSelectSql
                 if (is_string($affinity) && $affinity !== '') {
                     return $affinity;
                 }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     */
+    private static function joinColumnCollation(array $row, string $column): ?string
+    {
+        $candidates = [$column];
+        if (str_contains($column, '.')) {
+            $candidates[] = self::unqualifiedColumn($column);
+        }
+
+        $metadataKeys = [];
+        if (str_contains($column, '.')) {
+            $metadataKeys[] = substr($column, 0, strrpos($column, '.')) . '.__sqlite_column_collations';
+        }
+        $metadataKeys[] = '__sqlite_column_collations';
+
+        foreach ($row as $key => $value) {
+            if (is_string($key) && str_ends_with($key, '.__sqlite_column_collations') && !in_array($key, $metadataKeys, true)) {
+                $metadataKeys[] = $key;
+            }
+        }
+
+        foreach ($metadataKeys as $metadataKey) {
+            $metadata = $row[$metadataKey] ?? null;
+            if (!is_array($metadata)) {
+                continue;
+            }
+            foreach ($candidates as $candidate) {
+                $collation = $metadata[$candidate] ?? null;
+                if (!is_string($collation) || $collation === '') {
+                    continue;
+                }
+                $collation = strtoupper($collation);
+                if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
+                    throw new \InvalidArgumentException("Unsupported SQLite SELECT SQL JOIN USING collation: {$metadata[$candidate]}");
+                }
+
+                return $collation;
             }
         }
 
@@ -3876,13 +3965,14 @@ final class SQLiteSelectSql
         mixed $leftValue,
         mixed $rightValue,
         string $leftAffinity = 'NONE',
-        string $rightAffinity = 'NONE'
+        string $rightAffinity = 'NONE',
+        string $collation = 'BINARY'
     ): bool
     {
         self::joinValueKey($leftValue);
         self::joinValueKey($rightValue);
 
-        return SQLiteAffinityComparison::compare($leftValue, $rightValue, $leftAffinity, $rightAffinity, 'BINARY') === 0;
+        return SQLiteAffinityComparison::compare($leftValue, $rightValue, $leftAffinity, $rightAffinity, $collation) === 0;
     }
 
     /**
@@ -4260,16 +4350,13 @@ final class SQLiteSelectSql
     {
         $columns = [];
         foreach (array_keys($row) as $column) {
-            if (
-                !is_string($column)
-                || $column === 'rowid'
-                || $column === '__sqlite_column_affinities'
-                || $column === '__sqlite_column_collations'
-                || str_ends_with($column, '.__sqlite_column_affinities')
-                || str_ends_with($column, '.__sqlite_column_collations')
-            ) {
-                continue;
-            }
+                if (
+                    !is_string($column)
+                    || $column === 'rowid'
+                    || self::isInternalMetadataColumn($column)
+                ) {
+                    continue;
+                }
 
             $columns[] = $column;
         }

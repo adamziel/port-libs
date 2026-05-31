@@ -28,6 +28,19 @@ final class TransitionPrefixer
         'yi',
     ];
 
+    private const LENGTH_TARGET_FALLBACK_PROPERTIES = [
+        'margin-right' => true,
+        'margin' => true,
+        'padding-right' => true,
+        'padding' => true,
+        'width' => true,
+        'height' => true,
+        'min-height' => true,
+        'max-height' => true,
+        'line-height' => true,
+        'border-radius' => true,
+    ];
+
     public function prefixLegacySafari(string $css): string
     {
         return $this->prefixForTargets($css, ['chrome' => 4, 'safari' => 14]);
@@ -283,6 +296,7 @@ final class TransitionPrefixer
         $alphaHexChanged = $this->rewriteAlphaHexFallbackEntries($entries, $targetOptions);
         $modernColorChanged = $this->rewriteModernColorFunctionEntries($entries, $targetOptions);
         $fontTargetChanged = $this->rewriteFontTargetFallbackEntries($entries, $targetOptions);
+        $lengthTargetChanged = $this->rewriteLengthTargetFallbackEntries($entries, $targetOptions);
         $logicalBorderFallback = $this->rewriteLogicalBorderFallbackRule(
             $selectors,
             $entries,
@@ -315,7 +329,7 @@ final class TransitionPrefixer
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
         $selectorVariants = $this->selectorPrefixVariants($selectors, $targetOptions);
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $selectorVariants !== null) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $sizingKeywordChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $lengthTargetChanged || $selectorVariants !== null) {
             return $this->serializeRulesForSelectors($selectorVariants ?? [$selectors], $entries) . implode('', $supportRules);
         }
 
@@ -1313,6 +1327,26 @@ final class TransitionPrefixer
                 'safari' => [11, 1],
                 'samsung' => [8],
             ]),
+            'lengthMinMaxFunctionSupported' => $this->targetsAllAtLeast($normalized, [
+                'android' => [79],
+                'chrome' => [79],
+                'edge' => [79],
+                'firefox' => [79],
+                'ios_saf' => [11, 3],
+                'opera' => [57],
+                'safari' => [11, 1],
+                'samsung' => [12],
+            ]),
+            'lengthContainerQueryUnitsSupported' => $this->targetsAllAtLeast($normalized, [
+                'android' => [105],
+                'chrome' => [105],
+                'edge' => [105],
+                'firefox' => [110],
+                'ios_saf' => [16],
+                'opera' => [72],
+                'safari' => [16],
+                'samsung' => [20],
+            ]),
             'keyframesNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [42])
                 || $this->targetInRange($normalized, 'ios_saf', [3], [8, 0])
@@ -1326,6 +1360,83 @@ final class TransitionPrefixer
             'transitionNeedsMoz' => $this->targetInRange($normalized, 'firefox', [4], [15]),
             'transitionNeedsO' => $this->targetInRange($normalized, 'opera', [10], [12]),
         ];
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteLengthTargetFallbackEntries(array &$entries, array $targetOptions): bool
+    {
+        $changed = false;
+        $rewritten = [];
+
+        foreach ($entries as $entry) {
+            if (!$entry['important']
+                && isset(self::LENGTH_TARGET_FALLBACK_PROPERTIES[$entry['property']])
+                && $this->lengthValueSupportedForTargetFallback($entry['value'], $targetOptions)
+            ) {
+                $previous = $this->lastSamePropertyEntryIndex($rewritten, $entry['property']);
+                if ($previous !== null
+                    && !$rewritten[$previous]['important']
+                    && !$this->containsCustomPropertyReference($rewritten[$previous]['value'])
+                ) {
+                    array_splice($rewritten, $previous, 1);
+                    $changed = true;
+                }
+            }
+
+            $rewritten[] = $entry;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+
+        return true;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     */
+    private function lastSamePropertyEntryIndex(array $entries, string $property): ?int
+    {
+        for ($index = count($entries) - 1; $index >= 0; $index--) {
+            if ($entries[$index]['property'] === $property) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function lengthValueSupportedForTargetFallback(string $value, array $targetOptions): bool
+    {
+        if ($this->containsCustomPropertyReference($value)) {
+            return false;
+        }
+
+        $hasTargetFeature = false;
+        if (preg_match('/\b(?:min|max)\(/i', $value) === 1) {
+            if (!($targetOptions['lengthMinMaxFunctionSupported'] ?? false)) {
+                return false;
+            }
+            $hasTargetFeature = true;
+        }
+
+        if (preg_match('/(?<![a-z_-])cq(?:w|h|i|b|min|max)\b/i', $value) === 1) {
+            if (!($targetOptions['lengthContainerQueryUnitsSupported'] ?? false)) {
+                return false;
+            }
+            $hasTargetFeature = true;
+        }
+
+        return $hasTargetFeature;
     }
 
     /**

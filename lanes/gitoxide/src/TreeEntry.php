@@ -15,8 +15,8 @@ final class TreeEntry
         if (str_contains($filename, "\0")) {
             throw new \InvalidArgumentException('Tree entry filename cannot contain NUL bytes');
         }
-        if (!preg_match('/^[0-9a-f]{40}$/', $oid)) {
-            throw new \InvalidArgumentException('Tree entry object id must be a 40-character SHA-1 hex string');
+        if (!preg_match('/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/', $oid)) {
+            throw new \InvalidArgumentException('Tree entry object id must be a 40-character SHA-1 or 64-character SHA-256 hex string');
         }
     }
 

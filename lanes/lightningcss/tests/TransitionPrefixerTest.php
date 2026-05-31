@@ -278,6 +278,40 @@ return [
             $prefixer->prefixForTargets('.foo { border-width: clamp(1em, 2px, 4vh) }', ['safari' => 14])
         );
     },
+    'transition prefixer maps upstream length max and cqw target fallback boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $properties = [
+            'margin-right',
+            'margin',
+            'padding-right',
+            'padding',
+            'width',
+            'height',
+            'min-height',
+            'max-height',
+            'line-height',
+            'border-radius',
+        ];
+
+        foreach ($properties as $property) {
+            $t->same(
+                '.foo{' . $property . ':22px;' . $property . ':max(4%,22px)}',
+                $prefixer->prefixForTargets('.foo { ' . $property . ': 22px; ' . $property . ': max(4%, 22px); }', ['safari' => 10])
+            );
+            $t->same(
+                '.foo{' . $property . ':max(4%,22px)}',
+                $prefixer->prefixForTargets('.foo { ' . $property . ': 22px; ' . $property . ': max(4%, 22px); }', ['safari' => 14])
+            );
+            $t->same(
+                '.foo{' . $property . ':22px;' . $property . ':max(2cqw,22px)}',
+                $prefixer->prefixForTargets('.foo { ' . $property . ': 22px; ' . $property . ': max(2cqw, 22px); }', ['safari' => 14])
+            );
+            $t->same(
+                '.foo{' . $property . ':max(2cqw,22px)}',
+                $prefixer->prefixForTargets('.foo { ' . $property . ': 22px; ' . $property . ': max(2cqw, 22px); }', ['safari' => 16])
+            );
+        }
+    },
     'transition prefixer maps upstream color-scheme light-dark fallback flags' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
