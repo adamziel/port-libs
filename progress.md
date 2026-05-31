@@ -48,6 +48,29 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (integration sample 01:31 UTC):
+  Latest libsqlite source is integrated as `b698b3ea`
+  (`libsqlite: add thirty-ninth current corpus sweep`). The batch accepted 8
+  non-app-WAL handoffs: row-value UPDATE/DELETE LIMIT subquery parity, B-tree/
+  bestindex3 virtual-table behavior, date4 real-date continuation behavior,
+  expression affinity unary behavior, JSON1/JSONB expansion behavior, PRAGMA
+  generated xinfo behavior, SELECT negative LIMIT behavior, and window2 large
+  corpus behavior. Verification passed PHP lint for `14` changed/new PHP
+  files, `git diff --check -- lanes/libsqlite`, focused selected tests `8
+  files / 61991 assertions / 0 failures / 7726 PASS lines`, accepted-base
+  overlap `1 file / 1339 assertions / 0 failures / 472 PASS lines`, B-tree
+  related tests `7 files / 160198 assertions / 0 failures / 10504 PASS lines`,
+  mixed targeted related tests `9 files / 52769 assertions / 0 failures / 9635
+  PASS lines`, and no-domain-specific API guard `1 file / 3 assertions / 0
+  failures`. Honest selected movement is `+7254`, so the public row should move
+  to `1436524 pass / 0 fail` with coverage still `1589 / 1589`. A broad
+  rowvalue diagnostic was not counted because
+  `SQLiteRowValueInSubqueryCorpusTest.php` remains base-identical at `49
+  assertions / 3 failures` on both current and accepted base. App-WAL remains
+  parked unless independently proved; libsqlite remains active until full
+  functional/release/all-runner gates are done before moving the team to
+  gitoxide.
+
 - 2026-05-31 supervisor continuation (integration sample 01:23 UTC):
   Latest libsqlite source is integrated as `3800a13b`
   (`libsqlite: add thirty-eighth current corpus sweep`). The batch accepted 10
