@@ -1687,6 +1687,13 @@ final class SQLiteUpdateDeleteReturningSql
     private static function evaluateExpression(string $expression, array $row): mixed
     {
         $expression = trim($expression);
+        $collation = self::splitCollationExpression($expression);
+        if ($collation !== null) {
+            return self::collatedValue(
+                self::evaluateExpression($collation['expression'], $row),
+                $collation['collation'],
+            );
+        }
         $predicate = self::evaluateRowValueExpressionPredicate($expression, $row);
         if ($predicate['matched']) {
             return $predicate['value'] === null ? null : ($predicate['value'] ? 1 : 0);
@@ -1743,6 +1750,14 @@ final class SQLiteUpdateDeleteReturningSql
             $value = self::evaluateExpression(trim($match[1]), $row);
 
             return $value === null ? null : self::textLength((string) $value);
+        }
+        if (preg_match('/^(upper|lower)\s*\((.+)\)$/is', $expression, $match) === 1) {
+            $value = self::evaluateExpression(trim($match[2]), $row);
+            if ($value === null) {
+                return null;
+            }
+
+            return strcasecmp($match[1], 'upper') === 0 ? strtoupper((string) $value) : strtolower((string) $value);
         }
         if (preg_match('/^round\s*\((.*)\)$/is', $expression, $match) === 1) {
             $parts = self::splitComma($match[1]);
@@ -2024,7 +2039,10 @@ final class SQLiteUpdateDeleteReturningSql
         $columns = [];
         foreach (self::splitComma($sql) as $column) {
             $column = trim($column);
-            if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $column) !== 1) {
+            if (
+                preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $column) !== 1
+                && preg_match('/^[A-Za-z_][A-Za-z0-9_]*\s+COLLATE\s+(?:BINARY|NOCASE|RTRIM)$/i', $column) !== 1
+            ) {
                 throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value columns must be identifiers');
             }
             $columns[] = $column;
@@ -2043,7 +2061,12 @@ final class SQLiteUpdateDeleteReturningSql
      */
     private static function rowValue(array $row, array $columns): array
     {
-        return array_map(static fn (string $column): mixed => self::column($row, $column), $columns);
+        return array_map(
+            static fn (string $column): mixed => preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $column) === 1
+                ? self::column($row, $column)
+                : self::evaluateExpression($column, $row),
+            $columns,
+        );
     }
 
     /**
@@ -2408,7 +2431,7 @@ final class SQLiteUpdateDeleteReturningSql
                 } else {
                     throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value subquery ORDER BY term needs a column or expression');
                 }
-                if ($leftValue === $rightValue) {
+                if (self::rowValueScalarEquals($leftValue, $rightValue)) {
                     continue;
                 }
                 $nulls = strtoupper($term['nulls'] ?? '');
@@ -2426,7 +2449,7 @@ final class SQLiteUpdateDeleteReturningSql
                         }
                     }
                 } else {
-                    $comparison = $leftValue <=> $rightValue;
+                    $comparison = self::rowValueScalarCompare($leftValue, $rightValue);
                     if (($term['direction'] ?? 'ASC') === 'DESC') {
                         $comparison *= -1;
                     }
@@ -2478,7 +2501,7 @@ final class SQLiteUpdateDeleteReturningSql
                 }
                 continue;
             }
-            if ($leftValue != $rightValue) {
+            if (!self::rowValueScalarEquals($leftValue, $rightValue)) {
                 return false;
             }
         }
@@ -2503,7 +2526,7 @@ final class SQLiteUpdateDeleteReturningSql
                 }
                 continue;
             }
-            if (self::compareDistinctValues($leftValue, $rightValue) !== 0) {
+            if (self::rowValueScalarCompare($leftValue, $rightValue) !== 0) {
                 return true;
             }
         }
@@ -2551,11 +2574,11 @@ final class SQLiteUpdateDeleteReturningSql
             if ($leftValue === null || $rightValue === null) {
                 return null;
             }
-            if ($leftValue == $rightValue) {
+            if (self::rowValueScalarEquals($leftValue, $rightValue)) {
                 continue;
             }
 
-            return $leftValue <=> $rightValue;
+            return self::rowValueScalarCompare($leftValue, $rightValue);
         }
 
         return 0;
@@ -2578,7 +2601,7 @@ final class SQLiteUpdateDeleteReturningSql
                 $unknown = true;
                 continue;
             }
-            if ($leftValue != $rightValue) {
+            if (!self::rowValueScalarEquals($leftValue, $rightValue)) {
                 return false;
             }
         }
@@ -2641,6 +2664,94 @@ final class SQLiteUpdateDeleteReturningSql
             '<=' => $comparison === null ? null : $comparison <= 0,
             default => false,
         };
+    }
+
+    /**
+     * @return array{expression:string,collation:string}|null
+     */
+    private static function splitCollationExpression(string $expression): ?array
+    {
+        $expression = trim($expression);
+        $inString = false;
+        $depth = 0;
+        $length = strlen($expression);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $expression[$i];
+            if ($char === "'") {
+                if ($inString && ($expression[$i + 1] ?? null) === "'") {
+                    $i++;
+                    continue;
+                }
+                $inString = !$inString;
+                continue;
+            }
+            if (!$inString && $char === '(') {
+                $depth++;
+                continue;
+            }
+            if (!$inString && $char === ')') {
+                $depth--;
+                continue;
+            }
+            if (!$inString && $depth === 0 && self::keywordAt($expression, $i, 'COLLATE')) {
+                $left = trim(substr($expression, 0, $i));
+                $right = trim(substr($expression, $i + strlen('COLLATE')));
+                if ($left === '' || preg_match('/^(BINARY|NOCASE|RTRIM)$/i', $right) !== 1) {
+                    throw new \InvalidArgumentException('SQLite UPDATE/DELETE COLLATE expression is malformed');
+                }
+
+                return ['expression' => $left, 'collation' => strtoupper($right)];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{__sqlite_collation:string,value:mixed}
+     */
+    private static function collatedValue(mixed $value, string $collation): array
+    {
+        return ['__sqlite_collation' => $collation, 'value' => $value];
+    }
+
+    private static function valueCollation(mixed $left, mixed $right): string
+    {
+        if (is_array($left) && isset($left['__sqlite_collation']) && is_string($left['__sqlite_collation'])) {
+            return $left['__sqlite_collation'];
+        }
+        if (is_array($right) && isset($right['__sqlite_collation']) && is_string($right['__sqlite_collation'])) {
+            return $right['__sqlite_collation'];
+        }
+
+        return 'BINARY';
+    }
+
+    private static function uncollatedValue(mixed $value): mixed
+    {
+        return is_array($value) && array_key_exists('__sqlite_collation', $value) && array_key_exists('value', $value)
+            ? $value['value']
+            : $value;
+    }
+
+    private static function rowValueScalarEquals(mixed $left, mixed $right): bool
+    {
+        return self::rowValueScalarCompare($left, $right) === 0;
+    }
+
+    private static function rowValueScalarCompare(mixed $left, mixed $right): int
+    {
+        $collation = self::valueCollation($left, $right);
+        $left = self::uncollatedValue($left);
+        $right = self::uncollatedValue($right);
+        if ($collation === 'NOCASE' && is_string($left) && is_string($right)) {
+            return strcasecmp($left, $right);
+        }
+        if ($collation === 'RTRIM' && is_string($left) && is_string($right)) {
+            return strcmp(rtrim($left), rtrim($right));
+        }
+
+        return $left <=> $right;
     }
 
     /**

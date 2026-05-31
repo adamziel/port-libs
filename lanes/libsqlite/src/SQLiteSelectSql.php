@@ -177,6 +177,7 @@ final class SQLiteSelectSql
             array_push($aggregateExpressions, ...self::orderByExpressions($orderBySql, $tables));
         }
 
+        $implicitAggregate = false;
         if ($groupBySql !== null) {
             $groupBy = self::groupBy($groupBySql, $select, $aggregateExpressions);
             if ($having !== null) {
@@ -188,6 +189,7 @@ final class SQLiteSelectSql
             $plan['groupBy'] = $groupBy;
             $plan['select'] = self::rewriteAggregateSelect($select, $groupBy['valueColumn']);
         } elseif (self::selectHasAggregate($select) || $having !== null) {
+            $implicitAggregate = true;
             $groupBy = self::implicitAggregateGroup($select, $aggregateExpressions);
             if ($having !== null) {
                 $groupBy['having'] = self::rewriteAggregatePredicate(
@@ -198,7 +200,7 @@ final class SQLiteSelectSql
             $plan['groupBy'] = $groupBy;
             $plan['select'] = self::rewriteAggregateSelect($select, $groupBy['valueColumn']);
         }
-        if ($orderBySql !== null) {
+        if ($orderBySql !== null && !$implicitAggregate) {
             $plan['orderBy'] = self::orderBy(
                 $orderBySql,
                 $plan['select'],

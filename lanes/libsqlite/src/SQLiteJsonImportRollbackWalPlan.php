@@ -778,6 +778,63 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicPartialWalTailScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL partial-tail dynamic parity requires at least one scenario');
+        }
+
+        $prefixScenarios = self::dynamicPreexistingWalScenarios($scenarioCount);
+        $scenarios = [];
+        foreach ($prefixScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $pageSize = (int) $base['page_size'];
+            $frameSize = 24 + $pageSize;
+            $completeFrames = (int) $base['preexisting_frames'] + 1;
+            $partialPayloadBytes = 1 + (($seed * 37) % ($frameSize - 1));
+            $partialWalBytes = substr(
+                (string) $base['wal_bytes'],
+                0,
+                32 + ($completeFrames * $frameSize) + $partialPayloadBytes
+            );
+            $exceptionMessage = null;
+
+            try {
+                self::plan(
+                    $base['input_rows'],
+                    $base['input_mutations'],
+                    [
+                        'database_bytes' => $base['database_bytes'],
+                        'page_size' => $pageSize,
+                        'wal_bytes' => $partialWalBytes,
+                        'transaction' => 'application_partial_wal_tail_' . $seed,
+                        'savepoint' => 'partial_wal_tail_batch_' . $seed,
+                        'pre_savepoint_wal_pages' => $base['pre_savepoint_wal_pages'],
+                    ]
+                );
+            } catch (\InvalidArgumentException $exception) {
+                $exceptionMessage = $exception->getMessage();
+            }
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $base['tenant_id'],
+                'page_size' => $pageSize,
+                'preexisting_frames' => $base['preexisting_frames'],
+                'complete_frame_count' => $completeFrames,
+                'partial_payload_bytes' => $partialPayloadBytes,
+                'frame_size' => $frameSize,
+                'partial_wal_bytes' => $partialWalBytes,
+                'exception_message' => $exceptionMessage,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
      * @param array<string,mixed> $importPlan
      */
     private static function assertRollbackFramesExist(array $importPlan, int $walFrameCount): void

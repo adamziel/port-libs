@@ -67,7 +67,7 @@ final class SQLiteJsonImportWalSavepointPlan
             throw new \InvalidArgumentException('SQLite Application JSON import WAL savepoint plan requires at least one import');
         }
 
-        $databasePath = (string) ($options['database_path'] ?? '/tmp/wp-json-import.sqlite');
+        $databasePath = (string) ($options['database_path'] ?? '/tmp/app-json-import.sqlite');
         $pageSize = (int) ($options['page_size'] ?? 4096);
         $journalMode = strtolower((string) ($options['journal_mode'] ?? 'wal'));
         $syncMode = strtolower((string) ($options['sync_mode'] ?? 'normal'));

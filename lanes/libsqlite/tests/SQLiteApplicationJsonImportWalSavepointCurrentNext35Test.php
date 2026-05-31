@@ -101,6 +101,16 @@ $tests = [
         $t->same(['subtype_settings'], $result['batches'][0]['json']['key_names']);
         $t->same(1, $result['wal']['frame_count']);
     },
+    'uses generic application default database path' => static function (TestRunner $t) use ($currentRows, $jsonRows): void {
+        $result = SQLiteJsonImportWalSavepointPlan::plan($currentRows(), [
+            ['name' => 'default_path', 'json' => $jsonRows([
+                ['key_name' => 'default_path_settings', 'key_value' => '{"mode":"generic"}', 'load_policy' => 'no'],
+            ]), 'path' => '$.rows'],
+        ]);
+
+        $t->same('/tmp/app-json-import.sqlite', $result['database_path']);
+        $t->same('/tmp/app-json-import.sqlite-wal', $result['wal']['path']);
+    },
     'aborts malformed JSON when requested' => static function (TestRunner $t) use ($plan): void {
         $t->throws(LogicException::class, static fn () => $plan([
             ['name' => 'bad_abort', 'json' => '{"rows":[', 'path' => '$.rows', 'on_conflict' => 'abort'],

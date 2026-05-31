@@ -527,7 +527,7 @@ final class SQLiteCoreScalarFunction
         $selected = $arguments[0];
         foreach (array_slice($arguments, 1) as $argument) {
             $comparison = self::compareSqlValues($argument, $selected);
-            if (($functionName === 'min' && $comparison < 0) || ($functionName === 'max' && $comparison > 0)) {
+            if (($functionName === 'min' && $comparison <= 0) || ($functionName === 'max' && $comparison > 0)) {
                 $selected = $argument;
             }
         }
@@ -2041,7 +2041,7 @@ final class SQLiteCoreScalarFunction
         $leftText = $left instanceof SQLiteBlobValue ? $left->bytes : (string) $left;
         $rightText = $right instanceof SQLiteBlobValue ? $right->bytes : (string) $right;
 
-        return $leftText <=> $rightText;
+        return strcmp($leftText, $rightText);
     }
 
     private static function sortRank(mixed $value): int

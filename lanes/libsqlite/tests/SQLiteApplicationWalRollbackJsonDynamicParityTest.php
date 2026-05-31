@@ -11,6 +11,7 @@ $deferredScenarios = SQLiteJsonImportRollbackWalPlan::dynamicDeferredFailureScen
 $retryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRetryAfterRollbackScenarios(18);
 $preexistingRetryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPreexistingWalRetryScenarios(18);
 $missingWalTailScenarios = SQLiteJsonImportRollbackWalPlan::dynamicMissingWalTailScenarios(18);
+$partialWalTailScenarios = SQLiteJsonImportRollbackWalPlan::dynamicPartialWalTailScenarios(18);
 
 $tests = [
     'sqlite application wal rollback json dynamic parity exposes requested scenario count' => static function (TestRunner $t) use ($scenarios): void {
@@ -83,6 +84,18 @@ $tests = [
         $pageSizes = array_values(array_unique(array_column($missingWalTailScenarios, 'page_size')));
         sort($pageSizes);
         $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json dynamic parity partial WAL tail exposes requested scenario count' => static function (TestRunner $t) use ($partialWalTailScenarios): void {
+        $t->same(18, count($partialWalTailScenarios));
+    },
+    'sqlite application wal rollback json dynamic parity partial WAL tail covers both page sizes' => static function (TestRunner $t) use ($partialWalTailScenarios): void {
+        $pageSizes = array_values(array_unique(array_column($partialWalTailScenarios, 'page_size')));
+        sort($pageSizes);
+        $t->same([512, 1024], $pageSizes);
+    },
+    'sqlite application wal rollback json dynamic parity partial WAL tail covers varied partial byte counts' => static function (TestRunner $t) use ($partialWalTailScenarios): void {
+        $partialByteCounts = array_values(array_unique(array_column($partialWalTailScenarios, 'partial_payload_bytes')));
+        $t->same(true, count($partialByteCounts) > 8);
     },
 ];
 
@@ -444,6 +457,31 @@ foreach ($missingWalTailScenarios as $scenario) {
     };
 }
 
+foreach ($partialWalTailScenarios as $scenario) {
+    $seed = (int) $scenario['seed'];
+    $prefix = 'sqlite application wal rollback json dynamic parity partial wal tail seed ' . $seed . ' ';
+
+    $tests[$prefix . 'rejects unaligned wal bytes'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same(
+            'SQLite Application JSON import rollback WAL bytes have a partial frame tail',
+            $scenario['exception_message']
+        );
+    };
+    $tests[$prefix . 'keeps at least one current batch frame before partial tail'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same((int) $scenario['preexisting_frames'] + 1, $scenario['complete_frame_count']);
+    };
+    $tests[$prefix . 'partial wal has frame remainder'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same(
+            $scenario['partial_payload_bytes'],
+            (strlen($scenario['partial_wal_bytes']) - 32) % $scenario['frame_size']
+        );
+    };
+    $tests[$prefix . 'partial wal tail is not full frame sized'] = static function (TestRunner $t) use ($scenario): void {
+        $t->same(true, $scenario['partial_payload_bytes'] > 0);
+        $t->same(true, $scenario['partial_payload_bytes'] < $scenario['frame_size']);
+    };
+}
+
 $tests['sqlite application wal rollback json dynamic parity rejects zero scenarios'] = static function (TestRunner $t): void {
     try {
         SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(0);
@@ -510,6 +548,17 @@ $tests['sqlite application wal rollback json dynamic parity rejects zero missing
     $t->same('rejected', 'accepted');
 };
 
+$tests['sqlite application wal rollback json dynamic parity rejects zero partial wal tail scenarios'] = static function (TestRunner $t): void {
+    try {
+        SQLiteJsonImportRollbackWalPlan::dynamicPartialWalTailScenarios(0);
+    } catch (InvalidArgumentException) {
+        $t->same('rejected', 'rejected');
+        return;
+    }
+
+    $t->same('rejected', 'accepted');
+};
+
 $tests['sqlite application wal rollback json dynamic parity explicit small batch remains deterministic'] = static function (TestRunner $t): void {
     $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicParityScenarios(3);
     $t->same([101, 102, 103], array_column($smallBatch, 'tenant_id'));
@@ -551,6 +600,13 @@ $tests['sqlite application wal rollback json dynamic parity missing wal tail sma
     $t->same([1201, 1202, 1203], array_column($smallBatch, 'tenant_id'));
     $t->same([512, 1024, 512], array_column($smallBatch, 'page_size'));
     $t->same([4, 6, 6], array_column($smallBatch, 'short_frame_count'));
+};
+
+$tests['sqlite application wal rollback json dynamic parity partial wal tail small batch remains deterministic'] = static function (TestRunner $t): void {
+    $smallBatch = SQLiteJsonImportRollbackWalPlan::dynamicPartialWalTailScenarios(3);
+    $t->same([1201, 1202, 1203], array_column($smallBatch, 'tenant_id'));
+    $t->same([512, 1024, 512], array_column($smallBatch, 'page_size'));
+    $t->same([4, 5, 6], array_column($smallBatch, 'complete_frame_count'));
 };
 
 $tests['sqlite application wal rollback json dynamic parity rejects wal header page size mismatch'] = static function (TestRunner $t) use ($scenarios): void {

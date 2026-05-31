@@ -85,6 +85,23 @@ $cases = [
     'wal import reason preserved' => [static fn (): mixed => $plan()['wal_import']['reason'], 'application_settings_import_wal_commit_current_next_visibility'],
     'wal import database path' => [static fn (): mixed => $plan()['wal_import']['database_path'], '/tmp/wp-json-import-insert-wal-next50.sqlite'],
     'wal import wal path' => [static fn (): mixed => $plan()['wal_import']['wal_path'], '/tmp/wp-json-import-insert-wal-next50.sqlite-wal'],
+    'json import default path is generic application path' => [static fn (): mixed => SQLiteJsonImportWalSavepointPlan::plan($currentRows(), [
+        ['name' => 'default_path', 'json' => $jsonRows([
+            ['key_name' => 'default_path_settings', 'key_value' => '{"ok":true}', 'load_policy' => 'no'],
+        ]), 'path' => '$.rows'],
+    ])['database_path'], '/tmp/app-json-import.sqlite'],
+    'insert wal current next default path is generic application path' => [static fn (): mixed => SQLiteJsonImportWalSavepointPlan::insertWalCurrentNext(
+        $wal(),
+        $databaseBytes,
+        $currentRows(),
+        [
+            ['name' => 'default_path_insert', 'json' => $jsonRows([
+                ['key_name' => 'default_path_insert_settings', 'key_value' => '{"ok":true}', 'load_policy' => 'no'],
+            ]), 'path' => '$.rows'],
+        ],
+        [2, 3, 4, 5],
+        ['page_size' => $pageSize],
+    )['json_import']['database_path'], '/tmp/app-json-import.sqlite'],
     'wal import inserted names sorted by setting row order' => [static fn (): mixed => $plan()['wal_import']['inserted_key_names'], ['plugin_settings', 'theme_palette']],
     'wal import updated names keep staged order' => [static fn (): mixed => $plan()['wal_import']['updated_key_names'], ['active_plugins', 'theme_mods_twenty']],
     'wal import current reader sources' => [static fn (): mixed => $plan()['current_reader_sources'], ['wal', 'wal', 'database', 'error', 'error']],

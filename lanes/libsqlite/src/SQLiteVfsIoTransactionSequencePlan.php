@@ -392,6 +392,77 @@ final class SQLiteVfsIoTransactionSequencePlan
     }
 
     /**
+     * @param array<string, mixed> $scenario
+     * @return array{status:string,script:string,scenario:string,locking_mode:string,failpoint:int,operation:string,persistent_error:bool,shared_cache:bool,read_cursor_open:bool,soft_heap_limit_before:int,soft_heap_limit_after:int,release_memory_requested:bool,expected_rc:string,pager_error_state:bool,dirty_pages_spill_blocked:bool,database_image_stable:bool,open_file_count:int,integrity_check:string,recovery_action:string,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function pagerErrorStateMemoryReclaimOutcome(array $scenario, int $failpoint, string $operation = 'sync'): array
+    {
+        $name = trim((string) ($scenario['name'] ?? ''));
+        if ($name === '') {
+            throw new \InvalidArgumentException('SQLite pager error-state memory-reclaim scenario name is required');
+        }
+        if (!in_array($name, ['ioerr5-1', 'ioerr5-2', 'ioerr6-1', 'ioerr6-2', 'ioerr6-3'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite pager error-state scenario: {$name}");
+        }
+        if ($failpoint <= 0) {
+            throw new \InvalidArgumentException('SQLite pager error-state memory-reclaim failpoint must be positive');
+        }
+        $operation = strtolower(trim($operation));
+        if (!in_array($operation, self::IOERR_OPERATIONS, true) && $operation !== 'full') {
+            throw new \InvalidArgumentException("Unsupported SQLite pager error-state operation: {$operation}");
+        }
+
+        $lockingMode = strtolower(trim((string) ($scenario['locking_mode'] ?? 'normal')));
+        if (!in_array($lockingMode, ['normal', 'exclusive'], true)) {
+            throw new \InvalidArgumentException('SQLite pager error-state locking mode must be normal or exclusive');
+        }
+
+        $atomic = str_starts_with($name, 'ioerr6-');
+        $readCursor = $name === 'ioerr5-1' && (bool) ($scenario['read_cursor_open'] ?? true);
+        $releaseMemory = $name === 'ioerr5-2' || (bool) ($scenario['release_memory'] ?? false);
+        $persistent = !$atomic && ($readCursor || $releaseMemory || (bool) ($scenario['persistent'] ?? true));
+        $writeFull = $atomic || $operation === 'full';
+        $expectedRc = $writeFull ? 'SQLITE_FULL' : ($operation === 'sync' ? 'SQLITE_IOERR_FSYNC' : 'SQLITE_IOERR');
+
+        $recovery = match ($name) {
+            'ioerr5-1' => 'compile_utf16_after_pager_error_does_not_spill_dirty_page',
+            'ioerr5-2' => 'release_memory_from_error_state_preserves_dirty_page_until_rollback',
+            'ioerr6-1' => 'atomic_write_full_error_rolls_back_single_statement',
+            'ioerr6-2' => 'atomic_write_full_error_preserves_primary_key_integrity',
+            'ioerr6-3' => 'atomic_write_full_error_allows_followup_schema_change',
+            default => 'pager_error_state_preserves_database_image',
+        };
+
+        return [
+            'status' => 'ok',
+            'script' => $atomic ? 'ioerr6.test' : 'ioerr5.test',
+            'scenario' => $name,
+            'locking_mode' => $lockingMode,
+            'failpoint' => $failpoint,
+            'operation' => $operation,
+            'persistent_error' => $persistent,
+            'shared_cache' => !$atomic,
+            'read_cursor_open' => $readCursor,
+            'soft_heap_limit_before' => 1048576,
+            'soft_heap_limit_after' => $atomic ? 1048576 : 1024,
+            'release_memory_requested' => $releaseMemory,
+            'expected_rc' => $expectedRc,
+            'pager_error_state' => !$atomic,
+            'dirty_pages_spill_blocked' => !$atomic,
+            'database_image_stable' => true,
+            'open_file_count' => 0,
+            'integrity_check' => 'ok',
+            'recovery_action' => $recovery,
+            'dependencies' => [
+                'vfs-io-error-injection',
+                'pager-error-state-recovery',
+                'real-upstream-corpus-ioerr-test',
+            ],
+            'upstream' => self::pagerErrorStateUpstream($name),
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $step
      * @param list<string> $flags
      * @return array{name:string,status:string,writes:int,pages_touched:int,journal_created:bool,atomic_write:bool,syncs:int,sync_reasons:list<string>,flags:list<string>}
@@ -524,6 +595,21 @@ final class SQLiteVfsIoTransactionSequencePlan
             'tempfault-3' => ['tempfault.test tempfault-3 savepoint rollback temp update fault'],
             'tempfault-4' => ['tempfault.test tempfault-4 savepoint rollback temp update without final integrity check'],
             default => ['tempfault.test ' . $scenario],
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function pagerErrorStateUpstream(string $scenario): array
+    {
+        return match ($scenario) {
+            'ioerr5-1' => ['ioerr5.test ioerr5-1 normal/exclusive persistent commit error with open read cursor'],
+            'ioerr5-2' => ['ioerr5.test ioerr5-2 release_memory from pager error state'],
+            'ioerr6-1' => ['ioerr6.test ioerr6-1 atomic write SQLITE_FULL statement recovery'],
+            'ioerr6-2' => ['ioerr6.test ioerr6-2 atomic write SQLITE_FULL primary key recovery'],
+            'ioerr6-3' => ['ioerr6.test ioerr6-3 atomic write SQLITE_FULL schema recovery'],
+            default => ['ioerr.test ' . $scenario],
         };
     }
 

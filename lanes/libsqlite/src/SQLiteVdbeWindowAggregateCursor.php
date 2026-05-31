@@ -602,13 +602,18 @@ final class SQLiteVdbeWindowAggregateCursor
         $orderColumn = $this->orderColumns[0];
         $currentValue = $this->orderedRows[$this->position][$orderColumn];
         $candidateValue = $this->orderedRows[$index][$orderColumn];
-        if (!self::isNumericRangeValue($currentValue) || !self::isNumericRangeValue($candidateValue)) {
+        if (!self::isNumericRangeValue($currentValue)) {
             return $index >= $peerStart && $index <= $peerEnd;
         }
 
         $current = (float) $currentValue;
-        $candidate = (float) $candidateValue;
         $descending = $this->orderDescending[0] ?? false;
+        $candidate = self::isNumericRangeValue($candidateValue)
+            ? (float) $candidateValue
+            : $this->nonNumericRangeBoundaryValue($candidateValue, $descending);
+        if ($candidate === null) {
+            return false;
+        }
         if ($isStart) {
             $limit = $this->rangeLowerLimit($current, $boundary, $offset, $descending);
 
@@ -622,6 +627,23 @@ final class SQLiteVdbeWindowAggregateCursor
         return $descending
             ? $candidate >= $limit - 1.0e-12
             : $candidate <= $limit + 1.0e-12;
+    }
+
+    private function nonNumericRangeBoundaryValue(mixed $value, bool $descending): ?float
+    {
+        if ($value !== null) {
+            return null;
+        }
+
+        $nulls = strtoupper((string) ($this->orderNulls[0] ?? ''));
+        if ($nulls === '') {
+            $nulls = $descending ? 'LAST' : 'FIRST';
+        }
+        if ($nulls === 'FIRST') {
+            return $descending ? INF : -INF;
+        }
+
+        return $descending ? -INF : INF;
     }
 
     /**

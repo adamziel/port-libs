@@ -1730,6 +1730,89 @@ foreach ($nullTupleCases as $name => [$sql, $expected]) {
         };
 }
 
+$collationCases = [
+    'update rhs scalar nocase tuple match' => [
+        "UPDATE app_settings SET state = 'collate_rhs' WHERE (key_name, tenant_id) = ('BETA' COLLATE nocase, 1) RETURNING setting_id, key_name, tenant_id ORDER BY setting_id LIMIT -1",
+        [2],
+    ],
+    'delete rhs scalar nocase tuple match' => [
+        "DELETE FROM app_settings WHERE (key_name, tenant_id) = ('GAMMA' COLLATE nocase, 2) RETURNING setting_id, key_name, tenant_id ORDER BY setting_id LIMIT -1",
+        [6],
+    ],
+    'update lhs nocase tuple match' => [
+        "UPDATE app_settings SET state = 'collate_lhs' WHERE (key_name COLLATE nocase, tenant_id) = ('BETA', 3) RETURNING setting_id, key_name, tenant_id ORDER BY setting_id LIMIT -1",
+        [8],
+    ],
+    'delete lhs nocase tuple is not skips case-insensitive equal row' => [
+        "DELETE FROM app_settings WHERE (key_name COLLATE nocase, tenant_id) IS NOT ('BETA', 3) RETURNING setting_id ORDER BY setting_id LIMIT -1",
+        [1, 2, 3, 4, 5, 6, 7],
+    ],
+    'update rhs nocase tuple comparison selects lowercase peer' => [
+        "UPDATE app_settings SET state = 'collate_compare' WHERE (key_name, tenant_id) < ('BETA' COLLATE nocase, 2) RETURNING setting_id ORDER BY setting_id LIMIT -1",
+        [1, 2, 4, 7],
+    ],
+    'delete lhs rtrim tuple comparison ignores right padding' => [
+        "DELETE FROM app_settings WHERE (key_name COLLATE rtrim, tenant_id) = ('beta   ', 1) RETURNING setting_id ORDER BY setting_id LIMIT -1",
+        [2],
+    ],
+];
+
+foreach ($collationCases as $name => [$sql, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity rowvalue3 collate ' . $name] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->contains('/test/rowvalue.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue.test');
+        };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limit = ($seed % 3) + 1;
+    $offset = ($seed + 1) % 3;
+    $direction = $seed % 2 === 0 ? 'ASC' : 'DESC';
+    $ordered = $direction === 'ASC'
+        ? [[1, 'beta'], [2, 'beta'], [3, 'beta'], [1, 'gamma'], [2, 'gamma']]
+        : [[1, 'gamma'], [2, 'gamma'], [1, 'beta'], [2, 'beta'], [3, 'beta']];
+    $expectedTuples = array_slice($ordered, $offset, $limit);
+    $expected = [];
+    foreach ([1 => [1, 'alpha'], 2 => [1, 'beta'], 3 => [1, 'gamma'], 4 => [2, 'alpha'], 5 => [2, 'beta'], 6 => [2, 'gamma'], 7 => [3, 'alpha'], 8 => [3, 'beta']] as $settingId => $tuple) {
+        if (in_array($tuple, $expectedTuples, true)) {
+            $expected[] = $settingId;
+        }
+    }
+    $sql = "UPDATE app_settings SET state = 'collate_subquery' WHERE (tenant_id, key_name) IN (SELECT tenant_id, upper(key_name) COLLATE nocase FROM app_setting_targets ORDER BY upper(key_name) COLLATE nocase {$direction}, tenant_id ASC LIMIT {$limit} OFFSET {$offset}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity rowvalue3 collate update subquery order seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 36; $seed++) {
+    $limit = ($seed % 4) + 1;
+    $offset = $seed % 3;
+    $ordered = [[2, 'gamma'], [1, 'gamma'], [3, 'beta'], [2, 'beta'], [1, 'beta']];
+    $expectedTuples = array_slice($ordered, $offset, $limit);
+    $expected = [];
+    foreach ([1 => [1, 'alpha'], 2 => [1, 'beta'], 3 => [1, 'gamma'], 4 => [2, 'alpha'], 5 => [2, 'beta'], 6 => [2, 'gamma'], 7 => [3, 'alpha'], 8 => [3, 'beta']] as $settingId => $tuple) {
+        if (in_array($tuple, $expectedTuples, true)) {
+            $expected[] = $settingId;
+        }
+    }
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name COLLATE nocase FROM app_setting_targets ORDER BY key_name COLLATE nocase DESC, tenant_id DESC LIMIT {$offset}, {$limit}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity rowvalue3 collate delete subquery order seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+        };
+}
+
 $notLikeTargetIds = [5, 2, 8];
 $likeTargetIds = [6, 3];
 

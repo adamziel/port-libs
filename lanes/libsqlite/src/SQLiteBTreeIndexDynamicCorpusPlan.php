@@ -7642,6 +7642,90 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,table:string,primary_key:list<string>,or_terms:list<array{column:string,value:mixed,index:string}>,uses_multi_index_or:bool,indexes:list<string>,result_rows:list<list<mixed>>,detail:string,integrity:string}>
+     */
+    public static function whereIWithoutRowidOrOptimizationCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite whereI dynamic corpus requires at least one WITHOUT ROWID OR case');
+        }
+
+        $templates = [
+            [
+                'whereI-1.1/1.2',
+                'integer primary key WITHOUT ROWID table uses multi-index OR for b/c predicates',
+                't1',
+                ['a'],
+                [['column' => 'b', 'value' => 'b', 'index' => 'i1'], ['column' => 'c', 'value' => 'x', 'index' => 'i2']],
+                ['i1', 'i2'],
+                [[2], [3]],
+                'MULTI-INDEX OR; SEARCH t1 USING INDEX i1 (b=?); SEARCH t1 USING INDEX i2 (c=?)',
+            ],
+            [
+                'whereI-1.3',
+                'integer primary key WITHOUT ROWID table de-duplicates overlapping OR hits',
+                't1',
+                ['a'],
+                [['column' => 'b', 'value' => 'a', 'index' => 'i1'], ['column' => 'c', 'value' => 'z', 'index' => 'i2']],
+                ['i1', 'i2'],
+                [[1]],
+                'MULTI-INDEX OR; duplicate primary-key row from i1/i2 is returned once',
+            ],
+            [
+                'whereI-2.1/2.2',
+                'text primary key WITHOUT ROWID table uses multi-index OR for b/c predicates',
+                't2',
+                ['a'],
+                [['column' => 'b', 'value' => 'b', 'index' => 'i3'], ['column' => 'c', 'value' => 'x', 'index' => 'i4']],
+                ['i3', 'i4'],
+                [['ii'], ['iii']],
+                'MULTI-INDEX OR; SEARCH t2 USING INDEX i3 (b=?); SEARCH t2 USING INDEX i4 (c=?)',
+            ],
+            [
+                'whereI-2.3',
+                'text primary key WITHOUT ROWID table de-duplicates overlapping OR hits',
+                't2',
+                ['a'],
+                [['column' => 'b', 'value' => 'a', 'index' => 'i3'], ['column' => 'c', 'value' => 'z', 'index' => 'i4']],
+                ['i3', 'i4'],
+                [['i']],
+                'MULTI-INDEX OR; duplicate text primary-key row from i3/i4 is returned once',
+            ],
+            [
+                'whereI-3.0',
+                'composite primary key WITHOUT ROWID table preserves OR output order',
+                't3',
+                ['c', 'b'],
+                [['column' => 'a', 'value' => 't', 'index' => 't3i2'], ['column' => 'd', 'value' => 't', 'index' => 't3i1']],
+                ['t3i1', 't3i2'],
+                [['2.1'], ['2.2'], ['1.2']],
+                'MULTI-INDEX OR over composite primary key table with t3i2/t3i1 probes',
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $table, $primaryKey, $terms, $indexes, $rows, $detail] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => 'whereI.test sections 1.1 through 3.0',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'table' => $table,
+                'primary_key' => $primaryKey,
+                'or_terms' => $terms,
+                'uses_multi_index_or' => true,
+                'indexes' => $indexes,
+                'result_rows' => $rows,
+                'detail' => $detail,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,from_clause:string,analyzed:bool,t1_rows:int,t2_rows:int,t1_distinct_a:int,t2_distinct_z:int,result_rows:list<array<int,int>>,uses_t1_scan:bool,uses_t2_index:bool,index_name:string,detail:string,altered_columns:list<string>,join_terms:list<string>,batch:int}>
      */
     public static function whereEAlterTableJoinPlannerCases(int $cases = 1000): array
@@ -8297,6 +8381,44 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,batch:int,statement:string,statement_kind:string,table_name:string,indexed_by:string|null,not_indexed:bool,or_terms:list<string>,and_terms:list<string>,result_rows:list<array<int,mixed>>,scan_steps:int,sort_steps:int,uses_multi_index_or:bool,chosen_indexes:list<string>,mutation:string|null,rows_after:list<int>,detail:string,integrity:string}>
+     */
+    public static function where9MultiIndexOrDynamicCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite where9 multi-index OR dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            self::where9OrCase('where9-1.2.1', 'SELECT a FROM t1 WHERE b IS NULL OR c IS NULL OR d IS NULL ORDER BY a', 'select', 't1', null, false, ['b IS NULL', 'c IS NULL', 'd IS NULL'], [], [[90], [91], [92], [96], [97], [99]], 0, 1, true, ['t1b', 't1c', 't1d'], null, [90, 91, 92, 96, 97, 99], 'three nullable indexed columns union through multi-index OR'),
+            self::where9OrCase('where9-1.2.2', 'SELECT a FROM t1 WHERE +b IS NULL OR c IS NULL OR d IS NULL ORDER BY a', 'select', 't1', null, false, ['+b IS NULL', 'c IS NULL', 'd IS NULL'], [], [[90], [91], [92], [96], [97], [99]], 98, 0, false, ['t1c', 't1d'], null, [90, 91, 92, 96, 97, 99], 'unary plus disables one OR arm index and forces scan fallback'),
+            self::where9OrCase('where9-1.2.5', 'SELECT a FROM t4 WHERE b IS NULL OR c IS NULL OR d IS NULL ORDER BY a', 'select', 't4', null, false, ['b IS NULL', 'c IS NULL', 'd IS NULL'], [], [[90], [91], [92], [96], [97], [99]], 98, 0, false, ['t4b', 't4c'], null, [90, 91, 92, 96, 97, 99], 'missing d index prevents full multi-index OR on sibling table'),
+            self::where9OrCase('where9-1.3.1', 'SELECT a FROM t1 WHERE (b IS NULL AND c NOT NULL AND d NOT NULL) OR (b NOT NULL AND c IS NULL AND d NOT NULL) OR (b NOT NULL AND c NOT NULL AND d IS NULL) ORDER BY a', 'select', 't1', null, false, ['b IS NULL AND c NOT NULL AND d NOT NULL', 'b NOT NULL AND c IS NULL AND d NOT NULL', 'b NOT NULL AND c NOT NULL AND d IS NULL'], [], [[90], [91], [92], [97]], 0, 1, true, ['t1b', 't1c', 't1d'], null, [90, 91, 92, 97], 'compound OR arms preserve auxiliary NOT NULL terms'),
+            self::where9OrCase('where9-4.1', 'SELECT a FROM t1 WHERE b>1000 AND (c=31031 OR d IS NULL) ORDER BY +a', 'select', 't1', null, false, ['c=31031', 'd IS NULL'], ['b>1000'], [[92], [93], [97]], 0, 1, true, ['t1c', 't1d'], null, [92, 93, 97], 'equality OR term is preferred over range predicate'),
+            self::where9OrCase('where9-4.4', 'SELECT a FROM t1 INDEXED BY t1b WHERE b>1000 AND (c=31031 OR d IS NULL) ORDER BY +a', 'select', 't1', 't1b', false, ['c=31031', 'd IS NULL'], ['b>1000'], [[92], [93], [97]], 0, 1, true, ['t1c', 't1d'], null, [92, 93, 97], 'INDEXED BY on outer table remains compatible with OR arm indexes'),
+            self::where9OrCase('where9-4.6', 'SELECT a FROM t1 NOT INDEXED WHERE b>1000 AND (c=31031 OR d IS NULL) ORDER BY +a', 'select', 't1', null, true, ['c=31031', 'd IS NULL'], ['b>1000'], [[92], [93], [97]], 98, 1, false, [], null, [92, 93, 97], 'NOT INDEXED disables OR arm index probes but preserves rows'),
+            self::where9OrCase('where9-5.1', 'SELECT a FROM t1 WHERE b>1000 AND (c=31031 OR d IS NULL)', 'eqp', 't1', null, false, ['c=31031', 'd IS NULL'], ['b>1000'], [[92], [93], [97]], 0, 0, true, ['t1c', 't1d'], null, [92, 93, 97], 'multi-index OR chosen ahead of less selective range predicate'),
+            self::where9OrCase('where9-5.2', 'SELECT a FROM t1 WHERE b=1000 AND (c=31031 OR d IS NULL)', 'eqp', 't1', null, false, ['c=31031', 'd IS NULL'], ['b=1000'], [], 0, 0, false, ['t1b'], null, [], 'equality predicate on b wins over OR-clause plan'),
+            self::where9OrCase('where9-5.3', 'SELECT a FROM t1 WHERE b>1000 AND (c>=31031 OR d IS NULL)', 'eqp', 't1', null, false, ['c>=31031', 'd IS NULL'], ['b>1000'], [], 0, 0, false, ['t1b'], null, [], 'AND-side inequality is preferred over OR-side inequality'),
+            self::where9OrCase('where9-6.2.2/6.2.3', 'DELETE FROM t1 WHERE b IS NULL OR c IS NULL OR d IS NULL', 'delete', 't1', null, false, ['b IS NULL', 'c IS NULL', 'd IS NULL'], [], [], 0, 0, true, ['t1b', 't1c', 't1d'], 'delete', [85, 86, 87, 88, 89, 93, 94, 95, 98], 'DELETE uses multi-index OR and removes nullable-key rows'),
+            self::where9OrCase('where9-6.2.4/6.2.5', 'DELETE FROM t1 WHERE +b IS NULL OR c IS NULL OR d IS NULL', 'delete', 't1', null, false, ['+b IS NULL', 'c IS NULL', 'd IS NULL'], [], [], 98, 0, false, ['t1c', 't1d'], 'delete', [85, 86, 87, 88, 89, 93, 94, 95, 98], 'DELETE scan fallback preserves same mutation result'),
+            self::where9OrCase('where9-6.2.6/6.2.7', 'UPDATE t1 SET a=a+100 WHERE (b IS NULL OR c IS NULL OR d IS NULL) AND a!=92 AND a!=97', 'update', 't1', null, false, ['b IS NULL', 'c IS NULL', 'd IS NULL'], ['a!=92', 'a!=97'], [], 0, 0, true, ['t1b', 't1c', 't1d'], 'update', [85, 86, 87, 88, 89, 92, 93, 94, 95, 97, 98, 190, 191, 196, 199], 'UPDATE uses OR index union without mutating excluded rowids'),
+            self::where9OrCase('where9-6.3.1/6.3.2', 'DELETE FROM t1 WHERE (b IS NULL AND c NOT NULL AND d NOT NULL) OR (b NOT NULL AND c IS NULL AND d NOT NULL) OR (b NOT NULL AND c NOT NULL AND d IS NULL)', 'delete', 't1', null, false, ['b IS NULL AND c NOT NULL AND d NOT NULL', 'b NOT NULL AND c IS NULL AND d NOT NULL', 'b NOT NULL AND c NOT NULL AND d IS NULL'], [], [], 0, 0, true, ['t1b', 't1c', 't1d'], 'delete', [85, 86, 87, 88, 89, 93, 94, 95, 96, 98, 99], 'DELETE respects auxiliary terms attached to each OR arm'),
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            $template = $templates[($case - 1) % count($templates)];
+            $template['case'] = $case;
+            $template['batch'] = intdiv($case - 1, count($templates)) + 1;
+            $template['detail'] .= '; dynamic replay ' . $template['batch'];
+            $rows[] = $template;
+        }
+
+        return $rows;
+    }
+
+    /**
      * @param list<array<int,mixed>> $resultRows
      * @param list<mixed> $expected
      * @param list<string> $catalogIndexes
@@ -8331,6 +8453,56 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
             'catalog_indexes' => $catalogIndexes,
             'integrity' => $resultCode === 0 ? 'ok' : 'expected-error',
             'detail' => $detail,
+        ];
+    }
+
+    /**
+     * @param list<string> $orTerms
+     * @param list<string> $andTerms
+     * @param list<array<int,mixed>> $resultRows
+     * @param list<string> $chosenIndexes
+     * @param list<int> $rowsAfter
+     * @return array{source:string,case:int,upstream_section:string,batch:int,statement:string,statement_kind:string,table_name:string,indexed_by:string|null,not_indexed:bool,or_terms:list<string>,and_terms:list<string>,result_rows:list<array<int,mixed>>,scan_steps:int,sort_steps:int,uses_multi_index_or:bool,chosen_indexes:list<string>,mutation:string|null,rows_after:list<int>,detail:string,integrity:string}
+     */
+    private static function where9OrCase(
+        string $section,
+        string $statement,
+        string $statementKind,
+        string $tableName,
+        ?string $indexedBy,
+        bool $notIndexed,
+        array $orTerms,
+        array $andTerms,
+        array $resultRows,
+        int $scanSteps,
+        int $sortSteps,
+        bool $usesMultiIndexOr,
+        array $chosenIndexes,
+        ?string $mutation,
+        array $rowsAfter,
+        string $detail,
+    ): array {
+        return [
+            'source' => 'where9.test sections where9-1.2.1 through where9-6.3.2',
+            'case' => 0,
+            'upstream_section' => $section,
+            'batch' => 0,
+            'statement' => $statement,
+            'statement_kind' => $statementKind,
+            'table_name' => $tableName,
+            'indexed_by' => $indexedBy,
+            'not_indexed' => $notIndexed,
+            'or_terms' => $orTerms,
+            'and_terms' => $andTerms,
+            'result_rows' => $resultRows,
+            'scan_steps' => $scanSteps,
+            'sort_steps' => $sortSteps,
+            'uses_multi_index_or' => $usesMultiIndexOr,
+            'chosen_indexes' => $chosenIndexes,
+            'mutation' => $mutation,
+            'rows_after' => $rowsAfter,
+            'detail' => $detail,
+            'integrity' => 'ok',
         ];
     }
 

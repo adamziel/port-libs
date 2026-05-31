@@ -8562,6 +8562,103 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param array{rowid?:mixed,a:mixed,b:mixed,c:mixed} $insert
+     * @param list<array<string,mixed>> $updates
+     * @return array<string,mixed>
+     */
+    public static function triggerCAffinityTimingPlan(array $insert, array $updates = [], bool $deleteAfterInsert = false): array
+    {
+        foreach (['a', 'b', 'c'] as $column) {
+            if (!array_key_exists($column, $insert)) {
+                throw new \InvalidArgumentException('SQLite triggerC affinity timing insert row is missing column ' . $column);
+            }
+        }
+
+        $explicitRowid = array_key_exists('rowid', $insert) && $insert['rowid'] !== null;
+        $stored = [
+            'rowid' => $explicitRowid ? self::triggerCIntegerValue($insert['rowid']) : 1,
+            'a' => self::triggerCTextValue($insert['a']),
+            'b' => self::triggerCNumericValue($insert['b']),
+            'c' => self::triggerCRealValue($insert['c']),
+        ];
+        $beforeInsert = $stored;
+        if (!$explicitRowid) {
+            $beforeInsert['rowid'] = -1;
+        }
+
+        $log = [
+            self::triggerCLogEntry('before-insert', $beforeInsert),
+            self::triggerCLogEntry('after-insert', $stored),
+        ];
+        $rows = [$stored];
+        $updateCount = 0;
+
+        foreach ($updates as $update) {
+            $old = $rows[0] ?? null;
+            if ($old === null) {
+                throw new \InvalidArgumentException('SQLite triggerC affinity timing update requires a current row');
+            }
+
+            $new = $old;
+            foreach ($update as $column => $value) {
+                $column = self::identifier((string) $column, 'triggerC update column');
+                if (!in_array($column, ['rowid', 'a', 'b', 'c'], true)) {
+                    throw new \InvalidArgumentException('SQLite triggerC affinity timing update column is unsupported');
+                }
+                $new[$column] = match ($column) {
+                    'rowid' => self::triggerCIntegerValue($value),
+                    'a' => self::triggerCTextValue($value),
+                    'b' => self::triggerCNumericValue($value),
+                    default => self::triggerCRealValue($value),
+                };
+            }
+
+            $log[] = self::triggerCLogEntry('before-update-old', $old);
+            $log[] = self::triggerCLogEntry('before-update-new', $new);
+            $rows[0] = $new;
+            $log[] = self::triggerCLogEntry('after-update-old', $old);
+            $log[] = self::triggerCLogEntry('after-update-new', $new);
+            ++$updateCount;
+        }
+
+        $deleted = [];
+        if ($deleteAfterInsert && $rows !== []) {
+            $old = $rows[0];
+            $log[] = self::triggerCLogEntry('before-delete', $old);
+            $deleted[] = $old;
+            $rows = [];
+            $log[] = self::triggerCLogEntry('after-delete', $old);
+        }
+
+        return [
+            'source' => 'triggerC.test triggerC-4.1.1..4.1.9',
+            'operation' => 'trigger-affinity-timing-before-after-images',
+            'status' => 'commit-ok',
+            'explicit_rowid' => $explicitRowid,
+            'before_insert_rowid' => $beforeInsert['rowid'],
+            'stored_rowid' => $stored['rowid'],
+            'inserted_row' => $stored,
+            'update_count' => $updateCount,
+            'delete_after_insert' => $deleteAfterInsert,
+            'deleted_count' => count($deleted),
+            'final_rows' => $rows,
+            'log' => $log,
+            'log_count' => count($log),
+            'log_text' => array_values(array_map(static fn (array $entry): string => $entry['text'], $log)),
+            'real_affinity_type_preserved_in_triggers' => self::triggerCAllReal($log),
+            'integer_affinity_type_preserved_in_triggers' => self::triggerCAllIntegerOrReal($log),
+            'text_affinity_type_preserved_in_triggers' => self::triggerCAllText($log),
+            'auto_rowid_before_insert_is_negative_one' => !$explicitRowid && $beforeInsert['rowid'] === -1,
+            'dependencies' => [
+                'sqlite-triggerC-affinity-applied-before-before-trigger',
+                'sqlite-triggerC-auto-rowid-before-insert-is-negative-one',
+                'sqlite-triggerC-real-affinity-reports-real-in-trigger-images',
+                'sqlite-triggerC-update-old-new-images-use-affinity-coerced-values',
+            ],
+        ];
+    }
+
+    /**
      * @param list<int> $values
      * @param list<int> $allowed
      * @return list<int>
@@ -8574,6 +8671,123 @@ final class SQLiteDynamicTriggerForeignKeyPlan
             $values,
             static fn (int $value): bool => isset($allowedSet[(string) $value])
         ));
+    }
+
+    private static function triggerCIntegerValue(mixed $value): int
+    {
+        return (int) $value;
+    }
+
+    private static function triggerCTextValue(mixed $value): string
+    {
+        return (string) $value;
+    }
+
+    private static function triggerCNumericValue(mixed $value): int|float
+    {
+        if (is_int($value) || is_float($value)) {
+            return ((float) $value === (float) ((int) $value)) ? (int) $value : (float) $value;
+        }
+
+        $text = trim((string) $value);
+        if (preg_match('/^-?\d+$/', $text) === 1) {
+            return (int) $text;
+        }
+        if (is_numeric($text)) {
+            $float = (float) $text;
+
+            return $float === (float) ((int) $float) ? (int) $float : $float;
+        }
+
+        return 0;
+    }
+
+    private static function triggerCRealValue(mixed $value): float
+    {
+        return (float) $value;
+    }
+
+    /**
+     * @param array{rowid:int,a:string,b:int|float,c:float} $row
+     * @return array<string,mixed>
+     */
+    private static function triggerCLogEntry(string $event, array $row): array
+    {
+        $bType = is_int($row['b']) ? 'integer' : 'real';
+        $text = sprintf(
+            '%s integer %s text %s %s %s real',
+            (string) $row['rowid'],
+            $row['a'],
+            self::triggerCStringValue($row['b']),
+            $bType,
+            self::triggerCStringValue($row['c'])
+        );
+
+        return [
+            'event' => $event,
+            'rowid' => $row['rowid'],
+            'a' => $row['a'],
+            'b' => $row['b'],
+            'c' => $row['c'],
+            'rowid_type' => 'integer',
+            'a_type' => 'text',
+            'b_type' => $bType,
+            'c_type' => 'real',
+            'text' => $text,
+        ];
+    }
+
+    private static function triggerCStringValue(int|float $value): string
+    {
+        if (is_int($value)) {
+            return (string) $value;
+        }
+
+        $formatted = rtrim(rtrim(sprintf('%.12F', $value), '0'), '.');
+
+        return str_contains($formatted, '.') ? $formatted : $formatted . '.0';
+    }
+
+    /**
+     * @param list<array<string,mixed>> $log
+     */
+    private static function triggerCAllReal(array $log): bool
+    {
+        foreach ($log as $entry) {
+            if (($entry['c_type'] ?? null) !== 'real') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $log
+     */
+    private static function triggerCAllIntegerOrReal(array $log): bool
+    {
+        foreach ($log as $entry) {
+            if (!in_array($entry['b_type'] ?? null, ['integer', 'real'], true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $log
+     */
+    private static function triggerCAllText(array $log): bool
+    {
+        foreach ($log as $entry) {
+            if (($entry['a_type'] ?? null) !== 'text') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

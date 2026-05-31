@@ -7,15 +7,15 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteJsonImportWalSavepointPlan;
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'active_plugins', 'option_value' => '[]', 'autoload' => 'yes'],
-    ['option_id' => 70, 'option_name' => 'theme_mods_old', 'option_value' => '{"color":"blue"}', 'autoload' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'active_extensions', 'key_value' => '[]', 'load_policy' => 'yes'],
+    ['setting_id' => 70, 'key_name' => 'theme_palette_old', 'key_value' => '{"color":"blue"}', 'load_policy' => 'no'],
 ];
 
 $plan = SQLiteJsonImportWalSavepointPlan::plan($currentRows, [
     [
         'name' => 'plugin_settings',
-        'json' => '{"rows":[{"option_name":"plugin_settings","option_value":"{\"enabled\":true}","autoload":"yes"}]}',
+        'json' => '{"rows":[{"key_name":"extension_settings","key_value":"{\"enabled\":true}","load_policy":"yes"}]}',
         'path' => '$.rows',
     ],
     [
@@ -24,7 +24,7 @@ $plan = SQLiteJsonImportWalSavepointPlan::plan($currentRows, [
         'path' => '$.rows',
     ],
 ], [
-    'database_path' => '/tmp/wp-json-import-current-next35.sqlite',
+    'database_path' => '/tmp/app-json-import-current-next35.sqlite',
     'page_size' => 1024,
     'journal_mode' => 'wal',
     'sync_mode' => 'normal',
@@ -34,7 +34,7 @@ echo json_encode([
     'status' => $plan['status'],
     'released_batches' => $plan['released_batches'],
     'rolled_back_batches' => $plan['rolled_back_batches'],
-    'final_option_names' => $plan['final_option_names'],
+    'final_key_names' => $plan['final_key_names'],
     'wal_current_frame' => $plan['wal']['current_frame'],
     'wal_bytes' => $plan['wal']['bytes'],
     'dependencies' => $plan['dependencies'],
