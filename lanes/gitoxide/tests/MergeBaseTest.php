@@ -64,6 +64,39 @@ return [
 
         $t->same([$leftBase, $rightBase], $mergeBase->mergeBases($leftMerge, $rightMerge));
     },
+    'maps upstream graph walk commit time priority for independent bases' => static function (TestRunner $t) use ($oid, $finder): void {
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+        $root = $oid('1');
+        $olderBase = $oid('2');
+        $newerBase = $oid('3');
+        $leftMerge = $oid('4');
+        $rightMerge = $oid('5');
+
+        $mergeBase = $finder([
+            $root => $timedCommit(1700000000),
+            $olderBase => $timedCommit(1700000010, [$root]),
+            $newerBase => $timedCommit(1700000020, [$root]),
+            $leftMerge => $timedCommit(1700000030, [$olderBase, $newerBase]),
+            $rightMerge => $timedCommit(1700000040, [$newerBase, $olderBase]),
+        ]);
+
+        $t->same([$newerBase, $olderBase], $mergeBase->mergeBases($leftMerge, $rightMerge));
+        $t->same($newerBase, $mergeBase->mergeBase($leftMerge, $rightMerge));
+        $t->same([$newerBase, $olderBase], $mergeBase->mergeBasesAgainst($leftMerge, [$rightMerge]));
+        $t->same($newerBase, $mergeBase->mergeBaseAgainst($leftMerge, [$rightMerge]));
+    },
     'maps upstream graph walk against a hypothetical merge of other heads' => static function (TestRunner $t) use ($oid, $commit, $finder): void {
         $root = $oid('1');
         $shared = $oid('2');
@@ -216,6 +249,9 @@ return [
         $t->same($fixture['releaseBaseline'], $example['graphWalkBase']);
         $t->same(true, $example['graphWalkKeepsReleaseBaseline']);
         $t->same(true, $example['octopusRejectsArchiveBranch']);
+        $t->same([$fixture['securityBaseline'], $fixture['legacyBaseline']], $finder->mergeBases($fixture['pluginHotfixReview'], $fixture['themeHotfixReview']));
+        $t->same($fixture['securityBaseline'], $example['hotfixBase']);
+        $t->same(true, $example['hotfixBasePrefersNewerSecurityBaseline']);
         $t->same(true, $example['reviewBaseIsReleaseBaseline']);
         $t->same(true, $example['deploymentBaseIsReleaseBaseline']);
         $t->same($fixture['sha256ReleaseBaseline'], $finder->mergeBase($fixture['sha256PluginReview'], $fixture['sha256ThemeReview']));

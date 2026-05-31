@@ -6,17 +6,17 @@ use PortLibs\Gitoxide\Commit;
 
 $oid = static fn (string $hex): string => str_repeat($hex, 40);
 $oid256 = static fn (string $hex): string => str_repeat($hex, 64);
-$commit = static fn (array $parents = []): Commit => new Commit(
+$commit = static fn (array $parents = [], int $seconds = 1700000000): Commit => new Commit(
     $oid('f'),
     $parents,
-    'Release Bot <release@example.test> 1700000000 +0000',
-    'Deploy Bot <deploy@example.test> 1700000000 +0000',
+    "Release Bot <release@example.test> {$seconds} +0000",
+    "Deploy Bot <deploy@example.test> {$seconds} +0000",
     "WordPress deployment branch\n",
     [
         'tree' => [$oid('f')],
         'parent' => $parents,
-        'author' => ['Release Bot <release@example.test> 1700000000 +0000'],
-        'committer' => ['Deploy Bot <deploy@example.test> 1700000000 +0000'],
+        'author' => ["Release Bot <release@example.test> {$seconds} +0000"],
+        'committer' => ["Deploy Bot <deploy@example.test> {$seconds} +0000"],
     ],
 );
 $commit256 = static fn (array $parents = []): Commit => new Commit(
@@ -41,6 +41,10 @@ $contentReview = $oid('5');
 $deployment = $oid('6');
 $archiveRoot = $oid('7');
 $archivedPluginReview = $oid('8');
+$legacyBaseline = $oid('9');
+$securityBaseline = $oid('a');
+$pluginHotfixReview = $oid('b');
+$themeHotfixReview = $oid('c');
 $sha256Root = $oid256('1');
 $sha256Release = $oid256('2');
 $sha256PluginReview = $oid256('a');
@@ -58,6 +62,11 @@ return [
     'deployment' => $deployment,
     'archiveRoot' => $archiveRoot,
     'archivedPluginReview' => $archivedPluginReview,
+    'legacyBaseline' => $legacyBaseline,
+    'securityBaseline' => $securityBaseline,
+    'pluginHotfixReview' => $pluginHotfixReview,
+    'themeHotfixReview' => $themeHotfixReview,
+    'hotfixHeads' => [$pluginHotfixReview, $themeHotfixReview],
     'sha256ReleaseBaseline' => $sha256Release,
     'sha256PluginReview' => $sha256PluginReview,
     'sha256ThemeReview' => $sha256ThemeReview,
@@ -78,6 +87,10 @@ return [
         $deployment => $commit([$pluginReview, $themeReview]),
         $archiveRoot => $commit(),
         $archivedPluginReview => $commit([$archiveRoot]),
+        $legacyBaseline => $commit([$release], 1700000100),
+        $securityBaseline => $commit([$release], 1700000200),
+        $pluginHotfixReview => $commit([$legacyBaseline, $securityBaseline], 1700000300),
+        $themeHotfixReview => $commit([$securityBaseline, $legacyBaseline], 1700000400),
         $sha256Root => $commit256(),
         $sha256Release => $commit256([$sha256Root]),
         $sha256PluginReview => $commit256([$sha256Release]),

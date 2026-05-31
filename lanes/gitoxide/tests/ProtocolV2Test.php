@@ -65,8 +65,29 @@ return [
 
         $t->same(['ls-refs', 'fetch', 'session-id'], $noNewlines->names());
         $t->same(true, $noNewlines->capability('fetch')?->supports('wait-for-done'));
+
+        $serviceAnnounced = ProtocolCapabilities::fromV2PacketLines(
+            $packet("# service=git-upload-pack\n")
+                . $flush
+                . $packet("version 2\n")
+                . $packet("ls-refs=unborn\n")
+                . $packet("fetch=shallow filter\n")
+                . $flush,
+            'git-upload-pack'
+        );
+
+        $t->same(['ls-refs', 'fetch'], $serviceAnnounced->names());
+        $t->same(true, $serviceAnnounced->capability('ls-refs')?->supports('unborn'));
         $t->throws(RuntimeException::class, static fn () => ProtocolCapabilities::fromV2PacketLines($packet("ERR repository unavailable\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => ProtocolCapabilities::fromV2PacketLines('0003'));
+        $t->throws(RuntimeException::class, static fn () => ProtocolCapabilities::fromV2PacketLines(
+            $packet("# service=git-receive-pack\n") . $flush . $packet("version 2\n") . $packet("ls-refs\n") . $flush,
+            'git-upload-pack'
+        ));
+        $t->throws(RuntimeException::class, static fn () => ProtocolCapabilities::fromV2PacketLines(
+            $packet("# service=git-upload-pack\n") . $packet("version 2\n") . $packet("ls-refs\n") . $flush,
+            'git-upload-pack'
+        ));
     },
     'parses v2 capabilities and builds ls-refs command arguments' => static function (TestRunner $t): void {
         $capabilities = ProtocolCapabilities::fromV2Lines("version 2\nls-refs=unborn\nfetch=shallow filter ref-in-want sideband-all packfile-uris\nagent=git/2.44.0\n");

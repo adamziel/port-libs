@@ -1072,11 +1072,9 @@ final class SQLiteSelectSql
             if (!is_array($term) || ($term['type'] ?? null) !== 'collate' || !isset($term['collation']) || !is_string($term['collation'])) {
                 continue;
             }
-            $column = $term['alias'] ?? null;
-            $column = is_string($column) && $column !== ''
-                ? $column
-                : self::compoundArmOutputColumn($term, $index + 1);
-            $collations[$column] = strtoupper($term['collation']);
+            foreach (self::compoundProjectionColumns($term, $index + 1) as $column) {
+                $collations[$column] = strtoupper($term['collation']);
+            }
         }
 
         return $collations;
@@ -5924,11 +5922,15 @@ final class SQLiteSelectSql
                 throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY term cannot be empty');
             }
 
+            $inheritedCollation = null;
             if (preg_match('/^[0-9]+$/', $expressionSql) === 1) {
-                $order = ['column' => self::orderByOrdinalColumn($select, (int) $expressionSql)];
+                $ordinal = (int) $expressionSql;
+                $order = ['column' => self::orderByOrdinalColumn($select, $ordinal)];
+                $inheritedCollation = self::orderByOrdinalCollation($select, $ordinal);
             } elseif (preg_match('/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$/', $expressionSql) === 1) {
                 if (self::selectProvidesColumn($select, $expressionSql)) {
                     $order = ['column' => $expressionSql];
+                    $inheritedCollation = self::orderByResultAliasCollation($select, $expressionSql);
                 } else {
                     $alias = '__sqlite_order_column_' . $index;
                     $select[] = [
@@ -5957,6 +5959,8 @@ final class SQLiteSelectSql
             }
             if ($collation !== null) {
                 $order['collation'] = $collation;
+            } elseif ($inheritedCollation !== null) {
+                $order['collation'] = $inheritedCollation;
             }
             if ($nulls !== null) {
                 $order['nulls'] = $nulls;
@@ -6108,6 +6112,74 @@ final class SQLiteSelectSql
         }
 
         throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY ordinal is out of range');
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     */
+    private static function orderByOrdinalCollation(array $select, int $ordinal): ?string
+    {
+        if ($ordinal < 1) {
+            throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY ordinal is out of range');
+        }
+
+        $remaining = $ordinal;
+        foreach ($select as $term) {
+            if (($term['type'] ?? null) === 'wildcard') {
+                $columns = $term['columns'] ?? null;
+                if (!is_array($columns) || !array_is_list($columns) || $columns === []) {
+                    throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal needs source columns');
+                }
+                if ($remaining <= count($columns)) {
+                    return null;
+                }
+                $remaining -= count($columns);
+                continue;
+            }
+
+            if ($remaining !== 1) {
+                $remaining--;
+                continue;
+            }
+
+            return self::selectTermCollation($term);
+        }
+
+        throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY ordinal is out of range');
+    }
+
+    /**
+     * @param list<array<string,mixed>> $select
+     */
+    private static function orderByResultAliasCollation(array $select, string $alias): ?string
+    {
+        foreach ($select as $term) {
+            $termAlias = $term['alias'] ?? null;
+            if (!is_string($termAlias) || strcasecmp($termAlias, $alias) !== 0) {
+                continue;
+            }
+
+            return self::selectTermCollation($term);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $term
+     */
+    private static function selectTermCollation(array $term): ?string
+    {
+        if (($term['type'] ?? null) === 'collate' && isset($term['collation']) && is_string($term['collation']) && $term['collation'] !== '') {
+            return strtoupper($term['collation']);
+        }
+
+        $sourceExpression = $term['sourceExpression'] ?? null;
+        if (is_array($sourceExpression)) {
+            return self::selectTermCollation($sourceExpression);
+        }
+
+        return null;
     }
 
     /**

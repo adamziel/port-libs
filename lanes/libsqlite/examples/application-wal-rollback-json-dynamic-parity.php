@@ -23,6 +23,7 @@ $fullRunMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicFullR
 $committedPrefixFailureScenarios = SQLiteJsonImportRollbackWalPlan::dynamicCommittedPrefixFailureScenarios(4);
 $rollbackDisabledMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledMaterializedWalScenarios(4);
 $rollbackDisabledFollowupScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupScenarios(4);
+$rollbackDisabledFollowupFailureScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupFailureScenarios(4);
 $summary = [
     'scenario' => 'application-wal-rollback-json-dynamic-parity',
     'scenarioCount' => count($scenarios),
@@ -42,6 +43,7 @@ $summary = [
     'committedPrefixFailureScenarioCount' => count($committedPrefixFailureScenarios),
     'rollbackDisabledMaterializedWalScenarioCount' => count($rollbackDisabledMaterializedWalScenarios),
     'rollbackDisabledFollowupScenarioCount' => count($rollbackDisabledFollowupScenarios),
+    'rollbackDisabledFollowupFailureScenarioCount' => count($rollbackDisabledFollowupFailureScenarios),
     'statuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $scenarios),
     'preexistingWalStatuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $preexistingWalScenarios),
     'tenantCollisionStatuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $tenantCollisionScenarios),
@@ -108,6 +110,12 @@ $summary = [
     'rollbackDisabledFollowupWalFramesAfter' => array_map(static fn (array $scenario): int => $scenario['followup_plan']['wal_frame_count_after'], $rollbackDisabledFollowupScenarios),
     'rollbackDisabledFollowupPages' => array_map(static fn (array $scenario): array => array_column($scenario['followup_plan']['import_plan']['applied'], 'page_number'), $rollbackDisabledFollowupScenarios),
     'rollbackDisabledFollowupInsertedKeys' => array_map(static fn (array $scenario): string => $scenario['followup_plan']['import_plan']['applied'][1]['key_name'], $rollbackDisabledFollowupScenarios),
+    'rollbackDisabledFollowupFailureStatuses' => array_map(static fn (array $scenario): string => $scenario['tail_plan']['status'], $rollbackDisabledFollowupFailureScenarios),
+    'rollbackDisabledFollowupFailureWalFramesBefore' => array_map(static fn (array $scenario): int => $scenario['tail_plan']['wal_frame_count_before'], $rollbackDisabledFollowupFailureScenarios),
+    'rollbackDisabledFollowupFailureWalFramesAfter' => array_map(static fn (array $scenario): int => $scenario['tail_plan']['wal_frame_count_after'], $rollbackDisabledFollowupFailureScenarios),
+    'rollbackDisabledFollowupFailureTailPages' => array_map(static fn (array $scenario): array => $scenario['tail_plan']['rollback_to_savepoint']['restored_page_numbers'], $rollbackDisabledFollowupFailureScenarios),
+    'rollbackDisabledFollowupFailureFailedStatements' => array_map(static fn (array $scenario): array => $scenario['tail_plan']['failed_statements'], $rollbackDisabledFollowupFailureScenarios),
+    'rollbackDisabledFollowupFailureInsertedKeys' => array_map(static fn (array $scenario): string => $scenario['tail_plan']['import_plan']['applied'][1]['key_name'], $rollbackDisabledFollowupFailureScenarios),
     'missingWalTailMessages' => array_map(static fn (array $scenario): ?string => $scenario['exception_message'], $missingWalTailScenarios),
     'missingWalTailShortFrameCounts' => array_map(static fn (array $scenario): int => $scenario['short_frame_count'], $missingWalTailScenarios),
     'partialWalTailMessages' => array_map(static fn (array $scenario): ?string => $scenario['exception_message'], $partialWalTailScenarios),
@@ -142,6 +150,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['committedPrefixFailureScenarioCount'] === 4);
     assert($summary['rollbackDisabledMaterializedWalScenarioCount'] === 4);
     assert($summary['rollbackDisabledFollowupScenarioCount'] === 4);
+    assert($summary['rollbackDisabledFollowupFailureScenarioCount'] === 4);
     assert($summary['statuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['preexistingWalStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['tenantCollisionStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
@@ -189,6 +198,12 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['rollbackDisabledFollowupWalFramesAfter'] === [6, 7, 8, 5]);
     assert($summary['rollbackDisabledFollowupPages'][0] === [1321, 1521]);
     assert($summary['rollbackDisabledFollowupInsertedKeys'][0] === 'disabled_rollback_followup_payload_1');
+    assert($summary['rollbackDisabledFollowupFailureStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
+    assert($summary['rollbackDisabledFollowupFailureWalFramesBefore'] === [9, 10, 11, 8]);
+    assert($summary['rollbackDisabledFollowupFailureWalFramesAfter'] === [6, 7, 8, 5]);
+    assert($summary['rollbackDisabledFollowupFailureTailPages'][0] === [1321, 1621]);
+    assert($summary['rollbackDisabledFollowupFailureFailedStatements'][0] === ['disabled_followup_tail_broken_payload_1']);
+    assert($summary['rollbackDisabledFollowupFailureInsertedKeys'][0] === 'disabled_followup_tail_payload_1');
     assert($summary['missingWalTailShortFrameCounts'] === [4, 6, 6, 4]);
     assert($summary['missingWalTailMessages'][0] === 'SQLite Application JSON import rollback WAL bytes are missing current batch frame(s): 5, 6');
     assert($summary['partialWalTailMessages'] === array_fill(0, 4, 'SQLite Application JSON import rollback WAL bytes have a partial frame tail'));

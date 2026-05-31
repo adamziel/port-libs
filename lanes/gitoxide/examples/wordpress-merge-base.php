@@ -28,6 +28,8 @@ $sha256DeployBase = $finder->mergeBaseMany([
     $fixture['sha256PluginReview'],
     $fixture['sha256ThemeReview'],
 ]);
+$hotfixBases = $finder->mergeBases($fixture['pluginHotfixReview'], $fixture['themeHotfixReview']);
+$hotfixBase = $hotfixBases[0] ?? null;
 
 return [
     'reviewHeads' => $fixture['heads'],
@@ -43,6 +45,10 @@ return [
     'deploymentBaseIsReleaseBaseline' => $deploymentBase === $fixture['releaseBaseline'],
     'graphWalkKeepsReleaseBaseline' => $graphWalkBase === $fixture['releaseBaseline'],
     'octopusRejectsArchiveBranch' => $archiveOctopusBases === [],
+    'hotfixHeads' => $fixture['hotfixHeads'],
+    'hotfixBases' => $hotfixBases,
+    'hotfixBase' => $hotfixBase,
+    'hotfixBasePrefersNewerSecurityBaseline' => $hotfixBase === $fixture['securityBaseline'],
     'sha256ReviewHeads' => $fixture['sha256ReviewHeads'],
     'sha256ReviewBase' => $sha256ReviewBase,
     'sha256GraphWalkBase' => $sha256GraphWalkBase,

@@ -21,6 +21,16 @@ final class MergeBaseFinder
      */
     private array $ancestorCache = [];
 
+    /**
+     * @var array<string, int>
+     */
+    private array $generationCache = [];
+
+    /**
+     * @var array<string, int>
+     */
+    private array $commitTimeCache = [];
+
     public function __construct(callable $readCommit)
     {
         $this->readCommit = \Closure::fromCallable($readCommit);
@@ -79,11 +89,12 @@ final class MergeBaseFinder
             }
         }
 
-        uksort($best, static function (string $left, string $right) use ($best): int {
+        uksort($best, function (string $left, string $right) use ($best): int {
             $leftDistance = max($best[$left]['first'], $best[$left]['second']);
             $rightDistance = max($best[$right]['first'], $best[$right]['second']);
 
-            return $leftDistance <=> $rightDistance
+            return $this->compareCommitPriority($left, $right)
+                ?: $leftDistance <=> $rightDistance
                 ?: min($best[$left]['first'], $best[$left]['second']) <=> min($best[$right]['first'], $best[$right]['second'])
                 ?: strcmp($left, $right);
         });
@@ -163,11 +174,12 @@ final class MergeBaseFinder
             }
         }
 
-        uksort($best, static function (string $left, string $right) use ($best): int {
+        uksort($best, function (string $left, string $right) use ($best): int {
             $leftDistance = max($best[$left]['first'], $best[$left]['other']);
             $rightDistance = max($best[$right]['first'], $best[$right]['other']);
 
-            return $leftDistance <=> $rightDistance
+            return $this->compareCommitPriority($left, $right)
+                ?: $leftDistance <=> $rightDistance
                 ?: ($best[$left]['first'] + $best[$left]['other']) <=> ($best[$right]['first'] + $best[$right]['other'])
                 ?: $best[$left]['otherIndex'] <=> $best[$right]['otherIndex']
                 ?: strcmp($left, $right);
@@ -308,6 +320,41 @@ final class MergeBaseFinder
         }
 
         return $this->commitCache[$oid];
+    }
+
+    private function compareCommitPriority(string $left, string $right): int
+    {
+        return $this->commitGeneration($right) <=> $this->commitGeneration($left)
+            ?: $this->commitTime($right) <=> $this->commitTime($left);
+    }
+
+    private function commitGeneration(string $oid): int
+    {
+        $oid = strtolower($oid);
+        if (isset($this->generationCache[$oid])) {
+            return $this->generationCache[$oid];
+        }
+
+        $hashLength = self::assertObjectId($oid);
+        $this->generationCache[$oid] = 1;
+        $generation = 1;
+        foreach ($this->commit($oid)->parents as $parent) {
+            $parent = strtolower($parent);
+            self::assertSameObjectFormat($hashLength, $parent);
+            $generation = max($generation, $this->commitGeneration($parent) + 1);
+        }
+
+        return $this->generationCache[$oid] = $generation;
+    }
+
+    private function commitTime(string $oid): int
+    {
+        $oid = strtolower($oid);
+        if (!isset($this->commitTimeCache[$oid])) {
+            $this->commitTimeCache[$oid] = $this->commit($oid)->committerSignature()->seconds();
+        }
+
+        return $this->commitTimeCache[$oid];
     }
 
     private static function assertObjectId(string $oid): int

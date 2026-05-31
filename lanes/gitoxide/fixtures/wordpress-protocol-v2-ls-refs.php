@@ -26,7 +26,10 @@ $responseLines = [
 
 return [
     'capabilities' => implode("\n", [...$capabilityLines, '']),
-    'capabilityAdvertisement' => implode('', array_map(static fn (string $line): string => $packet($line . "\n"), $capabilityLines)) . $flush,
+    'capabilityAdvertisement' => $packet("# service=git-upload-pack\n")
+        . $flush
+        . implode('', array_map(static fn (string $line): string => $packet($line . "\n"), $capabilityLines))
+        . $flush,
     'fetchRefspecs' => [
         'HEAD',
         'main',
@@ -75,5 +78,5 @@ return [
         'releaseTag' => $releaseTag,
         'releaseObject' => $releaseObject,
     ],
-    'wordpressUse' => 'A PHP deployment tool can parse protocol v2 ls-refs capabilities, expand shorthand fetch refspecs into Gitoxide-style DWIM ref-prefix request lines, and parse SHA-256 response lines to discover the active WordPress branch, release tag target, and unborn staging branch before deciding what to fetch.',
+    'wordpressUse' => 'A PHP deployment tool can parse service-announced protocol v2 ls-refs capabilities, expand shorthand fetch refspecs into Gitoxide-style DWIM ref-prefix request lines, and parse SHA-256 response lines to discover the active WordPress branch, release tag target, and unborn staging branch before deciding what to fetch.',
 ];

@@ -1646,20 +1646,148 @@ final class SQLiteCoreScalarFunction
     {
         $leftInstant = self::parseDateTimeValue($left, []);
         $rightInstant = self::parseDateTimeValue($right, []);
+        if ($leftInstant === null || $rightInstant === null) {
+            throw new \InvalidArgumentException('SQLite timediff() arguments must be Julian day numbers or ISO-8601 date/time strings');
+        }
+
         $negative = $leftInstant < $rightInstant;
-        $interval = $negative ? $leftInstant->diff($rightInstant) : $rightInstant->diff($leftInstant);
+        [$years, $months, $days, $hours, $minutes, $seconds, $milliseconds] = $negative
+            ? self::negativeTimeDifferenceComponents($leftInstant, $rightInstant)
+            : self::positiveTimeDifferenceComponents($leftInstant, $rightInstant);
 
         return sprintf(
             '%s%04d-%02d-%02d %02d:%02d:%02d.%03d',
             $negative ? '-' : '+',
-            $interval->y,
-            $interval->m,
-            $interval->d,
-            $interval->h,
-            $interval->i,
-            $interval->s,
-            (int) floor($interval->f * 1000.0)
+            $years,
+            $months,
+            $days,
+            $hours,
+            $minutes,
+            $seconds,
+            $milliseconds
         );
+    }
+
+    /**
+     * @return array{0:int,1:int,2:int,3:int,4:int,5:int,6:int}
+     */
+    private static function positiveTimeDifferenceComponents(\DateTimeImmutable $target, \DateTimeImmutable $base): array
+    {
+        $workYear = self::dateYear($base);
+        $workMonth = self::dateMonth($base);
+        $workDay = self::dateDay($base);
+        $work = $base;
+        $years = self::dateYear($target) - $workYear;
+        if ($years !== 0) {
+            $workYear = self::dateYear($target);
+            $work = self::withDateOverflow($work, $workYear, $workMonth, $workDay);
+        }
+
+        $months = self::dateMonth($target) - $workMonth;
+        if ($months < 0) {
+            $years--;
+            $months += 12;
+        }
+        if ($months !== 0) {
+            $workMonth = self::dateMonth($target);
+            $work = self::withDateOverflow($work, $workYear, $workMonth, $workDay);
+        }
+
+        while ($target < $work) {
+            $months--;
+            if ($months < 0) {
+                $months = 11;
+                $years--;
+            }
+            $workMonth--;
+            if ($workMonth < 1) {
+                $workMonth = 12;
+                $workYear--;
+            }
+            $work = self::withDateOverflow($work, $workYear, $workMonth, $workDay);
+        }
+
+        return array_merge([$years, $months], self::timeDifferenceRemainderComponents($work, $target));
+    }
+
+    /**
+     * @return array{0:int,1:int,2:int,3:int,4:int,5:int,6:int}
+     */
+    private static function negativeTimeDifferenceComponents(\DateTimeImmutable $target, \DateTimeImmutable $base): array
+    {
+        $workYear = self::dateYear($base);
+        $workMonth = self::dateMonth($base);
+        $workDay = self::dateDay($base);
+        $work = $base;
+        $years = $workYear - self::dateYear($target);
+        if ($years !== 0) {
+            $workYear = self::dateYear($target);
+            $work = self::withDateOverflow($work, $workYear, $workMonth, $workDay);
+        }
+
+        $months = $workMonth - self::dateMonth($target);
+        if ($months < 0) {
+            $years--;
+            $months += 12;
+        }
+        if ($months !== 0) {
+            $workMonth = self::dateMonth($target);
+            $work = self::withDateOverflow($work, $workYear, $workMonth, $workDay);
+        }
+
+        while ($target > $work) {
+            $months--;
+            if ($months < 0) {
+                $months = 11;
+                $years--;
+            }
+            $workMonth++;
+            if ($workMonth > 12) {
+                $workMonth = 1;
+                $workYear++;
+            }
+            $work = self::withDateOverflow($work, $workYear, $workMonth, $workDay);
+        }
+
+        return array_merge([$years, $months], self::timeDifferenceRemainderComponents($target, $work));
+    }
+
+    /**
+     * @return array{0:int,1:int,2:int,3:int,4:int}
+     */
+    private static function timeDifferenceRemainderComponents(\DateTimeImmutable $from, \DateTimeImmutable $to): array
+    {
+        $milliseconds = (int) round(abs(self::unixTimestampFloat($to) - self::unixTimestampFloat($from)) * 1000.0);
+        $days = intdiv($milliseconds, 86400000);
+        $milliseconds %= 86400000;
+        $hours = intdiv($milliseconds, 3600000);
+        $milliseconds %= 3600000;
+        $minutes = intdiv($milliseconds, 60000);
+        $milliseconds %= 60000;
+        $seconds = intdiv($milliseconds, 1000);
+        $milliseconds %= 1000;
+
+        return [$days, $hours, $minutes, $seconds, $milliseconds];
+    }
+
+    private static function withDateOverflow(\DateTimeImmutable $instant, int $year, int $month, int $day): \DateTimeImmutable
+    {
+        return $instant->setDate($year, $month, $day);
+    }
+
+    private static function dateYear(\DateTimeImmutable $instant): int
+    {
+        return (int) $instant->format('Y');
+    }
+
+    private static function dateMonth(\DateTimeImmutable $instant): int
+    {
+        return (int) $instant->format('m');
+    }
+
+    private static function dateDay(\DateTimeImmutable $instant): int
+    {
+        return (int) $instant->format('d');
     }
 
     /**

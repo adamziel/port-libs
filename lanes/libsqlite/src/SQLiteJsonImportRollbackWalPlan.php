@@ -2079,6 +2079,112 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicRollbackDisabledFollowupFailureScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL rollback-disabled followup failure dynamic parity requires at least one scenario');
+        }
+
+        $baseScenarios = self::dynamicRollbackDisabledFollowupScenarios($scenarioCount);
+        $scenarios = [];
+        foreach ($baseScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $tenantId = (int) $base['tenant_id'];
+            $pageSize = (int) $base['page_size'];
+            $jsonbMode = (bool) $base['jsonb_mode'];
+            $followupPlan = $base['followup_plan'];
+            $partialPlan = $base['partial_plan'];
+            $committedPrefixFrameCount = (int) $followupPlan['wal_frame_count_after'];
+            $tailFrameStart = $committedPrefixFrameCount + 1;
+            $catalogPage = (int) $base['expected_followup_pages'][0];
+            $tailInsertPage = 1620 + $seed;
+            $brokenPage = 1420 + $seed;
+            $committedPrefixPages = array_merge(
+                $base['committed_prefix_pages'],
+                $base['expected_followup_pages']
+            );
+
+            $tailRows = $followupPlan['import_plan']['final_rows'];
+            $tailMutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_followup_tail_catalog_' . $seed,
+                    'key_name' => 'disabled_rollback_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.tail',
+                    'value' => 'rolled-back-tail-' . $seed,
+                    'wal_frame_index' => $tailFrameStart,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_followup_tail_insert_' . $seed,
+                    'key_name' => 'disabled_followup_tail_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.queued',
+                    'value' => true,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $seed * 10000 + 5,
+                    'insert_load_policy' => 'auto',
+                    'initial_value' => '{}',
+                    'page_number' => $tailInsertPage,
+                    'wal_frame_index' => $tailFrameStart + 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_followup_tail_broken_payload_' . $seed,
+                    'key_name' => 'disabled_rollback_broken_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.tail',
+                    'value' => true,
+                    'wal_frame_index' => $tailFrameStart + 2,
+                ],
+            ];
+
+            $tailWalBytes = self::appendScenarioWalFrames(
+                (string) $followupPlan['wal_bytes_after'],
+                $pageSize,
+                [
+                    $tailFrameStart => $catalogPage,
+                    $tailFrameStart + 1 => $tailInsertPage,
+                    $tailFrameStart + 2 => $brokenPage,
+                ],
+                'app-json-dynamic-disabled-followup-tail:' . $seed . ':'
+            );
+            $tailPlan = self::plan($tailRows, $tailMutations, [
+                'database_bytes' => (string) $followupPlan['database_bytes_after_import'],
+                'page_size' => $pageSize,
+                'wal_bytes' => $tailWalBytes,
+                'transaction' => 'application_disabled_followup_tail_json_import_' . $seed,
+                'savepoint' => 'disabled_followup_tail_json_batch_' . $seed,
+                'pre_savepoint_wal_pages' => $committedPrefixPages,
+            ]);
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $tenantId,
+                'page_size' => $pageSize,
+                'jsonb_mode' => $jsonbMode,
+                'preexisting_frames' => $base['preexisting_frames'],
+                'partial_frame_count' => $base['partial_frame_count'],
+                'committed_prefix_frame_count' => $committedPrefixFrameCount,
+                'committed_prefix_pages' => $committedPrefixPages,
+                'expected_tail_pages' => [$catalogPage, $tailInsertPage],
+                'expected_tail_inserted_key' => 'disabled_followup_tail_payload_' . $seed,
+                'expected_failed_statement' => 'disabled_followup_tail_broken_payload_' . $seed,
+                'tail_broken_page' => $brokenPage,
+                'tail_wal_bytes' => $tailWalBytes,
+                'partial_plan' => $partialPlan,
+                'followup_plan' => $followupPlan,
+                'tail_plan' => $tailPlan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
      * @param array<string,mixed> $importPlan
      */
     private static function assertRollbackFramesExist(array $importPlan, int $walFrameCount): void

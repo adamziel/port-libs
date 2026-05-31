@@ -210,6 +210,49 @@ return [
         $t->same(true, str_contains($keepaliveResponse, "0005\x01"));
         $t->same('150a1045f04dc0fc2dbf72313699fda696bf4126', bin2hex(substr(FetchResponse::fromV2PacketLines($keepaliveResponse)->packData(), -20)));
     },
+    'parses upstream v2 fetch section fixtures with sideband pack bytes' => static function (TestRunner $t): void {
+        $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-section-sideband.php';
+
+        foreach (['fetchUnshallow', 'cloneDeepen1', 'cloneDeepen5', 'fetchNoPack'] as $key) {
+            $fixture = $fixtures[$key];
+            $response = FetchResponse::fromV2PacketLines($fixture['response']);
+
+            $acks = array_map(
+                static fn (FetchAcknowledgement $ack): array => ['kind' => $ack->kind, 'object' => $ack->object],
+                $response->acknowledgements()
+            );
+            $shallowUpdates = array_map(
+                static fn (FetchShallowUpdate $update): array => ['kind' => $update->kind, 'object' => $update->object],
+                $response->shallowUpdates()
+            );
+
+            $t->same($fixture['acknowledgements'], $acks);
+            $t->same($fixture['shallowUpdates'], $shallowUpdates);
+            $t->same($fixture['hasPack'], $response->hasPack());
+            $t->same($fixture['packBytes'], strlen($response->packData()));
+            $t->same($fixture['progressCount'], count($response->progressMessages()));
+            $t->same([], $response->errorMessages());
+
+            if ($fixture['hasPack']) {
+                $t->same('PACK', substr($response->packData(), 0, 4));
+                $t->same($fixture['packTrailer'], bin2hex(substr($response->packData(), -20)));
+                $t->same(true, count($response->remoteProgress()) > 0);
+            } else {
+                $t->same('', $response->packData());
+                $t->same([], $response->remoteProgress());
+            }
+        }
+
+        try {
+            FetchResponse::fromV2PacketLines($fixtures['fetchErrLine']['response']);
+        } catch (RuntimeException $error) {
+            $t->same($fixtures['fetchErrLine']['errorMessage'], rtrim($error->getMessage()));
+
+            return;
+        }
+
+        throw new RuntimeException('Expected upstream fetch ERR line to fail');
+    },
     'exposes parsed progress from upstream sideband chunks' => static function (TestRunner $t): void {
         $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-sideband.php';
         $response = FetchResponse::fromV2PacketLines($fixtures['cloneOnly2']['response']);

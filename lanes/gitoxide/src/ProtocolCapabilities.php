@@ -50,16 +50,31 @@ final class ProtocolCapabilities
         return self::fromTokens(array_values(array_filter($lines, static fn (string $line): bool => $line !== '')));
     }
 
-    public static function fromV2PacketLines(string $bytes): self
+    public static function fromV2PacketLines(string $bytes, ?string $expectedService = null): self
     {
         $offset = 0;
         $lines = '';
+        $firstPacket = true;
 
         while (true) {
             $packet = self::readPacket($bytes, $offset);
             if ($packet === null) {
                 throw new \RuntimeException('protocol v2 capability advertisement: missing flush packet');
             }
+            if ($firstPacket && $packet['kind'] === 'data' && str_starts_with($packet['payload'], '# service=')) {
+                $service = self::trimLineEnding(substr($packet['payload'], strlen('# service=')));
+                if ($expectedService !== null && $service !== $expectedService) {
+                    throw new \RuntimeException("protocol v2 capability advertisement: expected service {$expectedService}, got {$service}");
+                }
+
+                $serviceFlush = self::readPacket($bytes, $offset);
+                if ($serviceFlush === null || $serviceFlush['kind'] !== 'flush') {
+                    throw new \RuntimeException('protocol v2 capability advertisement: service announcement missing flush packet');
+                }
+                $firstPacket = false;
+                continue;
+            }
+            $firstPacket = false;
             if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
                 return self::fromV2Lines($lines);
             }
