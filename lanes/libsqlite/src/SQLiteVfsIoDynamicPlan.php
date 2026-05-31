@@ -1763,6 +1763,89 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function recordReadIoErrorProfile(
+        string $scenario,
+        int $failAt,
+        int $pageSize,
+        int $columnCount,
+        int $selectedColumn,
+        int $inlinePayloadBytes,
+        int $overflowPayloadBytes
+    ): array {
+        $scenario = strtolower(trim($scenario));
+        if (!in_array($scenario, ['ioerr-4-overflow-record-header', 'ioerr-8-short-field-read'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite record-read I/O error scenario: {$scenario}");
+        }
+        if ($failAt < 1) {
+            throw new \InvalidArgumentException('SQLite record-read I/O error fail index must be positive');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite record-read I/O error page size must be a power of two at least 512');
+        }
+        if ($columnCount < 1 || $selectedColumn < 1 || $selectedColumn > $columnCount) {
+            throw new \InvalidArgumentException('SQLite record-read I/O error column indexes are invalid');
+        }
+        if ($inlinePayloadBytes < 0 || $overflowPayloadBytes < 0) {
+            throw new \InvalidArgumentException('SQLite record-read I/O error payload sizes must be non-negative');
+        }
+
+        $overflowHeader = $scenario === 'ioerr-4-overflow-record-header';
+        if ($overflowHeader && $overflowPayloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite ioerr-4 record-read profile requires overflow payload bytes');
+        }
+        if (!$overflowHeader && $inlinePayloadBytes < 1) {
+            throw new \InvalidArgumentException('SQLite ioerr-8 record-read profile requires inline payload bytes');
+        }
+
+        $usableBytes = $pageSize - 35;
+        $headerBytes = max(1, $columnCount * 2);
+        $localPayloadBytes = min($inlinePayloadBytes, max(0, $usableBytes - $headerBytes));
+        $overflowBytes = $overflowHeader ? max($overflowPayloadBytes, max(1, $headerBytes - $usableBytes + 1)) : 0;
+        $overflowPages = $overflowBytes === 0 ? 0 : (int) ceil($overflowBytes / max(1, $usableBytes - 4));
+        $readOperations = 1 + ($overflowHeader ? $overflowPages : 0);
+        $faultDetected = $failAt <= $readOperations || ($overflowHeader && $selectedColumn > max(1, intdiv($columnCount, 2)));
+        $selectedFieldInline = !$overflowHeader || $selectedColumn === 1;
+
+        return [
+            'status' => 'ok',
+            'script' => 'ioerr.test',
+            'scenario' => $scenario,
+            'upstream' => $overflowHeader
+                ? ['ioerr.test ioerr-4 overflow record header read crosses onto overflow page']
+                : ['ioerr.test ioerr-8 short field read fits without allocation but still propagates read faults'],
+            'fail_at' => $failAt,
+            'page_size' => $pageSize,
+            'column_count' => $columnCount,
+            'selected_column' => $selectedColumn,
+            'inline_payload_bytes' => $inlinePayloadBytes,
+            'overflow_payload_bytes' => $overflowPayloadBytes,
+            'usable_bytes' => $usableBytes,
+            'record_header_bytes' => $headerBytes,
+            'local_payload_bytes' => $localPayloadBytes,
+            'overflow_pages' => $overflowPages,
+            'read_operations' => $readOperations,
+            'fault_detected' => $faultDetected,
+            'selected_field_inline' => $selectedFieldInline,
+            'expected_result' => $faultDetected ? 'SQLITE_IOERR_READ' : 'SQLITE_OK',
+            'statement_rolled_back' => false,
+            'cursor_closed' => true,
+            'cache_refcount_zero' => true,
+            'integrity_check' => 'ok',
+            'open_file_count' => 0,
+            'reason' => $overflowHeader
+                ? 'overflow_record_header_read_io_error_is_reported_without_leaking_pager_refs'
+                : 'short_field_read_io_error_propagates_without_heap_allocation_path_leak',
+            'dependencies' => [
+                'upstream-ioerr-record-read-faults',
+                'sqlite-vfs-io-error-recovery',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function memoryJournalSavepointProfile(
         int $seedRows,
         int $outerSavepointOrdinal,

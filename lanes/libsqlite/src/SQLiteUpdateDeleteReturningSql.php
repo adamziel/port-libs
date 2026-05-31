@@ -2331,8 +2331,11 @@ final class SQLiteUpdateDeleteReturningSql
         $sql = trim($sql);
         if (preg_match('/^SELECT\b/is', $sql) === 1) {
             $tuples = self::rowValueSimpleSelectTupleList($sql, $tables);
+            if ($tuples === []) {
+                return array_fill(0, self::rowValueSelectExpressionCount($sql), null);
+            }
 
-            return $tuples[0] ?? [];
+            return $tuples[0];
         }
 
         $values = array_map(
@@ -2389,6 +2392,20 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return $tuples;
+    }
+
+    private static function rowValueSelectExpressionCount(string $sql): int
+    {
+        if (preg_match('/^SELECT\s+(DISTINCT\s+)?(.+?)\s+FROM\s+[A-Za-z_][A-Za-z0-9_]*/is', trim($sql), $match) !== 1) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value scalar subquery must return at least two columns');
+        }
+
+        $count = count(self::splitComma(trim($match[2])));
+        if ($count < 2) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value scalar subquery must return at least two columns');
+        }
+
+        return $count;
     }
 
     /**

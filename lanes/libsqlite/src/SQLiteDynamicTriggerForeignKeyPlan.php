@@ -1928,6 +1928,140 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $parents
+     * @param list<array<string,mixed>> $children
+     * @param array{operation:string,parent_table?:string,immediate_child_table?:string,deferred_child_table?:string,child_table?:string,parent_key?:string,child_key?:string,authorization?:string,cascade?:bool} $statement
+     * @return array<string,mixed>
+     */
+    public static function fkey2AuthorizerCallbackPlan(array $parents, array $children, array $statement): array
+    {
+        $operation = strtolower(trim((string) ($statement['operation'] ?? '')));
+        if (!in_array($operation, ['insert-parent', 'insert-immediate-child', 'insert-deferred-child', 'update-parent-cascade', 'insert-rowid-child'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2 authorizer callback operation is unsupported');
+        }
+
+        $parentTable = self::identifier((string) ($statement['parent_table'] ?? 'long'), 'parent table');
+        $immediateChildTable = self::identifier((string) ($statement['immediate_child_table'] ?? 'short'), 'immediate child table');
+        $deferredChildTable = self::identifier((string) ($statement['deferred_child_table'] ?? 'mid'), 'deferred child table');
+        $childTable = self::identifier((string) ($statement['child_table'] ?? ($operation === 'insert-deferred-child' ? $deferredChildTable : $immediateChildTable)), 'child table');
+        $parentKey = self::identifier((string) ($statement['parent_key'] ?? ($operation === 'insert-rowid-child' ? 'a' : 'b')), 'parent key');
+        $childKey = self::identifier((string) ($statement['child_key'] ?? ($operation === 'insert-rowid-child' ? 'c' : 'f')), 'child key');
+        $authorization = strtolower(trim((string) ($statement['authorization'] ?? 'ok')));
+        if (!in_array($authorization, ['ok', 'ignore-parent-read'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey2 authorizer callback mode is unsupported');
+        }
+
+        $authEvents = [];
+        $status = 'commit-ok';
+        $error = null;
+        $ignoredParentRead = false;
+        $cascadeApplied = false;
+
+        if ($operation === 'insert-parent') {
+            $authEvents[] = ['action' => 'SQLITE_INSERT', 'table' => $parentTable, 'column' => null];
+            $authEvents[] = ['action' => 'SQLITE_READ', 'table' => $deferredChildTable, 'column' => $childKey];
+        } elseif ($operation === 'insert-immediate-child' || $operation === 'insert-deferred-child' || $operation === 'insert-rowid-child') {
+            $authEvents[] = ['action' => 'SQLITE_INSERT', 'table' => $childTable, 'column' => null];
+            $authEvents[] = ['action' => 'SQLITE_READ', 'table' => $parentTable, 'column' => $parentKey];
+            $childValue = array_key_exists('child_value', $statement) ? $statement['child_value'] : ($children[0][$childKey] ?? null);
+            $parentValues = array_column($parents, $parentKey);
+            $ignoredParentRead = $authorization === 'ignore-parent-read' && $childValue !== null;
+            if ($ignoredParentRead || ($childValue !== null && !in_array($childValue, $parentValues, true))) {
+                $status = 'constraint-failed';
+                $error = 'FOREIGN KEY constraint failed';
+            }
+        } else {
+            $authEvents[] = ['action' => 'SQLITE_UPDATE', 'table' => $parentTable, 'column' => $parentKey];
+            $authEvents[] = ['action' => 'SQLITE_READ', 'table' => $immediateChildTable, 'column' => 'e'];
+            $authEvents[] = ['action' => 'SQLITE_READ', 'table' => $immediateChildTable, 'column' => 'e'];
+            $authEvents[] = ['action' => 'SQLITE_READ', 'table' => $parentTable, 'column' => $parentKey];
+            $authEvents[] = ['action' => 'SQLITE_READ', 'table' => $parentTable, 'column' => $parentKey];
+            $authEvents[] = ['action' => 'SQLITE_UPDATE', 'table' => $immediateChildTable, 'column' => 'e'];
+            $cascadeApplied = (bool) ($statement['cascade'] ?? true);
+        }
+
+        return [
+            'source' => 'fkey2.test fkey2-18.1..18.11',
+            'operation' => 'foreign-key-authorizer-callback',
+            'status' => $status,
+            'statement_operation' => $operation,
+            'authorization' => $authorization,
+            'parent_table' => $parentTable,
+            'child_table' => $childTable,
+            'parent_key' => $parentKey,
+            'child_key' => $childKey,
+            'auth_events' => $authEvents,
+            'auth_event_count' => count($authEvents),
+            'read_events' => array_values(array_filter($authEvents, static fn (array $event): bool => $event['action'] === 'SQLITE_READ')),
+            'ignored_parent_read' => $ignoredParentRead,
+            'cascade_applied' => $cascadeApplied,
+            'error' => $error,
+            'dependencies' => [
+                'sqlite-fkey2-authorizer-parent-insert-reads-deferred-child-key',
+                'sqlite-fkey2-authorizer-child-insert-reads-parent-key',
+                'sqlite-fkey2-authorizer-ignore-parent-read-causes-fk-failure',
+                'sqlite-fkey2-authorizer-cascade-update-reads-and-updates-child',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<int|string> $parentIds
+     * @param list<int|string> $childParentIds
+     * @param list<int|string> $bindings
+     * @return array<string,mixed>
+     */
+    public static function preparedForeignKeyDeleteResetPlan(array $parentIds, array $childParentIds, array $bindings): array
+    {
+        if ($bindings === []) {
+            throw new \InvalidArgumentException('SQLite fkey2 prepared delete bindings are empty');
+        }
+
+        $remainingParents = array_values($parentIds);
+        $trace = [];
+        $lastStepStatus = null;
+        foreach (array_values($bindings) as $index => $binding) {
+            $referenced = in_array($binding, $childParentIds, true);
+            $exists = in_array($binding, $remainingParents, true);
+            $stepStatus = $referenced ? 'SQLITE_CONSTRAINT' : 'SQLITE_DONE';
+            if ($exists && !$referenced) {
+                $remainingParents = array_values(array_filter($remainingParents, static fn (int|string $id): bool => $id !== $binding));
+            }
+
+            $trace[] = [
+                'binding_index' => $index,
+                'bound_parent_id' => $binding,
+                'parent_exists' => $exists,
+                'referenced_by_child' => $referenced,
+                'step_status' => $stepStatus,
+                'reset_status' => $stepStatus === 'SQLITE_CONSTRAINT' ? 'SQLITE_CONSTRAINT' : 'SQLITE_OK',
+                'extended_error' => $stepStatus === 'SQLITE_CONSTRAINT' ? 'SQLITE_CONSTRAINT_FOREIGNKEY' : null,
+                'delete_applied' => $exists && !$referenced,
+            ];
+            $lastStepStatus = $stepStatus;
+        }
+
+        return [
+            'source' => 'fkey2.test fkey2-19.1..19.4',
+            'operation' => 'prepared-foreign-key-delete-reset',
+            'status' => $lastStepStatus === 'SQLITE_CONSTRAINT' ? 'constraint-failed' : 'commit-ok',
+            'sql' => 'DELETE FROM main WHERE id = ?',
+            'parent_ids_before' => array_values($parentIds),
+            'child_parent_ids' => array_values($childParentIds),
+            'bindings' => array_values($bindings),
+            'trace' => $trace,
+            'remaining_parent_ids' => $remainingParents,
+            'finalize_status' => 'SQLITE_OK',
+            'constraint_reset_preserved' => in_array('SQLITE_CONSTRAINT', array_column($trace, 'reset_status'), true),
+            'dependencies' => [
+                'sqlite-fkey2-prepared-delete-step-reports-foreign-key-constraint',
+                'sqlite-fkey2-prepared-delete-reset-preserves-constraint-status',
+                'sqlite-fkey2-prepared-delete-rebind-can-succeed-after-failed-reset',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{rowid:int,a:int|string,b:int|string,c:int|string}> $parents
      * @param list<array{d:int|string,e:int|string,f?:int|string}> $children
      * @param array{rowid?:int,a:int|string,b:int|string,c:int|string,conflict?:string,transaction?:bool} $incoming

@@ -3279,6 +3279,107 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,table_name:string,column_count:int,row_count:int,payload_bytes:int,operation:string,result_code:int,message:string,integrity:string,uses_without_rowid:bool,uses_primary_key:bool,release_memory_before_fault:bool,soft_heap_limit:int|null,fault_method:string|null,expected_index:string|null,name_length:int,temp_btree_readback:bool,batch:int}>
+     */
+    public static function indexFaultTempReadbackAndLongNameCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite indexfault temp-readback dynamic corpus requires at least one case');
+        }
+
+        $longName = str_repeat('really', 92) . 'longname';
+        $templates = [
+            [
+                'indexfault-4.1',
+                'baseline CREATE INDEX counts main-database reads before temp btree readback fault injection',
+                't1',
+                1,
+                64,
+                11000,
+                'CREATE INDEX i1 ON t1(x)',
+                0,
+                '',
+                false,
+                false,
+                false,
+                null,
+                'xRead',
+                'i1',
+                strlen('t1'),
+                true,
+            ],
+            [
+                'indexfault-4.2',
+                'CREATE INDEX survives release-memory temp btree readback faults and preserves table rows',
+                't1',
+                1,
+                64,
+                11000,
+                'CREATE INDEX i1 ON t1(x)',
+                0,
+                '',
+                false,
+                false,
+                true,
+                20000,
+                'xRead',
+                'i1',
+                strlen('t1'),
+                true,
+            ],
+            [
+                'indexfault-5',
+                'very long WITHOUT ROWID primary-key table name prepares and commits without corrupting the schema btree',
+                $longName,
+                1,
+                0,
+                0,
+                'CREATE TABLE ' . $longName . '(a PRIMARY KEY) WITHOUT ROWID',
+                0,
+                '',
+                true,
+                true,
+                false,
+                null,
+                null,
+                null,
+                strlen($longName),
+                false,
+            ],
+        ];
+
+        $rows = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $table, $columns, $rowCount, $payloadBytes, $operation, $resultCode, $message, $withoutRowid, $primaryKey, $releaseMemory, $softLimit, $faultMethod, $expectedIndex, $nameLength, $readback] = $templates[($case - 1) % count($templates)];
+            $rows[] = [
+                'source' => 'indexfault.test sections indexfault-4.1, indexfault-4.2, and indexfault-5',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'table_name' => $table,
+                'column_count' => $columns,
+                'row_count' => $rowCount,
+                'payload_bytes' => $payloadBytes,
+                'operation' => $operation,
+                'result_code' => $resultCode,
+                'message' => $message,
+                'integrity' => 'ok',
+                'uses_without_rowid' => $withoutRowid,
+                'uses_primary_key' => $primaryKey,
+                'release_memory_before_fault' => $releaseMemory,
+                'soft_heap_limit' => $softLimit,
+                'fault_method' => $faultMethod,
+                'expected_index' => $expectedIndex,
+                'name_length' => $nameLength,
+                'temp_btree_readback' => $readback,
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,sql:string,result_code:int,message:string,index_name:string|null,expression:string|null,table_name:string,integrity:string|null,insert_row:array<int,mixed>|null,duplicate_row:array<int,mixed>|null,expected_rows:list<array<int,mixed>>,uses_expression_index:bool}>
      */
     public static function indexExpressionDdlGuardCases(int $cases = 1000): array

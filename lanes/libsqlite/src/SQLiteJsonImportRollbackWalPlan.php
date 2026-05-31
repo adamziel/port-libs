@@ -9,7 +9,7 @@ final class SQLiteJsonImportRollbackWalPlan
     /**
      * @param list<array{setting_id:int,key_name:string,key_value:mixed,load_policy?:string,page_number?:int,tenant_id?:int}> $currentRows
      * @param list<array{key_name:string,function?:string,path:string,value:mixed,page_number?:int,wal_frame_index?:int,statement?:string,on_missing?:string,insert_setting_id?:int,insert_load_policy?:string,initial_value?:mixed,tenant_id?:int}> $mutations
-     * @param array{database_bytes:string,page_size?:int,wal_bytes?:string,rollback_on_error?:bool,savepoint?:string,transaction?:string,pre_savepoint_wal_pages?:list<int>} $options
+     * @param array{database_bytes:string,page_size?:int,wal_bytes?:string,rollback_on_error?:bool,savepoint?:string,transaction?:string,pre_savepoint_wal_pages?:list<int>,materialize_success_wal_frames?:bool} $options
      * @return array<string,mixed>
      */
     public static function plan(array $currentRows, array $mutations, array $options): array
@@ -55,7 +55,18 @@ final class SQLiteJsonImportRollbackWalPlan
         }
 
         $truncateToBytes = 32 + ($rollbackToFrame * (24 + $pageSize));
+        $materializedWalFrameCount = 0;
         $rolledBackWalBytes = $rollbackRequired ? substr($walBytes, 0, $truncateToBytes) : $walBytes;
+        if (!$rollbackRequired && (bool) ($options['materialize_success_wal_frames'] ?? false)) {
+            $appendResult = self::appendSuccessfulWalFrames(
+                $rolledBackWalBytes,
+                (string) $importPlan['database_bytes'],
+                $importPlan['applied'],
+                $pageSize
+            );
+            $rolledBackWalBytes = $appendResult['wal_bytes'];
+            $materializedWalFrameCount = $appendResult['appended_frame_count'];
+        }
         $rolledBackDatabaseBytes = $rollbackRequired ? $databaseBytes : (string) $importPlan['database_bytes'];
         $failedStatements = array_map(
             static fn (array $failure): string => (string) $failure['statement'],
@@ -82,6 +93,7 @@ final class SQLiteJsonImportRollbackWalPlan
             'wal_frame_count_after' => self::walState($rolledBackWalBytes, $pageSize)['frame_count'],
             'wal_truncate_to_bytes' => $truncateToBytes,
             'wal_truncated' => $rollbackRequired && strlen($rolledBackWalBytes) < strlen($walBytes),
+            'materialized_wal_frame_count' => $materializedWalFrameCount,
             'discarded_wal_frame_count' => $rollbackRequired ? $walState['frame_count'] - $rollbackToFrame : 0,
             'rollback_to_savepoint' => $importPlan['rollback_to_savepoint'],
             'wal_rollback_to_savepoint' => $importPlan['wal_rollback_to_savepoint'],
@@ -870,6 +882,14 @@ final class SQLiteJsonImportRollbackWalPlan
                 'transaction' => 'application_retry_json_import_success_' . $seed,
                 'savepoint' => 'retry_json_batch_success_' . $seed,
             ]);
+            $materializedRetryPlan = self::plan($retryRows, $retryMutations, [
+                'database_bytes' => $failedPlan['restored_database_bytes'],
+                'page_size' => $pageSize,
+                'wal_bytes' => $failedPlan['wal_bytes_after'],
+                'transaction' => 'application_retry_json_import_success_materialized_' . $seed,
+                'savepoint' => 'retry_json_batch_success_materialized_' . $seed,
+                'materialize_success_wal_frames' => true,
+            ]);
 
             $scenarios[] = [
                 'seed' => $seed,
@@ -882,6 +902,7 @@ final class SQLiteJsonImportRollbackWalPlan
                 'expected_retry_pages' => [$featurePage, $catalogPage, $brokenPage],
                 'failed_plan' => $failedPlan,
                 'retry_plan' => $retryPlan,
+                'materialized_retry_plan' => $materializedRetryPlan,
             ];
         }
 
@@ -1021,6 +1042,15 @@ final class SQLiteJsonImportRollbackWalPlan
                 'savepoint' => 'prefix_retry_json_batch_success_' . $seed,
                 'pre_savepoint_wal_pages' => $preSavepointWalPages,
             ]);
+            $materializedRetryPlan = self::plan($retryRows, $retryMutations, [
+                'database_bytes' => $failedPlan['restored_database_bytes'],
+                'page_size' => $pageSize,
+                'wal_bytes' => $failedPlan['wal_bytes_after'],
+                'transaction' => 'application_prefix_retry_json_import_success_materialized_' . $seed,
+                'savepoint' => 'prefix_retry_json_batch_success_materialized_' . $seed,
+                'pre_savepoint_wal_pages' => $preSavepointWalPages,
+                'materialize_success_wal_frames' => true,
+            ]);
 
             $scenarios[] = [
                 'seed' => $seed,
@@ -1035,6 +1065,7 @@ final class SQLiteJsonImportRollbackWalPlan
                 'expected_retry_pages' => [$featurePage, $catalogPage, $brokenPage],
                 'failed_plan' => $failedPlan,
                 'retry_plan' => $retryPlan,
+                'materialized_retry_plan' => $materializedRetryPlan,
             ];
         }
 
@@ -1300,6 +1331,63 @@ final class SQLiteJsonImportRollbackWalPlan
     private static function emptyWalBytes(int $pageSize): string
     {
         return pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 0, 0x51, 0x52, 0, 0);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $appliedStatements
+     * @return array{wal_bytes:string,appended_frame_count:int}
+     */
+    private static function appendSuccessfulWalFrames(
+        string $walBytes,
+        string $databaseBytes,
+        array $appliedStatements,
+        int $pageSize
+    ): array {
+        $walState = self::walState($walBytes, $pageSize);
+        $header = unpack('Nmagic/Nversion/Npage_size/Ncheckpoint/Nsalt_1/Nsalt_2/Nchecksum_1/Nchecksum_2', substr($walBytes, 0, 32));
+        if (!is_array($header)) {
+            throw new \InvalidArgumentException('SQLite Application JSON import rollback WAL bytes require a valid WAL header');
+        }
+
+        $pendingFrames = [];
+        foreach ($appliedStatements as $statement) {
+            $frameIndex = (int) ($statement['wal_frame_index'] ?? 0);
+            if ($frameIndex <= $walState['frame_count']) {
+                continue;
+            }
+            $pageNumber = (int) ($statement['page_number'] ?? 0);
+            if ($pageNumber < 1) {
+                throw new \InvalidArgumentException('SQLite Application JSON import rollback applied WAL frame requires a page number');
+            }
+            $pageOffset = ($pageNumber - 1) * $pageSize;
+            if ($pageOffset + $pageSize > strlen($databaseBytes)) {
+                throw new \InvalidArgumentException(
+                    'SQLite Application JSON import rollback applied WAL frame page is outside the database image: ' . $pageNumber
+                );
+            }
+            $pendingFrames[$frameIndex] = [
+                'page_number' => $pageNumber,
+                'page_bytes' => substr($databaseBytes, $pageOffset, $pageSize),
+            ];
+        }
+
+        ksort($pendingFrames);
+        $nextFrame = $walState['frame_count'] + 1;
+        foreach ($pendingFrames as $frameIndex => $frame) {
+            if ($frameIndex !== $nextFrame) {
+                throw new \InvalidArgumentException(
+                    'SQLite Application JSON import rollback success WAL frame indexes must be contiguous after rollback'
+                );
+            }
+            $walBytes .= pack('N*', $frame['page_number'], 0, (int) $header['salt_1'], (int) $header['salt_2'], 0, 0)
+                . $frame['page_bytes'];
+            $nextFrame++;
+        }
+
+        return [
+            'wal_bytes' => $walBytes,
+            'appended_frame_count' => count($pendingFrames),
+        ];
     }
 
     private static function scenarioDatabaseBytes(int $pageSize, int $maxPage): string

@@ -571,6 +571,7 @@ foreach ($retryScenarios as $scenario) {
     $seed = (int) $scenario['seed'];
     $failedPlan = $scenario['failed_plan'];
     $retryPlan = $scenario['retry_plan'];
+    $materializedRetryPlan = $scenario['materialized_retry_plan'];
     $prefix = 'sqlite application wal rollback json dynamic parity retry seed ' . $seed . ' ';
 
     $tests[$prefix . 'first batch rolls back current json writes'] = static function (TestRunner $t) use ($failedPlan): void {
@@ -631,12 +632,29 @@ foreach ($retryScenarios as $scenario) {
     $tests[$prefix . 'retry fixes formerly malformed payload row'] = static function (TestRunner $t) use ($retryPlan, $seed): void {
         $t->same('retry_mark_fixed_payload_' . $seed, $retryPlan['import_plan']['applied'][2]['statement']);
     };
+    $tests[$prefix . 'materialized retry appends corrected wal frames'] = static function (TestRunner $t) use ($materializedRetryPlan): void {
+        $t->same(3, $materializedRetryPlan['materialized_wal_frame_count']);
+        $t->same(3, $materializedRetryPlan['wal_frame_count_after']);
+    };
+    $tests[$prefix . 'materialized retry keeps rollback header prefix'] = static function (TestRunner $t) use ($failedPlan, $materializedRetryPlan): void {
+        $t->same($failedPlan['wal_bytes_after'], substr($materializedRetryPlan['wal_bytes_after'], 0, strlen($failedPlan['wal_bytes_after'])));
+    };
+    $tests[$prefix . 'materialized retry frame bytes include corrected pages'] = static function (TestRunner $t) use ($materializedRetryPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        foreach ($scenario['expected_retry_pages'] as $index => $pageNumber) {
+            $frameOffset = 32 + ($index * $frameSize);
+            $frameHeader = unpack('Npage_number', substr($materializedRetryPlan['wal_bytes_after'], $frameOffset, 4));
+            $t->same($pageNumber, (int) $frameHeader['page_number']);
+        }
+    };
 }
 
 foreach ($preexistingRetryScenarios as $scenario) {
     $seed = (int) $scenario['seed'];
     $failedPlan = $scenario['failed_plan'];
     $retryPlan = $scenario['retry_plan'];
+    $materializedRetryPlan = $scenario['materialized_retry_plan'];
     $prefix = 'sqlite application wal rollback json dynamic parity preexisting retry seed ' . $seed . ' ';
 
     $tests[$prefix . 'first batch rolls back current json writes'] = static function (TestRunner $t) use ($failedPlan): void {
@@ -693,6 +711,22 @@ foreach ($preexistingRetryScenarios as $scenario) {
     };
     $tests[$prefix . 'retry fixes formerly malformed payload row'] = static function (TestRunner $t) use ($retryPlan, $seed): void {
         $t->same('prefix_retry_fixed_payload_success_' . $seed, $retryPlan['import_plan']['applied'][2]['statement']);
+    };
+    $tests[$prefix . 'materialized retry appends after preserved prefix'] = static function (TestRunner $t) use ($materializedRetryPlan, $scenario): void {
+        $t->same(3, $materializedRetryPlan['materialized_wal_frame_count']);
+        $t->same($scenario['preexisting_frames'] + 3, $materializedRetryPlan['wal_frame_count_after']);
+    };
+    $tests[$prefix . 'materialized retry preserves prefix bytes'] = static function (TestRunner $t) use ($failedPlan, $materializedRetryPlan): void {
+        $t->same($failedPlan['wal_bytes_after'], substr($materializedRetryPlan['wal_bytes_after'], 0, strlen($failedPlan['wal_bytes_after'])));
+    };
+    $tests[$prefix . 'materialized retry frame bytes continue after prefix'] = static function (TestRunner $t) use ($materializedRetryPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        foreach ($scenario['expected_retry_pages'] as $index => $pageNumber) {
+            $frameOffset = 32 + (($scenario['preexisting_frames'] + $index) * $frameSize);
+            $frameHeader = unpack('Npage_number', substr($materializedRetryPlan['wal_bytes_after'], $frameOffset, 4));
+            $t->same($pageNumber, (int) $frameHeader['page_number']);
+        }
     };
 }
 

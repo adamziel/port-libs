@@ -1203,6 +1203,111 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walProtocolLockingRows(): array
+    {
+        $recoveryLocks = [
+            '0 1 lock exclusive',
+            '1 2 lock exclusive',
+            '4 1 lock exclusive',
+            '4 1 unlock exclusive',
+            '5 1 lock exclusive',
+            '5 1 unlock exclusive',
+            '6 1 lock exclusive',
+            '6 1 unlock exclusive',
+            '7 1 lock exclusive',
+            '7 1 unlock exclusive',
+            '1 2 unlock exclusive',
+            '0 1 unlock exclusive',
+        ];
+        $protocolFailures = [
+            '1.3' => ['blocked_lock' => '1 2 lock exclusive', 'busy_source' => 'reader-byte-range'],
+            '1.4' => ['blocked_lock' => '0 1 lock exclusive', 'busy_source' => 'writer-byte'],
+        ];
+        $reentrantReads = [
+            '2.5' => 'same-process-unlock-callback',
+            '2.7' => 'restored-copy-unlock-callback',
+        ];
+        $rows = [];
+
+        for ($case = 1; $case <= 1000; $case++) {
+            $variant = (($case - 1) % 6) + 1;
+            $readerRows = ['Tehran', 'Qom', 'Markazi', 'Qazvin', 'Gilan', 'Ardabil'];
+            $base = [
+                'script' => 'walprotocol.test',
+                'case' => $case,
+                'journal_mode' => 'wal',
+                'table' => 'b',
+                'initial_rows' => ['Tehran', 'Qom', 'Markazi'],
+                'writer_appended_rows' => ['Qazvin', 'Gilan', 'Ardabil'],
+                'final_rows' => $readerRows,
+                'final_row_count' => count($readerRows),
+                'recovery_lock_sequence' => $recoveryLocks,
+                'recovery_lock_count' => count($recoveryLocks),
+                'unlock_callback_lock' => '1 2 unlock exclusive',
+                'retry_limit' => 100,
+                'dependencies' => [
+                    'real-upstream-corpus-walprotocol',
+                    'sqlite-wal-locking-protocol',
+                    'sqlite-wal-recovery-lock-order',
+                ],
+            ];
+
+            if ($variant <= 2) {
+                $testNumber = $variant === 1 ? '1.1' : '1.2';
+                $rows[] = $base + [
+                    'upstream' => 'walprotocol.test ' . $testNumber . ' recovery lock sequence dynamic case ' . $case,
+                    'section' => 'walprotocol-1.1..1.2',
+                    'phase' => 'recovery-lock-sequence',
+                    'expected_result' => [0, ['z']],
+                    'protocol_error' => false,
+                    'blocked_lock' => null,
+                    'busy_source' => null,
+                    'reader_reentrant_select' => false,
+                    'callback_result' => null,
+                ];
+                continue;
+            }
+
+            if ($variant <= 4) {
+                $testNumber = $variant === 3 ? '1.3' : '1.4';
+                $failure = $protocolFailures[$testNumber];
+                $rows[] = array_replace($base, [
+                    'upstream' => 'walprotocol.test ' . $testNumber . ' recovery busy retry dynamic case ' . $case,
+                    'section' => 'walprotocol-1.3..1.4',
+                    'phase' => 'recovery-protocol-busy',
+                    'expected_result' => [1, 'locking protocol'],
+                    'protocol_error' => true,
+                    'blocked_lock' => $failure['blocked_lock'],
+                    'busy_source' => $failure['busy_source'],
+                    'reader_reentrant_select' => false,
+                    'callback_result' => null,
+                    'dependencies' => array_merge($base['dependencies'], ['sqlite-wal-protocol-retry-limit']),
+                ]);
+                continue;
+            }
+
+            $testNumber = $variant === 5 ? '2.5' : '2.7';
+            $rows[] = array_replace($base, [
+                'upstream' => 'walprotocol.test ' . $testNumber . ' reentrant unlock read dynamic case ' . $case,
+                'section' => 'walprotocol-2.5..2.8',
+                'phase' => 'reentrant-read-during-recovery-unlock',
+                'expected_result' => [0, $readerRows],
+                'protocol_error' => false,
+                'blocked_lock' => null,
+                'busy_source' => null,
+                'reader_reentrant_select' => true,
+                'callback_result' => [0, $readerRows],
+                'callback_shape' => $reentrantReads[$testNumber],
+                'dependencies' => array_merge($base['dependencies'], ['sqlite-wal-reentrant-recovery-read']),
+            ]);
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array

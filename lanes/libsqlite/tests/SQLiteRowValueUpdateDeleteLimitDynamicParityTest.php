@@ -2443,4 +2443,56 @@ $tests['rowvalue update delete limit dynamic parity rowvalue4 scalar subquery ar
         ));
     };
 
+for ($seed = 1; $seed <= 48; $seed++) {
+    $operator = match ($seed % 4) {
+        0 => '=',
+        1 => '<>',
+        2 => 'IS',
+        default => 'IS DISTINCT FROM',
+    };
+    $state = 'empty_scalar_' . $seed;
+    $sql = "UPDATE app_settings SET state = '{$state}' WHERE (tenant_id, key_name) {$operator} (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT 0) RETURNING setting_id, state ORDER BY setting_id LIMIT -1";
+    $expected = $operator === 'IS DISTINCT FROM' ? [1, 2, 3, 4, 5, 6, 7, 8] : [];
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity rowvalue4 empty scalar subquery update seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $operator, $expected, $state): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            if ($operator === 'IS DISTINCT FROM') {
+                $t->same(array_fill(0, 8, $state), array_column($result['returning'], 'state'));
+            } else {
+                $t->same([], $result['returning']);
+            }
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $operator = match ($seed % 4) {
+        0 => '=',
+        1 => '!=',
+        2 => 'IS',
+        default => 'IS NOT',
+    };
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) {$operator} (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority DESC LIMIT 0) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+    $expected = $operator === 'IS NOT' ? [1, 2, 3, 4, 5, 6, 7, 8] : [];
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity rowvalue4 empty scalar subquery delete seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $operator, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same($operator === 'IS NOT' ? [] : [1, 2, 3, 4, 5, 6, 7, 8], array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+        };
+}
+
+$tests['rowvalue update delete limit dynamic parity rowvalue4 empty scalar subquery arity preserved'] =
+    static function (TestRunner $t) use ($execute): void {
+        $result = $execute("UPDATE app_settings SET state = 'empty_scalar_arity' WHERE (tenant_id, key_name) IS DISTINCT FROM (SELECT tenant_id, key_name FROM app_setting_targets LIMIT 0) RETURNING setting_id ORDER BY setting_id LIMIT 2 OFFSET 1");
+        $t->same([2, 3], $result['plan']->selectedIds);
+        $t->same([2, 3], array_column($result['returning'], 'setting_id'));
+        $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+    };
+
 return $tests;
