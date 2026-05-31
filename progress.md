@@ -53,6 +53,34 @@
 ## Current Coordination Snapshot
 
 - 2026-05-31 supervisor continuation (mixed SQLite/Gitoxide/LightningCSS batch
+  12:32 UTC): source commit
+  `9e52b7aea6ef8f1b75a6d54ac86cd37805503fd8` (`ports: add sqlite corpus
+  gitoxide object url and lightningcss cssom slices`) landed nine verified
+  handoffs after excluding stale shared metadata. Libsqlite selected evidence
+  moves from `2908763` to `2913978 pass / 0 fail` with mapped coverage still
+  `1589 / 1589`: +1203 whereG B-tree/index likelihood planner PASS cases,
+  +1001 PRAGMA collation virtual-row PASS cases, +1005 window1 group_concat
+  and FOLLOWING-frame PASS cases, +1002 e_select aggregate wildcard PASS
+  cases, and +1004 rowallock read-only WAL locking PASS cases. Gitoxide full
+  lane evidence moves from `4504` to `4540 pass / 0 fail`, with mapped
+  coverage moving from `1566 / 2886` to `1569 / 2886` for loose-object
+  positive-size canonical IDs, sparse-checkout absolute wildcard icase
+  prefixes, and URL/refspec length guards. LightningCSS moves from `1158` to
+  `1170 pass / 0 fail`, with mapped coverage still `950 / 3532` for CSSOM
+  priority-bucket read/write/remove behavior. Verification passed PHP lint for
+  changed files, diff checks, Gitoxide focused gate `3 files / 696 assertions /
+  0 failures`, full Gitoxide lane `39 files / 4540 assertions / 0 failures`,
+  three Gitoxide examples, LightningCSS focused gate `1 file / 95 assertions /
+  0 failures`, full LightningCSS lane `12 files / 1170 assertions / 0
+  failures`, the CSSOM priority example, libsqlite selected gate `6 files /
+  82393 assertions / 0 failures`, and the B-tree whereG example. Root
+  aggregate and full Gitoxide Cargo/LightningCSS Rust/Node suites were not run
+  for this micro-batch; full libsqlite remains too large for every small
+  publication and needs separate runner closure evidence. LightningCSS worker
+  capacity was also raised to eight visible tmux windows on the durable
+  `gpt-5.5` xhigh priority profile.
+
+- 2026-05-31 supervisor continuation (mixed SQLite/Gitoxide/LightningCSS batch
   12:17 UTC): source commit
   `ede517b306de5b15989b02e48a9b8b7e85b7a7cb` (`ports: add gitoxide config
   attrs sqlite record and lightningcss modules`) landed five verified handoffs
