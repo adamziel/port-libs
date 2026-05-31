@@ -12,7 +12,7 @@ final class SQLiteUpdateDeleteLimitPlan
      * @param list<array<string,mixed>> $selectedRows
      * @param list<array<string,mixed>> $mutationRows
      * @param list<array<string,mixed>> $resultRows
-     * @param list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
+     * @param list<array{column:string,direction?:string,nulls?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
      * @param list<int|string> $selectedIds
      * @param list<int|string> $mutationIds
      * @param array<string,mixed> $assignments
@@ -37,7 +37,7 @@ final class SQLiteUpdateDeleteLimitPlan
     /**
      * @param list<array<string,mixed>> $rows
      * @param callable(array<string,mixed>):bool|null $where
-     * @param list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
+     * @param list<array{column:string,direction?:string,nulls?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
      */
     public static function delete(
         array $rows,
@@ -76,7 +76,7 @@ final class SQLiteUpdateDeleteLimitPlan
      * @param list<array<string,mixed>> $rows
      * @param callable(array<string,mixed>):bool|null $where
      * @param array<string,mixed|callable(array<string,mixed>):mixed> $assignments
-     * @param list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
+     * @param list<array{column:string,direction?:string,nulls?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
      */
     public static function update(
         array $rows,
@@ -213,7 +213,7 @@ final class SQLiteUpdateDeleteLimitPlan
     /**
      * @param list<array<string,mixed>> $rows
      * @param callable(array<string,mixed>):bool|null $where
-     * @param list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
+     * @param list<array{column:string,direction?:string,nulls?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
      * @return array{indexed:list<array<string,mixed>>,qualified:list<array<string,mixed>>,selected:list<array<string,mixed>>,mutation:list<array<string,mixed>>}
      */
     private static function prepare(array $rows, callable $where, array $orderBy, ?int $limit, int $offset, string $rowIdColumn): array
@@ -318,7 +318,7 @@ final class SQLiteUpdateDeleteLimitPlan
 
     /**
      * @param list<array<string,mixed>> $rows
-     * @param list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
+     * @param list<array{column:string,direction?:string,nulls?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
      * @return list<array<string,mixed>>
      */
     private static function withOrderValues(array $rows, array $orderBy): array
@@ -338,8 +338,8 @@ final class SQLiteUpdateDeleteLimitPlan
     }
 
     /**
-     * @param list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
-     * @return list<array{column:string,direction?:string}>
+     * @param list<array{column:string,direction?:string,nulls?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
+     * @return list<array{column:string,direction?:string,nulls?:string}>
      */
     private static function orderByColumns(array $orderBy): array
     {
@@ -349,6 +349,9 @@ final class SQLiteUpdateDeleteLimitPlan
                 if (isset($term['direction'])) {
                     $summary['direction'] = $term['direction'];
                 }
+                if (isset($term['nulls'])) {
+                    $summary['nulls'] = $term['nulls'];
+                }
 
                 return $summary;
             },
@@ -357,8 +360,8 @@ final class SQLiteUpdateDeleteLimitPlan
     }
 
     /**
-     * @param list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
-     * @return list<array{column:string,direction?:string,expression?:string}>
+     * @param list<array{column:string,direction?:string,nulls?:string,expression?:string,value?:callable(array<string,mixed>):mixed}> $orderBy
+     * @return list<array{column:string,direction?:string,nulls?:string,expression?:string}>
      */
     private static function orderBySummary(array $orderBy): array
     {
@@ -370,6 +373,9 @@ final class SQLiteUpdateDeleteLimitPlan
                 }
                 if (isset($term['direction'])) {
                     $summary['direction'] = $term['direction'];
+                }
+                if (isset($term['nulls'])) {
+                    $summary['nulls'] = $term['nulls'];
                 }
 
                 return $summary;

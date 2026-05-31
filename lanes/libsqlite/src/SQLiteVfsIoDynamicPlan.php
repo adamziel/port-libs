@@ -611,6 +611,93 @@ final class SQLiteVfsIoDynamicPlan
      * @param list<string> $deviceFlags
      * @return array<string, mixed>
      */
+    public static function atomicMultiPageJournalProfile(
+        array $deviceFlags,
+        int $pageSize,
+        int $sectorSize,
+        int $firstChangedPages,
+        int $secondChangedPages,
+        bool $journalPathBlocked = false,
+        string $syncMode = 'full',
+        bool $directorySync = true
+    ): array {
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite atomic multi-page journal page size must be a power of two at least 512');
+        }
+        if ($sectorSize < 0 || ($sectorSize > 0 && ($sectorSize & ($sectorSize - 1)) !== 0)) {
+            throw new \InvalidArgumentException('SQLite atomic multi-page journal sector size must be zero or a power of two');
+        }
+        if ($firstChangedPages < 1 || $secondChangedPages < 1) {
+            throw new \InvalidArgumentException('SQLite atomic multi-page journal changes must be positive');
+        }
+
+        $flags = self::deviceFlags($deviceFlags);
+        $syncMode = strtolower(trim($syncMode));
+        if (!in_array($syncMode, ['off', 'normal', 'full'], true)) {
+            throw new \InvalidArgumentException('SQLite atomic multi-page journal sync mode is unsupported');
+        }
+
+        $effectiveSectorSize = $sectorSize === 0 ? 512 : $sectorSize;
+        $atomicAllowed = self::atomicWriteAllowed($flags, $pageSize, $effectiveSectorSize);
+        $firstWriteUsesAtomic = $atomicAllowed && $firstChangedPages === 1;
+        $totalChangedPages = $firstChangedPages + $secondChangedPages;
+        $multiPageRequiresJournal = $totalChangedPages > 1;
+        $journalCreatedAfterSecondWrite = $multiPageRequiresJournal && !$journalPathBlocked;
+        $commitStatus = $journalPathBlocked && $multiPageRequiresJournal ? 'SQLITE_CANTOPEN' : 'ok';
+
+        $syncTargets = [];
+        if ($syncMode !== 'off' && $journalCreatedAfterSecondWrite) {
+            if ($directorySync) {
+                $syncTargets[] = 'directory';
+            }
+            $syncTargets[] = 'rollback_journal_pages';
+            $syncTargets[] = 'rollback_journal_header';
+            $syncTargets[] = 'database';
+        } elseif ($syncMode !== 'off' && !$multiPageRequiresJournal && $firstWriteUsesAtomic) {
+            $syncTargets[] = 'database';
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'io.test',
+            'upstream' => ['io.test io-2.5.1', 'io.test io-2.5.2', 'io.test io-2.5.3'],
+            'device_flags' => $flags,
+            'page_size' => $pageSize,
+            'sector_size' => $sectorSize,
+            'first_changed_pages' => $firstChangedPages,
+            'second_changed_pages' => $secondChangedPages,
+            'total_changed_pages' => $totalChangedPages,
+            'sync_mode' => $syncMode,
+            'directory_sync' => $directorySync,
+            'journal_path_blocked' => $journalPathBlocked,
+            'atomic_write_allowed' => $atomicAllowed,
+            'first_write_uses_atomic_path' => $firstWriteUsesAtomic,
+            'journal_exists_after_first_write' => false,
+            'multi_page_requires_journal' => $multiPageRequiresJournal,
+            'journal_created_after_second_write' => $journalCreatedAfterSecondWrite,
+            'journal_page_writes' => $journalCreatedAfterSecondWrite ? $totalChangedPages : 0,
+            'database_page_writes' => $totalChangedPages + 1,
+            'sync_sequence' => $syncTargets,
+            'sync_count' => count($syncTargets),
+            'commit_status' => $commitStatus,
+            'rollback_required' => $commitStatus !== 'ok',
+            'reader_rows_before_commit' => 'previous_committed_rows',
+            'reader_rows_after_commit' => $commitStatus === 'ok' ? 'pending_rows_committed' : 'previous_committed_rows',
+            'reason' => $multiPageRequiresJournal
+                ? ($commitStatus === 'ok' ? 'second_dirty_page_disables_single_page_atomic_commit' : 'rollback_journal_open_blocked_for_multi_page_atomic_commit')
+                : 'single_page_atomic_commit_without_rollback_journal',
+            'dependencies' => [
+                'upstream-io-atomic-multi-page-journal',
+                'upstream-io-atomic-journal-admission',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<string> $deviceFlags
+     * @return array<string, mixed>
+     */
     public static function nolockProbe(string $filename, bool $writeTransaction = false, array $deviceFlags = []): array
     {
         $flags = self::deviceFlags($deviceFlags);

@@ -481,7 +481,7 @@ final class SQLiteAttachedSchemaCatalog
                 'table_info', 'table_xinfo', 'index_list', 'foreign_key_list' => $this->resolveTable($parsed['target']),
                 'index_info', 'index_xinfo' => $this->resolveIndex($parsed['target']),
                 'table_list' => ['schema' => 'main'],
-                'function_list', 'module_list', 'collation_list' => ['schema' => 'main'],
+                'function_list', 'module_list', 'collation_list', 'pragma_list' => ['schema' => 'main'],
             };
             $schemaName = $resolved['schema'] ?? 'main';
             if (isset($resolved['record'])) {
@@ -544,7 +544,7 @@ final class SQLiteAttachedSchemaCatalog
                 'table_info', 'table_xinfo', 'index_list', 'foreign_key_list' => $this->resolveTable($parsed['target']),
                 'index_info', 'index_xinfo' => $this->resolveIndex($parsed['target']),
                 'table_list' => ['schema' => 'main'],
-                'function_list', 'module_list', 'collation_list' => ['schema' => 'main'],
+                'function_list', 'module_list', 'collation_list', 'pragma_list' => ['schema' => 'main'],
             };
             $schemaName = $resolved['schema'] ?? 'main';
             if (isset($resolved['record'])) {

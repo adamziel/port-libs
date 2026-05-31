@@ -8,6 +8,95 @@ final class SQLiteDynamicTriggerForeignKeyPlan
 {
     /**
      * @param list<array<string,mixed>> $rows
+     * @param array{mode:string,row?:array<string,mixed>,where?:array<string,mixed>,set?:array<string,mixed>,parent_columns?:list<string>,child_columns?:list<string>,unique_index_columns?:list<string>} $statement
+     * @return array<string,mixed>
+     */
+    public static function selfReferencingCompositeForeignKeyPlan(array $rows, array $statement): array
+    {
+        $mode = strtolower(trim((string) ($statement['mode'] ?? '')));
+        if (!in_array($mode, ['insert', 'update', 'delete'], true)) {
+            throw new \InvalidArgumentException('SQLite fkey3 self-referencing composite mode is unsupported');
+        }
+
+        $parentColumns = self::identifierList($statement['parent_columns'] ?? ['a', 'b'], 'parent key columns');
+        $childColumns = self::identifierList($statement['child_columns'] ?? ['c', 'd'], 'child key columns');
+        if (count($parentColumns) !== count($childColumns)) {
+            throw new \InvalidArgumentException('SQLite fkey3 self-referencing composite key width mismatch');
+        }
+        $uniqueIndexColumns = self::identifierList($statement['unique_index_columns'] ?? $parentColumns, 'unique index columns');
+
+        $original = array_values($rows);
+        $attempted = array_values($rows);
+        $affected = [];
+        if ($mode === 'insert') {
+            $row = $statement['row'] ?? null;
+            if (!is_array($row)) {
+                throw new \InvalidArgumentException('SQLite fkey3 self-referencing insert row is required');
+            }
+            $attempted[] = $row;
+            $affected[] = $row;
+        } elseif ($mode === 'update') {
+            $where = $statement['where'] ?? [];
+            $set = $statement['set'] ?? [];
+            if ($set === []) {
+                throw new \InvalidArgumentException('SQLite fkey3 self-referencing update SET list is empty');
+            }
+            foreach ($attempted as $index => $row) {
+                if (!self::rowMatches($row, $where)) {
+                    continue;
+                }
+                foreach ($set as $column => $value) {
+                    $attempted[$index][self::identifier((string) $column, 'update column')] = $value;
+                }
+                $affected[] = $attempted[$index];
+            }
+        } else {
+            $where = $statement['where'] ?? [];
+            foreach ($attempted as $index => $row) {
+                if (!self::rowMatches($row, $where)) {
+                    continue;
+                }
+                $affected[] = $row;
+                unset($attempted[$index]);
+            }
+            $attempted = array_values($attempted);
+        }
+
+        $violations = self::compositeSelfReferencingViolations($attempted, $parentColumns, $childColumns);
+        $status = $violations === [] ? 'commit-ok' : 'constraint-failed';
+        $committed = $status === 'commit-ok' ? $attempted : $original;
+
+        return [
+            'source' => 'fkey3.test fkey3-3.1.1..3.6.5',
+            'operation' => 'self-referencing-composite-foreign-key',
+            'status' => $status,
+            'mode' => $mode,
+            'parent_columns' => $parentColumns,
+            'child_columns' => $childColumns,
+            'unique_index_columns' => $uniqueIndexColumns,
+            'unique_index_column_order_differs' => $uniqueIndexColumns !== $parentColumns,
+            'affected_count' => count($affected),
+            'affected_rows' => $affected,
+            'attempted_rows' => self::sortRows($attempted),
+            'committed_rows' => self::sortRows($committed),
+            'attempted_parent_keys' => self::compositeKeys($attempted, $parentColumns),
+            'attempted_child_keys' => self::compositeKeys($attempted, $childColumns),
+            'null_child_key_short_circuit_count' => self::nullCompositeKeyCount($attempted, $childColumns),
+            'self_match_count' => self::selfCompositeMatchCount($attempted, $parentColumns, $childColumns),
+            'violation_count' => count($violations),
+            'violations' => $violations,
+            'statement_rolled_back' => $status !== 'commit-ok',
+            'dependencies' => [
+                'sqlite-fkey3-self-reference-insert-can-match-new-row',
+                'sqlite-fkey3-composite-child-null-short-circuits-check',
+                'sqlite-fkey3-parent-lookup-uses-declared-column-order',
+                'sqlite-fkey3-failed-update-or-insert-rolls-back-statement',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
      * @param array{id:mixed,parent_id:mixed,label?:string} $incoming
      * @return array<string,mixed>
      */
@@ -824,6 +913,92 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         throw new \InvalidArgumentException('SQLite fkey2-17 count_changes boundary mode is unsupported');
+    }
+
+    /**
+     * @param list<array{id:int,a:int,b:int,c:int}> $rows
+     * @param array{id:int,a:int,b:int,c:int} $incoming
+     * @return array<string,mixed>
+     */
+    public static function trigger2CountChangesExcludesTriggerProgram(array $rows, array $incoming, bool $beforeTrigger = true): array
+    {
+        if (!$beforeTrigger) {
+            throw new \InvalidArgumentException('SQLite trigger2-5 count_changes plan requires a BEFORE INSERT trigger');
+        }
+
+        $rows = array_values($rows);
+        $originalRows = $rows;
+        foreach ($rows as $row) {
+            foreach (['id', 'a', 'b', 'c'] as $column) {
+                if (!array_key_exists($column, $row)) {
+                    throw new \InvalidArgumentException('SQLite trigger2-5 seed row is missing column ' . $column);
+                }
+            }
+        }
+        foreach (['id', 'a', 'b', 'c'] as $column) {
+            if (!array_key_exists($column, $incoming)) {
+                throw new \InvalidArgumentException('SQLite trigger2-5 incoming row is missing column ' . $column);
+            }
+        }
+
+        $triggerEffects = [];
+        $rows[] = ['id' => -1, 'a' => 1, 'b' => 2, 'c' => 3];
+        $triggerEffects[] = ['action' => 'insert', 'row' => ['id' => -1, 'a' => 1, 'b' => 2, 'c' => 3]];
+        $rows[] = ['id' => -2, 'a' => 2, 'b' => 2, 'c' => 3];
+        $triggerEffects[] = ['action' => 'insert', 'row' => ['id' => -2, 'a' => 2, 'b' => 2, 'c' => 3]];
+
+        $updatedIds = [];
+        foreach ($rows as &$row) {
+            if ((int) $row['a'] === 1) {
+                $row['b'] = 10;
+                $updatedIds[] = (int) $row['id'];
+            }
+        }
+        unset($row);
+        $triggerEffects[] = ['action' => 'update', 'match' => 'a=1', 'updated_ids' => $updatedIds];
+
+        $deletedA1 = [];
+        $rows = array_values(array_filter($rows, static function (array $row) use (&$deletedA1): bool {
+            if ((int) $row['a'] === 1) {
+                $deletedA1[] = (int) $row['id'];
+
+                return false;
+            }
+
+            return true;
+        }));
+        $triggerEffects[] = ['action' => 'delete', 'match' => 'a=1', 'deleted_ids' => $deletedA1];
+
+        $deletedAllIds = array_values(array_map(static fn (array $row): int => (int) $row['id'], $rows));
+        $rows = [];
+        $triggerEffects[] = ['action' => 'delete', 'match' => 'all', 'deleted_ids' => $deletedAllIds];
+
+        $rows[] = $incoming;
+
+        $triggerChangeCount = 2 + count($updatedIds) + count($deletedA1) + count($deletedAllIds);
+
+        return [
+            'source' => 'trigger2.test trigger2-5',
+            'operation' => 'trigger-program-count-changes-boundary',
+            'status' => 'commit-ok',
+            'before_trigger' => true,
+            'incoming_id' => (int) $incoming['id'],
+            'initial_row_ids' => array_values(array_map(static fn (array $row): int => (int) $row['id'], $originalRows)),
+            'trigger_effects' => $triggerEffects,
+            'trigger_change_count' => $triggerChangeCount,
+            'direct_statement_changes' => 1,
+            'db_changes_result' => 1,
+            'count_changes_excludes_trigger_program' => true,
+            'total_changes_includes_trigger_program' => true,
+            'total_changes_delta' => 1 + $triggerChangeCount,
+            'final_rows' => self::sortRows($rows),
+            'final_row_ids' => array_values(array_map(static fn (array $row): int => (int) $row['id'], self::sortRows($rows))),
+            'dependencies' => [
+                'sqlite-trigger2-db-changes-excludes-trigger-program-work',
+                'sqlite-trigger2-before-insert-program-runs-before-direct-row-write',
+                'sqlite-trigger2-trigger-program-delete-all-does-not-cancel-direct-insert',
+            ],
+        ];
     }
 
     /**
@@ -4923,6 +5098,141 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<string> $parentColumns
+     * @param list<string> $childColumns
+     * @return list<array<string,mixed>>
+     */
+    private static function compositeSelfReferencingViolations(array $rows, array $parentColumns, array $childColumns): array
+    {
+        $parentKeys = [];
+        foreach ($rows as $row) {
+            $key = self::compositeKey($row, $parentColumns);
+            if ($key === null) {
+                continue;
+            }
+            $parentKeys[self::compositeKeyToken($key)] = true;
+        }
+
+        $violations = [];
+        foreach ($rows as $index => $row) {
+            $childKey = self::compositeKey($row, $childColumns);
+            if ($childKey === null) {
+                continue;
+            }
+            if (!isset($parentKeys[self::compositeKeyToken($childKey)])) {
+                $violations[] = [
+                    'row_index' => $index,
+                    'child_key' => $childKey,
+                    'reason' => 'missing-self-referencing-composite-parent',
+                ];
+            }
+        }
+
+        return $violations;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<string> $columns
+     * @return list<list<mixed>>
+     */
+    private static function compositeKeys(array $rows, array $columns): array
+    {
+        $keys = [];
+        foreach ($rows as $row) {
+            $key = self::compositeKey($row, $columns);
+            if ($key !== null) {
+                $keys[] = $key;
+            }
+        }
+
+        return $keys;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param list<string> $columns
+     * @return list<mixed>|null
+     */
+    private static function compositeKey(array $row, array $columns): ?array
+    {
+        $key = [];
+        foreach ($columns as $column) {
+            if (!array_key_exists($column, $row)) {
+                throw new \InvalidArgumentException("SQLite fkey3 self-referencing row is missing column {$column}");
+            }
+            if ($row[$column] === null) {
+                return null;
+            }
+            $key[] = $row[$column];
+        }
+
+        return $key;
+    }
+
+    /**
+     * @param list<mixed> $key
+     */
+    private static function compositeKeyToken(array $key): string
+    {
+        return json_encode($key, JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<string> $columns
+     */
+    private static function nullCompositeKeyCount(array $rows, array $columns): int
+    {
+        $count = 0;
+        foreach ($rows as $row) {
+            foreach ($columns as $column) {
+                if (($row[$column] ?? null) === null) {
+                    ++$count;
+                    break;
+                }
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @param list<string> $parentColumns
+     * @param list<string> $childColumns
+     */
+    private static function selfCompositeMatchCount(array $rows, array $parentColumns, array $childColumns): int
+    {
+        $count = 0;
+        foreach ($rows as $row) {
+            $parent = self::compositeKey($row, $parentColumns);
+            $child = self::compositeKey($row, $childColumns);
+            if ($parent !== null && $child !== null && self::compositeKeyToken($parent) === self::compositeKeyToken($child)) {
+                ++$count;
+            }
+        }
+
+        return $count;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $where
+     */
+    private static function rowMatches(array $row, array $where): bool
+    {
+        foreach ($where as $column => $value) {
+            if (($row[self::identifier((string) $column, 'WHERE column')] ?? null) !== $value) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @param list<array{id:int|string,key:string}> $parents
      * @param list<array{id:int|string,parent_key:string}> $children
      */
@@ -6029,6 +6339,22 @@ final class SQLiteDynamicTriggerForeignKeyPlan
         }
 
         return $value;
+    }
+
+    /**
+     * @param list<string> $values
+     * @return list<string>
+     */
+    private static function identifierList(array $values, string $label): array
+    {
+        if ($values === []) {
+            throw new \InvalidArgumentException("SQLite dynamic trigger FK {$label} cannot be empty");
+        }
+
+        return array_values(array_map(
+            static fn (string $value): string => self::identifier($value, $label),
+            $values
+        ));
     }
 
     /**

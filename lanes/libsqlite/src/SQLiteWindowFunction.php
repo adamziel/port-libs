@@ -1412,8 +1412,11 @@ final class SQLiteWindowFunction
 
     private static function nthIndexValue(mixed $value): int
     {
-        if (is_string($value) && preg_match('/^[+-]?[0-9]+$/', $value) === 1) {
-            $value = (int) $value;
+        if (is_string($value) && preg_match('/^[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)$/', $value) === 1) {
+            $numeric = (float) $value;
+            if (floor($numeric) === $numeric) {
+                $value = $numeric;
+            }
         }
         if (!is_int($value) && (!is_float($value) || floor($value) !== $value)) {
             throw new \InvalidArgumentException('SQLite nth_value() index must be an integer');

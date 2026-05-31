@@ -637,6 +637,91 @@ for ($seed = 1; $seed <= 40; $seed++) {
         };
 }
 
+for ($seed = 1; $seed <= 44; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $placement = $seed % 2 === 0 ? 'LAST' : 'FIRST';
+    $direction = $seed % 4 < 2 ? 'ASC' : 'DESC';
+    $sql = "UPDATE app_settings SET key_value = key_value || ':nulls' RETURNING setting_id, state, key_value ORDER BY state {$direction} NULLS {$placement}, setting_id ASC LIMIT {$limitValue} OFFSET {$offsetValue}";
+    $ordered = [
+        ['setting_id' => 1, 'state' => 'live'],
+        ['setting_id' => 2, 'state' => 'live'],
+        ['setting_id' => 3, 'state' => 'stale'],
+        ['setting_id' => 4, 'state' => 'stale'],
+        ['setting_id' => 5, 'state' => 'queued'],
+        ['setting_id' => 6, 'state' => 'queued'],
+        ['setting_id' => 7, 'state' => null],
+        ['setting_id' => 8, 'state' => 'stale'],
+    ];
+    usort($ordered, static function (array $left, array $right) use ($direction, $placement): int {
+        if ($left['state'] !== $right['state']) {
+            if ($left['state'] === null || $right['state'] === null) {
+                return $placement === 'FIRST'
+                    ? ($left['state'] === null ? -1 : 1)
+                    : ($left['state'] === null ? 1 : -1);
+            }
+            $comparison = $left['state'] <=> $right['state'];
+            return $direction === 'DESC' ? -$comparison : $comparison;
+        }
+
+        return $left['setting_id'] <=> $right['setting_id'];
+    });
+    $expected = array_column(array_slice($ordered, $offsetValue, $limitValue), 'setting_id');
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update nulls placement window seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $placement): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($placement, $result['plan']->toArray()['order_by'][0]['nulls']);
+            $t->same(array_values(array_intersect([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['returning'], 'setting_id'));
+        };
+}
+
+for ($seed = 1; $seed <= 44; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 3;
+    $nullPriority = [10, 20, 30, 40, 50][$seed % 5];
+    $placement = $seed % 2 === 0 ? 'LAST' : 'FIRST';
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY nullif(priority, {$nullPriority}) NULLS {$placement}, target_id ASC LIMIT {$limitValue} OFFSET {$offsetValue}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id LIMIT -1";
+    $targets = [
+        ['tuple' => [1, 'beta'], 'priority' => 40, 'target_id' => 1],
+        ['tuple' => [1, 'gamma'], 'priority' => 20, 'target_id' => 2],
+        ['tuple' => [2, 'beta'], 'priority' => 30, 'target_id' => 3],
+        ['tuple' => [2, 'gamma'], 'priority' => 10, 'target_id' => 4],
+        ['tuple' => [3, 'beta'], 'priority' => 50, 'target_id' => 5],
+    ];
+    usort($targets, static function (array $left, array $right) use ($nullPriority, $placement): int {
+        $leftPriority = $left['priority'] === $nullPriority ? null : $left['priority'];
+        $rightPriority = $right['priority'] === $nullPriority ? null : $right['priority'];
+        if ($leftPriority !== $rightPriority) {
+            if ($leftPriority === null || $rightPriority === null) {
+                return $placement === 'FIRST'
+                    ? ($leftPriority === null ? -1 : 1)
+                    : ($leftPriority === null ? 1 : -1);
+            }
+
+            return $leftPriority <=> $rightPriority;
+        }
+
+        return $left['target_id'] <=> $right['target_id'];
+    });
+    $expectedTuples = array_column(array_slice($targets, $offsetValue, $limitValue), 'tuple');
+    $expected = [];
+    foreach ([1 => [1, 'alpha'], 2 => [1, 'beta'], 3 => [1, 'gamma'], 4 => [2, 'alpha'], 5 => [2, 'beta'], 6 => [2, 'gamma'], 7 => [3, 'alpha'], 8 => [3, 'beta']] as $settingId => $tuple) {
+        if (in_array($tuple, $expectedTuples, true)) {
+            $expected[] = $settingId;
+        }
+    }
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue nulls placement subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(count($expected), count($result['returning']));
+        };
+}
+
 $minMaxMalformed = [
     'malformed min null limit rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT min(1, NULL)",
     'malformed max blob offset rejected' => "DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET max(0, X'ABCD')",

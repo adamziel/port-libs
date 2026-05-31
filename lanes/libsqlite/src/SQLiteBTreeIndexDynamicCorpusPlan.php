@@ -5002,6 +5002,267 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,join_type:string|null,constraints:list<array{table:string,column:string,operator:string,usable:bool,omitted:bool}>,idx_string:string,xfilter_sql:string,result_rows:list<array<int,mixed>>,uses_or:bool,uses_in:bool,updated_null_row:bool,integrity:string,batch:int}>
+     */
+    public static function bestindex6And7VirtualTableNullConstraintCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindex6/bestindex7 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'bestindex6.test sections bestindex6-1.1 through bestindex6-1.4',
+                'bestindex6-1.1',
+                'ordinary LEFT JOIN keeps unmatched row when right value IS NULL',
+                'select * from t2 left join t1 on t1.id=t2.ctx where t1.value is null',
+                'LEFT JOIN',
+                [['table' => 't1', 'column' => 'id', 'operator' => '=', 'usable' => true, 'omitted' => true], ['table' => 't1', 'column' => 'value', 'operator' => 'IS NULL', 'usable' => true, 'omitted' => true]],
+                '1 AND id = %0% AND value IS NULL',
+                'SELECT rowid, * FROM t1 WHERE 1 AND id = 2 AND value IS NULL',
+                [[2, 2, 'evil', null, null]],
+                false,
+                false,
+                false,
+            ],
+            [
+                'bestindex6.test sections bestindex6-1.1 through bestindex6-1.4',
+                'bestindex6-1.2',
+                'virtual LEFT JOIN pushes usable equality and IS NULL constraints to xBestIndex',
+                'select * from vt2 left join vt1 on vt1.id=vt2.ctx where vt1.value is null',
+                'LEFT JOIN',
+                [['table' => 'vt1', 'column' => 'id', 'operator' => '=', 'usable' => true, 'omitted' => true], ['table' => 'vt1', 'column' => 'value', 'operator' => 'IS NULL', 'usable' => true, 'omitted' => true]],
+                '1 AND id = %0% AND value IS NULL',
+                'SELECT rowid, * FROM t1 WHERE 1 AND id = 2 AND value IS NULL',
+                [[2, 2, 'evil', null, null]],
+                false,
+                false,
+                false,
+            ],
+            [
+                'bestindex6.test sections bestindex6-1.1 through bestindex6-1.4',
+                'bestindex6-1.3',
+                'undefined Tcl variable becomes SQL NULL and follows the IS NULL virtual-table path',
+                'select * from vt2 left join vt1 on vt1.id=vt2.ctx where vt1.value is $xxx',
+                'LEFT JOIN',
+                [['table' => 'vt1', 'column' => 'id', 'operator' => '=', 'usable' => true, 'omitted' => true], ['table' => 'vt1', 'column' => 'value', 'operator' => 'IS NULL', 'usable' => true, 'omitted' => true]],
+                '1 AND id = %0% AND value IS NULL',
+                'SELECT rowid, * FROM t1 WHERE 1 AND id = 2 AND value IS NULL',
+                [[2, 2, 'evil', null, null]],
+                false,
+                false,
+                false,
+            ],
+            [
+                'bestindex6.test sections bestindex6-1.1 through bestindex6-1.4',
+                'bestindex6-1.4',
+                'LEFT JOIN equality residual with no matching virtual-table value returns no rows',
+                'select * from t2 left join vt1 on vt1.id=t2.ctx where vt1.value = 3',
+                'LEFT JOIN',
+                [['table' => 'vt1', 'column' => 'id', 'operator' => '=', 'usable' => true, 'omitted' => true], ['table' => 'vt1', 'column' => 'value', 'operator' => '=', 'usable' => true, 'omitted' => true]],
+                '1 AND id = %0% AND value = %1%',
+                'SELECT rowid, * FROM t1 WHERE 1 AND id = 2 AND value = 3',
+                [],
+                false,
+                false,
+                false,
+            ],
+            [
+                'bestindex7.test sections bestindex7-1.1 through bestindex7-1.12',
+                'bestindex7-1.1',
+                'virtual table scan returns source rows before NULL update',
+                'select * from vt1',
+                null,
+                [],
+                '1',
+                'SELECT rowid, x FROM t1 WHERE 1',
+                [[0], [2]],
+                false,
+                false,
+                false,
+            ],
+            [
+                'bestindex7.test sections bestindex7-1.1 through bestindex7-1.12',
+                'bestindex7-1.2',
+                'usable equality constraint filters the virtual table to a=0',
+                'select * from vt1 WHERE a=0',
+                null,
+                [['table' => 'vt1', 'column' => 'a', 'operator' => '=', 'usable' => true, 'omitted' => false]],
+                'a = %0%',
+                'SELECT rowid, x FROM t1 WHERE x = 0',
+                [[0]],
+                false,
+                false,
+                false,
+            ],
+            [
+                'bestindex7.test sections bestindex7-1.1 through bestindex7-1.12',
+                'bestindex7-1.3',
+                'usable equality constraint filters the virtual table to an empty a=1 result',
+                'select * from vt1 WHERE a=1',
+                null,
+                [['table' => 'vt1', 'column' => 'a', 'operator' => '=', 'usable' => true, 'omitted' => false]],
+                'a = %0%',
+                'SELECT rowid, x FROM t1 WHERE x = 1',
+                [],
+                false,
+                false,
+                false,
+            ],
+            [
+                'bestindex7.test sections bestindex7-1.1 through bestindex7-1.12',
+                'bestindex7-1.4',
+                'OR equality terms use separate usable virtual-table constraints before NULL update',
+                'select * from vt1 WHERE a=1 OR a=0',
+                null,
+                [['table' => 'vt1', 'column' => 'a', 'operator' => '=', 'usable' => true, 'omitted' => false], ['table' => 'vt1', 'column' => 'a', 'operator' => '=', 'usable' => true, 'omitted' => false]],
+                'a = %0% OR a = %1%',
+                'SELECT rowid, x FROM t1 WHERE x = 1 OR x = 0',
+                [[0]],
+                true,
+                false,
+                false,
+            ],
+            [
+                'bestindex7.test sections bestindex7-1.1 through bestindex7-1.12',
+                'bestindex7-1.6',
+                'virtual table scan returns source rows after one row is updated to NULL',
+                'select * from vt1',
+                null,
+                [],
+                '1',
+                'SELECT rowid, x FROM t1 WHERE 1',
+                [[0], [null]],
+                false,
+                false,
+                true,
+            ],
+            [
+                'bestindex7.test sections bestindex7-1.1 through bestindex7-1.12',
+                'bestindex7-1.7',
+                'equality constraint still finds a=0 after the other source row becomes NULL',
+                'select * from vt1 WHERE a=0',
+                null,
+                [['table' => 'vt1', 'column' => 'a', 'operator' => '=', 'usable' => true, 'omitted' => false]],
+                'a = %0%',
+                'SELECT rowid, x FROM t1 WHERE x = 0',
+                [[0]],
+                false,
+                false,
+                true,
+            ],
+            [
+                'bestindex7.test sections bestindex7-1.1 through bestindex7-1.12',
+                'bestindex7-1.8',
+                'equality constraint still rejects a=1 after source NULL update',
+                'select * from vt1 WHERE a=1',
+                null,
+                [['table' => 'vt1', 'column' => 'a', 'operator' => '=', 'usable' => true, 'omitted' => false]],
+                'a = %0%',
+                'SELECT rowid, x FROM t1 WHERE x = 1',
+                [],
+                false,
+                false,
+                true,
+            ],
+            [
+                'bestindex7.test sections bestindex7-1.1 through bestindex7-1.12',
+                'bestindex7-1.9',
+                'OR equality terms keep only the non-NULL matching row after source NULL update',
+                'select * from vt1 WHERE a=1 OR a=0',
+                null,
+                [['table' => 'vt1', 'column' => 'a', 'operator' => '=', 'usable' => true, 'omitted' => false], ['table' => 'vt1', 'column' => 'a', 'operator' => '=', 'usable' => true, 'omitted' => false]],
+                'a = %0% OR a = %1%',
+                'SELECT rowid, x FROM t1 WHERE x = 1 OR x = 0',
+                [[0]],
+                true,
+                false,
+                true,
+            ],
+            [
+                'bestindex7.test sections bestindex7-1.1 through bestindex7-1.12',
+                'bestindex7-1.10',
+                'single-value IN constraint does not match the NULL-updated row',
+                'select * from vt1 WHERE a IN (2)',
+                null,
+                [['table' => 'vt1', 'column' => 'a', 'operator' => 'IN', 'usable' => true, 'omitted' => false]],
+                'a IN (%0%)',
+                'SELECT rowid, x FROM t1 WHERE x IN (2)',
+                [],
+                false,
+                true,
+                true,
+            ],
+            [
+                'bestindex7.test sections bestindex7-1.1 through bestindex7-1.12',
+                'bestindex7-1.10b',
+                'multi-value IN constraint returns the remaining non-NULL row',
+                'select * from vt1 WHERE a IN (0,1,2,3)',
+                null,
+                [['table' => 'vt1', 'column' => 'a', 'operator' => 'IN', 'usable' => true, 'omitted' => false]],
+                'a IN (%0%,%1%,%2%,%3%)',
+                'SELECT rowid, x FROM t1 WHERE x IN (0,1,2,3)',
+                [[0]],
+                false,
+                true,
+                true,
+            ],
+            [
+                'bestindex7.test sections bestindex7-1.1 through bestindex7-1.12',
+                'bestindex7-1.11',
+                'IN list with NULL keeps the concrete matching row and ignores NULL as a match value',
+                'select * from vt1 WHERE a IN (0, NULL)',
+                null,
+                [['table' => 'vt1', 'column' => 'a', 'operator' => 'IN', 'usable' => true, 'omitted' => false]],
+                'a IN (%0%,NULL)',
+                'SELECT rowid, x FROM t1 WHERE x IN (0,NULL)',
+                [[0]],
+                false,
+                true,
+                true,
+            ],
+            [
+                'bestindex7.test sections bestindex7-1.1 through bestindex7-1.12',
+                'bestindex7-1.12',
+                'IN list containing only NULL does not match the NULL-updated row',
+                'select * from vt1 WHERE a IN (NULL)',
+                null,
+                [['table' => 'vt1', 'column' => 'a', 'operator' => 'IN', 'usable' => true, 'omitted' => false]],
+                'a IN (NULL)',
+                'SELECT rowid, x FROM t1 WHERE x IN (NULL)',
+                [],
+                false,
+                true,
+                true,
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$source, $section, $scenario, $statement, $joinType, $constraints, $idxString, $xfilterSql, $rows, $usesOr, $usesIn, $updatedNullRow] = $templates[($case - 1) % count($templates)];
+            $out[] = [
+                'source' => $source,
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario,
+                'statement' => $statement,
+                'join_type' => $joinType,
+                'constraints' => $constraints,
+                'idx_string' => $idxString,
+                'xfilter_sql' => $xfilterSql,
+                'result_rows' => $rows,
+                'uses_or' => $usesOr,
+                'uses_in' => $usesIn,
+                'updated_null_row' => $updatedNullRow,
+                'integrity' => 'ok',
+                'batch' => intdiv($case - 1, count($templates)) + 1,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,param1:int,param2:int,sql_variant:int,constraints:list<array{table:string,column:string,operator:string,usable:bool}>,chosen:list<array{table:string,column:string,index:int,cost:int,rows:int}>,malfunction:bool,error:string|null,result_rows:list<array<int,mixed>>,detail:string}>
      */
     public static function bestindex4VirtualTableUsableFlagCases(int $cases = 1000): array
@@ -5096,6 +5357,184 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
         }
 
         return $out;
+    }
+
+    /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,sql:string,predicate:array<string,mixed>,needed_columns:list<string>,expected_rows:list<string>,result_rows:list<string>,scan_status:list<int>,plan_strategy:string,uses_or_optimization:bool,indexes:list<string>,arms:int,requires_rowid_union:bool,deduplicates_rowids:bool,residual_predicate_required:bool,covering:bool,detail:string,batch:int}>
+     */
+    public static function where8OrdinaryOrOptimizationCases(int $cases = 1200): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite where8 ordinary OR optimization corpus requires at least one case');
+        }
+
+        $indexes = [
+            ['sql' => 'CREATE INDEX i1 ON t1(a)', 'name' => 'i1', 'rootPage' => 3, 'estimatedRows' => 10, 'coveringColumns' => ['a', 'c']],
+            ['sql' => 'CREATE INDEX i2 ON t1(b)', 'name' => 'i2', 'rootPage' => 4, 'estimatedRows' => 10, 'coveringColumns' => ['b', 'c']],
+        ];
+
+        $templates = [
+            [
+                'where8-1.2',
+                "SELECT c FROM t1 WHERE a = 1 OR b = 'nine'",
+                ['operator' => 'OR', 'terms' => [
+                    ['operator' => '=', 'left' => ['column' => 'a'], 'right' => 1],
+                    ['operator' => '=', 'left' => ['column' => 'b'], 'right' => 'nine'],
+                ]],
+                ['c'],
+                ['I', 'IX'],
+                [0, 0, 6],
+                'or-index-union',
+            ],
+            [
+                'where8-1.3',
+                "SELECT c FROM t1 WHERE a > 8 OR b = 'two'",
+                ['operator' => 'OR', 'terms' => [
+                    ['operator' => '>', 'left' => ['column' => 'a'], 'right' => 8],
+                    ['operator' => '=', 'left' => ['column' => 'b'], 'right' => 'two'],
+                ]],
+                ['c'],
+                ['IX', 'X', 'II'],
+                [0, 0, 6],
+                'or-index-union',
+            ],
+            [
+                'where8-1.9',
+                "SELECT c FROM t1 WHERE a >= 9 OR b <= 'eight'",
+                ['operator' => 'OR', 'terms' => [
+                    ['operator' => '>=', 'left' => ['column' => 'a'], 'right' => 9],
+                    ['operator' => '<=', 'left' => ['column' => 'b'], 'right' => 'eight'],
+                ]],
+                ['c'],
+                ['IX', 'X', 'VIII'],
+                [0, 0, 7],
+                'or-index-union',
+            ],
+            [
+                'where8-1.11',
+                "SELECT c FROM t1 WHERE (a >= 4 AND a <= 6) OR b = 'nine'",
+                ['operator' => 'OR', 'terms' => [
+                    ['operator' => 'BETWEEN', 'left' => ['column' => 'a'], 'lower' => 4, 'upper' => 6],
+                    ['operator' => '=', 'left' => ['column' => 'b'], 'right' => 'nine'],
+                ]],
+                ['c'],
+                ['IV', 'V', 'VI', 'IX'],
+                [0, 0, 10],
+                'or-index-union',
+            ],
+            [
+                'where8-1.12.1',
+                'SELECT c FROM t1 WHERE a IN(1, 2, 3) OR a = 5',
+                ['operator' => 'OR', 'terms' => [
+                    ['operator' => '=', 'left' => ['column' => 'a'], 'right' => 1],
+                    ['operator' => '=', 'left' => ['column' => 'a'], 'right' => 2],
+                    ['operator' => '=', 'left' => ['column' => 'a'], 'right' => 3],
+                    ['operator' => '=', 'left' => ['column' => 'a'], 'right' => 5],
+                ]],
+                ['c'],
+                ['I', 'II', 'III', 'V'],
+                [0, 0, 14],
+                'or-to-in',
+            ],
+            [
+                'where8-1.13',
+                "SELECT c FROM t1 WHERE a = 2 OR b = 'three' OR a = 4 OR b = 'five' OR a = 6 ORDER BY rowid",
+                ['operator' => 'OR', 'terms' => [
+                    ['operator' => '=', 'left' => ['column' => 'a'], 'right' => 2],
+                    ['operator' => '=', 'left' => ['column' => 'b'], 'right' => 'three'],
+                    ['operator' => '=', 'left' => ['column' => 'a'], 'right' => 4],
+                    ['operator' => '=', 'left' => ['column' => 'b'], 'right' => 'five'],
+                    ['operator' => '=', 'left' => ['column' => 'a'], 'right' => 6],
+                ]],
+                ['c'],
+                ['II', 'III', 'IV', 'V', 'VI'],
+                [0, 1, 18],
+                'or-index-union',
+            ],
+            [
+                'where8-1.15',
+                "SELECT c FROM t1 WHERE a BETWEEN 2 AND 4 OR b = 'nine' ORDER BY rowid",
+                ['operator' => 'OR', 'terms' => [
+                    ['operator' => 'BETWEEN', 'left' => ['column' => 'a'], 'lower' => 2, 'upper' => 4],
+                    ['operator' => '=', 'left' => ['column' => 'b'], 'right' => 'nine'],
+                ]],
+                ['c'],
+                ['II', 'III', 'IV', 'IX'],
+                [0, 1, 12],
+                'or-index-union',
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $sql, $predicate, $neededColumns, $rows, $scanStatus, $expectedStrategy] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $plans = SQLiteOrOptimizationPlan::rankedPlans($indexes, $predicate, $neededColumns);
+            $plan = null;
+            foreach ($plans as $candidate) {
+                if (($candidate['strategy'] ?? null) === $expectedStrategy) {
+                    $plan = $candidate;
+                    break;
+                }
+            }
+            $plan ??= $plans[0] ?? null;
+            if ($plan === null) {
+                throw new \RuntimeException('SQLite where8 ordinary OR optimization template produced no plan');
+            }
+
+            $out[] = [
+                'source' => 'where8.test sections where8-1.2 through where8-1.15',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => 'ordinary B-tree indexes satisfy OR terms with index union or same-column OR-to-IN rewrite',
+                'sql' => $sql . ' -- dynamic batch ' . $batch,
+                'predicate' => $predicate,
+                'needed_columns' => $neededColumns,
+                'expected_rows' => $rows,
+                'result_rows' => $rows,
+                'scan_status' => $scanStatus,
+                'plan_strategy' => (string) $plan['strategy'],
+                'uses_or_optimization' => true,
+                'indexes' => $plan['indexes'] ?? [(string) $plan['index']],
+                'arms' => isset($plan['arms']) && is_array($plan['arms']) ? count($plan['arms']) : count($predicate['terms']),
+                'requires_rowid_union' => (bool) $plan['requiresRowidUnion'],
+                'deduplicates_rowids' => (bool) $plan['deduplicatesRowids'],
+                'residual_predicate_required' => (bool) $plan['residualPredicateRequired'],
+                'covering' => (bool) $plan['covering'],
+                'detail' => self::where8PlanDetail($plan),
+                'batch' => $batch,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<string,mixed> $plan
+     */
+    private static function where8PlanDetail(array $plan): string
+    {
+        if (($plan['strategy'] ?? null) === 'or-to-in') {
+            $values = $plan['values'] ?? [];
+            $valueList = is_array($values) ? implode(',', array_map('strval', $values)) : '';
+
+            return 'SEARCH t1 USING INDEX ' . (string) $plan['index'] . ' (' . (string) $plan['column'] . ' IN (' . $valueList . ')); OR terms rewritten to IN';
+        }
+
+        $arms = $plan['arms'] ?? [];
+        if (!is_array($arms)) {
+            return 'MULTI-INDEX OR';
+        }
+
+        $parts = [];
+        foreach ($arms as $arm) {
+            if (!is_array($arm)) {
+                continue;
+            }
+            $parts[] = 'SEARCH t1 USING INDEX ' . (string) $arm['index'] . ' (' . (string) $arm['column'] . ' ' . (string) $arm['operator'] . ')';
+        }
+
+        return 'MULTI-INDEX OR: ' . implode('; ', $parts);
     }
 
     /**

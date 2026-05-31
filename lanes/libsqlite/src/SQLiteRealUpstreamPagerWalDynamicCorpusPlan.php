@@ -640,6 +640,55 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     }
 
     /**
+     * @return list<array<string, mixed>>
+     */
+    public static function walRestartCheckpointRaceRows(): array
+    {
+        $rows = [];
+
+        foreach (range(1, 1000) as $case) {
+            $smallTransactionPages = 4 + ($case % 2);
+            $largeTransactionFrames = 45 + (($case - 1) % 5);
+            $readRaceStep = 660 + (($case - 1) % 3);
+
+            $rows[] = [
+                'upstream' => 'walrestart.test 1.2 dynamic race ' . $case,
+                'script' => 'walrestart.test',
+                'case' => $case,
+                'page_size' => 1024,
+                'initial_checkpoint' => ['journal_mode' => 'wal', 'busy' => 0, 'log' => 49, 'checkpointed' => 49],
+                'pre_race_checkpoint' => ['busy' => 0, 'log' => 45, 'checkpointed' => 45],
+                'race_checkpoint' => ['busy' => 0, 'log' => 45, 'checkpointed' => 0],
+                'post_writer_checkpoint' => [
+                    'busy' => 0,
+                    'log' => $smallTransactionPages,
+                    'checkpointed' => $smallTransactionPages,
+                ],
+                'large_transaction_frames' => $largeTransactionFrames,
+                'writer_interrupts_between_mxframe_and_nbackfill' => true,
+                'faultsim_step' => $readRaceStep,
+                'writer_connection' => 'db2',
+                'checkpoint_connection' => 'db',
+                'race_update_sql' => 'UPDATE t1 SET b=randomblob(600) WHERE a<5',
+                'recovery_update_sql' => 'UPDATE t1 SET b=randomblob(600)',
+                'mxframe_before_race' => 45,
+                'nbackfill_before_race' => 45,
+                'mxframe_after_race_writer' => $smallTransactionPages,
+                'nbackfill_after_race_checkpoint' => 0,
+                'restart_prevented_stale_backfill' => true,
+                'integrity_check' => 'ok',
+                'dependencies' => [
+                    'real-upstream-corpus-walrestart',
+                    'sqlite-wal-checkpoint-restart-race',
+                    'sqlite-pager-wal-dynamic',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
      * @return array{digest: string, prefix: string}
      */
     private static function walPersistPayloadSeed(int $rowid, int $length, int $salt): array

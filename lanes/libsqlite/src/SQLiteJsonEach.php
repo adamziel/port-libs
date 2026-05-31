@@ -144,7 +144,7 @@ final class SQLiteJsonEach
             return $value;
         }
 
-        return SQLiteJsonCanonical::encodeDecodedJson($value);
+        return new SQLiteJsonSubtypeValue(SQLiteJsonCanonical::encodeDecodedJson($value));
     }
 
     private static function atomValue(mixed $value): mixed

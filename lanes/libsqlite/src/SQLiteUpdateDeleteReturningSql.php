@@ -397,7 +397,7 @@ final class SQLiteUpdateDeleteReturningSql
     }
 
     /**
-     * @return array{where:?string,returning:string,order_by:list<array{column:string,direction?:string}>,limit:?int,offset:int}
+     * @return array{where:?string,returning:string,order_by:list<array{column:string,direction?:string,nulls?:string}>,limit:?int,offset:int}
      */
     private static function parseTail(string $tail): array
     {
@@ -556,7 +556,7 @@ final class SQLiteUpdateDeleteReturningSql
     }
 
     /**
-     * @return list<array{column?:string,expression?:string,direction?:string}>
+     * @return list<array{column?:string,expression?:string,direction?:string,nulls?:string}>
      */
     private static function parseOrderBy(string $sql): array
     {
@@ -566,7 +566,7 @@ final class SQLiteUpdateDeleteReturningSql
 
         $terms = [];
         foreach (self::splitComma($sql) as $term) {
-            if (preg_match('/^(.+?)(?:\s+(ASC|DESC))?$/is', trim($term), $match) !== 1) {
+            if (preg_match('/^(.+?)(?:\s+(ASC|DESC))?(?:\s+NULLS\s+(FIRST|LAST))?$/is', trim($term), $match) !== 1) {
                 throw new \InvalidArgumentException('SQLite UPDATE/DELETE ORDER BY terms are malformed');
             }
             $expression = trim($match[1]);
@@ -579,6 +579,9 @@ final class SQLiteUpdateDeleteReturningSql
             if (isset($match[2]) && $match[2] !== '') {
                 $entry['direction'] = strtoupper($match[2]);
             }
+            if (isset($match[3]) && $match[3] !== '') {
+                $entry['nulls'] = strtoupper($match[3]);
+            }
             $terms[] = $entry;
         }
 
@@ -586,8 +589,8 @@ final class SQLiteUpdateDeleteReturningSql
     }
 
     /**
-     * @param list<array{column?:string,expression?:string,direction?:string}> $terms
-     * @return list<array{column:string,direction?:string,expression?:string,value?:callable(array<string,mixed>):mixed}>
+     * @param list<array{column?:string,expression?:string,direction?:string,nulls?:string}> $terms
+     * @return list<array{column:string,direction?:string,nulls?:string,expression?:string,value?:callable(array<string,mixed>):mixed}>
      */
     private static function orderByCallbacks(array $terms): array
     {
@@ -607,6 +610,9 @@ final class SQLiteUpdateDeleteReturningSql
             }
             if (isset($term['direction'])) {
                 $entry['direction'] = $term['direction'];
+            }
+            if (isset($term['nulls'])) {
+                $entry['nulls'] = $term['nulls'];
             }
             $prepared[] = $entry;
         }
@@ -1292,6 +1298,16 @@ final class SQLiteUpdateDeleteReturningSql
 
             return $value === null ? null : strlen((string) $value);
         }
+        if (preg_match('/^nullif\s*\((.*)\)$/is', $expression, $match) === 1) {
+            $parts = self::splitComma($match[1]);
+            if (count($parts) !== 2) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE nullif() needs two arguments');
+            }
+            $left = self::evaluateExpression($parts[0], $row);
+            $right = self::evaluateExpression($parts[1], $row);
+
+            return $left == $right ? null : $left;
+        }
         if (preg_match('/^CASE\s+WHEN\s+(.+?)\s+THEN\s+(.+?)\s+ELSE\s+(.+?)\s+END$/is', $expression, $match) === 1) {
             $truth = self::sqliteTruthValue(self::evaluateExpression($match[1], $row));
 
@@ -1921,15 +1937,25 @@ final class SQLiteUpdateDeleteReturningSql
                 if ($leftValue === $rightValue) {
                     continue;
                 }
-                if ($leftValue === null) {
-                    $comparison = -1;
-                } elseif ($rightValue === null) {
-                    $comparison = 1;
+                $nulls = strtoupper($term['nulls'] ?? '');
+                if ($leftValue === null || $rightValue === null) {
+                    if ($leftValue === null && $rightValue === null) {
+                        $comparison = 0;
+                    } elseif ($nulls === 'FIRST') {
+                        $comparison = $leftValue === null ? -1 : 1;
+                    } elseif ($nulls === 'LAST') {
+                        $comparison = $leftValue === null ? 1 : -1;
+                    } else {
+                        $comparison = $leftValue === null ? -1 : 1;
+                        if (($term['direction'] ?? 'ASC') === 'DESC') {
+                            $comparison *= -1;
+                        }
+                    }
                 } else {
                     $comparison = $leftValue <=> $rightValue;
-                }
-                if (($term['direction'] ?? 'ASC') === 'DESC') {
-                    $comparison *= -1;
+                    if (($term['direction'] ?? 'ASC') === 'DESC') {
+                        $comparison *= -1;
+                    }
                 }
 
                 return $comparison;
