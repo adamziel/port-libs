@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 92.1,
-    "suiteProgress": "Supervisor-integrated LightningCSS SourceMap/CSSOM/media/bundler/CSS Modules batch adds SourceMap empty-map CR line splitting, generated-line span/accessor guards, negated equality media ranges in layers, flex/CSSOM priority/comment handling, bundle charset/import graph behavior, CSS Modules compose flattening, and media-layer minifier coverage. Verification passed PHP lint on 25 changed/new PHP files, touched example smoke runs, git diff --check, no WordPress/WP/wp_ source symbols under lanes/lightningcss/src, focused DeclarationBlock 1 file / 709 assertions / 0 failures, and full LightningCSS lane 13 files / 4081 assertions / 0 failures.",
-    "phpPass": 4081,
+    "estimatedProgress": 92.3,
+    "suiteProgress": "Supervisor-integrated LightningCSS custom visitor/color/CSSOM/import/media batch adds logical transform visitor AST handling, invalid visitor-returned CSS variable guard behavior, lab()/lch() relative colors from named sRGB origins, SourceProvider entry-path identity, mask-position axis CSSOM read/write/remove behavior, and mixed-case media boolean operator canonicalization. Verification passed PHP lint on 16 changed/new PHP files, six example smoke runs, git diff --check, no WordPress/WP/wp_ source symbols under lanes/lightningcss/src, focused LightningCSS gate 5 files / 2836 assertions / 0 failures, and full LightningCSS lane 13 files / 4120 assertions / 0 failures.",
+    "phpPass": 4120,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source 7e7a1f78: full LightningCSS lane passed 13 files / 4081 assertions / 0 failures. Conservative mapped coverage moves from 2056 / 3532 to 2057 / 3532: +1 SourceMap add_empty_map CR line-splitting behavior. SourceMap generated-line spans/accessors, negated equality range media queries, flex/CSSOM priority/comment handling, charset/import graph behavior, CSS Modules local/global compose flattening, and media layer minifier behavior deepen already represented clusters.",
-    "currentWork": "SourceMap empty-map line splitting and generated-line accessors, media-query range/layer parsing, CSSOM flex/priority/comment handling, bundle @charset/import graph behavior, CSS Modules compose flattening, and media-layer minifier behavior are integrated from screened worker handoffs.",
+    "audit": "2026-05-31 supervisor batch at source c9014b67: full LightningCSS lane passed 13 files / 4120 assertions / 0 failures. Conservative mapped coverage moves from 2057 / 3532 to 2073 / 3532: +14 lab()/lch() relative-color sRGB-origin checks, +1 logical transform custom visitor behavior, and +1 invalid visitor-returned CSS variable guard behavior. SourceProvider entry-path identity, mask-position axis CSSOM, and mixed-case media boolean operators deepen already represented clusters.",
+    "currentWork": "Custom at-rule visitor AST behavior, relative lab/lch color normalization, SourceProvider import graph path identity, mask-position CSSOM axes, and media boolean operator canonicalization are integrated from screened worker handoffs.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch; continue current-base PHP parity slices with focused tests, examples, manifest-backed mapping, and periodic full-lane PHP gates.",
-    "latestCommit": "7e7a1f782c8e6d002e1b2e803071a34f5eceb93b",
+    "latestCommit": "c9014b67d40be9bb7b0615f78872d91f88ea6541",
     "nextTask": "Keep LightningCSS as the main worker pool and prioritize fresh current-base handoffs that add new mapped target-prefix, property-value, parser/CSSOM/source-map/bundler/CSS Modules coverage; reject duplicate status-only or already-covered clusters.",
-    "commit": "7e7a1f782c8e6d002e1b2e803071a34f5eceb93b"
+    "commit": "c9014b67d40be9bb7b0615f78872d91f88ea6541"
 }
