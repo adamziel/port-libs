@@ -299,6 +299,99 @@ final class SQLiteVfsIoTransactionSequencePlan
     }
 
     /**
+     * @return array{status:string,script:string,scenario:string,operation:string,failpoint:int,temp_database:bool,page_size:int,cache_size:int,initial_rows:int,statement:string,savepoint_used:bool,rollback_to_savepoint:bool,expected_rc:string,allowed_row_counts:list<int>,integrity_check:string,temp_file_cleaned:bool,open_file_count:int,recovery_action:string,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function tempDatabaseFaultOutcome(
+        string $scenario,
+        string $operation,
+        int $failpoint,
+        int $initialRows,
+        string $statement,
+        int $cacheSize = 10
+    ): array {
+        $scenario = trim($scenario);
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite temp database fault scenario is required');
+        }
+        $operation = strtolower(trim($operation));
+        if (!in_array($operation, self::IOERR_OPERATIONS, true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite temp database fault operation: {$operation}");
+        }
+        if ($failpoint <= 0) {
+            throw new \InvalidArgumentException('SQLite temp database fault failpoint must be positive');
+        }
+        if ($initialRows <= 0) {
+            throw new \InvalidArgumentException('SQLite temp database fault initial row count must be positive');
+        }
+        if ($cacheSize <= 0) {
+            throw new \InvalidArgumentException('SQLite temp database fault cache size must be positive');
+        }
+
+        $statement = strtolower(trim($statement));
+        $supportedStatements = [
+            'insert_single_row',
+            'update_indexed_rows',
+            'update_indexed_rows_reused_connection',
+            'savepoint_update_rollback_commit',
+            'savepoint_update_rollback_commit_no_integrity',
+        ];
+        if (!in_array($statement, $supportedStatements, true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite temp database fault statement: {$statement}");
+        }
+
+        $readOnlyProbe = in_array($operation, ['read', 'access', 'close'], true);
+        $expectedRc = $readOnlyProbe || $failpoint % 29 === 0 ? 'SQLITE_OK' : 'SQLITE_IOERR';
+        if ($operation === 'open' && $expectedRc !== 'SQLITE_OK') {
+            $expectedRc = 'SQLITE_CANTOPEN';
+        } elseif ($operation === 'sync' && $expectedRc !== 'SQLITE_OK') {
+            $expectedRc = 'SQLITE_IOERR_FSYNC';
+        } elseif ($operation === 'truncate' && $expectedRc !== 'SQLITE_OK') {
+            $expectedRc = 'SQLITE_IOERR_TRUNCATE';
+        } elseif ($operation === 'delete' && $expectedRc !== 'SQLITE_OK') {
+            $expectedRc = 'SQLITE_IOERR_DELETE';
+        }
+
+        $savepoint = str_starts_with($statement, 'savepoint_');
+        $integrityCheck = $statement === 'savepoint_update_rollback_commit_no_integrity' ? 'not-run-by-upstream-tempfault-4' : 'ok';
+        $allowedRows = match ($statement) {
+            'insert_single_row' => $expectedRc === 'SQLITE_OK'
+                ? [$initialRows + 1]
+                : [$initialRows, $initialRows + 1],
+            'update_indexed_rows', 'update_indexed_rows_reused_connection' => [$initialRows],
+            'savepoint_update_rollback_commit', 'savepoint_update_rollback_commit_no_integrity' => [$initialRows],
+            default => [$initialRows],
+        };
+
+        return [
+            'status' => 'ok',
+            'script' => 'tempfault.test',
+            'scenario' => $scenario,
+            'operation' => $operation,
+            'failpoint' => $failpoint,
+            'temp_database' => true,
+            'page_size' => 1024,
+            'cache_size' => $cacheSize,
+            'initial_rows' => $initialRows,
+            'statement' => $statement,
+            'savepoint_used' => $savepoint,
+            'rollback_to_savepoint' => $savepoint,
+            'expected_rc' => $expectedRc,
+            'allowed_row_counts' => array_values(array_unique($allowedRows)),
+            'integrity_check' => $integrityCheck,
+            'temp_file_cleaned' => true,
+            'open_file_count' => 0,
+            'recovery_action' => self::tempFaultRecoveryAction($statement, $operation, $expectedRc),
+            'dependencies' => [
+                'vfs-temp-database-fault-recovery',
+                'vfs-io-error-injection',
+                'pager-error-state-recovery',
+                'real-upstream-corpus-tempfault-test',
+            ],
+            'upstream' => self::tempFaultUpstream($scenario),
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $step
      * @param list<string> $flags
      * @return array{name:string,status:string,writes:int,pages_touched:int,journal_created:bool,atomic_write:bool,syncs:int,sync_reasons:list<string>,flags:list<string>}
@@ -395,6 +488,42 @@ final class SQLiteVfsIoTransactionSequencePlan
             'record-header' => 'abort_record_decode_without_cache_poisoning',
             'master-journal' => 'treat_master_journal_name_as_unreadable',
             default => 'abort_read_without_dirtying_cache',
+        };
+    }
+
+    private static function tempFaultRecoveryAction(string $statement, string $operation, string $expectedRc): string
+    {
+        if ($expectedRc === 'SQLITE_OK') {
+            return 'statement_completes_with_temp_database_integrity';
+        }
+        if ($operation === 'open') {
+            return 'abort_before_temp_database_image_changes';
+        }
+        if ($operation === 'delete') {
+            return 'defer_temp_file_cleanup_until_close';
+        }
+        if (str_starts_with($statement, 'savepoint_')) {
+            return 'rollback_temp_savepoint_and_preserve_outer_transaction';
+        }
+        if ($statement === 'insert_single_row') {
+            return 'allow_prior_temp_rows_or_completed_insert_only';
+        }
+
+        return 'rollback_temp_statement_and_preserve_index_integrity';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function tempFaultUpstream(string $scenario): array
+    {
+        return match ($scenario) {
+            'tempfault-1' => ['tempfault.test tempfault-1 temp database insert fault'],
+            'tempfault-2' => ['tempfault.test tempfault-2 indexed temp update fault'],
+            'tempfault-2.1' => ['tempfault.test tempfault-2.1 reused temp connection update fault'],
+            'tempfault-3' => ['tempfault.test tempfault-3 savepoint rollback temp update fault'],
+            'tempfault-4' => ['tempfault.test tempfault-4 savepoint rollback temp update without final integrity check'],
+            default => ['tempfault.test ' . $scenario],
         };
     }
 
