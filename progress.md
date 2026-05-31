@@ -52,6 +52,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS clip-path integration
+  16:52 UTC): source commit
+  `35913132375e4ff72782ebae6dcc21290d6019bc` (`ports: extend lightningcss
+  clip path prefix parity`) landed one verified LightningCSS target-prefix
+  handoff after deferring overlapping CSS Modules, property-value, source-map,
+  custom-at-rules, bundler, media-query, and CSSOM candidates for
+  conflict-aware consolidation. LightningCSS full lane evidence moves from
+  `2313` to `2321 pass / 0 fail`, with conservative mapped coverage moving
+  from `1446 / 3532` to `1450 / 3532`: WebKit clip-path target-prefix
+  generation/removal boundaries for Chrome 30/80 and Safari 8/14, plus exact
+  `Feature::ClipPath` Chrome 54/55 and Safari 9/10 cutoffs. Gates passed: PHP
+  lint on changed PHP files, `git diff --check -- lanes/lightningcss`, no
+  WordPress/WP/wp_ text introduced by the changed source diff, focused
+  `TransitionPrefixerTest.php` `1 file / 373 assertions / 0 failures`, full
+  LightningCSS lane `13 files / 2321 assertions / 0 failures`, and
+  `wordpress-target-prefix-boundaries.php` exit 0. Full upstream Rust/Node/WASM
+  runners were not executed for this isolated batch. The visible LightningCSS
+  pool was refilled back to 43 workers on `gpt-5.5` xhigh priority while the
+  handoff queue continued to grow.
+
 - 2026-05-31 supervisor continuation (libsqlite selected corpus integration
   and LightningCSS refill 16:47 UTC): source commit
   `9ededa2949428f40aa13af09e5e3d80e995f54bf` (`ports: extend sqlite wal vfs
