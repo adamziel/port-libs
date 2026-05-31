@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 92.4,
-    "suiteProgress": "Supervisor-integrated LightningCSS target-prefixing slice maps upstream outline advanced-color target fallbacks: outline-color, outline shorthand, and var()-guarded outline Lab fallbacks for older Chrome targets. Verification passed PHP lint on 3 changed/new PHP files, focused TransitionPrefixerTest.php 1 file / 621 assertions / 0 failures, full LightningCSS lane 13 files / 4124 assertions / 0 failures, wordpress-outline-color-fallback-prefixer.php --self-test, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/lightningcss/src.",
-    "phpPass": 4124,
+    "estimatedProgress": 92.5,
+    "suiteProgress": "Supervisor-integrated LightningCSS imports/modules/CSSOM batch maps CSS Modules unusedSymbols pruning and print-color-adjust Firefox boundary behavior while deepening bundler import graph, media-layer import, and DeclarationBlock custom-property CSSOM clusters. Verification passed PHP lint on 13 changed/new PHP files, full LightningCSS lane 13 files / 4150 assertions / 0 failures, five example smoke runs, and git diff --check.",
+    "phpPass": 4150,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-05-31 supervisor outline target-prefix slice at source 510f49dd: full LightningCSS lane passed 13 files / 4124 assertions / 0 failures. Conservative mapped coverage moves from 2073 / 3532 to 2076 / 3532: +3 upstream src/lib.rs::test_outline prefix_test helpers for outline advanced-color target fallbacks.",
-    "currentWork": "Outline advanced-color target fallbacks are integrated in TransitionPrefixer while the current custom visitor/color/CSSOM/import/media work remains covered by the full lane gate.",
+    "audit": "2026-05-31 supervisor imports/modules/CSSOM batch at source 68c51db3: full LightningCSS lane passed 13 files / 4150 assertions / 0 failures. Conservative mapped coverage moves from 2076 / 3532 to 2078 / 3532: +1 CSS Modules unusedSymbols pruning behavior and +1 print-color-adjust Firefox target-boundary behavior; import/media/CSSOM work deepens represented clusters.",
+    "currentWork": "Imports/modules/CSSOM batch integrated: nested import graph identities and conditions, CSS Modules unusedSymbols pruning, print-color-adjust Firefox boundaries, and custom-property CSSOM block token preservation.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch; continue current-base PHP parity slices with focused tests, examples, manifest-backed mapping, and periodic full-lane PHP gates.",
-    "latestCommit": "510f49dd9f21e1d1823992cb178aa6ec7de53530",
+    "latestCommit": "68c51db33dc8aeee9ea9fe0b856adaf357ea832c",
     "nextTask": "Keep LightningCSS as the main worker pool and prioritize fresh current-base handoffs that add new mapped target-prefix, property-value, parser/CSSOM/source-map/bundler/CSS Modules coverage; reject duplicate status-only or already-covered clusters.",
-    "commit": "510f49dd9f21e1d1823992cb178aa6ec7de53530"
+    "commit": "68c51db33dc8aeee9ea9fe0b856adaf357ea832c"
 }
