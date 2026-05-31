@@ -55,6 +55,28 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (CSS/Git/SQLite parity batch 22:05 UTC):
+  source commit `a8642b9f8e878e60ccdcfc5002ab80052960c301` (`ports: extend
+  git css sqlite parity slices`) landed fifteen screened handoffs; one
+  Gitoxide receive-pack handoff was parked for a fixture conflict and must be
+  reworked separately. Verification passed accepted PHP lint, JSON and
+  diff-check gates, Gitoxide focused `4 files / 1517 assertions / 0 failures`,
+  full Gitoxide `39 files / 5907 assertions / 0 failures`, LightningCSS
+  focused `6 files / 3981 assertions / 0 failures`, full LightningCSS
+  `13 files / 4617 assertions / 0 failures`, and libsqlite focused
+  accepted-file gate `5 files / 96913 assertions / 0 failures` including
+  `SQLiteNoDomainSpecificApiTest.php`. Accepted Gitoxide and LightningCSS
+  examples/self-tests also passed.
+- Public dashboard evidence now reports Gitoxide `5907 pass / 0 fail` with
+  mapped coverage `1647 / 2886`, LightningCSS `4617 pass / 0 fail` with
+  mapped coverage `2163 / 3532`, and libsqlite `3946112 pass / 0 fail` with
+  mapped coverage still `1589 / 1589`. The libsqlite full-lane blocker remains
+  the pre-existing JSON-table generated path rowid-cost/reuse-policy failure,
+  reproduced on clean `origin/main`; do not call libsqlite fully green until
+  that is fixed. The visible worker pool was restored to `11` active isolated
+  workers in tmux `main` (`6` LightningCSS, `3` Gitoxide, `2` libsqlite), with
+  no long sleepers.
+
 - 2026-05-31 supervisor continuation (CSS/Git/SQLite corpus batch 21:45 UTC):
   source commit `f86e9c1090b8d9eb5ee796e574d8d776401ba6d4` (`ports: extend
   css git and sqlite corpus parity`) landed twelve screened handoffs while

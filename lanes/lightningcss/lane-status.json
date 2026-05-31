@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 93.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS CSS Modules/target/CSSOM/source-map/bundler batch maps break-property target-prefix browser boundaries and SourceMap empty-line offset semantics while deepening CSS Modules selector/composes, escaped CSSOM declaration names, and malformed import-source rejection. Verification passed focused gate 5 files / 2373 assertions / 0 failures, full LightningCSS lane 13 files / 4514 assertions / 0 failures, example smokes, PHP lint, and git diff --check.",
-    "phpPass": 4514,
+    "estimatedProgress": 94.1,
+    "suiteProgress": "Supervisor-integrated LightningCSS logical-spacing target prefixing, CSSOM multi-column declarations, media-query escaped range/layer parsing, SourceMap VLQ offsets, CSS Modules invalid composes fallback, and lch/oklch relative color property-value slices. Verification passed focused gate 6 files / 3981 assertions / 0 failures, full LightningCSS lane 13 files / 4617 assertions / 0 failures, accepted examples/self-tests, PHP lint, JSON/diff checks.",
+    "phpPass": 4617,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full runner not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source f86e9c1090b8: full LightningCSS lane passed 13 files / 4514 assertions / 0 failures. Conservative mapped coverage moves from 2145 / 3532 to 2152 / 3532: +6 break-property target-prefix/browser-boundary cases and +1 SourceMap empty generated-line offset behavior. CSS Modules attribute-selector composes, escaped CSSOM declaration names, and malformed import-source rejection deepen represented clusters. Full upstream Rust/Node/WASM runners were not executed.",
-    "currentWork": "CSS Modules attribute selector composes, break-property target prefixing, escaped CSSOM declaration names, SourceMap empty-line offsets, and malformed @import source rejection integrated.",
+    "audit": "2026-05-31 supervisor batch at source a8642b9f8: full LightningCSS lane passed 13 files / 4617 assertions / 0 failures. Conservative mapped coverage moves from 2152 / 3532 to 2163 / 3532: +10 property-value relative color cases and +1 SourceMap VLQ offset behavior. CSSOM multi-column, CSS Modules invalid composes, media-query escaped range/layer, and logical-spacing prefixing deepen represented clusters. Full upstream Rust/Node/WASM runners were not executed.",
+    "currentWork": "Logical-spacing target prefixing, CSSOM multi-column declarations, media-query escaped range/layer parsing, SourceMap VLQ offsets, CSS Modules invalid composes fallback, and lch/oklch relative color alpha/polar property values integrated.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch; continue current-base PHP parity slices with focused tests, examples, manifest-backed mapping, and periodic full-lane PHP gates.",
-    "latestCommit": "f86e9c1090b8d9eb5ee796e574d8d776401ba6d4",
-    "nextTask": "Keep LightningCSS workers on current-base media-query, CSS Modules, bundler/import graph, target-prefix, property-value, CSSOM, custom at-rule, and SourceMap slices with focused tests plus periodic full-lane PHP gates.",
-    "commit": "f86e9c1090b8d9eb5ee796e574d8d776401ba6d4"
+    "latestCommit": "a8642b9f8e878e60ccdcfc5002ab80052960c301",
+    "nextTask": "Keep LightningCSS workers on bundle/import graph, CSSOM, custom at-rules, media-query, target-prefix, property-value, CSS Modules, and SourceMap slices with focused tests plus periodic full-lane PHP gates.",
+    "commit": "a8642b9f8e878e60ccdcfc5002ab80052960c301"
 }

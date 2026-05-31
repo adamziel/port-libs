@@ -1,17 +1,17 @@
 {
     "schemaVersion": 1,
     "library": "libsqlite",
-    "estimatedProgress": 99,
-    "suiteProgress": "Supervisor-integrated libsqlite source fixes for trigger/FK child lookup planning, window1 sorter output ordering, and where5 NULL-comparison B-tree/index dynamic corpus behavior. Focused current-base evidence passed 4 files / 45435 assertions / 0 failures including SQLiteNoDomainSpecificApiTest; selected evidence moves conservatively from 3847998 to 3849202 pass / 0 fail from the where5 dynamic slice. Mapped coverage remains 1589 / 1589.",
-    "phpPass": 3849202,
+    "estimatedProgress": 99.1,
+    "suiteProgress": "Supervisor-integrated libsqlite VFS unix-excl WAL/read snapshots, RETURNING immediate FK barrier behavior, JSON102 select-SQL tree search predicates, and WAL cache-spill dynamic corpus behavior. Focused accepted-file gate passed 5 files / 96913 assertions / 0 failures including SQLiteNoDomainSpecificApiTest; selected evidence moves conservatively from 3849202 to 3946112 pass / 0 fail. Mapped coverage remains 1589 / 1589.",
+    "phpPass": 3946112,
     "phpFail": 0,
     "wordpressScenarios": "Source-neutral application/self-test coverage now includes WAL rollback JSON tails, FK parent-index diagnostics, row-value UPDATE/DELETE LIMIT execution, master-journal WAL pager behavior, PRAGMA lock_proxy_file and data_store_directory handling, SELECT/window planner behavior, trigger/fkey limits, expression-affinity and hex literal syntax, B-tree left-join/index/delete guards, JSON/JSONB update/subtype/char-built validity behavior, VFS fallocate/shared-lock/batch-atomic lifecycle behavior, pager crash recovery, and app-WAL post-checkpoint tail recovery. No WordPress-specific libsqlite API is accepted.",
     "phase": "focused source integration accepted; full-lane parity blocked by pre-existing JSON-table rowid-cost failures",
-    "audit": "2026-05-31 supervisor batch at source f86e9c1090b8: PHP lint on changed PHP files passed; git diff --check passed; changed libsqlite source files introduced no WordPress/WP/wp_ text; focused libsqlite gate passed 4 files / 45435 assertions / 0 failures including trigger/FK dynamic child lookup, window1 sorter output, where5 NULL-comparison B-tree/index dynamic corpus, and SQLiteNoDomainSpecificApiTest. A broad libsqlite full-lane attempt under 4096M found pre-existing JSON-table generated path rowid-cost failures also reproduced on clean origin/main: 1 file / 129 assertions / 32 failures, so full release/all-runner parity remains open and is not counted green for this batch.",
-    "currentWork": "Native libsqlite extends trigger/FK child lookup planning, shared window sorter output ordering, and where5 NULL-comparison dynamic B-tree/index corpus behavior while preserving source-neutral changed files.",
-    "blocker": "Full libsqlite lane is not green: SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext761776Test.php fails on clean origin/main and current integration with 32 rowid-cost/reuse-policy failures. Focused gates for this batch are green; release/all-runner parity remains open.",
-    "nextTask": "Assign libsqlite workers to fix the pre-existing JSON-table generated path rowid-cost failure, continue zero-WordPress-source cleanup, and keep focused real-upstream corpus gates green before attempting another broad full-lane run.",
-    "wordpressScenarioLatest": "No WordPress-specific libsqlite API changes were introduced in the latest accepted batch. The latest source commit adds generic SQLite WAL, VFS, trigger/FK, expression, date/affinity, JSON, and window/filter corpus behavior.",
-    "latestCommit": "f86e9c1090b8d9eb5ee796e574d8d776401ba6d4",
-    "commit": "f86e9c1090b8d9eb5ee796e574d8d776401ba6d4"
+    "audit": "2026-05-31 supervisor batch at source a8642b9f8: PHP lint on accepted PHP files passed; JSON/diff checks passed; changed accepted libsqlite source introduced no WordPress/wordpress/WP_/wp_ text; focused libsqlite gate passed 5 files / 96913 assertions / 0 failures including VFS unix-excl dynamic corpus, RETURNING immediate FK barrier, JSON102 select-SQL tree search, WAL cache-spill dynamic corpus, and SQLiteNoDomainSpecificApiTest. The known SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext761776Test.php rowid-cost failures reproduced on clean origin/main and remain the full-lane blocker.",
+    "currentWork": "Native libsqlite extends VFS unix-excl WAL/read snapshots, RETURNING immediate FK barrier behavior, JSON102 select-SQL tree search predicates, and WAL cache-spill dynamic corpus behavior while preserving source-neutral changed files.",
+    "blocker": "Full libsqlite lane is not green: SQLiteJsonTableGeneratedPathRowidCostCurrentSourceNext761776Test.php fails on clean origin/main and current integration with rowid-cost/reuse-policy failures. Focused gates for this batch are green; release/all-runner parity remains open.",
+    "nextTask": "Keep two libsqlite workers on the JSON-table generated path rowid-cost blocker and source-neutral guards while the larger visible pool advances LightningCSS and Gitoxide; retry broad full-lane evidence only after that blocker is fixed.",
+    "wordpressScenarioLatest": "No WordPress-specific libsqlite API or source text was introduced in the latest accepted batch. The latest source commit adds generic SQLite VFS, WAL, RETURNING/FK, JSON102, and pager corpus behavior.",
+    "latestCommit": "a8642b9f8e878e60ccdcfc5002ab80052960c301",
+    "commit": "a8642b9f8e878e60ccdcfc5002ab80052960c301"
 }
