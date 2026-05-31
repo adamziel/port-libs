@@ -41,6 +41,43 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules keeps nested local selectors global inside global scope' => static function (TestRunner $t) use ($export): void {
+        $css = <<<'CSS'
+:global(.wp-block :local(.legacy)) .title {
+  color: red;
+}
+
+.card :global(.wp-block :local(.legacy)) .title {
+  color: yellow;
+}
+
+:global(:local(.utility)) {
+  color: purple;
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css);
+
+        $t->same('.wp-block .legacy .EgL3uq_title{color:red}.EgL3uq_card .wp-block .legacy .EgL3uq_title{color:#ff0}.utility{color:purple}', $result['code']);
+        $t->same([
+            'title' => $export('EgL3uq_title'),
+            'card' => $export('EgL3uq_card'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+    },
+    'css modules rejects local and global selector-list function arguments' => static function (TestRunner $t): void {
+        $transformer = new CssModulesTransformer();
+
+        foreach ([
+            '.x :global(.foo, .bar) { color: red }',
+            ':global(.foo, .bar) .x { color: red }',
+            ':local(.foo, .bar) { color: red }',
+            ':global() { color: red }',
+            ':local() { color: red }',
+        ] as $css) {
+            $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform($css));
+        }
+    },
     'css modules rejects bare global pseudos from upstream nested regression' => static function (TestRunner $t): void {
         $transformer = new CssModulesTransformer();
 

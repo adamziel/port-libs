@@ -350,6 +350,52 @@ CSS;
         $t->same('foo.js', $dependencies[0]);
         $t->same(['name' => 'dep2', 'prelude' => '"bar.js"', 'string' => 'bar.js'], $dependencies[1]);
     },
+    'custom at-rules map upstream composed unknown rules and token visitors' => static function (TestRunner $t): void {
+        $declared = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'unknown' => [
+                        'test' => static function (array $rule): array {
+                            $rule['name'] = 'blue';
+
+                            return [
+                                'type' => 'unknown',
+                                'value' => $rule,
+                            ];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Rule' => [
+                    'unknown' => static function (array $rule) use (&$declared): array {
+                        $declared[$rule['name']] = $rule['prelude'];
+
+                        return [];
+                    },
+                ],
+                'Token' => [
+                    'at-keyword' => static function (array $token) use (&$declared): ?string {
+                        return $declared[$token['value']] ?? null;
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@test #056ef0;
+
+.menu_link {
+  background: @blue;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], $visitor);
+
+        $t->same('.menu_link{background:#056ef0}', $result);
+        $t->same(['blue' => '#056ef0'], $declared);
+    },
     'custom at-rules visit unknown at-rule blocks inside style rules' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 .wp-block-card {

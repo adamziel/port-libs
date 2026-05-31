@@ -29,6 +29,10 @@ $css = <<<'CSS'
   color: yellow;
 }
 
+:global(.wp-block-button :local(.legacyButton)) .cardTitle {
+  text-decoration: none;
+}
+
 @media (min-width: 600px) {
   .cardCompact {
     composes: card;
@@ -72,15 +76,27 @@ CSS);
     $invalidComposes = 'rejected';
 }
 
+try {
+    (new CssModulesTransformer())->transform(<<<'CSS'
+.card :global(.wp-block-button, .wp-block-file) {
+  color: red;
+}
+CSS);
+    $invalidGlobalList = 'accepted';
+} catch (InvalidArgumentException) {
+    $invalidGlobalList = 'rejected';
+}
+
 $actual = [
     'code' => $result['code'],
     'exports' => $result['exports'],
     'bareGlobal' => $bareGlobal,
     'invalidComposes' => $invalidComposes,
+    'invalidGlobalList' => $invalidGlobalList,
 ];
 
 $expected = [
-    'code' => '.BlockA_card{background:#fff}.BlockA_card .BlockA_cardIcon{color:#ff0}.wp-block-button .BlockA_card{border-radius:4px}.BlockA_cardTitle{color:#ff0}@media (width>=600px){.BlockA_cardCompact{gap:8px}}',
+    'code' => '.BlockA_card{background:#fff;view-transition-name:BlockA_card-enter;view-transition-class:BlockA_card BlockA_page}.BlockA_card .BlockA_cardIcon{color:#ff0}.wp-block-button .BlockA_card{border-radius:4px}.BlockA_cardTitle{color:#ff0}.wp-block-button .legacyButton .BlockA_cardTitle{text-decoration:none}@media (width>=600px){.BlockA_cardCompact{gap:8px}}@view-transition{types:BlockA_card-enter BlockA_page}',
     'exports' => [
         'card' => [
             'name' => 'BlockA_card',
@@ -95,6 +111,16 @@ $expected = [
                     'name' => 'has-spacing',
                 ],
             ],
+            'isReferenced' => false,
+        ],
+        'card-enter' => [
+            'name' => 'BlockA_card-enter',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
+        'page' => [
+            'name' => 'BlockA_page',
+            'composes' => [],
             'isReferenced' => false,
         ],
         'cardIcon' => [
@@ -126,6 +152,7 @@ $expected = [
     ],
     'bareGlobal' => 'rejected',
     'invalidComposes' => 'rejected',
+    'invalidGlobalList' => 'rejected',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -142,3 +169,4 @@ echo $actual['code'] . PHP_EOL;
 echo json_encode($actual['exports'], JSON_PRETTY_PRINT) . PHP_EOL;
 echo 'bare-global: ' . $actual['bareGlobal'] . PHP_EOL;
 echo 'invalid-composes: ' . $actual['invalidComposes'] . PHP_EOL;
+echo 'invalid-global-list: ' . $actual['invalidGlobalList'] . PHP_EOL;

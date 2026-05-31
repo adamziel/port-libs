@@ -9,6 +9,7 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 $css = <<<'CSS'
 @asset "wp-block-card/view.js";
 @asset-style "wp-block-card/style.css";
+@block-color #056ef0;
 
 @tokens wp {
   --gap: 24px;
@@ -32,6 +33,7 @@ $css = <<<'CSS'
 
 .wp-block-card {
   @apply card;
+  outline-color: @wp-accent;
 
   @breakpoint 782px {
     display: grid;
@@ -46,6 +48,7 @@ CSS;
 $tokens = [];
 $mixins = [];
 $dependencies = [];
+$colorAliases = [];
 $transformer = new CustomAtRuleTransformer();
 
 $result = $transformer->transform($css, [
@@ -77,6 +80,14 @@ $result = $transformer->transform($css, [
 
                     return [];
                 },
+                'block-color' => static function (array $rule): array {
+                    $rule['name'] = 'wp-accent';
+
+                    return [
+                        'type' => 'unknown',
+                        'value' => $rule,
+                    ];
+                },
             ],
             'custom' => [
                 'tokens' => static function (array $rule) use (&$tokens): array {
@@ -99,13 +110,17 @@ $result = $transformer->transform($css, [
     ],
     [
         'Rule' => [
-            'unknown' => [
-                'asset-style' => static function (array $rule) use (&$dependencies): array {
+            'unknown' => static function (array $rule) use (&$dependencies, &$colorAliases): array {
+                if ($rule['name'] === 'asset-style') {
                     $dependencies[] = ['type' => 'style', 'path' => $rule['preludeTokens'][0]['value']['value']];
 
                     return [];
-                },
-            ],
+                }
+
+                $colorAliases[$rule['name']] = $rule['prelude'];
+
+                return [];
+            },
             'custom' => [
                 'responsive' => static function (array $rule, CustomAtRuleTransformer $transformer): array {
                     return [
@@ -119,6 +134,11 @@ $result = $transformer->transform($css, [
                 ),
             ],
         ],
+        'Token' => [
+            'at-keyword' => static function (array $token) use (&$colorAliases): ?string {
+                return $colorAliases[$token['value']] ?? null;
+            },
+        ],
     ],
 ]), [
     'token' => static function (array $arguments) use (&$tokens): ?string {
@@ -126,7 +146,7 @@ $result = $transformer->transform($css, [
     },
 ]);
 
-$expected = '.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
+$expected = '.wp-block-card__stack{margin:10px}@media (width>=782px){.md\\:wp-block-card__stack{margin:10px}}.wp-block-card{border-color:#ff0;padding:24px}.wp-block-card .wp-block-button__link{color:#ff0}.wp-block-card{outline-color:#056ef0}@media (width<=782px){.wp-block-card{display:grid}.wp-block-card.is-style-featured{color:#ff0}}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {
@@ -138,6 +158,10 @@ if (($argv[1] ?? null) === '--self-test') {
         ['type' => 'style', 'path' => 'wp-block-card/style.css'],
     ]) {
         fwrite(STDERR, "Unexpected custom at-rule dependencies:\n" . json_encode($dependencies) . "\n");
+        exit(1);
+    }
+    if ($colorAliases !== ['wp-accent' => '#056ef0']) {
+        fwrite(STDERR, "Unexpected custom at-rule color aliases:\n" . json_encode($colorAliases) . "\n");
         exit(1);
     }
 

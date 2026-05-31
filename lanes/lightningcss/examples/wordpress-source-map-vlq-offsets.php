@@ -54,12 +54,8 @@ $blockMap->offsetLines(0, 5);
 $map = new SourceMap();
 $entrySourceIndex = $map->addSource('wp-content/themes/example/style.css');
 $map->setSourceContent($entrySourceIndex, $entrySource);
-$map->addVlqMap(
-    $blockMap->writeVlq(),
-    ['wp-content/themes/example/blocks.css'],
-    [$blockSource],
-    []
-);
+$map->addMapping(5, 0, $entrySourceIndex, 0, 0);
+$map->addSourceMap($blockMap);
 $map->addMappingWithOffset(
     0,
     strlen($layerOpen) + strlen($firstRule) + strlen($secondRule) + strlen($layerClose),

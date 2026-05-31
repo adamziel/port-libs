@@ -27,6 +27,12 @@ final class CustomAtRuleTransformer
     /** @var callable|null */
     private $genericFunctionVisitor = null;
 
+    /** @var array<string, callable> */
+    private array $tokenVisitors = [];
+
+    /** @var callable|null */
+    private $genericTokenVisitor = null;
+
     private DeclarationBlock $declarationBlock;
 
     private CssMinifier $minifier;
@@ -67,6 +73,7 @@ final class CustomAtRuleTransformer
                     return null;
                 },
                 'unknown' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    $forwardedUnknown = false;
                     foreach ($visitors as $visitor) {
                         $callback = self::unknownRuleVisitorCallback($visitor, $rule['name']);
                         if ($callback === null) {
@@ -74,6 +81,29 @@ final class CustomAtRuleTransformer
                         }
 
                         $replacement = $callback($rule, $transformer);
+                        if ($replacement !== null) {
+                            if (self::isUnknownRuleReplacement($replacement)) {
+                                $rule = self::normalizeUnknownRuleReplacement($rule, $replacement);
+                                $forwardedUnknown = true;
+                                continue;
+                            }
+
+                            return $replacement;
+                        }
+                    }
+
+                    return $forwardedUnknown ? ['type' => 'unknown', 'value' => $rule] : null;
+                },
+            ],
+            'Token' => [
+                'at-keyword' => static function (array $token, self $transformer) use ($visitors): mixed {
+                    foreach ($visitors as $visitor) {
+                        $callback = self::tokenVisitorCallback($visitor, 'at-keyword');
+                        if ($callback === null) {
+                            continue;
+                        }
+
+                        $replacement = $callback($token, $transformer);
                         if ($replacement !== null) {
                             return $replacement;
                         }
@@ -192,7 +222,7 @@ final class CustomAtRuleTransformer
             }
         }
         foreach ($visitor as $name => $callback) {
-            if (is_string($name) && is_callable($callback) && !in_array($name, ['Rule', 'Function', 'custom', 'unknown'], true)) {
+            if (is_string($name) && is_callable($callback) && !in_array($name, ['Rule', 'Function', 'Token', 'custom', 'unknown'], true)) {
                 $this->ruleVisitors[strtolower($name)] = $callback;
             }
         }
@@ -224,6 +254,19 @@ final class CustomAtRuleTransformer
         }
         foreach ($functionVisitors as $name => $callback) {
             $this->functionVisitors[strtolower($name)] = $callback;
+        }
+
+        $this->tokenVisitors = [];
+        $this->genericTokenVisitor = null;
+        $tokenVisitorConfig = $visitor['Token'] ?? [];
+        if (is_callable($tokenVisitorConfig)) {
+            $this->genericTokenVisitor = $tokenVisitorConfig;
+        } elseif (is_array($tokenVisitorConfig)) {
+            foreach ($tokenVisitorConfig as $name => $callback) {
+                if (is_callable($callback)) {
+                    $this->tokenVisitors[strtolower((string) $name)] = $callback;
+                }
+            }
         }
     }
 
@@ -543,6 +586,9 @@ final class CustomAtRuleTransformer
 
             return $css;
         }
+        if (self::isUnknownRuleReplacement($replacement)) {
+            return $this->emitUnknownRule($replacement['value'], $parentSelectors);
+        }
 
         $kind = (string) ($replacement['kind'] ?? '');
         if ($kind === 'remove') {
@@ -581,6 +627,32 @@ final class CustomAtRuleTransformer
         }
 
         throw new \InvalidArgumentException("Unsupported custom at-rule replacement kind: {$kind}");
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     * @param list<string>|null $parentSelectors
+     */
+    private function emitUnknownRule(array $rule, ?array $parentSelectors): string
+    {
+        $name = (string) ($rule['name'] ?? '');
+        if ($name === '') {
+            throw new \InvalidArgumentException('Unknown at-rule replacement is missing a name');
+        }
+
+        $prelude = trim((string) ($rule['prelude'] ?? ''));
+        $head = '@' . $name . ($prelude === '' ? '' : ' ' . $prelude);
+        if (empty($rule['hasBlock'])) {
+            return $head . ';';
+        }
+
+        $body = (string) ($rule['body'] ?? '');
+
+        return $head . '{' . (
+            $parentSelectors === null
+                ? $this->processRuleList($body)
+                : $this->processStyleBody($body, $parentSelectors)
+        ) . '}';
     }
 
     /**
@@ -646,6 +718,41 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function tokenVisitorCallback(array $visitor, string $tokenType): ?callable
+    {
+        $tokenConfig = $visitor['Token'] ?? null;
+        if (is_callable($tokenConfig)) {
+            return $tokenConfig;
+        }
+
+        if (is_array($tokenConfig)) {
+            return self::caseInsensitiveCallback($tokenConfig, $tokenType);
+        }
+
+        return null;
+    }
+
+    private static function isUnknownRuleReplacement(mixed $replacement): bool
+    {
+        return is_array($replacement)
+            && ($replacement['type'] ?? null) === 'unknown'
+            && isset($replacement['value'])
+            && is_array($replacement['value']);
+    }
+
+    /**
+     * @param array<string, mixed> $current
+     * @param array{value: array<string, mixed>} $replacement
+     * @return array<string, mixed>
+     */
+    private static function normalizeUnknownRuleReplacement(array $current, array $replacement): array
+    {
+        return array_replace($current, $replacement['value']);
+    }
+
+    /**
      * @param array<string|int, mixed> $callbacks
      */
     private static function caseInsensitiveCallback(array $callbacks, string $name): ?callable
@@ -698,7 +805,7 @@ final class CustomAtRuleTransformer
         $entries = $this->declarationBlock->parseEntries($declarations);
         $body = '';
         foreach ($entries as $entry) {
-            $body .= $entry['property'] . ':' . $this->rewriteValueFunctions($entry['value']);
+            $body .= $entry['property'] . ':' . $this->rewriteDeclarationValue($entry['value']);
             if ($entry['important']) {
                 $body .= ' !important';
             }
@@ -706,6 +813,11 @@ final class CustomAtRuleTransformer
         }
 
         return implode(',', array_map('trim', $selectors)) . '{' . $body . '}';
+    }
+
+    private function rewriteDeclarationValue(string $value): string
+    {
+        return $this->rewriteValueTokens($this->rewriteValueFunctions($value));
     }
 
     private function rewriteValueFunctions(string $value): string
@@ -754,6 +866,71 @@ final class CustomAtRuleTransformer
         }
 
         $replacement = $visitor($arguments, $raw, strtolower($name), $this);
+        if ($replacement === null) {
+            return null;
+        }
+
+        return (string) $replacement;
+    }
+
+    private function rewriteValueTokens(string $value): string
+    {
+        if ($this->tokenVisitors === [] && $this->genericTokenVisitor === null) {
+            return $value;
+        }
+
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '@' && preg_match('/@(-?[_a-zA-Z][-_a-zA-Z0-9]*)/A', substr($value, $i), $matches) === 1) {
+                $raw = $matches[0];
+                $replacement = $this->callTokenVisitor('at-keyword', [
+                    'type' => 'at-keyword',
+                    'value' => $matches[1],
+                    'raw' => $raw,
+                ]);
+                $output .= $replacement ?? $raw;
+                $i += strlen($raw) - 1;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param array{type:string,value:mixed,raw?:string} $token
+     */
+    private function callTokenVisitor(string $type, array $token): ?string
+    {
+        $visitor = $this->tokenVisitors[strtolower($type)] ?? $this->genericTokenVisitor;
+        if ($visitor === null) {
+            return null;
+        }
+
+        $replacement = $visitor($token, $this);
         if ($replacement === null) {
             return null;
         }

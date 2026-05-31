@@ -137,7 +137,13 @@ final class SourceMap
             $nameIndexes[$index] = $this->addName($name);
         }
 
+        $childMaxLine = null;
+        $remappedByLine = [];
         foreach ($sourceMap->mappings as $mapping) {
+            $childMaxLine = $childMaxLine === null
+                ? $mapping['generatedLine']
+                : max($childMaxLine, $mapping['generatedLine']);
+
             $generatedLine = $mapping['generatedLine'] + $lineOffset;
             if ($generatedLine < 0) {
                 continue;
@@ -161,16 +167,44 @@ final class SourceMap
                 $sourceIndex = $sourceIndexes[$mapping['sourceIndex']];
             }
 
-            $this->mappings[] = [
+            $remappedByLine[$generatedLine][] = [
                 'generatedLine' => $generatedLine,
                 'generatedColumn' => $mapping['generatedColumn'],
                 'sourceIndex' => $sourceIndex,
                 'originalLine' => $mapping['originalLine'],
                 'originalColumn' => $mapping['originalColumn'],
                 'nameIndex' => $nameIndex,
-                'order' => count($this->mappings),
+                'order' => 0,
             ];
         }
+
+        if ($childMaxLine === null) {
+            return;
+        }
+
+        $replaceLines = [];
+        for ($line = 0; $line <= $childMaxLine; $line++) {
+            $targetLine = $line + $lineOffset;
+            if ($targetLine >= 0) {
+                $replaceLines[$targetLine] = true;
+            }
+        }
+
+        $updated = [];
+        foreach ($this->mappings as $mapping) {
+            if (!isset($replaceLines[$mapping['generatedLine']])) {
+                $updated[] = $mapping;
+            }
+        }
+
+        ksort($remappedByLine);
+        foreach ($remappedByLine as $lineMappings) {
+            foreach ($lineMappings as $mapping) {
+                $updated[] = $mapping;
+            }
+        }
+
+        $this->mappings = $this->renumberMappings($updated);
     }
 
     public function offsetColumns(int $generatedLine, int $generatedColumn, int $generatedColumnOffset): void

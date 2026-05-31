@@ -615,6 +615,7 @@ final class CssModulesTransformer
                 $open = $i + strlen(':global');
                 $close = $this->findMatchingParen($selector, $open);
                 $inner = substr($selector, $open + 1, $close - $open - 1);
+                $this->assertCssModulesFunctionalSelector($inner);
                 $output .= $this->rewriteSelectorFragment($inner, 'global', $locals);
                 $i = $close;
                 continue;
@@ -624,7 +625,8 @@ final class CssModulesTransformer
                 $open = $i + strlen(':local');
                 $close = $this->findMatchingParen($selector, $open);
                 $inner = substr($selector, $open + 1, $close - $open - 1);
-                $output .= $this->rewriteSelectorFragment($inner, 'local', $locals);
+                $this->assertCssModulesFunctionalSelector($inner);
+                $output .= $this->rewriteSelectorFragment($inner, $mode === 'global' ? 'global' : 'local', $locals);
                 $i = $close;
                 continue;
             }
@@ -669,6 +671,17 @@ final class CssModulesTransformer
         }
 
         return trim($output);
+    }
+
+    private function assertCssModulesFunctionalSelector(string $selector): void
+    {
+        if (trim($selector) === '') {
+            throw new \InvalidArgumentException('CSS Modules :local and :global selectors cannot be empty');
+        }
+
+        if ($this->findNextTopLevel($selector, ',', 0) !== null) {
+            throw new \InvalidArgumentException('CSS Modules :local and :global selectors must contain a single selector');
+        }
     }
 
     /**

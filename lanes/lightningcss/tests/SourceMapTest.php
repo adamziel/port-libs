@@ -116,6 +116,48 @@ return [
             $map->addMappingWithOffset(0, 0, $entry, 0, 0, 0, -1);
         });
     },
+    'source map replaces overlapped source-map lines when merging nested maps' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $entry = $map->addSource('entry.css');
+        $map->setSourceContent($entry, ".entry{}\n.keep{}");
+        $map->addMapping(0, 0, $entry, 0, 0, 'parentTop');
+        $map->addMapping(1, 0, $entry, 1, 0, 'parentMiddle');
+        $map->addMapping(2, 0, $entry, 2, 0, 'parentBottom');
+        $map->addMapping(4, 0, $entry, 4, 0, 'parentKeep');
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('child.css');
+        $child->setSourceContent($childSource, ".child{}\n\n.end{}");
+        $child->addMapping(0, 5, $childSource, 0, 2, 'childStart');
+        $child->addMapping(2, 7, $childSource, 2, 4, 'childEnd');
+
+        $map->addSourceMap($child);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $data = $map->toArray(null, false);
+
+        $t->same([0, 2, 4], array_column($decoded, 'generatedLine'));
+        $t->same([5, 7, 0], array_column($decoded, 'generatedColumn'));
+        $t->same([1, 1, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 2, 4], array_column($decoded, 'originalLine'));
+        $t->same([4, 5, 3], array_column($decoded, 'nameIndex'));
+        $t->same(['entry.css', 'child.css'], $data['sources']);
+
+        $negativeOffset = new SourceMap();
+        $negativeEntry = $negativeOffset->addSource('negative-entry.css');
+        $negativeOffset->addMapping(0, 0, $negativeEntry, 0, 0, 'droppedParent');
+        $negativeChild = new SourceMap();
+        $negativeChildSource = $negativeChild->addSource('negative-child.css');
+        $negativeChild->addMapping(0, 1, $negativeChildSource, 0, 0, 'droppedChild');
+        $negativeChild->addMapping(1, 3, $negativeChildSource, 1, 2, 'keptChild');
+
+        $negativeOffset->addSourceMap($negativeChild, -1);
+        $negativeDecoded = SourceMap::decodeVlq($negativeOffset->writeVlq());
+
+        $t->same([0], array_column($negativeDecoded, 'generatedLine'));
+        $t->same([3], array_column($negativeDecoded, 'generatedColumn'));
+        $t->same([1], array_column($negativeDecoded, 'sourceIndex'));
+        $t->same([1], array_column($negativeDecoded, 'originalLine'));
+    },
     'source map keeps generated-column deltas line-local and original offsets global' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $sourceIndex = $map->addSource('blocks.css');
