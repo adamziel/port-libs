@@ -52,6 +52,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (LightningCSS source-map/color/bundle
+  integration 17:52 UTC): source commit
+  `b2b1050e83d6fa8b8e377946a7db304e09302d45` (`ports: extend lightningcss
+  source maps color values bundles`) landed four verified current-base
+  LightningCSS handoffs. LightningCSS full lane evidence moves from `2794` to
+  `2825 pass / 0 fail`, with conservative mapped coverage moving from `1601 /
+  3532` to `1616 / 3532`: SourceMap raw VLQ byte-stream parsing, upstream
+  `aspect-ratio` value canonicalization, bounded `color-mix(in hwb, ...)`
+  normalization, and file-backed CSS Modules bundle resolution. Gates passed:
+  PHP lint on changed PHP files, `git diff --check -- lanes/lightningcss`, no
+  WordPress/WP/wp_ text introduced by the changed source diff, focused gate `3
+  files / 1392 assertions / 0 failures`, full LightningCSS lane `13 files /
+  2825 assertions / 0 failures`, and four touched example smoke/self-test runs.
+  Full upstream Rust/Node/WASM runners were not executed for this isolated
+  batch. The visible LightningCSS pool was refilled to `43` target workers on
+  `gpt-5.5` xhigh priority before this integration, preserving the active
+  SQLite and Gitoxide workers.
+
 - 2026-05-31 supervisor continuation (LightningCSS modules/CSSOM/color/visitor
   integration 17:44 UTC): source commit
   `22f42d2f72f3f002064dd7cfee2dec49626eb999` (`ports: extend lightningcss
