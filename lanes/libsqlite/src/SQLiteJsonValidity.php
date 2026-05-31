@@ -77,6 +77,10 @@ final class SQLiteJsonValidity
 
     public static function strictTextValid(string $json): bool
     {
+        if (!self::strictStringEscapesValid($json)) {
+            return false;
+        }
+
         try {
             json_decode($json, true, 1001, JSON_BIGINT_AS_STRING | JSON_THROW_ON_ERROR);
 
@@ -84,6 +88,52 @@ final class SQLiteJsonValidity
         } catch (\JsonException) {
             return false;
         }
+    }
+
+    private static function strictStringEscapesValid(string $json): bool
+    {
+        $length = strlen($json);
+        $inString = false;
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $json[$i];
+            if (!$inString) {
+                if ($char === '"') {
+                    $inString = true;
+                }
+                continue;
+            }
+
+            if ($char === '"') {
+                $inString = false;
+                continue;
+            }
+            if ($char !== '\\') {
+                continue;
+            }
+
+            if ($i + 1 >= $length) {
+                return false;
+            }
+
+            $escape = $json[++$i];
+            if (str_contains('"/\\bfnrt', $escape)) {
+                continue;
+            }
+            if ($escape !== 'u') {
+                return false;
+            }
+            if ($i + 4 >= $length) {
+                return false;
+            }
+            $hex = substr($json, $i + 1, 4);
+            if (preg_match('/\A[0-9A-Fa-f]{4}\z/', $hex) !== 1) {
+                return false;
+            }
+            $i += 4;
+        }
+
+        return true;
     }
 
     public static function json5TextValid(string $json): bool

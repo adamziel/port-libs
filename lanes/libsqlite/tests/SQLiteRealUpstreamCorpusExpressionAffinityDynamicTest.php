@@ -77,7 +77,7 @@ foreach ([
     'e_expr-6.2' => ['SELECT 72%-5', [2]],
     'e_expr-6.3' => ['SELECT -72%-5', [-2]],
     'e_expr-6.4' => ['SELECT -72%5', [-2]],
-    'e_expr-6.5' => ['SELECT 72.35%5', [2]],
+    'e_expr-6.5' => ['SELECT 72.35%5', [2.0]],
 ] as $upstream => [$sql, $expected]) {
     $assertSelect("real upstream {$upstream} remainder casts operands to integer", $sql, $expected);
 }

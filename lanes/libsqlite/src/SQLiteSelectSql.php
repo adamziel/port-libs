@@ -3904,6 +3904,28 @@ final class SQLiteSelectSql
             ];
         }
 
+        $orTerms = self::splitTopLevelByKeyword($sql, 'OR');
+        if (count($orTerms) > 1) {
+            return [
+                'type' => 'predicate',
+                'predicate' => [
+                    'operator' => 'OR',
+                    'terms' => array_map(static fn (string $term): array => self::predicate($term, $tables), $orTerms),
+                ],
+            ];
+        }
+
+        $andTerms = self::splitTopLevelByKeyword($sql, 'AND');
+        if (count($andTerms) > 1) {
+            return [
+                'type' => 'predicate',
+                'predicate' => [
+                    'operator' => 'AND',
+                    'terms' => array_map(static fn (string $term): array => self::predicate($term, $tables), $andTerms),
+                ],
+            ];
+        }
+
         $comparison = self::topLevelComparisonExpressionOperator($sql);
         if ($comparison !== null) {
             [$offset, $operator] = $comparison;
@@ -3959,7 +3981,7 @@ final class SQLiteSelectSql
             ];
         }
 
-        foreach ([['&', '|', '<<', '>>'], ['||', '->>', '->'], ['+', '-'], ['*', '/', '%']] as $operators) {
+        foreach ([['&', '|', '<<', '>>'], ['+', '-'], ['*', '/', '%'], ['||', '->>', '->']] as $operators) {
             $operator = self::topLevelExpressionOperator($sql, $operators);
             if ($operator === null) {
                 continue;
@@ -4066,6 +4088,67 @@ final class SQLiteSelectSql
         }
         if ($filter !== null) {
             throw new \InvalidArgumentException('SQLite SELECT SQL FILTER clause needs an aggregate function');
+        }
+        if (preg_match('/^(.+?)\s+(not\s+)?in\s*\((.*)\)$/is', $sql, $match) === 1) {
+            $valuesSql = trim($match[3]);
+            if (preg_match('/^select\s+/i', $valuesSql) === 1) {
+                $left = self::valueExpression(trim($match[1]), $tables);
+
+                return [
+                    'type' => 'predicate',
+                    'predicate' => [
+                        'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT IN' : 'IN',
+                        'left' => $left,
+                        'valuesSubquery' => static function (array $row) use ($valuesSql, $tables, $left): array {
+                            $rows = self::correlatedSubqueryRows($valuesSql, $tables, $row);
+                            if ($rows === []) {
+                                return [];
+                            }
+                            $columns = array_values(array_filter(
+                                array_keys($rows[0]),
+                                static fn (string $column): bool => $column !== 'rowid'
+                                    && $column !== '__sqlite_column_affinities'
+                                    && !str_contains($column, '.')
+                            ));
+                            if (($left['type'] ?? null) === 'row') {
+                                return array_map(
+                                    static fn (array $subqueryRow): array => array_map(
+                                        static fn (string $column): mixed => $subqueryRow[$column],
+                                        $columns
+                                    ),
+                                    $rows
+                                );
+                            }
+                            if (count($columns) !== 1) {
+                                throw new \InvalidArgumentException('SQLite SELECT SQL IN subquery expression must return one column');
+                            }
+                            $column = $columns[0];
+
+                            return array_map(static function (array $subqueryRow) use ($column): array {
+                                $affinities = $subqueryRow['__sqlite_column_affinities'] ?? [];
+
+                                return [
+                                    '__sqlite_in_value' => $subqueryRow[$column],
+                                    '__sqlite_in_affinity' => is_array($affinities) && isset($affinities[$column]) && is_string($affinities[$column])
+                                        ? $affinities[$column]
+                                        : 'NONE',
+                                ];
+                            }, $rows);
+                        },
+                    ],
+                ];
+            }
+
+            return [
+                'type' => 'predicate',
+                'predicate' => [
+                    'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT IN' : 'IN',
+                    'left' => self::valueExpression(trim($match[1]), $tables),
+                    'values' => $valuesSql === ''
+                        ? []
+                        : array_map(static fn (string $value): array => self::valueExpression($value, $tables), self::splitTopLevel($valuesSql, ',')),
+                ],
+            ];
         }
         if (preg_match('/^[+-]?[0-9]+$/', $sql) === 1) {
             return ['type' => 'literal', 'value' => self::integerLiteralValue($sql)];
@@ -4816,6 +4899,12 @@ final class SQLiteSelectSql
             foreach ($operators as $operator) {
                 $offset = $i - strlen($operator) + 1;
                 if ($offset < 0 || strcasecmp(substr($sql, $offset, strlen($operator)), $operator) !== 0) {
+                    continue;
+                }
+                if ($operator === '<' && (($sql[$offset - 1] ?? null) === '<' || ($sql[$offset + 1] ?? null) === '<')) {
+                    continue;
+                }
+                if ($operator === '>' && (($sql[$offset - 1] ?? null) === '>' || ($sql[$offset + 1] ?? null) === '>')) {
                     continue;
                 }
                 if (ctype_alpha($operator[0]) && !self::keywordBounded($sql, $offset, strlen($operator))) {
@@ -6172,6 +6261,12 @@ final class SQLiteSelectSql
                 continue;
             }
             if ($depth === 0 && strncasecmp(substr($sql, $i), $operator, strlen($operator)) === 0) {
+                if ($operator === '<' && (($sql[$i - 1] ?? null) === '<' || ($sql[$i + 1] ?? null) === '<')) {
+                    continue;
+                }
+                if ($operator === '>' && (($sql[$i - 1] ?? null) === '>' || ($sql[$i + 1] ?? null) === '>')) {
+                    continue;
+                }
                 if (
                     $operator === '>'
                     && (

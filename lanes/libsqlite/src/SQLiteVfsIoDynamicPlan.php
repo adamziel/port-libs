@@ -2085,6 +2085,41 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @return array{status:string,script:string,scenario:string,pattern:string,text:string,normalized_pattern:string,normalized_text:string,matched:bool,expected:bool,path_separator_variant:bool,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function quotaGlobProfile(string $scenario, string $pattern, string $text, bool $expected): array
+    {
+        if ($scenario === '') {
+            throw new \InvalidArgumentException('SQLite quota glob scenario requires a name');
+        }
+        if ($pattern === '') {
+            throw new \InvalidArgumentException('SQLite quota glob pattern requires a value');
+        }
+
+        $normalizedPattern = str_replace('\\', '/', $pattern);
+        $normalizedText = str_replace('\\', '/', $text);
+
+        return [
+            'status' => 'ok',
+            'script' => 'quota-glob.test',
+            'scenario' => $scenario,
+            'pattern' => $pattern,
+            'text' => $text,
+            'normalized_pattern' => $normalizedPattern,
+            'normalized_text' => $normalizedText,
+            'matched' => \PortLibs\LibSqlite\SQLiteDatabase::globMatches($normalizedText, $normalizedPattern),
+            'expected' => $expected,
+            'path_separator_variant' => $text !== $normalizedText || $pattern !== $normalizedPattern,
+            'dependencies' => [
+                'upstream-quota-glob-test',
+                'sqlite-quota-vfs-path-glob',
+                'vfs-io-dynamic-real-corpus',
+            ],
+            'upstream' => ['quota-glob.test quota-glob-1 through quota-glob-54'],
+        ];
+    }
+
+    /**
      * @param list<string> $statements
      * @return array<string, mixed>
      */

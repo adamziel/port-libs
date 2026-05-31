@@ -5039,6 +5039,126 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,scenario:string,create_table:string,select_sql:string,order_by:list<array{column:int,desc:bool}>,distinct_code:int,without_rowid:bool,primary_key_not_null:bool,join_source:bool,order_by_consumed:bool,detail:string,batch:int}>
+     */
+    public static function bestindex9VirtualTableDistinctOrderByCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite bestindex9 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'bestindex9-1.0',
+                'rowid table composite primary key exposes distinct ordering to xBestIndex',
+                'CREATE TABLE x(k1, k2, v1, PRIMARY KEY(k1, k2))',
+                'SELECT DISTINCT k1, k2 FROM t1',
+                [[0, false], [1, false]],
+                2,
+                false,
+                false,
+                false,
+                true,
+            ],
+            [
+                'bestindex9-1.1',
+                'WITHOUT ROWID composite primary key does not request the same distinct ordering',
+                'CREATE TABLE x(k1, k2, v1, PRIMARY KEY(k1, k2)) WITHOUT ROWID',
+                'SELECT DISTINCT k1, k2 FROM t1',
+                [],
+                0,
+                true,
+                false,
+                false,
+                false,
+            ],
+            [
+                'bestindex9-1.2',
+                'NOT NULL composite primary key terms suppress redundant distinct order handoff',
+                'CREATE TABLE x(k1 NOT NULL, k2 NOT NULL, v1, PRIMARY KEY(k1, k2))',
+                'SELECT DISTINCT k1, k2 FROM t1',
+                [],
+                0,
+                false,
+                true,
+                false,
+                false,
+            ],
+            [
+                'bestindex9-2',
+                'DISTINCT leading column with ORDER BY forwards one ordered column and distinct code 3',
+                'CREATE TABLE x(c1, c2, c3)',
+                'SELECT DISTINCT c1 FROM t1 ORDER BY c1',
+                [[0, false]],
+                3,
+                false,
+                false,
+                false,
+                true,
+            ],
+            [
+                'bestindex9-3',
+                'GROUP BY distinctness forwards one ordered grouping column and distinct code 1',
+                'CREATE TABLE x(c1, c2, c3)',
+                'SELECT DISTINCT c1 FROM t1 GROUP BY c1',
+                [[0, false]],
+                1,
+                false,
+                false,
+                false,
+                true,
+            ],
+            [
+                'bestindex9-4',
+                'join source keeps DISTINCT leading-column ordering and distinct code 2',
+                'CREATE TABLE x(c1, c2, c3)',
+                'CREATE TABLE t2(balls); SELECT DISTINCT c1 FROM t1, t2',
+                [[0, false]],
+                2,
+                false,
+                false,
+                true,
+                true,
+            ],
+        ];
+
+        $out = [];
+        $templateCount = count($templates);
+        for ($case = 1; $case <= $cases; $case++) {
+            [$section, $scenario, $createTable, $selectSql, $orderBy, $distinctCode, $withoutRowid, $primaryKeyNotNull, $joinSource, $orderByConsumed] = $templates[($case - 1) % $templateCount];
+            $batch = intdiv($case - 1, $templateCount) + 1;
+            $orderTerms = array_map(
+                static fn (array $term): string => 'column ' . $term[0] . ' desc ' . ($term[1] ? '1' : '0'),
+                $orderBy,
+            );
+
+            $out[] = [
+                'source' => 'bestindex9.test sections bestindex9-1.0 through bestindex9-4',
+                'case' => $case,
+                'upstream_section' => $section,
+                'scenario' => $scenario . ' dynamic batch ' . $batch,
+                'create_table' => $createTable,
+                'select_sql' => $selectSql,
+                'order_by' => array_map(
+                    static fn (array $term): array => ['column' => $term[0], 'desc' => $term[1]],
+                    $orderBy,
+                ),
+                'distinct_code' => $distinctCode,
+                'without_rowid' => $withoutRowid,
+                'primary_key_not_null' => $primaryKeyNotNull,
+                'join_source' => $joinSource,
+                'order_by_consumed' => $orderByConsumed,
+                'detail' => $orderTerms === []
+                    ? 'xBestIndex orderby is empty and distinct=0'
+                    : 'xBestIndex orderby {' . implode('} {', $orderTerms) . '} distinct=' . $distinctCode,
+                'batch' => $batch,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,scenario:string,statement:string,table_shape:string,index_name:string|null,predicate_literal:mixed,query_literal:mixed,result_rows:list<array<int,mixed>>,result_count:int,uses_partial_index:bool,detail:string,expected_error:string|null,integrity:string,without_rowid:bool,affinity:string,batch:int}>
      */
     public static function indexAPartialIndexAffinityPlannerCases(int $cases = 1200): array

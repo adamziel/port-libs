@@ -28,6 +28,23 @@ final class SQLiteWalFileWritePlan
 
         $result = $wal->durableCheckpointResult($databaseBytes, $mode, $readerEndFrame);
         $walPath = $databasePath . '-wal';
+        if ($result['mode'] === 'noop') {
+            return [
+                'database_path' => $databasePath,
+                'wal_path' => $walPath,
+                'mode' => $result['mode'],
+                'read_only' => $readOnly,
+                'immutable' => $immutable,
+                'busy' => $result['busy'],
+                'reason' => $result['reason'],
+                'wal_action' => $result['wal_action'],
+                'database_bytes' => strlen($result['database_bytes']),
+                'wal_bytes' => strlen($result['wal_bytes']),
+                'operations' => [],
+                'dependencies' => ['sqlite-wal-checkpoint', 'durable-sidecar-write', 'vfs-file-write-coordination'],
+            ];
+        }
+
         $operations = [
             [
                 'op' => 'write',

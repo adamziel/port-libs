@@ -22,7 +22,7 @@ final class SQLitePagerCheckpointTransactionPlan
         bool $immutable = false
     ): array {
         $mode = strtolower(trim($mode));
-        if (!in_array($mode, ['passive', 'full', 'restart', 'truncate'], true)) {
+        if (!in_array($mode, ['passive', 'full', 'restart', 'truncate', 'noop'], true)) {
             throw new \InvalidArgumentException("Unsupported SQLite checkpoint transaction mode: {$mode}");
         }
         if ($databasePath === '') {
@@ -89,7 +89,7 @@ final class SQLitePagerCheckpointTransactionPlan
     private static function lockSequence(string $mode): array
     {
         return match ($mode) {
-            'passive' => ['shared'],
+            'passive', 'noop' => ['shared'],
             'full' => ['shared', 'reserved', 'pending', 'exclusive'],
             'restart', 'truncate' => ['shared', 'reserved', 'pending', 'exclusive'],
         };
