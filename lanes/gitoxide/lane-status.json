@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 88.5,
-    "suiteProgress": "Supervisor-integrated Gitoxide merge-base and tree/pathspec graph batch adds generated three-head/timestamp-skew merge-base parity and mixed top-level plus prefixed icase tree pathspec walking parity. Verification passed PHP lint on changed PHP files, touched example smoke runs, git diff --check, no WordPress/WP/wp_ source symbols under lanes/gitoxide/src, focused PathspecTreeWalk/MergeBase gate 2 files / 257 assertions / 0 failures, and full Gitoxide lane 39 files / 5414 assertions / 0 failures.",
-    "phpPass": 5414,
+    "estimatedProgress": 88.7,
+    "suiteProgress": "Supervisor-integrated Gitoxide transport/reference/protocol batch maps SSH receive-pack shell-use boundaries, protocol-v2 clone sideband exchange, send-pack sideband fatal/status behavior, and merge-base permutation baseline while deepening dereferenced reference transaction behavior. Verification passed PHP lint on 39 changed/new PHP files across both accepted lanes, focused gate 12 files / 5799 assertions / 0 failures, Gitoxide full lane 39 files / 5690 assertions / 0 failures, five Gitoxide example smokes, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/gitoxide/src.",
+    "phpPass": 5690,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full Cargo workspace not executed for isolated batch",
-    "audit": "2026-05-31 supervisor batch at source 7e7a1f78: full Gitoxide lane passed 39 files / 5414 assertions / 0 failures. Conservative mapped coverage moves from 1630 / 2886 to 1632 / 2886: +1 generated three-head/timestamp-skew merge-base graph parity and +1 mixed top-level plus prefixed icase tree pathspec walking parity.",
-    "currentWork": "Generated merge-base graph parity and tree pathspec walking prefix/case parity are integrated from screened worker handoffs while LightningCSS remains the main worker pool.",
+    "audit": "2026-05-31 supervisor batch at source 780cadde: full Gitoxide lane passed 39 files / 5690 assertions / 0 failures. Conservative mapped coverage moves from 1632 / 2886 to 1636 / 2886: +1 SSH receive-pack shell-use boundary, +1 protocol-v2 clone sideband exchange, +1 send-pack sideband fatal/status behavior, and +1 merge-base permutation baseline; dereferenced reference transactions deepen an existing cluster.",
+    "currentWork": "Transport/reference/protocol batch integrated: SSH receive-pack shell-use contexts, protocol-v2 clone exchange sideband parsing, send-pack sideband fatal/status handling, dereferenced reference transaction coverage, and merge-base permutation baselines.",
     "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch due workspace breadth. Native PHP focused/full-lane evidence is green; keep Gitoxide at a bounded secondary pool while LightningCSS remains the main capacity target.",
-    "latestCommit": "7e7a1f782c8e6d002e1b2e803071a34f5eceb93b",
-    "nextTask": "Keep a bounded secondary Gitoxide pool on protocol, transport, object database, partial clone, tree merge, reference, credential, URL/refspec, and pathspec slices; prioritize handoffs with new mapped coverage and full-lane PHP evidence.",
-    "commit": "7e7a1f782c8e6d002e1b2e803071a34f5eceb93b"
+    "latestCommit": "780caddebe859b165af57ca7a1927a0ed60a9b1f",
+    "nextTask": "Keep bounded Gitoxide workers on current-base protocol, transport, pack/index, partial clone, tree merge, reference, credential, URL/refspec, and pathspec slices; prioritize handoffs with fresh mapped coverage and full-lane PHP evidence.",
+    "commit": "780caddebe859b165af57ca7a1927a0ed60a9b1f"
 }

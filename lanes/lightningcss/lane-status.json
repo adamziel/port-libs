@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "LightningCSS",
-    "estimatedProgress": 92.6,
-    "suiteProgress": "Supervisor-integrated LightningCSS colors/maps/visitors/media batch maps same-space relative color() minifier cases and SourceMap VLQ strictness, while deepening media resolution-prefix and custom Declaration visitor clusters. Verification passed PHP lint on 12 changed/new PHP files, focused gate 4 files / 2567 assertions / 0 failures, full LightningCSS lane 13 files / 4262 assertions / 0 failures, four example smoke runs, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/lightningcss/src.",
-    "phpPass": 4262,
+    "estimatedProgress": 92.8,
+    "suiteProgress": "Supervisor-integrated LightningCSS target-prefix/source-map/CSSOM/media/import/CSS Modules batch maps logical text-align target prefix helper cases and SourceMap negative generated-line offset strictness, while deepening media condition-function validation, WebKit mask-box-image CSSOM, import graph minifier behavior, and CSS Modules unused-symbol/global handling. Verification passed PHP lint on 39 changed/new PHP files across both accepted lanes, focused gate 12 files / 5799 assertions / 0 failures, full LightningCSS lane 13 files / 4308 assertions / 0 failures, six LightningCSS example smokes, git diff --check, and no WordPress/WP/wp_ source symbols under lanes/lightningcss/src.",
+    "phpPass": 4308,
     "phpFail": 0,
     "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-05-31 supervisor colors/maps/visitors/media batch at source 5606777e: full LightningCSS lane passed 13 files / 4262 assertions / 0 failures. Conservative mapped coverage moves from 2078 / 3532 to 2093 / 3532: +14 same-space relative color() minifier cases and +1 SourceMap VLQ strictness case; media resolution-prefix and custom Declaration visitor work deepen represented clusters.",
-    "currentWork": "Colors/maps/visitors/media batch integrated: same-space relative color() minification, SourceMap missing/null VLQ strictness, fractional resolution media prefixing, and raw Declaration visitor insertion for overflow scrolling.",
+    "audit": "2026-05-31 supervisor batch at source 780cadde: full LightningCSS lane passed 13 files / 4308 assertions / 0 failures. Conservative mapped coverage moves from 2093 / 3532 to 2100 / 3532: +6 logical text-align target-prefix helper cases and +1 SourceMap negative generated-line offset guard; media, CSSOM, import, and CSS Modules work deepen represented clusters.",
+    "currentWork": "Target-prefix/source-map/CSSOM/media/import/CSS Modules batch integrated: logical text-align target prefixing, SourceMap negative generated-line offset guard, WebKit mask-box-image CSSOM, media condition-function validation, import graph minifier edges, and CSS Modules unused-symbol/global handling.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted for this isolated batch; continue current-base PHP parity slices with focused tests, examples, manifest-backed mapping, and periodic full-lane PHP gates.",
-    "latestCommit": "5606777ea25d5f9258f33667d8e2723b2f6eaf4c",
+    "latestCommit": "780caddebe859b165af57ca7a1927a0ed60a9b1f",
     "nextTask": "Keep LightningCSS dominant and prioritize current-base handoffs that add fresh mapped target-prefix, property-value, parser/CSSOM/source-map/bundler/CSS Modules coverage; reject duplicate status-only or already-covered clusters.",
-    "commit": "5606777ea25d5f9258f33667d8e2723b2f6eaf4c"
+    "commit": "780caddebe859b165af57ca7a1927a0ed60a9b1f"
 }
