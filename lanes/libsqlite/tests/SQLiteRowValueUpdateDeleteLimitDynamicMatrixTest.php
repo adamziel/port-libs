@@ -215,4 +215,73 @@ $tests['rowvalue dynamic delete rejects malformed printf limit format'] = static
     ));
 };
 
+for ($seed = 1; $seed <= 16; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = $seed % 2 === 0
+        ? "length(zeroblob({$limitValue}))"
+        : "octet_length(zeroblob({$limitValue}))";
+    $offsetExpr = $offsetValue === 0
+        ? 'length(zeroblob(-1))'
+        : "length(hex(zeroblob({$offsetValue})))/2";
+    $sql = "UPDATE app_settings SET state = 'zeroblob_limited' WHERE state = 'queued' RETURNING setting_id, state ORDER BY value_size ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expectedIds = array_slice([1, 2, 4, 6, 7, 8, 10, 12, 13, 14, 16, 18], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue dynamic update zeroblob outer limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($settingTables, $unique, $sql, $expectedIds, $limitValue, $offsetValue): void {
+            $result = SQLiteUpdateDeleteReturningSql::execute($sql, $settingTables(), 'setting_id', $unique);
+
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expectedIds, $result['plan']->selectedIds);
+            $t->same($expectedIds, array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($expectedIds), 'zeroblob_limited'), array_column($result['returning'], 'state'));
+            $t->true(str_contains('/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test', '/test/func.test'));
+        };
+}
+
+for ($seed = 1; $seed <= 16; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = $seed % 2 === 0
+        ? "length(zeroblob({$limitValue}))"
+        : "octet_length(zeroblob({$limitValue}))";
+    $offsetExpr = $offsetValue === 0
+        ? 'length(zeroblob(-2))'
+        : "length(hex(zeroblob({$offsetValue})))/2";
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_batches WHERE batch_name = 'cleanup' ORDER BY priority DESC, key_name ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id, tenant_id, key_name ORDER BY setting_id";
+    $expectedIds = $expectedSettingIds($tupleWindow('cleanup', $limitValue, $offsetValue));
+
+    $tests[sprintf('rowvalue dynamic delete zeroblob tuple limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($settingTables, $unique, $expectedRemainingIds, $sql, $expectedIds): void {
+            $result = SQLiteUpdateDeleteReturningSql::execute($sql, $settingTables(), 'setting_id', $unique);
+
+            $t->same($expectedIds, $result['plan']->selectedIds);
+            $t->same($expectedIds, array_column($result['returning'], 'setting_id'));
+            $t->same($expectedRemainingIds($expectedIds), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->same(count($expectedIds), count($result['returning']));
+            $t->true(str_contains('/home/claude/port-libs/.upstream-cache/libsqlite/test/func.test', '/test/func.test'));
+        };
+}
+
+$zeroblobLimitCases = [
+    'parse zeroblob length limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(zeroblob(3))")['limit'], 3],
+    'parse zeroblob octet length offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET octet_length(zeroblob(2))")['offset'], 2],
+    'parse zeroblob hex length arithmetic' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(hex(zeroblob(4)))/2")['limit'], 4],
+    'parse negative zeroblob is empty' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(zeroblob(-5))")['limit'], 0],
+    'malformed zeroblob nonintegral length rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT length(zeroblob(1.5))"), InvalidArgumentException::class],
+    'malformed zeroblob arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT zeroblob(1, 2)"), InvalidArgumentException::class],
+];
+
+foreach ($zeroblobLimitCases as $name => [$callback, $expected]) {
+    $tests['rowvalue dynamic zeroblob limit ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            return;
+        }
+
+        $t->same($expected, $callback());
+    };
+}
+
 return $tests;

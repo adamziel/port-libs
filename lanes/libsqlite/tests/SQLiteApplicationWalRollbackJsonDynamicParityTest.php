@@ -673,6 +673,25 @@ foreach ($retryScenarios as $scenario) {
             $t->same($checksumSeed, [(int) $frameHeader['checksum_1'], (int) $frameHeader['checksum_2']]);
         }
     };
+    $tests[$prefix . 'materialized retry marks only final wal frame as commit'] = static function (TestRunner $t) use ($materializedRetryPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $commits = [];
+        foreach ($scenario['expected_retry_pages'] as $index => $_pageNumber) {
+            $frameOffset = 32 + ($index * $frameSize);
+            $frameHeader = unpack('Npage_number/Ncommit', substr($materializedRetryPlan['wal_bytes_after'], $frameOffset, 8));
+            $commits[] = (int) $frameHeader['commit'];
+        }
+        $t->same([0, 0, intdiv(strlen($materializedRetryPlan['database_bytes_after_import']), $pageSize)], $commits);
+    };
+    $tests[$prefix . 'materialized retry commit marker matches imported database page count'] = static function (TestRunner $t) use ($materializedRetryPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $lastFrameOffset = 32 + ((count($scenario['expected_retry_pages']) - 1) * $frameSize);
+        $frameHeader = unpack('Npage_number/Ncommit', substr($materializedRetryPlan['wal_bytes_after'], $lastFrameOffset, 8));
+        $t->same(intdiv(strlen($materializedRetryPlan['database_bytes_after_import']), $pageSize), (int) $frameHeader['commit']);
+        $t->same($scenario['expected_retry_pages'][2], (int) $frameHeader['page_number']);
+    };
 }
 
 foreach ($preexistingRetryScenarios as $scenario) {
@@ -770,6 +789,25 @@ foreach ($preexistingRetryScenarios as $scenario) {
             $t->same($pageNumber, (int) $frameHeader['page_number']);
             $t->same($checksumSeed, [(int) $frameHeader['checksum_1'], (int) $frameHeader['checksum_2']]);
         }
+    };
+    $tests[$prefix . 'materialized retry marks only final appended frame as commit'] = static function (TestRunner $t) use ($materializedRetryPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $commits = [];
+        foreach ($scenario['expected_retry_pages'] as $index => $_pageNumber) {
+            $frameOffset = 32 + (($scenario['preexisting_frames'] + $index) * $frameSize);
+            $frameHeader = unpack('Npage_number/Ncommit', substr($materializedRetryPlan['wal_bytes_after'], $frameOffset, 8));
+            $commits[] = (int) $frameHeader['commit'];
+        }
+        $t->same([0, 0, intdiv(strlen($materializedRetryPlan['database_bytes_after_import']), $pageSize)], $commits);
+    };
+    $tests[$prefix . 'materialized retry final commit follows preserved prefix'] = static function (TestRunner $t) use ($materializedRetryPlan, $scenario): void {
+        $pageSize = (int) $scenario['page_size'];
+        $frameSize = 24 + $pageSize;
+        $lastFrameOffset = 32 + (($scenario['preexisting_frames'] + count($scenario['expected_retry_pages']) - 1) * $frameSize);
+        $frameHeader = unpack('Npage_number/Ncommit', substr($materializedRetryPlan['wal_bytes_after'], $lastFrameOffset, 8));
+        $t->same($scenario['expected_retry_pages'][2], (int) $frameHeader['page_number']);
+        $t->same(intdiv(strlen($materializedRetryPlan['database_bytes_after_import']), $pageSize), (int) $frameHeader['commit']);
     };
 }
 

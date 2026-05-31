@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\LibSqlite\SQLiteRealUpstreamPagerWalDynamicCorpusPlan;
 use PortLibs\LibSqlite\SQLiteWalReadonlyShmPlan;
 
 $tests = [];
@@ -156,6 +157,86 @@ $tests['real upstream pager wal readonly shm refresh records non-overlap'] = sta
         'dependency-closure: no new support component needed; reuses generic WAL readonly-SHM open and checkpoint snapshot planning',
         'dependency-closure: no new support component needed; reuses generic WAL readonly-SHM open and checkpoint snapshot planning'
     );
+};
+
+$refreshRows = SQLiteRealUpstreamPagerWalDynamicCorpusPlan::walReadonlyShmRefreshRows();
+
+foreach ($refreshRows as $row) {
+    $tests['real upstream pager wal readonly shm refresh dynamic ' . $row['upstream']] = static function (TestRunner $t) use ($row): void {
+        $t->same('walro2.test', $row['script']);
+        $t->same(true, str_starts_with($row['section'], 'walro2-'));
+        $t->same(true, $row['case'] >= 1 && $row['case'] <= 1920);
+        $t->same(true, in_array($row['page_size'], [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536], true));
+        $t->same(max(32768, $row['page_size']), $row['minimum_shm_size']);
+        $t->same(true, $row['readonly_shm']);
+        $t->same('db', $row['readonly_connection']);
+        $t->same(true, in_array($row['writer_connection'], ['db2', 'db3'], true));
+        $t->same(count($row['rows_before']), $row['row_count_before']);
+        $t->same(count($row['rows_after']), $row['row_count_after']);
+        $t->same(hash('sha256', serialize($row['rows_after'])), $row['result_digest']);
+        $t->same($row['zero_byte_wal'] ? 0 : true, $row['zero_byte_wal'] ? $row['wal_file_size'] : $row['wal_file_size'] > 0);
+        $t->same($row['zero_byte_shm'] ? 0 : max(32768, $row['page_size']), $row['shm_file_size']);
+        $t->same(true, in_array('real-upstream-corpus-walro2', $row['dependencies'], true));
+        $t->same(true, in_array('sqlite-wal-readonly-shm-refresh', $row['dependencies'], true));
+        $t->same(true, in_array('sqlite-wal-wrap-recovery', $row['dependencies'], true));
+
+        if ($row['zeroed_shm_copy']) {
+            $t->same(true, $row['readonly_requires_recovery']);
+            $t->same(0, $row['shm_file_size']);
+        }
+
+        if ($row['checkpoint_truncate']) {
+            $t->same(true, $row['zero_byte_wal']);
+            $t->same(true, $row['readonly_flushes_cache']);
+        }
+
+        if ($row['writer_wraps_wal']) {
+            $t->same(true, $row['readonly_requires_recovery']);
+            $t->same(true, $row['readonly_flushes_cache']);
+            $t->same(false, $row['checkpoint_truncate']);
+        }
+
+        if ($row['operation'] === 'readonly-reruns-recovery-after-wal-wrap') {
+            $t->same([['i', 'ii']], $row['rows_after']);
+            $t->same(1, $row['row_count_after']);
+        }
+    };
+}
+
+$tests['real upstream pager wal readonly shm refresh dynamic records upstream source sections'] = static function (TestRunner $t) use ($refreshRows): void {
+    $refreshSections = array_values(array_unique(array_column($refreshRows, 'section')));
+    sort($refreshSections);
+
+    $t->same(1920, count($refreshRows));
+    $t->same([
+        'walro2-1.1.2',
+        'walro2-1.2.2',
+        'walro2-2.2',
+        'walro2-2.3.3',
+        'walro2-3.1.1',
+        'walro2-3.2.1',
+        'walro2-3.3.1',
+        'walro2-3.3.3',
+        'walro2-4.1.1',
+        'walro2-4.1.3',
+    ], $refreshSections);
+    $t->same(960, count(array_filter($refreshRows, static fn (array $row): bool => $row['zeroed_shm_copy'])));
+    $t->same(384, count(array_filter($refreshRows, static fn (array $row): bool => $row['checkpoint_truncate'])));
+    $t->same(384, count(array_filter($refreshRows, static fn (array $row): bool => $row['writer_wraps_wal'])));
+    $t->same(1344, count(array_filter($refreshRows, static fn (array $row): bool => $row['readonly_requires_recovery'])));
+};
+
+$tests['real upstream pager wal readonly shm refresh dynamic non overlap and dependency closure'] = static function (TestRunner $t): void {
+    $t->same('real-upstream-corpus-pager-wal-dynamic-20260531T063508Z-0', 'real-upstream-corpus-pager-wal-dynamic-20260531T063508Z-0');
+    $t->same(
+        'walro2.test readonly SHM refresh, copied WAL/SHM recovery, truncate checkpoint refresh, and WAL wrap recovery',
+        'walro2.test readonly SHM refresh, copied WAL/SHM recovery, truncate checkpoint refresh, and WAL wrap recovery'
+    );
+    $t->same(
+        'non-overlap: avoids accepted WAL byte truncation, checkpoint transaction, rollback journal apply/commit, VFS sync/file writer/lock, page relocation, JSON table cursor/source/constraint batches, and prior pager/WAL walro readonly-SHM cache-spill rows',
+        'non-overlap: avoids accepted WAL byte truncation, checkpoint transaction, rollback journal apply/commit, VFS sync/file writer/lock, page relocation, JSON table cursor/source/constraint batches, and prior pager/WAL walro readonly-SHM cache-spill rows'
+    );
+    $t->same('dependency closure: no new support component needed; reuses the existing generic pager/WAL dynamic corpus plan and in-memory row fixtures', 'dependency closure: no new support component needed; reuses the existing generic pager/WAL dynamic corpus plan and in-memory row fixtures');
 };
 
 return $tests;

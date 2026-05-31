@@ -1437,13 +1437,18 @@ final class SQLiteJsonImportRollbackWalPlan
 
         ksort($pendingFrames);
         $nextFrame = $walState['frame_count'] + 1;
+        $databasePageCount = intdiv(strlen($databaseBytes), $pageSize);
+        $pendingCount = count($pendingFrames);
+        $pendingOrdinal = 0;
         foreach ($pendingFrames as $frameIndex => $frame) {
             if ($frameIndex !== $nextFrame) {
                 throw new \InvalidArgumentException(
                     'SQLite Application JSON import rollback success WAL frame indexes must be contiguous after rollback'
                 );
             }
-            $framePrefix = pack('N*', $frame['page_number'], 0, (int) $header['salt_1'], (int) $header['salt_2']);
+            $pendingOrdinal++;
+            $commitPageCount = $pendingOrdinal === $pendingCount ? $databasePageCount : 0;
+            $framePrefix = pack('N*', $frame['page_number'], $commitPageCount, (int) $header['salt_1'], (int) $header['salt_2']);
             $checksumSeed = SQLiteWal::checksumPair(
                 substr($framePrefix, 0, 8) . $frame['page_bytes'],
                 false,
