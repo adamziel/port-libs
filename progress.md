@@ -46,11 +46,30 @@
 - Root filesystem: current supervisor sample reports `/` at 452G size with about 361G available after bounded cache/log/worktree cleanup; `/tmp` has about 7.6G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool includes
-  a dedicated LightningCSS surge target of 22 visible workers plus active
+  a LightningCSS surge currently refilled to 25 visible workers plus active
   libsqlite/Gitoxide workers; the latest refill started LightningCSS workers on
   `gpt-5.5` xhigh with the priority service tier and no long sleeper loop.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (LightningCSS integration 13:35 UTC):
+  source commit `b5247e480ceb7571155a19a973b177b62823e612`
+  (`ports: add lightningcss prefix visitor cssom parity`) landed seven
+  verified LightningCSS handoffs after excluding stale shared
+  status/manifest/progress metadata. LightningCSS full lane evidence moves
+  from `1417` to `1525 pass / 0 fail`, with conservative mapped coverage
+  moving from `1069 / 3532` to `1130 / 3532`: +34 advanced Color 4 value
+  minifier checks, +15 legacy text/sticky target-prefix helper and boundary
+  checks, +8 resolution media-query prefix checks, +3 bundle import-prelude
+  diagnostic checks, and +1 composed unknown custom at-rule visitor check.
+  CSS Modules composes delimiter strictness and CSSOM inset shorthand
+  read/write/remove behavior are verified but counted inside existing
+  denominator clusters. Verification passed PHP lint on changed/new
+  LightningCSS PHP files, diff checks, focused LightningCSS gate `6 files /
+  1303 assertions / 0 failures`, full LightningCSS lane `13 files / 1525
+  assertions / 0 failures`, and seven touched examples. Root aggregate and
+  full upstream LightningCSS Rust/Node runners were not run for this isolated
+  batch.
 
 - 2026-05-31 supervisor continuation (LightningCSS integration 13:25 UTC):
   source commit `1c057c12e3e48a5519e5b4be69c9bac23e39a737`
