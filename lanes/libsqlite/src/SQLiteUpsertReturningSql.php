@@ -23,12 +23,14 @@ final class SQLiteUpsertReturningSql
         $conflictTarget = self::effectiveConflictTarget($parsed['conflict_target'], $uniqueConstraints);
         self::validateConflictTarget($conflictTarget, $uniqueConstraints);
 
+        $incomingRows = self::completeIncomingRowsFromTargetImage($tables[$target], $parsed['incoming_rows']);
+
         if ($parsed['action'] === 'nothing') {
-            $result = self::executeDoNothing($tables[$target], $parsed['incoming_rows'], $conflictTarget, $uniqueConstraints, $omittedConflictTarget);
+            $result = self::executeDoNothing($tables[$target], $incomingRows, $conflictTarget, $uniqueConstraints, $omittedConflictTarget);
         } else {
             $result = SQLiteUpsertDoUpdateWherePlan::execute(
                 $tables[$target],
-                $parsed['incoming_rows'],
+                $incomingRows,
                 $conflictTarget,
                 self::assignmentCallbacks($target, $parsed['target_alias'], $parsed['assignments']),
                 self::wherePredicate($target, $parsed['target_alias'], $parsed['where']),
@@ -41,7 +43,7 @@ final class SQLiteUpsertReturningSql
             'target_alias' => $parsed['target_alias'],
             'conflict_target' => $conflictTarget,
             'columns' => $parsed['columns'],
-            'incoming_rows' => $parsed['incoming_rows'],
+            'incoming_rows' => $incomingRows,
             'before' => $result['before'],
             'after' => $result['after'],
             'inserted_rows' => $result['inserted_rows'],
@@ -50,6 +52,50 @@ final class SQLiteUpsertReturningSql
             'returning' => SQLiteUpsertDoUpdateWherePlan::returningRows($result['returning_rows'], self::returningProjection($target, $parsed['target_alias'], $parsed['returning'])),
             'changes' => $result['changes'],
         ];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $targetRows
+     * @param list<array<string,mixed>> $incomingRows
+     * @return list<array<string,mixed>>
+     */
+    private static function completeIncomingRowsFromTargetImage(array $targetRows, array $incomingRows): array
+    {
+        if ($targetRows === [] || $incomingRows === []) {
+            return $incomingRows;
+        }
+
+        $defaults = [];
+        foreach ($targetRows as $row) {
+            foreach ($row as $column => $value) {
+                if (!is_string($column) || $column === '') {
+                    continue;
+                }
+                if (!array_key_exists($column, $defaults)) {
+                    $defaults[$column] = $value;
+                    continue;
+                }
+                if ($defaults[$column] !== $value) {
+                    $defaults[$column] = null;
+                }
+            }
+        }
+
+        if ($defaults === []) {
+            return $incomingRows;
+        }
+
+        $completed = [];
+        foreach ($incomingRows as $incoming) {
+            foreach ($defaults as $column => $value) {
+                if (!array_key_exists($column, $incoming)) {
+                    $incoming[$column] = $value;
+                }
+            }
+            $completed[] = $incoming;
+        }
+
+        return $completed;
     }
 
     /**

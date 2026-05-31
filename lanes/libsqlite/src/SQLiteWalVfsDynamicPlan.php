@@ -181,4 +181,143 @@ final class SQLiteWalVfsDynamicPlan
     {
         return array_keys(self::SCENARIOS);
     }
+
+    /**
+     * @return array{status:string,script:string,scenario:string,phase:string,operation:string,expected_code:string,message:string,snapshot_frame:int,read_slot:int,readmarks_before:array<int,int>,readmarks_after:array<int,int>,lock_sequence:list<array{slot:int,count:int,op:string,level:string,result:string}>,checkpoint_result:list<int>,retry_count:int,writer_race_frames:int,reader_blocks_restart:bool,backfilled_all_frames:bool,dependencies:list<string>,upstream:list<string>}
+     */
+    public static function readmarkSnapshotBoundary(
+        string $scenario,
+        int $mxFrameBefore,
+        int $writerRaceFrames = 0,
+        int $retryCount = 1
+    ): array {
+        $scenario = trim($scenario);
+        if ($mxFrameBefore < 0 || $writerRaceFrames < 0 || $retryCount < 1) {
+            throw new \InvalidArgumentException('WAL readmark snapshot counts must be non-negative');
+        }
+
+        $readmarks = [
+            0 => 0,
+            1 => $mxFrameBefore,
+            2 => 100,
+            3 => 100,
+            4 => 100,
+        ];
+        $after = $readmarks;
+        $locks = [];
+        $phase = '';
+        $operation = 'xShmLock';
+        $expectedCode = 'SQLITE_OK';
+        $message = 'ok';
+        $readSlot = 1;
+        $snapshot = $mxFrameBefore;
+        $checkpoint = [0, $mxFrameBefore + $writerRaceFrames, $mxFrameBefore];
+        $readerBlocksRestart = false;
+        $backfilledAllFrames = $writerRaceFrames === 0;
+        $upstream = [];
+
+        switch ($scenario) {
+            case 'wal3-6.1':
+                $phase = 'readmark0_backfilled_all_frames_uses_slot0';
+                $readSlot = 0;
+                $snapshot = 0;
+                $after[0] = 0;
+                $locks[] = self::lockEvent(3, 'lock', 'shared');
+                $locks[] = self::lockEvent(3, 'unlock', 'shared');
+                $checkpoint = [0, $mxFrameBefore, $mxFrameBefore];
+                $upstream = ['wal3.test wal3-6.1.1', 'wal3.test wal3-6.1.2', 'wal3.test wal3-6.1.3'];
+                break;
+
+            case 'wal3-6.1-race':
+                $phase = 'readmark0_writer_race_falls_back_to_later_slot';
+                $readSlot = 1;
+                $snapshot = $mxFrameBefore + $writerRaceFrames;
+                $after[1] = $snapshot;
+                $locks[] = self::lockEvent(3, 'lock', 'shared');
+                $locks[] = self::lockEvent(3, 'unlock', 'shared');
+                $locks[] = self::lockEvent(4, 'lock', 'exclusive');
+                $locks[] = self::lockEvent(4, 'unlock', 'exclusive');
+                $locks[] = self::lockEvent(4, 'lock', 'shared');
+                $checkpoint = [1, $snapshot, $mxFrameBefore];
+                $readerBlocksRestart = true;
+                $backfilledAllFrames = false;
+                $upstream = ['wal3.test wal3-6.1.4', 'wal3.test wal3-6.1.5', 'wal3.test wal3-6.1.6', 'wal3.test wal3-6.1.7'];
+                break;
+
+            case 'wal3-7.1':
+                $phase = 'stale_header_first_reader_retries_next_readmark';
+                $readSlot = 2;
+                $snapshot = $mxFrameBefore + $writerRaceFrames;
+                $after[1] = $mxFrameBefore;
+                $after[2] = $snapshot;
+                $locks[] = self::lockEvent(4, 'lock', 'shared');
+                $locks[] = self::lockEvent(4, 'unlock', 'shared');
+                $locks[] = self::lockEvent(5, 'lock', 'shared');
+                $locks[] = self::lockEvent(5, 'unlock', 'shared');
+                $checkpoint = [1, $snapshot, $mxFrameBefore];
+                $readerBlocksRestart = true;
+                $backfilledAllFrames = false;
+                $upstream = ['wal3.test wal3-7.1.1', 'wal3.test wal3-7.1.2', 'wal3.test wal3-7.1.3', 'wal3.test wal3-7.1.4'];
+                break;
+
+            case 'wal3-9':
+                $phase = 'exclusive_readmark_lock_busy_keeps_shared_slot_value';
+                $readSlot = 1;
+                $snapshot = $mxFrameBefore;
+                $expectedCode = 'SQLITE_BUSY';
+                $message = 'exclusive readmark update busy; shared read lock retained';
+                for ($i = 0; $i < $retryCount; $i++) {
+                    $locks[] = self::lockEvent(4, 'lock', 'exclusive', 'SQLITE_BUSY');
+                }
+                $locks[] = self::lockEvent(4, 'lock', 'shared');
+                $checkpoint = [1, $mxFrameBefore + $writerRaceFrames, $mxFrameBefore];
+                $readerBlocksRestart = true;
+                $backfilledAllFrames = false;
+                $upstream = ['wal3.test wal3-9.0', 'wal3.test wal3-9.1', 'wal3.test wal3-9.2', 'wal3.test wal3-9.3', 'wal3.test wal3-9.4'];
+                break;
+
+            default:
+                throw new \InvalidArgumentException('Unsupported wal3 readmark dynamic scenario');
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'wal3.test',
+            'scenario' => $scenario,
+            'phase' => $phase,
+            'operation' => $operation,
+            'expected_code' => $expectedCode,
+            'message' => $message,
+            'snapshot_frame' => $snapshot,
+            'read_slot' => $readSlot,
+            'readmarks_before' => $readmarks,
+            'readmarks_after' => $after,
+            'lock_sequence' => $locks,
+            'checkpoint_result' => $checkpoint,
+            'retry_count' => $scenario === 'wal3-9' ? $retryCount : 0,
+            'writer_race_frames' => $writerRaceFrames,
+            'reader_blocks_restart' => $readerBlocksRestart,
+            'backfilled_all_frames' => $backfilledAllFrames,
+            'dependencies' => [
+                'sqlite-upstream-wal3-test',
+                'sqlite-wal-readmark-snapshot-boundary',
+                'sqlite-vfs-shm-lock-dynamic',
+            ],
+            'upstream' => $upstream,
+        ];
+    }
+
+    /**
+     * @return array{slot:int,count:int,op:string,level:string,result:string}
+     */
+    private static function lockEvent(int $slot, string $op, string $level, string $result = 'SQLITE_OK'): array
+    {
+        return [
+            'slot' => $slot,
+            'count' => 1,
+            'op' => $op,
+            'level' => $level,
+            'result' => $result,
+        ];
+    }
 }

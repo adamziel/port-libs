@@ -3330,7 +3330,7 @@ final class SQLiteSelectSql
                 if ($leftValue === null || $rightValue === null) {
                     return false;
                 }
-                if (self::joinValueKey($leftValue) !== self::joinValueKey($rightValue)) {
+                if (!self::joinValuesEqual($leftValue, $rightValue)) {
                     return false;
                 }
             }
@@ -3433,6 +3433,22 @@ final class SQLiteSelectSql
         }
 
         throw new \InvalidArgumentException('SQLite SELECT SQL JOIN USING values must be scalar, BLOB, or NULL');
+    }
+
+    private static function joinValuesEqual(mixed $leftValue, mixed $rightValue): bool
+    {
+        self::joinValueKey($leftValue);
+        self::joinValueKey($rightValue);
+
+        if ($leftValue instanceof SQLiteBlobValue || $rightValue instanceof SQLiteBlobValue) {
+            return self::joinValueKey($leftValue) === self::joinValueKey($rightValue);
+        }
+
+        if (is_numeric($leftValue) && is_numeric($rightValue)) {
+            return (float) $leftValue == (float) $rightValue;
+        }
+
+        return self::joinValueKey($leftValue) === self::joinValueKey($rightValue);
     }
 
     /**

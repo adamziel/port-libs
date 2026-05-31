@@ -260,6 +260,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
         'index.test',
         'index2.test',
         'index3.test',
+        'index4.test',
         'index5.test',
         'index6.test',
         'index7.test',
@@ -276,6 +277,7 @@ $tests['real upstream btree index dynamic corpus source files are explicit'] = s
         'index.test',
         'index2.test',
         'index3.test',
+        'index4.test',
         'index5.test',
         'index6.test',
         'index7.test',
@@ -299,6 +301,7 @@ $tests['real upstream btree index dynamic corpus count is non overlapping'] = st
     $t->same(1080, count(SQLiteBTreeIndexDynamicCorpusPlan::indexAPartialAffinityMatrixCases()));
     $t->same(1200, count(SQLiteBTreeIndexDynamicCorpusPlan::index5SequentialWriteCases()));
     $t->same(1200, count(SQLiteBTreeIndexDynamicCorpusPlan::index3QuotedIdentifierCompatibilityCases()));
+    $t->same(1200, count(SQLiteBTreeIndexDynamicCorpusPlan::index4CreateIndexStressCases()));
     $t->same(1200, count(SQLiteBTreeIndexDynamicCorpusPlan::indexExpressionDynamicCases()));
     $t->same(1000, count(SQLiteBTreeIndexDynamicCorpusPlan::autoindex1PlannerCases()));
     $t->same(1000, count(SQLiteBTreeIndexDynamicCorpusPlan::index2DynamicWideColumnOrderCases()));
@@ -306,7 +309,7 @@ $tests['real upstream btree index dynamic corpus count is non overlapping'] = st
 };
 
 $tests['real upstream btree index dynamic corpus dependency closure'] = static function (TestRunner $t): void {
-    $t->same('no new support component needed; reuses lane-local B-tree/index page, record, planner, automatic-index, partial-index, wide-column ordering, write-order, expression-index, quoted-identifier, and cursor-case helpers', 'no new support component needed; reuses lane-local B-tree/index page, record, planner, automatic-index, partial-index, wide-column ordering, write-order, expression-index, quoted-identifier, and cursor-case helpers');
+    $t->same('no new support component needed; reuses lane-local B-tree/index page, record, planner, automatic-index, partial-index, wide-column ordering, write-order, create-index stress, expression-index, quoted-identifier, and cursor-case helpers', 'no new support component needed; reuses lane-local B-tree/index page, record, planner, automatic-index, partial-index, wide-column ordering, write-order, create-index stress, expression-index, quoted-identifier, and cursor-case helpers');
 };
 
 return $tests;

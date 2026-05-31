@@ -60,7 +60,7 @@ final class SQLitePragmaSchemaCatalog
         private readonly array $collations = self::DEFAULT_COLLATIONS,
     ) {
         foreach ($records as $record) {
-            if ($record->type === 'table') {
+            if ($record->type === 'table' || $record->type === 'view') {
                 $this->tables[strtolower($record->name)] = $record;
                 continue;
             }
@@ -169,7 +169,9 @@ final class SQLitePragmaSchemaCatalog
             return [];
         }
 
-        $columns = self::columnsFromCreateTable($record->sql);
+        $columns = $record->type === 'view'
+            ? $this->columnsFromCreateView($record->sql)
+            : self::columnsFromCreateTable($record->sql);
         $rows = [];
         foreach ($columns as $cid => $column) {
             if ($column['hidden'] !== 0 && !$includeHidden) {
@@ -489,6 +491,96 @@ final class SQLitePragmaSchemaCatalog
         }
 
         return count(self::splitTopLevel($projection, ','));
+    }
+
+    /**
+     * @return list<array{name: string, type: string, notNull: bool, default: string|null, primaryKey: int, hidden: int}>
+     */
+    private function columnsFromCreateView(string $sql): array
+    {
+        $identifier = '(?:"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)';
+        if (!preg_match('/^\s*CREATE\s+(?:TEMP(?:ORARY)?\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?' . $identifier . '\s*(?:\((?<aliases>.*?)\))?\s+AS\s+SELECT\s+(?<projection>.*?)\s+FROM\s+(?<source>' . $identifier . ')/is', $sql, $matches)) {
+            return [];
+        }
+
+        $source = self::unquoteIdentifier($matches['source']);
+        $sourceColumns = $this->tableColumns($source);
+        if ($sourceColumns === []) {
+            return [];
+        }
+
+        $aliases = [];
+        if (($matches['aliases'] ?? '') !== '') {
+            foreach (self::splitTopLevel($matches['aliases'], ',') as $alias) {
+                $aliasIdentifier = self::readIdentifier($alias, 0);
+                if ($aliasIdentifier !== null) {
+                    $aliases[] = $aliasIdentifier['identifier'];
+                }
+            }
+        }
+
+        $columns = [];
+        foreach (self::splitTopLevel($matches['projection'], ',') as $projection) {
+            $projection = trim($projection);
+            if ($projection === '*') {
+                array_push($columns, ...$sourceColumns);
+                continue;
+            }
+            if (preg_match('/^(?<table>' . $identifier . ')\s*\.\s*\*$/i', $projection, $starMatch) === 1) {
+                array_push($columns, ...$sourceColumns);
+                continue;
+            }
+
+            $name = self::viewProjectionName($projection);
+            if ($name === null) {
+                return [];
+            }
+            $sourceColumn = self::columnByName($sourceColumns, $name);
+            $columns[] = $sourceColumn ?? [
+                'name' => $name,
+                'type' => '',
+                'notNull' => false,
+                'default' => null,
+                'primaryKey' => 0,
+                'hidden' => 0,
+            ];
+        }
+
+        foreach ($aliases as $offset => $alias) {
+            if (!isset($columns[$offset])) {
+                break;
+            }
+            $columns[$offset]['name'] = $alias;
+        }
+
+        return $columns;
+    }
+
+    private static function viewProjectionName(string $projection): ?string
+    {
+        if (preg_match('/\s+AS\s+(?<alias>"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)\s*$/i', $projection, $matches) === 1) {
+            return self::unquoteIdentifier($matches['alias']);
+        }
+        if (preg_match('/^(?<column>"(?:""|[^"])+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*)(?:\s+COLLATE\s+[A-Za-z_][A-Za-z0-9_]*)?$/i', $projection, $matches) === 1) {
+            return self::unquoteIdentifier($matches['column']);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<array{name: string, type: string, notNull: bool, default: string|null, primaryKey: int, hidden: int}> $columns
+     * @return array{name: string, type: string, notNull: bool, default: string|null, primaryKey: int, hidden: int}|null
+     */
+    private static function columnByName(array $columns, string $name): ?array
+    {
+        foreach ($columns as $column) {
+            if (strcasecmp($column['name'], $name) === 0) {
+                return $column;
+            }
+        }
+
+        return null;
     }
 
     /**

@@ -304,6 +304,151 @@ final class SQLiteJsonImportRollbackWalPlan
         return $scenarios;
     }
 
+    /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicRetryAfterRollbackScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL rollback retry dynamic parity requires at least one scenario');
+        }
+
+        $scenarios = [];
+        for ($seed = 1; $seed <= $scenarioCount; $seed++) {
+            $pageSize = $seed % 2 === 0 ? 1024 : 512;
+            $tenantId = 900 + $seed;
+            $featurePage = 6 + ($seed % 5);
+            $catalogPage = 120 + $seed;
+            $brokenPage = 170 + $seed;
+            $walFramesBefore = 6 + ($seed % 4);
+            $jsonbMode = $seed % 2 === 0;
+
+            $rows = [
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 1000 + 1,
+                    'key_name' => 'retry_feature_flags_' . $seed,
+                    'key_value' => json_encode(['enabled' => false, 'retry' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'yes',
+                    'page_number' => $featurePage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 1000 + 2,
+                    'key_name' => 'retry_catalog_payload_' . $seed,
+                    'key_value' => $jsonbMode
+                        ? new SQLiteBlobValue(SQLiteJsonB::encode(['items' => ['before'], 'version' => $seed]))
+                        : json_encode(['items' => ['before'], 'version' => $seed], JSON_THROW_ON_ERROR),
+                    'load_policy' => 'no',
+                    'page_number' => $catalogPage,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'setting_id' => $seed * 1000 + 3,
+                    'key_name' => 'retry_broken_payload_' . $seed,
+                    'key_value' => '{"broken":',
+                    'load_policy' => 'no',
+                    'page_number' => $brokenPage,
+                ],
+            ];
+
+            $failedMutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'retry_enable_feature_failed_batch_' . $seed,
+                    'key_name' => 'retry_feature_flags_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'retry_append_catalog_failed_batch_' . $seed,
+                    'key_name' => 'retry_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.items',
+                    'value' => new SQLiteJsonSubtypeValue(json_encode(['before', 'discarded-' . $seed], JSON_THROW_ON_ERROR)),
+                    'wal_frame_index' => 2,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'retry_broken_payload_failed_batch_' . $seed,
+                    'key_name' => 'retry_broken_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => 3,
+                ],
+            ];
+
+            $databaseBytes = self::scenarioDatabaseBytes($pageSize, max($brokenPage, $catalogPage, $featurePage));
+            $walBytes = self::scenarioWalBytes($pageSize, $walFramesBefore, 0x7a00 + $seed, 0x7b00 + $seed);
+            $failedPlan = self::plan($rows, $failedMutations, [
+                'database_bytes' => $databaseBytes,
+                'page_size' => $pageSize,
+                'wal_bytes' => $walBytes,
+                'transaction' => 'application_retry_json_import_failed_' . $seed,
+                'savepoint' => 'retry_json_batch_failed_' . $seed,
+            ]);
+
+            $retryRows = $rows;
+            $retryRows[2]['key_value'] = json_encode(['fixed' => false, 'retry' => $seed], JSON_THROW_ON_ERROR);
+            $retryMutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'retry_enable_feature_' . $seed,
+                    'key_name' => 'retry_feature_flags_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.enabled',
+                    'value' => true,
+                    'wal_frame_index' => 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'retry_append_catalog_' . $seed,
+                    'key_name' => 'retry_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.items',
+                    'value' => new SQLiteJsonSubtypeValue(json_encode(['before', 'kept-' . $seed], JSON_THROW_ON_ERROR)),
+                    'wal_frame_index' => 2,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'retry_mark_fixed_payload_' . $seed,
+                    'key_name' => 'retry_broken_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.fixed',
+                    'value' => true,
+                    'wal_frame_index' => 3,
+                ],
+            ];
+
+            $retryPlan = self::plan($retryRows, $retryMutations, [
+                'database_bytes' => $failedPlan['restored_database_bytes'],
+                'page_size' => $pageSize,
+                'wal_bytes' => $failedPlan['wal_bytes_after'],
+                'transaction' => 'application_retry_json_import_success_' . $seed,
+                'savepoint' => 'retry_json_batch_success_' . $seed,
+            ]);
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $tenantId,
+                'page_size' => $pageSize,
+                'jsonb_mode' => $jsonbMode,
+                'wal_frames_before' => $walFramesBefore,
+                'database_bytes' => $databaseBytes,
+                'wal_bytes' => $walBytes,
+                'expected_retry_pages' => [$featurePage, $catalogPage, $brokenPage],
+                'failed_plan' => $failedPlan,
+                'retry_plan' => $retryPlan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
     private static function emptyWalBytes(int $pageSize): string
     {
         return pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 0, 0x51, 0x52, 0, 0);

@@ -7,6 +7,56 @@ namespace PortLibs\LibSqlite;
 final class SQLiteUpstreamTriggerFkeyDynamicPlan
 {
     /** @return array<string,mixed> */
+    public static function trigger6EvaluateOnce(): array
+    {
+        $cases = [];
+        for ($seed = 1; $seed <= 80; $seed++) {
+            $counter = $seed - 1;
+            $insertSimple = self::trigger6Counter($counter, []);
+            $insertExpression = self::trigger6Counter($counter, [2, 3]) + 4;
+            $updateValue = self::trigger6Counter($counter, [5]);
+
+            $cases[] = [
+                'case' => 'trigger6-1.' . (($seed % 6) + 1),
+                'variant' => $seed,
+                'source' => 'trigger6.test',
+                'insert_simple' => [
+                    'statement_row' => ['x' => 1, 'y' => $insertSimple],
+                    'trigger_log' => ['trigger' => 1, 'new_x' => 1, 'new_y' => $insertSimple],
+                    'counter_after' => $seed,
+                    'evaluations' => 1,
+                    'new_matches_statement' => true,
+                ],
+                'insert_expression' => [
+                    'statement_row' => ['x' => 2, 'y' => $insertExpression],
+                    'trigger_log' => ['trigger' => 1, 'new_x' => 2, 'new_y' => $insertExpression],
+                    'counter_after' => $seed + 1,
+                    'evaluations' => 1,
+                    'new_matches_statement' => true,
+                ],
+                'update_expression' => [
+                    'statement_row' => ['x' => 2, 'y' => $updateValue],
+                    'trigger_log' => ['trigger' => 2, 'new_x' => 2, 'new_y' => $updateValue],
+                    'counter_after' => $seed + 2,
+                    'evaluations' => 1,
+                    'new_matches_statement' => true,
+                ],
+            ];
+        }
+
+        return [
+            'source' => 'trigger6.test',
+            'scenarios' => ['trigger6-1.1', 'trigger6-1.2', 'trigger6-1.3', 'trigger6-1.4', 'trigger6-1.5', 'trigger6-1.6'],
+            'cases' => $cases,
+            'dependencies' => [
+                'sqlite-upstream-trigger6-insert-expression-evaluated-once',
+                'sqlite-upstream-trigger6-update-expression-evaluated-once',
+                'sqlite-upstream-trigger6-new-row-uses-statement-expression-value',
+            ],
+        ];
+    }
+
+    /** @return array<string,mixed> */
     public static function triggerGRecursiveOnce(): array
     {
         $baseValues = [0, 2, 3, 8, 9];
@@ -202,6 +252,14 @@ final class SQLiteUpstreamTriggerFkeyDynamicPlan
                 'sqlite-upstream-trigger2-temp-table-trigger-timing',
             ],
         ];
+    }
+
+    /** @param list<mixed> $args */
+    private static function trigger6Counter(int &$counter, array $args): int
+    {
+        $counter++;
+
+        return $counter;
     }
 
     /**
