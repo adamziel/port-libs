@@ -56,13 +56,14 @@ final class GitObject
         }
 
         $header = substr($bytes, 0, $nul);
-        if (!preg_match('/^(blob|tree|commit|tag) ([0-9]+)$/', $header, $matches)) {
+        if (!preg_match('/^(blob|tree|commit|tag) ([+]?[0-9]+)$/', $header, $matches)) {
             throw new \InvalidArgumentException('Invalid Git object header: ' . $header);
         }
+        $size = self::parseLooseHeaderSize($matches[2], $header);
 
         return [
             'type' => $matches[1],
-            'size' => (int) $matches[2],
+            'size' => $size,
             'headerLength' => $nul + 1,
         ];
     }
@@ -82,5 +83,24 @@ final class GitObject
         if (!in_array($type, ['blob', 'tree', 'commit', 'tag'], true)) {
             throw new \InvalidArgumentException("Unsupported Git object type: {$type}");
         }
+    }
+
+    private static function parseLooseHeaderSize(string $size, string $header): int
+    {
+        if (str_starts_with($size, '+')) {
+            $size = substr($size, 1);
+        }
+
+        if ($size === '') {
+            throw new \InvalidArgumentException('Invalid Git object header: ' . $header);
+        }
+
+        $max = (string) PHP_INT_MAX;
+        $trimmed = ltrim($size, '0');
+        if ($trimmed !== '' && (strlen($trimmed) > strlen($max) || (strlen($trimmed) === strlen($max) && strcmp($trimmed, $max) > 0))) {
+            throw new \InvalidArgumentException('Git object size exceeds PHP integer range: ' . $header);
+        }
+
+        return (int) $size;
     }
 }

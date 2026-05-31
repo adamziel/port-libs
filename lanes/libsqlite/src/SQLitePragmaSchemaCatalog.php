@@ -694,6 +694,7 @@ final class SQLitePragmaSchemaCatalog
             'foreign_key_list' => self::plainVirtualColumns(['id', 'seq', 'table', 'from', 'to', 'on_update', 'on_delete', 'match'], ['arg', 'schema']),
             'table_list' => self::plainVirtualColumns(['schema', 'name', 'type', 'ncol', 'wr', 'strict'], ['arg']),
             'function_list' => self::plainVirtualColumns(['name', 'builtin', 'type', 'enc', 'narg', 'flags']),
+            'collation_list' => self::plainVirtualColumns(['seq', 'name']),
             'module_list', 'pragma_list' => self::plainVirtualColumns(['name']),
             default => null,
         };

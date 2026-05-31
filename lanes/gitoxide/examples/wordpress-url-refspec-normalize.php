@@ -19,12 +19,19 @@ $push = array_map(
     static fn (string $spec): array => RefSpec::parsePush($spec)->toArray(),
     $fixture['pushRefspecs']
 );
+$oversizedRemoteRejected = false;
+try {
+    GitUrl::parse($fixture['oversizedRemoteUrl']);
+} catch (InvalidArgumentException) {
+    $oversizedRemoteRejected = true;
+}
 
 $summary = [
     'remote' => $remote->toArray(),
     'localMirror' => $localMirror->toArray(),
     'fetch' => $fetch,
     'push' => $push,
+    'oversizedRemoteRejected' => $oversizedRemoteRejected,
     'deploymentRemoteSafe' => $remote->userArgumentSafe() === $fixture['expectedRemoteUser']
         && $remote->hostArgumentSafe() === $fixture['expectedRemoteHost']
         && $remote->pathArgumentSafe() === $fixture['expectedRemotePath'],
@@ -52,6 +59,9 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if (array_column($summary['push'], 'normalized') !== $fixture['expectedPushNormalized']) {
         throw new RuntimeException('Unexpected normalized push refspecs');
+    }
+    if ($summary['oversizedRemoteRejected'] !== $fixture['expectedOversizedRemoteRejected']) {
+        throw new RuntimeException('Unexpected oversized remote URL preflight result');
     }
 }
 

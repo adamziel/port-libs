@@ -668,6 +668,7 @@ final class SparseCheckoutSpec
                 $root,
                 false,
                 true,
+                $ignoreCase,
             );
 
             return self::pathspecRule(
@@ -772,6 +773,7 @@ final class SparseCheckoutSpec
             $root,
             $directoryOnly,
             $literal,
+            $ignoreCase,
         );
         $always = $pattern === '';
 
@@ -842,6 +844,7 @@ final class SparseCheckoutSpec
         string $root = '',
         bool $directoryOnly = false,
         bool $literal = false,
+        bool $ignoreCase = false,
     ): array
     {
         if (str_contains($path, "\0") || str_contains($prefix, "\0")) {
@@ -887,7 +890,7 @@ final class SparseCheckoutSpec
         $normalized = implode('/', array_map(static fn (array $part): string => $part['part'], $parts));
 
         if ($absolute) {
-            $caseSensitivePrefix = self::absoluteCaseSensitivePrefix($normalized, $directoryOnly, $literal);
+            $caseSensitivePrefix = self::absoluteCaseSensitivePrefix($normalized, $directoryOnly, $literal, $ignoreCase);
         }
 
         return [$normalized, implode('/', $caseSensitivePrefix)];
@@ -937,17 +940,22 @@ final class SparseCheckoutSpec
     /**
      * @return list<string>
      */
-    private static function absoluteCaseSensitivePrefix(string $path, bool $directoryOnly, bool $literal): array
+    private static function absoluteCaseSensitivePrefix(
+        string $path,
+        bool $directoryOnly,
+        bool $literal,
+        bool $ignoreCase,
+    ): array
     {
         if ($path === '') {
             return [];
         }
         if ($directoryOnly) {
-            return !$literal && self::patternHasWildcard($path) ? [] : explode('/', $path);
+            return !$literal && !$ignoreCase && self::patternHasWildcard($path) ? [] : explode('/', $path);
         }
 
         $directory = self::dirname($path);
-        if ($directory === '' || (!$literal && self::patternHasWildcard($directory))) {
+        if ($directory === '' || (!$literal && !$ignoreCase && self::patternHasWildcard($directory))) {
             return [];
         }
 

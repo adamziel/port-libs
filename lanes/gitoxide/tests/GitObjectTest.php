@@ -45,6 +45,28 @@ return [
             ], GitObject::decodeLooseHeader($expected));
         }
     },
+    'loose header decoding accepts upstream positive signed sizes and canonicalizes writes' => static function (TestRunner $t): void {
+        $storage = "blob +4\0data";
+        $t->same([
+            'type' => 'blob',
+            'size' => 4,
+            'headerLength' => strlen("blob +4\0"),
+        ], GitObject::decodeLooseHeader($storage));
+
+        $fromLoose = GitObject::fromLooseBytes($storage . 'read-ahead');
+        $fromStorage = GitObject::fromStorageBytes($storage);
+        $t->same('blob', $fromLoose->type);
+        $t->same('data', $fromLoose->body);
+        $t->same('data', $fromStorage->body);
+        $t->same("blob 4\0data", $fromStorage->storageBytes());
+        $t->same(hash('sha1', "blob 4\0data"), $fromStorage->oid());
+        $t->same(hash('sha1', "blob 4\0data"), GitObject::fromLooseBytes($storage)->oid());
+        $t->same(false, GitObject::fromLooseBytes($storage)->oid() === hash('sha1', $storage));
+
+        $t->throws(InvalidArgumentException::class, static fn () => GitObject::decodeLooseHeader("blob +\0"));
+        $t->throws(InvalidArgumentException::class, static fn () => GitObject::decodeLooseHeader("blob -4\0"));
+        $t->throws(InvalidArgumentException::class, static fn () => GitObject::decodeLooseHeader("blob 4x\0"));
+    },
     'from loose bytes rejects short payloads and parses the advertised body prefix' => static function (TestRunner $t): void {
         try {
             GitObject::fromLooseBytes("tree 1000\0");
@@ -209,6 +231,38 @@ return [
 
         $t->throws(RuntimeException::class, static fn () => $store->readHeader($blockedOid));
     },
+    'loose object integrity accepts positive signed size headers only under canonical ids' => static function (TestRunner $t) use ($writeLooseStorage): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-integrity-plus-size-' . bin2hex(random_bytes(4)) . '/objects';
+        $canonicalObject = new GitObject('blob', 'data');
+        $canonicalOid = $canonicalObject->oid();
+        $positiveHeaderStorage = "blob +4\0data";
+        $writeLooseStorage($objectsDirectory, $canonicalOid, $positiveHeaderStorage);
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+
+        $t->same([
+            'type' => 'blob',
+            'size' => 4,
+            'headerLength' => strlen("blob +4\0"),
+        ], $store->readHeader($canonicalOid));
+        $t->same('data', $store->read($canonicalOid)->body);
+        $t->same([
+            'numObjects' => 1,
+            'verifiedObjectIds' => [$canonicalOid],
+        ], $store->verifyIntegrity());
+
+        $nonCanonicalStore = LooseObjectStore::fromObjectsDirectory(sys_get_temp_dir() . '/port-libs-git-integrity-plus-size-mismatch-' . bin2hex(random_bytes(4)) . '/objects');
+        $nonCanonicalOid = hash('sha1', $positiveHeaderStorage);
+        $writeLooseStorage($nonCanonicalStore->objectsDirectory(), $nonCanonicalOid, $positiveHeaderStorage);
+        $t->same('data', $nonCanonicalStore->read($nonCanonicalOid)->body);
+        try {
+            $nonCanonicalStore->verifyIntegrity();
+            throw new RuntimeException('Expected positive-size noncanonical loose object path to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains('Loose object hash mismatch', $exception->getMessage());
+            $t->contains($nonCanonicalOid, $exception->getMessage());
+            $t->contains($canonicalOid, $exception->getMessage());
+        }
+    },
     'invalid storage header is rejected' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => GitObject::fromStorageBytes("blob nope\0body"));
     },
@@ -223,5 +277,8 @@ return [
         $t->same($fixture['expectedBlobSha256'], $summary['sha256Oid']);
         $t->same(true, $summary['readAheadIgnored']);
         $t->same(true, $summary['strictStorageRejectsReadAhead']);
+        $t->same(true, $summary['positiveSizeHeaderAccepted']);
+        $t->same($fixture['expectedBlobOid'], $summary['positiveSizeCanonicalOid']);
+        $t->same($fixture['positiveSizeLooseHeaderOid'], $summary['positiveSizeRawHeaderOid']);
     },
 ];

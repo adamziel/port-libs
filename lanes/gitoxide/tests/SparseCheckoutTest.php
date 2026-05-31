@@ -397,4 +397,33 @@ return [
             static fn () => SparseCheckoutSpec::fromPathspecs([$root . '/wp-config.php'], root: 'relative/root'),
         );
     },
+    'pathspec sparse checkout keeps absolute wildcard prefixes case sensitive under icase' => static function (TestRunner $t): void {
+        $root = '/srv/www/example.com/current';
+        $foldedAbsoluteWildcard = SparseCheckoutSpec::fromPathspecs([
+            ':(icase)' . $root . '/*/readme.md',
+        ], root: $root);
+
+        $t->same(false, $foldedAbsoluteWildcard->includesPath('wp-content/README.md', false));
+        $t->same(false, $foldedAbsoluteWildcard->includesPath('WP-CONTENT/README.md', false));
+        $t->same(true, $foldedAbsoluteWildcard->includesPath('*/README.md', false));
+        $t->same(true, $foldedAbsoluteWildcard->includesPath('*', true));
+        $t->same(false, $foldedAbsoluteWildcard->includesPath('wp-content', true));
+
+        $nestedFoldedAbsoluteWildcard = SparseCheckoutSpec::fromPathspecs([
+            ':(icase)' . $root . '/wp-content/*/readme.md',
+        ], root: $root);
+
+        $t->same(false, $nestedFoldedAbsoluteWildcard->includesPath('wp-content/plugins/README.md', false));
+        $t->same(true, $nestedFoldedAbsoluteWildcard->includesPath('wp-content/*/README.md', false));
+        $t->same(true, $nestedFoldedAbsoluteWildcard->includesPath('wp-content/*', true));
+        $t->same(false, $nestedFoldedAbsoluteWildcard->includesPath('wp-content/plugins', true));
+
+        $ordinaryAbsoluteWildcard = SparseCheckoutSpec::fromPathspecs([
+            $root . '/*/readme.md',
+        ], root: $root);
+
+        $t->same(true, $ordinaryAbsoluteWildcard->includesPath('wp-content/readme.md', false));
+        $t->same(false, $ordinaryAbsoluteWildcard->includesPath('wp-content/README.md', false));
+        $t->same(true, $ordinaryAbsoluteWildcard->includesPath('wp-content', true));
+    },
 ];

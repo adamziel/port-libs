@@ -164,7 +164,7 @@ final class SQLiteSelectSql
             self::requiredWildcardPrefixes($selectSql),
         );
         $select = self::selectList($selectSql, $tables);
-        $select = self::annotateWildcardColumns($select, $source['from']);
+        $select = self::annotateWildcardColumns($select, self::wildcardAnnotationRows($source));
         $plan = [
             'from' => $source['from'],
             'select' => $select,
@@ -6071,6 +6071,12 @@ final class SQLiteSelectSql
      */
     private static function rewriteAggregateExpression(array $expression, ?string $valueColumn): array
     {
+        if (($expression['type'] ?? null) === 'wildcard') {
+            $expression['aggregateWildcard'] = true;
+
+            return $expression;
+        }
+
         $aggregate = self::aggregateSummaryColumn($expression, $valueColumn);
         if ($aggregate === null) {
             foreach (['left', 'right', 'operand'] as $side) {
@@ -6274,7 +6280,12 @@ final class SQLiteSelectSql
                     throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal needs source columns');
                 }
                 if ($remaining <= count($columns)) {
-                    throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal target is not supported');
+                    $column = $columns[$remaining - 1];
+                    if (!is_string($column) || $column === '') {
+                        throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal target is malformed');
+                    }
+
+                    return $column;
                 }
                 $remaining -= count($columns);
                 continue;
@@ -6315,7 +6326,7 @@ final class SQLiteSelectSql
                     throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal needs source columns');
                 }
                 if ($remaining <= count($columns)) {
-                    throw new \InvalidArgumentException('SQLite SELECT SQL ORDER BY wildcard ordinal target is not supported');
+                    return null;
                 }
                 $remaining -= count($columns);
                 continue;
@@ -6414,6 +6425,44 @@ final class SQLiteSelectSql
         }
 
         return $select;
+    }
+
+    /**
+     * @param array{from:list<array<string,mixed>>,joins?:list<array<string,mixed>>} $source
+     * @return list<array<string,mixed>>
+     */
+    private static function wildcardAnnotationRows(array $source): array
+    {
+        $columns = self::collectColumns($source['from']);
+        $joins = $source['joins'] ?? [];
+        if (!is_array($joins) || !array_is_list($joins)) {
+            return $source['from'];
+        }
+
+        foreach ($joins as $join) {
+            if (!is_array($join)) {
+                continue;
+            }
+            $rightColumns = $join['rightColumns'] ?? null;
+            if (is_array($rightColumns) && array_is_list($rightColumns)) {
+                foreach ($rightColumns as $column) {
+                    if (is_string($column) && !in_array($column, $columns, true)) {
+                        $columns[] = $column;
+                    }
+                }
+                continue;
+            }
+            $rows = $join['rows'] ?? null;
+            if (is_array($rows) && array_is_list($rows)) {
+                foreach (self::collectColumns($rows) as $column) {
+                    if (!in_array($column, $columns, true)) {
+                        $columns[] = $column;
+                    }
+                }
+            }
+        }
+
+        return $columns === [] ? $source['from'] : [array_fill_keys($columns, null)];
     }
 
     /**

@@ -117,7 +117,7 @@ final class DeclarationBlock
     public function getProperty(string $block, string $property): ?array
     {
         $property = $this->normalizeProperty($property);
-        $entries = $this->parseEntries($block);
+        $entries = $this->cssomOrderedEntries($this->parseEntries($block));
         $boxValue = $this->getBoxProperty($entries, $property);
         if ($boxValue !== null) {
             return $boxValue;
@@ -1665,25 +1665,42 @@ final class DeclarationBlock
             throw new \InvalidArgumentException('CSS declaration value cannot be empty');
         }
 
-        $entries = $this->parseEntries($block);
+        [$normalEntries, $importantEntries] = $this->partitionEntriesByImportance($this->parseEntries($block));
+        if ($important) {
+            $normalEntries = $this->removeEntriesWithPropertyId($normalEntries, $property);
+            $importantEntries = $this->setPropertyWithinPriority($importantEntries, $property, $value, true);
+        } else {
+            $importantEntries = $this->removeEntriesWithPropertyId($importantEntries, $property);
+            $normalEntries = $this->setPropertyWithinPriority($normalEntries, $property, $value, false);
+        }
+
+        return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function setPropertyWithinPriority(array $entries, string $property, string $value, bool $important): array
+    {
         if ($this->isBoxLonghand($property)) {
-            return $this->setBoxLonghand($entries, $property, $value, $important);
+            return $this->parseEntries($this->setBoxLonghand($entries, $property, $value, $important));
         }
         $backgroundValue = $this->setBackgroundPositionLonghand($entries, $property, $value, $important);
         if ($backgroundValue !== null) {
-            return $backgroundValue;
+            return $this->parseEntries($backgroundValue);
         }
         $flexValue = $this->setFlexLonghand($entries, $property, $value, $important);
         if ($flexValue !== null) {
-            return $flexValue;
+            return $this->parseEntries($flexValue);
         }
         $animationValue = $this->setAnimationNameLonghand($entries, $property, $value, $important);
         if ($animationValue !== null) {
-            return $animationValue;
+            return $this->parseEntries($animationValue);
         }
         $logicalBoxValue = $this->setLogicalBoxProperty($entries, $property, $value, $important);
         if ($logicalBoxValue !== null) {
-            return $logicalBoxValue;
+            return $this->parseEntries($logicalBoxValue);
         }
 
         $lastMatch = null;
@@ -1705,7 +1722,7 @@ final class DeclarationBlock
             $entries[$lastMatch] = $replacement;
         }
 
-        return $this->serializeEntries($entries);
+        return $entries;
     }
 
     /**
@@ -2038,28 +2055,53 @@ final class DeclarationBlock
     public function removeProperty(string $block, string $property): string
     {
         $property = $this->normalizeProperty($property);
+        [$normalEntries, $importantEntries] = $this->partitionEntriesByImportance($this->parseEntries($block));
+
         if ($this->isBoxShorthand($property)) {
-            return $this->serializeEntries(array_values(array_filter(
-                $this->parseEntries($block),
-                fn (array $entry): bool => $entry['property'] !== $property
-                    && !$this->isBoxLonghandFor($entry['property'], $property)
-            )));
+            $normalEntries = $this->removeBoxShorthandWithinPriority($normalEntries, $property);
+            $importantEntries = $this->removeBoxShorthandWithinPriority($importantEntries, $property);
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
 
         if ($this->isBoxLonghand($property)) {
-            return $this->removeBoxLonghand($this->parseEntries($block), $property);
+            $normalEntries = $this->parseEntries($this->removeBoxLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeBoxLonghand($importantEntries, $property));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
-        $flexValue = $this->removeFlexLonghand($this->parseEntries($block), $property);
-        if ($flexValue !== null) {
-            return $flexValue;
+        if ($this->isRemovableFlexLonghand($property)) {
+            $normalEntries = $this->parseEntries($this->removeFlexLonghand($normalEntries, $property) ?? $this->serializeEntries($normalEntries));
+            $importantEntries = $this->parseEntries($this->removeFlexLonghand($importantEntries, $property) ?? $this->serializeEntries($importantEntries));
+
+            return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
 
-        $entries = array_values(array_filter(
-            $this->parseEntries($block),
-            static fn (array $entry): bool => $entry['property'] !== $property
+        $normalEntries = $this->removeEntriesWithPropertyId($normalEntries, $property);
+        $importantEntries = $this->removeEntriesWithPropertyId($importantEntries, $property);
+
+        return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function removeBoxShorthandWithinPriority(array $entries, string $property): array
+    {
+        return array_values(array_filter(
+            $entries,
+            fn (array $entry): bool => $entry['property'] !== $property
+                && !$this->isBoxLonghandFor($entry['property'], $property)
         ));
+    }
 
-        return $this->serializeEntries($entries);
+    private function isRemovableFlexLonghand(string $property): bool
+    {
+        $prefix = $this->flexPrefixForProperty($property);
+        $base = $this->baseFlexProperty($property);
+
+        return $prefix !== null && in_array($base, ['flex-direction', 'flex-wrap'], true);
     }
 
     /**
@@ -2118,6 +2160,51 @@ final class DeclarationBlock
         }
 
         return implode('; ', $parts);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function cssomOrderedEntries(array $entries): array
+    {
+        [$normalEntries, $importantEntries] = $this->partitionEntriesByImportance($entries);
+
+        return array_merge($normalEntries, $importantEntries);
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return array{
+     *     0:list<array{property:string, value:string, important:bool}>,
+     *     1:list<array{property:string, value:string, important:bool}>
+     * }
+     */
+    private function partitionEntriesByImportance(array $entries): array
+    {
+        $normalEntries = [];
+        $importantEntries = [];
+        foreach ($entries as $entry) {
+            if ($entry['important']) {
+                $importantEntries[] = $entry;
+            } else {
+                $normalEntries[] = $entry;
+            }
+        }
+
+        return [$normalEntries, $importantEntries];
+    }
+
+    /**
+     * @param list<array{property:string, value:string, important:bool}> $entries
+     * @return list<array{property:string, value:string, important:bool}>
+     */
+    private function removeEntriesWithPropertyId(array $entries, string $property): array
+    {
+        return array_values(array_filter(
+            $entries,
+            static fn (array $entry): bool => $entry['property'] !== $property
+        ));
     }
 
     /**

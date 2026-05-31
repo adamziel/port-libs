@@ -6,6 +6,8 @@ namespace PortLibs\Gitoxide;
 
 final class GitUrl
 {
+    private const MAX_URL_PRE_PATH_BYTES = 1024;
+
     public const SCHEME_FILE = 'file';
     public const SCHEME_GIT = 'git';
     public const SCHEME_SSH = 'ssh';
@@ -158,6 +160,8 @@ final class GitUrl
 
     private static function parseUrlForm(string $input, int $protocolEnd): self
     {
+        self::assertUrlPrePathWithinLimit($input, $protocolEnd);
+
         if (preg_match('/\s/', $input) === 1) {
             throw new \InvalidArgumentException('Git URL contains invalid whitespace');
         }
@@ -189,6 +193,30 @@ final class GitUrl
         }
 
         return new self($scheme, $user, $password, $host, $port, $path, false);
+    }
+
+    private static function assertUrlPrePathWithinLimit(string $input, int $protocolEnd): void
+    {
+        if ($protocolEnd > self::MAX_URL_PRE_PATH_BYTES) {
+            throw new \InvalidArgumentException('Git URL scheme is too long');
+        }
+
+        $afterScheme = substr($input, $protocolEnd + 3);
+        $length = strlen($afterScheme);
+        $offset = 0;
+        while ($offset < $length) {
+            $byte = $afterScheme[$offset];
+            if ($byte !== '/' && $byte !== '\\' && preg_match('/\s/', $byte) !== 1) {
+                break;
+            }
+            $offset++;
+        }
+
+        $pathStart = strpos($afterScheme, '/', $offset);
+        $authorityLength = $pathStart === false ? $length - $offset : $pathStart - $offset;
+        if ($authorityLength > self::MAX_URL_PRE_PATH_BYTES) {
+            throw new \InvalidArgumentException('Git URL host portion is too long');
+        }
     }
 
     private static function parseScpForm(string $input, int $colon): self

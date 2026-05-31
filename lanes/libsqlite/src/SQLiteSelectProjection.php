@@ -75,6 +75,9 @@ final class SQLiteSelectProjection
         if (array_key_exists('alias', $expression)) {
             throw new \InvalidArgumentException('SQLite SELECT wildcard projection cannot have an alias');
         }
+        if (($expression['aggregateWildcard'] ?? false) === true && isset($expression['columns']) && is_array($expression['columns']) && array_is_list($expression['columns'])) {
+            return self::aggregateWildcardValues($row, $expression);
+        }
 
         $prefix = null;
         if (array_key_exists('prefix', $expression)) {
@@ -119,6 +122,32 @@ final class SQLiteSelectProjection
         if (!$matched) {
             $target = $prefix === null ? '*' : $prefix . '.*';
             throw new \InvalidArgumentException("SQLite SELECT wildcard projection matched no columns for {$target}");
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string,mixed> $row
+     * @param array<string,mixed> $expression
+     * @return array<string,mixed>
+     */
+    private static function aggregateWildcardValues(array $row, array $expression): array
+    {
+        $prefix = null;
+        if (array_key_exists('prefix', $expression)) {
+            $prefix = self::requiredString($expression, 'prefix', 'wildcard expression');
+        }
+
+        $values = [];
+        foreach ($expression['columns'] as $column) {
+            if (!is_string($column) || $column === '') {
+                throw new \InvalidArgumentException('SQLite SELECT aggregate wildcard projection columns must be non-empty strings');
+            }
+
+            $key = $prefix === null ? $column : $prefix . '.' . $column;
+            $alias = $prefix === null ? $column : $column;
+            $values[$alias] = array_key_exists($key, $row) ? $row[$key] : null;
         }
 
         return $values;

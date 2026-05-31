@@ -11,6 +11,8 @@ $object = new GitObject('blob', $fixture['blockBlobBody']);
 $storage = $object->storageBytes();
 $header = GitObject::decodeLooseHeader($storage);
 $readAhead = GitObject::fromLooseBytes($storage . 'next loose object bytes already buffered');
+$positiveSizeStorage = $fixture['positiveSizeLooseHeader'] . $fixture['blockBlobBody'];
+$positiveSizeObject = GitObject::fromStorageBytes($positiveSizeStorage);
 $strictRejectsReadAhead = false;
 
 try {
@@ -28,4 +30,7 @@ return [
     'sha256Oid' => $object->oid('sha256'),
     'readAheadIgnored' => $readAhead->body === $fixture['blockBlobBody'],
     'strictStorageRejectsReadAhead' => $strictRejectsReadAhead,
+    'positiveSizeHeaderAccepted' => $positiveSizeObject->body === $fixture['blockBlobBody'],
+    'positiveSizeCanonicalOid' => $positiveSizeObject->oid(),
+    'positiveSizeRawHeaderOid' => hash('sha1', $positiveSizeStorage),
 ];

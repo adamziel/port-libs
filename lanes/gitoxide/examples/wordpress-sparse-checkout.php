@@ -38,6 +38,12 @@ $absolutePathspec = SparseCheckoutSpec::fromPathspecs([
     ':(icase)' . $deploymentRoot . '/wp-content/plugins/gutenberg/readme.md',
     ':(exclude)' . $deploymentRoot . '/wp-content/plugins/gutenberg/build/',
 ], root: $deploymentRoot);
+$absoluteWildcardPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(icase)' . $deploymentRoot . '/*/readme.md',
+], root: $deploymentRoot);
+$ordinaryAbsoluteWildcardPathspec = SparseCheckoutSpec::fromPathspecs([
+    $deploymentRoot . '/*/readme.md',
+], root: $deploymentRoot);
 $pathAwareDefaultPathspec = SparseCheckoutSpec::fromPathspecs(
     ['wp-content/plugins/*'],
     defaultSearchMode: SparseCheckoutSpec::PATHSPEC_SEARCH_PATH_AWARE_GLOB,
@@ -106,6 +112,9 @@ return [
     'absoluteRootPathspecIcaseReadmeIncluded' => $absolutePathspec->includesPath('wp-content/plugins/gutenberg/README.md', false),
     'absoluteRootPathspecUpperPrefixSkipped' => $absolutePathspec->skipWorktree('WP-CONTENT/plugins/gutenberg/README.md', false),
     'absoluteRootPathspecBuildSkipped' => $absolutePathspec->skipWorktree('wp-content/plugins/gutenberg/build/index.js', false),
+    'absoluteWildcardIcaseRealDirectorySkipped' => $absoluteWildcardPathspec->skipWorktree('wp-content/README.md', false),
+    'absoluteWildcardIcaseLiteralStarIncluded' => $absoluteWildcardPathspec->includesPath('*/README.md', false),
+    'absoluteWildcardOrdinaryGlobIncluded' => $ordinaryAbsoluteWildcardPathspec->includesPath('wp-content/readme.md', false),
     'pathAwareDefaultNestedPluginSkipped' => $pathAwareDefaultPathspec->skipWorktree('wp-content/plugins/gutenberg/block.json', false),
     'pathAwareDefaultPluginDirectoryIncluded' => $pathAwareDefaultPathspec->includesPath('wp-content/plugins/gutenberg', true),
     'noGlobDefaultLiteralPluginIncluded' => $noGlobDefaultPathspec->includesPath('wp-content/plugins/*.php', false),

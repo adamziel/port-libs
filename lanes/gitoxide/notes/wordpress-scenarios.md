@@ -302,7 +302,8 @@ deciding which WordPress branch/tag namespaces to fetch or update without
 shelling out to `git remote` or `git push`.
 
 The URL/refspec example now also covers file-authority URLs, SCP-like IPv6
-remotes, and forced fetch-only refspec normalization.
+remotes, forced fetch-only refspec normalization, and oversized remote-host
+rejection before deployment tooling stores or replays a malformed URL.
 
 ## WordPress Commit Signature Example
 

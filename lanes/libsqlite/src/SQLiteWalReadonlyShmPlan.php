@@ -154,4 +154,78 @@ final class SQLiteWalReadonlyShmPlan
             ],
         ];
     }
+
+    /**
+     * @param list<array{0:int|string, 1:int|string}> $initialRows
+     * @param list<array{0:int|string, 1:int|string}> $writerRows
+     * @return array<string, mixed>
+     */
+    public static function readOnlyWalLockPlan(
+        bool $databaseExists,
+        bool $walExists,
+        bool $shmExists,
+        bool $readOnlyConnection,
+        bool $mmapCapable,
+        int $requestedMmapBytes,
+        int $pageSize,
+        array $initialRows,
+        array $writerRows
+    ): array {
+        if ($requestedMmapBytes < 0) {
+            throw new \InvalidArgumentException('SQLite read-only WAL lock planning requires a non-negative mmap size');
+        }
+        if ($pageSize < 512 || ($pageSize & ($pageSize - 1)) !== 0) {
+            throw new \InvalidArgumentException('SQLite read-only WAL lock planning requires a power-of-two page size of at least 512');
+        }
+        if ($initialRows === [] || $writerRows === []) {
+            throw new \InvalidArgumentException('SQLite read-only WAL lock planning requires initial and writer rowsets');
+        }
+
+        $canOpen = $databaseExists && $walExists && $shmExists && $readOnlyConnection;
+        $mmapResult = $canOpen && $mmapCapable ? $requestedMmapBytes : 0;
+        $writerCanAppend = $canOpen;
+        $writerCommittedRows = $writerCanAppend ? array_values(array_merge($initialRows, $writerRows)) : $initialRows;
+        $writeDenials = $canOpen ? [
+            ['statement' => 'INSERT INTO t1 VALUES', 'error' => 'attempt to write a readonly database'],
+        ] : [];
+
+        return [
+            'status' => $canOpen ? 'readonly-wal-lock-open' : 'readonly-wal-lock-blocked',
+            'reason' => $canOpen
+                ? 'readonly_wal_reader_allows_snapshot_reads_and_denies_writes_without_blocking_writer'
+                : 'readonly_wal_reader_requires_database_wal_and_shm_sidecars',
+            'database_exists' => $databaseExists,
+            'wal_exists' => $walExists,
+            'shm_exists' => $shmExists,
+            'read_only_connection' => $readOnlyConnection,
+            'page_size' => $pageSize,
+            'requested_mmap_bytes' => $requestedMmapBytes,
+            'mmap_capable' => $mmapCapable,
+            'mmap_size_result' => $mmapResult,
+            'select_t1_rows_before_writer' => $canOpen ? $initialRows : [],
+            'select_t2_rows_after_writer' => $canOpen ? [] : [],
+            'writer_append_allowed' => $writerCanAppend,
+            'writer_insert_rows' => $writerCanAppend ? $writerRows : [],
+            'writer_committed_rows' => $writerCommittedRows,
+            'writer_blocked_by_readonly_reader' => false,
+            'wal_exists_after_writer_commit' => $writerCanAppend,
+            'wal_exists_after_readonly_close' => $writerCanAppend,
+            'write_denials' => $writeDenials,
+            'extended_errcode' => $canOpen ? 'SQLITE_OK' : 'SQLITE_CANTOPEN',
+            'lock_sequence' => $canOpen ? [
+                'readonly_reader_acquires_shared_wal_snapshot',
+                'readonly_insert_denied_before_write_lock',
+                'writer_acquires_wal_write_lock',
+                'writer_commit_appends_wal_frame',
+                'readonly_reader_selects_second_table_without_deleting_wal',
+                'readonly_close_leaves_writer_wal_sidecar',
+            ] : [],
+            'source' => 'upstream rowallock.test 1.$tn.1 through 1.$tn.5 read-only WAL lock and writer append behavior',
+            'dependencies' => [
+                'real-upstream-corpus-rowallock',
+                'sqlite-wal-readonly-locks',
+                'sqlite-wal-readonly-writer-append',
+            ],
+        ];
+    }
 }

@@ -25,6 +25,29 @@ return [
             $block->getProperty('padding: 1rem 2rem 3rem 4rem !important', 'padding')
         );
     },
+    'declaration block reads upstream cssom important bucket before normal declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            ['value' => 'red', 'important' => true],
+            $block->getProperty('color: red !important; background: white; color: blue', 'color')
+        );
+        $t->same(
+            ['value' => '1rem', 'important' => true],
+            $block->getProperty('margin: 1rem !important; margin-top: 2rem', 'margin-top')
+        );
+        $t->same(
+            ['value' => 'red', 'important' => true],
+            $block->getProperty('background: blue; background-color: red !important; background: green', 'background-color')
+        );
+        $t->same(
+            null,
+            $block->getProperty(
+                'padding-top: 1rem !important; padding-right: 1rem; padding-bottom: 1rem; padding-left: 1rem',
+                'padding'
+            )
+        );
+    },
     'declaration block reads upstream background cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -294,6 +317,30 @@ return [
             $block->setProperty('margin: 5px; margin-inline-start: 8px', 'margin-left', '10px')
         );
     },
+    'declaration block writes upstream cssom priority buckets' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'background: white; color: green',
+            $block->setProperty('color: red !important; background: white; color: blue', 'color', 'green')
+        );
+        $t->same(
+            'background: white; color: green !important',
+            $block->setProperty('color: red; background: white; color: blue !important', 'color', 'green', true)
+        );
+        $t->same(
+            'margin-top: 8px; margin: 5px !important',
+            $block->setProperty('margin: 5px !important', 'margin-top', '8px')
+        );
+        $t->same(
+            'margin: 5px; margin-top: 8px !important',
+            $block->setProperty('margin: 5px', 'margin-top', '8px', true)
+        );
+        $t->same(
+            'flex-flow: row wrap; flex-direction: column !important',
+            $block->setProperty('flex-flow: row wrap', 'flex-direction', 'column', true)
+        );
+    },
     'declaration block sets upstream logical box properties after physical fallbacks' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -389,6 +436,22 @@ return [
         $t->same(
             'padding-top: 1rem !important; padding-right: 2rem !important; padding-bottom: 3rem !important',
             $block->removeProperty('padding: 1rem 2rem 3rem 4rem !important', 'padding-left')
+        );
+    },
+    'declaration block removes upstream cssom priority buckets' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'background: white',
+            $block->removeProperty('color: red !important; background: white; color: blue', 'color')
+        );
+        $t->same(
+            'padding: 1rem; margin-right: 10px !important; margin-bottom: 10px !important; margin-left: 10px !important',
+            $block->removeProperty('margin: 10px !important; padding: 1rem; margin-top: 12px', 'margin-top')
+        );
+        $t->same(
+            'flex-wrap: wrap; -webkit-flex-flow: column wrap !important',
+            $block->removeProperty('-webkit-flex-flow: column wrap !important; flex-flow: row wrap', 'flex-direction')
         );
     },
     'declaration block removes upstream flex flow cssom longhands' => static function (TestRunner $t): void {

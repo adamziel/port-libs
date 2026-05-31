@@ -219,6 +219,8 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('ssh://host.xz:65536/path'));
         $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('http://has a space/path'));
         $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('user@[::1]:repo'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse(str_repeat('a', 1025) . '://host.xz/path'));
+        $t->throws(InvalidArgumentException::class, static fn () => GitUrl::parse('https://' . str_repeat('a', 1025) . '/path'));
 
         $invalidPortFormat = GitUrl::parse('ssh://host.xz:abc/path');
         $t->same('host.xz:abc', $invalidPortFormat->host());
@@ -559,6 +561,7 @@ return [
         $t->same($fixture['expectedPushInstructions'], array_column($summary['push'], 'instruction'));
         $t->same($fixture['expectedFetchNormalized'], array_column($summary['fetch'], 'normalized'));
         $t->same($fixture['expectedPushNormalized'], array_column($summary['push'], 'normalized'));
+        $t->same($fixture['expectedOversizedRemoteRejected'], $summary['oversizedRemoteRejected']);
         $t->same($fixture['expectedFetchPrefixes'], array_column($summary['fetch'], 'prefix'));
         $t->same($fixture['expectedFetchExpandedPrefixes'], array_column($summary['fetch'], 'expandedPrefixes'));
         $t->same($fixture['expectedPushPrefixes'], array_column($summary['push'], 'prefix'));
