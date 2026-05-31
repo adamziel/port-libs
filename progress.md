@@ -52,6 +52,34 @@
 
 ## Current Coordination Snapshot
 
+- 2026-05-31 supervisor continuation (mixed SQLite/Gitoxide/LightningCSS batch
+  12:01 UTC): source commit
+  `aa35900b9638834dd343bfebdd3503f0eab5c08f` (`ports: add sqlite dynamic
+  depth gitoxide transport and lightningcss cssom`) landed nine verified
+  handoffs after excluding stale shared metadata and fixing the app-WAL example
+  so it passes under PHP's default memory limit. Libsqlite selected evidence
+  moves from `2902665` to `2906760 pass / 0 fail` with mapped coverage still
+  `1589 / 1589`: +1003 atof1 decimal REAL affinity PASS cases, +1002 scalar
+  subquery arity PASS cases, +1700 VFS superlock PASS cases, +114 row-value
+  LIMIT introspection PASS cases, and +276 app-WAL post-recovery recovery PASS
+  cases. Gitoxide full lane evidence moves from `4448` to `4484 pass / 0
+  fail`, with mapped coverage moving from `1561 / 2886` to `1564 / 2886`.
+  LightningCSS moves from `1154` to `1155 pass / 0 fail`, with mapped coverage
+  from `948 / 3532` to `949 / 3532`. Verification passed PHP lint for changed
+  files, `git diff --check -- lanes/libsqlite lanes/gitoxide lanes/lightningcss`,
+  libsqlite focused gate `5 files / 67191 assertions / 0 failures / 15449 PASS
+  lines`, libsqlite adjacent/domain guard `2 files / 4012 assertions / 0
+  failures`, default-memory and `--self-test` app-WAL example runs, Gitoxide
+  focused gate `4 files / 1101 assertions / 0 failures`, full Gitoxide lane
+  `39 files / 4484 assertions / 0 failures`, three Gitoxide examples, focused
+  LightningCSS DeclarationBlock gate `83 assertions / 0 failures`, full
+  LightningCSS lane `12 files / 1155 assertions / 0 failures`, and the
+  grid-template CSSOM example. A supervisor-side full libsqlite run was stopped
+  after proving too slow for per-batch publication at this multi-million-line
+  scale; it had not failed. The visible pool includes six LightningCSS workers
+  plus the active libsqlite/Gitoxide split, all launched as `gpt-5.5` xhigh on
+  the priority service tier.
+
 - 2026-05-31 supervisor continuation (LightningCSS batch 11:45 UTC): source
   commit `1f61e41049a254ab4c49cf409de971c1a3ce8d4c` (`ports: add
   lightningcss bundle modules sourcemap slices`) landed three focused
