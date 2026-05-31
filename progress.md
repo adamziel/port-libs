@@ -42,17 +42,39 @@
 - Composer: unavailable on current PATH; prior bootstrap recorded 2.8.12.
 - tmux: 3.5a
 - CPU: current supervisor sample reports 15 logical cores (`nproc`).
-- Memory: current supervisor sample reports 27 GiB total and about 13 GiB available.
-- Root filesystem: current supervisor sample reports `/` at 452G size with about 341G available after bounded cache/log/worktree cleanup; `/tmp` has about 5.0G available. Preserve dirty work and use bounded cleanup/refill only.
+- Memory: current supervisor sample reports 27 GiB total and about 9.6 GiB available.
+- Root filesystem: current supervisor sample reports `/` at 452G size with about 336G available after bounded cache/log/worktree cleanup; `/tmp` has about 3.5G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool includes
-  a LightningCSS surge currently at 58 visible workers after a bounded refill
-  toward target 58, plus 5 active Gitoxide workers and 6 active SQLite closure
-  workers. The latest refill started LightningCSS/Gitoxide workers on
-  `gpt-5.5` xhigh with the priority service tier; the latest process sample
-  found no real `sleep 900` or `Sleeping 900` workers.
+  a LightningCSS surge in the mid-60s after bounded refills toward target 68,
+  plus a bounded Gitoxide pool and SQLite closure workers. The latest refills
+  started workers on `gpt-5.5` xhigh with the priority service tier; the
+  latest process sample found no real `sleep 900` or `Sleeping 900` workers.
 
 ## Current Coordination Snapshot
+
+- 2026-05-31 supervisor continuation (LightningCSS grid/modules/media plus
+  Gitoxide config/credentials batch 19:56 UTC): source commit
+  `0dc9078d9e6ff278850e9c0f033edec89583d6d1` (`ports: extend lightningcss
+  css modules media and gitoxide config`) landed nine screened LightningCSS
+  handoffs and four Gitoxide handoffs. LightningCSS now reports `4016 pass / 0
+  fail`, with conservative mapped coverage moving from `2047 / 3532` to `2056
+  / 3532`: two grid auto-flow/template-area separation checks, six
+  border-spacing value-minifier checks, and one bundled CSS Modules repeated
+  source-index composes behavior; CSS Modules comment-token compose separators,
+  media range import graph/prefix coverage, block-form invalid import-layer
+  diagnostics, logical-axis CSSOM fallback ordering, and multi-column prefixing
+  deepen represented clusters. Gitoxide now reports `5390 pass / 0 fail`, with
+  mapped coverage moving from `1627 / 2886` to `1630 / 2886` on loose-object
+  integrity traversal-error parity, includeIf escaped-hyphen bracket-class
+  parity, and credential helper file/local URL host-clearing parity; combined
+  GitAttributes global/root/nested precedence for attr-filtered pathspecs is
+  verified inside an already represented cluster. Verification passed PHP lint
+  on 37 changed/new PHP files, `git diff --check`, no WordPress/WP/wp_ symbols
+  in changed lane `src` trees, 13 changed/new example smoke runs, full
+  LightningCSS lane `13 files / 4016 assertions / 0 failures`, and full
+  Gitoxide lane `39 files / 5390 assertions / 0 failures`. Full upstream
+  Rust/Node/WASM/Cargo runners were not executed for this isolated batch.
 
 - 2026-05-31 supervisor continuation (LightningCSS relative colors/maps plus
   Gitoxide refs/objects/merge batch 19:50 UTC): source commit
