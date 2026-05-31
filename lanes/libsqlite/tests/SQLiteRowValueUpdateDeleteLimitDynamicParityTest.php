@@ -3660,4 +3660,97 @@ foreach ($jsonLimitCases as $name => [$callback, $expected]) {
     };
 }
 
+$jsonbLimitExpr = static function (int $value, int $seed) use ($sqlStringLiteral): string {
+    $object = $sqlStringLiteral('{"n":' . $value . ',"a":[0,1,2,3,4],"kind":"limit"}');
+    $arrayArgs = $value > 0 ? implode(',', range(1, $value)) : '';
+    $pathN = $sqlStringLiteral('$.n');
+    $pathA = $sqlStringLiteral('$.a');
+    $valid = $sqlStringLiteral('{"ok":true}');
+    $reversePath = $sqlStringLiteral('$[#-' . (5 - $value) . ']');
+
+    return match ($seed % 8) {
+        0 => "jsonb_extract(jsonb({$object}), {$pathN})",
+        1 => "json_array_length(jsonb_array({$arrayArgs}))",
+        2 => "json_array_length(jsonb({$object}), {$pathA}) - 5 + {$value}",
+        3 => "json_valid(jsonb({$valid}), 8) + {$value} - 1",
+        4 => "json_error_position(jsonb({$valid})) + {$value}",
+        5 => "(json_type(jsonb({$object}), {$pathA}) = 'array') + {$value} - 1",
+        6 => "json_extract(jsonb_object('n', {$value}), {$pathN})",
+        default => "jsonb_extract(jsonb_array(0,1,2,3,4), {$reversePath})",
+    };
+};
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = $jsonbLimitExpr($limitValue, $seed);
+    $offsetExpr = $jsonbLimitExpr($offsetValue, $seed + 4);
+    $sql = "UPDATE app_settings SET state = 'jsonb_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update jsonb scalar limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($result['returning']), 'jsonb_limit'), array_column($result['returning'], 'state'));
+            $t->contains('json102.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/json102.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = $jsonbLimitExpr($limitValue, $seed + 2);
+    $offsetExpr = $jsonbLimitExpr($offsetValue, $seed + 6);
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue jsonb scalar subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+            $t->contains('json102.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/json102.test');
+            $t->contains('json105.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/json105.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+$jsonbLimitCases = [
+    'parse jsonb extract integer limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT jsonb_extract(jsonb(' . $sqlStringLiteral('{"n":3}') . '), ' . $sqlStringLiteral('$.n') . ')')['limit'], 3],
+    'parse json extract over jsonb input limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_extract(jsonb(' . $sqlStringLiteral('{"n":4}') . '), ' . $sqlStringLiteral('$.n') . ')')['limit'], 4],
+    'parse jsonb array length root limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_array_length(jsonb_array(1,2,3))')['limit'], 3],
+    'parse jsonb array length path offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET json_array_length(jsonb(' . $sqlStringLiteral('{"a":[1,2]}') . '), ' . $sqlStringLiteral('$.a') . ')')['offset'], 2],
+    'parse jsonb strict valid limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_valid(jsonb(' . $sqlStringLiteral('{"a":1}') . '), 8)')['limit'], 1],
+    'parse jsonb default valid false zero limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT json_valid(jsonb(' . $sqlStringLiteral('{"a":1}') . '))')['limit'], 0],
+    'parse jsonb error position valid offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET json_error_position(jsonb(' . $sqlStringLiteral('{"a":1}') . '))')['offset'], 0],
+    'parse jsonb typeof blob predicate limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT typeof(jsonb(' . $sqlStringLiteral('{"a":1}') . ')) = ' . $sqlStringLiteral('blob'))['limit'], 1],
+    'parse jsonb object scalar extract limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT jsonb_extract(jsonb_object(' . $sqlStringLiteral('n') . ', 2), ' . $sqlStringLiteral('$.n') . ')')['limit'], 2],
+    'parse jsonb reverse array extract limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT jsonb_extract(jsonb_array(0,1,2,3), ' . $sqlStringLiteral('$[#-1]') . ')')['limit'], 3],
+    'malformed jsonb extract object rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT jsonb_extract(jsonb(' . $sqlStringLiteral('{"a":[1]}') . '), ' . $sqlStringLiteral('$.a') . ')'), InvalidArgumentException::class],
+    'malformed jsonb extract text rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT jsonb_extract(jsonb(' . $sqlStringLiteral('{"n":"two"}') . '), ' . $sqlStringLiteral('$.n') . ')'), InvalidArgumentException::class],
+    'malformed jsonb invalid text rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT jsonb(' . $sqlStringLiteral('{"a":}') . ')'), InvalidArgumentException::class],
+    'malformed jsonb extract path type rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT jsonb_extract(jsonb(' . $sqlStringLiteral('{"n":3}') . '), 1)'), InvalidArgumentException::class],
+    'malformed jsonb object odd arguments rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse('DELETE FROM app_settings RETURNING setting_id LIMIT jsonb_object(' . $sqlStringLiteral('n') . ')'), InvalidArgumentException::class],
+];
+
+foreach ($jsonbLimitCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity jsonb scalar ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            $t->contains('json102.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/json102.test');
+            return;
+        }
+        $t->same($expected, $callback());
+        $t->contains('json102.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/json102.test');
+    };
+}
+
 return $tests;

@@ -341,6 +341,33 @@ $withScenarios(
     }
 );
 
+$withScenarios(
+    static fn (): array => SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailFailureScenarios(4),
+    static function (array $scenarios) use (&$summary): void {
+        $summary['postCheckpointTailFailureScenarioCount'] = count($scenarios);
+        $summary['postCheckpointTailFailureModes'] = array_map(static fn (array $scenario): string => $scenario['checkpoint_mode'], $scenarios);
+        $summary['postCheckpointTailFailureWalFramesBefore'] = array_map(static fn (array $scenario): int => $scenario['post_checkpoint_tail_failure_plan']['wal_frame_count_before'], $scenarios);
+        $summary['postCheckpointTailFailureWalFramesAfter'] = array_map(static fn (array $scenario): int => $scenario['post_checkpoint_tail_failure_plan']['wal_frame_count_after'], $scenarios);
+        $summary['postCheckpointTailFailurePages'] = array_map(static fn (array $scenario): array => $scenario['post_checkpoint_tail_failure_plan']['rollback_to_savepoint']['restored_page_numbers'], $scenarios);
+        $summary['postCheckpointTailFailureFailedStatements'] = array_map(static fn (array $scenario): array => $scenario['post_checkpoint_tail_failure_plan']['failed_statements'], $scenarios);
+        $summary['postCheckpointTailFailureInsertedKeys'] = array_map(static fn (array $scenario): string => $scenario['post_checkpoint_tail_failure_plan']['import_plan']['applied'][1]['key_name'], $scenarios);
+    }
+);
+
+$withScenarios(
+    static fn (): array => SQLiteJsonImportRollbackWalPlan::dynamicPostCheckpointTailRecoveryScenarios(4),
+    static function (array $scenarios) use (&$summary): void {
+        $summary['postCheckpointTailRecoveryScenarioCount'] = count($scenarios);
+        $summary['postCheckpointTailRecoveryModes'] = array_map(static fn (array $scenario): string => $scenario['checkpoint_mode'], $scenarios);
+        $summary['postCheckpointTailRecoveryWalFramesBefore'] = array_map(static fn (array $scenario): int => $scenario['post_checkpoint_tail_recovery_plan']['wal_frame_count_before'], $scenarios);
+        $summary['postCheckpointTailRecoveryWalFramesAfter'] = array_map(static fn (array $scenario): int => $scenario['post_checkpoint_tail_recovery_plan']['wal_frame_count_after'], $scenarios);
+        $summary['postCheckpointTailRecoveryPages'] = array_map(static fn (array $scenario): array => array_column($scenario['post_checkpoint_tail_recovery_plan']['import_plan']['applied'], 'page_number'), $scenarios);
+        $summary['postCheckpointTailRecoveryInsertedKeys'] = array_map(static fn (array $scenario): string => $scenario['post_checkpoint_tail_recovery_plan']['import_plan']['applied'][1]['key_name'], $scenarios);
+        $summary['postCheckpointTailRecoveryRejectedTailKeysRetained'] = array_map(static fn (array $scenario): bool => $scenario['post_checkpoint_tail_inserted_key_retained_after_recovery'], $scenarios);
+        $summary['postCheckpointTailRecoveryFollowupKeysRetained'] = array_map(static fn (array $scenario): bool => $scenario['post_checkpoint_followup_inserted_key_retained_after_recovery'], $scenarios);
+    }
+);
+
 if (in_array('--self-test', $argv, true)) {
     assert($summary['scenarioCount'] === 4);
     assert($summary['preexistingWalScenarioCount'] === 4);
@@ -366,6 +393,8 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['rollbackDisabledPostRecoveryRecoveryScenarioCount'] === 4);
     assert($summary['postRecoveryCheckpointScenarioCount'] === 4);
     assert($summary['postCheckpointFollowupScenarioCount'] === 4);
+    assert($summary['postCheckpointTailFailureScenarioCount'] === 4);
+    assert($summary['postCheckpointTailRecoveryScenarioCount'] === 4);
     assert($summary['statuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['preexistingWalStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['tenantCollisionStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
@@ -462,6 +491,19 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['postCheckpointFollowupPages'][0] === [1321, 2021]);
     assert($summary['postCheckpointFollowupInsertedKeys'][0] === 'post_checkpoint_payload_1');
     assert($summary['postCheckpointFollowupRejectedKeysRetained'] === array_fill(0, 4, false));
+    assert($summary['postCheckpointTailFailureModes'] === ['restart', 'truncate', 'restart', 'truncate']);
+    assert($summary['postCheckpointTailFailureWalFramesBefore'] === array_fill(0, 4, 5));
+    assert($summary['postCheckpointTailFailureWalFramesAfter'] === array_fill(0, 4, 2));
+    assert($summary['postCheckpointTailFailurePages'][0] === [1321, 1931]);
+    assert($summary['postCheckpointTailFailureFailedStatements'][0] === ['post_checkpoint_tail_broken_payload_1']);
+    assert($summary['postCheckpointTailFailureInsertedKeys'][0] === 'post_checkpoint_tail_payload_1');
+    assert($summary['postCheckpointTailRecoveryModes'] === ['restart', 'truncate', 'restart', 'truncate']);
+    assert($summary['postCheckpointTailRecoveryWalFramesBefore'] === array_fill(0, 4, 2));
+    assert($summary['postCheckpointTailRecoveryWalFramesAfter'] === array_fill(0, 4, 5));
+    assert($summary['postCheckpointTailRecoveryPages'][0] === [1321, 1941, 2021]);
+    assert($summary['postCheckpointTailRecoveryInsertedKeys'][0] === 'post_checkpoint_recovery_payload_1');
+    assert($summary['postCheckpointTailRecoveryRejectedTailKeysRetained'] === array_fill(0, 4, false));
+    assert($summary['postCheckpointTailRecoveryFollowupKeysRetained'] === array_fill(0, 4, true));
     assert($summary['missingWalTailShortFrameCounts'] === [4, 6, 6, 4]);
     assert($summary['missingWalTailMessages'][0] === 'SQLite Application JSON import rollback WAL bytes are missing current batch frame(s): 5, 6');
     assert($summary['partialWalTailMessages'] === array_fill(0, 4, 'SQLite Application JSON import rollback WAL bytes have a partial frame tail'));
