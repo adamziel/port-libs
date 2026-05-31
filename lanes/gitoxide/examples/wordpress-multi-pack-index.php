@@ -7,7 +7,8 @@ require __DIR__ . '/../../../tools/bootstrap.php';
 use PortLibs\Gitoxide\MultiPackIndex;
 
 $fixture = require __DIR__ . '/../fixtures/wordpress-multi-pack-index.php';
-$index = MultiPackIndex::fromBytes($fixture['multiIndexBytes']);
+$allocationCapBytes = 64 * 1024 * 1024;
+$index = MultiPackIndex::fromBytes($fixture['multiIndexBytes'], $allocationCapBytes);
 $contentObject = $fixture['objectsByRole']['content'];
 $templateObject = $fixture['objectsByRole']['template'];
 $mediaObject = $fixture['objectsByRole']['large-media'];
@@ -19,6 +20,7 @@ return [
     'objectHash' => $index->objectHash(),
     'packCount' => $index->packCount(),
     'objects' => $index->count(),
+    'allocationCapBytes' => $allocationCapBytes,
     'checksum' => $index->verifyIntegrityFast(),
     'packNames' => $index->packNames(),
     'contentPack' => $content === null ? null : $index->packNames()[$content->packIndex],

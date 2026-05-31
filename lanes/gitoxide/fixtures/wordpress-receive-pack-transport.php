@@ -73,6 +73,10 @@ return [
     'sshTarget' => SshReceivePackTransport::parseRepositoryUrl('deploy@git.example.test:wp-content.git'),
     'sshIpv6Target' => SshReceivePackTransport::parseRepositoryUrl('ssh://deploy@[2001:db8::42]:2222/srv/wp-content.git'),
     'sshCommand' => SshReceivePackTransport::receivePackCommand('wp-content.git'),
+    'sshProtocolV2Context' => SshReceivePackTransport::connectorContext(
+        'ssh://deploy@git.example.test:2222/var/www/wp-content.git',
+        ['protocolVersion' => 2],
+    ),
     'gitDaemonServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytes('/wp-content.git', 'git.example.test', 9418, ['version=2']),
     'gitDaemonUrlServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://git.example.test:9418/wp-content.git', ['version=2']),
     'gitDaemonEncodedUrlServiceRequest' => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://git%2Dmirror.example.test/wp%2Dcontent.git', ['version=2']),
@@ -338,5 +342,14 @@ return [
 
         return false;
     })(),
-    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, surface receive-pack advertisement ERR packets before ref parsing, preflight SSH targets including bracketed IPv6 URLs before handing streams to a caller-approved SSH adapter, reject decoded SSH host/user delimiters including encoded at-sign or colon username delimiters, reject decoded smart HTTP credential control bytes, URL/proxy/no-proxy host delimiters, raw URL/proxy control bytes, encoded URL path control bytes, Git-Protocol extra-parameter control bytes, and caller header control bytes, and construct git-daemon service requests from validated git:// URLs or explicit absolute repository URL paths with decoded URL components, without control bytes, decoded host delimiters, or malformed extra parameters, while preserving bracketed IPv6 virtual-host targets.',
+    'unsafeSshPasswordRejected' => (static function (): bool {
+        try {
+            SshReceivePackTransport::parseRepositoryUrl('ssh://deploy:secret@git.example.test/wp-content.git');
+        } catch (InvalidArgumentException) {
+            return true;
+        }
+
+        return false;
+    })(),
+    'wordpressUse' => 'A PHP deployment tool can run a receive-pack handshake/request/response cycle over native stream resources, surface receive-pack advertisement ERR packets before ref parsing, preflight SSH targets including bracketed IPv6 URLs before handing streams to a caller-approved SSH adapter, pass protocol-v2 GIT_PROTOCOL and redacted credential-helper context metadata to an opted-in adapter without owning live SSH authentication, reject decoded SSH host/user delimiters including encoded at-sign or colon username delimiters, reject unsupported SSH URL passwords, reject decoded smart HTTP credential control bytes, URL/proxy/no-proxy host delimiters, raw URL/proxy control bytes, encoded URL path control bytes, Git-Protocol extra-parameter control bytes, and caller header control bytes, and construct git-daemon service requests from validated git:// URLs or explicit absolute repository URL paths with decoded URL components, without control bytes, decoded host delimiters, or malformed extra parameters, while preserving bracketed IPv6 virtual-host targets.',
 ];

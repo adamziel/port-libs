@@ -95,6 +95,60 @@ final class TreeMerge
     }
 
     /**
+     * @param list<Tree> $mergeBases
+     * @param callable(string): GitObject $readObject
+     * @param callable(GitObject): string $writeObject
+     */
+    public static function mergeRecursiveWithVirtualBase(
+        Tree $mergeBaseAncestor,
+        array $mergeBases,
+        Tree $ours,
+        Tree $theirs,
+        callable $readObject,
+        callable $writeObject,
+        string $conflictStyle = BlobMerge::STYLE_MERGE,
+        ?int $bigFileThreshold = null,
+    ): TreeMergeResult {
+        if ($mergeBases === []) {
+            throw new \InvalidArgumentException('At least one merge-base tree is required');
+        }
+
+        foreach ($mergeBases as $mergeBase) {
+            if (!$mergeBase instanceof Tree) {
+                throw new \InvalidArgumentException('Merge-base entries must be Tree instances');
+            }
+        }
+
+        $virtualBase = array_shift($mergeBases);
+        foreach ($mergeBases as $mergeBase) {
+            $virtualBaseMerge = self::mergeRecursive(
+                $mergeBaseAncestor,
+                $virtualBase,
+                $mergeBase,
+                $readObject,
+                $writeObject,
+                BlobMerge::STYLE_OURS,
+                $bigFileThreshold,
+            );
+            if (!$virtualBaseMerge->isClean()) {
+                throw new \RuntimeException('Virtual merge-base construction left unresolved conflicts');
+            }
+
+            $virtualBase = $virtualBaseMerge->tree;
+        }
+
+        return self::mergeRecursive(
+            $virtualBase,
+            $ours,
+            $theirs,
+            $readObject,
+            $writeObject,
+            $conflictStyle,
+            $bigFileThreshold,
+        );
+    }
+
+    /**
      * @param callable(string): GitObject $readObject
      * @param callable(GitObject): string $writeObject
      */

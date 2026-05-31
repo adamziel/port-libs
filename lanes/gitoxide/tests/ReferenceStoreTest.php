@@ -320,6 +320,7 @@ return [
         $t->same($new, $updated->targetObjectId());
         $t->same($old, PackedReferences::open($dir . '/packed-refs')->find('refs/heads/main')->targetObjectId());
         $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/main'));
+        $t->same(false, is_file($dir . '/packed-refs.lock'));
     },
     'reference store refreshes packed ref buffers after external file changes' => static function (TestRunner $t) use ($old, $new, $other): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-refresh-' . bin2hex(random_bytes(4));
@@ -399,6 +400,89 @@ return [
         $t->same('held by another transaction', file_get_contents($dir . '/packed-refs.lock'));
         $t->same(false, is_file($dir . '/refs/heads/main'));
         $t->same(null, $store->reflogContents('refs/heads/main'));
+        $t->same($old, PackedReferences::open($dir . '/packed-refs')->find('refs/heads/main')->targetObjectId());
+    },
+    'reference store direct update refuses packed refs lock before loose or reflog side effects' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-direct-lock-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        $packedContents = "{$old} refs/heads/main\n";
+        file_put_contents($dir . '/packed-refs', $packedContents);
+        file_put_contents($dir . '/packed-refs.lock', 'held by another transaction');
+        $store = ReferenceStore::at($dir);
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => $store->update(
+                'refs/heads/main',
+                ReferenceTarget::object($new),
+                ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+                ReferenceTarget::object($old),
+                false,
+                'sha1',
+                new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+                'direct packed ref update',
+                true,
+            ),
+        );
+
+        $t->same($packedContents, file_get_contents($dir . '/packed-refs'));
+        $t->same('held by another transaction', file_get_contents($dir . '/packed-refs.lock'));
+        $t->same(false, is_file($dir . '/refs/heads/main'));
+        $t->same(false, is_file($dir . '/logs/refs/heads/main'));
+        $t->same($old, PackedReferences::open($dir . '/packed-refs')->find('refs/heads/main')->targetObjectId());
+    },
+    'reference store direct creation refuses packed refs lock before creating loose refs' => static function (TestRunner $t) use ($new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-direct-create-lock-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . '/packed-refs.lock', 'packed transaction in progress');
+        $store = ReferenceStore::at($dir);
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => $store->update(
+                'refs/heads/new-review',
+                ReferenceTarget::object($new),
+                ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+            ),
+        );
+
+        $t->same('packed transaction in progress', file_get_contents($dir . '/packed-refs.lock'));
+        $t->same(false, is_dir($dir . '/refs'));
+        $t->same(null, $store->tryFind('refs/heads/new-review'));
+    },
+    'reference store direct delete refuses packed refs lock before reflog or loose overlay removal' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-delete-lock-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        $packedContents = "{$old} refs/heads/main\n";
+        file_put_contents($dir . '/packed-refs', $packedContents);
+        $store = ReferenceStore::at($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $store->looseStore()->writeDirect('refs/heads/main', $new);
+        $store->appendReflog(
+            'refs/heads/main',
+            ReferenceTarget::object($old),
+            ReferenceTarget::object($new),
+            $committer,
+            'loose overlay audit',
+            true,
+        );
+        $reflogBefore = (string) $store->reflogContents('refs/heads/main');
+        file_put_contents($dir . '/packed-refs.lock', 'held by another transaction');
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => $store->deleteReference(
+                'refs/heads/main',
+                ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+                ReferenceTarget::object($new),
+            ),
+        );
+
+        $t->same($packedContents, file_get_contents($dir . '/packed-refs'));
+        $t->same('held by another transaction', file_get_contents($dir . '/packed-refs.lock'));
+        $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/main'));
+        $t->same($reflogBefore, $store->reflogContents('refs/heads/main'));
+        $t->same($new, $store->find('refs/heads/main')->targetObjectId());
         $t->same($old, PackedReferences::open($dir . '/packed-refs')->find('refs/heads/main')->targetObjectId());
     },
     'reference store packed update mode refreshes stale packed refs even when loose value already matches' => static function (TestRunner $t) use ($old, $new): void {
@@ -1093,6 +1177,11 @@ return [
         $t->same($fixture['expectedPackedLockFailurePrefix'], substr($summary['packedLockFailure'], 0, strlen($fixture['expectedPackedLockFailurePrefix'])));
         $t->same(true, $summary['packedLockStillPresent']);
         $t->same(false, $summary['lockedLooseProductionExists']);
+        $t->same($fixture['packedRefs'], $summary['directLockedPackedRefsAfterFailure']);
+        $t->same($fixture['expectedPackedLockFailurePrefix'], substr($summary['directPackedLockFailure'], 0, strlen($fixture['expectedPackedLockFailurePrefix'])));
+        $t->same(false, $summary['directLockedLooseProductionExists']);
+        $t->same(false, $summary['directLockedProductionReflogExists']);
         $t->contains('peel a packed release tag', $summary['wordpressUse']);
+        $t->contains('reflogs', $summary['wordpressUse']);
     },
 ];

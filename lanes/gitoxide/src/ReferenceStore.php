@@ -259,13 +259,61 @@ final class ReferenceStore
 
         $this->assertPreviousValueAllowsUpdate($physicalName, $physicalTarget, $existing, $previous, $expectedTarget);
         $edits = $this->updateReport($derefParents, $existing?->target, $physicalTarget, $physicalName);
+        $writesObjectToPackedRefs = $packedRefsMode !== self::PACKED_DELETIONS_ONLY && $physicalTarget->isObject();
+        $packedRefsLock = $this->packedRefsTransactionNeedsLock($existing, $writesObjectToPackedRefs)
+            ? $this->acquirePackedRefsLock()
+            : null;
 
-        if ($existing !== null && self::targetsEqual($existing->target, $physicalTarget)) {
-            if (
-                $packedRefsMode !== self::PACKED_DELETIONS_ONLY
-                && $physicalTarget->isObject()
-                && !$this->packedTargetEquals($physicalName, $physicalTarget, $algorithm)
-            ) {
+        try {
+            if ($existing !== null && self::targetsEqual($existing->target, $physicalTarget)) {
+                if ($writesObjectToPackedRefs && !$this->packedTargetEquals($physicalName, $physicalTarget, $algorithm)) {
+                    $packedReference = $this->packedReferenceForUpdate(
+                        $physicalName,
+                        $physicalTarget,
+                        $algorithm,
+                        $objectDatabase,
+                    );
+                    $this->rewritePackedReferences(
+                        [$physicalName => $packedReference],
+                        [],
+                        $algorithm,
+                        $packedRefsLock,
+                    );
+                    $packedRefsLock = null;
+
+                    if ($packedRefsMode === self::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE) {
+                        $this->loose->delete($physicalName);
+
+                        return new ReferenceUpdateResult(
+                            $this->storeRelativeReference(ResolvedReference::fromPacked($packedReference)),
+                            $edits,
+                        );
+                    }
+                }
+
+                return new ReferenceUpdateResult($this->storeRelativeReference($existing), $edits);
+            }
+
+            $this->appendDereferenceParentReflogs(
+                $derefParents,
+                $existing?->target,
+                $physicalTarget,
+                $committer,
+                $reflogMessage,
+                $forceCreateReflog,
+                $algorithm,
+            );
+            $this->maybeAppendReflog(
+                $physicalName,
+                $existing?->target,
+                $physicalTarget,
+                $committer,
+                $reflogMessage,
+                $forceCreateReflog,
+                $algorithm,
+            );
+
+            if ($writesObjectToPackedRefs) {
                 $packedReference = $this->packedReferenceForUpdate(
                     $physicalName,
                     $physicalTarget,
@@ -276,7 +324,9 @@ final class ReferenceStore
                     [$physicalName => $packedReference],
                     [],
                     $algorithm,
+                    $packedRefsLock,
                 );
+                $packedRefsLock = null;
 
                 if ($packedRefsMode === self::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE) {
                     $this->loose->delete($physicalName);
@@ -288,55 +338,13 @@ final class ReferenceStore
                 }
             }
 
-            return new ReferenceUpdateResult($this->storeRelativeReference($existing), $edits);
+            $reference = new LooseReference($physicalName, $physicalTarget);
+            $this->loose->write($reference);
+
+            return new ReferenceUpdateResult($this->storeRelativeReference(ResolvedReference::fromLoose($reference)), $edits);
+        } finally {
+            $this->releasePackedRefsLock($packedRefsLock);
         }
-
-        $this->appendDereferenceParentReflogs(
-            $derefParents,
-            $existing?->target,
-            $physicalTarget,
-            $committer,
-            $reflogMessage,
-            $forceCreateReflog,
-            $algorithm,
-        );
-        $this->maybeAppendReflog(
-            $physicalName,
-            $existing?->target,
-            $physicalTarget,
-            $committer,
-            $reflogMessage,
-            $forceCreateReflog,
-            $algorithm,
-        );
-
-        if ($packedRefsMode !== self::PACKED_DELETIONS_ONLY && $physicalTarget->isObject()) {
-            $packedReference = $this->packedReferenceForUpdate(
-                $physicalName,
-                $physicalTarget,
-                $algorithm,
-                $objectDatabase,
-            );
-            $this->rewritePackedReferences(
-                [$physicalName => $packedReference],
-                [],
-                $algorithm,
-            );
-
-            if ($packedRefsMode === self::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE) {
-                $this->loose->delete($physicalName);
-
-                return new ReferenceUpdateResult(
-                    $this->storeRelativeReference(ResolvedReference::fromPacked($packedReference)),
-                    $edits,
-                );
-            }
-        }
-
-        $reference = new LooseReference($physicalName, $physicalTarget);
-        $this->loose->write($reference);
-
-        return new ReferenceUpdateResult($this->storeRelativeReference(ResolvedReference::fromLoose($reference)), $edits);
     }
 
     public function deleteReference(
@@ -356,20 +364,29 @@ final class ReferenceStore
             [$existing, $brokenLooseExists] = $this->tryFindPhysicalForDeletion($physicalName, $algorithm);
 
             $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget, $brokenLooseExists);
+            $rewritesPackedRefs = $this->packedHasPhysical($physicalName, $algorithm);
+            $packedRefsLock = $this->packedRefsTransactionNeedsLock($existing, $rewritesPackedRefs)
+                ? $this->acquirePackedRefsLock()
+                : null;
 
-            if ($existing === null && !$brokenLooseExists) {
-                return null;
+            try {
+                if ($existing === null && !$brokenLooseExists) {
+                    return null;
+                }
+
+                if (($existing?->source === 'loose') || $brokenLooseExists) {
+                    $this->loose->delete($physicalName);
+                }
+
+                if ($rewritesPackedRefs) {
+                    $this->rewritePackedReferences([], [$physicalName], $algorithm, $packedRefsLock);
+                    $packedRefsLock = null;
+                }
+
+                return $existing === null ? null : $this->storeRelativeReference($existing);
+            } finally {
+                $this->releasePackedRefsLock($packedRefsLock);
             }
-
-            if (($existing?->source === 'loose') || $brokenLooseExists) {
-                $this->loose->delete($physicalName);
-            }
-
-            if ($this->packedHasPhysical($physicalName, $algorithm)) {
-                $this->rewritePackedReferences([], [$physicalName], $algorithm);
-            }
-
-            return $existing === null ? null : $this->storeRelativeReference($existing);
         }
 
         return $this->deleteWithReport(
@@ -405,30 +422,40 @@ final class ReferenceStore
 
         $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget, $brokenLooseExists);
         $edits = $this->deleteReport($derefParents, $existing?->target, $physicalName, $reflogMode);
+        $rewritesPackedRefs = $reflogMode === ReferenceTransactionEdit::REFLOG_AND_REFERENCE
+            && $this->packedHasPhysical($physicalName, $algorithm);
+        $needsPackedRefsLock = $reflogMode === ReferenceTransactionEdit::REFLOG_AND_REFERENCE
+            && $this->packedRefsTransactionNeedsLock($existing, $rewritesPackedRefs);
+        $packedRefsLock = $needsPackedRefsLock ? $this->acquirePackedRefsLock() : null;
 
-        foreach ($derefParents as $parent) {
-            $this->deleteReflog($parent['name']);
-        }
+        try {
+            foreach ($derefParents as $parent) {
+                $this->deleteReflog($parent['name']);
+            }
 
-        $this->deleteReflog($physicalName);
+            $this->deleteReflog($physicalName);
 
-        if ($existing === null && !$brokenLooseExists) {
-            return new ReferenceDeleteResult(null, $edits);
-        }
+            if ($existing === null && !$brokenLooseExists) {
+                return new ReferenceDeleteResult(null, $edits);
+            }
 
-        if ($reflogMode === ReferenceTransactionEdit::REFLOG_ONLY) {
+            if ($reflogMode === ReferenceTransactionEdit::REFLOG_ONLY) {
+                return new ReferenceDeleteResult($existing === null ? null : $this->storeRelativeReference($existing), $edits);
+            }
+
+            if (($existing?->source === 'loose') || $brokenLooseExists) {
+                $this->loose->delete($physicalName);
+            }
+
+            if ($rewritesPackedRefs) {
+                $this->rewritePackedReferences([], [$physicalName], $algorithm, $packedRefsLock);
+                $packedRefsLock = null;
+            }
+
             return new ReferenceDeleteResult($existing === null ? null : $this->storeRelativeReference($existing), $edits);
+        } finally {
+            $this->releasePackedRefsLock($packedRefsLock);
         }
-
-        if (($existing?->source === 'loose') || $brokenLooseExists) {
-            $this->loose->delete($physicalName);
-        }
-
-        if ($this->packedHasPhysical($physicalName, $algorithm)) {
-            $this->rewritePackedReferences([], [$physicalName], $algorithm);
-        }
-
-        return new ReferenceDeleteResult($existing === null ? null : $this->storeRelativeReference($existing), $edits);
     }
 
     public function tryFind(string $name, string $algorithm = 'sha1'): ?ResolvedReference
@@ -940,7 +967,7 @@ final class ReferenceStore
      * @param array<string, PackedReference> $updates
      * @param list<string> $deletions
      */
-    private function rewritePackedReferences(array $updates, array $deletions, string $algorithm): void
+    private function rewritePackedReferences(array $updates, array $deletions, string $algorithm, $lock = null): void
     {
         foreach ($updates as $name => $reference) {
             if (!$reference instanceof PackedReference) {
@@ -968,7 +995,9 @@ final class ReferenceStore
 
         ksort($byName, SORT_STRING);
 
-        $lock = $this->acquirePackedRefsLock();
+        if (!is_resource($lock)) {
+            $lock = $this->acquirePackedRefsLock();
+        }
         $committed = false;
 
         try {
@@ -1049,6 +1078,42 @@ final class ReferenceStore
         if (!fclose($lock)) {
             throw new \RuntimeException('Unable to close packed-refs lock file');
         }
+    }
+
+    private function releasePackedRefsLock($lock): void
+    {
+        if (!is_resource($lock)) {
+            return;
+        }
+
+        $this->closePackedRefsLock($lock);
+        if (is_file($this->packedRefsLockPath()) && !unlink($this->packedRefsLockPath())) {
+            throw new \RuntimeException('Unable to remove packed-refs lock file');
+        }
+    }
+
+    private function packedRefsTransactionNeedsLock(?ResolvedReference $existing, bool $rewritesPackedRefs): bool
+    {
+        return $rewritesPackedRefs
+            || $existing?->source === 'packed'
+            || $this->packedRefsPathExists()
+            || $this->packedRefsLockPathExists();
+    }
+
+    private function packedRefsPathExists(): bool
+    {
+        $path = $this->packedRefsPath();
+        clearstatcache(true, $path);
+
+        return is_file($path) || is_dir($path);
+    }
+
+    private function packedRefsLockPathExists(): bool
+    {
+        $path = $this->packedRefsLockPath();
+        clearstatcache(true, $path);
+
+        return is_file($path) || is_dir($path);
     }
 
     private function packedReferenceForUpdate(

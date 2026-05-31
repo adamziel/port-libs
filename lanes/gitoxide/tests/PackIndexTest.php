@@ -49,6 +49,31 @@ $buildIndex = static function (array $entries, string $packChecksum) use (&$buil
     return $bytes . hex2bin(hash('sha1', $bytes));
 };
 
+$buildV1Index = static function (array $entries, string $packChecksum): string {
+    usort($entries, static fn (array $a, array $b): int => strcmp($a['oid'], $b['oid']));
+    $fanout = array_fill(0, 256, 0);
+    foreach ($entries as $entry) {
+        $fanout[hexdec(substr($entry['oid'], 0, 2))]++;
+    }
+    $running = 0;
+    foreach ($fanout as $i => $count) {
+        $running += $count;
+        $fanout[$i] = $running;
+    }
+
+    $bytes = '';
+    foreach ($fanout as $count) {
+        $bytes .= pack('N', $count);
+    }
+    foreach ($entries as $entry) {
+        $bytes .= pack('N', $entry['offset']);
+        $bytes .= hex2bin($entry['oid']);
+    }
+
+    $bytes .= hex2bin($packChecksum);
+    return $bytes . hex2bin(hash('sha1', $bytes));
+};
+
 $entries = [
     ['oid' => '134385f6d781b7e97062102c6a483440bfda2a03', 'offset' => 12, 'crc32' => 0x12345678],
     ['oid' => '3b18e512dba79e4c8300dd08aeb37f8e728b8dad', 'offset' => 96, 'crc32' => 0x90abcdef],
@@ -56,6 +81,26 @@ $entries = [
 ];
 
 return [
+    'parses v1 pack index offset object-id entries like upstream gix-pack' => static function (TestRunner $t) use ($buildV1Index, $packChecksum): void {
+        $index = PackIndex::fromBytes($buildV1Index([
+            ['oid' => '036bd66fe9b6591e959e6df51160e636ab1a682e', 'offset' => 20],
+            ['oid' => '8a1218a0a4bfb2dc0cfb9590e70f49b3376f4c1d', 'offset' => 128],
+            ['oid' => 'f7f791d96b9a34ef0f08db4b007c5309b9adc3d6', 'offset' => 256],
+        ], $packChecksum));
+
+        $t->same(1, $index->version());
+        $t->same(3, $index->count());
+        $t->same($packChecksum, $index->packChecksum());
+        $t->same($index->indexChecksum(), $index->verifyChecksum());
+
+        $first = $index->entryAt(0);
+        $t->same('036bd66fe9b6591e959e6df51160e636ab1a682e', $first->oid);
+        $t->same(20, $first->packOffset);
+        $t->same(null, $first->crc32);
+        $t->same(2, $index->lookup('f7f791d96b9a34ef0f08db4b007c5309b9adc3d6')?->index);
+        $t->same('found', $index->lookupPrefix('8a1218a')['status']);
+        $t->same([20, 128, 256], $index->sortedOffsets());
+    },
     'parses v2 pack index fanout entries checksums and large offsets' => static function (TestRunner $t) use ($buildIndex, $entries, $packChecksum): void {
         $index = PackIndex::fromBytes($buildIndex($entries, $packChecksum));
         $t->same(2, $index->version());
@@ -104,6 +149,14 @@ return [
         $badChecksum = substr($valid, 0, -1) . "\0";
         $index = PackIndex::fromBytes($badChecksum);
         $t->throws(RuntimeException::class, static fn () => $index->verifyChecksum());
+    },
+    'rejects truncated v1 pack indices before lookup can read past entry tables' => static function (TestRunner $t) use ($buildV1Index, $packChecksum): void {
+        $valid = $buildV1Index([
+            ['oid' => '036bd66fe9b6591e959e6df51160e636ab1a682e', 'offset' => 20],
+            ['oid' => 'f7f791d96b9a34ef0f08db4b007c5309b9adc3d6', 'offset' => 256],
+        ], $packChecksum);
+
+        $t->throws(InvalidArgumentException::class, static fn () => PackIndex::fromBytes(substr($valid, 0, -1)));
     },
     'wordpress fixture locates compacted content objects without git binary' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-pack-index.php';

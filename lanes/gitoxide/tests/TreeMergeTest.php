@@ -1750,6 +1750,55 @@ return [
         ));
         $t->same(['content'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
     },
+    'maps upstream gix-merge tree-baseline multiple-merge-bases fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry] = $objectStore();
+        $mergeBaseAncestor = new Tree([$blobEntry('content', "1\n2\n3\n4\n5\n")]);
+        $firstMergeBase = new Tree([$blobEntry('content', "0\n1\n2\n3\n4\n5\n")]);
+        $secondMergeBase = new Tree([$blobEntry('content', "1\n2\n3\n4\n5\n6\n")]);
+        $ours = new Tree([$blobEntry('content', "0\n1\n2\n3\n4\n5\nA\n")]);
+        $theirs = new Tree([$blobEntry('renamed', "0\n2\n3\n4\n5\nsix\n")]);
+
+        $result = TreeMerge::mergeRecursiveWithVirtualBase(
+            $mergeBaseAncestor,
+            [$firstMergeBase, $secondMergeBase],
+            $ours,
+            $theirs,
+            $read,
+            $write,
+        );
+        $renamed = $read($result->tree->entryNamed('renamed')?->oid ?? '');
+
+        $t->same(false, $result->isClean());
+        $t->same(['renamed'], $names($result->tree));
+        $t->contains('<<<<<<< ours/renamed', $renamed->body);
+        $t->same("0\n2\n3\n4\n5\n<<<<<<< ours/renamed\nA\n=======\nsix\n>>>>>>> theirs/renamed\n", $renamed->body);
+        $t->same([
+            ['path' => 'renamed', 'reason' => 'content-conflict', 'base' => 'renamed', 'ours' => 'renamed', 'theirs' => 'renamed'],
+        ], array_map(
+            static fn ($conflict): array => [
+                'path' => $conflict->path,
+                'reason' => $conflict->reason,
+                'base' => $conflict->base?->filename,
+                'ours' => $conflict->ours?->filename,
+                'theirs' => $conflict->theirs?->filename,
+            ],
+            $result->conflicts,
+        ));
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'renamed', 'body' => "0\n1\n2\n3\n4\n5\n6\n"],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'renamed', 'body' => "0\n1\n2\n3\n4\n5\nA\n"],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'renamed', 'body' => "0\n2\n3\n4\n5\nsix\n"],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'path' => $entry->path,
+                'body' => $read($entry->oid)->body,
+            ],
+            $result->indexEntries(),
+        ));
+        $t->same(['renamed'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
+    },
     'maps upstream gix-merge tree-baseline change-and-delete fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $baseFile = "original\n1\n2\n3\n4\n5\n";

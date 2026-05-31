@@ -16,7 +16,7 @@ final class PackIndex
     /**
      * @param list<int> $fanout
      * @param list<string> $oids
-     * @param list<int> $crc32s
+     * @param list<null|int> $crc32s
      * @param list<int> $packOffsets
      */
     private function __construct(
@@ -33,13 +33,64 @@ final class PackIndex
 
     public static function fromBytes(string $bytes): self
     {
+        if (!str_starts_with($bytes, self::V2_SIGNATURE)) {
+            return self::fromV1Bytes($bytes);
+        }
+
+        return self::fromV2Bytes($bytes);
+    }
+
+    private static function fromV1Bytes(string $bytes): self
+    {
+        $length = strlen($bytes);
+        $minimum = self::FANOUT_ENTRIES * self::UINT32_BYTES + self::HASH_BYTES * 2;
+        if ($length < $minimum) {
+            throw new \InvalidArgumentException("Pack index of size {$length} is too small for a v1 index");
+        }
+
+        $offset = 0;
+        $fanout = [];
+        for ($i = 0; $i < self::FANOUT_ENTRIES; $i++) {
+            $fanout[] = self::readUInt32($bytes, $offset);
+        }
+        self::assertMonotonicFanout($fanout);
+
+        $count = $fanout[255];
+        $entryBytes = $count * (self::UINT32_BYTES + self::HASH_BYTES);
+        $expectedSize = self::FANOUT_ENTRIES * self::UINT32_BYTES
+            + $entryBytes
+            + self::HASH_BYTES * 2;
+        if ($length !== $expectedSize) {
+            throw new \InvalidArgumentException("Pack index size is incorrect, expected {$expectedSize} bytes for {$count} objects in version 1, got {$length} bytes");
+        }
+
+        $oids = [];
+        $crc32s = [];
+        $packOffsets = [];
+        for ($i = 0; $i < $count; $i++) {
+            $packOffsets[] = self::readUInt32($bytes, $offset);
+            $oid = substr($bytes, $offset, self::HASH_BYTES);
+            if (strlen($oid) !== self::HASH_BYTES) {
+                throw new \InvalidArgumentException('Pack index ended while reading a v1 object id');
+            }
+            $oids[] = bin2hex($oid);
+            $crc32s[] = null;
+            $offset += self::HASH_BYTES;
+        }
+
+        $packChecksum = bin2hex(substr($bytes, $offset, self::HASH_BYTES));
+        $offset += self::HASH_BYTES;
+        $indexChecksum = bin2hex(substr($bytes, $offset, self::HASH_BYTES));
+
+        return new self($bytes, 1, $fanout, $oids, $crc32s, $packOffsets, $packChecksum, $indexChecksum);
+    }
+
+    private static function fromV2Bytes(string $bytes): self
+    {
         $length = strlen($bytes);
         $minimum = strlen(self::V2_SIGNATURE) + self::UINT32_BYTES + self::FANOUT_ENTRIES * self::UINT32_BYTES + self::HASH_BYTES * 2;
         if ($length < $minimum) {
             throw new \InvalidArgumentException("Pack index of size {$length} is too small for a v2 index");
-        }
-        if (!str_starts_with($bytes, self::V2_SIGNATURE)) {
-            throw new \InvalidArgumentException('Only pack index version 2 is mapped in this slice');
         }
 
         $offset = strlen(self::V2_SIGNATURE);

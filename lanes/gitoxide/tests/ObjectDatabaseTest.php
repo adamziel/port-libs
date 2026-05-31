@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Gitoxide\Commit;
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\LooseObjectStore;
 use PortLibs\Gitoxide\LooseReferenceStore;
@@ -56,6 +57,8 @@ $writeWordPressMultiPackFixture = static function (bool $omitMediaPack = false):
     return [$gitDir, $fixture];
 };
 
+$looseObjectPath = static fn (string $gitDir, string $oid): string => $gitDir . '/objects/' . substr($oid, 0, 2) . '/' . substr($oid, 2);
+
 return [
     'object database reads packed delta and loose objects' => static function (TestRunner $t) use ($writeWordPressPackFixture): void {
         [$gitDir, $fixture] = $writeWordPressPackFixture();
@@ -76,6 +79,56 @@ return [
         $t->true($database->contains($fixture['objects'][1]['oid']));
         $t->true($database->contains($looseOid));
         $t->same(false, $database->contains(str_repeat('f', 40)));
+    },
+    'object database writes commit objects through the primary loose store like gix write object' => static function (TestRunner $t) use ($writeWordPressPackFixture, $looseObjectPath): void {
+        [$gitDir, $fixture] = $writeWordPressPackFixture();
+        $database = new ObjectDatabase($gitDir);
+        $packedCommitBody = $fixture['objects'][0]['body'];
+        $packedCommitOid = $fixture['objects'][0]['oid'];
+
+        $t->same($packedCommitOid, $database->writeCommit(Commit::parse($packedCommitBody)));
+        $t->same(false, is_file($looseObjectPath($gitDir, $packedCommitOid)));
+
+        $commit = new Commit(
+            'e90926b07092bccb7bf7da445fae6ffdfacf3eae',
+            [$packedCommitOid],
+            'WordPress Importer <importer@example.test> 1710000000 +0000',
+            'WordPress Deploy Bot <deploy@example.test> 1710000300 +0000',
+            "Publish regenerated block snapshot\n",
+            [],
+        );
+        $object = $commit->object();
+        $expectedOid = $object->oid();
+
+        $t->same(false, $database->contains($expectedOid));
+        $t->same($expectedOid, $database->writeCommit($commit));
+        $t->true(is_file($looseObjectPath($gitDir, $expectedOid)));
+        $t->same($object->storageBytes(), gzuncompress((string) file_get_contents($looseObjectPath($gitDir, $expectedOid))));
+        $t->same('commit', $database->read($expectedOid)->type);
+        $t->same($commit->storageBytes(), $database->read($expectedOid)->body);
+        $t->same('Publish regenerated block snapshot', Commit::parse($database->read($expectedOid)->body)->messageSummary());
+        $t->true($database->contains($expectedOid));
+        $t->same($expectedOid, $database->write($object));
+        $t->same($object->storageBytes(), gzuncompress((string) file_get_contents($looseObjectPath($gitDir, $expectedOid))));
+
+        $idsByOffset = $database->objectIds(ObjectDatabase::ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL);
+        $t->same($expectedOid, $idsByOffset[array_key_last($idsByOffset)]);
+    },
+    'object database commit writes reject invalid writers before storage' => static function (TestRunner $t): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-odb-write-invalid-' . bin2hex(random_bytes(4)) . '/.git';
+        $database = new ObjectDatabase($gitDir);
+        $badCommit = new Commit(
+            '0123456789abcdef0123456789abcdef01234567',
+            [],
+            'Bad < Actor <bad@example.test> 1710000000 +0000',
+            'WordPress Deploy Bot <deploy@example.test> 1710000300 +0000',
+            "Invalid actor should not create a loose object\n",
+            [],
+        );
+
+        $t->throws(InvalidArgumentException::class, static fn () => $database->writeCommit($badCommit));
+        $t->same(false, is_dir($gitDir . '/objects/01'));
+        $t->same([], glob($gitDir . '/objects/[0-9a-f][0-9a-f]', GLOB_ONLYDIR) ?: []);
     },
     'object database iterates packs before loose objects with selectable ordering' => static function (TestRunner $t) use ($writeWordPressPackFixture): void {
         [$gitDir, $fixture] = $writeWordPressPackFixture();
@@ -245,5 +298,15 @@ return [
         $database = new ObjectDatabase($gitDir);
 
         $t->throws(RuntimeException::class, static fn () => $database->packedObjectCount());
+    },
+    'wordpress object database example writes deployment commits through the database' => static function (TestRunner $t): void {
+        $summary = require dirname(__DIR__) . '/examples/wordpress-object-database.php';
+
+        $t->same(true, $summary['packedCommitWriteSkippedLoose']);
+        $t->same(true, $summary['deploymentCommitStoredLoose']);
+        $t->same('Publish regenerated block snapshot', $summary['deploymentCommitSummary']);
+        $t->same(40, strlen($summary['deploymentCommitOid']));
+        $t->same(40, strlen($summary['deploymentCommitParent']));
+        $t->same($summary['deploymentCommitParent'], $summary['firstPackOffsetOid']);
     },
 ];

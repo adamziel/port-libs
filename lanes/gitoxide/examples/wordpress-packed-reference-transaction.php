@@ -104,6 +104,28 @@ try {
     $packedLockFailure = $exception->getMessage();
 }
 
+$directLockedDir = sys_get_temp_dir() . '/port-libs-wp-packed-ref-direct-lock-' . bin2hex(random_bytes(4));
+mkdir($directLockedDir, 0777, true);
+file_put_contents($directLockedDir . '/packed-refs', $fixture['packedRefs']);
+file_put_contents($directLockedDir . '/packed-refs.lock', 'held by another deployment');
+$directLockedStore = ReferenceStore::at($directLockedDir);
+$directPackedLockFailure = null;
+try {
+    $directLockedStore->update(
+        $fixture['productionRef'],
+        ReferenceTarget::object($fixture['newProductionCommit']),
+        ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+        ReferenceTarget::object($fixture['oldProductionCommit']),
+        false,
+        'sha1',
+        $committer,
+        $fixture['message'],
+        true,
+    );
+} catch (RuntimeException $exception) {
+    $directPackedLockFailure = $exception->getMessage();
+}
+
 return [
     'productionRef' => $updated->name,
     'productionCommit' => $updated->targetObjectId(),
@@ -126,5 +148,9 @@ return [
     'packedLockStillPresent' => is_file($lockedDir . '/packed-refs.lock'),
     'lockedPackedRefsAfterFailure' => file_get_contents($lockedDir . '/packed-refs'),
     'lockedLooseProductionExists' => is_file($lockedDir . '/' . $fixture['productionRef']),
+    'directPackedLockFailure' => $directPackedLockFailure,
+    'directLockedPackedRefsAfterFailure' => file_get_contents($directLockedDir . '/packed-refs'),
+    'directLockedLooseProductionExists' => is_file($directLockedDir . '/' . $fixture['productionRef']),
+    'directLockedProductionReflogExists' => $directLockedStore->reflogExists($fixture['productionRef']),
     'wordpressUse' => $fixture['wordpressUse'],
 ];

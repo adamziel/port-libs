@@ -113,6 +113,32 @@ $buildMultiIndex = static function (
     return $bytes . hex2bin(hash($hash, $bytes));
 };
 
+$buildMultiIndexWithAbsurdPackCount = static function () use ($packUInt64): string {
+    $headerBytes = 12;
+    $tocBytes = 5 * 12;
+    $packNamesStart = $headerBytes + $tocBytes;
+    $fanoutStart = $packNamesStart + 1;
+    $lookupStart = $fanoutStart + 256 * 4;
+    $offsetsStart = $lookupStart + 20;
+    $trailerStart = $offsetsStart + 8;
+
+    $bytes = 'MIDX' . chr(1) . chr(1) . chr(4) . "\0" . pack('N', 0xffffffff);
+    $bytes .= 'PNAM' . $packUInt64($packNamesStart);
+    $bytes .= 'OIDF' . $packUInt64($fanoutStart);
+    $bytes .= 'OIDL' . $packUInt64($lookupStart);
+    $bytes .= 'OOFF' . $packUInt64($offsetsStart);
+    $bytes .= "\0\0\0\0" . $packUInt64($trailerStart);
+
+    $bytes .= "\0";
+    for ($i = 0; $i < 256; $i++) {
+        $bytes .= pack('N', $i === 255 ? 1 : 0);
+    }
+    $bytes .= str_repeat("\0", 20);
+    $bytes .= pack('N2', 0, 0);
+
+    return $bytes . hex2bin(hash('sha1', $bytes));
+};
+
 $indexNames = [
     'pack-1111111111111111111111111111111111111111.idx',
     'pack-2222222222222222222222222222222222222222.idx',
@@ -196,6 +222,17 @@ return [
         $badChecksum = substr($valid, 0, -1) . "\0";
         $index = MultiPackIndex::fromBytes($badChecksum);
         $t->throws(RuntimeException::class, static fn () => $index->verifyChecksum());
+    },
+    'rejects multi-pack-index pack-name allocations over a configured upstream-style cap' => static function (TestRunner $t) use ($buildMultiIndex, $buildMultiIndexWithAbsurdPackCount): void {
+        $longName = str_repeat('a', 65) . '.idx';
+        $longNameIndex = MultiPackIndex::fromBytes($buildMultiIndex([
+            ['oid' => '0034111111111111111111111111111111111111', 'packIndex' => 0, 'offset' => 12],
+        ], [$longName]));
+        $t->same([$longName], $longNameIndex->indexNames());
+        $t->throws(InvalidArgumentException::class, static fn () => MultiPackIndex::fromBytes($buildMultiIndex([
+            ['oid' => '0034111111111111111111111111111111111111', 'packIndex' => 0, 'offset' => 12],
+        ], [$longName]), 64));
+        $t->throws(InvalidArgumentException::class, static fn () => MultiPackIndex::fromBytes($buildMultiIndexWithAbsurdPackCount(), 64 * 1024 * 1024));
     },
     'fast integrity catches out-of-order objects and missing pack ids' => static function (TestRunner $t) use ($buildMultiIndex, $indexNames): void {
         $outOfOrder = MultiPackIndex::fromBytes($buildMultiIndex([

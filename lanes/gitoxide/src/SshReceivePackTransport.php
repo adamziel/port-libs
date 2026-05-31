@@ -23,21 +23,32 @@ final class SshReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param callable(string, ?string, ?int, string, float): array{read: resource, write: resource} $connector
+     * @param array{protocolVersion?: int} $options
      */
-    public static function connect(string $url, callable $connector, float $timeout = 30.0): self
+    public static function connect(string $url, callable $connector, float $timeout = 30.0, array $options = []): self
     {
         if ($timeout <= 0.0) {
             throw new \InvalidArgumentException('SSH receive-pack transport timeout must be greater than zero');
         }
 
         $target = self::parseRepositoryUrl($url);
-        $streams = $connector(
-            $target['host'],
-            $target['user'],
-            $target['port'],
-            self::receivePackCommand($target['path']),
-            $timeout,
-        );
+        $connectorContext = self::connectorContextForTarget($target, self::normalizeConnectOptions($options));
+        $streams = self::connectorAcceptsContext($connector)
+            ? $connector(
+                $target['host'],
+                $target['user'],
+                $target['port'],
+                $connectorContext['command'],
+                $timeout,
+                $connectorContext,
+            )
+            : $connector(
+                $target['host'],
+                $target['user'],
+                $target['port'],
+                $connectorContext['command'],
+                $timeout,
+            );
 
         if (!is_array($streams)
             || !isset($streams['read'], $streams['write'])
@@ -48,6 +59,30 @@ final class SshReceivePackTransport implements ReceivePackTransport
         }
 
         return new self($streams['read'], $streams['write']);
+    }
+
+    /**
+     * @param array{protocolVersion?: int} $options
+     * @return array{
+     *     host: string,
+     *     user: ?string,
+     *     port: ?int,
+     *     path: string,
+     *     command: string,
+     *     protocolVersion: int,
+     *     environment: array<string, string>,
+     *     sshArguments: list<string>,
+     *     credentialContext: CredentialContext,
+     *     redactedCredentialContext: string,
+     *     authenticationBoundary: string
+     * }
+     */
+    public static function connectorContext(string $url, array $options = []): array
+    {
+        return self::connectorContextForTarget(
+            self::parseRepositoryUrl($url),
+            self::normalizeConnectOptions($options),
+        );
     }
 
     /**
@@ -235,6 +270,98 @@ final class SshReceivePackTransport implements ReceivePackTransport
     private static function hasControlBytes(string $value): bool
     {
         return preg_match('/[\x00-\x1f\x7f]/', $value) === 1;
+    }
+
+    /**
+     * @param array{protocolVersion?: int} $options
+     * @return array{protocolVersion: int}
+     */
+    private static function normalizeConnectOptions(array $options): array
+    {
+        $protocolVersion = $options['protocolVersion'] ?? 1;
+        if (!is_int($protocolVersion) || !in_array($protocolVersion, [1, 2], true)) {
+            throw new \InvalidArgumentException('SSH receive-pack protocol version must be 1 or 2');
+        }
+
+        return ['protocolVersion' => $protocolVersion];
+    }
+
+    /**
+     * @param array{host: string, user: ?string, port: ?int, path: string} $target
+     * @param array{protocolVersion: int} $options
+     * @return array{
+     *     host: string,
+     *     user: ?string,
+     *     port: ?int,
+     *     path: string,
+     *     command: string,
+     *     protocolVersion: int,
+     *     environment: array<string, string>,
+     *     sshArguments: list<string>,
+     *     credentialContext: CredentialContext,
+     *     redactedCredentialContext: string,
+     *     authenticationBoundary: string
+     * }
+     */
+    private static function connectorContextForTarget(array $target, array $options): array
+    {
+        $credentialContext = new CredentialContext(
+            protocol: 'ssh',
+            host: self::authority($target['host'], $target['port']),
+            path: ltrim($target['path'], '/'),
+            username: $target['user'],
+        );
+        $environment = [
+            'LANG' => 'C',
+            'LC_ALL' => 'C',
+        ];
+        $sshArguments = [];
+        if ($options['protocolVersion'] === 2) {
+            $environment = ['GIT_PROTOCOL' => 'version=2'] + $environment;
+            $sshArguments[] = '-o';
+            $sshArguments[] = 'SendEnv=GIT_PROTOCOL';
+        }
+        if ($target['port'] !== null) {
+            $sshArguments[] = '-p' . $target['port'];
+        }
+        $sshArguments[] = $target['user'] === null
+            ? self::authority($target['host'], null)
+            : $target['user'] . '@' . self::authority($target['host'], null);
+
+        return [
+            'host' => $target['host'],
+            'user' => $target['user'],
+            'port' => $target['port'],
+            'path' => $target['path'],
+            'command' => self::receivePackCommand($target['path']),
+            'protocolVersion' => $options['protocolVersion'],
+            'environment' => $environment,
+            'sshArguments' => $sshArguments,
+            'credentialContext' => $credentialContext,
+            'redactedCredentialContext' => $credentialContext->redacted()->storageBytes(),
+            'authenticationBoundary' => 'caller-provided-ssh-connector',
+        ];
+    }
+
+    private static function connectorAcceptsContext(callable $connector): bool
+    {
+        try {
+            $reflection = new \ReflectionFunction(\Closure::fromCallable($connector));
+        } catch (\ReflectionException) {
+            return false;
+        }
+
+        return $reflection->isVariadic() || $reflection->getNumberOfParameters() >= 6;
+    }
+
+    private static function authority(string $host, ?int $port): string
+    {
+        $authority = str_contains($host, ':') && !str_starts_with($host, '[') ? "[{$host}]" : $host;
+        if ($port !== null) {
+            $authority .= ':' . $port;
+        }
+
+        return $authority;
     }
 
     private static function shellQuote(string $value): string

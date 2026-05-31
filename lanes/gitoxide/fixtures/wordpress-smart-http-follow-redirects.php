@@ -198,6 +198,78 @@ $defaultPathSession = $defaultPathClient->handshake();
 $defaultPathSession->createOrUpdate('refs/heads/main', $blob->oid());
 $defaultPathResponse = $defaultPathClient->send($defaultPathSession->buildRequest([$blob]));
 
+$chainedRedirectRequests = [];
+$chainedRedirectRequester = static function (string $method, string $url, array $headers, ?string $body) use (&$chainedRedirectRequests, $packet, $flush, $advertisement, $responseBytes): array {
+    $chainedRedirectRequests[] = [
+        'method' => $method,
+        'url' => $url,
+        'headers' => $headers,
+        'body' => $body,
+    ];
+
+    if ($method === 'GET') {
+        return [
+            'status' => 200,
+            'headers' => [
+                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                'Set-Cookie' => 'repo_gate=repo; Path=/wp-content.git; Secure',
+            ],
+            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+        ];
+    }
+
+    if (count($chainedRedirectRequests) === 2) {
+        return [
+            'status' => 307,
+            'headers' => [
+                'Location' => 'https://git.example.test/gate-one.git/git-receive-pack',
+                'Set-Cookie' => [
+                    'gate_one=one; Path=/gate-one.git; Secure',
+                    'stale_repo_gate=closed; Path=/wp-content.git; Secure',
+                ],
+            ],
+            'body' => '',
+        ];
+    }
+
+    if (count($chainedRedirectRequests) === 3) {
+        return [
+            'status' => 308,
+            'headers' => [
+                'Location' => 'https://git.example.test/gate-two.git/git-receive-pack',
+                'Set-Cookie' => 'gate_two=two; Path=/gate-two.git; Secure',
+            ],
+            'body' => '',
+        ];
+    }
+
+    return [
+        'status' => 200,
+        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+        'body' => $responseBytes,
+    ];
+};
+
+$chainedRedirectClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://git.example.test/wp-content.git',
+        $chainedRedirectRequester,
+        ['version=1'],
+        5.0,
+        [
+            'User-Agent' => 'port-libs-wordpress-redirects/1',
+            'Cookie' => 'wp_logged_in=editor',
+        ],
+        ['followRedirects' => true],
+    ),
+    'port-libs/wordpress',
+);
+$chainedRedirectSession = $chainedRedirectClient->handshake();
+$chainedRedirectSession->createOrUpdate('refs/heads/main', $blob->oid());
+$chainedRedirectResponse = $chainedRedirectClient->send($chainedRedirectSession->buildRequest([$blob]));
+$chainedFirstRetryCookieHeader = $chainedRedirectRequests[2]['headers']['Cookie'] ?? '';
+$chainedFinalCookieHeader = $chainedRedirectRequests[3]['headers']['Cookie'] ?? '';
+
 $rewritingRequests = [];
 $rewritingRequester = static function (string $method, string $url, array $headers, ?string $body) use (&$rewritingRequests, $packet, $flush, $advertisement): array {
     $rewritingRequests[] = [
@@ -523,6 +595,13 @@ return [
         && str_contains($defaultPathRequests[2]['headers']['Cookie'] ?? '', 'redirect_root_gate=opened')
         && !str_contains($defaultPathRequests[2]['headers']['Cookie'] ?? '', 'redirect_default_gate='),
     'postRedirectDefaultPathCookieOmitted' => !str_contains($redirectCookieHeader, 'info_only='),
+    'redirectChainCookiesRecomputed' => $chainedRedirectResponse->isSuccessful()
+        && ($chainedRedirectRequests[1]['headers']['Cookie'] ?? '') === 'wp_logged_in=editor; repo_gate=repo'
+        && $chainedFirstRetryCookieHeader === 'wp_logged_in=editor; gate_one=one'
+        && $chainedFinalCookieHeader === 'wp_logged_in=editor; gate_two=two',
+    'redirectChainRequestMethods' => array_map(static fn (array $request): string => $request['method'], $chainedRedirectRequests),
+    'redirectChainFirstRetryCookieHeader' => $chainedFirstRetryCookieHeader,
+    'redirectChainFinalCookieHeader' => $chainedFinalCookieHeader,
     'sameNameScopedRedirectCookieRetained' => str_contains($redirectCookieHeader, 'deploy_gate=opened')
         && !str_contains($redirectCookieHeader, 'deploy_gate=admin'),
     'sameScopeRedirectCookieReplaced' => str_contains($redirectCookieHeader, 'replace_gate=fresh')
@@ -550,5 +629,5 @@ return [
     'missingLocationPostRedirectRejected' => $missingLocationRedirectRejected,
     'missingLocationRequestMethods' => array_map(static fn (array $request): string => $request['method'], $missingLocationRequests),
     'responseSuccessful' => $response->isSuccessful(),
-    'wordpressUse' => 'A WordPress deployment tool can opt into following a safe same-host receive-pack POST redirect while preserving the generated pack request body, caller-supplied WordPress cookies, and redirect-issued session cookie, honoring redirect-issued cookie expiration, default Path on discovery and redirected POST responses, explicit Domain/Path/Secure scope including same-name scoped cookies, same-scope replacement, malformed Path quarantine, and Max-Age precedence, and rejecting rewriting 301/302/303, wrong-endpoint, credential-bearing, fragment-bearing, or missing-Location POST redirects before replaying a generated pack.',
+    'wordpressUse' => 'A WordPress deployment tool can opt into following safe same-host receive-pack POST redirects while preserving the generated pack request body and caller-supplied WordPress cookies, recomputing managed cookies for each redirected retry, honoring redirect-issued cookie expiration, default Path on discovery and redirected POST responses, explicit Domain/Path/Secure scope including same-name scoped cookies, same-scope replacement, malformed Path quarantine, and Max-Age precedence, and rejecting rewriting 301/302/303, wrong-endpoint, credential-bearing, fragment-bearing, or missing-Location POST redirects before replaying a generated pack.',
 ];

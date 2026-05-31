@@ -1146,6 +1146,84 @@ return [
         $t->same(false, str_contains($pathSpecificOrderRequests[2]['headers']['Cookie'], 'replace_gate=stale'));
         $t->same($pathSpecificOrderRequest->requestBytes(), $pathSpecificOrderRequests[2]['body']);
 
+        $chainedRedirectRequests = [];
+        $chainedRedirectClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$chainedRedirectRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $chainedRedirectRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'repo_gate=repo; Path=/wp-content.git; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    if (count($chainedRedirectRequests) === 2) {
+                        return [
+                            'status' => 307,
+                            'headers' => [
+                                'Location' => 'https://git.example.test/gate-one.git/git-receive-pack',
+                                'Set-Cookie' => [
+                                    'gate_one=one; Path=/gate-one.git; Secure',
+                                    'stale_repo_gate=closed; Path=/wp-content.git; Secure',
+                                ],
+                            ],
+                            'body' => '',
+                        ];
+                    }
+
+                    if (count($chainedRedirectRequests) === 3) {
+                        return [
+                            'status' => 308,
+                            'headers' => [
+                                'Location' => 'https://git.example.test/gate-two.git/git-receive-pack',
+                                'Set-Cookie' => 'gate_two=two; Path=/gate-two.git; Secure',
+                            ],
+                            'body' => '',
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                7.0,
+                ['Cookie' => 'wp_logged_in=editor'],
+                ['followRedirects' => true]
+            ),
+            'port-libs/0.1'
+        );
+        $chainedRedirectSession = $chainedRedirectClient->handshake();
+        $chainedRedirectSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $chainedRedirectRequest = $chainedRedirectSession->buildRequest([$blob]);
+
+        $chainedRedirectResponse = $chainedRedirectClient->send($chainedRedirectRequest);
+
+        $t->same(true, $chainedRedirectResponse->isSuccessful());
+        $t->same(4, count($chainedRedirectRequests));
+        $t->same('wp_logged_in=editor; repo_gate=repo', $chainedRedirectRequests[1]['headers']['Cookie']);
+        $t->same('wp_logged_in=editor; gate_one=one', $chainedRedirectRequests[2]['headers']['Cookie']);
+        $t->same(false, str_contains($chainedRedirectRequests[2]['headers']['Cookie'], 'repo_gate='));
+        $t->same(false, str_contains($chainedRedirectRequests[2]['headers']['Cookie'], 'stale_repo_gate='));
+        $t->same('wp_logged_in=editor; gate_two=two', $chainedRedirectRequests[3]['headers']['Cookie']);
+        $t->same(false, str_contains($chainedRedirectRequests[3]['headers']['Cookie'], 'gate_one='));
+        $t->same(false, str_contains($chainedRedirectRequests[3]['headers']['Cookie'], 'repo_gate='));
+        $t->same($chainedRedirectRequest->requestBytes(), $chainedRedirectRequests[3]['body']);
+
         $relativePermanentRedirectRequests = [];
         $relativePermanentRedirectClient = new ReceivePackClient(
             new SmartHttpReceivePackTransport(
@@ -1336,6 +1414,10 @@ return [
         $t->same(true, $redirectExample['secureCookiePlainRedirectOmitted']);
         $t->same(true, $redirectExample['defaultPathRedirectCookieOmitted']);
         $t->same(true, $redirectExample['postRedirectDefaultPathCookieOmitted']);
+        $t->same(true, $redirectExample['redirectChainCookiesRecomputed']);
+        $t->same(['GET', 'POST', 'POST', 'POST'], $redirectExample['redirectChainRequestMethods']);
+        $t->same('wp_logged_in=editor; gate_one=one', $redirectExample['redirectChainFirstRetryCookieHeader']);
+        $t->same('wp_logged_in=editor; gate_two=two', $redirectExample['redirectChainFinalCookieHeader']);
         $t->same(true, $redirectExample['sameNameScopedRedirectCookieRetained']);
         $t->same(true, $redirectExample['sameScopeRedirectCookieReplaced']);
         $t->same(true, $redirectExample['callerCookieHeaderPreserved']);
@@ -2048,6 +2130,82 @@ return [
         $t->same("{$old} {$blob->oid()} refs/heads/main\0 report-status side-band-64k object-format=sha1 agent=port-libs/0.1", $commands[0]);
         $t->same($request->pack()?->packBytes(), $packBytes);
     },
+    'ssh receive-pack connector receives protocol v2 auth boundary context' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress SSH protocol v2 boundary payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x02Writing objects: 100% (1/1)\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $read = $streamWith($advertisement . $responseBytes);
+        $write = $streamWith('');
+        $connection = null;
+        $connector = static function (
+            string $host,
+            ?string $user,
+            ?int $port,
+            string $command,
+            float $timeout,
+            array $context,
+        ) use (&$connection, $read, $write): array {
+            $connection = [
+                'host' => $host,
+                'user' => $user,
+                'port' => $port,
+                'command' => $command,
+                'timeout' => $timeout,
+                'context' => $context,
+            ];
+
+            return ['read' => $read, 'write' => $write];
+        };
+
+        $client = new ReceivePackClient(
+            SshReceivePackTransport::connect(
+                'ssh://deploy@git.example.test:2222/var/www/wp-content.git',
+                $connector,
+                11.5,
+                ['protocolVersion' => 2],
+            ),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+        $request = $session->buildRequest([$blob]);
+
+        $response = $client->send($request);
+        [$commands, $packBytes] = $readPacketSequence($streamBytes($write));
+
+        $t->same(true, $response->isSuccessful());
+        $t->same('git.example.test', $connection['host']);
+        $t->same('deploy', $connection['user']);
+        $t->same(2222, $connection['port']);
+        $t->same("git-receive-pack '/var/www/wp-content.git'", $connection['command']);
+        $t->same(2, $connection['context']['protocolVersion']);
+        $t->same(['GIT_PROTOCOL' => 'version=2', 'LANG' => 'C', 'LC_ALL' => 'C'], $connection['context']['environment']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@git.example.test'], $connection['context']['sshArguments']);
+        $t->same('caller-provided-ssh-connector', $connection['context']['authenticationBoundary']);
+        $t->same(
+            "path=var/www/wp-content.git\nprotocol=ssh\nhost=git.example.test:2222\nusername=deploy\n",
+            $connection['context']['credentialContext']->storageBytes()
+        );
+        $t->same($connection['context']['credentialContext']->storageBytes(), $connection['context']['redactedCredentialContext']);
+        $t->same(false, str_contains($connection['context']['redactedCredentialContext'], 'password='));
+        $t->same($request->requestBytes(), $streamBytes($write));
+        $t->same("{$old} {$blob->oid()} refs/heads/main\0 report-status side-band-64k object-format=sha1 agent=port-libs/0.1", $commands[0]);
+        $t->same($request->pack()?->packBytes(), $packBytes);
+
+        $v1Context = SshReceivePackTransport::connectorContext('deploy@git.example.test:wp-content.git');
+        $t->same(1, $v1Context['protocolVersion']);
+        $t->same(['LANG' => 'C', 'LC_ALL' => 'C'], $v1Context['environment']);
+        $t->same(['deploy@git.example.test'], $v1Context['sshArguments']);
+        $t->same('ssh://deploy@git.example.test/wp-content.git', $v1Context['credentialContext']->toUrl());
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://example.test/repo.git', ['protocolVersion' => 0]));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://example.test/repo.git', ['protocolVersion' => 3]));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::connectorContext('ssh://deploy:secret@git.example.test/repo.git'));
+    },
     'ssh receive-pack urls and commands are validated without shelling out' => static function (TestRunner $t): void {
         $t->same([
             'host' => 'git.example.test',
@@ -2164,6 +2322,11 @@ return [
         $t->same(true, $fixture['unsafeSshHostDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshUserDelimiterRejected']);
         $t->same(true, $fixture['unsafeSshEncodedUserDelimiterRejected']);
+        $t->same(true, $fixture['unsafeSshPasswordRejected']);
+        $t->same(['GIT_PROTOCOL' => 'version=2', 'LANG' => 'C', 'LC_ALL' => 'C'], $fixture['sshProtocolV2Context']['environment']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p2222', 'deploy@git.example.test'], $fixture['sshProtocolV2Context']['sshArguments']);
+        $t->same('caller-provided-ssh-connector', $fixture['sshProtocolV2Context']['authenticationBoundary']);
+        $t->same(false, str_contains($fixture['sshProtocolV2Context']['redactedCredentialContext'], 'password='));
     },
     'wordpress fixture stores smart http proxy credentials without leaking origin headers' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-smart-http-proxy-credentials.php';

@@ -16,6 +16,10 @@ return [
     'sshTarget' => $fixture['sshTarget'],
     'sshIpv6Target' => $fixture['sshIpv6Target'],
     'sshCommand' => $fixture['sshCommand'],
+    'sshProtocolV2Environment' => $fixture['sshProtocolV2Context']['environment'],
+    'sshProtocolV2Arguments' => $fixture['sshProtocolV2Context']['sshArguments'],
+    'sshCredentialContext' => $fixture['sshProtocolV2Context']['redactedCredentialContext'],
+    'sshAuthenticationBoundary' => $fixture['sshProtocolV2Context']['authenticationBoundary'],
     'gitDaemonServiceRequestPayload' => substr($fixture['gitDaemonServiceRequest'], 4),
     'gitDaemonUrlServiceRequestPayload' => substr($fixture['gitDaemonUrlServiceRequest'], 4),
     'gitDaemonEncodedUrlServiceRequestPayload' => substr($fixture['gitDaemonEncodedUrlServiceRequest'], 4),
@@ -42,4 +46,5 @@ return [
     'unsafeSshHostDelimiterRejected' => $fixture['unsafeSshHostDelimiterRejected'],
     'unsafeSshUserDelimiterRejected' => $fixture['unsafeSshUserDelimiterRejected'],
     'unsafeSshEncodedUserDelimiterRejected' => $fixture['unsafeSshEncodedUserDelimiterRejected'],
+    'unsafeSshPasswordRejected' => $fixture['unsafeSshPasswordRejected'],
 ];

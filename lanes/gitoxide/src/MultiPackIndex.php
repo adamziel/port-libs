@@ -50,8 +50,12 @@ final class MultiPackIndex
     ) {
     }
 
-    public static function fromBytes(string $bytes): self
+    public static function fromBytes(string $bytes, ?int $allocationLimitBytes = null): self
     {
+        if ($allocationLimitBytes !== null && $allocationLimitBytes < 0) {
+            throw new \InvalidArgumentException('Multi-pack-index allocation limit cannot be negative');
+        }
+
         $length = strlen($bytes);
         if ($length < self::HEADER_BYTES + self::TOC_ENTRY_BYTES) {
             throw new \InvalidArgumentException("Multi-pack-index of size {$length} is too small");
@@ -79,7 +83,11 @@ final class MultiPackIndex
         $packCount = self::readUInt32At($bytes, 8);
 
         $chunks = self::readChunkTable($bytes, $chunkCount);
-        $indexNames = self::readIndexNames(self::requiredChunk($bytes, $chunks, self::CHUNK_PACK_NAMES), $packCount);
+        $indexNames = self::readIndexNames(
+            self::requiredChunk($bytes, $chunks, self::CHUNK_PACK_NAMES),
+            $packCount,
+            $allocationLimitBytes
+        );
         $fanout = self::readFanout(self::requiredChunk($bytes, $chunks, self::CHUNK_FANOUT));
         $objectCount = $fanout[255];
         $oids = self::readOids(self::requiredChunk($bytes, $chunks, self::CHUNK_LOOKUP), $objectCount, $hashBytes);
@@ -115,13 +123,13 @@ final class MultiPackIndex
         );
     }
 
-    public static function open(string $path): self
+    public static function open(string $path, ?int $allocationLimitBytes = null): self
     {
         if (!is_file($path)) {
             throw new \RuntimeException("Multi-pack-index file not found: {$path}");
         }
 
-        return self::fromBytes((string) file_get_contents($path));
+        return self::fromBytes((string) file_get_contents($path), $allocationLimitBytes);
     }
 
     public function version(): int
@@ -388,8 +396,12 @@ final class MultiPackIndex
     /**
      * @return list<string>
      */
-    private static function readIndexNames(string $chunk, int $packCount): array
+    private static function readIndexNames(string $chunk, int $packCount, ?int $allocationLimitBytes): array
     {
+        if ($allocationLimitBytes !== null && $packCount > intdiv($allocationLimitBytes, 8)) {
+            throw new \InvalidArgumentException('Multi-pack-index pack name table exceeds the configured allocation limit');
+        }
+
         $names = [];
         $cursor = 0;
         for ($i = 0; $i < $packCount; $i++) {
@@ -398,6 +410,9 @@ final class MultiPackIndex
                 throw new \InvalidArgumentException('Each multi-pack-index pack path name must be terminated with a null byte');
             }
             $name = substr($chunk, $cursor, $nul - $cursor);
+            if ($allocationLimitBytes !== null && strlen($name) > $allocationLimitBytes) {
+                throw new \InvalidArgumentException('Multi-pack-index pack name exceeds the configured allocation limit');
+            }
             if ($names !== [] && strcmp($names[count($names) - 1], $name) >= 0) {
                 throw new \InvalidArgumentException('Multi-pack-index pack names must be ordered alphabetically');
             }

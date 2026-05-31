@@ -217,6 +217,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
     private function request(string $method, string $url, array $headers, ?string $body, bool $followInitialRedirects): array
     {
         $redirectsRemaining = $this->redirectLimit($followInitialRedirects);
+        $callerCookieHeader = self::headerValue($this->extraHeaders, 'cookie');
 
         while (true) {
             $effectiveUrl = self::swapBaseUrl($this->effectiveRepositoryUrl, $this->repositoryUrl, $url);
@@ -261,12 +262,15 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             }
 
             $redirectUrl = self::resolveRedirectUrl($location, $effectiveUrl);
+            $redirectedBaseUrl = self::redirectedBaseUrl($redirectUrl, $this->repositoryUrl, $url);
             $this->rememberCookies($response['headers'], $effectiveUrl, true);
-            $cookieHeader = self::cookieHeader($this->cookies, $redirectUrl, self::headerValue($headers, 'cookie'));
+            $cookieHeader = self::cookieHeader($this->cookies, $redirectUrl, $callerCookieHeader);
             if ($cookieHeader !== null) {
                 self::setHeader($headers, 'Cookie', $cookieHeader);
+            } else {
+                self::removeHeader($headers, 'Cookie');
             }
-            $this->effectiveRepositoryUrl = self::redirectedBaseUrl($redirectUrl, $this->repositoryUrl, $url);
+            $this->effectiveRepositoryUrl = $redirectedBaseUrl;
             $redirectsRemaining--;
         }
     }
@@ -1016,6 +1020,19 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         $headers[$name] = $value;
+    }
+
+    /**
+     * @param array<string, string> $headers
+     */
+    private static function removeHeader(array &$headers, string $name): void
+    {
+        $lowerName = strtolower($name);
+        foreach (array_keys($headers) as $existingName) {
+            if (strtolower((string) $existingName) === $lowerName) {
+                unset($headers[$existingName]);
+            }
+        }
     }
 
     /**

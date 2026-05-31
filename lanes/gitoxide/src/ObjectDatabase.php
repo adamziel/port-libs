@@ -260,6 +260,21 @@ final class ObjectDatabase
         return new self($this->gitDirectory, $this->ignoreReplacements, $this->replacementRefBase, $resolver);
     }
 
+    public function write(GitObject $object): string
+    {
+        $oid = $object->oid();
+        if ($this->contains($oid)) {
+            return $oid;
+        }
+
+        return $this->primaryLooseStore()->write($object);
+    }
+
+    public function writeCommit(Commit $commit): string
+    {
+        return $this->write($commit->object());
+    }
+
     /**
      * @return list<string>
      */

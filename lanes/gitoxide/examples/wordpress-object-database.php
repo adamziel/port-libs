@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../../tools/bootstrap.php';
 
+use PortLibs\Gitoxide\Commit;
 use PortLibs\Gitoxide\GitObject;
 use PortLibs\Gitoxide\LooseObjectStore;
 use PortLibs\Gitoxide\LooseReferenceStore;
@@ -37,6 +38,18 @@ if (!mkdir($infoDir, 0777, true) && !is_dir($infoDir)) {
 file_put_contents($infoDir . '/alternates', "# shared object cache\n{$alternateObjectsDir}\n");
 
 $database = new ObjectDatabase($gitDir);
+$packedCommitWriteOid = $database->writeCommit(Commit::parse($fixture['objects'][0]['body']));
+$deploymentCommit = new Commit(
+    'e90926b07092bccb7bf7da445fae6ffdfacf3eae',
+    [$fixture['objects'][0]['oid']],
+    'WordPress Importer <importer@example.test> 1710000000 +0000',
+    'WordPress Deploy Bot <deploy@example.test> 1710000300 +0000',
+    "Publish regenerated block snapshot\n",
+    [],
+);
+$deploymentCommitOid = $database->writeCommit($deploymentCommit);
+$deploymentCommitPath = $gitDir . '/objects/' . substr($deploymentCommitOid, 0, 2) . '/' . substr($deploymentCommitOid, 2);
+$deploymentCommitRoundTrip = Commit::parse($database->read($deploymentCommitOid)->body);
 $deltaBlob = $database->read($fixture['objects'][2]['oid']);
 $draft = $database->read($draftOid);
 $rawDraft = $database->withReplacementsIgnored()->read($draftOid);
@@ -57,4 +70,10 @@ return [
     'sharedPackageSource' => 'alternate object database',
     'deltaPrefixStatus' => $prefix['status'],
     'firstPackOffsetOid' => $database->objectIds(ObjectDatabase::ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL)[0],
+    'packedCommitWriteSkippedLoose' => $packedCommitWriteOid === $fixture['objects'][0]['oid']
+        && !is_file($gitDir . '/objects/' . substr($packedCommitWriteOid, 0, 2) . '/' . substr($packedCommitWriteOid, 2)),
+    'deploymentCommitOid' => $deploymentCommitOid,
+    'deploymentCommitStoredLoose' => is_file($deploymentCommitPath),
+    'deploymentCommitSummary' => $deploymentCommitRoundTrip->messageSummary(),
+    'deploymentCommitParent' => $deploymentCommitRoundTrip->parents[0],
 ];
