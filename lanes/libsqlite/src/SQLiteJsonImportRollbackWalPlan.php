@@ -2268,6 +2268,115 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicRollbackDisabledPostRecoveryFailureScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL rollback-disabled post-recovery failure dynamic parity requires at least one scenario');
+        }
+
+        $baseScenarios = self::dynamicRollbackDisabledFollowupRecoveryScenarios($scenarioCount);
+        $scenarios = [];
+        foreach ($baseScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $tenantId = (int) $base['tenant_id'];
+            $pageSize = (int) $base['page_size'];
+            $jsonbMode = (bool) $base['jsonb_mode'];
+            $recoveryPlan = $base['recovery_plan'];
+            $committedPrefixFrameCount = (int) $recoveryPlan['wal_frame_count_after'];
+            $catalogPage = (int) $base['expected_recovery_pages'][0];
+            $postRecoveryInsertPage = 1820 + $seed;
+            $brokenPage = 1420 + $seed;
+            $postRecoveryFrameStart = $committedPrefixFrameCount + 1;
+            $committedPrefixPages = array_merge(
+                $base['committed_prefix_pages'],
+                $base['expected_recovery_pages']
+            );
+
+            $postRecoveryRows = $recoveryPlan['import_plan']['final_rows'];
+            $postRecoveryMutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_post_recovery_tail_catalog_' . $seed,
+                    'key_name' => 'disabled_rollback_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.post_recovery_tail',
+                    'value' => 'rolled-back-after-recovery-' . $seed,
+                    'wal_frame_index' => $postRecoveryFrameStart,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_post_recovery_tail_insert_' . $seed,
+                    'key_name' => 'disabled_post_recovery_tail_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.queued',
+                    'value' => true,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $seed * 10000 + 7,
+                    'insert_load_policy' => 'auto',
+                    'initial_value' => '{}',
+                    'page_number' => $postRecoveryInsertPage,
+                    'wal_frame_index' => $postRecoveryFrameStart + 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'disabled_post_recovery_tail_broken_payload_' . $seed,
+                    'key_name' => 'disabled_rollback_broken_payload_' . $seed,
+                    'function' => 'json_set',
+                    'path' => '$.post_recovery_tail',
+                    'value' => true,
+                    'wal_frame_index' => $postRecoveryFrameStart + 2,
+                ],
+            ];
+
+            $postRecoveryWalBytes = self::appendScenarioWalFrames(
+                (string) $recoveryPlan['wal_bytes_after'],
+                $pageSize,
+                [
+                    $postRecoveryFrameStart => $catalogPage,
+                    $postRecoveryFrameStart + 1 => $postRecoveryInsertPage,
+                    $postRecoveryFrameStart + 2 => $brokenPage,
+                ],
+                'app-json-dynamic-disabled-post-recovery-tail:' . $seed . ':'
+            );
+            $postRecoveryFailurePlan = self::plan($postRecoveryRows, $postRecoveryMutations, [
+                'database_bytes' => (string) $recoveryPlan['database_bytes_after_import'],
+                'page_size' => $pageSize,
+                'wal_bytes' => $postRecoveryWalBytes,
+                'transaction' => 'application_disabled_post_recovery_tail_json_import_' . $seed,
+                'savepoint' => 'disabled_post_recovery_tail_json_batch_' . $seed,
+                'pre_savepoint_wal_pages' => $committedPrefixPages,
+            ]);
+
+            $scenarios[] = [
+                'seed' => $seed,
+                'tenant_id' => $tenantId,
+                'page_size' => $pageSize,
+                'jsonb_mode' => $jsonbMode,
+                'preexisting_frames' => $base['preexisting_frames'],
+                'partial_frame_count' => $base['partial_frame_count'],
+                'committed_prefix_frame_count' => $committedPrefixFrameCount,
+                'committed_prefix_pages' => $committedPrefixPages,
+                'expected_post_recovery_pages' => [$catalogPage, $postRecoveryInsertPage],
+                'expected_post_recovery_inserted_key' => 'disabled_post_recovery_tail_payload_' . $seed,
+                'expected_post_recovery_inserted_id' => $seed * 10000 + 7,
+                'expected_failed_statement' => 'disabled_post_recovery_tail_broken_payload_' . $seed,
+                'rejected_prior_tail_inserted_key' => $base['rejected_tail_inserted_key'],
+                'tail_broken_page' => $brokenPage,
+                'post_recovery_wal_bytes' => $postRecoveryWalBytes,
+                'partial_plan' => $base['partial_plan'],
+                'followup_plan' => $base['followup_plan'],
+                'previous_tail_plan' => $base['tail_plan'],
+                'recovery_plan' => $recoveryPlan,
+                'post_recovery_failure_plan' => $postRecoveryFailurePlan,
+            ];
+        }
+
+        return $scenarios;
+    }
+
+    /**
      * @param array<string,mixed> $importPlan
      */
     private static function assertRollbackFramesExist(array $importPlan, int $walFrameCount): void

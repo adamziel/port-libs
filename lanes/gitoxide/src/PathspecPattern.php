@@ -10,6 +10,9 @@ final class PathspecPattern
     public const SEARCH_PATH_AWARE_GLOB = 'path-aware-glob';
     public const SEARCH_LITERAL = 'literal';
 
+    /**
+     * @param list<array{name:string,state:string,value:?string}> $attributes
+     */
     public function __construct(
         public readonly string $path,
         public readonly bool $top = false,
@@ -20,6 +23,7 @@ final class PathspecPattern
         public readonly bool $nil = false,
         public readonly int $sequenceNumber = 0,
         public readonly int $prefixLength = 0,
+        public readonly array $attributes = [],
     ) {
         if (!in_array($searchMode, [self::SEARCH_SHELL_GLOB, self::SEARCH_PATH_AWARE_GLOB, self::SEARCH_LITERAL], true)) {
             throw new \InvalidArgumentException("Unsupported pathspec search mode: {$searchMode}");
@@ -58,6 +62,7 @@ final class PathspecPattern
         $exclude = false;
         $ignoreCase = $defaultIgnoreCase;
         $searchMode = $defaultSearchMode;
+        $attributes = [];
         $cursor = 0;
 
         if ($input[0] === ':') {
@@ -87,6 +92,7 @@ final class PathspecPattern
                     throw new \InvalidArgumentException('Missing closing parenthesis in pathspec magic signature');
                 }
                 $keywords = substr($input, $cursor + 1, $end - $cursor - 1);
+                $sawAttributes = false;
                 foreach (self::splitUnescaped($keywords, ',') as $keyword) {
                     if ($keyword === '') {
                         continue;
@@ -108,7 +114,14 @@ final class PathspecPattern
                         }
                         $searchMode = self::SEARCH_PATH_AWARE_GLOB;
                     } elseif ($keyword === 'attr' || str_starts_with($keyword, 'attr:')) {
-                        throw new \InvalidArgumentException('Pathspec attribute matching is not implemented in the PHP tree walker');
+                        if ($keyword === 'attr') {
+                            continue;
+                        }
+                        if ($sawAttributes) {
+                            throw new \InvalidArgumentException('Only one attribute specification is allowed in the same pathspec');
+                        }
+                        $sawAttributes = true;
+                        $attributes = GitAttributes::parseRequirements(substr($keyword, 5));
                     } else {
                         throw new \InvalidArgumentException("Invalid pathspec keyword: {$keyword}");
                     }
@@ -131,6 +144,7 @@ final class PathspecPattern
             mustBeDirectory: $mustBeDirectory,
             searchMode: $searchMode,
             sequenceNumber: $sequenceNumber,
+            attributes: $attributes,
         );
     }
 
@@ -146,6 +160,7 @@ final class PathspecPattern
             nil: $this->nil,
             sequenceNumber: $this->sequenceNumber,
             prefixLength: $prefixLength ?? $this->prefixLength,
+            attributes: $this->attributes,
         );
     }
 

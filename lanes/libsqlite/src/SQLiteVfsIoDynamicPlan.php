@@ -1311,6 +1311,135 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @param non-empty-list<int> $segmentLengths
+     * @param non-empty-list<int> $normalRows
+     * @param non-empty-list<int> $longPathRows
+     * @param non-empty-list<int> $walRows
+     * @return array<string, mixed>
+     */
+    public static function win32LongPathProfile(
+        string $rawPath,
+        int $pid,
+        array $segmentLengths,
+        string $uriVariant,
+        bool $translateFilename,
+        array $normalRows = [1, 2, 3, 4],
+        array $longPathRows = [5, 6, 7, 8],
+        array $walRows = [9, 10, 11, 12]
+    ): array {
+        $rawPath = trim($rawPath);
+        if ($rawPath === '') {
+            throw new \InvalidArgumentException('SQLite win32-longpath profile requires a base path');
+        }
+        if ($pid < 1) {
+            throw new \InvalidArgumentException('SQLite win32-longpath profile requires a positive process id');
+        }
+        if ($segmentLengths === []) {
+            throw new \InvalidArgumentException('SQLite win32-longpath profile requires at least one long path segment');
+        }
+        foreach ($segmentLengths as $length) {
+            if ($length < 1 || $length > 255) {
+                throw new \InvalidArgumentException('SQLite win32-longpath segment length must be between 1 and 255 bytes');
+            }
+        }
+        foreach ([$normalRows, $longPathRows, $walRows] as $rows) {
+            if ($rows === []) {
+                throw new \InvalidArgumentException('SQLite win32-longpath profile row batches must not be empty');
+            }
+            foreach ($rows as $row) {
+                if (!is_int($row)) {
+                    throw new \InvalidArgumentException('SQLite win32-longpath profile row values must be integers');
+                }
+            }
+        }
+
+        $uriVariant = strtolower(trim($uriVariant));
+        if (!in_array($uriVariant, ['1a', '1b', '1c', '1d', '1e', '1f'], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite win32-longpath URI variant: {$uriVariant}");
+        }
+
+        $nativePath = rtrim(str_replace('/', '\\', $rawPath), '\\');
+        $slashPath = rtrim(str_replace('\\', '/', $rawPath), '/');
+        $segments = [];
+        foreach ($segmentLengths as $index => $length) {
+            $segments[] = str_repeat(chr(88 + ($index % 3)), $length);
+        }
+
+        $longDirectory = '\\\\?\\' . $nativePath . '\\' . $pid;
+        foreach ($segments as $segment) {
+            $longDirectory .= '\\' . $segment;
+        }
+        $filename = $longDirectory . '\\test.db';
+        $strippedFilename = substr($filename, 4);
+        $pathLength = strlen($filename);
+        $maxPathExceeded = $pathLength > 260;
+
+        $uriUsesSlashPath = in_array($uriVariant, ['1b', '1d', '1f'], true);
+        $uriPrefix = match ($uriVariant) {
+            '1a', '1b' => 'file:',
+            '1c', '1d' => 'file:///',
+            '1e', '1f' => 'file://localhost/',
+        };
+        $uriPath = '%5C%5C%3F%5C' . ($uriUsesSlashPath ? $slashPath : $nativePath);
+        $separator = $uriUsesSlashPath ? '/' : '\\';
+        $uriPath .= $separator . $pid;
+        foreach ($segments as $segment) {
+            $uriPath .= $separator . $segment;
+        }
+        $uri = $uriPrefix . $uriPath . $separator . 'test.db';
+
+        $normalSelectRows = self::sortedIntegers($normalRows);
+        $longSelectRows = self::sortedIntegers($longPathRows);
+        $walSelectRows = self::sortedIntegers(array_merge($longPathRows, $walRows));
+
+        return [
+            'status' => 'ok',
+            'script' => 'win32longpath.test',
+            'upstream' => [
+                'win32longpath.test 1.0 file_control_vfsname default win32',
+                'win32longpath.test 1.1 file_control_vfsname win32-longpath',
+                'win32longpath.test 1.2 transaction on normal win32 path',
+                'win32longpath.test 1.3 over-length path without long prefix is rejected',
+                'win32longpath.test 1.4 transaction on long path',
+                'win32longpath.test 1.5 WAL journal mode on long path',
+                'win32longpath.test 1.6 WAL append readback on long path',
+                'win32longpath.test 1.7.1a-1f URI open with -translatefilename 0',
+            ],
+            'default_vfs' => 'win32',
+            'selected_vfs' => 'win32-longpath',
+            'raw_path' => $rawPath,
+            'native_path' => $nativePath,
+            'pid' => $pid,
+            'segment_lengths' => array_values($segmentLengths),
+            'long_segment_bytes' => array_sum($segmentLengths),
+            'long_directory' => $longDirectory,
+            'filename' => $filename,
+            'path_length' => $pathLength,
+            'max_path_exceeded' => $maxPathExceeded,
+            'long_path_prefix_required' => true,
+            'stripped_filename' => $strippedFilename,
+            'stripped_open_status' => $maxPathExceeded ? 'error' : 'ok',
+            'stripped_open_error' => $maxPathExceeded ? 'unable to open database file' : null,
+            'uri_variant' => $uriVariant,
+            'uri' => $uri,
+            'uri_uses_slash_path' => $uriUsesSlashPath,
+            'translatefilename' => $translateFilename,
+            'uri_translation_disabled' => !$translateFilename,
+            'normal_select_rows' => $normalSelectRows,
+            'long_select_rows' => $longSelectRows,
+            'journal_mode_result' => 'wal',
+            'wal_select_rows' => $walSelectRows,
+            'uri_select_rows' => $walSelectRows,
+            'wal_path' => $filename . '-wal',
+            'shm_path' => $filename . '-shm',
+            'journal_path' => $filename . '-journal',
+            'operation_test_ids' => ['1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7.' . $uriVariant],
+            'reason' => 'win32_longpath_vfs_preserves_long_prefixed_paths_and_uri_reopen_without_filename_translation',
+            'dependencies' => ['upstream-win32-longpath-vfs', 'vfs-io-dynamic-real-corpus'],
+        ];
+    }
+
+    /**
      * @param list<string> $sqlControls
      * @return array<string, mixed>
      */
@@ -3620,6 +3749,18 @@ final class SQLiteVfsIoDynamicPlan
             'mmap3-1.7', 'mmap3-1.8' => ['nums', 't1', 't3'],
             default => [],
         };
+    }
+
+    /**
+     * @param list<int> $rows
+     * @return list<int>
+     */
+    private static function sortedIntegers(array $rows): array
+    {
+        $sorted = array_values($rows);
+        sort($sorted, SORT_NUMERIC);
+
+        return $sorted;
     }
 
     /**

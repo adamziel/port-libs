@@ -25,6 +25,7 @@ $rollbackDisabledMaterializedWalScenarios = SQLiteJsonImportRollbackWalPlan::dyn
 $rollbackDisabledFollowupScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupScenarios(4);
 $rollbackDisabledFollowupFailureScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupFailureScenarios(4);
 $rollbackDisabledFollowupRecoveryScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledFollowupRecoveryScenarios(4);
+$rollbackDisabledPostRecoveryFailureScenarios = SQLiteJsonImportRollbackWalPlan::dynamicRollbackDisabledPostRecoveryFailureScenarios(4);
 $summary = [
     'scenario' => 'application-wal-rollback-json-dynamic-parity',
     'scenarioCount' => count($scenarios),
@@ -46,6 +47,7 @@ $summary = [
     'rollbackDisabledFollowupScenarioCount' => count($rollbackDisabledFollowupScenarios),
     'rollbackDisabledFollowupFailureScenarioCount' => count($rollbackDisabledFollowupFailureScenarios),
     'rollbackDisabledFollowupRecoveryScenarioCount' => count($rollbackDisabledFollowupRecoveryScenarios),
+    'rollbackDisabledPostRecoveryFailureScenarioCount' => count($rollbackDisabledPostRecoveryFailureScenarios),
     'statuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $scenarios),
     'preexistingWalStatuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $preexistingWalScenarios),
     'tenantCollisionStatuses' => array_map(static fn (array $scenario): string => $scenario['plan']['status'], $tenantCollisionScenarios),
@@ -127,6 +129,16 @@ $summary = [
         static fn (array $scenario): bool => in_array($scenario['rejected_tail_inserted_key'], array_column($scenario['recovery_plan']['import_plan']['final_rows'], 'key_name'), true),
         $rollbackDisabledFollowupRecoveryScenarios
     ),
+    'rollbackDisabledPostRecoveryFailureStatuses' => array_map(static fn (array $scenario): string => $scenario['post_recovery_failure_plan']['status'], $rollbackDisabledPostRecoveryFailureScenarios),
+    'rollbackDisabledPostRecoveryFailureWalFramesBefore' => array_map(static fn (array $scenario): int => $scenario['post_recovery_failure_plan']['wal_frame_count_before'], $rollbackDisabledPostRecoveryFailureScenarios),
+    'rollbackDisabledPostRecoveryFailureWalFramesAfter' => array_map(static fn (array $scenario): int => $scenario['post_recovery_failure_plan']['wal_frame_count_after'], $rollbackDisabledPostRecoveryFailureScenarios),
+    'rollbackDisabledPostRecoveryFailureTailPages' => array_map(static fn (array $scenario): array => $scenario['post_recovery_failure_plan']['rollback_to_savepoint']['restored_page_numbers'], $rollbackDisabledPostRecoveryFailureScenarios),
+    'rollbackDisabledPostRecoveryFailureFailedStatements' => array_map(static fn (array $scenario): array => $scenario['post_recovery_failure_plan']['failed_statements'], $rollbackDisabledPostRecoveryFailureScenarios),
+    'rollbackDisabledPostRecoveryFailureInsertedKeys' => array_map(static fn (array $scenario): string => $scenario['post_recovery_failure_plan']['import_plan']['applied'][1]['key_name'], $rollbackDisabledPostRecoveryFailureScenarios),
+    'rollbackDisabledPostRecoveryFailurePriorTailKeysRetained' => array_map(
+        static fn (array $scenario): bool => in_array($scenario['rejected_prior_tail_inserted_key'], array_column($scenario['post_recovery_failure_plan']['import_plan']['final_rows'], 'key_name'), true),
+        $rollbackDisabledPostRecoveryFailureScenarios
+    ),
     'missingWalTailMessages' => array_map(static fn (array $scenario): ?string => $scenario['exception_message'], $missingWalTailScenarios),
     'missingWalTailShortFrameCounts' => array_map(static fn (array $scenario): int => $scenario['short_frame_count'], $missingWalTailScenarios),
     'partialWalTailMessages' => array_map(static fn (array $scenario): ?string => $scenario['exception_message'], $partialWalTailScenarios),
@@ -163,6 +175,7 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['rollbackDisabledFollowupScenarioCount'] === 4);
     assert($summary['rollbackDisabledFollowupFailureScenarioCount'] === 4);
     assert($summary['rollbackDisabledFollowupRecoveryScenarioCount'] === 4);
+    assert($summary['rollbackDisabledPostRecoveryFailureScenarioCount'] === 4);
     assert($summary['statuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['preexistingWalStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
     assert($summary['tenantCollisionStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
@@ -222,6 +235,13 @@ if (in_array('--self-test', $argv, true)) {
     assert($summary['rollbackDisabledFollowupRecoveryPages'][0] === [1321, 1721]);
     assert($summary['rollbackDisabledFollowupRecoveryInsertedKeys'][0] === 'disabled_followup_recovery_payload_1');
     assert($summary['rollbackDisabledFollowupRecoveryRejectedTailKeysRetained'] === array_fill(0, 4, false));
+    assert($summary['rollbackDisabledPostRecoveryFailureStatuses'] === array_fill(0, 4, 'rolled_back_current_json_batch'));
+    assert($summary['rollbackDisabledPostRecoveryFailureWalFramesBefore'] === [11, 12, 13, 10]);
+    assert($summary['rollbackDisabledPostRecoveryFailureWalFramesAfter'] === [8, 9, 10, 7]);
+    assert($summary['rollbackDisabledPostRecoveryFailureTailPages'][0] === [1321, 1821]);
+    assert($summary['rollbackDisabledPostRecoveryFailureFailedStatements'][0] === ['disabled_post_recovery_tail_broken_payload_1']);
+    assert($summary['rollbackDisabledPostRecoveryFailureInsertedKeys'][0] === 'disabled_post_recovery_tail_payload_1');
+    assert($summary['rollbackDisabledPostRecoveryFailurePriorTailKeysRetained'] === array_fill(0, 4, false));
     assert($summary['missingWalTailShortFrameCounts'] === [4, 6, 6, 4]);
     assert($summary['missingWalTailMessages'][0] === 'SQLite Application JSON import rollback WAL bytes are missing current batch frame(s): 5, 6');
     assert($summary['partialWalTailMessages'] === array_fill(0, 4, 'SQLite Application JSON import rollback WAL bytes have a partial frame tail'));

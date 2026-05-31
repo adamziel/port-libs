@@ -187,6 +187,28 @@ return [
             $t->contains('Git object body length mismatch: expected 12, got 5', $exception->getMessage());
         }
     },
+    'loose object integrity visits directory candidates instead of silently skipping them' => static function (TestRunner $t) use ($looseObjectPath): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-integrity-directory-blocker-' . bin2hex(random_bytes(4)) . '/objects';
+        $blockedOid = str_repeat('f', 40);
+        $blockedPath = $looseObjectPath($objectsDirectory, $blockedOid);
+        if (!mkdir($blockedPath, 0777, true) && !is_dir($blockedPath)) {
+            throw new RuntimeException('Unable to create loose object directory blocker fixture');
+        }
+
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+        $t->same([], $store->objectIds());
+        $t->same(false, $store->contains($blockedOid));
+
+        try {
+            $store->verifyIntegrity();
+            throw new RuntimeException('Expected loose object directory blocker to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$blockedOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Loose object path is not a regular file', $exception->getMessage());
+        }
+
+        $t->throws(RuntimeException::class, static fn () => $store->readHeader($blockedOid));
+    },
     'invalid storage header is rejected' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn () => GitObject::fromStorageBytes("blob nope\0body"));
     },

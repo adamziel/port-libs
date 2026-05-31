@@ -289,6 +289,30 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => (new ObjectDatabase($gitDir))->contains($primaryOid));
         $t->throws(InvalidArgumentException::class, static fn () => $database->lookupPrefix(str_repeat('f', 65)));
     },
+    'object database loose integrity rejects alternate object path directory blockers' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-directory-blocker-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateObjectsDir = $root . '/shared-cache/.git/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+
+        $blockedOid = str_repeat('d', 40);
+        $blockedPath = $alternateObjectsDir . '/' . substr($blockedOid, 0, 2) . '/' . substr($blockedOid, 2);
+        if (!mkdir($blockedPath, 0777, true) && !is_dir($blockedPath)) {
+            throw new RuntimeException('Unable to create alternate loose object directory blocker fixture');
+        }
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        try {
+            (new ObjectDatabase($gitDir))->verifyLooseIntegrity();
+            throw new RuntimeException('Expected alternate loose object directory blocker to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$blockedOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Loose object path is not a regular file', $exception->getMessage());
+        }
+    },
     'object database reads object headers across packed loose and replacement stores' => static function (TestRunner $t) use ($writeWordPressPackFixture): void {
         [$gitDir, $fixture] = $writeWordPressPackFixture();
         $loose = new LooseObjectStore($gitDir);
@@ -411,5 +435,6 @@ return [
         $t->same('loose', $summary['sha256LooseHeaderSource']);
         $t->same(1, $summary['sha256LooseIntegrityObjects']);
         $t->same(true, $summary['sha256LooseIntegrityVerified']);
+        $t->same(true, $summary['looseIntegrityDirectoryBlockerRejected']);
     },
 ];

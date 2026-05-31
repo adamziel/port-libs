@@ -99,7 +99,7 @@ final class PathspecSearch
         return substr($this->commonPrefix, 0, $slash + 1);
     }
 
-    public function match(string $relativePath, ?bool $isDirectory = null): ?PathspecMatch
+    public function match(string $relativePath, ?bool $isDirectory = null, ?GitAttributes $attributes = null): ?PathspecMatch
     {
         $relativePath = self::normalizePath($relativePath);
         if ($relativePath === '') {
@@ -126,6 +126,11 @@ final class PathspecSearch
             if ($kind === null) {
                 continue;
             }
+            if ($pattern->attributes !== []) {
+                if ($attributes === null || !$attributes->matchesRequirements($relativePath, $pattern->attributes, $isDirectory ?? false)) {
+                    continue;
+                }
+            }
 
             return new PathspecMatch($pattern, $pattern->sequenceNumber, $kind);
         }
@@ -141,9 +146,9 @@ final class PathspecSearch
         return null;
     }
 
-    public function isIncluded(string $relativePath, ?bool $isDirectory = null): bool
+    public function isIncluded(string $relativePath, ?bool $isDirectory = null, ?GitAttributes $attributes = null): bool
     {
-        $match = $this->match($relativePath, $isDirectory);
+        $match = $this->match($relativePath, $isDirectory, $attributes);
 
         return $match !== null && !$match->isExcluded();
     }

@@ -71,6 +71,20 @@ $sha256Oid = $sha256Database->write($sha256Object);
 $sha256Header = $sha256Database->readHeader(strtoupper($sha256Oid));
 $sha256Integrity = $sha256Database->verifyLooseIntegrity();
 
+$blockedGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-directory-blocker-' . bin2hex(random_bytes(4)) . '/.git';
+$blockedOid = str_repeat('a', 40);
+$blockedPath = $blockedGitDir . '/objects/' . substr($blockedOid, 0, 2) . '/' . substr($blockedOid, 2);
+if (!mkdir($blockedPath, 0777, true) && !is_dir($blockedPath)) {
+    throw new RuntimeException("Unable to create loose object blocker example directory: {$blockedPath}");
+}
+$looseIntegrityDirectoryBlockerRejected = false;
+try {
+    (new ObjectDatabase($blockedGitDir))->verifyLooseIntegrity();
+} catch (RuntimeException $exception) {
+    $looseIntegrityDirectoryBlockerRejected = str_contains($exception->getMessage(), "Loose object {$blockedOid} could not be read exactly")
+        && str_contains($exception->getMessage(), 'Loose object path is not a regular file');
+}
+
 return [
     'packedObjects' => $database->packedObjectCount(),
     'totalIterableObjects' => count($database->objectIds()),
@@ -104,4 +118,5 @@ return [
     'sha256LooseHeaderSource' => $sha256Header['source'],
     'sha256LooseIntegrityObjects' => $sha256Integrity[0]['statistics']['numObjects'],
     'sha256LooseIntegrityVerified' => in_array($sha256Oid, $sha256Integrity[0]['statistics']['verifiedObjectIds'], true),
+    'looseIntegrityDirectoryBlockerRejected' => $looseIntegrityDirectoryBlockerRejected,
 ];

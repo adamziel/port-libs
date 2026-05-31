@@ -3315,4 +3315,83 @@ foreach ($likeGlobLimitCases as $name => [$callback, $expected]) {
     };
 }
 
+$concatFunctionLimitExpr = static function (int $value, int $seed): string {
+    return match ($seed % 6) {
+        0 => "concat({$value})",
+        1 => "concat(NULL, {$value})",
+        2 => "concat('', {$value})",
+        3 => "concat_ws('', {$value})",
+        4 => "concat_ws('', NULL, {$value})",
+        default => "concat_ws('', {$value}, NULL)",
+    };
+};
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 4) + 1;
+    $offsetValue = $seed % 3;
+    $limitExpr = $concatFunctionLimitExpr($limitValue, $seed);
+    $offsetExpr = $concatFunctionLimitExpr($offsetValue, $seed + 4);
+    $sql = "UPDATE app_settings SET state = 'concat_function_limit' WHERE load_policy = 'lazy' RETURNING setting_id, state ORDER BY bytes ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}";
+    $expected = array_slice([5, 2, 3, 6, 8], $offsetValue, $limitValue);
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity update concat function limit seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected, $limitValue, $offsetValue): void {
+            $result = $execute($sql);
+            $t->same($limitValue, $result['plan']->toArray()['limit']);
+            $t->same($offsetValue, $result['plan']->toArray()['offset']);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same(array_values(array_intersect([2, 3, 5, 6, 8], $expected)), array_column($result['returning'], 'setting_id'));
+            $t->same(array_fill(0, count($result['returning']), 'concat_function_limit'), array_column($result['returning'], 'state'));
+            $t->contains('func9.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func9.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+for ($seed = 1; $seed <= 48; $seed++) {
+    $limitValue = ($seed % 3) + 1;
+    $offsetValue = ($seed + 1) % 4;
+    $limitExpr = $concatFunctionLimitExpr($limitValue, $seed + 2);
+    $offsetExpr = $concatFunctionLimitExpr($offsetValue, $seed + 6);
+    $sql = "DELETE FROM app_settings WHERE (tenant_id, key_name) IN (SELECT tenant_id, key_name FROM app_setting_targets ORDER BY priority ASC LIMIT {$limitExpr} OFFSET {$offsetExpr}) RETURNING setting_id ORDER BY setting_id LIMIT -1";
+    $subqueryOrderedIds = [6, 3, 5, 2, 8];
+    $expected = array_values(array_intersect([2, 3, 5, 6, 8], array_slice($subqueryOrderedIds, $offsetValue, $limitValue)));
+
+    $tests[sprintf('rowvalue update delete limit dynamic parity delete rowvalue concat function subquery seed %02d', $seed)] =
+        static function (TestRunner $t) use ($execute, $sql, $expected): void {
+            $result = $execute($sql);
+            $t->same($expected, $result['plan']->selectedIds);
+            $t->same($expected, array_column($result['returning'], 'setting_id'));
+            $t->same(array_values(array_diff([1, 2, 3, 4, 5, 6, 7, 8], $expected)), array_column($result['tables']['app_settings'], 'setting_id'));
+            $t->contains('rowvalue4.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/rowvalue4.test');
+            $t->contains('func9.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func9.test');
+            $t->contains('limit.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/limit.test');
+        };
+}
+
+$concatFunctionLimitCases = [
+    'parse concat integer limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT concat(1, 2)")['limit'], 12],
+    'parse concat null elision limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT concat(NULL, 3)")['limit'], 3],
+    'parse concat ws empty separator offset' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT 1 OFFSET concat_ws('', 1, 2)")['offset'], 12],
+    'parse concat ws null skip limit' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT concat_ws('', NULL, 4)")['limit'], 4],
+    'malformed concat arity rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT concat()"), InvalidArgumentException::class],
+    'malformed concat null only rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT concat(NULL)"), InvalidArgumentException::class],
+    'malformed concat text nonintegral rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT concat('2', '.5')"), InvalidArgumentException::class],
+    'malformed concat ws arity none rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT concat_ws()"), InvalidArgumentException::class],
+    'malformed concat ws separator only rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT concat_ws(',')"), InvalidArgumentException::class],
+    'malformed concat ws null separator rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT concat_ws(NULL, 1, 2)"), InvalidArgumentException::class],
+    'malformed concat ws comma joined text rejected' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse("DELETE FROM app_settings RETURNING setting_id LIMIT concat_ws(',', 1, 2)"), InvalidArgumentException::class],
+];
+
+foreach ($concatFunctionLimitCases as $name => [$callback, $expected]) {
+    $tests['rowvalue update delete limit dynamic parity concat function ' . $name] = static function (TestRunner $t) use ($callback, $expected): void {
+        if (is_string($expected) && is_a($expected, Throwable::class, true)) {
+            $t->throws($expected, $callback);
+            $t->contains('func9.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func9.test');
+            return;
+        }
+        $t->same($expected, $callback());
+        $t->contains('func9.test', '/home/claude/port-libs/.upstream-cache/libsqlite/test/func9.test');
+    };
+}
+
 return $tests;

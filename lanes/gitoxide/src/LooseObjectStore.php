@@ -59,8 +59,11 @@ final class LooseObjectStore
         $this->assertObjectId($oid);
 
         $path = $this->pathFor($oid);
-        if (!is_file($path)) {
+        if (!self::objectPathExists($path)) {
             throw new \RuntimeException("Loose object not found: {$oid}");
+        }
+        if (!is_file($path)) {
+            throw new \RuntimeException("Loose object path is not a regular file: {$oid}");
         }
 
         $bytes = gzuncompress((string) file_get_contents($path));
@@ -92,8 +95,11 @@ final class LooseObjectStore
         $this->assertObjectId($oid);
 
         $path = $this->pathFor($oid);
-        if (!is_file($path)) {
+        if (!self::objectPathExists($path)) {
             return null;
+        }
+        if (!is_file($path)) {
+            throw new \RuntimeException("Loose object path is not a regular file: {$oid}");
         }
 
         $compressed = file_get_contents($path);
@@ -107,7 +113,7 @@ final class LooseObjectStore
     public function tryRead(string $oid): ?GitObject
     {
         $this->assertObjectId($oid);
-        if (!$this->contains($oid)) {
+        if (!self::objectPathExists($this->pathFor($oid))) {
             return null;
         }
 
@@ -156,7 +162,7 @@ final class LooseObjectStore
     public function verifyIntegrity(): array
     {
         $verified = [];
-        foreach ($this->objectIds() as $oid) {
+        foreach ($this->integrityObjectIds() as $oid) {
             try {
                 $object = $this->read($oid);
             } catch (\InvalidArgumentException|\RuntimeException $exception) {
@@ -183,6 +189,55 @@ final class LooseObjectStore
         $oid = strtolower($oid);
 
         return $this->objectsDirectory . '/' . substr($oid, 0, 2) . '/' . substr($oid, 2);
+    }
+
+    private static function objectPathExists(string $path): bool
+    {
+        return file_exists($path) || is_link($path);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function integrityObjectIds(): array
+    {
+        $objectsDirectory = $this->objectsDirectory;
+        if (!is_dir($objectsDirectory)) {
+            return [];
+        }
+
+        $ids = [];
+        $suffixLength = self::hashHexLength($this->algorithm) - 2;
+        $prefixes = scandir($objectsDirectory);
+        if ($prefixes === false) {
+            throw new \RuntimeException("Unable to scan loose object directory: {$objectsDirectory}");
+        }
+
+        foreach ($prefixes as $prefix) {
+            if (preg_match('/^[0-9a-fA-F]{2}$/', $prefix) !== 1) {
+                continue;
+            }
+
+            $directory = $objectsDirectory . '/' . $prefix;
+            if (!is_dir($directory) || is_link($directory)) {
+                continue;
+            }
+
+            $entries = scandir($directory);
+            if ($entries === false) {
+                throw new \RuntimeException("Unable to scan loose object directory: {$directory}");
+            }
+            foreach ($entries as $suffix) {
+                if (preg_match('/^[0-9a-fA-F]{' . $suffixLength . '}$/', $suffix) === 1) {
+                    $ids[strtolower($prefix . $suffix)] = true;
+                }
+            }
+        }
+
+        $ids = array_keys($ids);
+        sort($ids, SORT_STRING);
+
+        return $ids;
     }
 
     private function assertObjectId(string $oid): void

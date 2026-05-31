@@ -766,7 +766,7 @@ final class SQLiteCoreScalarFunction
 
             $start = $offset;
             $offset++;
-            while ($offset < $length && str_contains('-+ #0,', $format[$offset])) {
+            while ($offset < $length && str_contains('-+ #0,!', $format[$offset])) {
                 $offset++;
             }
             while ($offset < $length && ctype_digit($format[$offset])) {
@@ -2254,7 +2254,13 @@ final class SQLiteCoreScalarFunction
 
     private static function sprintfFloat(string $specifier, mixed $value): string
     {
-        return sprintf(self::phpSprintfSpecifier($specifier, substr($specifier, -1)), $value === null ? 0.0 : (float) self::coerceNumeric($value));
+        $number = $value === null ? 0.0 : (float) self::coerceNumeric($value);
+        $type = substr($specifier, -1);
+        if (str_contains($specifier, '!')) {
+            return self::sprintfAlternateFloat($specifier, $number, $type);
+        }
+
+        return sprintf(self::phpSprintfSpecifier($specifier, $type), $number);
     }
 
     private static function sprintfCharacter(string $specifier, mixed $value): string
@@ -2275,9 +2281,135 @@ final class SQLiteCoreScalarFunction
     private static function phpSprintfSpecifier(string $specifier, string $type): string
     {
         $body = substr($specifier, 1, -1);
-        $body = str_replace(',', '', $body);
+        $body = str_replace([',', '!'], '', $body);
 
         return '%' . $body . $type;
+    }
+
+    private static function sprintfAlternateFloat(string $specifier, float $value, string $type): string
+    {
+        $formatted = sprintf(self::phpSprintfSpecifier($specifier, $type), $value);
+        if ($type === 'f' || $type === 'F') {
+            $precision = self::printfPrecision($specifier);
+            if ($precision === null || $precision > 16) {
+                $formatted = self::roundFixedDecimalSignificantDigits($formatted, 18);
+            }
+
+            return self::ensureDecimalPoint(rtrim(rtrim($formatted, '0'), '.'));
+        }
+
+        if ($type === 'e' || $type === 'E') {
+            return self::ensureExponentDecimalPoint($formatted);
+        }
+
+        if ($type === 'g' || $type === 'G') {
+            return self::ensureDecimalPoint($formatted);
+        }
+
+        return $formatted;
+    }
+
+    private static function printfPrecision(string $specifier): ?int
+    {
+        return preg_match('/\.([0-9]+)/', $specifier, $matches) === 1 ? (int) $matches[1] : null;
+    }
+
+    private static function ensureDecimalPoint(string $formatted): string
+    {
+        if (str_contains($formatted, '.') || str_contains($formatted, 'e') || str_contains($formatted, 'E')) {
+            return $formatted;
+        }
+
+        return $formatted . '.0';
+    }
+
+    private static function ensureExponentDecimalPoint(string $formatted): string
+    {
+        $position = strrpos($formatted, 'e');
+        if ($position === false) {
+            $position = strrpos($formatted, 'E');
+        }
+        if ($position === false) {
+            return self::ensureDecimalPoint($formatted);
+        }
+
+        $mantissa = substr($formatted, 0, $position);
+        if (!str_contains($mantissa, '.')) {
+            $formatted = substr($formatted, 0, $position) . '.0' . substr($formatted, $position);
+        }
+
+        return $formatted;
+    }
+
+    private static function roundFixedDecimalSignificantDigits(string $formatted, int $significantDigits): string
+    {
+        if (str_contains($formatted, 'e') || str_contains($formatted, 'E') || !str_contains($formatted, '.')) {
+            return $formatted;
+        }
+
+        $sign = '';
+        if (str_starts_with($formatted, '-') || str_starts_with($formatted, '+')) {
+            $sign = $formatted[0];
+            $formatted = substr($formatted, 1);
+        }
+
+        [$integer, $fraction] = explode('.', $formatted, 2);
+        $integer = $integer === '' ? '0' : $integer;
+        $integerSignificant = strlen(ltrim($integer, '0'));
+        $leadingFractionZeros = 0;
+        if ($integerSignificant === 0) {
+            $leadingFractionZeros = strspn($fraction, '0');
+        }
+
+        $keepFractionDigits = max(1, $leadingFractionZeros + $significantDigits - $integerSignificant);
+        [$integer, $fraction] = self::roundFixedFraction($integer, $fraction, $keepFractionDigits);
+        $fraction = rtrim($fraction, '0');
+        if ($fraction === '') {
+            $fraction = '0';
+        }
+
+        return $sign . $integer . '.' . $fraction;
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private static function roundFixedFraction(string $integer, string $fraction, int $keepDigits): array
+    {
+        $fraction = str_pad($fraction, $keepDigits + 1, '0');
+        $roundUp = $fraction[$keepDigits] >= '5';
+        $fraction = substr($fraction, 0, $keepDigits);
+
+        if (!$roundUp) {
+            return [$integer, $fraction];
+        }
+
+        $digits = str_split($fraction);
+        for ($i = count($digits) - 1; $i >= 0; $i--) {
+            if ($digits[$i] !== '9') {
+                $digits[$i] = (string) (((int) $digits[$i]) + 1);
+
+                return [$integer, implode('', $digits)];
+            }
+            $digits[$i] = '0';
+        }
+
+        return [self::incrementDecimalInteger($integer), implode('', $digits)];
+    }
+
+    private static function incrementDecimalInteger(string $integer): string
+    {
+        $digits = str_split($integer === '' ? '0' : $integer);
+        for ($i = count($digits) - 1; $i >= 0; $i--) {
+            if ($digits[$i] !== '9') {
+                $digits[$i] = (string) (((int) $digits[$i]) + 1);
+
+                return implode('', $digits);
+            }
+            $digits[$i] = '0';
+        }
+
+        return '1' . implode('', $digits);
     }
 
     /**

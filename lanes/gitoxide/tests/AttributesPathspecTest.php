@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use PortLibs\Gitoxide\GitAttributes;
 use PortLibs\Gitoxide\PathspecMatcher;
+use PortLibs\Gitoxide\PathspecMatch;
+use PortLibs\Gitoxide\PathspecSearch;
 
 return [
     'git attributes parser follows gix attributes whitespace escapes macros and last match semantics' => static function (TestRunner $t): void {
@@ -93,6 +95,41 @@ return [
         $t->same(false, PathspecMatcher::matchesOne(':(attr:!deploy=old)wp-content/mu-plugins/**', 'wp-content/mu-plugins/loader.php', false, $attributes));
         $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([':(attr:-diff=inva\#lid)path']));
     },
+    'pathspec search carries attr filters into upstream style matching' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString("wp-content/plugins/** deploy=plugin merge=union\n"
+            . "wp-content/plugins/private/** !deploy\n"
+            . "wp-content/themes/** deploy=theme merge=union\n"
+            . "wp-content/uploads/** binary -diff\n");
+
+        $pluginSearch = PathspecSearch::fromSpecs([':(attr:deploy=plugin)wp-content/**']);
+        $t->same([
+            ['name' => 'deploy', 'state' => GitAttributes::STATE_VALUE, 'value' => 'plugin'],
+        ], $pluginSearch->patterns()[0]->attributes);
+        $t->same(null, $pluginSearch->match('wp-content/plugins/editor/block.json', false));
+        $pluginMatch = $pluginSearch->match('wp-content/plugins/editor/block.json', false, $attributes);
+        $t->same(PathspecMatch::KIND_WILDCARD, $pluginMatch?->kind);
+        $t->same(true, $pluginSearch->isIncluded('wp-content/plugins/editor/block.json', false, $attributes));
+        $t->same(false, $pluginSearch->isIncluded('wp-content/themes/twentytwentyfour/theme.json', false, $attributes));
+        $t->same(false, PathspecSearch::fromSpecs([':(attr:deploy)wp-content/plugins/**'])
+            ->isIncluded('wp-content/plugins/editor/block.json', false, $attributes));
+
+        $t->same(true, PathspecSearch::fromSpecs([':(attr:-diff)wp-content/uploads/**'])
+            ->isIncluded('wp-content/uploads/logo.png', false, $attributes));
+        $t->same(true, PathspecSearch::fromSpecs([':(attr:!deploy)wp-content/plugins/private/**'])
+            ->isIncluded('wp-content/plugins/private/secret.php', false, $attributes));
+        $t->same(false, PathspecSearch::fromSpecs([':(attr:!deploy)wp-content/uploads/**'])
+            ->isIncluded('wp-content/uploads/logo.png', false, $attributes));
+
+        $deployment = PathspecSearch::fromSpecs([
+            'wp-content/**',
+            ':!:(attr:!deploy)wp-content/plugins/private/**',
+        ]);
+        $excluded = $deployment->match('wp-content/plugins/private/secret.php', false, $attributes);
+        $t->same(true, $excluded?->isExcluded());
+        $t->same(false, $deployment->isIncluded('wp-content/plugins/private/secret.php', false, $attributes));
+        $t->same(true, $deployment->isIncluded('wp-content/uploads/logo.png', false, $attributes));
+        $t->throws(InvalidArgumentException::class, static fn () => PathspecSearch::fromSpecs([':(attr:one,attr:two)path']));
+    },
     'pathspec search applies exclude first directory prefixes icase and attr filters' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/plugins/gutenberg/** deploy=plugin merge=union\n"
             . "wp-content/plugins/gutenberg/build/** -deploy\n"
@@ -127,9 +164,11 @@ return [
             'wp-content/uploads/logo.png',
         ], $matcher->matchingPaths($fixture['paths'], $attributes));
         $t->same($matcher->matchingPaths($fixture['paths'], $attributes), $example['selectedForDeployment']);
+        $t->same($example['selectedForDeployment'], $example['searchSelectedForDeployment']);
         $t->same(['deploy' => 'plugin', 'diff' => null, 'merge' => 'union'], $example['pluginBlockAttributes']);
         $t->same(['binary' => true, 'diff' => false, 'merge' => false, 'text' => false], $example['uploadAttributes']);
         $t->same(['deploy' => 'mustuse', 'diff' => false, 'merge' => 'union'], $example['mustUsePluginAttributes']);
+        $t->same(PathspecMatch::KIND_WILDCARD, $example['pluginPathspecSearchKind']);
         $t->same(true, $example['explicitDeployUnspecifiedMatches']);
         $t->same(false, $example['absentDeployUnspecifiedMatches']);
         $t->same(true, $example['cacheExcluded']);
