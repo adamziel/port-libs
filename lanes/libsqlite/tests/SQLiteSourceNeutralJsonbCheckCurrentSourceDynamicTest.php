@@ -13,9 +13,14 @@ $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
 $sourceFiles = [
     $sourceRoot . '/SQLiteGeneratedJsonPathIndexPlan.php',
+    $sourceRoot . '/SQLiteJsonB.php',
     $sourceRoot . '/SQLiteJsonbCheckCurrentNextPlan.php',
     $sourceRoot . '/SQLiteJsonbGeneratedCascadePlan.php',
     $sourceRoot . '/SQLiteJsonbGeneratedCheckIndexPlan.php',
+    $sourceRoot . '/SQLiteJsonbGeneratedIndexOperatorCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteJsonbGeneratedPartialUpsertPlan.php',
+    $sourceRoot . '/SQLiteJsonbPatchGeneratedIndexPlan.php',
+    $sourceRoot . '/SQLiteJsonbPathOperatorMalformedCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteJsonTablePlan.php',
 ];
 

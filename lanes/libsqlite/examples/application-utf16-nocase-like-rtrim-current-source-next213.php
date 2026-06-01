@@ -12,8 +12,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -35,7 +35,7 @@ $nextRows = [
     $row(10, "plugin{$escape}%literal", 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSelfEscapedEscapePlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySelfEscapedEscapePlan(
     $currentRows,
     $nextRows,
     $enc($currentPattern, 'UTF-16LE'),
@@ -59,11 +59,11 @@ $payload = [
     'nextPrefixContainsEscapedWildcardLiteral' => $plan['nextPrefixContainsEscapedWildcardLiteral'],
     'cursorInvalidated' => $plan['cursorInvalidated'],
     'invalidationReasons' => $plan['invalidationReasons'],
-    'applicationUse' => 'Copied wp_options scans can bind UTF-16 LIKE patterns where a non-ASCII ESCAPE character escapes itself before an escaped wildcard, preserving the literal prefix for current-source invalidation instead of reusing a stale wildcard range.',
+    'applicationUse' => 'Copied app_settings scans can bind UTF-16 LIKE patterns where a non-ASCII ESCAPE character escapes itself before an escaped wildcard, preserving the literal prefix for current-source invalidation instead of reusing a stale wildcard range.',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($payload['status'] === 'utf16-nocase-like-rtrim-current-source-next213');
+    assert($payload['status'] === 'utf16-nocase-like-rtrim-current-source-nexttwoOneThree');
     assert($payload['escape'] === $escape);
     assert($payload['prefix'] === "plugin{$escape}");
     assert($payload['nextPrefix'] === "plugin{$escape}_");
@@ -72,7 +72,7 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($payload['currentPrefixContainsEscapeLiteral'] === true);
     assert($payload['nextPrefixContainsEscapedWildcardLiteral'] === true);
     assert(in_array('escaped-wildcard-prefix', $payload['invalidationReasons'], true));
-    echo "application-utf16-nocase-like-rtrim-current-source-next213 self-test passed\n";
+    echo "application-utf16-nocase-like-rtrim-current-source-nexttwoOneThree self-test passed\n";
     return;
 }
 

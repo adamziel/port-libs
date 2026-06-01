@@ -7,6 +7,7 @@ namespace PortLibs\LightningCSS;
 final class MediaQueryParser
 {
     private const UNITLESS_LENGTH_MATH_MARKER = 'lcssunitless';
+    private const MEDIA_MATH_FUNCTION_PATTERN = 'calc|clamp|max|min|round|rem|mod|hypot|sqrt|pow|log|exp|abs|sign';
 
     public function minifyList(string $queryList, bool $allowCompactedNegation = false, bool $recoverInvalidFeatureValues = false): string
     {
@@ -46,7 +47,7 @@ final class MediaQueryParser
     public function markUnitlessLengthMathRangeValuesForLowering(string $queryList): string
     {
         $lengthFeature = '(?:device-width|device-height|width|height)';
-        $mathFunction = '(?:calc|clamp|max|min|round|rem|mod|hypot|abs|sign)\((?:[^()]|\([^()]*\))*\)';
+        $mathFunction = '(?:' . self::MEDIA_MATH_FUNCTION_PATTERN . ')\((?:[^()]|\([^()]*\))*\)';
 
         $queryList = preg_replace_callback(
             '/(\b' . $lengthFeature . '\b\s*(?:<=|>=|<|>|=)\s*)(' . $mathFunction . ')/i',
@@ -817,13 +818,20 @@ final class MediaQueryParser
             return false;
         }
 
-        if (preg_match('/^(?:calc|clamp|max|min|round|rem|mod|hypot|abs|sign)\(/i', $value) === 1) {
+        if (preg_match('/^(?:' . self::MEDIA_MATH_FUNCTION_PATTERN . ')\(/i', $value) === 1) {
             if (preg_match('/^calc\(/i', $value) === 1 && $this->isInvalidSimpleMultiplicativeCalc($value)) {
+                return false;
+            }
+            if ($this->containsInvalidAdvancedUnitlessMathFunction($value)) {
                 return false;
             }
             if (preg_match('/^sign\(/i', $value) === 1) {
                 return $this->foldSimpleMathFunction($value, $type) !== $value
                     || $this->minifyUnresolvedSignFunction($value, $type) !== null;
+            }
+            if (preg_match('/^(?:sqrt|pow|log|exp)\(/i', $value) === 1) {
+                return in_array($type, ['length', 'number', 'ratio', 'unknown'], true)
+                    && $this->foldSimpleMathFunction($value, $type) !== $value;
             }
 
             return match ($type) {
@@ -932,7 +940,7 @@ final class MediaQueryParser
     private function minifyValue(string $value, ?string $type = null): string
     {
         $value = trim($value);
-        $wasMathFunction = preg_match('/^(?:calc|clamp|max|min|round|rem|mod|hypot|abs|sign)\(/i', $value) === 1;
+        $wasMathFunction = preg_match('/^(?:' . self::MEDIA_MATH_FUNCTION_PATTERN . ')\(/i', $value) === 1;
         if ($wasMathFunction && $type === 'length') {
             $unitlessMathValue = $this->unitlessLengthMathValue($value);
             if ($unitlessMathValue !== null) {
@@ -951,6 +959,7 @@ final class MediaQueryParser
         if ($unresolvedSign !== null) {
             return $unresolvedSign;
         }
+        $value = $this->minifyNestedAdvancedUnitlessMathFunctions($value);
         $value = $this->minifyFunctionCommas($value);
         $value = preg_replace('/\s*\/\s*/', '/', $value) ?? $value;
         if (preg_match('/^([0-9]+(?:\.[0-9]+)?)\/1$/', $value, $matches) === 1) {
@@ -972,7 +981,7 @@ final class MediaQueryParser
             return $value;
         }
 
-        if (preg_match('/^(min|max|clamp|round|rem|mod|hypot|abs|sign)\(/i', $value, $matches) !== 1) {
+        if (preg_match('/^(min|max|clamp|round|rem|mod|hypot|sqrt|pow|log|exp|abs|sign)\(/i', $value, $matches) !== 1) {
             return $value;
         }
 
@@ -986,10 +995,21 @@ final class MediaQueryParser
             return $value;
         }
 
-        $args = $this->splitTopLevel(substr($value, $open + 1, -1), ',');
+        $rawArgs = $this->splitTopLevel(substr($value, $open + 1, -1), ',');
+        $args = array_map(
+            fn (string $arg): string => $this->minifyNestedAdvancedUnitlessMathFunctions($arg),
+            $rawArgs
+        );
         if ($function === 'min' || $function === 'max' || $function === 'clamp') {
             if (($function === 'clamp' && count($args) !== 3) || ($function !== 'clamp' && count($args) < 2)) {
                 return $value;
+            }
+
+            if (($function === 'min' || $function === 'max')
+                && $this->containsAdvancedUnitlessMathFunctionArgument($rawArgs)
+                && $this->containsDimensionalMathArgument($args)
+            ) {
+                return $function . '(' . implode(',', $args) . ')';
             }
 
             $values = $this->comparableMediaMathArguments($args, $type);
@@ -1102,6 +1122,68 @@ final class MediaQueryParser
             return $this->formatComparableMathValue($values[0], $type);
         }
 
+        if ($function === 'sqrt') {
+            if (count($args) !== 1) {
+                return $value;
+            }
+
+            $number = $this->unitlessMediaMathNumber($args[0]);
+            if ($number === null || $number < 0) {
+                return $value;
+            }
+
+            $result = sqrt($number);
+
+            return is_finite($result) ? $this->formatComputedUnitlessMathNumber($result) : $value;
+        }
+
+        if ($function === 'pow') {
+            if (count($args) !== 2) {
+                return $value;
+            }
+
+            $base = $this->unitlessMediaMathNumber($args[0]);
+            $exponent = $this->unitlessMediaMathNumber($args[1]);
+            if ($base === null || $exponent === null) {
+                return $value;
+            }
+
+            $result = $base ** $exponent;
+
+            return is_finite($result) ? $this->formatComputedUnitlessMathNumber($result) : $value;
+        }
+
+        if ($function === 'log') {
+            if (count($args) !== 1 && count($args) !== 2) {
+                return $value;
+            }
+
+            $number = $this->unitlessMediaMathNumber($args[0]);
+            $base = count($args) === 2 ? $this->unitlessMediaMathNumber($args[1]) : M_E;
+            if ($number === null || $base === null || $number <= 0 || $base <= 0 || abs($base - 1.0) < PHP_FLOAT_EPSILON) {
+                return $value;
+            }
+
+            $result = log($number) / log($base);
+
+            return is_finite($result) ? $this->formatComputedUnitlessMathNumber($result) : $value;
+        }
+
+        if ($function === 'exp') {
+            if (count($args) !== 1) {
+                return $value;
+            }
+
+            $number = $this->unitlessMediaMathNumber($args[0]);
+            if ($number === null) {
+                return $value;
+            }
+
+            $result = exp($number);
+
+            return is_finite($result) ? $this->formatComputedUnitlessMathNumber($result) : $value;
+        }
+
         if ($function === 'sign') {
             if (count($args) !== 1) {
                 return $value;
@@ -1120,6 +1202,159 @@ final class MediaQueryParser
         }
 
         return $value;
+    }
+
+    private function containsInvalidAdvancedUnitlessMathFunction(string $value): bool
+    {
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            if (preg_match('/\G(sqrt|pow|log|exp)\(/Ai', $value, $matches, 0, $i) !== 1) {
+                continue;
+            }
+
+            $open = $i + strlen($matches[1]);
+            try {
+                $close = $this->findMatchingDelimiter($value, $open, '(', ')');
+            } catch (\InvalidArgumentException) {
+                return true;
+            }
+
+            $function = substr($value, $i, $close - $i + 1);
+            if ($this->foldSimpleMathFunction($function, 'number') === $function) {
+                return true;
+            }
+
+            $i = $close;
+        }
+
+        return false;
+    }
+
+    private function minifyNestedAdvancedUnitlessMathFunctions(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if (preg_match('/\G(sqrt|pow|log|exp)\(/Ai', $value, $matches, 0, $i) !== 1) {
+                $output .= $char;
+                continue;
+            }
+
+            $open = $i + strlen($matches[1]);
+            try {
+                $close = $this->findMatchingDelimiter($value, $open, '(', ')');
+            } catch (\InvalidArgumentException) {
+                $output .= $char;
+                continue;
+            }
+
+            $function = substr($value, $i, $close - $i + 1);
+            $folded = $this->foldSimpleMathFunction($function, 'number');
+            $output .= $folded === $function ? $this->minifyFunctionCommas($function) : $folded;
+            $i = $close;
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function containsAdvancedUnitlessMathFunctionArgument(array $args): bool
+    {
+        foreach ($args as $arg) {
+            if (preg_match('/\b(?:sqrt|pow|log|exp)\s*\(/i', $arg) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $args
+     */
+    private function containsDimensionalMathArgument(array $args): bool
+    {
+        $number = $this->cssNumberPattern();
+        foreach ($args as $arg) {
+            if (preg_match('/(?:^|[^\w.-])' . $number . '[a-zA-Z%]+/', $arg) === 1) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function unitlessMediaMathNumber(string $value): ?float
+    {
+        $value = trim($value);
+        $constant = $this->mathConstant($value);
+        if ($constant !== null) {
+            return $constant;
+        }
+
+        $value = $this->foldSimpleCalc($value);
+        $folded = $this->foldSimpleMathFunction($value, 'number');
+        if ($folded !== $value) {
+            $value = $folded;
+        }
+
+        $value = $this->minifyNumericValue($value);
+
+        return preg_match('/^' . $this->cssNumberPattern() . '$/', $value) === 1 ? (float) $value : null;
+    }
+
+    private function mathConstant(string $value): ?float
+    {
+        return match (strtolower(trim($value))) {
+            'e' => M_E,
+            'pi' => 3.141593,
+            default => null,
+        };
+    }
+
+    private function formatComputedUnitlessMathNumber(float $number): string
+    {
+        if (abs($number) < 0.0000001) {
+            return '0';
+        }
+
+        $formatted = strtolower(sprintf('%.6G', $number));
+        if (str_contains($formatted, 'e')) {
+            return preg_replace('/e\+?(-?)0*(\d+)/', 'e$1$2', $formatted) ?? $formatted;
+        }
+
+        $formatted = rtrim(rtrim($formatted, '0'), '.');
+        if (str_starts_with($formatted, '0.')) {
+            return substr($formatted, 1);
+        }
+        if (str_starts_with($formatted, '-0.')) {
+            return '-' . substr($formatted, 2);
+        }
+
+        return $formatted;
     }
 
     /**
@@ -1199,7 +1434,7 @@ final class MediaQueryParser
         }
 
         if (preg_match('/^([a-zA-Z-]+)\(/', $argument, $matches) === 1) {
-            if (!in_array(strtolower($matches[1]), ['min', 'max', 'clamp', 'round', 'rem', 'mod', 'hypot', 'abs', 'sign'], true)) {
+            if (!in_array(strtolower($matches[1]), ['min', 'max', 'clamp', 'round', 'rem', 'mod', 'hypot', 'sqrt', 'pow', 'log', 'exp', 'abs', 'sign'], true)) {
                 return null;
             }
 
@@ -1296,7 +1531,7 @@ final class MediaQueryParser
     /**
      * @return array{number:float,unit:string,ratio:bool}|null
      */
-    private function comparableMathValue(string $value, ?string $type): ?array
+    private function comparableMathValue(string $value, ?string $type, bool $coerceUnitlessLength = true): ?array
     {
         $value = trim($value);
         $value = $this->foldSimpleCalc($value);
@@ -1337,7 +1572,7 @@ final class MediaQueryParser
             return null;
         }
 
-        if ($type === 'length' && $unit === '' && (float) $matches[1] !== 0.0) {
+        if ($coerceUnitlessLength && $type === 'length' && $unit === '' && (float) $matches[1] !== 0.0) {
             $unit = 'px';
         }
 
@@ -1356,7 +1591,7 @@ final class MediaQueryParser
     {
         $values = [];
         foreach ($args as $arg) {
-            $comparable = $this->comparableMathValue($arg, $type);
+            $comparable = $this->comparableMathValue($arg, $type, false);
             if ($comparable === null || (!$allowPercent && $comparable['unit'] === '%')) {
                 return null;
             }

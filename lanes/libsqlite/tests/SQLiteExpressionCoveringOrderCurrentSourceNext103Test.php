@@ -139,7 +139,7 @@ $tests = [
     'planner expression covering order current source next103 fence order signature' => static fn (TestRunner $t) => $t->same('lower(option_name) ASC', $plan103()['currentSourceFence']['orderSignature']),
     'planner expression covering order current source next103 detail reparses' => static fn (TestRunner $t) => $t->contains('REPREPARE EXPRESSION COVERING ORDER USING current-expression-covering-order-next103', $plan103()['detail']),
     'planner expression covering order current source next103 dependency closure' => static fn (TestRunner $t) => $t->contains('no new support component needed', $plan103()['dependency_closure']),
-    'planner expression covering order current source next103 non overlap' => static fn (TestRunner $t) => $t->contains('lower(option_name) expression-index', $plan103()['non_overlap']),
+    'planner expression covering order current source next103 non overlap' => static fn (TestRunner $t) => $t->contains('generic key expression-index', $plan103()['non_overlap']),
 ];
 
 $samePlan = static fn (): array => $plan103($source103(), $source103(['name' => 'current-same-expression-covering-order-next103']));

@@ -1078,7 +1078,7 @@ final class SQLiteSelectExpressionIndexPlan
      * SQLite may use a partial index when multiple AND-connected WHERE terms
      * jointly prove the partial-index predicate. The bounded planner mostly
      * reasons term-by-term, so collect ordinary column lower/upper bounds here
-     * for partial predicates like "WHERE option_name BETWEEN 'a' AND 'm'".
+     * for partial predicates like "WHERE key_name BETWEEN 'a' AND 'm'".
      *
      * @param list<array<string,mixed>> $terms
      */

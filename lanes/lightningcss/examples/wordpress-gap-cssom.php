@@ -8,11 +8,15 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $block = new DeclarationBlock();
 $layoutSpacing = 'gap: var(--wp--style--block-gap) 2rem; color: var(--wp--preset--color--contrast)';
+$editorSpacing = 'gap: NORMAL 0.500rem; color: var(--wp--preset--color--contrast)';
 
 $actual = [
     'rowGap' => $block->getProperty($layoutSpacing, 'row-gap'),
     'setEditorColumnGap' => $block->setProperty($layoutSpacing, 'column-gap', '3rem'),
     'dropRowGap' => $block->removeProperty($layoutSpacing, 'row-gap'),
+    'normalizedEditorGap' => $block->getProperty($editorSpacing, 'gap'),
+    'setNormalizedEditorColumnGap' => $block->setProperty($editorSpacing, 'column-gap', '2.500%'),
+    'dropNormalizedEditorRowGap' => $block->removeProperty($editorSpacing, 'row-gap'),
     'resetGap' => $block->removeProperty('gap: 1rem 2rem; row-gap: 3rem; padding: 0', 'gap'),
 ];
 
@@ -23,6 +27,12 @@ $expected = [
     ],
     'setEditorColumnGap' => 'gap: var(--wp--style--block-gap) 3rem; color: var(--wp--preset--color--contrast)',
     'dropRowGap' => 'column-gap: 2rem; color: var(--wp--preset--color--contrast)',
+    'normalizedEditorGap' => [
+        'value' => 'normal .5rem',
+        'important' => false,
+    ],
+    'setNormalizedEditorColumnGap' => 'gap: normal 2.5%; color: var(--wp--preset--color--contrast)',
+    'dropNormalizedEditorRowGap' => 'column-gap: .5rem; color: var(--wp--preset--color--contrast)',
     'resetGap' => 'padding: 0',
 ];
 

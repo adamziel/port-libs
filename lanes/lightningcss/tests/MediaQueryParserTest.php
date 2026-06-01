@@ -357,6 +357,60 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(theme-breakpoint >= sign(10dppx))'));
         $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('&test, speech'));
     },
+    'media query parser maps upstream advanced unitless math functions in ranges' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+        $minifier = new CssMinifier();
+
+        $t->same('(width>=1.41421)', $parser->minifyList('(width >= sqrt(2))'));
+        $t->same('(width>=8)', $parser->minifyList('(width >= pow(2, 3))'));
+        $t->same('(width>=.5)', $parser->minifyList('(width >= pow(2, -1))'));
+        $t->same('(width>=.693147)', $parser->minifyList('(width >= log(2))'));
+        $t->same('(width>=2)', $parser->minifyList('(width >= log(100, 10))'));
+        $t->same('(width>=2.71828)', $parser->minifyList('(width >= exp(1))'));
+        $t->same('(width>=8)', $parser->minifyList('(width >= pow(calc(1 + 1), 3))'));
+        $t->same('(width>=4)', $parser->minifyList('(width >= sqrt(pow(2, 4)))'));
+        $t->same('(width>=max(8,4px))', $parser->minifyList('(width >= max(pow(2, 3), 4px))'));
+        $t->same('(width>=2)', $parser->minifyList('(width >= max(exp(0), 2))'));
+        $t->same('(aspect-ratio>=2)', $parser->minifyList('(aspect-ratio >= sqrt(4))'));
+        $t->same('(theme-ratio>=2)', $parser->minifyList('(theme-ratio >= log(100, 10))'));
+        $t->same('(theme-breakpoint>=1)', $parser->minifyList('(theme-breakpoint >= exp(0))'));
+        $t->same('(--wp-breakpoint>=8)', $parser->minifyList('(--wp-breakpoint >= pow(2, 3))'));
+        $t->same('(-webkit-device-pixel-ratio>=1)', $parser->minifyList('(-webkit-device-pixel-ratio >= exp(0))'));
+        $t->same('(width>=1.64872)', $parser->minifyList('(width >= sqrt(e))'));
+        $t->same('(width>=9.86961)', $parser->minifyList('(width >= pow(pi, 2))'));
+
+        $t->same('(min-width:1.41421)', $parser->lowerRangeSyntaxList('(width >= sqrt(2))'));
+        $t->same('(min-width:8)', $parser->lowerRangeSyntaxList('(width >= pow(2, 3))'));
+        $t->same('(min-width:.693147)', $parser->lowerRangeSyntaxList('(width >= log(2))'));
+        $t->same('(min-aspect-ratio:2)', $parser->lowerRangeSyntaxList('(aspect-ratio >= sqrt(4))'));
+        $t->same('(min-theme-breakpoint:1)', $parser->lowerRangeSyntaxList('(theme-breakpoint >= exp(0))'));
+        $t->same('(min---wp-breakpoint:8)', $parser->lowerRangeSyntaxList('(--wp-breakpoint >= pow(2, 3))'));
+        $t->same('(-webkit-min-device-pixel-ratio:1)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= exp(0))'));
+
+        $t->same(
+            '@layer blocks{@media (width>=2.71828){.wp-block-query{color:#ff0}}}',
+            $minifier->minify('@layer blocks { @media (width >= exp(1)) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (width>=8){.wp-block-query{color:#ff0}}}',
+            $minifier->minify('@layer blocks { @media (width >= pow(2, 3)) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (width>=max(8,4px)){.wp-block-query{color:#ff0}}}',
+            $minifier->minify('@layer blocks { @media (width >= max(pow(2, 3), 4px)) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (aspect-ratio>=2){.wp-block-query{color:#ff0}}}',
+            $minifier->minify('@layer blocks { @media (aspect-ratio >= sqrt(4)) { .wp-block-query { color: yellow; } } }')
+        );
+
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(width >= pow(2px, 2))'));
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(width >= sqrt(4px))'));
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(width >= exp(1px))'));
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(resolution >= exp(0))'));
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(color >= pow(2, 3))'));
+        $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList('(width >= max(pow(2px, 2), 4px))'));
+    },
     'media query parser maps upstream redundant calc parentheses in ranges' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
         $minifier = new CssMinifier();

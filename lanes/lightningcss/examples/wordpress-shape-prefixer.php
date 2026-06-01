@@ -24,6 +24,12 @@ $css = <<<'CSS'
 CSS;
 
 $actual = [
+    'pre_shape_safari' => $prefixer->prefixForTargets($css, [
+        'safari' => 7,
+    ]),
+    'shape_safari_7_1' => $prefixer->prefixForTargets($css, [
+        'safari' => '7.1',
+    ]),
     'legacy_safari' => $prefixer->prefixForTargets($css, [
         'safari' => 10,
     ]),
@@ -38,6 +44,8 @@ $actual = [
 ];
 
 $expected = [
+    'pre_shape_safari' => '.wp-block-image.alignleft.is-style-text-wrap{float:left;shape-outside:circle(50%);shape-margin:16px;shape-image-threshold:.55}@supports (shape-outside:circle(50%)){.wp-block-image.alignleft.is-style-text-wrap img{shape-outside:circle(50%)}}',
+    'shape_safari_7_1' => '.wp-block-image.alignleft.is-style-text-wrap{float:left;-webkit-shape-outside:circle(50%);shape-outside:circle(50%);-webkit-shape-margin:16px;shape-margin:16px;-webkit-shape-image-threshold:.55;shape-image-threshold:.55}@supports ((-webkit-shape-outside:circle(50%)) or (shape-outside:circle(50%))){.wp-block-image.alignleft.is-style-text-wrap img{-webkit-shape-outside:circle(50%);shape-outside:circle(50%)}}',
     'legacy_safari' => '.wp-block-image.alignleft.is-style-text-wrap{float:left;-webkit-shape-outside:circle(50%);shape-outside:circle(50%);-webkit-shape-margin:16px;shape-margin:16px;-webkit-shape-image-threshold:.55;shape-image-threshold:.55}@supports ((-webkit-shape-outside:circle(50%)) or (shape-outside:circle(50%))){.wp-block-image.alignleft.is-style-text-wrap img{-webkit-shape-outside:circle(50%);shape-outside:circle(50%)}}',
     'legacy_ios' => '.wp-block-image.alignleft.is-style-text-wrap{float:left;-webkit-shape-outside:circle(50%);shape-outside:circle(50%);-webkit-shape-margin:16px;shape-margin:16px;-webkit-shape-image-threshold:.55;shape-image-threshold:.55}@supports ((-webkit-shape-outside:circle(50%)) or (shape-outside:circle(50%))){.wp-block-image.alignleft.is-style-text-wrap img{-webkit-shape-outside:circle(50%);shape-outside:circle(50%)}}',
     'modern_frontend' => '.wp-block-image.alignleft.is-style-text-wrap{float:left;shape-outside:circle(50%);shape-margin:16px;shape-image-threshold:.55}@supports (shape-outside:circle(50%)){.wp-block-image.alignleft.is-style-text-wrap img{shape-outside:circle(50%)}}',

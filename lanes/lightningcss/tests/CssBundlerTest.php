@@ -1922,6 +1922,26 @@ CSS,
             ['tokens.css', '/card.css'],
         ], $resolved);
     },
+    'css bundler merges repeated layered import descendants across intervening imports like upstream' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@layer theme.blocks{:root{--brand:purple}.card{color:green}}.gallery{color:#00f}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "card.css" layer(theme.blocks); @import "gallery.css"; @import "card.css" layer(theme.blocks); .entry { color: red }',
+                '/card.css' => '@import "tokens.css"; .card { color: green }',
+                '/gallery.css' => '@import "tokens.css"; .gallery { color: blue }',
+                '/tokens.css' => ':root { --brand: purple }',
+            ], '/entry.css')
+        );
+
+        $t->same(
+            '@layer reset;@layer theme.blocks{.card{color:green}}.gallery{color:#00f}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@layer reset, theme.blocks; @import "gallery.css"; @import "card.css" layer(theme.blocks); .entry { color: red }',
+                '/gallery.css' => '.gallery { color: blue }',
+                '/card.css' => '.card { color: green }',
+            ], '/entry.css')
+        );
+    },
     'css bundler prefixes nested layer statements inside parent imports' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@layer bar,foo;@layer foo.qux,foo.baz;@layer foo.baz{div{background:#ff0}}@layer foo{@layer qux{div{background:green}}}@layer bar{div{background:red}}',

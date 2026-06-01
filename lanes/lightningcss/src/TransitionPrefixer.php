@@ -2288,7 +2288,7 @@ final class TransitionPrefixer
             'cssRegionsNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
                 || $this->targetAtLeast($normalized, 'ie', [10]),
             'shapeNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [8], [10])
-                || $this->targetInRange($normalized, 'safari', [7], [10]),
+                || $this->targetInRange($normalized, 'safari', [7, 1], [10]),
             'writingModeNeedsWebkit' => $this->targetInRange($normalized, 'android', [3], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [8], [47])
                 || $this->targetInRange($normalized, 'ios_saf', [5], [10, 3])

@@ -8,8 +8,8 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -29,25 +29,25 @@ $next = [
     $row(4, "plugin_cache\0later", 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameEmbeddedNulTokenPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulTokenPlan(
     $current,
     $next,
     'plugin!_cache%',
     '!',
     ['key' => "plugin_cache\0shadow", 'rowid' => 2],
-    'copied-wp-options@before-embedded-nul-token',
-    'copied-wp-options@after-embedded-nul-token',
+    'copied-app-settings@before-embedded-nul-token',
+    'copied-app-settings@after-embedded-nul-token',
     214,
     215,
 );
 
 if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'] ?? '')) {
-    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next215');
+    assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-nexttwoOneFive');
     assert($plan['currentEmbeddedNulRowids'] === [2]);
     assert($plan['nextEmbeddedNulRowids'] === [2, 4]);
     assert(in_array('source-or-schema-changed', $plan['candidateTokenUnsafeReasons'], true));
     assert($plan['embeddedNulNotCStringTerminator'] === true);
-    echo "application-utf16-nocase-like-rtrim-current-source-next215 self-test passed\n";
+    echo "application-utf16-nocase-like-rtrim-current-source-nexttwoOneFive self-test passed\n";
 }
 
 return $plan;

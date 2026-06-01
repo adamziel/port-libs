@@ -9,8 +9,8 @@ $tests = [];
 
 $enc215 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row215 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc215($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc215($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -18,8 +18,8 @@ $row215 = static fn (int $id, string $name, int|string $encoding): array => [
     },
 ];
 $bad215 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -79,7 +79,7 @@ $valueAt215 = static function (array $value, string $path): mixed {
 $cases215 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoOneFive'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* embedded NUL token fence */'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* embedded NUL token fence */'],
     'pattern' => ['pattern', 'plugin!_cache%'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
@@ -219,9 +219,9 @@ $tests['utf16 nocase like rtrim current source nextTwoOneFive null token replays
     $t->same(true, $result['candidateTokenResumeSafe']);
 };
 
-$tests['utf16 nocase like rtrim current source nextTwoOneFive rejects missing option bytes'] = static function (TestRunner $t) use ($nextTwoOneFive): void {
+$tests['utf16 nocase like rtrim current source nextTwoOneFive rejects missing key bytes'] = static function (TestRunner $t) use ($nextTwoOneFive): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulTokenPlan([
-        ['option_id' => 1, 'text_encoding' => 1],
+        ['setting_id' => 1, 'text_encoding' => 1],
     ], $nextTwoOneFive));
 };
 

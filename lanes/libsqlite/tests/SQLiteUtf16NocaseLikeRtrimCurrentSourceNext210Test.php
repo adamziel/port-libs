@@ -9,8 +9,8 @@ $tests = [];
 
 $enc210 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row210 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc210($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc210($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -18,8 +18,8 @@ $row210 = static fn (int $id, string $name, int|string $encoding): array => [
     },
 ];
 $bad210 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -65,7 +65,7 @@ $valueAt210 = static function (array $value, string $path): mixed {
 $cases210 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoOneZero'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? /* embedded NUL */'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? /* embedded NUL */'],
     'pattern' => ['pattern', "plugin\0cache%"],
     'pattern hex' => ['patternHex', '706c7567696e00636163686525'],
     'escape' => ['escape', null],
@@ -192,7 +192,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneZero rejects pattern wi
 
 $tests['utf16 nocase like rtrim current source nextTwoOneZero rejects invalid row shape'] = static function (TestRunner $t) use ($row210): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyEmbeddedNulPlan(
-        [['option_id' => '1', 'option_name_bytes' => 'plugin', 'text_encoding' => 1]],
+        [['setting_id' => '1', 'key_name_bytes' => 'plugin', 'text_encoding' => 1]],
         [$row210(1, "plugin\0cache", 'UTF-8')],
     ));
 };

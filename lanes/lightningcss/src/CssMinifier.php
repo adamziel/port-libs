@@ -1248,6 +1248,150 @@ final class CssMinifier
             $cursor = $scan;
         }
 
+        return $this->mergeTopLevelLayerBlocksAcrossRules($output);
+    }
+
+    private function mergeTopLevelLayerBlocksAcrossRules(string $css): string
+    {
+        $output = '';
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $import = $this->findTopLevelAtKeyword($css, '@import', $cursor);
+            if ($import === null) {
+                $output .= $this->mergeLayerSegmentAcrossRules(substr($css, $cursor));
+                break;
+            }
+
+            $output .= $this->mergeLayerSegmentAcrossRules(substr($css, $cursor, $import - $cursor));
+            $end = $this->findNextTopLevel($css, ';', $import);
+            if ($end === null) {
+                $output .= substr($css, $import);
+                break;
+            }
+
+            $output .= substr($css, $import, $end - $import + 1);
+            $cursor = $end + 1;
+        }
+
+        return $output;
+    }
+
+    private function mergeLayerSegmentAcrossRules(string $css): string
+    {
+        if (!str_contains($css, '@layer')) {
+            return $css;
+        }
+
+        $items = [];
+        $layerNodes = [];
+        $cursor = 0;
+        $length = strlen($css);
+
+        while ($cursor < $length) {
+            $position = $this->findTopLevelAtKeyword($css, '@layer', $cursor);
+            if ($position === null) {
+                if ($cursor < $length) {
+                    $items[] = ['type' => 'text', 'raw' => substr($css, $cursor)];
+                }
+                break;
+            }
+
+            if ($position > $cursor) {
+                $items[] = ['type' => 'text', 'raw' => substr($css, $cursor, $position - $cursor)];
+            }
+
+            $node = $this->parseLayerRuleAt($css, $position);
+            if ($node === null) {
+                $items[] = ['type' => 'text', 'raw' => substr($css, $position, strlen('@layer'))];
+                $cursor = $position + strlen('@layer');
+                continue;
+            }
+
+            $items[] = ['type' => 'layer', 'node' => $node];
+            $layerNodes[] = $node;
+            $cursor = $node['end'];
+        }
+
+        if ($this->shouldPreserveLayerRunSourceOrder($layerNodes)) {
+            return $css;
+        }
+
+        $firstLayerItemByName = [];
+        $namesByFirstItem = [];
+        $bodiesByName = [];
+        foreach ($items as $index => $item) {
+            if (($item['type'] ?? '') !== 'layer') {
+                continue;
+            }
+
+            /** @var array{end:int,type:string,names:list<string>,body?:string} $node */
+            $node = $item['node'];
+            if ($node['type'] === 'anonymous-block') {
+                continue;
+            }
+
+            foreach ($node['names'] as $name) {
+                if (!isset($firstLayerItemByName[$name])) {
+                    $firstLayerItemByName[$name] = $index;
+                    $namesByFirstItem[$index][] = $name;
+                }
+            }
+
+            if ($node['type'] === 'block') {
+                $name = $node['names'][0];
+                $bodiesByName[$name][] = $node['body'] ?? '';
+            }
+        }
+
+        if ($bodiesByName === []) {
+            return $css;
+        }
+
+        $output = '';
+        foreach ($items as $index => $item) {
+            if (($item['type'] ?? '') === 'text') {
+                $output .= (string) $item['raw'];
+                continue;
+            }
+
+            /** @var array{end:int,type:string,names:list<string>,body?:string} $node */
+            $node = $item['node'];
+            if ($node['type'] === 'anonymous-block') {
+                $output .= '@layer{' . ($node['body'] ?? '') . '}';
+                continue;
+            }
+
+            $names = $namesByFirstItem[$index] ?? [];
+            if ($names === []) {
+                continue;
+            }
+
+            $pendingStatements = [];
+            foreach ($names as $name) {
+                if (!isset($bodiesByName[$name])) {
+                    $pendingStatements[] = $name;
+                    continue;
+                }
+
+                if ($pendingStatements !== []) {
+                    $output .= '@layer ' . implode(',', $pendingStatements) . ';';
+                    $pendingStatements = [];
+                }
+
+                $body = '';
+                foreach ($bodiesByName[$name] as $part) {
+                    $body = $body === '' ? $part : $this->combineRuleBodies($body, $part);
+                }
+                $output .= '@layer ' . $name . '{' . $this->mergeAdjacentRuleBlocks($body) . '}';
+            }
+
+            if ($pendingStatements !== []) {
+                $output .= '@layer ' . implode(',', $pendingStatements) . ';';
+            }
+        }
+
         return $output;
     }
 

@@ -389,6 +389,38 @@ if ($sharedPresetBundle !== ':root{--wp--preset--spacing--block-gap:1rem}.wp-sit
 
 echo 'parent-relative-import: resolved' . PHP_EOL;
 
+$repeatedLayerBundle = (new CssBundler())->bundle('/layered-theme.css', [
+    '/layered-theme.css' => <<<'CSS'
+@layer reset, theme.blocks;
+@import "blocks/card.css" layer(theme.blocks);
+@import "blocks/gallery.css";
+@import "blocks/card.css" layer(theme.blocks);
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/blocks/card.css' => <<<'CSS'
+@import "../shared/block-tokens.css";
+.wp-block-card {
+  color: green;
+}
+CSS,
+    '/blocks/gallery.css' => <<<'CSS'
+@import "../shared/block-tokens.css";
+.wp-block-gallery {
+  color: blue;
+}
+CSS,
+    '/shared/block-tokens.css' => ':root { --wp--preset--color--brand: purple; }',
+]);
+
+if ($repeatedLayerBundle !== '@layer reset;@layer theme.blocks{:root{--wp--preset--color--brand:purple}.wp-block-card{color:green}}.wp-block-gallery{color:#00f}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected repeated layered block imports to merge descendants at the first layer occurrence\n");
+    exit(1);
+}
+
+echo 'repeated-layer-import-descendants: merged' . PHP_EOL;
+
 $escapedDelimiterBundle = (new CssBundler())->bundle('/escaped-delimiters.css', [
     '/escaped-delimiters.css' => <<<'CSS'
 @import url(blocks/icon\).css);

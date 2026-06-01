@@ -87,7 +87,7 @@ final class SQLiteExpressionCoveringOrderCurrentSourceNextPlan
                 'sqlite-expression-covering-order-current-source-next103',
             ],
             'dependency_closure' => 'no new support component needed; next103 composes native expression-index parsing, STAT4 samples, and covering ORDER BY cursor diagnostics',
-            'non_overlap' => 'avoids accepted SQL expression ORDER BY execution and next99 column-order cursor coverage by asserting lower(option_name) expression-index covering order current-source cursor materialization',
+            'non_overlap' => 'avoids accepted SQL expression ORDER BY execution and next99 column-order cursor coverage by asserting generic key expression-index covering order current-source cursor materialization',
         ];
     }
 

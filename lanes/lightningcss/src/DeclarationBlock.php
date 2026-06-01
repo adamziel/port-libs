@@ -4987,15 +4987,41 @@ final class DeclarationBlock
             return null;
         }
 
+        $row = $this->normalizeGapComponentValue($parts[0]);
+        $column = $this->normalizeGapComponentValue($parts[1] ?? $parts[0]);
+
         return [
-            'row-gap' => $parts[0],
-            'column-gap' => $parts[1] ?? $parts[0],
+            'row-gap' => $row,
+            'column-gap' => $column,
         ];
     }
 
     private function serializeGapComponents(string $row, string $column): string
     {
         return $row === $column ? $row : $row . ' ' . $column;
+    }
+
+    private function normalizeGapDeclarationValue(string $value): string
+    {
+        $parts = $this->splitWhitespaceTopLevel($value);
+        if (count($parts) < 1 || count($parts) > 2) {
+            return trim($value);
+        }
+
+        return implode(
+            ' ',
+            array_map(fn (string $part): string => $this->normalizeGapComponentValue($part), $parts)
+        );
+    }
+
+    private function normalizeGapComponentValue(string $value): string
+    {
+        $value = trim($value);
+        if (strcasecmp($value, 'normal') === 0) {
+            return 'normal';
+        }
+
+        return $this->normalizeLengthPercentageDeclarationToken($value) ?? $value;
     }
 
     private function isGapProperty(string $property): bool
@@ -14198,6 +14224,10 @@ final class DeclarationBlock
 
         if ($this->isBoxSpacingDeclarationProperty($property)) {
             return $this->normalizeBoxSpacingDeclarationValue($value);
+        }
+
+        if ($this->isGapProperty($property)) {
+            return $this->normalizeGapDeclarationValue($value);
         }
 
         if (in_array($property, self::PREFERRED_SIZE_PROPERTIES, true)) {

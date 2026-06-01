@@ -1573,13 +1573,20 @@ CSS;
         $stalePrefixed = '.foo { -webkit-shape-outside: circle(50%); shape-outside: circle(50%); -webkit-shape-margin: 12px; shape-margin: 12px; -webkit-shape-image-threshold: .5; shape-image-threshold: .5; }';
 
         $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => 6]));
-        $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => 7]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => 7]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => '7.1']));
         $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => 10]));
+        $t->same($modern, $prefixer->prefixForTargets($stalePrefixed, ['safari' => 7]));
+        $t->same($webkit, $prefixer->prefixForTargets($stalePrefixed, ['safari' => '7.1']));
         $t->same($modern, $prefixer->prefixForTargets($stalePrefixed, ['safari' => 11]));
         $t->same($modern, $prefixer->prefixForTargets($css, ['ios_saf' => 7]));
         $t->same($webkit, $prefixer->prefixForTargets($css, ['ios_saf' => 8]));
         $t->same($webkit, $prefixer->prefixForTargets($css, ['ios_saf' => 10]));
         $t->same($modern, $prefixer->prefixForTargets($stalePrefixed, ['ios_saf' => 11]));
+        $t->same(
+            '@supports (shape-outside:circle(50%)){.foo{shape-outside:circle(50%)}}',
+            $prefixer->prefixForTargets('@supports (shape-outside: circle(50%)) { .foo { shape-outside: circle(50%); } }', ['safari' => 7])
+        );
         $t->same(
             '@supports ((-webkit-shape-outside:circle(50%)) or (shape-outside:circle(50%))){.foo{-webkit-shape-outside:circle(50%);shape-outside:circle(50%)}}',
             $prefixer->prefixForTargets('@supports (shape-outside: circle(50%)) { .foo { shape-outside: circle(50%); } }', ['safari' => 10])
@@ -4570,6 +4577,22 @@ CSS;
         $t->same(
             '@layer blocks{@media (min-width:5){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width >= hypot(3, 4)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:1.41421){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= sqrt(2)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:8){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= pow(2, 3)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:.693147){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= log(2)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media (min-theme-breakpoint:1){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (theme-breakpoint >= exp(0)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
             '@layer blocks{@media (min-width:10px) and (max-width:1){.wp-block-query{color:#ff0}}}',

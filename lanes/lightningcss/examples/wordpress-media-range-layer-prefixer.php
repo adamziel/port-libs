@@ -319,6 +319,42 @@ CSS,
 CSS,
         ['firefox' => 60]
     ),
+    'advancedUnitlessMathRangeFallback' => $prefixer->prefixForTargets(
+        <<<'CSS'
+@layer theme.blocks {
+  @media (width >= sqrt(2)) {
+    .wp-block-query.is-sqrt-breakpoint {
+      color: yellow;
+    }
+  }
+
+  @media (width >= pow(2, 3)) {
+    .wp-block-query.is-pow-breakpoint {
+      color: yellow;
+    }
+  }
+
+  @media (width >= log(2)) {
+    .wp-block-query.is-log-breakpoint {
+      color: yellow;
+    }
+  }
+
+  @media (theme-breakpoint >= exp(0)) {
+    .wp-block-query.is-exp-theme-breakpoint {
+      color: yellow;
+    }
+  }
+
+  @media (width >= max(pow(2, 3), 4px)) {
+    .wp-block-query.is-nested-pow-breakpoint {
+      color: yellow;
+    }
+  }
+}
+CSS,
+        ['firefox' => 60]
+    ),
     'negatedRangeGroup' => $prefixer->prefixForTargets(
         '@layer theme.blocks { @media not ((100px <= width <= 200px) or (hover)) { .wp-block-query.is-not-compact-hover { color: yellow; } } }',
         ['firefox' => 85]
@@ -535,6 +571,16 @@ try {
 
 try {
     $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (width >= pow(2px, 2)) { .wp-block-query { color: chartreuse; } } }',
+        ['firefox' => 60]
+    );
+    $actual['invalidAdvancedMathFunctionGuard'] = 'missing';
+} catch (InvalidArgumentException) {
+    $actual['invalidAdvancedMathFunctionGuard'] = 'invalid-media-query';
+}
+
+try {
+    $prefixer->prefixForTargets(
         '@layer theme.blocks { @media screen not (width >= 240px) { .wp-block-query { color: chartreuse; } } }',
         ['firefox' => 60]
     );
@@ -605,6 +651,7 @@ $expected = [
     'mathFunctionRangeFallback' => '@layer theme.blocks{@media not (max-width:20px){.wp-block-query.is-math-function-wide{color:#ff0}}@media (min-width:15px){.wp-block-query.is-math-function-clamp{color:#ff0}}}',
     'calcMultiplicativeRangeFallback' => '@layer theme.blocks{@media (min-width:6px){.wp-block-query.is-calc-product{color:#ff0}}@media (min-width:3px){.wp-block-query.is-calc-quotient{color:#ff0}}@media not (max-width:2){.wp-block-query.is-unitless-math{color:#ff0}}}',
     'signFunctionRangeFallback' => '@layer theme.blocks{@media (min-width:1){.wp-block-query.is-sign-wide{color:#ff0}}@media (min-width:2){.wp-block-query.is-unitless-abs{color:#ff0}}@media (min-width:5){.wp-block-query.is-unitless-hypot{color:#ff0}}@media (min-width:10px) and (max-width:1){.wp-block-query.is-sign-window{color:#ff0}}@media (min-theme-breakpoint:1){.wp-block-query.is-sign-theme-breakpoint{color:#ff0}}@media (min-width:sign(1em + 2px)){.wp-block-query.is-fluid-sign-wide{color:#ff0}}@media (min-theme-breakpoint:sign(max(1em,2px))){.wp-block-query.is-fluid-sign-theme{color:#ff0}}}',
+    'advancedUnitlessMathRangeFallback' => '@layer theme.blocks{@media (min-width:1.41421){.wp-block-query.is-sqrt-breakpoint{color:#ff0}}@media (min-width:8){.wp-block-query.is-pow-breakpoint{color:#ff0}}@media (min-width:.693147){.wp-block-query.is-log-breakpoint{color:#ff0}}@media (min-theme-breakpoint:1){.wp-block-query.is-exp-theme-breakpoint{color:#ff0}}@media (min-width:max(8,4px)){.wp-block-query.is-nested-pow-breakpoint{color:#ff0}}}',
     'negatedRangeGroup' => '@layer theme.blocks{@media not (((min-width:100px) and (max-width:200px)) or (hover)){.wp-block-query.is-not-compact-hover{color:#ff0}}}',
     'negatedIntervalWithHover' => '@layer theme.blocks{@media (hover) and (not ((min-width:200px) and (not (min-width:500px)))){.wp-block-query.is-not-middle-hover{color:#ff0}}}',
     'upstreamIntervalPrefixFallbacks' => '@layer theme.blocks{@media not ((min-width:100px) and (max-width:200px)){.wp-block-query.is-not-compact-range{color:#ff0}}@media (hover) and (min-width:100px) and (max-width:200px){.wp-block-query.is-hover-compact-range{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:200px)){.wp-block-query.is-open-range{color:#ff0}}@media not ((not (max-width:100px)) and (not (min-width:200px))){.wp-block-query.is-not-open-range{color:#ff0}}@media (max-width:200px) and (min-width:100px){.wp-block-query.is-descending-range{color:#ff0}}@media not (max-color:2){.wp-block-query.is-rich-color{color:#ff0}}@media not (min-color:2){.wp-block-query.is-low-color{color:#ff0}}}',
@@ -624,6 +671,7 @@ $expected = [
     'invalidResolutionCalcGuard' => 'invalid-media-query',
     'invalidSignFunctionGuard' => 'invalid-media-query',
     'invalidUnresolvedSignFunctionGuard' => 'invalid-media-query',
+    'invalidAdvancedMathFunctionGuard' => 'invalid-media-query',
     'missingAndGuard' => 'invalid-media-query',
     'invalidExplicitConditionGuard' => 'invalid-media-query',
     'emptyMediaListGuard' => 'invalid-media-query',

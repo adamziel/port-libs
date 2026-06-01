@@ -1812,7 +1812,7 @@
         "nativeVerification": "Changed PHP lint passed; git diff --check passed; focused LightningCSS gate 5 files / 6150 assertions / 0 failures; full LightningCSS lane 13 files / 8151 assertions / 0 failures; changed LightningCSS examples passed.",
         "upstreamEvidence": "Worker notes cite pinned LightningCSS CSS Modules, CSSOM, font/property value, source-map, and prefixing behavior. Full upstream Rust/Node/WASM runners were not executed."
     },
-    "currentSliceSource": "2026-06-01 supervisor batch: media-query resolution x-unit serialization deepens the represented media-query range/layer cluster. Full LightningCSS lane passed 13 files / 8160 assertions / 0 failures; phpPass moves 8151 -> 8160; mapped coverage remains 2393 / 3532; Rust/Node/WASM upstream runners were not executed.",
+    "currentSliceSource": "2026-06-01 isolated slice: media-query range/layer advanced unitless CSS math support deepens the represented media-query range/layer cluster. Full LightningCSS lane passed 13 files / 8328 assertions / 0 failures; phpPass moves 8290 -> 8328; mapped coverage remains 2393 / 3532; Rust/Node/WASM upstream runners were not executed.",
     "focusedMediaResolutionXMinifierLayerParity20260601T133852Z": {
         "sourceCommit": "b377ea5b2fa3ea8bf0b90afbb451893100795e29",
         "mappedSliceIncrease": 0,
@@ -1820,5 +1820,17 @@
         "mappedAfter": 2393,
         "nativeVerification": "PHP lint on changed LightningCSS PHP files; git diff --check; focused MediaQueryParser/TransitionPrefixer/CssMinifier/CssBundler gate 4 files / 4770 assertions / 0 failures; changed example smoke passed; full LightningCSS lane 13 files / 8160 assertions / 0 failures.",
         "upstreamEvidence": "Pinned LightningCSS media-query resolution x-unit serialization behavior for @media ranges and layered @import tails; full Rust/Node/WASM runners not executed."
+    },
+    "focusedMediaQueryAdvancedUnitlessMathRangeLayerParity20260601T143817Z": {
+        "sourceCommit": "a1793bf843e0ae211c773e9db72ccf77457cd548",
+        "mappedSliceIncrease": 0,
+        "mappedBefore": 2393,
+        "mappedAfter": 2393,
+        "acceptedSlices": [
+            "media-query range/layer advanced unitless sqrt(), pow(), log(), and exp() parity"
+        ],
+        "countingNote": "This deepens the already represented media-query range/layer cluster rather than adding a new upstream manifest row.",
+        "nativeVerification": "PHP lint on changed LightningCSS PHP files; git diff --check; focused MediaQueryParserTest.php 1 file / 704 assertions / 0 failures; TransitionPrefixerTest.php 1 file / 1348 assertions / 0 failures; changed example smoke passed; full LightningCSS lane 13 files / 8328 assertions / 0 failures.",
+        "upstreamEvidence": "Pinned LightningCSS native-addon probes at upstream commit 22bdda3d190f1cd321d98026225cfc964af64ad9 for advanced unitless CSS math in media range values and legacy Firefox 60 lowerings; full Rust/Node/WASM runners not executed."
     }
 }

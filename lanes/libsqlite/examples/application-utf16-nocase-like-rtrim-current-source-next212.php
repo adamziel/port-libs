@@ -12,8 +12,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -37,7 +37,7 @@ $nextRows = [
     $row(9, 'PLUGIN%NEW  ', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeEscapePlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyUnicodeEscapePlan(
     $currentRows,
     $nextRows,
     $enc($currentPattern, 'UTF-16LE'),
@@ -64,11 +64,11 @@ $payload = [
     'unicodeEscapeCharacter' => $plan['unicodeEscapeCharacter'],
     'cursorInvalidated' => $plan['cursorInvalidated'],
     'invalidationReasons' => $plan['invalidationReasons'],
-    'applicationUse' => 'Copied wp_options scans can bind UTF-16 LIKE patterns with a non-ASCII ESCAPE character and still plan the same NOCASE/RTRIM prefix range plus residual match that SQLite would use after decoding prepared statement bytes.',
+    'applicationUse' => 'Copied app_settings scans can bind UTF-16 LIKE patterns with a non-ASCII ESCAPE character and still plan the same NOCASE/RTRIM prefix range plus residual match that SQLite would use after decoding prepared statement bytes.',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($payload['status'] === 'utf16-nocase-like-rtrim-current-source-next212');
+    assert($payload['status'] === 'utf16-nocase-like-rtrim-current-source-nexttwoOneTwo');
     assert($payload['escape'] === $escape);
     assert($payload['prefix'] === 'plugin_');
     assert($payload['nextPrefix'] === 'plugin%');
@@ -78,7 +78,7 @@ if (($argv[1] ?? null) === '--self-test') {
     assert($payload['nextAsciiEquivalentMatchedRowids'] === [3, 9]);
     assert($payload['unicodeEscapeCharacter'] === true);
     assert(in_array('unicode-escape-character', $payload['invalidationReasons'], true));
-    echo "application-utf16-nocase-like-rtrim-current-source-next212 self-test passed\n";
+    echo "application-utf16-nocase-like-rtrim-current-source-nexttwoOneTwo self-test passed\n";
     return;
 }
 

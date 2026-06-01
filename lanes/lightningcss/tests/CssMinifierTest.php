@@ -1730,23 +1730,36 @@ CSS
         $t->same('.foo{grid-row-start:auto}', $minifier->minify('.foo { grid-row-start: auto }'));
         $t->same('.foo{grid-row-start:some-area}', $minifier->minify('.foo { grid-row-start: some-area }'));
         $t->same('.foo{grid-row-start:2}', $minifier->minify('.foo { grid-row-start: 2 }'));
+        $t->same('.foo{grid-row-start:2 some-line}', $minifier->minify('.foo { grid-row-start: 2 some-line }'));
+        $t->same('.foo{grid-row-start:2 some-line}', $minifier->minify('.foo { grid-row-start: some-line 2 }'));
         $t->same('.foo{grid-row-start:span 3}', $minifier->minify('.foo { grid-row-start: span 3 }'));
         $t->same('.foo{grid-row-start:span some-line}', $minifier->minify('.foo { grid-row-start: span some-line }'));
+        $t->same('.foo{grid-row-start:span some-line}', $minifier->minify('.foo { grid-row-start: span some-line 1 }'));
         $t->same('.foo{grid-row-start:span some-line}', $minifier->minify('.foo { grid-row-start: span 1 some-line }'));
+        $t->same('.foo{grid-row-start:span 5 some-line}', $minifier->minify('.foo { grid-row-start: span 5 some-line }'));
         $t->same('.foo{grid-row-start:span 5 some-line}', $minifier->minify('.foo { grid-row-start: span some-line 5 }'));
         $t->same('.foo{grid-row-end:span some-line}', $minifier->minify('.foo { grid-row-end: span 1 some-line }'));
         $t->same('.foo{grid-column-start:span some-line}', $minifier->minify('.foo { grid-column-start: span 1 some-line }'));
         $t->same('.foo{grid-column-end:span some-line}', $minifier->minify('.foo { grid-column-end: span 1 some-line }'));
 
+        $t->same('.foo{grid-row:1}', $minifier->minify('.foo { grid-row: 1 }'));
+        $t->same('.foo{grid-row:1}', $minifier->minify('.foo { grid-row: 1 / auto }'));
         $t->same('.foo{grid-row:1/1}', $minifier->minify('.foo { grid-row: 1 / 1 }'));
         $t->same('.foo{grid-row:1/3}', $minifier->minify('.foo { grid-row: 1 / 3 }'));
         $t->same('.foo{grid-row:1/span 2}', $minifier->minify('.foo { grid-row: 1 / span 2 }'));
+        $t->same('.foo{grid-row:main-start}', $minifier->minify('.foo { grid-row: main-start }'));
         $t->same('.foo{grid-row:main-start/main-end}', $minifier->minify('.foo { grid-row: main-start / main-end }'));
+        $t->same('.foo{grid-row:main-start}', $minifier->minify('.foo { grid-row: main-start / main-start }'));
+        $t->same('.foo{grid-column:1}', $minifier->minify('.foo { grid-column: 1 / auto }'));
+        $t->same('.foo{grid-area:a}', $minifier->minify('.foo { grid-area: a / a / a / a }'));
+        $t->same('.foo{grid-area:a/b}', $minifier->minify('.foo { grid-area: a / b / a / b }'));
+        $t->same('.foo{grid-area:a/b/c}', $minifier->minify('.foo { grid-area: a / b / c / b }'));
         $t->same('.foo{grid-area:a/b/c/d}', $minifier->minify('.foo { grid-area: a / b / c / d }'));
         $t->same('.foo{grid-area:auto}', $minifier->minify('.foo { grid-area: auto / auto / auto / auto }'));
         $t->same('.foo{grid-area:auto}', $minifier->minify('.foo { grid-area: auto }'));
         $t->same('.foo{grid-area:1}', $minifier->minify('.foo { grid-area: 1 / auto }'));
         $t->same('.foo{grid-area:1/2/3/4}', $minifier->minify('.foo { grid-area: 1 / 2 / 3 / 4 }'));
+        $t->same('.foo{grid-area:1/1/1/1}', $minifier->minify('.foo { grid-area: 1 / 1 / 1 / 1 }'));
     },
     'css minifier maps upstream explicit grid track list compaction' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -2403,6 +2416,22 @@ CSS
         $t->same(
             '@layer foo{.foo{color:red;background:#fff}.baz{color:#fff}}',
             $minifier->minify('@layer foo { .foo { color: red; } } @layer foo { .foo { background: #fff; } .baz { color: #fff; } }')
+        );
+        $t->same(
+            '@layer foo{.old{color:purple}.new{color:green}}.between{color:#00f}.tail{color:red}',
+            $minifier->minify('@layer foo { .old { color: purple } } .between { color: blue } @layer foo { .new { color: green } } .tail { color: red }')
+        );
+        $t->same(
+            '@layer reset;@layer theme{.card{color:green}}.between{color:#00f}.tail{color:red}',
+            $minifier->minify('@layer reset, theme; .between { color: blue } @layer theme { .card { color: green } } .tail { color: red }')
+        );
+        $t->same(
+            '@layer foo{.old{color:purple}}.between{color:#00f}@layer bar{.new{color:green}}.tail{color:red}',
+            $minifier->minify('@layer foo { .old { color: purple } } .between { color: blue } @layer bar { .new { color: green } } .tail { color: red }')
+        );
+        $t->same(
+            '@layer foo{.old{color:purple}.new{color:green}}@media screen{.between{color:#00f}}.tail{color:red}',
+            $minifier->minify('@layer foo { .old { color: purple } } @media screen { .between { color: blue } } @layer foo { .new { color: green } } .tail { color: red }')
         );
         $t->same(
             '@layer a;@layer b{.foo{color:red}}@layer c;',

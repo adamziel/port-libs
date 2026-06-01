@@ -2093,6 +2093,59 @@ return [
             $block->getProperty('gap: 1rem !important; row-gap: 2rem', 'row-gap')
         );
     },
+    'declaration block normalizes upstream gap cssom values across read and write paths' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            [
+                'gap' => 'normal .5rem',
+                'row-gap' => '0',
+                'column-gap' => '2.5%',
+                '--Block-Gap' => 'NORMAL 0.500rem',
+            ],
+            $block->parse('gap: NORMAL 0.500rem; row-gap: 0px; column-gap: 2.500%; --Block-Gap: NORMAL 0.500rem')
+        );
+        $t->same(
+            ['value' => 'normal .5rem', 'important' => false],
+            $block->getProperty('gap: NORMAL 0.500rem', 'gap')
+        );
+        $t->same(
+            ['value' => 'normal', 'important' => false],
+            $block->getProperty('gap: NORMAL 0.500rem', 'row-gap')
+        );
+        $t->same(
+            ['value' => '.5rem', 'important' => false],
+            $block->getProperty('gap: NORMAL 0.500rem', 'column-gap')
+        );
+        $t->same(
+            ['value' => 'normal 0', 'important' => false],
+            $block->getProperty('row-gap: NORMAL; column-gap: 0px', 'gap')
+        );
+        $t->same(
+            ['value' => '0', 'important' => false],
+            $block->getProperty('gap: 0px 0.000rem', 'gap')
+        );
+        $t->same(
+            'gap: normal 2.5%; color: red',
+            $block->setProperty('gap: NORMAL 0.500rem; color: red', 'column-gap', '2.500%')
+        );
+        $t->same(
+            'color: red; row-gap: normal !important',
+            $block->setProperty('row-gap: 0px; color: red', 'row-gap', 'NORMAL', true)
+        );
+        $t->same(
+            'color: red; gap: normal .5rem',
+            $block->setProperty('color: red', 'gap', 'NORMAL 0.500rem')
+        );
+        $t->same(
+            'column-gap: .5rem; color: red',
+            $block->removeProperty('gap: NORMAL 0.500rem; color: red', 'row-gap')
+        );
+        $t->same(
+            'row-gap: normal; color: red',
+            $block->removeProperty('gap: NORMAL 0.500rem; color: red', 'column-gap')
+        );
+    },
     'declaration block reads upstream multi-column cssom shorthands and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
