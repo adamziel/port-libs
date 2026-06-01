@@ -10,11 +10,13 @@ final class ReceivePackAdvertisement
 
     /**
      * @param list<RemoteRef> $refs
+     * @param list<FetchShallowUpdate> $shallowUpdates
      */
     public function __construct(
         private readonly ProtocolCapabilities $capabilities,
         private readonly array $refs,
         private readonly string $objectFormat = 'sha1',
+        private readonly array $shallowUpdates = [],
     ) {
         self::assertObjectFormat($objectFormat);
         foreach ($refs as $ref) {
@@ -29,14 +31,27 @@ final class ReceivePackAdvertisement
                 throw new \InvalidArgumentException("Receive-pack advertised refs must use {$objectFormat} object ids");
             }
         }
+        foreach ($shallowUpdates as $update) {
+            if (!$update instanceof FetchShallowUpdate) {
+                throw new \InvalidArgumentException('Receive-pack advertisement shallow updates must be FetchShallowUpdate instances');
+            }
+            if ($update->kind !== FetchShallowUpdate::SHALLOW) {
+                throw new \InvalidArgumentException('Receive-pack advertisement only supports shallow boundary updates');
+            }
+            if (preg_match(self::objectIdPattern($objectFormat), $update->object) !== 1) {
+                throw new \InvalidArgumentException("Receive-pack shallow updates must use {$objectFormat} object ids");
+            }
+        }
     }
 
     public static function fromV1PacketLines(string $bytes): self
     {
         $offset = 0;
         $refs = [];
+        $shallowUpdates = [];
         $capabilities = null;
         $objectFormat = 'sha1';
+        $symbolicTargets = [];
 
         while (true) {
             $packet = self::readPacket($bytes, $offset);
@@ -55,6 +70,7 @@ final class ReceivePackAdvertisement
                 $parsed = ProtocolCapabilities::fromV1Bytes($payload);
                 $capabilities = $parsed['capabilities'];
                 $objectFormat = self::objectFormatFromCapabilities($capabilities);
+                $symbolicTargets = self::symbolicTargetsFromCapabilities($capabilities);
                 $payload = substr($payload, 0, $parsed['delimiterPosition']);
             } elseif (str_contains($payload, "\0")) {
                 throw new \InvalidArgumentException('receive-pack advertisement: capabilities appeared after the first ref');
@@ -64,14 +80,14 @@ final class ReceivePackAdvertisement
                 continue;
             }
 
-            $refs[] = self::parseRefLine($payload, $objectFormat);
+            self::parseRefLine($payload, $objectFormat, $symbolicTargets, $refs, $shallowUpdates);
         }
 
         if ($capabilities === null) {
             throw new \InvalidArgumentException('receive-pack advertisement: capabilities were missing');
         }
 
-        return new self($capabilities, $refs, $objectFormat);
+        return new self($capabilities, $refs, $objectFormat, $shallowUpdates);
     }
 
     public function capabilities(): ProtocolCapabilities
@@ -92,6 +108,14 @@ final class ReceivePackAdvertisement
         return $this->refs;
     }
 
+    /**
+     * @return list<FetchShallowUpdate>
+     */
+    public function shallowUpdates(): array
+    {
+        return $this->shallowUpdates;
+    }
+
     public function ref(string $name): ?RemoteRef
     {
         foreach ($this->refs as $ref) {
@@ -108,19 +132,98 @@ final class ReceivePackAdvertisement
         return $this->ref($name)?->object;
     }
 
-    private static function parseRefLine(string $line, string $objectFormat): RemoteRef
+    /**
+     * @param array<string, string|null> $symbolicTargets
+     * @param list<RemoteRef> $refs
+     * @param list<FetchShallowUpdate> $shallowUpdates
+     */
+    private static function parseRefLine(
+        string $line,
+        string $objectFormat,
+        array &$symbolicTargets,
+        array &$refs,
+        array &$shallowUpdates,
+    ): void
     {
+        $line = self::trimLineEnding($line);
         $parts = explode(' ', $line, 2);
         if (count($parts) !== 2) {
             throw new \InvalidArgumentException('receive-pack advertisement: ref line must contain object id and ref name');
         }
         [$object, $refName] = $parts;
+        if ($object === 'shallow') {
+            if (preg_match(self::objectIdPattern($objectFormat), $refName) !== 1) {
+                throw new \InvalidArgumentException("receive-pack advertisement: shallow object must be a {$objectFormat} object id");
+            }
+            $shallowUpdates[] = FetchShallowUpdate::shallow($refName);
+
+            return;
+        }
         if (preg_match(self::objectIdPattern($objectFormat), $object) !== 1) {
             throw new \InvalidArgumentException("receive-pack advertisement: ref object must be a {$objectFormat} object id");
         }
+
+        if (str_ends_with($refName, '^{}')) {
+            $baseRefName = substr($refName, 0, -3);
+            if (self::isZeroObject($object) && $baseRefName === 'capabilities') {
+                return;
+            }
+
+            ReferenceName::assertValid($baseRefName);
+            $previous = array_pop($refs);
+            if ($previous === null || $previous->kind !== 'direct' || $previous->name !== $baseRefName || $previous->object === null) {
+                throw new \InvalidArgumentException('receive-pack advertisement: peeled refs must follow their direct ref');
+            }
+            $refs[] = RemoteRef::peeled($baseRefName, $previous->object, $object);
+
+            return;
+        }
+
         ReferenceName::assertValid($refName);
 
-        return RemoteRef::direct($refName, $object);
+        if (array_key_exists($refName, $symbolicTargets)) {
+            $target = $symbolicTargets[$refName];
+            unset($symbolicTargets[$refName]);
+            if ($target !== null) {
+                ReferenceName::assertValid($target);
+                $refs[] = RemoteRef::symbolic($refName, $target, $object);
+
+                return;
+            }
+        }
+
+        $refs[] = RemoteRef::direct($refName, $object);
+    }
+
+    /**
+     * @return array<string, string|null>
+     */
+    private static function symbolicTargetsFromCapabilities(ProtocolCapabilities $capabilities): array
+    {
+        $targets = [];
+        foreach ($capabilities->symrefs() as $capability) {
+            $value = $capability->value;
+            if ($value === null || !str_contains($value, ':')) {
+                throw new \InvalidArgumentException('receive-pack advertisement: malformed symref capability');
+            }
+            [$name, $target] = explode(':', $value, 2);
+            if ($name === '' || $target === '') {
+                throw new \InvalidArgumentException('receive-pack advertisement: malformed symref capability');
+            }
+            ReferenceName::assertValid($name);
+            if ($target !== '(null)') {
+                ReferenceName::assertValid($target);
+            }
+
+            $targets[$name] = $target === '(null)' ? null : $target;
+        }
+
+        return $targets;
+    }
+
+    private static function isZeroObject(string $object): bool
+    {
+        return strspn($object, '0') === strlen($object);
     }
 
     private static function objectFormatFromCapabilities(ProtocolCapabilities $capabilities): string

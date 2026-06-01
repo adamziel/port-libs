@@ -33,6 +33,25 @@ Require stack:
 - /home/claude/port-libs/.upstream-cache/lightningcss/wasm/wasm-node.cjs
 TEXT;
 
+$upstreamPackageJson = <<<'JSON'
+{
+  "name": "lightningcss",
+  "version": "1.32.0",
+  "dependencies": {
+    "detect-libc": "^2.0.3"
+  },
+  "devDependencies": {
+    "napi-wasm": "^1.0.1",
+    "uvu": "^0.5.6"
+  },
+  "scripts": {
+    "test": "uvu node/test",
+    "wasm:build": "cargo build --target wasm32-unknown-unknown -p lightningcss_node && wasm-opt target/wasm32-unknown-unknown/debug/lightningcss_node.wasm --asyncify --pass-arg=asyncify-imports@env.await_promise_sync -Oz -o wasm/lightningcss_node.wasm && node scripts/build-wasm.js",
+    "wasm:build-release": "cargo build --target wasm32-unknown-unknown -p lightningcss_node --release && wasm-opt target/wasm32-unknown-unknown/release/lightningcss_node.wasm --asyncify --pass-arg=asyncify-imports@env.await_promise_sync -Oz -o wasm/lightningcss_node.wasm && node scripts/build-wasm.js"
+  }
+}
+JSON;
+
 return [
     'upstream runner evidence records bounded rust media test pass' => static function (TestRunner $t) use ($rustMediaOutput): void {
         $record = UpstreamRunnerEvidence::rustCargoTest(
@@ -140,5 +159,73 @@ return [
             'Node direct native addon transform smoke',
         ], $summary['passedLabels']);
         $t->contains('runner closure needs upstream dependency installation', $summary['dependencyClosure']);
+    },
+    'upstream runner evidence resolves dependency closure from package manifest' => static function (TestRunner $t) use ($nodeUvuOutput, $nodeIndexOutput, $wasmOutput, $upstreamPackageJson): void {
+        $records = [
+            UpstreamRunnerEvidence::moduleDependencyBlocker('node', 'Node uvu transform runner', 'node node/test/transform.test.mjs', 1, $nodeUvuOutput),
+            UpstreamRunnerEvidence::moduleDependencyBlocker('node', 'Node package entrypoint load', 'node -e require node/index.js', 1, $nodeIndexOutput),
+            UpstreamRunnerEvidence::moduleDependencyBlocker('wasm', 'WASM node runtime smoke', 'node -e require wasm/wasm-node.cjs', 1, $wasmOutput),
+            UpstreamRunnerEvidence::missingCommandBlocker('wasm', 'WASM release build preflight', 'wasm-opt --version', 127, '/bin/bash: line 1: wasm-opt: command not found'),
+        ];
+
+        $plan = UpstreamRunnerEvidence::dependencyClosurePlan($records, $upstreamPackageJson, ['wasm-opt' => 'binaryen']);
+
+        $t->same('blocked', $plan['status']);
+        $t->same([
+            [
+                'name' => 'uvu',
+                'section' => 'devDependencies',
+                'version' => '^0.5.6',
+                'blocker' => 'missing Node module uvu',
+            ],
+            [
+                'name' => 'detect-libc',
+                'section' => 'dependencies',
+                'version' => '^2.0.3',
+                'blocker' => 'missing Node module detect-libc',
+            ],
+            [
+                'name' => 'napi-wasm',
+                'section' => 'devDependencies',
+                'version' => '^1.0.1',
+                'blocker' => 'missing Node module napi-wasm',
+            ],
+        ], $plan['nodePackages']);
+        $t->same([
+            [
+                'name' => 'wasm-opt',
+                'package' => 'binaryen',
+                'scripts' => ['wasm:build', 'wasm:build-release'],
+                'blocker' => 'missing command wasm-opt',
+            ],
+        ], $plan['externalTools']);
+        $t->same([], $plan['undeclared']);
+        $t->contains('uvu from devDependencies ^0.5.6', $plan['activationGate']);
+        $t->contains('detect-libc from dependencies ^2.0.3', $plan['activationGate']);
+        $t->contains('napi-wasm from devDependencies ^1.0.1', $plan['activationGate']);
+        $t->contains('wasm-opt via binaryen for scripts wasm:build, wasm:build-release', $plan['activationGate']);
+    },
+    'upstream runner evidence keeps undeclared missing modules explicit' => static function (TestRunner $t): void {
+        $record = UpstreamRunnerEvidence::moduleDependencyBlocker(
+            'node',
+            'Node unexpected dependency probe',
+            'node node/test/transform.test.mjs',
+            1,
+            "Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'left-pad' imported from /tmp/probe.mjs"
+        );
+
+        $plan = UpstreamRunnerEvidence::dependencyClosurePlan([$record], '{"name":"lightningcss"}');
+
+        $t->same('blocked', $plan['status']);
+        $t->same([
+            [
+                'name' => 'left-pad',
+                'section' => 'undeclared',
+                'version' => '',
+                'blocker' => 'missing Node module left-pad',
+            ],
+        ], $plan['nodePackages']);
+        $t->same(['left-pad'], $plan['undeclared']);
+        $t->contains('left-pad from undeclared upstream package', $plan['activationGate']);
     },
 ];

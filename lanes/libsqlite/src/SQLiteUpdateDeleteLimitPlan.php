@@ -224,6 +224,9 @@ final class SQLiteUpdateDeleteLimitPlan
         if ($limit === null && $offset !== 0) {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT OFFSET requires LIMIT');
         }
+        if ($offset < 0) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT OFFSET must be non-negative');
+        }
 
         $indexed = [];
         foreach ($rows as $index => $row) {

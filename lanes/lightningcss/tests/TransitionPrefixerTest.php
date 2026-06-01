@@ -3257,6 +3257,10 @@ CSS;
             $prefixer->prefixLegacySafari('.foo { background: lab(51.5117% 43.3777 -29.0443) url(foo.png); }')
         );
         $t->same(
+            '.foo{background:var(--image) #b32323}@supports (color:lab(0% 0 0)){.foo{background:var(--image) lab(40% 56.6 39)}}',
+            $prefixer->prefixForTargets('.foo { background: var(--image) lch(40% 68.735435 34.568626) }', ['chrome' => 90])
+        );
+        $t->same(
             '@supports (color:lab(0% 0 0)){.foo{background:linear-gradient(lch(56.208% 136.76 46.312),lch(51% 135.366 301.364))}}',
             $prefixer->prefixLegacySafari('@supports (color: lab(0% 0 0)) { .foo { background: linear-gradient(lch(56.208% 136.76 46.312), lch(51% 135.366 301.364)) } }')
         );

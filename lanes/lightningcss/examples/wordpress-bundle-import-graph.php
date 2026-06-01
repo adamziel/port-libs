@@ -2660,6 +2660,35 @@ if (
 
 echo 'css-modules-var-dependency: resolved' . PHP_EOL;
 
+$cssModuleMixedDependencyOrder = (new CssBundler())->bundleCssModules('/blocks/query.css', [
+    '/blocks/query.css' => <<<'CSS'
+.wp-block-query {
+  color: var(--wp-card-color from "../tokens.css");
+  composes: wp-block-card from "../card.css";
+  background: red;
+}
+CSS,
+    '/tokens.css' => '.token { --wp-card-color: green }',
+    '/card.css' => '.wp-block-card { border-color: currentColor }',
+], null, [
+    'hashes' => [
+        '/blocks/query.css' => 'entry',
+        '/tokens.css' => 'tok',
+        '/card.css' => 'card',
+    ],
+    'dashedIdents' => true,
+]);
+
+if (
+    $cssModuleMixedDependencyOrder['code'] !== '.tok_token{--tok_wp-card-color:green}.card_wp-block-card{border-color:currentColor}.entry_wp-block-query{color:var(--tok_wp-card-color);background:red}'
+    || ($cssModuleMixedDependencyOrder['exports']['wp-block-query']['composes'][0]['name'] ?? null) !== 'card_wp-block-card'
+) {
+    fwrite(STDERR, "Unexpected mixed CSS Modules dependency declaration-order output\n");
+    exit(1);
+}
+
+echo 'css-modules-mixed-dependency-order: declaration-order' . PHP_EOL;
+
 $conditionalVarReads = [];
 $conditionalVarResolverCalled = false;
 $conditionalVarBundle = (new CssBundler())->bundleCssModulesWithReader(

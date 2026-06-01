@@ -3994,6 +3994,65 @@ CSS,
 
         throw new RuntimeException('Expected env() from parser diagnostic before dependency resolution');
     },
+    'css bundler preserves upstream css module declaration order for mixed dependencies' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal): void {
+        $varFirst = $bundleModules([
+            '/entry.css' => <<<'CSS'
+.entry {
+  color: var(--brand from "./tokens.css");
+  composes: card from "./card.css";
+  background: red;
+}
+CSS,
+            '/tokens.css' => '.token { --brand: blue }',
+            '/card.css' => '.card { color: green }',
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/tokens.css' => 'tok',
+                '/card.css' => 'card',
+            ],
+            'dashedIdents' => true,
+        ]);
+
+        $t->same(
+            '.tok_token{--tok_brand:blue}.card_card{color:green}.entry_entry{color:var(--tok_brand);background:red}',
+            $varFirst['code']
+        );
+        $t->same([
+            'entry' => $moduleExport('entry_entry', [
+                $moduleLocal('card_card'),
+            ]),
+        ], $varFirst['exports']);
+
+        $composesFirst = $bundleModules([
+            '/entry.css' => <<<'CSS'
+.entry {
+  composes: card from "./card.css";
+  color: var(--brand from "./tokens.css");
+  background: red;
+}
+CSS,
+            '/tokens.css' => '.token { --brand: blue }',
+            '/card.css' => '.card { color: green }',
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/tokens.css' => 'tok',
+                '/card.css' => 'card',
+            ],
+            'dashedIdents' => true,
+        ]);
+
+        $t->same(
+            '.card_card{color:green}.tok_token{--tok_brand:blue}.entry_entry{color:var(--tok_brand);background:red}',
+            $composesFirst['code']
+        );
+        $t->same([
+            'entry' => $moduleExport('entry_entry', [
+                $moduleLocal('card_card'),
+            ]),
+        ], $composesFirst['exports']);
+    },
     'css bundler maps upstream css module content-hash imports' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
         $result = $bundleModules([
             '/a.css' => "\n          @import \"b.css\";\n          .a { color: red }\n        ",

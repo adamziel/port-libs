@@ -58,6 +58,45 @@ return [
         $t->same('sha1', $advertisement->objectFormat());
         $t->same(2, count($advertisement->refs()));
     },
+    'parses receive-pack v1 dummy capabilities symrefs peeled refs and shallow boundaries like gix handshake' => static function (TestRunner $t) use ($packet, $flush): void {
+        $zero = str_repeat('0', 40);
+        $head = '73A6868963993A3328E7D8FE94E5A6AC5078A944';
+        $missing = '21C9B7500CB144B3169A6537961EC2B9E865BE81';
+        $tag = 'DCE0EA858EEF7FF61AD345CC5CDAC62203FB3C10';
+        $peeled = '21C9B7500CB144B3169A6537961EC2B9E865BE81';
+        $shallow = '8E472F9CCC7D745927426CBB2D9D077DE545AA4E';
+        $advertisement = ReceivePackAdvertisement::fromV1PacketLines(
+            $packet("{$zero} capabilities^{}\0report-status side-band-64k shallow symref=HEAD:refs/heads/main symref=MISSING_NAMESPACE_TARGET:(null) object-format=sha1\n")
+            . $packet("{$head} HEAD\n")
+            . $packet("{$missing} MISSING_NAMESPACE_TARGET\n")
+            . $packet("{$head} refs/heads/main\n")
+            . $packet("{$tag} refs/tags/gix-commitgraph-v0.0.0\n")
+            . $packet("{$peeled} refs/tags/gix-commitgraph-v0.0.0^{}\n")
+            . $packet("shallow {$shallow}\n")
+            . $flush
+        );
+
+        $refs = $advertisement->refs();
+        $t->same(4, count($refs));
+        $t->same('symbolic', $refs[0]->kind);
+        $t->same('HEAD', $refs[0]->name);
+        $t->same('refs/heads/main', $refs[0]->target);
+        $t->same(strtolower($head), $refs[0]->object);
+        $t->same('direct', $refs[1]->kind);
+        $t->same('MISSING_NAMESPACE_TARGET', $refs[1]->name);
+        $t->same(strtolower($missing), $refs[1]->object);
+        $t->same('direct', $refs[2]->kind);
+        $t->same('refs/heads/main', $refs[2]->name);
+        $t->same('peeled', $refs[3]->kind);
+        $t->same('refs/tags/gix-commitgraph-v0.0.0', $refs[3]->name);
+        $t->same(strtolower($tag), $refs[3]->tag);
+        $t->same(strtolower($peeled), $refs[3]->object);
+        $t->same(strtolower($shallow), $advertisement->shallowUpdates()[0]->object);
+        $t->same([], array_values(array_filter(
+            array_map(static fn ($ref): string => $ref->name, $refs),
+            static fn (string $name): bool => $name === 'capabilities^{}'
+        )));
+    },
     'parses sha256 receive-pack advertisements and delete-only requests' => static function (TestRunner $t) use ($packet, $flush, $readPacketSequence): void {
         $old = str_repeat('a', 64);
         $zero = str_repeat('0', 64);
@@ -98,6 +137,9 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet(str_repeat('a', 40) . " main\0report-status\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet(str_repeat('a', 40) . " refs/heads/main\0report-status object-format=sha256\n") . $flush));
         $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet(str_repeat('a', 64) . " refs/heads/main\0report-status object-format=sha512\n") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet(str_repeat('a', 40) . " refs/heads/main\0report-status\n") . $packet('shallow bad') . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet(str_repeat('a', 40) . " refs/tags/missing^{}\0report-status\n") . $flush));
+        $t->throws(InvalidArgumentException::class, static fn () => ReceivePackAdvertisement::fromV1PacketLines($packet(str_repeat('a', 40) . " refs/heads/main\0report-status symref=HEAD\n") . $flush));
     },
     'send-pack session plans create update and no-op refs from advertisement' => static function (TestRunner $t) use ($packet, $flush, $readPacketSequence): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';

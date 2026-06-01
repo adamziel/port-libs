@@ -342,6 +342,7 @@ final class CssBundler
         if ($this->sourceMap !== null) {
             $this->addBundleSource($sourceIndex, $file, $source, $sourceMapUrl);
         }
+        $cssModuleOriginalSource = $source;
 
         $cssModuleResult = null;
         $cssModuleDependencyLocations = [];
@@ -399,7 +400,7 @@ final class CssBundler
         $contentItems = $splitItems['contentItems'];
         $dependencies = $this->importDependenciesForItems($contentItems, $rule, $file);
 
-        foreach ($this->cssModuleDependencySpecifiers($cssModuleExports, $cssModuleReferences) as $specifier) {
+        foreach ($this->cssModuleDependencySpecifiersInSourceOrder($cssModuleOriginalSource, $cssModuleExports, $cssModuleReferences) as $specifier) {
             $dependencyLocations = $cssModuleDependencyLocations[$specifier] ?? [
                 'read' => ['line' => 1, 'column' => 1],
                 'resolve' => ['line' => 1, 'column' => 1],
@@ -1000,6 +1001,99 @@ final class CssBundler
         }
 
         return $specifiers;
+    }
+
+    /**
+     * @param array<string, array{name:string, composes:list<array{type:string, name:string, specifier?:string}>, isReferenced:bool}> $exports
+     * @param array<string, array{type:string, name:string, specifier:string}> $references
+     * @return list<string>
+     */
+    private function cssModuleDependencySpecifiersInSourceOrder(string $source, array $exports, array $references = []): array
+    {
+        $known = [];
+        foreach ($this->cssModuleDependencySpecifiers($exports, $references) as $specifier) {
+            $known[$specifier] = true;
+        }
+
+        if ($known === []) {
+            return [];
+        }
+
+        $events = [];
+        $sequence = 0;
+        $offset = 0;
+        while (($property = $this->findNextCssIdentifierInSet($source, ['composes'], $offset)) !== null) {
+            $propertyOffset = $property['start'];
+            $offset = $property['end'];
+            $colon = $this->skipWhitespaceAndComments($source, $offset);
+            if (($source[$colon] ?? '') !== ':' || !$this->isDirectTopLevelCssStyleRuleOffset($source, $propertyOffset)) {
+                continue;
+            }
+
+            $valueStart = $this->skipWhitespaceAndComments($source, $colon + 1);
+            $valueEnd = $this->findNextTopLevel($source, ';', $valueStart)
+                ?? $this->findNextTopLevel($source, '}', $valueStart)
+                ?? strlen($source);
+            $value = substr($source, $valueStart, $valueEnd - $valueStart);
+            foreach ($this->cssModuleDependencySpecifiersInValue($value) as $specifier) {
+                if (isset($known[$specifier])) {
+                    $events[] = ['offset' => $propertyOffset, 'sequence' => $sequence++, 'specifier' => $specifier];
+                }
+            }
+
+            $offset = $valueEnd + 1;
+        }
+
+        $offset = 0;
+        while (($function = $this->findNextCssIdentifierInSet($source, ['var', 'env'], $offset)) !== null) {
+            $functionOffset = $function['start'];
+            $open = $function['end'];
+            $offset = $open + 1;
+            if (($source[$open] ?? '') !== '(') {
+                continue;
+            }
+
+            try {
+                $close = $this->findMatchingDelimiter($source, $open, '(', ')');
+            } catch (CssBundleException) {
+                continue;
+            }
+
+            if ($this->cssModuleDirectStyleDeclarationLocationForValueOffset($source, $functionOffset) === null) {
+                $offset = $close + 1;
+                continue;
+            }
+
+            $value = substr($source, $open + 1, $close - $open - 1);
+            foreach ($this->cssModuleDependencySpecifiersInValue($value) as $specifier) {
+                if (isset($known[$specifier])) {
+                    $events[] = ['offset' => $functionOffset, 'sequence' => $sequence++, 'specifier' => $specifier];
+                }
+            }
+
+            $offset = $close + 1;
+        }
+
+        usort(
+            $events,
+            static fn (array $a, array $b): int => [$a['offset'], $a['sequence']] <=> [$b['offset'], $b['sequence']]
+        );
+
+        $ordered = [];
+        foreach ($events as $event) {
+            $specifier = (string) $event['specifier'];
+            if (!in_array($specifier, $ordered, true)) {
+                $ordered[] = $specifier;
+            }
+        }
+
+        foreach (array_keys($known) as $specifier) {
+            if (!in_array($specifier, $ordered, true)) {
+                $ordered[] = $specifier;
+            }
+        }
+
+        return $ordered;
     }
 
     /**

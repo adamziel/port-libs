@@ -273,6 +273,36 @@ return [
         $t->same("{$old} {$blob->oid()} refs/heads/main\0 report-status side-band-64k object-format=sha1 agent=port-libs/0.1", $commands[0]);
         $t->same($request->pack()?->packBytes(), $packBytes);
     },
+    'receive-pack client creates first ref from empty repository dummy capabilities advertisement' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes, $readPacketSequence): void {
+        $zero = str_repeat('0', 40);
+        $blob = new GitObject('blob', 'WordPress first receive-pack deployment payload');
+        $advertisement = $packet("{$zero} capabilities^{}\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x02remote: creating initial deployment branch\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $write = $streamWith('');
+        $client = new ReceivePackClient(
+            new StreamReceivePackTransport($streamWith($advertisement . $responseBytes), $write),
+            'port-libs/0.1'
+        );
+
+        $session = $client->handshake();
+        $created = $session->createOrUpdate('refs/heads/main', $blob->oid());
+        $request = $session->buildRequest([$blob]);
+        $response = $client->send($request);
+        [$commands, $packBytes] = $readPacketSequence($streamBytes($write));
+
+        $t->same(true, $created);
+        $t->same(0, count($session->advertisement()->refs()));
+        $t->same(true, $response->isSuccessful());
+        $t->same(['remote: creating initial deployment branch'], $response->progressMessages());
+        $t->same('refs/heads/main', $response->refStatuses()[0]->effectiveRefName());
+        $t->same("{$zero} {$blob->oid()} refs/heads/main\0 report-status side-band-64k object-format=sha1 agent=port-libs/0.1", $commands[0]);
+        $t->same($request->pack()?->packBytes(), $packBytes);
+        $t->same(false, str_contains($commands[0], 'capabilities^{}'));
+    },
     'receive-pack client parses direct report-status responses without sideband' => static function (TestRunner $t) use ($packet, $flush, $streamWith, $streamBytes): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
         $blob = new GitObject('blob', 'WordPress direct report-status payload');
@@ -5656,6 +5686,16 @@ return [
         $t->same('fff0', $fixture['maxRequestCommandPacketHeader']);
         $t->same(true, $fixture['oversizeRequestCommandRejected']);
         $t->same(true, $fixture['oversizePushOptionRejected']);
+        $t->same(0, $fixture['emptyRepositoryInitialPush']['advertisedRefCount']);
+        $t->same([], $fixture['emptyRepositoryInitialPush']['shallowUpdates']);
+        $t->same(true, $fixture['emptyRepositoryInitialPush']['created']);
+        $t->contains(str_repeat('0', 40), $fixture['emptyRepositoryInitialPush']['requestCommand']);
+        $t->contains('refs/heads/main', $fixture['emptyRepositoryInitialPush']['requestCommand']);
+        $t->same(false, str_contains($fixture['emptyRepositoryInitialPush']['requestCommand'], 'capabilities^{}'));
+        $t->same(true, $fixture['emptyRepositoryInitialPush']['requestHasPack']);
+        $t->same(true, $fixture['emptyRepositoryInitialPush']['responseSuccessful']);
+        $t->same(['remote: creating initial WordPress deployment branch'], $fixture['emptyRepositoryInitialPush']['progressMessages']);
+        $t->same(['refs/heads/main'], $fixture['emptyRepositoryInitialPush']['acceptedRefs']);
         $t->same("git-receive-pack /wp-content.git\0host=git-mirror.example.test\0\0version=2\0", substr($fixture['gitDaemonEncodedUrlServiceRequest'], 4));
         $t->same("git-receive-pack /wp-content.git\0host=git.example.test\0\0version=2\0session-id\0object-format=sha1\0", substr($fixture['gitDaemonValueOnlyExtraServiceRequest'], 4));
         $t->same("git-receive-pack /wp-content.git\0host=git.example.test\0\0version=2\0server-option=\0", substr($fixture['gitDaemonEmptyValueExtraServiceRequest'], 4));

@@ -18,6 +18,22 @@ use PortLibs\Gitoxide\TreeEntry;
 
 $packet = static fn (string $payload): string => sprintf('%04x', strlen($payload) + 4) . $payload;
 $flush = '0000';
+$readPacketSequence = static function (string $bytes): array {
+    $payloads = [];
+    $offset = 0;
+    $length = strlen($bytes);
+    while ($offset + 4 <= $length) {
+        $size = hexdec(substr($bytes, $offset, 4));
+        $offset += 4;
+        if ($size === 0) {
+            break;
+        }
+        $payloads[] = substr($bytes, $offset, $size - 4);
+        $offset += $size - 4;
+    }
+
+    return [$payloads, substr($bytes, $offset)];
+};
 
 $oldCommit = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
 $advertisementBytes = $packet("{$oldCommit} refs/heads/main\0report-status-v2 side-band-64k object-format=sha1 atomic push-options\n")
@@ -76,6 +92,33 @@ $maxRequestCommand = PushCommand::create($requestLimitCapabilities, str_repeat('
 $maxRequestCommand->createRef(str_repeat('a', 40), 'refs/heads/main');
 $maxRequestCommandHeader = substr($maxRequestCommand->requestBytes(), 0, 4);
 
+$emptyRepositoryAdvertisementBytes = $packet(str_repeat('0', 40) . " capabilities^{}\0report-status side-band-64k object-format=sha1\n")
+    . $flush;
+$emptyRepositoryBlob = new GitObject('blob', "Initial WordPress deployment over receive-pack\n");
+$emptyRepositoryResponseBytes = $packet("\x02remote: creating initial WordPress deployment branch\n")
+    . $packet("\x01" . $packet("unpack ok\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $flush)
+    . $flush;
+$emptyRepositoryRead = fopen('php://temp', 'r+b');
+$emptyRepositoryWrite = fopen('php://temp', 'r+b');
+if ($emptyRepositoryRead === false || $emptyRepositoryWrite === false) {
+    throw new RuntimeException('Unable to open empty receive-pack fixture streams');
+}
+fwrite($emptyRepositoryRead, $emptyRepositoryAdvertisementBytes . $emptyRepositoryResponseBytes);
+rewind($emptyRepositoryRead);
+$emptyRepositoryClient = new ReceivePackClient(
+    new StreamReceivePackTransport($emptyRepositoryRead, $emptyRepositoryWrite),
+    'port-libs/wordpress'
+);
+$emptyRepositorySession = $emptyRepositoryClient->handshake();
+$emptyRepositoryCreated = $emptyRepositorySession->createOrUpdate('refs/heads/main', $emptyRepositoryBlob->oid());
+$emptyRepositoryRequest = $emptyRepositorySession->buildRequest([$emptyRepositoryBlob]);
+$emptyRepositoryResponse = $emptyRepositoryClient->send($emptyRepositoryRequest);
+rewind($emptyRepositoryWrite);
+$emptyRepositoryRequestBytes = (string) stream_get_contents($emptyRepositoryWrite);
+[$emptyRepositoryCommands, $emptyRepositoryPackBytes] = $readPacketSequence($emptyRepositoryRequestBytes);
+
 return [
     'oldCommit' => $oldCommit,
     'newCommit' => $commit->oid(),
@@ -109,6 +152,19 @@ return [
 
         return false;
     })(),
+    'emptyRepositoryInitialPush' => [
+        'advertisedRefCount' => count($emptyRepositorySession->advertisement()->refs()),
+        'shallowUpdates' => $emptyRepositorySession->advertisement()->shallowUpdates(),
+        'created' => $emptyRepositoryCreated,
+        'requestCommand' => $emptyRepositoryCommands[0] ?? '',
+        'requestHasPack' => str_starts_with($emptyRepositoryPackBytes, 'PACK'),
+        'responseSuccessful' => $emptyRepositoryResponse->isSuccessful(),
+        'progressMessages' => $emptyRepositoryResponse->progressMessages(),
+        'acceptedRefs' => array_map(
+            static fn ($status): string => $status->effectiveRefName(),
+            $emptyRepositoryResponse->refStatuses()
+        ),
+    ],
     'progressMessages' => $response->progressMessages(),
     'acceptedRefs' => array_map(
         static fn ($status): string => $status->effectiveRefName(),

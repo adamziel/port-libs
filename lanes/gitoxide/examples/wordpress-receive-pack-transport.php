@@ -19,6 +19,19 @@ return [
     'maxRequestCommandPacketHeader' => $fixture['maxRequestCommandPacketHeader'],
     'oversizeRequestCommandRejected' => $fixture['oversizeRequestCommandRejected'],
     'oversizePushOptionRejected' => $fixture['oversizePushOptionRejected'],
+    'emptyRepositoryInitialPush' => [
+        'advertisedRefCount' => $fixture['emptyRepositoryInitialPush']['advertisedRefCount'],
+        'created' => $fixture['emptyRepositoryInitialPush']['created'],
+        'requestCommand' => $fixture['emptyRepositoryInitialPush']['requestCommand'],
+        'requestHasPack' => $fixture['emptyRepositoryInitialPush']['requestHasPack'],
+        'responseSuccessful' => $fixture['emptyRepositoryInitialPush']['responseSuccessful'],
+        'progressMessages' => $fixture['emptyRepositoryInitialPush']['progressMessages'],
+        'acceptedRefs' => $fixture['emptyRepositoryInitialPush']['acceptedRefs'],
+        'capabilitiesDummyNotSerialized' => !str_contains(
+            $fixture['emptyRepositoryInitialPush']['requestCommand'],
+            'capabilities^{}'
+        ),
+    ],
     'sshTarget' => $fixture['sshTarget'],
     'sshIpv6Target' => $fixture['sshIpv6Target'],
     'sshIpv6Arguments' => $fixture['sshIpv6Context']['sshArguments'],

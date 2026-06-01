@@ -520,6 +520,7 @@ final class SQLiteSelectSql
         $length = strlen($sql);
         $quote = false;
         $positionalIndex = 1;
+        $anonymousIndex = 0;
         $namedParameterIndexes = [];
         for ($i = 0; $i < $length; $i++) {
             $char = $sql[$i];
@@ -547,15 +548,17 @@ final class SQLiteSelectSql
                 if ($token === '?') {
                     $index = $positionalIndex++;
                     $explicit = false;
+                    $anonymousKey = $anonymousIndex++;
                 } else {
                     $index = self::explicitParameterIndex($token);
                     $positionalIndex = max($positionalIndex, $index + 1);
                     $explicit = true;
+                    $anonymousKey = null;
                 }
                 if (!$explicit && $index > self::MAX_VARIABLE_NUMBER) {
                     throw new \InvalidArgumentException('SQLite SELECT SQL has too many SQL variables');
                 }
-                $result .= self::parameterLiteral(self::parameterValue($parameters, $index, $token, $explicit));
+                $result .= self::parameterLiteral(self::parameterValue($parameters, $index, $token, $explicit, null, $anonymousKey));
                 $i = $start - 1;
                 continue;
             }
@@ -716,9 +719,12 @@ final class SQLiteSelectSql
     /**
      * @param array<int|string,mixed> $parameters
      */
-    private static function parameterValue(array $parameters, int|string $key, string $token, bool $explicit = false, ?int $assignedIndex = null): mixed
+    private static function parameterValue(array $parameters, int|string $key, string $token, bool $explicit = false, ?int $assignedIndex = null, ?int $anonymousIndex = null): mixed
     {
         if (is_int($key)) {
+            if (!$explicit && $anonymousIndex !== null && array_key_exists($anonymousIndex, $parameters)) {
+                return $parameters[$anonymousIndex];
+            }
             $zeroBased = $key - 1;
             if (!$explicit && $key === 1 && array_key_exists($zeroBased, $parameters)) {
                 return $parameters[$zeroBased];
@@ -4870,6 +4876,14 @@ final class SQLiteSelectSql
             ];
         }
 
+        $inPredicate = self::inExpressionPredicate($sql, $tables);
+        if ($inPredicate !== null) {
+            return [
+                'type' => 'predicate',
+                'predicate' => $inPredicate,
+            ];
+        }
+
         if (preg_match('/^(.+\s+is\s+(?:not\s+)?(?:true|false))\s+COLLATE\s+([A-Za-z_][A-Za-z0-9_]*)$/is', $sql, $match) === 1) {
             $collation = strtoupper($match[2]);
             if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
@@ -5154,62 +5168,6 @@ final class SQLiteSelectSql
         if ($filter !== null) {
             throw new \InvalidArgumentException('SQLite SELECT SQL FILTER clause needs an aggregate function');
         }
-        if (preg_match('/^(.+?)\s+(not\s+)?in\s*\((.*)\)$/is', $sql, $match) === 1) {
-            $valuesSql = trim($match[3]);
-            if (self::isSelectStatement($valuesSql)) {
-                $left = self::valueExpression(trim($match[1]), $tables);
-
-                return [
-                    'type' => 'predicate',
-                    'predicate' => [
-                        'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT IN' : 'IN',
-                        'left' => $left,
-                        'valuesSubquery' => static function (array $row) use ($valuesSql, $tables, $left): array {
-                            $rows = self::correlatedSubqueryRows($valuesSql, $tables, $row);
-                            if ($rows === []) {
-                                return [];
-                            }
-                            $columns = self::subqueryResultColumns($rows[0]);
-                            if (($left['type'] ?? null) === 'row') {
-                                return array_map(
-                                    static fn (array $subqueryRow): array => array_map(
-                                        static fn (string $column): mixed => $subqueryRow[$column],
-                                        $columns
-                                    ),
-                                    $rows
-                                );
-                            }
-                            if (count($columns) !== 1) {
-                                throw new \InvalidArgumentException('SQLite SELECT SQL IN subquery expression must return one column');
-                            }
-                            $column = $columns[0];
-
-                            return array_map(static function (array $subqueryRow) use ($column): array {
-                                $affinities = $subqueryRow['__sqlite_column_affinities'] ?? [];
-
-                                return [
-                                    '__sqlite_in_value' => $subqueryRow[$column],
-                                    '__sqlite_in_affinity' => is_array($affinities) && isset($affinities[$column]) && is_string($affinities[$column])
-                                        ? $affinities[$column]
-                                        : 'NONE',
-                                ];
-                            }, $rows);
-                        },
-                    ],
-                ];
-            }
-
-            return [
-                'type' => 'predicate',
-                'predicate' => [
-                    'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT IN' : 'IN',
-                    'left' => self::valueExpression(trim($match[1]), $tables),
-                    'values' => $valuesSql === ''
-                        ? []
-                        : array_map(static fn (string $value): array => self::valueExpression($value, $tables), self::splitTopLevel($valuesSql, ',')),
-                ],
-            ];
-        }
         if (preg_match('/^[+-]?0[xX][0-9A-Fa-f]+$/', $sql) === 1) {
             return ['type' => 'literal', 'value' => self::hexIntegerLiteralValue($sql)];
         }
@@ -5261,6 +5219,65 @@ final class SQLiteSelectSql
         }
 
         throw new \InvalidArgumentException("SQLite SELECT SQL expression {$sql} is not supported");
+    }
+
+    /**
+     * @return array<string,mixed>|null
+     */
+    private static function inExpressionPredicate(string $sql, array $tables): ?array
+    {
+        if (preg_match('/^(.+?)\s+(not\s+)?in\s*\((.*)\)$/is', $sql, $match) !== 1) {
+            return null;
+        }
+
+        $valuesSql = trim($match[3]);
+        if (self::isSelectStatement($valuesSql)) {
+            $left = self::valueExpression(trim($match[1]), $tables);
+
+            return [
+                'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT IN' : 'IN',
+                'left' => $left,
+                'valuesSubquery' => static function (array $row) use ($valuesSql, $tables, $left): array {
+                    $rows = self::correlatedSubqueryRows($valuesSql, $tables, $row);
+                    if ($rows === []) {
+                        return [];
+                    }
+                    $columns = self::subqueryResultColumns($rows[0]);
+                    if (($left['type'] ?? null) === 'row') {
+                        return array_map(
+                            static fn (array $subqueryRow): array => array_map(
+                                static fn (string $column): mixed => $subqueryRow[$column],
+                                $columns
+                            ),
+                            $rows
+                        );
+                    }
+                    if (count($columns) !== 1) {
+                        throw new \InvalidArgumentException('SQLite SELECT SQL IN subquery expression must return one column');
+                    }
+                    $column = $columns[0];
+
+                    return array_map(static function (array $subqueryRow) use ($column): array {
+                        $affinities = $subqueryRow['__sqlite_column_affinities'] ?? [];
+
+                        return [
+                            '__sqlite_in_value' => $subqueryRow[$column],
+                            '__sqlite_in_affinity' => is_array($affinities) && isset($affinities[$column]) && is_string($affinities[$column])
+                                ? $affinities[$column]
+                                : 'NONE',
+                        ];
+                    }, $rows);
+                },
+            ];
+        }
+
+        return [
+            'operator' => isset($match[2]) && trim($match[2]) !== '' ? 'NOT IN' : 'IN',
+            'left' => self::valueExpression(trim($match[1]), $tables),
+            'values' => $valuesSql === ''
+                ? []
+                : array_map(static fn (string $value): array => self::valueExpression($value, $tables), self::splitTopLevel($valuesSql, ',')),
+        ];
     }
 
     /**
@@ -6864,7 +6881,7 @@ final class SQLiteSelectSql
             }
         }
 
-        foreach (['left', 'right', 'operand'] as $side) {
+        foreach (['left', 'right', 'operand', 'predicate'] as $side) {
             if (isset($expression[$side]) && is_array($expression[$side])) {
                 self::collectAggregateArgumentExpressions($expression[$side], $expressions);
             }
@@ -7367,7 +7384,146 @@ final class SQLiteSelectSql
             return $expression;
         }
 
-        return ['type' => 'column', 'name' => $aggregate['summaryColumn']];
+        $summaryExpression = ['type' => 'column', 'name' => $aggregate['summaryColumn']];
+        $collation = self::aggregateExpressionCollation($expression);
+        if ($collation !== null) {
+            return [
+                'type' => 'collate',
+                'operand' => $summaryExpression,
+                'collation' => $collation,
+            ];
+        }
+
+        return $summaryExpression;
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     */
+    private static function aggregateExpressionCollation(array $expression): ?string
+    {
+        if (($expression['type'] ?? null) !== 'function') {
+            return null;
+        }
+        $name = isset($expression['name']) && is_string($expression['name'])
+            ? strtolower($expression['name'])
+            : '';
+        if (!in_array($name, ['min', 'max', 'group_concat'], true)) {
+            return null;
+        }
+        $arguments = $expression['arguments'] ?? [];
+        if (!is_array($arguments) || !array_is_list($arguments)) {
+            return null;
+        }
+        foreach ($arguments as $argument) {
+            if (!is_array($argument)) {
+                continue;
+            }
+            $collation = self::staticExpressionCollation($argument);
+            if ($collation !== null) {
+                return $collation;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $expression
+     */
+    private static function staticExpressionCollation(array $expression): ?string
+    {
+        if (($expression['type'] ?? null) === 'collate') {
+            $collation = $expression['collation'] ?? null;
+            if (!is_string($collation) || $collation === '') {
+                throw new \InvalidArgumentException('SQLite SELECT COLLATE expression needs a collation');
+            }
+
+            return strtoupper($collation);
+        }
+
+        foreach (['operand', 'left', 'right', 'base'] as $side) {
+            if (isset($expression[$side]) && is_array($expression[$side])) {
+                $collation = self::staticExpressionCollation($expression[$side]);
+                if ($collation !== null) {
+                    return $collation;
+                }
+            }
+        }
+
+        foreach (['arguments', 'values'] as $side) {
+            if (!isset($expression[$side]) || !is_array($expression[$side]) || !array_is_list($expression[$side])) {
+                continue;
+            }
+            foreach ($expression[$side] as $child) {
+                if (!is_array($child)) {
+                    continue;
+                }
+                $collation = self::staticExpressionCollation($child);
+                if ($collation !== null) {
+                    return $collation;
+                }
+            }
+        }
+
+        if (isset($expression['predicate']) && is_array($expression['predicate'])) {
+            $collation = self::staticPredicateCollation($expression['predicate']);
+            if ($collation !== null) {
+                return $collation;
+            }
+        }
+        if (isset($expression['branches']) && is_array($expression['branches']) && array_is_list($expression['branches'])) {
+            foreach ($expression['branches'] as $branch) {
+                if (!is_array($branch)) {
+                    continue;
+                }
+                foreach (['when', 'then'] as $side) {
+                    if (isset($branch[$side]) && is_array($branch[$side])) {
+                        $collation = self::staticExpressionCollation($branch[$side]);
+                        if ($collation !== null) {
+                            return $collation;
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string,mixed> $predicate
+     */
+    private static function staticPredicateCollation(array $predicate): ?string
+    {
+        foreach (['left', 'right'] as $side) {
+            if (isset($predicate[$side]) && is_array($predicate[$side])) {
+                $collation = self::staticExpressionCollation($predicate[$side]);
+                if ($collation !== null) {
+                    return $collation;
+                }
+            }
+        }
+
+        if (isset($predicate['term']) && is_array($predicate['term'])) {
+            $collation = self::staticPredicateCollation($predicate['term']);
+            if ($collation !== null) {
+                return $collation;
+            }
+        }
+        if (isset($predicate['terms']) && is_array($predicate['terms']) && array_is_list($predicate['terms'])) {
+            foreach ($predicate['terms'] as $term) {
+                if (!is_array($term)) {
+                    continue;
+                }
+                $collation = self::staticPredicateCollation($term);
+                if ($collation !== null) {
+                    return $collation;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
