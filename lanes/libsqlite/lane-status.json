@@ -2,16 +2,16 @@
   "schemaVersion": 1,
   "library": "libsqlite",
   "estimatedProgress": 99.4,
-  "suiteProgress": "Supervisor-integrated libsqlite real upstream indexexpr2 B-tree/index UPDATE open-index dynamic corpus coverage. Verification passed PHP lint, git diff --check, focused libsqlite gate 2 files / 33613 assertions / 0 failures, and no new WordPress/wp_/numbered CurrentSourceNext strings in changed libsqlite source.",
-  "phpPass": 5534681,
+  "suiteProgress": "Supervisor-integrated libsqlite real upstream window4 scalar aggregate subquery dynamic corpus coverage. Verification passed PHP lint, git diff --check, focused libsqlite gate 2 files / 4015 assertions / 0 failures, and no new WordPress/wp_/numbered CurrentSourceNext strings in changed libsqlite source.",
+  "phpPass": 5538696,
   "phpFail": 7,
   "wordpressScenarios": "Generic application/self-test coverage now includes skipscan2 optoverview people/height skip-scan thresholds, PRAGMA trusted_schema schema-function safety, e_select2 derived-source SELECT joins, expression-affinity comparison and IN-list semantics, WAL rollback JSON tails and checkpoint-followup tail recovery, key-value WAL import cleanup, FK parent-index diagnostics, row-value UPDATE/DELETE LIMIT execution including random() expressions, master-journal WAL pager behavior, PRAGMA lock_proxy_file and data_store_directory handling, SELECT/window planner behavior, trigger/fkey limits, date/time modifier behavior, B-tree left-join/index/delete guards, JSON/JSONB update/subtype/char-built validity behavior, VFS fallocate/shared-lock/batch-atomic lifecycle and win32lock retry behavior, pager WAL reused-log prefix recovery, pager crash recovery, and app-WAL post-checkpoint tail recovery. No domain-specific libsqlite API is accepted.",
   "phase": "focused real-corpus coverage accepted; broad full-lane and release/all parity remain open",
-  "audit": "2026-06-01 supervisor batch: accepted source 4a27fd6b with real upstream indexexpr2 B-tree/index UPDATE open-index dynamic corpus coverage. Focused libsqlite gate passed 2 files / 33613 assertions / 0 failures. Mapped denominator remains 1589 / 1589; cumulative selected libsqlite evidence moves to 5534681 pass with 7 known broad-lane failures.",
-  "currentWork": "Real upstream indexexpr2 B-tree/index UPDATE open-index dynamic corpus coverage integrated on current base.",
+  "audit": "2026-06-01 supervisor batch: accepted source 207977a4 with real upstream window4 scalar aggregate subquery dynamic corpus coverage. Focused libsqlite gate passed 2 files / 4015 assertions / 0 failures. Mapped denominator remains 1589 / 1589; cumulative selected libsqlite evidence moves to 5538696 pass with 7 known broad-lane failures.",
+  "currentWork": "Real upstream window4 scalar aggregate subquery dynamic corpus coverage integrated on current base.",
   "blocker": "Broad libsqlite full-lane/release parity is not green: sampled failures reproduce on clean base. Stricter source cleanup remains required for pre-existing wp_ fixture text and CurrentSourceNext/CurrentNext/numbered-plan source names before declaring libsqlite complete.",
   "nextTask": "Continue broad release/all parity blockers, source-neutral cleanup of pre-existing wp_ fixture text and CurrentSourceNext/CurrentNext/numbered-plan names, and non-overlapping real-corpus trigger, B-tree/index, window, STAT4, expression, VFS, WAL, and PRAGMA coverage.",
   "wordpressScenarioLatest": "Latest accepted batch added real upstream indexexpr2 B-tree/index dynamic coverage without adding WordPress/wp_/numbered CurrentSourceNext strings in changed libsqlite source. Pre-existing wp_ fixture strings and CurrentSourceNext/CurrentNext class names remain cleanup debt.",
-  "latestCommit": "4a27fd6be5ffa953c7d918d551ebb545b1ce7b8d",
-  "commit": "4a27fd6be5ffa953c7d918d551ebb545b1ce7b8d"
+  "latestCommit": "207977a4bcf1b470745830762d748ad25dfe9e8f",
+  "commit": "207977a"
 }

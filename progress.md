@@ -55,6 +55,30 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (pack/tree/CSS/window replay intake
+  05:00 UTC): audited current state from the live repo rather than memory:
+  `main` is still the only tmux session, the visible pool is 11 isolated
+  `gpt-5.5` xhigh priority workers (6 LightningCSS, 3 Gitoxide, 2 libsqlite),
+  and the process sample found 0 long sleepers. Accepted 6 source-changing
+  handoffs as source commit `207977a4bcf1b470745830762d748ad25dfe9e8f`
+  (`ports: integrate pack merge css targets and sqlite window corpus`). The
+  batch adds Gitoxide pack-index/MIDX absent full-candidate prefix parity and
+  tree-merge rename-rename-plus-content fixture parity; LightningCSS explicit
+  media condition/layer parsing, raw VLQ source-map offset boundaries, and
+  target-prefix supports declaration/browser boundaries; and libsqlite real
+  upstream `window4` scalar aggregate subquery dynamic corpus coverage.
+  Verification passed PHP lint, `git diff --check`, full Gitoxide `40 files /
+  7489 assertions / 0 failures`, full LightningCSS `13 files / 6110 assertions
+  / 0 failures`, focused libsqlite `2 files / 4015 assertions / 0 failures`,
+  touched examples, and no new WordPress/wp_/numbered `CurrentSourceNext`
+  strings in changed libsqlite source. Dashboard status should report Gitoxide
+  `1740 / 2886` mapped and `7489 pass / 0 fail`, LightningCSS `2348 / 3532`
+  mapped and `6110 pass / 0 fail`, and libsqlite `1589 / 1589` mapped with
+  `5538696 pass / 7 fail`. Parked the property-values handoff for a
+  `wordpress-scenarios.md` apply conflict and parked the libsqlite encoding
+  handoff because it reintroduced numbered `CurrentSourceNext` source class
+  names.
+
 - 2026-06-01 supervisor continuation (refs/CSS/sqlite B-tree replay intake
   04:55 UTC): kept cleanup bounded after the active-session audit: `main`
   remains the only tmux session, the stale `port-*` session pruner killed `0`,

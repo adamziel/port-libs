@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "library": "LightningCSS",
-  "estimatedProgress": 98.6,
-  "suiteProgress": "Supervisor-integrated LightningCSS bundle/import graph, CSS Modules invalid composes, CSSOM text/writing declarations, custom at-rule token-array visitor, and source-map VLQ offset slices. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 6059 assertions / 0 failures, and touched example self-tests.",
-  "phpPass": 6059,
+  "estimatedProgress": 98.7,
+  "suiteProgress": "Supervisor-integrated LightningCSS media-query explicit condition/layer parsing, source-map raw VLQ offset boundaries, and target-prefix supports declaration/browser boundaries. Verification passed PHP lint, git diff --check, full LightningCSS lane 13 files / 6110 assertions / 0 failures, and touched example self-tests.",
+  "phpPass": 6110,
   "phpFail": 0,
   "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics, CSS Modules exports and dependency metadata, custom at-rule visitors, media range fallbacks, source-map import/remap behavior, CSSOM declaration manipulation, minification, nesting, and target prefixing for block/theme styles without Node/WASM at runtime.",
   "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-  "audit": "2026-06-01 supervisor batch: full LightningCSS lane passed 13 files / 6059 assertions / 0 failures after accepting bundle/import graph, CSS Modules invalid composes, CSSOM text/writing declarations, custom at-rule token-array visitor, and source-map VLQ offset slices. Conservative mapped coverage moves to 2345 / 3532. Full upstream Rust/Node/WASM runners were not executed.",
-  "currentWork": "Bundle/import graph, CSS Modules invalid composes, CSSOM text/writing declarations, custom at-rule token-array visitor, and source-map VLQ offset parity integrated on current base.",
+  "audit": "2026-06-01 supervisor batch: full LightningCSS lane passed 13 files / 6110 assertions / 0 failures after accepting media-query explicit/layer, source-map raw VLQ offset, and target-prefix supports declaration boundary slices. Conservative mapped coverage moves to 2348 / 3532. Full upstream Rust/Node/WASM runners were not executed.",
+  "currentWork": "Media-query explicit layer conditions, raw VLQ source-map offsets, and target-prefix supports declaration boundaries integrated on current base.",
   "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted. Native PHP full-lane evidence is green at 6059 assertions; continue source-map, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom at-rule, and target-prefix slices.",
-  "latestCommit": "4a27fd6be5ffa953c7d918d551ebb545b1ce7b8d",
+  "latestCommit": "207977a4bcf1b470745830762d748ad25dfe9e8f",
   "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media queries, property values, target prefixing, CSSOM, and custom at-rules with full-lane PHP gates.",
-  "commit": "4a27fd6be5ffa953c7d918d551ebb545b1ce7b8d"
+  "commit": "207977a"
 }
