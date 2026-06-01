@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 21:40:39 UTC",
-    "sourceCommit": "7c6e2f64882397f53103124401ab7debaa63b855",
-    "sourceCommitShort": "7c6e2f648823",
+    "generated": "2026-06-01 21:47:55 UTC",
+    "sourceCommit": "80b6216d40f52f492fb28fddb3dc546dc9980016",
+    "sourceCommitShort": "80b6216d40f5",
     "sourceBranch": "unknown",
-    "dashboardCommit": "7c6e2f64882397f53103124401ab7debaa63b855",
-    "dashboardCommitShort": "7c6e2f648823",
+    "dashboardCommit": "80b6216d40f52f492fb28fddb3dc546dc9980016",
+    "dashboardCommitShort": "80b6216d40f5",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,276,410 pass / 16 fail",
+            "php": "6,276,412 pass / 16 fail",
             "phase": "current-base source integration accepted by supervisor with focused i...",
             "audit": "2026-06-01 21:15 UTC supervisor integration: source commit c3bf2f17bb...",
             "currentWork": "Real upstream insert.test INSERT VALUES error/default/affinity, row-value UPDATE/DELE...",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "fea8ac1"
+            "commit": "97833c8"
         },
         {
             "lane": "lightningcss",
