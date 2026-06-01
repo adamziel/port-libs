@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 20:40:41 UTC",
-    "sourceCommit": "120fe14c5af44e17d0a1f5ef1586deaa19e81d4c",
-    "sourceCommitShort": "120fe14c5af4",
+    "generated": "2026-06-01 20:50:00 UTC",
+    "sourceCommit": "5153aace851dde7196dcf8bf05a367c2d17098cd",
+    "sourceCommitShort": "5153aace851d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "120fe14c5af44e17d0a1f5ef1586deaa19e81d4c",
-    "dashboardCommitShort": "120fe14c5af4",
+    "dashboardCommit": "5153aace851dde7196dcf8bf05a367c2d17098cd",
+    "dashboardCommitShort": "5153aace851d",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,253,874 pass / 16 fail",
+            "php": "6,256,079 pass / 16 fail",
             "phase": "current-base source integration accepted by supervisor with focused i...",
-            "audit": "2026-06-01 20:33 UTC supervisor integration: source commit e2b02d2d53...",
-            "currentWork": "Real upstream instr(), pager/WAL empty-journal cleanup, declared-collation selectA pa...",
+            "audit": "2026-06-01 20:49 UTC supervisor integration: source commit 5153aace85...",
+            "currentWork": "Real upstream WITHOUT ROWID trigger-order corpus parity and PRAGMA empty_result_callb...",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "e2b02d2"
+            "commit": "5153aac"
         },
         {
             "lane": "lightningcss",
