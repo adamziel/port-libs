@@ -6,39 +6,39 @@ use PortLibs\LibSqlite\SQLiteIndexPredicate;
 use PortLibs\LibSqlite\SQLitePragmaIntegrityPartialIndexCurrentSourceNext;
 
 $rows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'blog_id' => 1, 'priority' => 10],
-    ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'blog_id' => 1, 'priority' => 20],
-    ['option_id' => 3, 'option_name' => 'transient_feed', 'autoload' => 'no', 'blog_id' => 1, 'priority' => 30],
-    ['option_id' => 4, 'option_name' => 'cron', 'autoload' => 'yes', 'blog_id' => 2, 'priority' => 40],
-    ['option_id' => 5, 'option_name' => 'plugin_cache', 'autoload' => null, 'blog_id' => 2, 'priority' => 50],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'load_policy' => 'yes', 'tenant_id' => 1, 'priority' => 10],
+    ['setting_id' => 2, 'key_name' => 'home', 'load_policy' => 'yes', 'tenant_id' => 1, 'priority' => 20],
+    ['setting_id' => 3, 'key_name' => 'cache_feed', 'load_policy' => 'no', 'tenant_id' => 1, 'priority' => 30],
+    ['setting_id' => 4, 'key_name' => 'cron', 'load_policy' => 'yes', 'tenant_id' => 2, 'priority' => 40],
+    ['setting_id' => 5, 'key_name' => 'module_cache', 'load_policy' => null, 'tenant_id' => 2, 'priority' => 50],
 ];
-$predicate = new SQLiteIndexPredicate('autoload', SQLiteIndexPredicate::EQUALS, 'yes');
+$predicate = new SQLiteIndexPredicate('load_policy', SQLiteIndexPredicate::EQUALS, 'yes');
 $andPredicate = new SQLiteIndexPredicate('', SQLiteIndexPredicate::AND, [
-    new SQLiteIndexPredicate('autoload', SQLiteIndexPredicate::EQUALS, 'yes'),
-    new SQLiteIndexPredicate('blog_id', SQLiteIndexPredicate::IN_LIST, [1, 2]),
+    new SQLiteIndexPredicate('load_policy', SQLiteIndexPredicate::EQUALS, 'yes'),
+    new SQLiteIndexPredicate('tenant_id', SQLiteIndexPredicate::IN_LIST, [1, 2]),
     new SQLiteIndexPredicate('priority', SQLiteIndexPredicate::BETWEEN, ['lower' => 10, 'upper' => 40]),
 ]);
 $orPredicate = new SQLiteIndexPredicate('', SQLiteIndexPredicate::OR, [
-    new SQLiteIndexPredicate('option_name', SQLiteIndexPredicate::EQUALS, 'siteurl'),
-    new SQLiteIndexPredicate('autoload', SQLiteIndexPredicate::IS_NOT_NULL),
+    new SQLiteIndexPredicate('key_name', SQLiteIndexPredicate::EQUALS, 'base_url'),
+    new SQLiteIndexPredicate('load_policy', SQLiteIndexPredicate::IS_NOT_NULL),
 ]);
-$indexColumns = ['autoload', 'option_name'];
+$indexColumns = ['load_policy', 'key_name'];
 $validEntries = [
-    ['rowid' => 1, 'autoload' => 'yes', 'option_name' => 'siteurl'],
-    ['rowid' => 2, 'autoload' => 'yes', 'option_name' => 'home'],
-    ['rowid' => 4, 'autoload' => 'yes', 'option_name' => 'cron'],
+    ['rowid' => 1, 'load_policy' => 'yes', 'key_name' => 'base_url'],
+    ['rowid' => 2, 'load_policy' => 'yes', 'key_name' => 'home'],
+    ['rowid' => 4, 'load_policy' => 'yes', 'key_name' => 'cron'],
 ];
 $missingEntries = [
-    ['rowid' => 1, 'autoload' => 'yes', 'option_name' => 'siteurl'],
-    ['rowid' => 4, 'autoload' => 'yes', 'option_name' => 'cron'],
+    ['rowid' => 1, 'load_policy' => 'yes', 'key_name' => 'base_url'],
+    ['rowid' => 4, 'load_policy' => 'yes', 'key_name' => 'cron'],
 ];
 $staleEntries = [
     ...$validEntries,
-    ['rowid' => 3, 'autoload' => 'no', 'option_name' => 'transient_feed'],
+    ['rowid' => 3, 'load_policy' => 'no', 'key_name' => 'cache_feed'],
 ];
 $orphanEntries = [
     ...$validEntries,
-    ['rowid' => 99, 'autoload' => 'yes', 'option_name' => 'ghost'],
+    ['rowid' => 99, 'load_policy' => 'yes', 'key_name' => 'ghost'],
 ];
 
 $page = static function (
@@ -56,8 +56,8 @@ $page = static function (
         $indexColumns,
         $offset,
         $limit,
-        'wp_options',
-        'wp_options_autoload_yes',
+        'app_settings',
+        'app_settings_load_policy_yes',
         $pragma,
         $cursor,
     );
@@ -82,12 +82,12 @@ $cases = [
     'valid complete' => [static fn (): array => $page(), 'complete', true],
     'valid next null' => [static fn (): array => $page(), 'next', null],
     'source id length' => [static fn (): array => ['length' => strlen($page()['source_id'])], 'length', 64],
-    'current source table' => [static fn (): array => $page(), 'current_source.table', 'wp_options'],
-    'current source index' => [static fn (): array => $page(), 'current_source.index', 'wp_options_autoload_yes'],
+    'current source table' => [static fn (): array => $page(), 'current_source.table', 'app_settings'],
+    'current source index' => [static fn (): array => $page(), 'current_source.index', 'app_settings_load_policy_yes'],
     'current source pragma' => [static fn (): array => $page(), 'current_source.pragma', 'integrity_check'],
     'current source row count' => [static fn (): array => $page(), 'current_source.row_count', 5],
     'current source index count' => [static fn (): array => $page(), 'current_source.index_entry_count', 3],
-    'current source columns' => [static fn (): array => $page(), 'current_source.index_columns', ['autoload', 'option_name']],
+    'current source columns' => [static fn (): array => $page(), 'current_source.index_columns', ['load_policy', 'key_name']],
     'current rows count' => [static fn (): array => $page(), 'current.rows', 5],
     'current index entry diagnostics count' => [static fn (): array => $page(), 'current.index_entries', 0],
     'current predicate matches' => [static fn (): array => $page(), 'current.predicate_matches', 3],
@@ -98,23 +98,23 @@ $cases = [
     'row0 kind' => [static fn (): array => $page(), 'rows.0.kind', 'partial_index_row'],
     'row0 source' => [static fn (): array => $page(), 'rows.0.source', 'pragma_integrity_check'],
     'row0 rowid' => [static fn (): array => $page(), 'rows.0.rowid', 1],
-    'row0 key' => [static fn (): array => $page(), 'rows.0.key', 'text:yes|text:siteurl|rowid:1'],
+    'row0 key' => [static fn (): array => $page(), 'rows.0.key', 'text:yes|text:base_url|rowid:1'],
     'row0 predicate matches' => [static fn (): array => $page(), 'rows.0.predicate_matches', true],
     'row0 index present' => [static fn (): array => $page(), 'rows.0.index_present', true],
     'row0 status ok' => [static fn (): array => $page(), 'rows.0.status', 'ok'],
     'row2 predicate false' => [static fn (): array => $page(), 'rows.2.predicate_matches', false],
     'row2 index absent' => [static fn (): array => $page(), 'rows.2.index_present', false],
-    'row4 null key' => [static fn (): array => $page(), 'rows.4.key', 'null:|text:plugin_cache|rowid:5'],
+    'row4 null key' => [static fn (): array => $page(), 'rows.4.key', 'null:|text:module_cache|rowid:5'],
     'missing status blocked' => [static fn (): array => $page($missingEntries), 'status', 'blocked'],
     'missing errors count' => [static fn (): array => $page($missingEntries), 'current.errors', 1],
     'missing count' => [static fn (): array => $page($missingEntries), 'current.missing', 1],
     'missing row status' => [static fn (): array => $page($missingEntries), 'rows.1.status', 'missing_index_entry'],
-    'missing row message' => [static fn (): array => $page($missingEntries), 'rows.1.message', 'partial index wp_options_autoload_yes is missing rowid 2 for table wp_options'],
+    'missing row message' => [static fn (): array => $page($missingEntries), 'rows.1.message', 'partial index app_settings_load_policy_yes is missing rowid 2 for table app_settings'],
     'stale status blocked' => [static fn (): array => $page($staleEntries), 'status', 'blocked'],
     'stale errors count' => [static fn (): array => $page($staleEntries), 'current.errors', 1],
     'stale count' => [static fn (): array => $page($staleEntries), 'current.stale', 1],
     'stale row status' => [static fn (): array => $page($staleEntries), 'rows.2.status', 'stale_index_entry'],
-    'stale row message' => [static fn (): array => $page($staleEntries), 'rows.2.message', 'partial index wp_options_autoload_yes contains rowid 3 that does not satisfy the WHERE clause'],
+    'stale row message' => [static fn (): array => $page($staleEntries), 'rows.2.message', 'partial index app_settings_load_policy_yes contains rowid 3 that does not satisfy the WHERE clause'],
     'quick skips stale entry' => [static fn (): array => $page($staleEntries, $predicate, 'PRAGMA quick_check'), 'status', 'ok'],
     'quick source pragma' => [static fn (): array => $page($staleEntries, $predicate, 'PRAGMA quick_check'), 'current_source.pragma', 'quick_check'],
     'quick stale zero' => [static fn (): array => $page($staleEntries, $predicate, 'PRAGMA quick_check'), 'current.stale', 0],
@@ -171,7 +171,7 @@ $tests['pragma integrity partial index current source next126 rejects duplicate 
 };
 
 $tests['pragma integrity partial index current source next126 rejects unsupported pragma'] = static function (TestRunner $t) use ($rows, $validEntries, $predicate, $indexColumns): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaIntegrityPartialIndexCurrentSourceNext::page($rows, $validEntries, $predicate, $indexColumns, 0, 126, 'wp_options', 'wp_options_autoload_yes', 'PRAGMA table_info(wp_options)'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLitePragmaIntegrityPartialIndexCurrentSourceNext::page($rows, $validEntries, $predicate, $indexColumns, 0, 126, 'app_settings', 'app_settings_load_policy_yes', 'PRAGMA table_info(app_settings)'));
 };
 
 return $tests;

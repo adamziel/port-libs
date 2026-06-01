@@ -1070,6 +1070,26 @@ return [
             )
         );
     },
+    'declaration block reads upstream grid auto flow cssom shorthand components' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $rowGrid = 'grid: auto-flow dense minmax(10px, 1fr) / [content-start] 1fr [content-end]';
+        $columnGrid = 'grid: [sidebar-start] 12rem [sidebar-end] / dense auto-flow 8rem';
+
+        $t->same(['value' => 'auto-flow dense minmax(10px, 1fr) / [content-start] 1fr [content-end]', 'important' => false], $block->getProperty($rowGrid, 'grid'));
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty($rowGrid, 'grid-template-rows'));
+        $t->same(['value' => '[content-start] 1fr [content-end]', 'important' => false], $block->getProperty($rowGrid, 'grid-template-columns'));
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty($rowGrid, 'grid-template-areas'));
+        $t->same(['value' => 'row dense', 'important' => false], $block->getProperty($rowGrid, 'grid-auto-flow'));
+        $t->same(['value' => 'minmax(10px, 1fr)', 'important' => false], $block->getProperty($rowGrid, 'grid-auto-rows'));
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty($rowGrid, 'grid-auto-columns'));
+
+        $t->same(['value' => '[sidebar-start] 12rem [sidebar-end] / auto-flow dense 8rem', 'important' => false], $block->getProperty($columnGrid, 'grid'));
+        $t->same(['value' => '[sidebar-start] 12rem [sidebar-end]', 'important' => false], $block->getProperty($columnGrid, 'grid-template-rows'));
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty($columnGrid, 'grid-template-columns'));
+        $t->same(['value' => 'column dense', 'important' => false], $block->getProperty($columnGrid, 'grid-auto-flow'));
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty($columnGrid, 'grid-auto-rows'));
+        $t->same(['value' => '8rem', 'important' => false], $block->getProperty($columnGrid, 'grid-auto-columns'));
+    },
     'declaration block reads upstream flex flow cssom properties' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -2303,6 +2323,30 @@ return [
             $block->setProperty('grid-template: auto / 1fr !important', 'grid-template-columns', '2fr')
         );
     },
+    'declaration block sets upstream grid auto flow cssom longhands in existing shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'grid: auto-flow dense 12px / minmax(0, 2fr)',
+            $block->setProperty('grid: auto-flow dense 12px / 1fr', 'grid-template-columns', 'minmax(0, 2fr)')
+        );
+        $t->same(
+            'grid: auto-flow dense 16px / 1fr',
+            $block->setProperty('grid: auto-flow dense 12px / 1fr', 'grid-auto-rows', '16px')
+        );
+        $t->same(
+            'grid: [sidebar] auto / auto-flow dense 8rem',
+            $block->setProperty('grid: [sidebar] auto / auto-flow 8rem', 'grid-auto-flow', 'column dense')
+        );
+        $t->same(
+            'grid: [sidebar] auto / auto-flow dense 10rem',
+            $block->setProperty('grid: [sidebar] auto / dense auto-flow 8rem', 'grid-auto-columns', '10rem')
+        );
+        $t->same(
+            'grid-auto-flow: row dense; grid: auto-flow / 1fr !important',
+            $block->setProperty('grid: auto-flow / 1fr !important', 'grid-auto-flow', 'dense')
+        );
+    },
     'declaration block sets upstream transition cssom longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -2833,7 +2877,7 @@ return [
             )
         );
         $t->same(
-            'grid-auto-flow: dense; color: blue',
+            'grid-auto-flow: row dense; color: blue',
             $block->removeProperty(
                 'grid-template: auto 1fr / auto; grid-template-rows: min-content; grid-template-columns: 1fr; grid-auto-flow: dense; color: blue',
                 'grid-template'
@@ -3158,6 +3202,26 @@ return [
         $t->same(
             'color: red; grid-template-columns: 1fr !important; grid-template-areas: none !important',
             $block->removeProperty('grid-template: auto / 1fr !important; color: red; grid-template-rows: minmax(0, 1fr)', 'grid-template-rows')
+        );
+    },
+    'declaration block removes upstream grid auto flow cssom longhands by splitting shorthand' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'grid-template-rows: none; grid-template-columns: 1fr; grid-template-areas: none; grid-auto-rows: 12px; grid-auto-columns: auto',
+            $block->removeProperty('grid: auto-flow dense 12px / 1fr', 'grid-auto-flow')
+        );
+        $t->same(
+            'grid-template-rows: none; grid-template-areas: none; grid-auto-rows: 12px; grid-auto-columns: auto; grid-auto-flow: row dense',
+            $block->removeProperty('grid: auto-flow dense 12px / 1fr', 'grid-template-columns')
+        );
+        $t->same(
+            'grid-template-rows: [sidebar] auto; grid-template-columns: none; grid-template-areas: none; grid-auto-rows: auto; grid-auto-flow: column dense',
+            $block->removeProperty('grid: [sidebar] auto / dense auto-flow 8rem', 'grid-auto-columns')
+        );
+        $t->same(
+            'color: red; grid-template-rows: none !important; grid-template-columns: 1fr !important; grid-template-areas: none !important; grid-auto-columns: auto !important; grid-auto-flow: row dense !important',
+            $block->removeProperty('grid: auto-flow dense 12px / 1fr !important; color: red; grid-auto-rows: 16px', 'grid-auto-rows')
         );
     },
     'declaration block removes upstream transition cssom longhands and shorthand' => static function (TestRunner $t): void {

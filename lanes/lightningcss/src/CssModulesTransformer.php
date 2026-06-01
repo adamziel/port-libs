@@ -510,6 +510,10 @@ final class CssModulesTransformer
         }
 
         $rawProperty = trim(substr($withoutSemicolon, 0, $colon));
+        if (!$this->isValidDeclarationPropertyName($rawProperty)) {
+            return '';
+        }
+
         $property = $this->normalizedDeclarationPropertyName($rawProperty);
         if ($property !== 'composes') {
             $value = trim(substr($withoutSemicolon, $colon + 1));
@@ -553,6 +557,13 @@ final class CssModulesTransformer
         $decoded = $this->decodeCssIdentifierToken($rawProperty);
 
         return strtolower($decoded ?? $rawProperty);
+    }
+
+    private function isValidDeclarationPropertyName(string $rawProperty): bool
+    {
+        $token = $this->readCssIdentifierToken($rawProperty, 0);
+
+        return $token !== null && $token['end'] === strlen($rawProperty);
     }
 
     private function stripDeclarationPriority(string $value): string
@@ -4264,6 +4275,10 @@ final class CssModulesTransformer
                     $output .= self::PURE_NO_CHECK_MARKER;
                 } elseif ($inComposesDeclarationValue) {
                     $output .= ' ';
+                } elseif ($braceDepth > 0 && !$inDeclarationValue && $parenDepth === 0 && $bracketDepth === 0) {
+                    // Two spaces prevent a comment after a hex escape from becoming the escape terminator.
+                    $output .= '  ';
+                    $declarationHead .= '  ';
                 }
                 $i = $end + 1;
                 continue;

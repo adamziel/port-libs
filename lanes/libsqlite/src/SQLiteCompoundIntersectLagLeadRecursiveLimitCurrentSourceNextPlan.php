@@ -291,12 +291,12 @@ final class SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNextPlan
          */
         private static function leadRows(array $tables): array
         {
-            if (!isset($tables['wp_options'])) {
+            if (!isset($tables['app_settings'])) {
                 return [];
             }
 
             return SQLiteSelectSql::execute(
-                "SELECT option_id AS id, option_name AS label, lead(option_name, 1, 'tail') OVER (ORDER BY weight DESC, option_id) AS lead_marker FROM wp_options ORDER BY id",
+                "SELECT setting_id AS id, key_name AS label, lead(key_name, 1, 'tail') OVER (ORDER BY weight DESC, setting_id) AS lead_marker FROM app_settings ORDER BY id",
                 $tables,
             );
         }

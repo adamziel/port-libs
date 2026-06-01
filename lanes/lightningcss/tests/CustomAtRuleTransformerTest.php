@@ -779,6 +779,147 @@ CSS;
             $seen['rules']['ratios']['preludeAst']['value']['components']
         ));
     },
+    'custom at-rules visit upstream universal token-list preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@plugin theme("card-gap") var(--wp-gap) env(--wp-breakpoint) 3--wp-step @--wp-accent "draft";
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Function' => [
+                    'theme' => static function (array $arguments) use (&$seen): string {
+                        $seen['events'][] = 'function:theme:' . ($arguments[0] ?? '');
+
+                        return '16px';
+                    },
+                ],
+                'Variable' => [
+                    '--wp-gap' => static function (array $variable) use (&$seen): array {
+                        $seen['events'][] = 'variable:' . ($variable['name']['ident'] ?? '');
+
+                        return [
+                            'unit' => 'px',
+                            'value' => 24.0,
+                        ];
+                    },
+                ],
+                'EnvironmentVariable' => [
+                    '--wp-breakpoint' => static function (array $environmentVariable) use (&$seen): array {
+                        $seen['events'][] = 'environment:' . ($environmentVariable['name']['ident'] ?? $environmentVariable['name']['value'] ?? '');
+
+                        return [
+                            'type' => 'length',
+                            'unit' => 'px',
+                            'value' => 782.0,
+                        ];
+                    },
+                ],
+                'Token' => [
+                    'dimension' => static function (array $token) use (&$seen): array {
+                        $seen['events'][] = 'token:dimension:' . $token['value'] . $token['unit'];
+
+                        return [
+                            'type' => 'function',
+                            'value' => [
+                                'name' => 'calc',
+                                'arguments' => [
+                                    ['type' => 'raw', 'value' => (string) $token['value']],
+                                    ['type' => 'token', 'value' => ['type' => 'delim', 'value' => '*']],
+                                    [
+                                        'type' => 'var',
+                                        'value' => [
+                                            'name' => ['ident' => $token['unit']],
+                                            'fallback' => null,
+                                            'raw' => 'var(' . $token['unit'] . ')',
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ];
+                    },
+                    'at-keyword' => static function (array $token) use (&$seen): array {
+                        $seen['events'][] = 'token:at-keyword:' . $token['value'];
+
+                        return [
+                            'type' => 'color',
+                            'value' => [
+                                'type' => 'rgb',
+                                'r' => 5,
+                                'g' => 110,
+                                'b' => 240,
+                                'alpha' => 1,
+                            ],
+                        ];
+                    },
+                    'string' => static function (array $token) use (&$seen): array {
+                        $seen['events'][] = 'token:string:' . $token['value'];
+
+                        return [
+                            'type' => 'token',
+                            'raw' => '"live"',
+                            'value' => [
+                                'type' => 'string',
+                                'value' => 'live',
+                            ],
+                        ];
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'plugin' => static function (array $rule) use (&$seen): array {
+                            $seen['events'][] = 'rule:' . $rule['name'] . ':' . $rule['prelude'];
+                            $seen['rule'] = [
+                                'prelude' => $rule['prelude'],
+                                'preludeAst' => $rule['preludeAst'],
+                            ];
+
+                            return [];
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'plugin' => [
+                'prelude' => '*',
+            ],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'function:theme:card-gap',
+            'variable:--wp-gap',
+            'environment:--wp-breakpoint',
+            'token:dimension:3--wp-step',
+            'token:at-keyword:--wp-accent',
+            'token:string:draft',
+            'rule:plugin:16px 24px 782px calc(3*var(--wp-step)) #056ef0 "live"',
+        ], $seen['events']);
+        $t->same('16px 24px 782px calc(3*var(--wp-step)) #056ef0 "live"', $seen['rule']['prelude']);
+        $t->same('token-list', $seen['rule']['preludeAst']['type']);
+        $t->same([
+            'length',
+            'length',
+            'length',
+            'function',
+            'color',
+            'token',
+        ], array_map(
+            static fn (array $component): string => $component['type'],
+            $seen['rule']['preludeAst']['value']
+        ));
+    },
     'custom at-rules map upstream bundler mixin visitor after import resolution' => static function (TestRunner $t) use ($customDefinitions, $mixinVisitor): void {
         $mixins = [];
         $result = (new CustomAtRuleTransformer())->bundle('/apply.css', [

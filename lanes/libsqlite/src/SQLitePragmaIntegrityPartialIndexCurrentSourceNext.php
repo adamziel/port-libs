@@ -18,8 +18,8 @@ final class SQLitePragmaIntegrityPartialIndexCurrentSourceNext
         array $indexEntries,
         SQLiteIndexPredicate $partialPredicate,
         array $indexColumns,
-        string $table = 'wp_options',
-        string $index = 'idx_wp_options_partial',
+        string $table = 'app_settings',
+        string $index = 'idx_app_settings_partial',
         string $pragma = 'integrity_check',
     ): array {
         $pragma = self::normalizePragma($pragma);
@@ -103,8 +103,8 @@ final class SQLitePragmaIntegrityPartialIndexCurrentSourceNext
         array $indexColumns,
         int $offset = 0,
         int $limit = 126,
-        string $table = 'wp_options',
-        string $index = 'idx_wp_options_partial',
+        string $table = 'app_settings',
+        string $index = 'idx_app_settings_partial',
         string $pragma = 'integrity_check',
         ?array $cursor = null,
     ): array {
@@ -281,7 +281,7 @@ final class SQLitePragmaIntegrityPartialIndexCurrentSourceNext
      */
     private static function rowid(array $row): int
     {
-        foreach (['rowid', '_rowid_', 'oid', 'option_id', 'ID', 'id'] as $column) {
+        foreach (['rowid', '_rowid_', 'oid', 'setting_id', 'ID', 'id'] as $column) {
             if (array_key_exists($column, $row) && is_int($row[$column])) {
                 return $row[$column];
             }

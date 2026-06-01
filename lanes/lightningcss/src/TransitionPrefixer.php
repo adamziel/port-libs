@@ -300,6 +300,7 @@ final class TransitionPrefixer
         $alphaHexChanged = $this->rewriteAlphaHexFallbackEntries($entries, $targetOptions);
         $modernColorChanged = $this->rewriteModernColorFunctionEntries($entries, $targetOptions);
         $fontTargetChanged = $this->rewriteFontTargetFallbackEntries($entries, $targetOptions);
+        $fontTypographyPrefixChanged = $this->rewriteFontTypographyPrefixEntries($entries, $targetOptions);
         $lengthTargetChanged = $this->rewriteLengthTargetFallbackEntries($entries, $targetOptions);
         $logicalBorderFallback = $this->rewriteLogicalBorderFallbackRule(
             $selectors,
@@ -333,7 +334,7 @@ final class TransitionPrefixer
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
         $selectorVariants = $this->selectorPrefixVariants($selectors, $targetOptions);
-        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $lengthTargetChanged || $selectorVariants !== null) {
+        if ($transitionChanged || $displayFlexChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $textCompatibilityPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
             return $this->serializeRulesForSelectors($selectorVariants ?? [$selectors], $entries) . implode('', $supportRules);
         }
 
@@ -1500,6 +1501,16 @@ final class TransitionPrefixer
                 'safari' => [11, 1],
                 'samsung' => [8],
             ]),
+            'fontFeatureSettingsNeedsWebkit' => $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
+                || $this->targetInRange($normalized, 'chrome', [16], [47])
+                || $this->targetInRange($normalized, 'opera', [15], [34])
+                || $this->targetInRange($normalized, 'samsung', [0], [4]),
+            'fontFeatureSettingsNeedsMoz' => $this->targetInRange($normalized, 'firefox', [4], [33]),
+            'fontKerningNeedsWebkit' => $this->targetInRange($normalized, 'android', [0], [4, 4])
+                || $this->targetInRange($normalized, 'chrome', [29], [32])
+                || $this->targetInRange($normalized, 'ios_saf', [8], [11, 3])
+                || $this->targetInRange($normalized, 'opera', [16], [19])
+                || $this->targetInRange($normalized, 'safari', [7], [9]),
             'animationTimelineShorthandNeedsFallback' => $this->targetsNeedFeatureFallback($normalized, [
                 'android' => [115],
                 'chrome' => [115],
@@ -4979,6 +4990,25 @@ final class TransitionPrefixer
 
         return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'box-decoration-break', [
             '-webkit-' => $targetOptions['boxDecorationBreakNeedsWebkit'] ?? false,
+        ]) || $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteFontTypographyPrefixEntries(array &$entries, array $targetOptions): bool
+    {
+        $changed = false;
+        foreach (['font-feature-settings', 'font-variant-ligatures', 'font-language-override'] as $property) {
+            $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, $property, [
+                '-webkit-' => $targetOptions['fontFeatureSettingsNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['fontFeatureSettingsNeedsMoz'] ?? false,
+            ]) || $changed;
+        }
+
+        return $this->rewriteVendorPrefixedDeclarationGroup($entries, 'font-kerning', [
+            '-webkit-' => $targetOptions['fontKerningNeedsWebkit'] ?? false,
         ]) || $changed;
     }
 

@@ -218,6 +218,31 @@ CSS,
         $t->same(0, $decoded[0]['originalLine']);
         $t->same(0, $decoded[0]['originalColumn']);
     },
+    'css bundler ignores source map url markers inside imported string literals' => static function (TestRunner $t): void {
+        $literalMap = 'data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => 'AAAA',
+            'sources' => ['blocks/ghost.scss'],
+            'sourcesContent' => ['.ghost { color: $missing }'],
+            'names' => [],
+        ], JSON_THROW_ON_ERROR));
+        $cardCss = '.card::before { content: "/*# sourceMappingURL=' . $literalMap . ' */"; color: green }';
+
+        $result = (new CssBundler())->bundleWithSourceMap('/theme/entry.css', [
+            '/theme/entry.css' => '@import "blocks/card.css"; .entry { color: red }',
+            '/theme/blocks/card.css' => $cardCss,
+        ], null, '/theme');
+
+        $data = $result['sourceMap']->toArray(null, false);
+
+        $t->same(true, str_contains($result['code'], 'sourceMappingURL=' . $literalMap));
+        $t->same(['entry.css', 'blocks/card.css'], $data['sources']);
+        $t->same([
+            '@import "blocks/card.css"; .entry { color: red }',
+            $cardCss,
+        ], $data['sourcesContent']);
+        $t->same(false, in_array('blocks/ghost.scss', $data['sources'], true));
+    },
     'css bundler preserves unused upstream inline input source map sources across imports' => static function (TestRunner $t): void {
         $inputMap = 'data:application/json;base64,' . base64_encode(json_encode([
             'version' => 3,
@@ -1103,6 +1128,22 @@ CSS,
             '@supports (color:red) or (foo:bar){.b{color:green}}.a{color:red}',
             $bundle([
                 '/a.css' => '@import "b.css" supports(color: red); @import "b.css" supports(foo: bar); .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@media (width>=250px){@layer theme.blocks{.b{color:green}}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(theme.blocks) (min-width: 250px); @import "b.css" layer(theme.blocks) (width >= 250px); .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@media (hover),(width>=250px){@layer theme.blocks{.b{color:green}}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(theme.blocks) (hover), (width >= 250px); @import "b.css" layer(theme.blocks) (min-width: 250px); .a { color: red }',
                 '/b.css' => '.b { color: green }',
             ], '/a.css')
         );

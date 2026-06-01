@@ -680,6 +680,85 @@ CSS;
             $prefixer->prefixForTargets('.foo { font: var(--fallback); font: xxx-large system-ui; }', ['chrome' => 50])
         );
     },
+    'transition prefixer maps upstream font typography browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '.foo{-webkit-font-feature-settings:"kern";-moz-font-feature-settings:"kern";font-feature-settings:"kern"}',
+            $prefixer->prefixForTargets('.foo { font-feature-settings: "kern"; }', ['chrome' => 47, 'firefox' => 33])
+        );
+        $t->same(
+            '.foo{font-feature-settings:"kern"}',
+            $prefixer->prefixForTargets('.foo { font-feature-settings: "kern"; }', ['chrome' => 48, 'firefox' => 34])
+        );
+        $t->same(
+            '.foo{-webkit-font-feature-settings:"kern";font-feature-settings:"kern"}',
+            $prefixer->prefixForTargets('.foo { -webkit-font-feature-settings: "kern"; -moz-font-feature-settings: "kern"; font-feature-settings: "kern"; }', ['chrome' => 47, 'firefox' => 34])
+        );
+        $t->same(
+            '.foo{-moz-font-feature-settings:"kern";font-feature-settings:"kern"}',
+            $prefixer->prefixForTargets('.foo { -webkit-font-feature-settings: "kern"; -moz-font-feature-settings: "kern"; font-feature-settings: "kern"; }', ['chrome' => 48, 'firefox' => 33])
+        );
+
+        $t->same(
+            '.foo{-webkit-font-variant-ligatures:no-common-ligatures;font-variant-ligatures:no-common-ligatures}',
+            $prefixer->prefixForTargets('.foo { font-variant-ligatures: no-common-ligatures; }', ['android' => '4.4.3', 'samsung' => 4])
+        );
+        $t->same(
+            '.foo{font-variant-ligatures:no-common-ligatures}',
+            $prefixer->prefixForTargets('.foo { -webkit-font-variant-ligatures: no-common-ligatures; font-variant-ligatures: no-common-ligatures; }', ['android' => '4.4.4', 'samsung' => 5])
+        );
+
+        $t->same(
+            '.foo{-webkit-font-language-override:"SRB";font-language-override:"SRB"}',
+            $prefixer->prefixForTargets('.foo { font-language-override: "SRB"; }', ['opera' => 34])
+        );
+        $t->same(
+            '.foo{font-language-override:"SRB"}',
+            $prefixer->prefixForTargets('.foo { -webkit-font-language-override: "SRB"; font-language-override: "SRB"; }', ['opera' => 35])
+        );
+        $t->same(
+            '.foo{-moz-font-language-override:"SRB";font-language-override:"SRB"}',
+            $prefixer->prefixForTargets('.foo { font-language-override: "SRB"; }', ['firefox' => 33])
+        );
+        $t->same(
+            '.foo{font-language-override:"SRB"}',
+            $prefixer->prefixForTargets('.foo { -moz-font-language-override: "SRB"; font-language-override: "SRB"; }', ['firefox' => 34])
+        );
+
+        $t->same(
+            '.foo{-webkit-font-kerning:normal;font-kerning:normal}',
+            $prefixer->prefixForTargets('.foo { font-kerning: normal; }', ['safari' => 9, 'chrome' => 32])
+        );
+        $t->same(
+            '.foo{font-kerning:normal}',
+            $prefixer->prefixForTargets('.foo { -webkit-font-kerning: normal; font-kerning: normal; }', ['safari' => 10, 'chrome' => 33])
+        );
+        $t->same(
+            '.foo{-webkit-font-kerning:normal;font-kerning:normal}',
+            $prefixer->prefixForTargets('.foo { font-kerning: normal; }', ['ios_saf' => '11.3'])
+        );
+        $t->same(
+            '.foo{font-kerning:normal}',
+            $prefixer->prefixForTargets('.foo { -webkit-font-kerning: normal; font-kerning: normal; }', ['ios_saf' => '11.4'])
+        );
+        $t->same(
+            '.foo{-webkit-font-kerning:normal;font-kerning:normal}',
+            $prefixer->prefixForTargets('.foo { font-kerning: normal; }', ['opera' => 19])
+        );
+        $t->same(
+            '.foo{font-kerning:normal}',
+            $prefixer->prefixForTargets('.foo { -webkit-font-kerning: normal; font-kerning: normal; }', ['opera' => 20])
+        );
+        $t->same(
+            '.foo{-webkit-font-kerning:normal;font-kerning:normal}',
+            $prefixer->prefixForTargets('.foo { font-kerning: normal; }', ['android' => '4.4'])
+        );
+        $t->same(
+            '.foo{font-kerning:normal}',
+            $prefixer->prefixForTargets('.foo { -webkit-font-kerning: normal; font-kerning: normal; }', ['android' => '4.4.3'])
+        );
+    },
     'transition prefixer maps upstream print-color-adjust target boundary' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

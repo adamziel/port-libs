@@ -340,6 +340,36 @@ $fullySkippedRawVlqMap->addVlqMap(
     0
 );
 
+$skippedInvalidSourceIndexMap = new SourceMap();
+$skippedInvalidSourceIndexGuard = false;
+try {
+    $skippedInvalidSourceIndexMap->addVlqMap(
+        'ACAA',
+        ['wp-content/themes/example/source-map-skipped-invalid-source.css'],
+        ['.wp-block-skipped-invalid-source{}'],
+        ['skipped-invalid-source-rule'],
+        -1,
+        0
+    );
+} catch (OutOfBoundsException) {
+    $skippedInvalidSourceIndexGuard = true;
+}
+
+$skippedInvalidNameIndexMap = new SourceMap();
+$skippedInvalidNameIndexGuard = false;
+try {
+    $skippedInvalidNameIndexMap->addVlqMap(
+        'AAAAC',
+        ['wp-content/themes/example/source-map-skipped-invalid-name.css'],
+        ['.wp-block-skipped-invalid-name{}'],
+        ['skipped-invalid-known-name'],
+        -1,
+        0
+    );
+} catch (OutOfBoundsException) {
+    $skippedInvalidNameIndexGuard = true;
+}
+
 $negativeColumnGeneratedOnlyMap = new SourceMap();
 $negativeColumnGeneratedOnlyMap->addVlqMap(
     'K,I;O',
@@ -671,6 +701,10 @@ $actual = [
     'negativeOffsetRawMap' => $negativeOffsetRawMap->toJson(null, false),
     'skippedSameLineRawVlqMap' => $skippedSameLineRawVlqMap->toJson(null, false),
     'fullySkippedRawVlqMap' => $fullySkippedRawVlqMap->toJson(null, false),
+    'skippedInvalidSourceIndexGuard' => $skippedInvalidSourceIndexGuard,
+    'skippedInvalidSourceIndexMap' => $skippedInvalidSourceIndexMap->toJson(null, false),
+    'skippedInvalidNameIndexGuard' => $skippedInvalidNameIndexGuard,
+    'skippedInvalidNameIndexMap' => $skippedInvalidNameIndexMap->toJson(null, false),
     'negativeColumnGeneratedOnlyMap' => $negativeColumnGeneratedOnlyMap->toJson(null, false),
     'negativeColumnSourceBackedMap' => $negativeColumnSourceBackedMap->toJson(null, false),
     'negativeColumnSkippedLineMap' => $negativeColumnSkippedLineMap->toJson(null, false),
@@ -745,6 +779,10 @@ if (($argv[1] ?? null) === '--self-test') {
         'negativeOffsetRawMap' => '{"version":3,"mappings":"ICKMC","sources":["wp-content/themes/example/source-map-prelude.css","wp-content/themes/example/blocks/cover.css"],"sourcesContent":[".prelude{}",".wp-block-cover{}"],"names":["prelude-rule","cover-rule"]}',
         'skippedSameLineRawVlqMap' => '{"version":3,"mappings":"GCCGC","sources":["wp-content/themes/example/source-map-same-line-prelude.css","wp-content/themes/example/blocks/same-line-cover.css"],"sourcesContent":[".wp-block-same-line-prelude{}",".wp-block-same-line-cover{}"],"names":["same-line-prelude-rule","same-line-cover-rule"]}',
         'fullySkippedRawVlqMap' => '{"version":3,"mappings":"","sources":["wp-content/themes/example/source-map-skipped.scss","wp-content/themes/example/source-map-unused.scss"],"sourcesContent":[".wp-block-skipped{color:red}",".wp-block-unused{color:blue}"],"names":["skipped-rule","unused-rule"]}',
+        'skippedInvalidSourceIndexGuard' => true,
+        'skippedInvalidSourceIndexMap' => '{"version":3,"mappings":"","sources":["wp-content/themes/example/source-map-skipped-invalid-source.css"],"sourcesContent":[".wp-block-skipped-invalid-source{}"],"names":["skipped-invalid-source-rule"]}',
+        'skippedInvalidNameIndexGuard' => true,
+        'skippedInvalidNameIndexMap' => '{"version":3,"mappings":"","sources":["wp-content/themes/example/source-map-skipped-invalid-name.css"],"sourcesContent":[".wp-block-skipped-invalid-name{}"],"names":["skipped-invalid-known-name"]}',
         'negativeColumnGeneratedOnlyMap' => '{"version":3,"mappings":"E,I;I","sources":["wp-content/themes/example/source-map-negative-column.css"],"sourcesContent":[".wp-block-negative-column{}"],"names":[]}',
         'negativeColumnSourceBackedMap' => '{"version":3,"mappings":"EAAA,IACA;IACA","sources":["wp-content/themes/example/source-map-negative-column.css"],"sourcesContent":[".wp-block-negative-column{}"],"names":[]}',
         'negativeColumnSkippedLineMap' => '{"version":3,"mappings":"IACA","sources":["wp-content/themes/example/source-map-negative-column.css"],"sourcesContent":[".wp-block-negative-column{}"],"names":[]}',

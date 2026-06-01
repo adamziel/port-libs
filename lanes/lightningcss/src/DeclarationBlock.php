@@ -162,6 +162,14 @@ final class DeclarationBlock
         'grid-auto-rows',
         'grid-auto-columns',
     ];
+    private const GRID_LONGHANDS = [
+        'grid-template-rows',
+        'grid-template-columns',
+        'grid-template-areas',
+        'grid-auto-rows',
+        'grid-auto-columns',
+        'grid-auto-flow',
+    ];
     private const PLACE_ALIGNMENT_SHORTHANDS = [
         'place-content' => [
             'align' => 'align-content',
@@ -2988,8 +2996,18 @@ final class DeclarationBlock
         }
 
         $components = array_fill_keys(self::GRID_AREA_COMPONENTS, null);
-        $template = array_fill_keys(array_merge(self::GRID_TEMPLATE_COMPONENTS, self::GRID_AUTO_COMPONENTS), null);
+        $template = array_fill_keys(self::GRID_LONGHANDS, null);
         foreach ($entries as $entry) {
+            if ($entry['property'] === 'grid') {
+                $parsed = $this->gridComponentsFromShorthand($entry['value'], $entry['important']);
+                if ($parsed !== null) {
+                    foreach ($parsed as $component => $value) {
+                        $template[$component] = $value;
+                    }
+                }
+                continue;
+            }
+
             if ($entry['property'] === 'grid-template') {
                 $parsed = $this->gridTemplateComponentsFromShorthand($entry['value'], $entry['important']);
                 if ($parsed !== null) {
@@ -3145,18 +3163,60 @@ final class DeclarationBlock
      */
     private function composeGridShorthand(array $components): ?array
     {
-        foreach (array_merge(self::GRID_TEMPLATE_COMPONENTS, self::GRID_AUTO_COMPONENTS) as $property) {
+        foreach (self::GRID_LONGHANDS as $property) {
             if (($components[$property] ?? null) === null) {
                 return null;
             }
         }
 
-        $important = $this->sameImportant(array_values($components));
-        if ($important === null || !$this->isInitialGridAuto($components)) {
+        $required = [];
+        foreach (self::GRID_LONGHANDS as $property) {
+            $required[] = $components[$property];
+        }
+
+        $important = $this->sameImportant($required);
+        if ($important === null) {
             return null;
         }
 
-        return $this->composeGridTemplateShorthand($components);
+        if ($this->isInitialGridAuto($components)) {
+            return $this->composeGridTemplateShorthand($components);
+        }
+
+        $rows = $this->normalizeGridTrackValue($components['grid-template-rows']['value']);
+        $columns = $this->normalizeGridTrackValue($components['grid-template-columns']['value']);
+        $areas = $components['grid-template-areas']['value'];
+        $autoRows = $this->normalizeGridTrackValue($components['grid-auto-rows']['value']);
+        $autoColumns = $this->normalizeGridTrackValue($components['grid-auto-columns']['value']);
+        $flow = $this->normalizeGridAutoFlow($components['grid-auto-flow']['value']);
+
+        if (!$this->isGridTemplateAreasNone($areas)) {
+            return null;
+        }
+
+        if (
+            strcasecmp($rows, 'none') === 0
+            && $this->gridAutoFlowDirection($flow) === 'row'
+            && $this->isDefaultGridTrackList($autoColumns)
+        ) {
+            return [
+                'value' => $this->serializeGridAutoFlowShorthandSide($flow, $autoRows) . ' / ' . $columns,
+                'important' => $important,
+            ];
+        }
+
+        if (
+            strcasecmp($columns, 'none') === 0
+            && $this->gridAutoFlowDirection($flow) === 'column'
+            && $this->isDefaultGridTrackList($autoRows)
+        ) {
+            return [
+                'value' => $rows . ' / ' . $this->serializeGridAutoFlowShorthandSide($flow, $autoColumns),
+                'important' => $important,
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -3165,6 +3225,10 @@ final class DeclarationBlock
     private function gridTemplateComponentsFromShorthand(string $value, bool $important): ?array
     {
         $value = trim($value);
+        if ($this->gridValueHasAutoFlowKeyword($value)) {
+            return null;
+        }
+
         if (strcasecmp($value, 'none') === 0) {
             return [
                 'grid-template-rows' => ['value' => 'none', 'important' => $important],
@@ -3198,9 +3262,103 @@ final class DeclarationBlock
         ];
     }
 
+    /**
+     * @return array<string, array{value:string, important:bool}>|null
+     */
+    private function gridComponentsFromShorthand(string $value, bool $important): ?array
+    {
+        $value = trim($value);
+        $parts = array_map(
+            static fn (string $part): string => trim($part),
+            $this->splitTopLevel($value, '/')
+        );
+
+        if (count($parts) === 2 && $parts[0] !== '' && $parts[1] !== '') {
+            $rowAutoFlow = $this->parseGridAutoFlowShorthandSide($parts[0], 'row');
+            if ($rowAutoFlow !== null) {
+                return [
+                    'grid-template-rows' => ['value' => 'none', 'important' => $important],
+                    'grid-template-columns' => ['value' => $this->normalizeGridTrackValue($parts[1]), 'important' => $important],
+                    'grid-template-areas' => ['value' => 'none', 'important' => $important],
+                    'grid-auto-flow' => ['value' => $rowAutoFlow['flow'], 'important' => $important],
+                    'grid-auto-rows' => ['value' => $rowAutoFlow['track'], 'important' => $important],
+                    'grid-auto-columns' => ['value' => 'auto', 'important' => $important],
+                ];
+            }
+
+            $columnAutoFlow = $this->parseGridAutoFlowShorthandSide($parts[1], 'column');
+            if ($columnAutoFlow !== null) {
+                return [
+                    'grid-template-rows' => ['value' => $this->normalizeGridTrackValue($parts[0]), 'important' => $important],
+                    'grid-template-columns' => ['value' => 'none', 'important' => $important],
+                    'grid-template-areas' => ['value' => 'none', 'important' => $important],
+                    'grid-auto-flow' => ['value' => $columnAutoFlow['flow'], 'important' => $important],
+                    'grid-auto-rows' => ['value' => 'auto', 'important' => $important],
+                    'grid-auto-columns' => ['value' => $columnAutoFlow['track'], 'important' => $important],
+                ];
+            }
+        }
+
+        $template = $this->gridTemplateComponentsFromShorthand($value, $important);
+        if ($template === null) {
+            return null;
+        }
+
+        return array_merge($template, [
+            'grid-auto-flow' => ['value' => 'row', 'important' => $important],
+            'grid-auto-rows' => ['value' => 'auto', 'important' => $important],
+            'grid-auto-columns' => ['value' => 'auto', 'important' => $important],
+        ]);
+    }
+
+    /**
+     * @return array{flow:string, track:string}|null
+     */
+    private function parseGridAutoFlowShorthandSide(string $value, string $direction): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $seenAutoFlow = false;
+        $seenDense = false;
+        $trackTokens = [];
+        foreach ($tokens as $token) {
+            $lower = strtolower(trim($token));
+            if ($lower === 'auto-flow' && !$seenAutoFlow && $trackTokens === []) {
+                $seenAutoFlow = true;
+                continue;
+            }
+            if ($lower === 'dense' && !$seenDense && $trackTokens === []) {
+                $seenDense = true;
+                continue;
+            }
+            if (!$seenAutoFlow) {
+                return null;
+            }
+
+            $trackTokens[] = $token;
+        }
+
+        if (!$seenAutoFlow) {
+            return null;
+        }
+
+        return [
+            'flow' => $this->serializeGridAutoFlowLonghand($direction, $seenDense),
+            'track' => $trackTokens === [] ? 'auto' : $this->normalizeGridTrackValue(implode(' ', $trackTokens)),
+        ];
+    }
+
     private function gridTemplateValueHasAreas(string $value): bool
     {
         return str_contains($value, '"') || str_contains($value, "'");
+    }
+
+    private function gridValueHasAutoFlowKeyword(string $value): bool
+    {
+        return preg_match('/(?:^|[\s\/])auto-flow(?:$|[\s\/])/i', $value) === 1;
     }
 
     /**
@@ -3239,10 +3397,88 @@ final class DeclarationBlock
 
     private function normalizeGridAutoFlow(string $value): string
     {
-        $tokens = array_map('strtolower', $this->splitWhitespaceTopLevel($value));
-        sort($tokens);
+        $hasRow = false;
+        $hasColumn = false;
+        $hasDense = false;
+        $other = [];
+        foreach ($this->splitWhitespaceTopLevel($value) as $token) {
+            $lower = strtolower(trim($token));
+            if ($lower === 'row') {
+                $hasRow = true;
+                continue;
+            }
+            if ($lower === 'column') {
+                $hasColumn = true;
+                continue;
+            }
+            if ($lower === 'dense') {
+                $hasDense = true;
+                continue;
+            }
+            if ($lower !== '') {
+                $other[] = $lower;
+            }
+        }
 
-        return implode(' ', $tokens);
+        if ($other !== [] || ($hasRow && $hasColumn)) {
+            return trim(strtolower($value));
+        }
+
+        if ($hasColumn) {
+            return $this->serializeGridAutoFlowLonghand('column', $hasDense);
+        }
+
+        return $this->serializeGridAutoFlowLonghand('row', $hasDense);
+    }
+
+    private function normalizeGridLonghandValue(string $property, string $value): string
+    {
+        if ($property === 'grid-auto-flow') {
+            return $this->normalizeGridAutoFlow($value);
+        }
+
+        if (in_array($property, ['grid-template-rows', 'grid-template-columns', 'grid-auto-rows', 'grid-auto-columns'], true)) {
+            return $this->normalizeGridTrackValue($value);
+        }
+
+        return trim($value);
+    }
+
+    private function serializeGridAutoFlowLonghand(string $direction, bool $dense): string
+    {
+        if ($direction === 'column') {
+            return $dense ? 'column dense' : 'column';
+        }
+
+        return $dense ? 'row dense' : 'row';
+    }
+
+    private function gridAutoFlowDirection(string $value): string
+    {
+        return str_starts_with($this->normalizeGridAutoFlow($value), 'column') ? 'column' : 'row';
+    }
+
+    private function gridAutoFlowIsDense(string $value): bool
+    {
+        return str_contains(' ' . $this->normalizeGridAutoFlow($value) . ' ', ' dense ');
+    }
+
+    private function serializeGridAutoFlowShorthandSide(string $flow, string $track): string
+    {
+        $parts = ['auto-flow'];
+        if ($this->gridAutoFlowIsDense($flow)) {
+            $parts[] = 'dense';
+        }
+        if (!$this->isDefaultGridTrackList($track)) {
+            $parts[] = $this->normalizeGridTrackValue($track);
+        }
+
+        return implode(' ', $parts);
+    }
+
+    private function isDefaultGridTrackList(string $value): bool
+    {
+        return strcasecmp($this->normalizeGridTrackValue($value), 'auto') === 0;
     }
 
     private function serializeGridTemplateWithAreas(string $rowsValue, string $columnsValue, string $areasValue): ?string
@@ -9346,7 +9582,7 @@ final class DeclarationBlock
         if ($borderRadiusValue !== null) {
             return $this->parseEntries($borderRadiusValue);
         }
-        $gridTemplateValue = $this->setGridTemplateLonghand($entries, $property, $value, $important);
+        $gridTemplateValue = $this->setGridLonghand($entries, $property, $value, $important);
         if ($gridTemplateValue !== null) {
             return $this->parseEntries($gridTemplateValue);
         }
@@ -9870,12 +10106,13 @@ final class DeclarationBlock
     /**
      * @param list<array{property:string, value:string, important:bool}> $entries
      */
-    private function setGridTemplateLonghand(array $entries, string $property, string $value, bool $important): ?string
+    private function setGridLonghand(array $entries, string $property, string $value, bool $important): ?string
     {
-        if (!in_array($property, self::GRID_TEMPLATE_COMPONENTS, true)) {
+        if (!in_array($property, self::GRID_LONGHANDS, true)) {
             return null;
         }
 
+        $value = $this->normalizeGridLonghandValue($property, $value);
         for ($index = count($entries) - 1; $index >= 0; $index--) {
             if ($entries[$index]['property'] === $property) {
                 $entries[$index] = [
@@ -9887,14 +10124,45 @@ final class DeclarationBlock
                 return $this->serializeEntries($entries);
             }
 
-            if ($entries[$index]['property'] !== 'grid-template') {
+            if ($entries[$index]['property'] === 'grid-template') {
+                if (!in_array($property, self::GRID_TEMPLATE_COMPONENTS, true)) {
+                    continue;
+                }
+                if ($entries[$index]['important'] !== $important) {
+                    return null;
+                }
+
+                $components = $this->gridTemplateComponentsFromShorthand($entries[$index]['value'], $entries[$index]['important']);
+                if ($components === null) {
+                    return null;
+                }
+
+                $components[$property] = [
+                    'value' => $value,
+                    'important' => $important,
+                ];
+                $gridTemplate = $this->composeGridTemplateShorthand($components);
+                if ($gridTemplate === null) {
+                    return null;
+                }
+
+                $entries[$index] = [
+                    'property' => 'grid-template',
+                    'value' => $gridTemplate['value'],
+                    'important' => $important,
+                ];
+
+                return $this->serializeEntries($entries);
+            }
+
+            if ($entries[$index]['property'] !== 'grid') {
                 continue;
             }
             if ($entries[$index]['important'] !== $important) {
                 return null;
             }
 
-            $components = $this->gridTemplateComponentsFromShorthand($entries[$index]['value'], $entries[$index]['important']);
+            $components = $this->gridComponentsFromShorthand($entries[$index]['value'], $entries[$index]['important']);
             if ($components === null) {
                 return null;
             }
@@ -9903,14 +10171,14 @@ final class DeclarationBlock
                 'value' => $value,
                 'important' => $important,
             ];
-            $gridTemplate = $this->composeGridTemplateShorthand($components);
-            if ($gridTemplate === null) {
+            $grid = $this->composeGridShorthand($components);
+            if ($grid === null) {
                 return null;
             }
 
             $entries[$index] = [
-                'property' => 'grid-template',
-                'value' => $gridTemplate['value'],
+                'property' => 'grid',
+                'value' => $grid['value'],
                 'important' => $important,
             ];
 
@@ -11341,9 +11609,9 @@ final class DeclarationBlock
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
-        if (in_array($property, self::GRID_TEMPLATE_COMPONENTS, true)) {
-            $normalEntries = $this->parseEntries($this->removeGridTemplateLonghand($normalEntries, $property));
-            $importantEntries = $this->parseEntries($this->removeGridTemplateLonghand($importantEntries, $property));
+        if (in_array($property, self::GRID_LONGHANDS, true)) {
+            $normalEntries = $this->parseEntries($this->removeGridLonghand($normalEntries, $property));
+            $importantEntries = $this->parseEntries($this->removeGridLonghand($importantEntries, $property));
 
             return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
         }
@@ -11719,7 +11987,7 @@ final class DeclarationBlock
     {
         return match ($property) {
             'grid-template' => self::GRID_TEMPLATE_COMPONENTS,
-            'grid' => array_merge(self::GRID_TEMPLATE_COMPONENTS, self::GRID_AUTO_COMPONENTS),
+            'grid' => self::GRID_LONGHANDS,
             'grid-row' => ['grid-row-start', 'grid-row-end'],
             'grid-column' => ['grid-column-start', 'grid-column-end'],
             'grid-area' => self::GRID_AREA_COMPONENTS,
@@ -11870,7 +12138,7 @@ final class DeclarationBlock
     /**
      * @param list<array{property:string, value:string, important:bool}> $entries
      */
-    private function removeGridTemplateLonghand(array $entries, string $property): string
+    private function removeGridLonghand(array $entries, string $property): string
     {
         $result = [];
         foreach ($entries as $entry) {
@@ -11878,18 +12146,44 @@ final class DeclarationBlock
                 continue;
             }
 
-            if ($entry['property'] !== 'grid-template') {
+            if ($entry['property'] === 'grid-template') {
+                if (!in_array($property, self::GRID_TEMPLATE_COMPONENTS, true)) {
+                    $result[] = $entry;
+                    continue;
+                }
+
+                $components = $this->gridTemplateComponentsFromShorthand($entry['value'], $entry['important']);
+                if ($components === null) {
+                    $result[] = $entry;
+                    continue;
+                }
+
+                foreach (self::GRID_TEMPLATE_COMPONENTS as $longhand) {
+                    if ($longhand === $property) {
+                        continue;
+                    }
+
+                    $result[] = [
+                        'property' => $longhand,
+                        'value' => $components[$longhand]['value'],
+                        'important' => $entry['important'],
+                    ];
+                }
+                continue;
+            }
+
+            if ($entry['property'] !== 'grid') {
                 $result[] = $entry;
                 continue;
             }
 
-            $components = $this->gridTemplateComponentsFromShorthand($entry['value'], $entry['important']);
+            $components = $this->gridComponentsFromShorthand($entry['value'], $entry['important']);
             if ($components === null) {
                 $result[] = $entry;
                 continue;
             }
 
-            foreach (self::GRID_TEMPLATE_COMPONENTS as $longhand) {
+            foreach (self::GRID_LONGHANDS as $longhand) {
                 if ($longhand === $property) {
                     continue;
                 }
@@ -13002,6 +13296,10 @@ final class DeclarationBlock
 
         if ($property === 'border-spacing') {
             return $this->normalizeBorderSpacingValue($value);
+        }
+
+        if (in_array($property, self::GRID_LONGHANDS, true)) {
+            return $this->normalizeGridLonghandValue($property, $value);
         }
 
         if ($this->isShadowDeclarationProperty($property)) {

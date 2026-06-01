@@ -7,25 +7,25 @@ use PortLibs\LibSqlite\SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSource
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $currentTables = [
-    'wp_options' => [
-        ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'weight' => 90],
-        ['option_id' => 3, 'option_name' => 'blogname', 'autoload' => 'yes', 'weight' => 80],
-        ['option_id' => 4, 'option_name' => 'cache', 'autoload' => 'no', 'weight' => 70],
+    'app_settings' => [
+        ['setting_id' => 2, 'key_name' => 'home', 'load_policy' => 'yes', 'weight' => 90],
+        ['setting_id' => 3, 'key_name' => 'site_title', 'load_policy' => 'yes', 'weight' => 80],
+        ['setting_id' => 4, 'key_name' => 'cache', 'load_policy' => 'no', 'weight' => 70],
     ],
 ];
 $nextTables = $currentTables;
-$nextTables['wp_options'][] = ['option_id' => 5, 'option_name' => 'plugin_alpha', 'autoload' => 'yes', 'weight' => 60];
+$nextTables['app_settings'][] = ['setting_id' => 5, 'key_name' => 'module_alpha', 'load_policy' => 'yes', 'weight' => 60];
 
 $sql = <<<'SQL'
 WITH RECURSIVE q(id, label, score) AS (
-    VALUES (1, 'siteurl', 100)
+    VALUES (1, 'base_url', 100)
     UNION ALL
     SELECT id + 1,
            CASE id + 1
              WHEN 2 THEN 'home'
-             WHEN 3 THEN 'blogname'
+             WHEN 3 THEN 'site_title'
              WHEN 4 THEN 'cache'
-             WHEN 5 THEN 'plugin_alpha'
+             WHEN 5 THEN 'module_alpha'
              ELSE 'extra'
            END,
            score - 10
@@ -36,13 +36,13 @@ WITH RECURSIVE q(id, label, score) AS (
 )
 SELECT id,
        label,
-       lag(label, 1, 'siteurl') OVER (ORDER BY score DESC, id) AS marker
+       lag(label, 1, 'base_url') OVER (ORDER BY score DESC, id) AS marker
   FROM q
 INTERSECT
-SELECT option_id AS id,
-       option_name AS label,
-       lag(option_name, 1, 'siteurl') OVER (ORDER BY weight DESC, option_id) AS marker
-  FROM wp_options
+SELECT setting_id AS id,
+       key_name AS label,
+       lag(key_name, 1, 'base_url') OVER (ORDER BY weight DESC, setting_id) AS marker
+  FROM app_settings
  ORDER BY marker, id
  LIMIT 3 OFFSET 1
 SQL;
@@ -51,7 +51,7 @@ $plan = SQLiteCompoundIntersectLagLeadRecursiveLimitCurrentSourceNextPlan::compa
 $result = [
     'scenario' => 'application-compound-intersect-lag-lead-recursive-limit-current-source-recursive-limit',
     'sqlShape' => 'WITH RECURSIVE LIMIT/OFFSET feeding lag-window INTERSECT arms with final ORDER BY/LIMIT/OFFSET',
-    'applicationUse' => 'Copied wp_options import previews can skip a recursive seed source, intersect lag-window current rows with copied option rows, and admit the next plugin option at the final compound LIMIT boundary.',
+    'applicationUse' => 'Copied app_settings import previews can skip a recursive seed source, intersect lag-window current rows with copied setting rows, and admit the next module setting at the final compound LIMIT boundary.',
     'currentLabels' => array_column($plan['currentRows'], 'label'),
     'nextLabels' => array_column($plan['nextRows'], 'label'),
     'recursiveSkipped' => $plan['recursive']['currentSkippedLabels'],
@@ -62,20 +62,20 @@ $result = [
 ];
 
 if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'] ?? '')) {
-    if ($result['currentLabels'] !== ['blogname', 'home']) {
+    if ($result['currentLabels'] !== ['site_title', 'cache']) {
         fwrite(STDERR, "unexpected current labels\n");
         exit(1);
     }
-    if ($result['nextLabels'] !== ['plugin_alpha', 'blogname', 'home']) {
+    if ($result['nextLabels'] !== ['module_alpha', 'site_title', 'cache']) {
         fwrite(STDERR, "unexpected next labels\n");
         exit(1);
     }
-    if ($result['recursiveSkipped'] !== ['siteurl']) {
+    if ($result['recursiveSkipped'] !== ['base_url']) {
         fwrite(STDERR, "recursive offset did not skip the seed row\n");
         exit(1);
     }
-    if ($result['newAdmittedLabels'] !== ['plugin_alpha']) {
-        fwrite(STDERR, "next-source plugin option did not cross the final LIMIT boundary\n");
+    if ($result['newAdmittedLabels'] !== ['module_alpha']) {
+        fwrite(STDERR, "next-source module setting did not cross the final LIMIT boundary\n");
         exit(1);
     }
     echo "application-compound-intersect-lag-lead-recursive-limit-current-source-recursive-limit self-test passed\n";

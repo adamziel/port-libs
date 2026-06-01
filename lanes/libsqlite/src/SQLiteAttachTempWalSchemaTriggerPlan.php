@@ -19,7 +19,7 @@ final class SQLiteAttachTempWalSchemaTriggerPlan
         string $triggerName,
         array $schemaWal,
         array $schemaCache,
-        array $preparedTables = ['wp_options'],
+        array $preparedTables = ['app_settings'],
         array $newRow = [],
         ?array $oldRow = null,
         string $sourceSchema = 'main'

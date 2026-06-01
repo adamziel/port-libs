@@ -60,6 +60,29 @@ if ($conjunctionBundle !== $expectedConjunction) {
     exit(1);
 }
 
+$repeatedRangeBundle = (new CssBundler())->bundle('/repeated-range.css', [
+    '/repeated-range.css' => <<<'CSS'
+@import "blocks/query.css" layer(theme.blocks) (hover), (width >= 250px);
+@import "blocks/query.css" layer(theme.blocks) (min-width: 250px);
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/blocks/query.css' => <<<'CSS'
+.wp-block-query {
+  color: green;
+}
+CSS,
+]);
+
+$expectedRepeatedRange = '@media (hover),(width>=250px){@layer theme.blocks{.wp-block-query{color:green}}}.wp-site-blocks{color:red}';
+
+if ($repeatedRangeBundle !== $expectedRepeatedRange) {
+    fwrite(STDERR, "Unexpected repeated media range import graph output:\n{$repeatedRangeBundle}\n");
+    exit(1);
+}
+
 echo $bundle . PHP_EOL;
 echo $conjunctionBundle . PHP_EOL;
+echo $repeatedRangeBundle . PHP_EOL;
 echo 'media-range-layer-import-graph: bundled' . PHP_EOL;

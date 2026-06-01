@@ -5367,6 +5367,18 @@ final class CustomAtRuleTransformer
             ];
         }
 
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))(--[-_a-zA-Z0-9]+)$/', $token, $matches) === 1) {
+            return [
+                'type' => 'token',
+                'raw' => $token,
+                'value' => [
+                    'type' => 'dimension',
+                    'value' => (float) $matches[1],
+                    'unit' => $matches[2],
+                ],
+            ];
+        }
+
         if (($rgb = $this->parseHexColorValue($token)) !== null) {
             return [
                 'type' => 'color',
@@ -5391,6 +5403,17 @@ final class CustomAtRuleTransformer
                 'value' => [
                     'type' => 'string',
                     'value' => stripcslashes(substr($token, 1, -1)),
+                ],
+            ];
+        }
+
+        if (preg_match('/^@(--[-_a-zA-Z0-9]+|-?[_a-zA-Z][-_a-zA-Z0-9]*)$/', $token, $matches) === 1) {
+            return [
+                'type' => 'token',
+                'raw' => $token,
+                'value' => [
+                    'type' => 'at-keyword',
+                    'value' => $matches[1],
                 ],
             ];
         }
@@ -6201,6 +6224,17 @@ final class CustomAtRuleTransformer
             return ['value' => $value, 'changed' => true];
         }
 
+        if ($type === 'token-list' && isset($value['value']) && is_array($value['value'])) {
+            $visited = $this->visitCustomPreludeTokenList($value['value']);
+            if ($visited['changed']) {
+                $value['value'] = $visited['value'];
+
+                return ['value' => $value, 'changed' => true];
+            }
+
+            return ['value' => $value, 'changed' => false];
+        }
+
         if ($type === 'image' && isset($value['value']) && is_array($value['value'])) {
             $visited = $this->visitImageValue($value['value']);
             if ($visited['changed']) {
@@ -6241,6 +6275,168 @@ final class CustomAtRuleTransformer
         }
 
         return ['value' => $value, 'changed' => false];
+    }
+
+    /**
+     * @param list<mixed> $components
+     * @return array{value:list<mixed>,changed:bool}
+     */
+    private function visitCustomPreludeTokenList(array $components): array
+    {
+        $visitedComponents = [];
+        $changed = false;
+
+        foreach ($components as $component) {
+            $visited = $this->visitCustomPreludeTokenListComponent($component);
+            foreach ($visited['value'] as $replacement) {
+                $visitedComponents[] = $replacement;
+            }
+            $changed = $changed || $visited['changed'];
+        }
+
+        return [
+            'value' => $changed ? $visitedComponents : $components,
+            'changed' => $changed,
+        ];
+    }
+
+    /**
+     * @return array{value:list<mixed>,changed:bool}
+     */
+    private function visitCustomPreludeTokenListComponent(mixed $component): array
+    {
+        if (!is_array($component)) {
+            return ['value' => [$component], 'changed' => false];
+        }
+
+        $originalCss = $this->serializeVisitorValue($component);
+        $type = $component['type'] ?? null;
+
+        if ($type === 'function' && isset($component['value']) && is_array($component['value'])) {
+            $function = $component['value'];
+            $name = (string) ($function['name'] ?? '');
+            $argumentsCss = $this->functionValueArgumentsCss($function);
+            $raw = $name . '(' . $argumentsCss . ')';
+
+            $structuredReplacement = $this->callStructuredValueVisitor($name, $argumentsCss, $raw);
+            if ($structuredReplacement !== null) {
+                return $this->customPreludeTokenListReplacement($structuredReplacement, $originalCss);
+            }
+
+            $replacement = $this->callFunctionVisitor($name, $this->parseFunctionArguments($argumentsCss), $raw);
+            if ($replacement !== null) {
+                return $this->customPreludeTokenListCssReplacement($replacement, $originalCss);
+            }
+
+            $visited = $this->visitFunctionExit($name, $argumentsCss, $raw);
+            $visitedCss = $this->serializeVisitorValue($visited);
+            if ($visitedCss !== $originalCss) {
+                return $this->customPreludeTokenListCssReplacement($visitedCss, $originalCss);
+            }
+
+            return ['value' => [$component], 'changed' => false];
+        }
+
+        if ($type === 'var' && isset($component['value']) && is_array($component['value'])) {
+            $argumentsCss = $this->variableArgumentsCss($component['value']);
+            $raw = 'var(' . $argumentsCss . ')';
+            $replacement = $this->callStructuredValueVisitor('var', $argumentsCss, $raw);
+            if ($replacement !== null) {
+                return $this->customPreludeTokenListReplacement($replacement, $originalCss);
+            }
+        }
+
+        if ($type === 'env' && isset($component['value']) && is_array($component['value'])) {
+            $argumentsCss = $this->environmentVariableArgumentsCss($component['value']);
+            $raw = 'env(' . $argumentsCss . ')';
+            $replacement = $this->callStructuredValueVisitor('env', $argumentsCss, $raw);
+            if ($replacement !== null) {
+                return $this->customPreludeTokenListReplacement($replacement, $originalCss);
+            }
+        }
+
+        if ($type === 'token' && isset($component['value']) && is_array($component['value'])) {
+            $token = $component['value'];
+            $tokenType = (string) ($token['type'] ?? '');
+            if ($tokenType !== '' && $this->tokenVisitorEnabled($tokenType)) {
+                $token['raw'] = isset($component['raw']) && is_string($component['raw'])
+                    ? $component['raw']
+                    : $originalCss;
+                $replacement = $this->callTokenVisitor($tokenType, $token);
+                if ($replacement !== null) {
+                    return $this->customPreludeTokenListCssReplacement($replacement, $originalCss);
+                }
+            }
+        }
+
+        $visited = $this->applyValueVisitors($component);
+        if ($visited !== $component) {
+            return $this->customPreludeTokenListReplacement($visited, $originalCss);
+        }
+
+        return ['value' => [$component], 'changed' => false];
+    }
+
+    /**
+     * @param array<string, mixed> $function
+     */
+    private function functionValueArgumentsCss(array $function): string
+    {
+        $arguments = $function['arguments'] ?? [];
+        if (!is_array($arguments)) {
+            return '';
+        }
+
+        return implode(',', array_map(fn (mixed $argument): string => $this->serializeVisitorValue($argument), $arguments));
+    }
+
+    /**
+     * @param array<string, mixed> $variable
+     */
+    private function variableArgumentsCss(array $variable): string
+    {
+        $name = self::variableCallbackName($variable);
+        $fallback = $variable['fallback'] ?? null;
+        if (!is_array($fallback) || $fallback === []) {
+            return $name;
+        }
+
+        return $name . ',' . implode(',', array_map(fn (mixed $value): string => $this->serializeVisitorValue($value), $fallback));
+    }
+
+    /**
+     * @param array<string, mixed> $environmentVariable
+     */
+    private function environmentVariableArgumentsCss(array $environmentVariable): string
+    {
+        $name = self::environmentVariableCallbackName($environmentVariable);
+        $fallback = $environmentVariable['fallback'] ?? null;
+        if (!is_array($fallback) || $fallback === []) {
+            return $name;
+        }
+
+        return $name . ',' . implode(',', array_map(fn (mixed $value): string => $this->serializeVisitorValue($value), $fallback));
+    }
+
+    /**
+     * @return array{value:list<mixed>,changed:bool}
+     */
+    private function customPreludeTokenListReplacement(mixed $replacement, string $originalCss): array
+    {
+        return $this->customPreludeTokenListCssReplacement($this->serializeVisitorValue($replacement), $originalCss);
+    }
+
+    /**
+     * @return array{value:list<mixed>,changed:bool}
+     */
+    private function customPreludeTokenListCssReplacement(string $replacementCss, string $originalCss): array
+    {
+        $replacementCss = trim($replacementCss);
+
+        return [
+            'value' => $replacementCss === '' ? [] : $this->parseComponentValueList($replacementCss),
+            'changed' => $replacementCss !== $originalCss,
+        ];
     }
 
     /**
@@ -6536,6 +6732,9 @@ final class CustomAtRuleTransformer
         }
         if ($type === 'transform-list' && isset($value['value']) && is_array($value['value'])) {
             return implode(' ', array_map(fn (mixed $transform): string => $this->serializeVisitorValue($transform), $value['value']));
+        }
+        if ($type === 'token-list' && isset($value['value']) && is_array($value['value'])) {
+            return implode(' ', array_map(fn (mixed $component): string => $this->serializeVisitorValue($component), $value['value']));
         }
         if ($type === 'repeated' && isset($value['value']) && is_array($value['value'])) {
             $components = $value['value']['components'] ?? [];

@@ -1011,6 +1011,58 @@ CSS);
         ], $dependencyResult['exports']);
         $t->same([], $dependencyResult['references']);
     },
+    'css modules does not join commented composes property name fragments' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
+        $invalidResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  comp/* property token separator */oses: base;
+  c\6f/* escaped property token separator */mposes: utility from global;
+  C/* uppercase property token separator */OMPOSES: token from "./tokens.css";
+  color: red;
+}
+
+.base {
+  color: blue;
+}
+CSS);
+
+        $t->same('.EgL3uq_card{color:red}.EgL3uq_base{color:#00f}', $invalidResult['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'base' => $export('EgL3uq_base'),
+        ], $invalidResult['exports']);
+        $t->same([], $invalidResult['references']);
+
+        $validResult = (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  composes/* property comment before colon */: base;
+  c\6f mposes/* escaped property comment before colon */: utility from global;
+  C\6f MPOSES/* dependency property comment before colon */: token from "./tokens.css";
+  color: red;
+}
+
+.base {
+  color: blue;
+}
+CSS);
+
+        $t->same('.EgL3uq_card{color:red}.EgL3uq_base{color:#00f}', $validResult['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [
+                $local('EgL3uq_base'),
+                $global('utility'),
+                $dependency('token', './tokens.css'),
+            ]),
+            'base' => $export('EgL3uq_base'),
+        ], $validResult['exports']);
+        $t->same([], $validResult['references']);
+        $t->same('EgL3uq_card EgL3uq_base utility Theme_token', CssModulesTransformer::exportClassList(
+            $validResult['exports'],
+            'card',
+            static fn (string $name, string $specifier): ?string => $name === 'token' && $specifier === './tokens.css'
+                ? 'Theme_token'
+                : null
+        ));
+    },
     'css modules decodes escaped dependency specifiers in composes metadata' => static function (TestRunner $t) use ($export, $dependency): void {
         $css = <<<'CSS'
 .test {

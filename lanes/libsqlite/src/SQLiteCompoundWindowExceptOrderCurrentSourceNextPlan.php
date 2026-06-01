@@ -59,8 +59,8 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
                     'next' => self::windowTerms($nextPlan),
                 ],
                 'exceptTrace' => [
-                    'currentRemoved' => self::removedByExcept($currentPreOrder, $currentTables['wp_options'] ?? []),
-                    'nextRemoved' => self::removedByExcept($nextPreOrder, $nextTables['wp_options'] ?? []),
+                    'currentRemoved' => self::removedByExcept($currentPreOrder, $currentTables['app_settings'] ?? []),
+                    'nextRemoved' => self::removedByExcept($nextPreOrder, $nextTables['app_settings'] ?? []),
                     'currentPreOrderNames' => array_column($currentPreOrder, 'name'),
                     'nextPreOrderNames' => array_column($nextPreOrder, 'name'),
                     'currentOrderedNames' => array_column($currentRows, 'name'),
@@ -216,7 +216,7 @@ final class SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan
             $remaining = array_flip(array_column($preOrderRows, 'name'));
             $removed = [];
             foreach ($sourceRows as $row) {
-                $name = isset($row['option_name']) ? (string) $row['option_name'] : '';
+                $name = isset($row['key_name']) ? (string) $row['key_name'] : '';
                 if ($name !== '' && !isset($remaining[$name])) {
                     $removed[] = $name;
                 }

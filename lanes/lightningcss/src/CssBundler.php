@@ -480,17 +480,81 @@ final class CssBundler
 
     private function sourceMapUrl(string $source): ?string
     {
-        $matchCount = preg_match_all('/\/\*[#@]\s*sourceMappingURL\s*=\s*([^\s*]+)\s*\*\//i', $source, $matches);
-        if ($matchCount === false || $matchCount === 0) {
+        $lastUrl = null;
+        $length = strlen($source);
+        $quote = null;
+
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $source[$offset];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $offset++;
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+                }
+
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char !== '/' || ($source[$offset + 1] ?? '') !== '*') {
+                continue;
+            }
+
+            $end = strpos($source, '*/', $offset + 2);
+            if ($end === false) {
+                break;
+            }
+
+            $url = $this->sourceMapUrlFromComment(substr($source, $offset + 2, $end - $offset - 2));
+            if ($url !== null) {
+                $lastUrl = $url;
+            }
+
+            $offset = $end + 1;
+        }
+
+        return $lastUrl;
+    }
+
+    private function sourceMapUrlFromComment(string $comment): ?string
+    {
+        $comment = ltrim($comment);
+        $marker = $comment[0] ?? '';
+        if ($marker !== '#' && $marker !== '@') {
             return null;
         }
 
-        $urls = $matches[1] ?? [];
-        if ($urls === []) {
+        $rest = ltrim(substr($comment, 1));
+        $name = 'sourceMappingURL';
+        if (strncasecmp($rest, $name, strlen($name)) !== 0) {
             return null;
         }
 
-        return trim((string) end($urls));
+        $rest = ltrim(substr($rest, strlen($name)));
+        if (($rest[0] ?? '') !== '=') {
+            return null;
+        }
+
+        $rest = ltrim(substr($rest, 1));
+        if ($rest === '') {
+            return null;
+        }
+
+        $parts = preg_split('/\s+/', $rest);
+        if ($parts === false || $parts === [] || $parts[0] === '') {
+            return null;
+        }
+
+        return $parts[0];
     }
 
     private function readerTypeName(mixed $value): string
@@ -1772,9 +1836,11 @@ final class CssBundler
     private function combineMediaOr(string $a, string $b): string
     {
         $queries = array_merge($this->splitTopLevel($a, ','), $this->splitTopLevel($b, ','));
+        $parser = new MediaQueryParser();
         $deduped = [];
         foreach ($queries as $query) {
-            $deduped[trim($query)] = trim($query);
+            $query = $parser->minifyList($query, true);
+            $deduped[$query] = $query;
         }
 
         return implode(', ', array_values($deduped));

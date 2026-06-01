@@ -7,50 +7,50 @@ use PortLibs\LibSqlite\SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $currentTables = [
-    'wp_options' => [
-        ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'freshness' => 90],
-        ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'freshness' => 80],
-        ['option_id' => 3, 'option_name' => 'blogname', 'autoload' => 'yes', 'freshness' => 70],
-        ['option_id' => 4, 'option_name' => 'active_plugins', 'autoload' => 'no', 'freshness' => 60],
-        ['option_id' => 5, 'option_name' => 'rewrite_rules', 'autoload' => 'no', 'freshness' => 50],
+    'app_settings' => [
+        ['setting_id' => 1, 'key_name' => 'base_url', 'load_policy' => 'yes', 'freshness' => 90],
+        ['setting_id' => 2, 'key_name' => 'home', 'load_policy' => 'yes', 'freshness' => 80],
+        ['setting_id' => 3, 'key_name' => 'site_title', 'load_policy' => 'yes', 'freshness' => 70],
+        ['setting_id' => 4, 'key_name' => 'active_modules', 'load_policy' => 'no', 'freshness' => 60],
+        ['setting_id' => 5, 'key_name' => 'route_rules', 'load_policy' => 'no', 'freshness' => 50],
     ],
-    'wp_option_current' => [
-        ['option_name' => 'home', 'autoload' => 'yes', 'source_rank' => 2],
-        ['option_name' => 'rewrite_rules', 'autoload' => 'no', 'source_rank' => 2],
+    'app_settings_current' => [
+        ['key_name' => 'home', 'load_policy' => 'yes', 'source_rank' => 2],
+        ['key_name' => 'route_rules', 'load_policy' => 'no', 'source_rank' => 2],
     ],
 ];
 $nextTables = $currentTables;
-$nextTables['wp_options'][] = ['option_id' => 6, 'option_name' => 'plugin_alpha', 'autoload' => 'yes', 'freshness' => 95];
-$nextTables['wp_options'][] = ['option_id' => 7, 'option_name' => 'plugin_beta', 'autoload' => 'no', 'freshness' => 65];
+$nextTables['app_settings'][] = ['setting_id' => 6, 'key_name' => 'module_alpha', 'load_policy' => 'yes', 'freshness' => 95];
+$nextTables['app_settings'][] = ['setting_id' => 7, 'key_name' => 'module_beta', 'load_policy' => 'no', 'freshness' => 65];
 
 $sql = <<<'SQL'
-SELECT option_name AS name,
-       autoload,
+SELECT key_name AS name,
+       load_policy,
        row_number() OVER (
-           PARTITION BY autoload
-           ORDER BY freshness DESC, option_id
+           PARTITION BY load_policy
+           ORDER BY freshness DESC, setting_id
        ) AS source_rank
-  FROM wp_options
+  FROM app_settings
 EXCEPT
-SELECT option_name AS name,
-       autoload,
+SELECT key_name AS name,
+       load_policy,
        source_rank
-  FROM wp_option_current
+  FROM app_settings_current
  ORDER BY source_rank DESC, name
 SQL;
 
 $summary = SQLiteCompoundWindowExceptOrderCurrentSourceNextPlan::compare($sql, $currentTables, $nextTables);
 
 if (($argv[1] ?? '') === '--self-test') {
-    if (array_column($summary['currentRows'], 'name') !== ['blogname', 'active_plugins', 'siteurl']) {
+    if (array_column($summary['currentRows'], 'name') !== ['site_title', 'active_modules', 'base_url']) {
         fwrite(STDERR, "unexpected current EXCEPT/window/ORDER boundary\n");
         exit(1);
     }
-    if (array_column($summary['nextRows'], 'name') !== ['blogname', 'home', 'rewrite_rules', 'active_plugins', 'siteurl', 'plugin_alpha', 'plugin_beta']) {
+    if (array_column($summary['nextRows'], 'name') !== ['site_title', 'home', 'route_rules', 'active_modules', 'base_url', 'module_alpha', 'module_beta']) {
         fwrite(STDERR, "unexpected next EXCEPT/window/ORDER boundary\n");
         exit(1);
     }
-    if (($summary['exceptTrace']['currentRemoved'] ?? []) !== ['home', 'rewrite_rules']) {
+    if (($summary['exceptTrace']['currentRemoved'] ?? []) !== ['home', 'route_rules']) {
         fwrite(STDERR, "missing current-source EXCEPT removal diagnostic\n");
         exit(1);
     }

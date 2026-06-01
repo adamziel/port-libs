@@ -718,6 +718,41 @@ return [
             SourceMap::fromJson('{"version":3,"mappings":"A","sources":[7],"names":[]}');
         });
     },
+    'source map rejects skipped raw vlq indexes after importing tables' => static function (TestRunner $t): void {
+        $sourceOutOfRange = new SourceMap();
+        $t->throws(OutOfBoundsException::class, static function () use ($sourceOutOfRange): void {
+            $sourceOutOfRange->addVlqMap(
+                'ACAA',
+                ['known.css'],
+                ['.known{}'],
+                ['knownRule'],
+                -1,
+                0
+            );
+        });
+        $t->same(['known.css'], $sourceOutOfRange->getSources());
+        $t->same(['.known{}'], $sourceOutOfRange->getSourcesContent());
+        $t->same(['knownRule'], $sourceOutOfRange->getNames());
+        $t->same([], $sourceOutOfRange->getMappings());
+        $t->same('', $sourceOutOfRange->writeVlq());
+
+        $nameOutOfRange = new SourceMap();
+        $t->throws(OutOfBoundsException::class, static function () use ($nameOutOfRange): void {
+            $nameOutOfRange->addVlqMap(
+                'AAAAC',
+                ['named.css'],
+                ['.named{}'],
+                ['knownName'],
+                -1,
+                0
+            );
+        });
+        $t->same(['named.css'], $nameOutOfRange->getSources());
+        $t->same(['.named{}'], $nameOutOfRange->getSourcesContent());
+        $t->same(['knownName'], $nameOutOfRange->getNames());
+        $t->same([], $nameOutOfRange->getMappings());
+        $t->same('', $nameOutOfRange->writeVlq());
+    },
     'source map rejects non-list vlq import vectors like upstream' => static function (TestRunner $t): void {
         foreach ([
             '{"version":3,"mappings":"AAAA","sources":{"0":"file.css"},"names":[]}',

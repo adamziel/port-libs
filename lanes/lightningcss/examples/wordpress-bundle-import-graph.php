@@ -148,6 +148,32 @@ if (
 echo 'source-map-input: remapped' . PHP_EOL;
 echo 'source-map-input-unused: preserved' . PHP_EOL;
 
+$literalSourceMap = 'data:application/json;base64,' . base64_encode(json_encode([
+    'version' => 3,
+    'mappings' => 'AAAA',
+    'sources' => ['blocks/generated-content.scss'],
+    'sourcesContent' => ['.wp-block-button__link::before { content: $label; }'],
+    'names' => [],
+], JSON_THROW_ON_ERROR));
+$literalSourceCss = '.wp-block-button__link::before { content: "/*# sourceMappingURL=' . $literalSourceMap . ' */"; color: green }';
+$literalSourceBundle = (new CssBundler())->bundleWithSourceMap('/theme.css', [
+    '/theme.css' => '@import "blocks/generated-content.css"; .wp-site-blocks { color: red }',
+    '/blocks/generated-content.css' => $literalSourceCss,
+], null, '/');
+
+if (
+    !str_contains($literalSourceBundle['code'], 'sourceMappingURL=' . $literalSourceMap)
+    || $literalSourceBundle['sourceMap']->toArray(null, false)['sources'] !== [
+        'theme.css',
+        'blocks/generated-content.css',
+    ]
+) {
+    fwrite(STDERR, "Expected source-map-looking generated content to remain an imported CSS source\n");
+    exit(1);
+}
+
+echo 'source-map-string-literal: ignored' . PHP_EOL;
+
 $sharedPresetBundle = (new CssBundler())->bundle('style.css', [
     'style.css' => <<<'CSS'
 @import "../shared/presets.css";
