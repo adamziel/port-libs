@@ -38,6 +38,8 @@ $legacyTriggerViewDefaultMatches = static function () use ($sourceFiles, $libsql
         'opt' . 'ion_value',
         'auto' . 'load',
         'blog' . '_id',
+        'target_' . 'option',
+        'parent_' . 'option',
     ];
     $pattern = '/(?:\b' . preg_quote($prefix, '/') . '|\b(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')\b)/';
     $matches = [];

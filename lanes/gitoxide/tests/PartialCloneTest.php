@@ -452,6 +452,49 @@ return [
         $t->same('pack', $database->readHeader($returnedThemeOid)['source']);
         $t->same($returnedThemeBlob->body, (new ObjectDatabase($gitDir))->read($returnedThemeOid)->body);
     },
+    'object database readHeader refreshes promisor pack when resolver returns object after disk hydration' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $returnedStyleBlob = new GitObject('blob', 'Resolver returned block style bytes and wrote a promisor pack before header lookup');
+        $returnedStyleOid = $returnedStyleBlob->oid();
+        $resolver = new class($returnedStyleBlob, $gitDir) implements PromisorObjectResolver {
+            public array $requests = [];
+            public ?string $packName = null;
+
+            public function __construct(
+                private readonly GitObject $object,
+                private readonly string $gitDir,
+            ) {
+            }
+
+            public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+            {
+                $this->requests[] = $oid;
+                $pack = PackBuilder::build([$this->object]);
+                $packDir = $this->gitDir . '/objects/pack';
+                $basename = 'pack-' . $pack->packChecksum();
+                $this->packName = $basename . '.promisor';
+
+                file_put_contents($packDir . '/' . $basename . '.pack', $pack->packBytes());
+                file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
+                file_put_contents($packDir . '/' . $basename . '.promisor', "returned object header hydration\n");
+
+                return $this->object;
+            }
+        };
+        $database = (new ObjectDatabase($gitDir))->withPromisorResolver($resolver);
+
+        $t->same('promised-missing', $database->objectState($returnedStyleOid)['status']);
+        $t->same([
+            'type' => 'blob',
+            'size' => strlen($returnedStyleBlob->body),
+            'source' => 'pack',
+        ], $database->readHeader($returnedStyleOid));
+        $t->same([$returnedStyleOid], $resolver->requests);
+        $t->same(true, in_array($resolver->packName, $database->promisorPackNames(), true));
+        $t->same('promisor-present', $database->objectState($returnedStyleOid)['status']);
+        $t->same('pack', (new ObjectDatabase($gitDir))->readHeader($returnedStyleOid)['source']);
+        $t->same($returnedStyleBlob->body, (new ObjectDatabase($gitDir))->read($returnedStyleOid)->body);
+    },
     'object database refreshes headers after promisor resolver hydrates a pack' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir] = $writePromisorPackFixture();
         $missingConfigBlob = new GitObject('blob', 'Hydrated theme config bytes');
@@ -1277,6 +1320,14 @@ return [
         $t->same(false, in_array($summary['refreshNeverReturnedPack'], $summary['refreshNeverReturnedPromisorPacksAfter'], true));
         $t->same('promisor-present', $summary['refreshNeverReturnedFreshState']['status']);
         $t->same('pack', $summary['refreshNeverReturnedFreshHeader']['source']);
+        $t->same('promised-missing', $summary['returnedHeaderBefore']['status']);
+        $t->same([$summary['returnedHeaderObject']], $summary['returnedHeaderRequests']);
+        $t->same('pack', $summary['returnedHeader']['source']);
+        $t->same('blob', $summary['returnedHeader']['type']);
+        $t->same('promisor-present', $summary['returnedHeaderAfter']['status']);
+        $t->same(true, str_ends_with($summary['returnedHeaderPack'], '.promisor'));
+        $t->same('pack', $summary['returnedHeaderFreshHeader']['source']);
+        $t->same(true, $summary['returnedHeaderFreshBodyMatches']);
         $t->same(41, $summary['deepChainObjectCount']);
         $t->same('promisor-present', $summary['deepChainTargetBeforeGuard']['status']);
         $t->contains('REF_DELTA external base recursion limit', (string) $summary['deepChainHeaderGuardMessage']);

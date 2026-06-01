@@ -15,6 +15,36 @@ if (!mkdir($packDir, 0777, true) && !is_dir($packDir)) {
     throw new RuntimeException("Unable to create pack example directory: {$packDir}");
 }
 
+$packUInt64 = static fn (int $value): string => pack('N2', intdiv($value, 4294967296), $value % 4294967296);
+$padToFour = static fn (string $bytes): string => $bytes . str_repeat("\0", (4 - (strlen($bytes) % 4)) % 4);
+$buildEmptyMultiPackIndex = static function (array $indexNames) use ($packUInt64, $padToFour): string {
+    $packNames = '';
+    foreach ($indexNames as $indexName) {
+        $packNames .= $indexName . "\0";
+    }
+
+    $chunks = [
+        'PNAM' => $padToFour($packNames),
+        'OIDF' => str_repeat("\0", 256 * 4),
+        'OIDL' => '',
+        'OOFF' => '',
+    ];
+    $header = 'MIDX' . chr(1) . chr(1) . chr(count($chunks)) . "\0" . pack('N', count($indexNames));
+    $chunkOffset = strlen($header) + (count($chunks) + 1) * 12;
+    $table = '';
+    $body = '';
+    foreach ($chunks as $id => $chunk) {
+        $table .= $id . $packUInt64($chunkOffset);
+        $body .= $chunk;
+        $chunkOffset += strlen($chunk);
+    }
+    $table .= "\0\0\0\0" . $packUInt64($chunkOffset);
+
+    $bytes = $header . $table . $body;
+
+    return $bytes . hex2bin(hash('sha1', $bytes));
+};
+
 foreach ($fixture['packs'] as $pack) {
     file_put_contents($packDir . '/' . $pack['packName'], $pack['packBytes']);
     file_put_contents($packDir . '/' . $pack['indexName'], $pack['indexBytes']);
@@ -47,6 +77,16 @@ $alternateDuplicatePrefix = $alternateDatabase->lookupPrefix(substr($fixture['ob
 $alternateLooseCandidateOid = LooseObjectStore::fromObjectsDirectory($alternateObjectsDirectory)
     ->write(new GitObject('blob', 'midx-prefix-candidate-128814'));
 $alternateAmbiguousPrefix = $alternateDatabase->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 4), true);
+
+$emptyMidxGitDir = sys_get_temp_dir() . '/port-libs-wordpress-odb-empty-midx-' . bin2hex(random_bytes(4)) . '/.git';
+$emptyMidxPackDir = $emptyMidxGitDir . '/objects/pack';
+$writeFixtureToPackDirectory($emptyMidxPackDir);
+file_put_contents($emptyMidxPackDir . '/multi-pack-index', $buildEmptyMultiPackIndex([
+    $fixture['packs'][0]['indexName'],
+]));
+$emptyMidxDatabase = new ObjectDatabase($emptyMidxGitDir);
+$emptyMidxContentPrefix = $emptyMidxDatabase->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 8), true);
+$emptyMidxMediaPrefix = $emptyMidxDatabase->lookupPrefix(substr($fixture['objectsByRole']['media']['oid'], 0, 8), true);
 
 $database = new ObjectDatabase($gitDir);
 $content = $database->read($fixture['objectsByRole']['content']['oid']);
@@ -120,5 +160,12 @@ return [
     'alternateLooseCandidateOid' => $alternateLooseCandidateOid,
     'alternateAmbiguousPrefixStatus' => $alternateAmbiguousPrefix['status'],
     'alternateAmbiguousPrefixCandidates' => $alternateAmbiguousPrefix['candidates'],
+    'emptyMidxPackedObjects' => $emptyMidxDatabase->packedObjectCount(),
+    'emptyMidxContentPrefixStatus' => $emptyMidxContentPrefix['status'],
+    'emptyMidxContentPrefixCandidates' => $emptyMidxContentPrefix['candidates'],
+    'emptyMidxContentPresent' => $emptyMidxDatabase->contains($fixture['objectsByRole']['content']['oid']),
+    'emptyMidxMediaPrefixStatus' => $emptyMidxMediaPrefix['status'],
+    'emptyMidxMediaPrefixCandidates' => $emptyMidxMediaPrefix['candidates'],
+    'emptyMidxMediaPresent' => $emptyMidxDatabase->contains($fixture['objectsByRole']['media']['oid']),
     'packOffsetOrder' => $database->objectIds(ObjectDatabase::ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL),
 ];

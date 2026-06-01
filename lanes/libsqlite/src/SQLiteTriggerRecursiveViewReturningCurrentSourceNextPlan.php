@@ -837,7 +837,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 'depth' => $depth,
                 'trigger' => $rowTrigger['name'],
                 'source_key' => $new['key_name'] ?? null,
-                'target_option' => $rowTrigger['target'],
+                'target_setting' => $rowTrigger['target'],
                 'result' => $recursive && (bool) ($rowTrigger['recursive'] ?? true) ? 'recursive-upsert' : 'recursive-suppressed',
             ];
             $effects[] = $effect;
@@ -3623,7 +3623,7 @@ final class SQLiteTriggerRecursiveViewReturningCurrentSourceNextPlan
                 $child = $new;
                 $child[$key] = (string) $new[$key] . $childSuffix;
                 $child['key_value'] = (string) ($new['key_value'] ?? '') . $childSuffix;
-                $child['parent_option'] = $new[$key];
+                $child['parent_setting'] = $new[$key];
                 $queue[] = [$child, $ordinal, $depth + 1, 'recursive'];
             }
         }

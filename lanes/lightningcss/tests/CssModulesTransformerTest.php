@@ -3593,6 +3593,43 @@ CSS, [
         ], $invalidFallback['exports']);
         $t->same([], $invalidFallback['references']);
     },
+    'css modules scopes upstream page composes descriptors without export composition' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+@page {
+  composes: print-card from global;
+  margin: 1in;
+}
+
+@page wide {
+  composes: intro footer from "./print.css";
+  margin: 2in;
+}
+
+@page invalid {
+  composes: from global;
+}
+
+.card {
+  composes: base;
+  color: red;
+}
+
+.base {
+  color: blue;
+}
+CSS);
+
+        $t->same('@page{composes:EgL3uq_print-card from global;margin:1in}@page wide{composes:EgL3uq_intro EgL3uq_footer from "./print.css";margin:2in}@page invalid{composes:from global}.EgL3uq_card{color:red}.EgL3uq_base{color:#00f}', $result['code']);
+        $t->same([
+            'print-card' => $export('EgL3uq_print-card'),
+            'intro' => $export('EgL3uq_intro'),
+            'footer' => $export('EgL3uq_footer'),
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_card EgL3uq_base', CssModulesTransformer::exportClassList($result['exports'], 'card'));
+    },
     'css modules prunes upstream unused symbols while preserving surviving composes exports' => static function (TestRunner $t) use ($export, $local, $dependency): void {
         $css = <<<'CSS'
 @property --unused-accent {

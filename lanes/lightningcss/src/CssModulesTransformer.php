@@ -190,6 +190,10 @@ final class CssModulesTransformer
             return $this->rewritePositionTryDeclarationList($body);
         }
 
+        if (preg_match('/^@page\b/i', $prelude) === 1 && !str_contains($body, '{')) {
+            return $this->rewritePageDeclarationList($body);
+        }
+
         if (preg_match('/^@counter-style\b/i', $prelude) === 1) {
             return $this->rewriteDescriptorDeclarationList($body, false, false);
         }
@@ -1724,6 +1728,124 @@ final class CssModulesTransformer
         }
 
         return $this->rewriteDescriptorDeclarationList($body, false, true);
+    }
+
+    private function rewritePageDeclarationList(string $body): string
+    {
+        $output = '';
+        $cursor = 0;
+
+        while (($semicolon = $this->findNextTopLevel($body, ';', $cursor)) !== null) {
+            $statement = substr($body, $cursor, $semicolon - $cursor + 1);
+            $output .= $this->rewritePageDeclarationStatement($statement);
+            $cursor = $semicolon + 1;
+        }
+
+        $tail = substr($body, $cursor);
+        if (trim($tail) === '') {
+            return $output . $tail;
+        }
+
+        $rewrittenTail = $this->rewritePageDeclarationStatement($tail);
+        if (trim($rewrittenTail) !== '' && !str_ends_with(rtrim($rewrittenTail), ';')) {
+            $rewrittenTail .= ';';
+        }
+
+        return $output . $rewrittenTail;
+    }
+
+    private function rewritePageDeclarationStatement(string $statement): string
+    {
+        $trimmed = trim($statement);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $withoutSemicolon = rtrim($trimmed, ';');
+        $colon = $this->findNextTopLevel($withoutSemicolon, ':', 0);
+        if ($colon === null) {
+            return $statement;
+        }
+
+        $rawProperty = trim(substr($withoutSemicolon, 0, $colon));
+        if (!$this->isValidDeclarationPropertyName($rawProperty)) {
+            return $statement;
+        }
+
+        $property = $this->normalizedDeclarationPropertyName($rawProperty);
+        if ($property !== 'composes') {
+            $composes = [];
+
+            return $this->rewriteDeclarationStatement($statement, $composes, 1, true, false);
+        }
+
+        [$value, $priority] = $this->splitDeclarationPriority(trim(substr($withoutSemicolon, $colon + 1)));
+        $rewrittenValue = $this->rewritePageComposesDescriptorValue($value);
+        $trailingSemicolon = str_ends_with(rtrim($statement), ';') ? ';' : '';
+
+        return 'composes:' . ($rewrittenValue ?? $this->serializeInvalidComposesValue($value)) . $priority . $trailingSemicolon;
+    }
+
+    private function rewritePageComposesDescriptorValue(string $value): ?string
+    {
+        $tokens = $this->tokenizeComposesValue($value);
+        $fromIndex = null;
+        foreach ($tokens as $index => $token) {
+            $decoded = $this->isQuotedToken($token) ? null : $this->decodeCssIdentifierToken($token);
+            if ($decoded !== null && strcasecmp($decoded, 'from') === 0) {
+                $fromIndex = $index;
+                break;
+            }
+        }
+
+        $names = $tokens;
+        $suffix = '';
+
+        if ($fromIndex !== null) {
+            $names = array_slice($tokens, 0, $fromIndex);
+            $from = array_slice($tokens, $fromIndex + 1);
+            if (count($from) !== 1) {
+                return null;
+            }
+
+            $decodedFrom = $this->isQuotedToken($from[0]) ? null : $this->decodeCssIdentifierToken($from[0]);
+            if ($decodedFrom !== null && strcasecmp($decodedFrom, 'global') === 0) {
+                $suffix = ' from global';
+            } else {
+                $specifier = $this->parseQuotedSpecifier($from[0]);
+                if ($specifier === null) {
+                    return null;
+                }
+
+                $suffix = ' from ' . $this->cssStringLiteral($specifier);
+            }
+        }
+
+        if ($names === []) {
+            return null;
+        }
+
+        $rewritten = [];
+        foreach ($names as $name) {
+            $decodedName = $this->parseComposesIdent($name);
+            if ($decodedName === null) {
+                return null;
+            }
+
+            $this->ensureExport($decodedName);
+            $rewritten[] = $this->escapeCssIdentifier($this->scopedName($decodedName));
+        }
+
+        return implode(' ', $rewritten) . $suffix;
+    }
+
+    private function cssStringLiteral(string $value): string
+    {
+        return '"' . str_replace(
+            ["\\", "\"", "\n", "\r", "\f"],
+            ["\\\\", "\\\"", "\\a ", "\\d ", "\\c "],
+            $value
+        ) . '"';
     }
 
     private function rewriteDescriptorDeclarationList(

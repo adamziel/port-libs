@@ -1266,6 +1266,47 @@ return [
         $t->same(false, $database->contains($directoryCandidateOid));
         $t->same(substr($contentOid, 0, 5), $database->disambiguatePrefix(strtoupper($contentOid), 4));
     },
+    'object database lets empty multi-pack-index prefix lookup miss without integrity verification' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
+        [$gitDir, $fixture] = $writeWordPressMultiPackFixture();
+        $packDir = $gitDir . '/objects/pack';
+        $content = $fixture['objectsByRole']['content'];
+        $media = $fixture['objectsByRole']['media'];
+        $packUInt64 = static fn (int $value): string => pack('N2', intdiv($value, 4294967296), $value % 4294967296);
+        $padToFour = static fn (string $bytes): string => $bytes . str_repeat("\0", (4 - (strlen($bytes) % 4)) % 4);
+
+        $packNames = $fixture['packs'][0]['indexName'] . "\0";
+        $chunks = [
+            'PNAM' => $padToFour($packNames),
+            'OIDF' => str_repeat("\0", 256 * 4),
+            'OIDL' => '',
+            'OOFF' => '',
+        ];
+        $header = 'MIDX' . chr(1) . chr(1) . chr(count($chunks)) . "\0" . pack('N', 1);
+        $chunkOffset = strlen($header) + (count($chunks) + 1) * 12;
+        $table = '';
+        $body = '';
+        foreach ($chunks as $id => $chunk) {
+            $table .= $id . $packUInt64($chunkOffset);
+            $body .= $chunk;
+            $chunkOffset += strlen($chunk);
+        }
+        $table .= "\0\0\0\0" . $packUInt64($chunkOffset);
+        $emptyMidx = $header . $table . $body;
+        file_put_contents($packDir . '/multi-pack-index', $emptyMidx . hex2bin(hash('sha1', $emptyMidx)));
+
+        $database = new ObjectDatabase($gitDir);
+
+        $t->same(2, count($fixture['packs'][0]['objects']));
+        $t->same(2, count($fixture['packs'][1]['objects']));
+        $t->same(2, $database->packedObjectCount());
+        $t->same('missing', $database->lookupPrefix(strtoupper(substr($content['oid'], 0, 8)))['status']);
+        $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix(substr($content['oid'], 0, 8), true));
+        $t->same(false, $database->contains($content['oid']));
+        $t->same(null, $database->disambiguatePrefix(strtoupper($content['oid']), 4));
+        $t->same('found', $database->lookupPrefix(strtoupper(substr($media['oid'], 0, 8)))['status']);
+        $t->same(true, $database->contains($media['oid']));
+        $t->contains('Large media attachment metadata', $database->read($media['oid'])->body);
+    },
     'object database preserves loose case-duplicate ambiguity beside MIDX without candidate collection like gix-odb' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture, $looseObjectPath): void {
         [$gitDir, $fixture] = $writeWordPressMultiPackFixture();
         $content = $fixture['objectsByRole']['content'];
@@ -1435,6 +1476,13 @@ return [
         ];
         sort($expectedAlternateCandidates, SORT_STRING);
         $t->same($expectedAlternateCandidates, $summary['alternateAmbiguousPrefixCandidates']);
+        $t->same(2, $summary['emptyMidxPackedObjects']);
+        $t->same('missing', $summary['emptyMidxContentPrefixStatus']);
+        $t->same([], $summary['emptyMidxContentPrefixCandidates']);
+        $t->same(false, $summary['emptyMidxContentPresent']);
+        $t->same('found', $summary['emptyMidxMediaPrefixStatus']);
+        $t->same([$summary['mediaOid']], $summary['emptyMidxMediaPrefixCandidates']);
+        $t->same(true, $summary['emptyMidxMediaPresent']);
         $t->same(3, $summary['packedObjects']);
         $t->same(4, $summary['rawPackIndexObjects']);
     },

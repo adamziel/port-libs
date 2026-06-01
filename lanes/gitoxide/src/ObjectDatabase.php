@@ -156,6 +156,11 @@ final class ObjectDatabase
         if ($this->hasPromisorConfiguration()) {
             $object = $this->resolvePromisedObject($oid);
             if ($object !== null) {
+                $header = $this->tryReadLocalHeader($oid);
+                if ($header !== null) {
+                    return $header;
+                }
+
                 return self::headerFromObject($object, 'promisor');
             }
 
@@ -1250,7 +1255,11 @@ final class ObjectDatabase
             if ($index->objectHash() !== $this->objectHash) {
                 continue;
             }
-            $index->verifyIntegrityFast();
+            if ($index->count() === 0) {
+                $index->verifyChecksum();
+            } else {
+                $index->verifyIntegrityFast();
+            }
             $bundlesByIndexName = $bundlesByDirectory[$packDirectory] ?? [];
             foreach ($index->indexNames() as $indexName) {
                 if (!isset($bundlesByIndexName[$indexName])) {

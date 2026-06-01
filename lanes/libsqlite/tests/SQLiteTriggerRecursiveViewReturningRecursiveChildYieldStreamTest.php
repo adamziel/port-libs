@@ -74,6 +74,16 @@ $cases172 = [
     'admitted visible view becomes next' => [static fn (): mixed => $admitted172()['visible_view']['source'], 'main@view-cookie-172-next'],
     'before rows preserved' => [static fn (): mixed => array_column($pinned172()['before_rows'], 'key_name'), ['base_url', 'landing_url']],
     'current rows include recursive children' => [static fn (): mixed => array_column($pinned172()['current_rows'], 'key_name'), ['base_url', 'landing_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child']],
+    'current recursive children retain parent settings' => [
+        static fn (): mixed => array_map(
+            static fn (array $row): mixed => $row['parent_setting'] ?? null,
+            array_values(array_filter(
+                $pinned172()['current_rows'],
+                static fn (array $row): bool => str_contains((string) $row['key_name'], ':child')
+            ))
+        ),
+        ['base_url', 'current_module', 'base_url:child', 'current_module:child'],
+    ],
     'pinned after savepoint restores base rows' => [static fn (): mixed => array_column($pinned172()['after_savepoint'], 'key_name'), ['base_url', 'landing_url']],
     'admitted after savepoint includes current and next recursion' => [static fn (): mixed => array_column($admitted172()['after_savepoint'], 'key_name'), ['base_url', 'landing_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child', 'next_module', 'landing_url:child', 'landing_url:child:child']],
     'current returning names include update insert and recursion' => [static fn (): mixed => array_column($pinned172()['visible_returning_rows'], 'name'), ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child']],
@@ -124,7 +134,7 @@ $cases172 = [
     'depth one recursive rows count' => [static fn (): mixed => $depthOne172()['recursive_rows'], 2],
     'custom child suffix applies' => [static fn (): mixed => array_column($plan172(['child_suffix' => ':shadow'])['visible_returning_rows'], 'name'), ['base_url', 'current_module', 'base_url:shadow', 'current_module:shadow', 'base_url:shadow:shadow', 'current_module:shadow:shadow']],
     'wildcard-like direct returning value' => [static fn (): mixed => array_column($plan172([], null, null, null, null, ['key_name'])['visible_returning_rows'], 'key_name'), ['base_url', 'current_module', 'base_url:child', 'current_module:child', 'base_url:child:child', 'current_module:child:child']],
-    'spawn false suppresses recursive child' => [static fn (): mixed => array_column($plan172([], [['import_id' => 12, 'name' => 'single_option', 'value' => 'one', 'load_policy_flag' => 'no', 'spawn_child' => false]])['visible_returning_rows'], 'name'), ['single_option']],
+    'spawn false suppresses recursive child' => [static fn (): mixed => array_column($plan172([], [['import_id' => 12, 'name' => 'single_setting', 'value' => 'one', 'load_policy_flag' => 'no', 'spawn_child' => false]])['visible_returning_rows'], 'name'), ['single_setting']],
     'empty projection throws' => [static fn (): mixed => $plan172([], null, null, null, null, []), InvalidArgumentException::class],
     'bad savepoint throws' => [static fn (): mixed => $plan172(['savepoint' => 'bad savepoint']), InvalidArgumentException::class],
     'bad key throws' => [static fn (): mixed => $plan172(['key' => 'bad-key']), InvalidArgumentException::class],

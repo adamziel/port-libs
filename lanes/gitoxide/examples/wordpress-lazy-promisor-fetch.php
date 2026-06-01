@@ -249,6 +249,41 @@ $refreshNeverReturnedFreshDatabase = new ObjectDatabase($gitDir);
 $refreshNeverReturnedFreshState = $refreshNeverReturnedFreshDatabase->objectState($refreshNeverReturnedOid);
 $refreshNeverReturnedFreshHeader = $refreshNeverReturnedFreshDatabase->readHeader($refreshNeverReturnedOid);
 
+$returnedHeaderBlob = new GitObject('blob', 'Header-first resolver returned WordPress block style bytes');
+$returnedHeaderOid = $returnedHeaderBlob->oid();
+$returnedHeaderResolver = new class($returnedHeaderBlob, $gitDir) implements PromisorObjectResolver {
+    public array $requests = [];
+    public ?string $packName = null;
+
+    public function __construct(
+        private readonly GitObject $object,
+        private readonly string $gitDir,
+    ) {
+    }
+
+    public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+    {
+        $this->requests[] = $oid;
+        $pack = PackBuilder::build([$this->object]);
+        $packDir = $this->gitDir . '/objects/pack';
+        $basename = 'pack-' . $pack->packChecksum();
+        $this->packName = $basename . '.promisor';
+
+        file_put_contents($packDir . '/' . $basename . '.pack', $pack->packBytes());
+        file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
+        file_put_contents($packDir . '/' . $basename . '.promisor', "WordPress header-first returned-object hydration\n");
+
+        return $this->object;
+    }
+};
+$returnedHeaderDatabase = (new ObjectDatabase($gitDir))->withPromisorResolver($returnedHeaderResolver);
+$returnedHeaderBefore = $returnedHeaderDatabase->objectState($returnedHeaderOid);
+$returnedHeader = $returnedHeaderDatabase->readHeader($returnedHeaderOid);
+$returnedHeaderAfter = $returnedHeaderDatabase->objectState($returnedHeaderOid);
+$returnedHeaderFreshDatabase = new ObjectDatabase($gitDir);
+$returnedHeaderFreshHeader = $returnedHeaderFreshDatabase->readHeader($returnedHeaderOid);
+$returnedHeaderFreshBodyMatches = $returnedHeaderFreshDatabase->read($returnedHeaderOid)->body === $returnedHeaderBlob->body;
+
 $thinPack = PackBuilder::buildWithRefDeltas([$thinTargetBlob], [$thinBaseBlob]);
 $thinPackBase = 'pack-' . $thinPack->packChecksum();
 file_put_contents($packDir . '/' . $thinPackBase . '.pack', $thinPack->packBytes());
@@ -478,6 +513,14 @@ return [
     'refreshNeverReturnedPromisorPacksAfter' => $refreshNeverReturnedPromisorPacksAfter,
     'refreshNeverReturnedFreshState' => $refreshNeverReturnedFreshState,
     'refreshNeverReturnedFreshHeader' => $refreshNeverReturnedFreshHeader,
+    'returnedHeaderObject' => $returnedHeaderOid,
+    'returnedHeaderBefore' => $returnedHeaderBefore,
+    'returnedHeaderRequests' => $returnedHeaderResolver->requests,
+    'returnedHeaderPack' => $returnedHeaderResolver->packName,
+    'returnedHeader' => $returnedHeader,
+    'returnedHeaderAfter' => $returnedHeaderAfter,
+    'returnedHeaderFreshHeader' => $returnedHeaderFreshHeader,
+    'returnedHeaderFreshBodyMatches' => $returnedHeaderFreshBodyMatches,
     'promisorPacksAfterExternalHydration' => $database->promisorPackNames(),
     'thinPromisorPack' => $thinPackBase . '.promisor',
     'thinPromisorPackIsThin' => $thinPack->isThin(),
