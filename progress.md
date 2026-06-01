@@ -55,6 +55,31 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (AO cleanup audit + Git/CSS/SQLite
+  backlog batch 01:05 UTC): audited the user's active-session cleanup concern
+  from live tmux/process/worktree/disk evidence. There is one attached tmux
+  session (`main`) with the intentional visible pool: one supervisor, one
+  shell, and `10` live isolated Codex workers; `scripts/check-tmux-team.sh`
+  reported `10` isolated lane workers, `10` dev Codex workers, and `0` long
+  sleepers. Registered worktrees are bounded: `10` match live workers, one is
+  the integration worktree, one replay scratch was mid-integration, and the
+  older side PDO worktree is dirty so it was preserved rather than pruned. AO
+  cleanup should remove consumed scratch artifacts and stale completed
+  worktrees, not live target-capacity workers. Source commit
+  `dc6ff07aec68e1e84e6a2666ec51a11acc59324c` (`ports: extend git css sqlite
+  parity backlog`) landed nineteen screened handoffs. Verification passed
+  `git diff --check`, PHP lint on `56` changed/new PHP files, full Gitoxide
+  `40 files / 6592 assertions / 0 failures`, full LightningCSS `13 files /
+  5247 assertions / 0 failures`, focused libsqlite `6 files / 92490
+  assertions / 0 failures`, and accepted Gitoxide/LightningCSS examples. The
+  dashboard should now report Gitoxide `1690 / 2886` mapped and `6592 pass /
+  0 fail`, LightningCSS `2248 / 3532` mapped and `5247 pass / 0 fail`, and
+  libsqlite `1589 / 1589` mapped with `4572052 pass / 7 fail`. Important
+  cleanup debt remains: a stricter supervisor source audit found pre-existing
+  libsqlite `wp_` fixture strings and `CurrentSourceNext`/`CurrentNext` source
+  names; this batch introduced none, but cleanup lanes are required before
+  calling libsqlite source-neutral or complete.
+
 - 2026-06-01 supervisor continuation (AO cleanup + Git/CSS/SQLite followup
   00:45 UTC): audited the active-session concern from live tmux/process/disk
   evidence. There is still one attached tmux session (`main`), not a pile of

@@ -3423,10 +3423,10 @@
             "focusedUpstreamVeryquickShardCurrentSourceNext431": "The 2026-05-28 isolated current-source next431 suite veryquick-shard runner slice maps one additional runner-countability blocker row for launcher Base accepted HEAD fca16e3d, current integration source 8a447f44, lane-local zero-error guarded runner artifact rows, duplicate-runner gates, exact 96 focused PASS-line admission, focused current-source veryquick shard scope, and no release/all parity claim."
         }
     },
-    "latestFocusedSlice": "2026-05-31T23:55Z supervisor batch: B-tree where5 null-comparison dynamic corpus behavior and PRAGMA count_changes trigger behavior.",
-    "latestNativePhpVerification": "2026-05-31 source 1989e5a96: focused libsqlite gate 3 files / 57493 assertions / 0 failures including SQLiteNoDomainSpecificApiTest.php.",
+    "latestFocusedSlice": "2026-06-01T00:58Z supervisor batch: real upstream btree WHERE-B affinity, pager WAL savepoint2, pragma malformed leaf integrity, trigger/FK create-table validation, and windowB named CTE dynamic corpus behavior. Focused libsqlite PHP evidence is 6 files / 92490 assertions / 0 failures including SQLiteNoDomainSpecificApiTest. Mapped denominator remains 1589 / 1589; full release/all parity remains unclaimed.",
+    "latestNativePhpVerification": "not full release/all parity. Source commit dc6ff07aec68 passed git diff --check, PHP lint on 56 changed/new PHP files, focused libsqlite gate 6 files / 92490 assertions / 0 failures including SQLiteNoDomainSpecificApiTest, full Gitoxide lane 40 files / 6592 assertions / 0 failures, and full LightningCSS lane 13 files / 5247 assertions / 0 failures. A stricter supervisor source audit found pre-existing wp_ fixture text and CurrentSourceNext/CurrentNext/numbered-plan source names that remain cleanup debt; this batch introduced none.",
     "runnerStatus": "2026-05-31 supervisor batch at source 1989e5a96: focused accepted-file libsqlite gate passed 3 files / 57493 assertions / 0 failures including SQLiteNoDomainSpecificApiTest. Mapped coverage remains 1589 / 1589; release/all-runner parity remains open.",
-    "latestCommit": "1989e5a96f0f1720d0a7356738c9226ca0c6c6b8",
+    "latestCommit": "dc6ff07aec68e1e84e6a2666ec51a11acc59324c",
     "latestFocusedCorpusBatch20260531T2250Z": {
         "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
         "selectedPassIncrease": 2411,
@@ -3451,5 +3451,21 @@
         ],
         "nativeVerification": "PHP lint on changed/new libsqlite PHP files; git diff --check; focused libsqlite gate 4 files / 46433 assertions / 0 failures including SQLiteNoDomainSpecificApiTest.php; application-wal-rollback-json-dynamic-parity.php self-test passed; libsqlite source added no WordPress/wordpress/WP_/wp_ text and no CurrentSourceNext/NextNNNPlan suffix additions. Full release/all-runner parity remains open.",
         "upstreamEvidence": "hydrated SQLite upstream corpus VFS multiplex source sections plus bounded application WAL and row-value/unistr parity evidence; full release/all runner not executed for this micro-batch"
+    },
+    "latestFocusedCorpusBatch20260601T0058Z": {
+        "sourceCommit": "dc6ff07aec68e1e84e6a2666ec51a11acc59324c",
+        "selectedPassIncrease": 92490,
+        "selectedPassBefore": 4479562,
+        "selectedPassAfter": 4572052,
+        "acceptedSlices": [
+            "btree WHERE-B affinity dynamic cases",
+            "pager WAL savepoint2 dynamic cases",
+            "pragma malformed leaf integrity dynamic cases",
+            "trigger/FK create-table validation dynamic cases",
+            "windowB named CTE dynamic cases"
+        ],
+        "nativeVerification": "git diff --check; PHP lint on 56 changed/new PHP files; focused libsqlite gate 6 files / 92490 assertions / 0 failures including SQLiteNoDomainSpecificApiTest",
+        "upstreamEvidence": "hydrated SQLite upstream corpus source sections for btree, pager WAL/savepoint, pragma malformed leaf, trigger/fkey, and windowB behavior; full release/all runner not executed for this micro-batch",
+        "cleanupDebt": "pre-existing wp_ fixture strings and CurrentSourceNext/CurrentNext/numbered-plan source names remain; latest batch introduced none"
     }
 }
