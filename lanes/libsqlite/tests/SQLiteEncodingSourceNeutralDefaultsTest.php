@@ -13,62 +13,23 @@ $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
 
 $encodingSourceFiles = static function () use ($sourceRoot): array {
-    return [
-        $sourceRoot . '/SQLiteCastCollationLikeCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteCastLikeGlobAffinityCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteCastNocaseCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteCastRtrimGlobRangeCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteCastRtrimLikeCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan.php',
+    $files = [
         $sourceRoot . '/SQLiteDynamicTriggerForeignKeyPlan.php',
-        $sourceRoot . '/SQLiteEncodingAffinityLikeCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteEncodingNumericAffinityCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteEncodingCollationSourceCursor.php',
-        $sourceRoot . '/SQLiteEncodingLikeGlobSourceSwitchPlan.php',
-        $sourceRoot . '/SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteEncodingRtrimLikeGlobAffinityCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteInsertDefaultValuesSql.php',
-        $sourceRoot . '/SQLiteLikeGlobCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteMalformedLikeGlobSourceNextPlan.php',
-        $sourceRoot . '/SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteNocaseGlobAffinityCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteNocaseLikeRtrimCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteNocaseRtrimLikeCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteRtrimNocaseGlobCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteTriggerForeignKeyDynamicPlan.php',
         $sourceRoot . '/SQLiteUpsertReturningDynamicCorpusPlan.php',
-        $sourceRoot . '/SQLiteUtf16CastGlobCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16GlobRangeCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16LikeEscapeCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16LikeGlobAffinityCurrentSourceCursor.php',
-        $sourceRoot . '/SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16LikeGlobCurrentNextCursor.php',
-        $sourceRoot . '/SQLiteUtf16LikeRtrimCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16NocaseLikeCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16NocaseLikeRtrimResumeTokenCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16PatternLikeGlobAffinityCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16PatternNoCaseLikeRtrimCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16RtrimGlobCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16RtrimLikeCurrentSourceNextPlan.php',
-        $sourceRoot . '/SQLiteUtf16RtrimNocaseCurrentSourceNextPlan.php',
     ];
+
+    foreach (glob($sourceRoot . '/SQLite*.php') ?: [] as $file) {
+        $base = basename($file);
+        if (preg_match('/(?:Affinity|Blob|Cast|Collation|Encoding|Glob|Like|NoCase|Nocase|Rtrim|Utf16)/', $base) === 1) {
+            $files[] = $file;
+        }
+    }
+
+    sort($files, SORT_STRING);
+
+    return array_values(array_unique($files));
 };
 
 $encodingFixtureFiles = static function () use ($libsqliteRoot): array {
@@ -177,6 +138,17 @@ $legacyEncodingFixtureMatches = static function () use ($encodingFixtureFiles, $
 };
 
 return [
+    'encoding source neutral scan covers dynamic production inventory' => static function (TestRunner $t) use ($encodingSourceFiles, $libsqliteRoot): void {
+        $relativeFiles = array_map(
+            static fn (string $file): string => str_replace($libsqliteRoot . '/', '', $file),
+            $encodingSourceFiles()
+        );
+
+        $t->true(count($relativeFiles) >= 60, 'Expected the encoding source-neutral scan to cover the current source inventory');
+        $t->true(in_array('src/SQLiteAffinityComparison.php', $relativeFiles, true));
+        $t->true(in_array('src/SQLiteGlobCursor.php', $relativeFiles, true));
+        $t->true(in_array('src/SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan.php', $relativeFiles, true));
+    },
     'encoding source defaults use generic application setting sources' => static fn (TestRunner $t) => $t->same([], $legacyEncodingDefaultSourceMatches()),
     'encoding cursor direct fixtures use generic application setting keys' => static fn (TestRunner $t) => $t->same([], $legacyEncodingFixtureMatches()),
     'encoding default source helpers use generic application settings sources' => static function (TestRunner $t): void {
