@@ -55,6 +55,24 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (second replay intake 02:53 UTC):
+  accepted 9 source-only handoffs as source commit
+  `53a0970f151c3984527e085b92a55ef4d8b9f2a0` (`ports: replay config
+  credential css sqlite slices`) after clean replay on current pushed head.
+  The batch adds Gitoxide legacy `[remote.origin]` dot-subsection parsing for
+  `includeIf.hasconfig` plus credential next-action context decoding;
+  LightningCSS nested resolver-error import graph coverage, animation-timeline
+  CSSOM canonicalization, custom at-rule RuleExit traversal, source-map raw VLQ
+  guard, and target-prefix rule merging; and libsqlite source-neutral key-value
+  WAL import cleanup plus real upstream `trustschema1.test` PRAGMA
+  `trusted_schema` schema-function safety. Verification passed PHP lint,
+  `git diff --check`, full LightningCSS `13 files / 5657 assertions / 0
+  failures`, full Gitoxide `40 files / 7036 assertions / 0 failures`, focused
+  libsqlite `4 files / 21664 assertions / 0 failures`, and touched examples.
+  Dashboard/status should report Gitoxide `1710 / 2886` mapped and `7036 pass
+  / 0 fail`, LightningCSS `2314 / 3532` mapped and `5657 pass / 0 fail`, and
+  libsqlite `1589 / 1589` mapped with `5402399 pass / 7 fail`.
+
 - 2026-06-01 supervisor continuation (session cleanup plus replay intake
   02:48 UTC): audited tmux/process state, confirmed there is only one tmux
   session (`main`), ran the stale-session pruner with `0` stale sessions
