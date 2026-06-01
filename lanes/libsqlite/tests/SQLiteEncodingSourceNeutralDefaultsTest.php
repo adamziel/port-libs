@@ -60,6 +60,12 @@ $encodingSourceFiles = static function () use ($sourceRoot): array {
     ];
 };
 
+$encodingFixtureFiles = static function () use ($libsqliteRoot): array {
+    return [
+        $libsqliteRoot . '/tests/SQLiteEncodingCollationSourceCursorNext82Test.php',
+    ];
+};
+
 $legacyEncodingDefaultSourceMatches = static function () use ($encodingSourceFiles, $libsqliteRoot): array {
     $matches = [];
     $legacyTerms = [
@@ -103,6 +109,41 @@ $legacyEncodingDefaultSourceMatches = static function () use ($encodingSourceFil
     return $matches;
 };
 
+$legacyEncodingFixtureMatches = static function () use ($encodingFixtureFiles, $libsqliteRoot): array {
+    $matches = [];
+    $legacyTerms = [
+        'wp' . '_options',
+        'wp' . '_option',
+        'wp' . '_',
+        'opt' . 'ion_id',
+        'opt' . 'ion_name',
+        'opt' . 'ion_name_bytes',
+        'opt' . 'ion_value',
+        'opt' . 'ion_value_bytes',
+        'auto' . 'load',
+        'blog' . '_id',
+        'WP' . '_LOCALE',
+    ];
+    $legacyPattern = '/\b(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $legacyTerms)) . ')\b/';
+
+    foreach ($encodingFixtureFiles() as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+
+        if (preg_match_all($legacyPattern, $contents, $fileMatches) > 0) {
+            $relative = str_replace($libsqliteRoot . '/', '', $file);
+            foreach ($fileMatches[0] as $match) {
+                $matches[] = "{$relative}: {$match}";
+            }
+        }
+    }
+
+    return $matches;
+};
+
 return [
     'encoding source defaults use generic application setting sources' => static fn (TestRunner $t) => $t->same([], $legacyEncodingDefaultSourceMatches()),
+    'encoding cursor direct fixtures use generic application setting keys' => static fn (TestRunner $t) => $t->same([], $legacyEncodingFixtureMatches()),
 ];

@@ -20033,6 +20033,18 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             return (int) $row[$tenantColumn];
         }
 
+        /** @param array<string,mixed> $row @return array{tenantId:int,tenantColumn:?string,tenantValue:int} */
+        private static function stat4TenantProofFields(array $row, ?string $tenantColumn, string $label): array
+        {
+            $tenantValue = self::stat4TenantValueFromRow($row, $tenantColumn, $label);
+
+            return [
+                'tenantId' => $tenantValue,
+                'tenantColumn' => $tenantColumn,
+                'tenantValue' => $tenantValue,
+            ];
+        }
+
         private static function stat4TenantValueFromSample(mixed $value, string $label): int
         {
             if (!is_int($value) && !ctype_digit((string) $value)) {
@@ -22942,8 +22954,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                         'expressionKey' => self::expressionKeyCurrentSourceLimitOffsetWindowValidation($row, $keyColumn),
                         'keyColumn' => $keyColumn,
                         'keyValue' => (string) ($row[$keyColumn] ?? ''),
-                        'tenantId' => self::stat4TenantValueFromRow($row, $tenantColumn, 'next244'),
-                    ];
+                    ] + self::stat4TenantProofFields($row, $tenantColumn, 'next244');
                 }
             }
             $descending = (bool) ($index['descending'] ?? false);
@@ -23808,8 +23819,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                         'expressionKey' => self::expressionKeyStat4BoundaryPeer($row, $keyColumn),
                         'keyColumn' => $keyColumn,
                         'keyValue' => (string) ($row[$keyColumn] ?? ''),
-                        'tenantId' => self::stat4TenantValueFromRow($row, $tenantColumn, 'stat4BoundaryPeer'),
-                    ];
+                    ] + self::stat4TenantProofFields($row, $tenantColumn, 'stat4BoundaryPeer');
                 }
             }
             $descending = (bool) ($index['descending'] ?? false);

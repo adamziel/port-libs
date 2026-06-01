@@ -56,6 +56,10 @@ final class SQLiteSelectProjection
     {
         $kind = $expression['type'] ?? null;
 
+        if ($kind === 'row') {
+            throw new \InvalidArgumentException('row value misused');
+        }
+
         if ($kind === 'column' || $kind === 'literal' || $kind === 'collate' || $kind === 'function' || $kind === 'cast' || $kind === 'unary' || $kind === 'binary' || $kind === 'predicate' || $kind === 'subquery' || $kind === 'case') {
             return SQLiteSelectExpression::evaluate($row, $expression);
         }

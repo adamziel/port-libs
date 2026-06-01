@@ -259,7 +259,10 @@ return [
 
         $t->same(['key_name', 'key_name'], array_column($fence['currentWindowRows'], 'keyColumn'));
         $t->same(['Module_Zulu', 'Module_Alpha'], array_column($fence['currentWindowRows'], 'keyValue'));
+        $t->same(['tenant_id', 'tenant_id'], array_column($fence['currentWindowRows'], 'tenantColumn'));
+        $t->same([1, 1], array_column($fence['currentWindowRows'], 'tenantValue'));
         $t->same(false, array_key_exists('keyName', $fence['currentWindowRows'][0]));
+        $t->same(false, array_key_exists('blogId', $fence['currentWindowRows'][0]));
     },
     'planner stat4 boundary peer proof rows expose generic key metadata' => static function (TestRunner $t) use ($callPrivate, $genericIndex): void {
         $fence = $callPrivate(
@@ -283,7 +286,10 @@ return [
         $t->same(['module_beta'], $fence['boundaryExpressionKeys']);
         $t->same(['key_name', 'key_name'], array_column($fence['currentBoundaryPeerRows'], 'keyColumn'));
         $t->same(['Module_Beta', 'module_beta'], array_column($fence['currentBoundaryPeerRows'], 'keyValue'));
+        $t->same(['tenant_id', 'tenant_id'], array_column($fence['currentBoundaryPeerRows'], 'tenantColumn'));
+        $t->same([1, 1], array_column($fence['currentBoundaryPeerRows'], 'tenantValue'));
         $t->same(false, array_key_exists('keyName', $fence['currentBoundaryPeerRows'][0]));
+        $t->same(false, array_key_exists('blogId', $fence['currentBoundaryPeerRows'][0]));
     },
     'planner stat4 duplicate cardinality expression key uses generic key field' => static fn (TestRunner $t) => $t->same('module_cache', $callPrivate('expressionKeyCurrentSourceDuplicateCardinalityValidation', ['key_name' => 'Module_Cache'], 'key_name')),
     'planner stat4 boundary peer expression key uses generic key field' => static fn (TestRunner $t) => $t->same('module_auth', $callPrivate('expressionKeyStat4BoundaryPeer', ['key_name' => 'Module_Auth'], 'key_name')),

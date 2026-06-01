@@ -6,7 +6,7 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 $tests = [];
 
-$row = static function (int $id, string $name, int|string $encoding, string $autoload = 'yes'): array {
+$row = static function (int $id, string $name, int|string $encoding, string $loadPolicy = 'eager'): array {
     return [
         'keyBytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'textEncoding' => is_int($encoding) ? $encoding : match (strtoupper($encoding)) {
@@ -16,19 +16,19 @@ $row = static function (int $id, string $name, int|string $encoding, string $aut
             default => throw new InvalidArgumentException('bad fixture encoding'),
         },
         'rowid' => $id,
-        'payload' => ['option_id' => $id, 'option_name' => $name, 'autoload' => $autoload],
+        'payload' => ['setting_id' => $id, 'key_name' => $name, 'load_policy' => $loadPolicy],
     ];
 };
 
 $entries = [
-    $row(1, 'Plugin_Alpha', 'UTF-8', 'no'),
+    $row(1, 'Plugin_Alpha', 'UTF-8', 'lazy'),
     $row(2, 'plugin_alpha', 'UTF-16LE'),
-    $row(3, 'plugin_beta', 'UTF-16BE', 'no'),
-    $row(4, 'plugin_beta ', 'UTF-8', 'no'),
+    $row(3, 'plugin_beta', 'UTF-16BE', 'lazy'),
+    $row(4, 'plugin_beta ', 'UTF-8', 'lazy'),
     $row(5, 'plugin_100%_enabled', 'UTF-16LE'),
     $row(6, 'plugin_100x_enabled', 'UTF-16BE'),
     $row(7, 'plugin_éclair', 'UTF-8'),
-    $row(8, 'plugin_Éclair', 'UTF-16LE', 'no'),
+    $row(8, 'plugin_Éclair', 'UTF-16LE', 'lazy'),
     $row(9, 'plugin_Ωmega', 'UTF-16BE'),
     $row(10, 'plugin_😀_cache', 'UTF-16LE'),
     $row(11, 'theme_alpha', 'UTF-8'),
@@ -74,7 +74,7 @@ $planCases = [
     'glob nocase digit peer residual is true' => ['plugin_*', 'GLOB', 'NOCASE', null, false, 0, 'residualMatch', true],
     'glob unicode latin range begins literal digit candidate' => ['plugin_[À-ÿ]*', 'GLOB', 'BINARY', null, false, 0, 'currentRowid', 5],
     'glob unicode latin first ascii candidate residual false' => ['plugin_[À-ÿ]*', 'GLOB', 'BINARY', null, false, 0, 'residualMatch', false],
-    'glob emoji range current is emoji option' => ['plugin_😀*', 'GLOB', 'BINARY', null, false, 0, 'currentRowid', 10],
+    'glob emoji range current is emoji setting' => ['plugin_😀*', 'GLOB', 'BINARY', null, false, 0, 'currentRowid', 10],
     'glob emoji current utf16 bytes expose surrogate pair' => ['plugin_😀*', 'GLOB', 'BINARY', null, false, 0, 'currentBytesHex', '70006c007500670069006e005f003dd800de5f0063006100630068006500'],
     'leading wildcard like has no range' => ['%plugin', 'LIKE', 'NOCASE', null, false, 0, 'range', null],
     'leading class glob has no range' => ['[Pp]lugin_*', 'GLOB', 'BINARY', null, false, 0, 'range', null],
@@ -121,16 +121,16 @@ foreach ($matchCases as $name => [$pattern, $operator, $collation, $escape, $cas
 
 $tests['encoding collation source next82 matched rows preserve payload and source encoding'] = static function (TestRunner $t) use ($cursor): void {
     $rows = $cursor('plugin_😀%', 'LIKE', 'BINARY', null, true)->matchedRows();
-    $t->same('plugin_😀_cache', $rows[0]['payload']['option_name']);
+    $t->same('plugin_😀_cache', $rows[0]['payload']['key_name']);
     $t->same('UTF-16LE', $rows[0]['textEncoding']);
-    $t->same('yes', $rows[0]['payload']['autoload']);
+    $t->same('eager', $rows[0]['payload']['load_policy']);
 };
 
-$tests['encoding collation source next82 application option scan maps copied columns'] = static function (TestRunner $t): void {
+$tests['encoding collation source next82 application setting scan maps generic columns'] = static function (TestRunner $t): void {
     $rows = [
-        ['option_id' => 1, 'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText('plugin_100%_enabled', 'UTF-16LE'), 'text_encoding' => 2, 'autoload' => 'yes'],
-        ['option_id' => 2, 'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText('Plugin_100%_Enabled', 'UTF-8'), 'text_encoding' => 1, 'autoload' => 'no'],
-        ['option_id' => 3, 'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText('plugin_100x_enabled', 'UTF-16BE'), 'text_encoding' => 3, 'autoload' => 'yes'],
+        ['setting_id' => 1, 'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText('plugin_100%_enabled', 'UTF-16LE'), 'text_encoding' => 2, 'load_policy' => 'eager'],
+        ['setting_id' => 2, 'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText('Plugin_100%_Enabled', 'UTF-8'), 'text_encoding' => 1, 'load_policy' => 'lazy'],
+        ['setting_id' => 3, 'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText('plugin_100x_enabled', 'UTF-16BE'), 'text_encoding' => 3, 'load_policy' => 'eager'],
     ];
 
     $matched = SQLiteEncodingCollationSourceCursor::keyValueRowKeyScan($rows, 'plugin\_100\%%', 'LIKE', 'NOCASE', '\\');
@@ -167,7 +167,7 @@ $tests['encoding collation source next82 rejects unsupported operator'] = static
 };
 
 $tests['encoding collation source next82 rejects unsupported collation'] = static function (TestRunner $t) use ($entries): void {
-    $t->throws(InvalidArgumentException::class, static fn () => new SQLiteEncodingCollationSourceCursor($entries, 'p%', 'LIKE', 'WP_LOCALE'));
+    $t->throws(InvalidArgumentException::class, static fn () => new SQLiteEncodingCollationSourceCursor($entries, 'p%', 'LIKE', 'APP_LOCALE'));
 };
 
 $tests['encoding collation source next82 rejects malformed escape'] = static function (TestRunner $t) use ($entries): void {
@@ -187,7 +187,7 @@ $tests['encoding collation source next82 rejects non integer rowid'] = static fu
 };
 
 $tests['encoding collation source next82 application scan rejects missing encoding column'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationSourceCursor::keyValueRowKeyScan([['option_id' => 1, 'option_name_bytes' => 'plugin']], 'p%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationSourceCursor::keyValueRowKeyScan([['setting_id' => 1, 'key_name_bytes' => 'plugin']], 'p%'));
 };
 
 return $tests;

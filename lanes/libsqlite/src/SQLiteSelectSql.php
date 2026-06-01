@@ -121,7 +121,7 @@ final class SQLiteSelectSql
             return $plan;
         }
 
-        if (!preg_match('/^select\s+/i', $sql)) {
+        if (!self::isSelectStatement($sql)) {
             throw new \InvalidArgumentException('SQLite SELECT SQL must start with SELECT or VALUES');
         }
 
@@ -433,6 +433,11 @@ final class SQLiteSelectSql
         }
 
         return [$selectSql, false];
+    }
+
+    private static function isSelectStatement(string $sql): bool
+    {
+        return preg_match('/^select(?:\s+|\()/i', trim($sql)) === 1;
     }
 
     /**
@@ -1872,7 +1877,7 @@ final class SQLiteSelectSql
             }
             [$cteSql, $offset] = self::consumeParenthesized($sql, $offset);
             $cteSql = trim($cteSql);
-            if (!preg_match('/^(select|values)\s+/i', $cteSql)) {
+            if (!self::isSelectStatement($cteSql) && preg_match('/^values(?:\s+|\()/i', $cteSql) !== 1) {
                 throw new \InvalidArgumentException("SQLite SELECT SQL CTE {$name} body must be SELECT or VALUES");
             }
             $entries[] = ['name' => $name, 'columns' => $columns, 'sql' => $cteSql];
@@ -1884,7 +1889,7 @@ final class SQLiteSelectSql
             }
 
             $mainSql = trim(substr($sql, $offset));
-            if (!preg_match('/^(select|values)\s+/i', $mainSql)) {
+            if (!self::isSelectStatement($mainSql) && preg_match('/^values(?:\s+|\()/i', $mainSql) !== 1) {
                 throw new \InvalidArgumentException('SQLite SELECT SQL WITH clause needs a trailing SELECT or VALUES');
             }
 
@@ -4079,6 +4084,9 @@ final class SQLiteSelectSql
                 $term = ['type' => 'wildcard', 'prefix' => $prefix];
             } else {
                 $term = self::valueExpression($expression, $tables);
+                if (($term['type'] ?? null) === 'row') {
+                    throw new \InvalidArgumentException('row value misused');
+                }
                 if ($alias !== null) {
                     $term['alias'] = $alias;
                 }
@@ -4127,7 +4135,7 @@ final class SQLiteSelectSql
         }
 
         $subquerySql = trim($expression['subquerySql']);
-        if (preg_match('/^select\s+/i', $subquerySql) !== 1) {
+        if (!self::isSelectStatement($subquerySql)) {
             return null;
         }
         foreach (['FROM', 'UNION', 'INTERSECT', 'EXCEPT'] as $keyword) {
@@ -4306,7 +4314,7 @@ final class SQLiteSelectSql
             if (
                 self::unwrapParenthesizedExpression($sql) === $inner
                 && (
-                    preg_match('/^select\s+/i', $inner) === 1
+                    self::isSelectStatement($inner)
                     || preg_match('/^values(?:\s+|\()/i', $inner) === 1
                 )
             ) {
@@ -4440,7 +4448,7 @@ final class SQLiteSelectSql
 
         if (preg_match('/^(.+?)\s+(not\s+)?in\s*\((.*)\)$/i', $sql, $match) === 1) {
             $valuesSql = trim($match[3]);
-            if (preg_match('/^select\s+/i', $valuesSql) === 1) {
+            if (self::isSelectStatement($valuesSql)) {
                 $left = self::valueExpression(trim($match[1]), $tables);
 
                 return [
@@ -4720,9 +4728,13 @@ final class SQLiteSelectSql
         if (str_starts_with($sql, '(') && str_ends_with($sql, ')')) {
             $subquerySql = trim(substr($sql, 1, -1));
             if (
-                (preg_match('/^select\s+/i', $subquerySql) === 1 && self::unwrapParenthesizedExpression($sql) === $subquerySql)
+                (self::isSelectStatement($subquerySql) && self::unwrapParenthesizedExpression($sql) === $subquerySql)
                 || preg_match('/^values(?:\s+|\()/i', $subquerySql) === 1
             ) {
+                if (self::isSelectStatement($subquerySql)) {
+                    self::assertScalarSubqueryProjectionIsScalar($subquerySql);
+                }
+
                 return [
                     'type' => 'subquery',
                     'subquerySql' => $subquerySql,
@@ -4752,7 +4764,7 @@ final class SQLiteSelectSql
             return $case;
         }
 
-        if (preg_match('/^(not\s+)?exists\s*\(\s*(select\s+.+)\)$/is', $sql, $match) === 1) {
+        if (preg_match('/^(not\s+)?exists\s*\(\s*(select(?:\s+|\().+)\)$/is', $sql, $match) === 1) {
             $subquerySql = trim($match[2]);
 
             return [
@@ -5076,7 +5088,7 @@ final class SQLiteSelectSql
         }
         if (preg_match('/^(.+?)\s+(not\s+)?in\s*\((.*)\)$/is', $sql, $match) === 1) {
             $valuesSql = trim($match[3]);
-            if (preg_match('/^select\s+/i', $valuesSql) === 1) {
+            if (self::isSelectStatement($valuesSql)) {
                 $left = self::valueExpression(trim($match[1]), $tables);
 
                 return [
@@ -5211,6 +5223,35 @@ final class SQLiteSelectSql
         }
 
         return null;
+    }
+
+    private static function assertScalarSubqueryProjectionIsScalar(string $subquerySql): void
+    {
+        if (!self::isSelectStatement($subquerySql)) {
+            return;
+        }
+
+        $selectEnd = strlen($subquerySql);
+        foreach (['FROM', 'UNION', 'INTERSECT', 'EXCEPT'] as $keyword) {
+            $offset = self::keywordOffset($subquerySql, $keyword);
+            if ($offset !== null && $offset < $selectEnd) {
+                $selectEnd = $offset;
+            }
+        }
+
+        self::assertSelectListHasNoRowValueProjection(trim(substr($subquerySql, 6, $selectEnd - 6)));
+    }
+
+    private static function assertSelectListHasNoRowValueProjection(string $selectSql): void
+    {
+        [$selectSql] = self::selectModifier($selectSql);
+        foreach (self::splitTopLevel($selectSql, ',') as $term) {
+            $term = trim($term);
+            $unwrapped = self::unwrapParenthesizedExpression($term);
+            if ($unwrapped !== $term && count(self::splitTopLevel($unwrapped, ',')) > 1) {
+                throw new \InvalidArgumentException('row value misused');
+            }
+        }
     }
 
     /**
