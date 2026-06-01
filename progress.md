@@ -55,6 +55,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (Gitoxide/libsqlite intake 02:20 UTC):
+  accepted seven current/recent source handoffs on the clean integration
+  worktree after source-only apply checks and worker-log review. Source commit
+  `d29ad28c864d097d1ccab65c5a0bdf9c9a998987` (`ports: extend git path
+  transport and sqlite wal parity`) integrates Gitoxide smart HTTP proxy
+  fallback/cookie parity, sparse-checkout absolute backslash pathspecs,
+  tree/pathspec absolute-root walking, URL/refspec argument-safety/root-path
+  helpers, libsqlite `date.test` date-8 now-modifier corpus, `wal.test`
+  wal-12 reused-log prefix recovery, and application WAL rollback JSON
+  checkpoint-followup tail parity. Verification passed PHP lint for changed/new
+  PHP, `git diff --check`, full Gitoxide `40 files / 6932 assertions / 0
+  failures`, focused libsqlite/no-domain guard `4 files / 41733 assertions /
+  0 failures`, and touched examples. Dashboard/status now reports Gitoxide
+  `1707 / 2886` mapped and `6932 pass / 0 fail`, and libsqlite `1589 / 1589`
+  mapped with `5399381 pass / 7 fail`. Broad libsqlite full-lane/release
+  parity and pre-existing source-neutral cleanup debt remain open.
+
 - 2026-06-01 supervisor continuation (AO cleanup + Gitoxide/libsqlite
   integration 02:13 UTC): audited the user's active-session cleanup concern.
   There is still one attached tmux session (`main`), not duplicate live
