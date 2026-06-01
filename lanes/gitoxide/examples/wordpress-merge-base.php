@@ -171,6 +171,14 @@ $commitGraphOnlyGraphWalkBase = $commitGraphOnlyFinder->mergeBaseAgainst(
     $fixture['commitGraphOnlyPluginReview'],
     $fixture['commitGraphOnlyGraphWalkOthers'],
 );
+$equalPriorityBases = $finder->mergeBases(
+    $fixture['equalPriorityPluginMerge'],
+    $fixture['equalPriorityThemeMerge'],
+);
+$equalPriorityGraphWalkBases = $finder->mergeBasesAgainst(
+    $fixture['equalPriorityPluginMerge'],
+    [$fixture['equalPriorityThemeMerge']],
+);
 $hydratedPromisorCommits = $fixture['commits'];
 $hydratedPromisorReleaseCommit = $hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']];
 unset($hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']]);
@@ -408,6 +416,12 @@ return [
     'commitGraphOnlyAvoidsObjectReadsForGraphCommits' => $commitGraphOnlyObjectReads === [
         $fixture['commitGraphOnlyArchiveReview'],
     ],
+    'equalPriorityHeads' => $fixture['equalPriorityHeads'],
+    'equalPriorityBases' => $equalPriorityBases,
+    'equalPriorityGraphWalkBases' => $equalPriorityGraphWalkBases,
+    'equalPriorityKeepsGitBaselineOrder' => $equalPriorityBases === $fixture['equalPriorityExpectedBases']
+        && $equalPriorityGraphWalkBases === $fixture['equalPriorityExpectedBases']
+        && strcmp($fixture['equalPriorityThemeBase'], $fixture['equalPriorityContentBase']) < 0,
     'hydratedPromisorHeads' => $fixture['hydratedPromisorHeads'],
     'hydratedPromisorBeforeBases' => $hydratedPromisorBeforeBases,
     'hydratedPromisorAfterBases' => $hydratedPromisorAfterBases,

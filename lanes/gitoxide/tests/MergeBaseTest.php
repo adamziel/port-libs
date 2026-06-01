@@ -98,6 +98,41 @@ return [
         $t->same([$newerBase, $olderBase], $mergeBase->mergeBasesAgainst($leftMerge, [$rightMerge]));
         $t->same($newerBase, $mergeBase->mergeBaseAgainst($leftMerge, [$rightMerge]));
     },
+    'maps upstream equal-priority merge-base output order without object-id tie break' => static function (TestRunner $t) use ($finder): void {
+        $timedCommit = static fn (array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            'Ada <ada@example.test> 1700000000 +0000',
+            'CI <ci@example.test> 1700000000 +0000',
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ['Ada <ada@example.test> 1700000000 +0000'],
+                'committer' => ['CI <ci@example.test> 1700000000 +0000'],
+            ],
+        );
+        $root = 'd43d17cd400c476a7c51ef168ae897f1c7dbbe36';
+        $leftBase = 'c0b4a2e17a9f43d35c5c03e8d795a122086dd793';
+        $rightBase = '82bedf40fd819bd93b21908faaf07fe89e8223b5';
+        $leftMerge = '8d2b6516d0460508b0400b199aff6e9865f73c8c';
+        $rightMerge = 'ac02aff4a530bcc53dca38e5f676f6e93a584eef';
+
+        foreach ([true, false] as $useCommitGraphGenerations) {
+            $mergeBase = $finder([
+                $root => $timedCommit(),
+                $leftBase => $timedCommit([$root]),
+                $rightBase => $timedCommit([$root]),
+                $leftMerge => $timedCommit([$leftBase, $rightBase]),
+                $rightMerge => $timedCommit([$rightBase, $leftBase]),
+            ], $useCommitGraphGenerations);
+
+            $t->same([$leftBase, $rightBase], $mergeBase->mergeBases($leftMerge, $rightMerge));
+            $t->same([$leftBase, $rightBase], $mergeBase->mergeBasesAgainst($leftMerge, [$rightMerge]));
+        }
+
+        $t->same(true, strcmp($rightBase, $leftBase) < 0);
+    },
     'maps upstream graph walk without commitgraph to commit time priority' => static function (TestRunner $t) use ($finder): void {
         $oid = static fn (string $hex): string => str_repeat($hex, 20);
         $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
@@ -1366,6 +1401,11 @@ BASELINE;
         $t->same([$fixture['commitGraphOnlyArchiveReview']], $example['commitGraphOnlyObjectReads']);
         $t->same(true, $example['commitGraphOnlyBaseIsReleaseBaseline']);
         $t->same(true, $example['commitGraphOnlyAvoidsObjectReadsForGraphCommits']);
+        $t->same($fixture['equalPriorityExpectedBases'], $finder->mergeBases($fixture['equalPriorityPluginMerge'], $fixture['equalPriorityThemeMerge']));
+        $t->same($fixture['equalPriorityExpectedBases'], $finder->mergeBasesAgainst($fixture['equalPriorityPluginMerge'], [$fixture['equalPriorityThemeMerge']]));
+        $t->same($fixture['equalPriorityExpectedBases'], $example['equalPriorityBases']);
+        $t->same($fixture['equalPriorityExpectedBases'], $example['equalPriorityGraphWalkBases']);
+        $t->same(true, $example['equalPriorityKeepsGitBaselineOrder']);
         $hydratedPromisorCommits = $fixture['commits'];
         $hydratedPromisorReleaseCommit = $hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']];
         unset($hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']]);

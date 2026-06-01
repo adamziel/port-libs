@@ -37,6 +37,16 @@ $sidebandAllCapabilityExchange = ProtocolV2FetchExchange::fromPacketLines(
         return true;
     }
 );
+$interleavedSidebandAllMessages = [];
+$interleavedSidebandAllResponse = FetchResponse::fromV2PacketLines(
+    $fixture['interleavedSidebandAllResponse'],
+    true,
+    static function (bool $isError, string $text) use (&$interleavedSidebandAllMessages): bool {
+        $interleavedSidebandAllMessages[] = ['isError' => $isError, 'text' => $text];
+
+        return true;
+    }
+);
 $responseEndNoPackResponse = FetchResponse::fromV2PacketLines($fixture['responseEndNoPackResponse']);
 $responseEndPackResponse = FetchResponse::fromV2PacketLines($fixture['responseEndPackResponse']);
 $delimiterPackResponse = FetchResponse::fromV2PacketLines($fixture['delimiterPackResponse']);
@@ -211,6 +221,16 @@ return [
         ],
     'sidebandAllCapabilityExchangeMessages' => $sidebandAllCapabilityExchangeMessages,
     'sidebandAllCapabilityExchangePackTrailer' => bin2hex(substr($sidebandAllCapabilityExchange->fetchResponse()->packData(), -20)),
+    'interleavedSidebandAllParsed' => $interleavedSidebandAllResponse->hasPack()
+        && $interleavedSidebandAllResponse->packData() === $fixture['packData']
+        && $interleavedSidebandAllResponse->acknowledgements()[0]->object === $fixture['objects']['installed']
+        && $interleavedSidebandAllResponse->shallowUpdates()[0]->object === $fixture['objects']['main']
+        && $interleavedSidebandAllResponse->wantedRefs()[0]->path === 'refs/heads/main',
+    'interleavedSidebandAllProgress' => $interleavedSidebandAllResponse->progressMessages(),
+    'interleavedSidebandAllErrors' => $interleavedSidebandAllResponse->errorMessages(),
+    'interleavedSidebandAllEvents' => $interleavedSidebandAllResponse->sidebandEvents(),
+    'interleavedSidebandAllMessages' => $interleavedSidebandAllMessages,
+    'interleavedSidebandAllPackTrailer' => bin2hex(substr($interleavedSidebandAllResponse->packData(), -20)),
     'responseEndNoPackParsed' => $responseEndNoPackResponse->hasPack() === false
         && count($responseEndNoPackResponse->acknowledgements()) === 1
         && $responseEndNoPackResponse->acknowledgements()[0]->kind === 'nak'

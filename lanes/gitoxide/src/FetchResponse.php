@@ -14,6 +14,7 @@ final class FetchResponse
      * @param list<FetchWantedRef> $wantedRefs
      * @param list<string> $progressMessages
      * @param list<string> $errorMessages
+     * @param list<array{isError:bool,text:string}> $sidebandEvents
      */
     public function __construct(
         private readonly array $acknowledgements,
@@ -24,6 +25,7 @@ final class FetchResponse
         private readonly array $progressMessages = [],
         private readonly array $errorMessages = [],
         private readonly ?string $terminator = null,
+        private readonly array $sidebandEvents = [],
     ) {
     }
 
@@ -38,14 +40,15 @@ final class FetchResponse
         $wantedRefs = [];
         $progressMessages = [];
         $errorMessages = [];
+        $sidebandEvents = [];
 
         while (true) {
-            $packet = self::readV2Packet($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages, $progressHandler);
+            $packet = self::readV2Packet($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages, $sidebandEvents, $progressHandler);
             if ($packet === null) {
                 throw new \RuntimeException('fetch response: could not read message headline');
             }
             if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
-                return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $packet['kind']);
+                return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $packet['kind'], $sidebandEvents);
             }
             if ($packet['kind'] === 'delimiter') {
                 continue;
@@ -57,28 +60,28 @@ final class FetchResponse
             self::assertUtf8ProtocolLine($packet['payload']);
             $header = self::trimProtocolLineEnd($packet['payload']);
             if ($header === 'acknowledgments') {
-                $terminator = self::parseV2Section($bytes, $offset, $acknowledgements, FetchAcknowledgement::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $progressHandler);
+                $terminator = self::parseV2Section($bytes, $offset, $acknowledgements, FetchAcknowledgement::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $sidebandEvents, $progressHandler);
                 if ($terminator !== null) {
-                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator);
+                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator, $sidebandEvents);
                 }
                 continue;
             }
             if ($header === 'shallow-info') {
-                $terminator = self::parseV2Section($bytes, $offset, $shallowUpdates, FetchShallowUpdate::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $progressHandler);
+                $terminator = self::parseV2Section($bytes, $offset, $shallowUpdates, FetchShallowUpdate::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $sidebandEvents, $progressHandler);
                 if ($terminator !== null) {
-                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator);
+                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator, $sidebandEvents);
                 }
                 continue;
             }
             if ($header === 'wanted-refs') {
-                $terminator = self::parseV2Section($bytes, $offset, $wantedRefs, FetchWantedRef::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $progressHandler);
+                $terminator = self::parseV2Section($bytes, $offset, $wantedRefs, FetchWantedRef::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $sidebandEvents, $progressHandler);
                 if ($terminator !== null) {
-                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator);
+                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator, $sidebandEvents);
                 }
                 continue;
             }
             if ($header === 'packfile') {
-                $sidebands = self::decodeSidebandPacketLines($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages, $progressHandler);
+                $sidebands = self::decodeSidebandPacketLines($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages, $sidebandEvents, $progressHandler);
 
                 return new self(
                     $acknowledgements,
@@ -88,7 +91,8 @@ final class FetchResponse
                     $sidebands['packData'],
                     $progressMessages,
                     $errorMessages,
-                    $sidebands['terminator']
+                    $sidebands['terminator'],
+                    $sidebandEvents
                 );
             }
 
@@ -162,7 +166,8 @@ final class FetchResponse
             $this->packData,
             $this->progressMessages,
             $this->errorMessages,
-            $this->terminator
+            $this->terminator,
+            $this->sidebandEvents
         );
     }
 
@@ -233,6 +238,14 @@ final class FetchResponse
     }
 
     /**
+     * @return list<array{isError:bool,text:string}>
+     */
+    public function sidebandEvents(): array
+    {
+        return $this->sidebandEvents;
+    }
+
+    /**
      * @return null|'flush'|'delimiter'|'response-end'
      */
     public function terminator(): ?string
@@ -252,10 +265,11 @@ final class FetchResponse
         bool $sidebandAll,
         array &$progressMessages,
         array &$errorMessages,
+        array &$sidebandEvents,
         ?callable $progressHandler
     ): ?string {
         while (true) {
-            $packet = self::readV2Packet($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages, $progressHandler);
+            $packet = self::readV2Packet($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages, $sidebandEvents, $progressHandler);
             if ($packet === null) {
                 throw new \RuntimeException('fetch response: missing section terminator');
             }
@@ -282,13 +296,14 @@ final class FetchResponse
         bool $sidebandAll,
         array &$progressMessages,
         array &$errorMessages,
+        array &$sidebandEvents,
         ?callable $progressHandler
     ): array {
         $packData = '';
         $terminator = null;
 
         while (true) {
-            $packet = self::readV2Packet($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages, $progressHandler);
+            $packet = self::readV2Packet($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages, $sidebandEvents, $progressHandler);
             if ($packet === null) {
                 throw new \RuntimeException('fetch response: missing sideband flush packet');
             }
@@ -312,9 +327,9 @@ final class FetchResponse
             if ($sideband['band'] === 1) {
                 $packData .= $sideband['data'];
             } elseif ($sideband['band'] === 2) {
-                self::recordSidebandText(false, $sideband['data'], $progressMessages, $progressHandler);
+                self::recordSidebandText(false, $sideband['data'], $progressMessages, $sidebandEvents, $progressHandler);
             } else {
-                self::recordSidebandError($sideband['data'], $errorMessages, $progressHandler);
+                self::recordSidebandError($sideband['data'], $errorMessages, $sidebandEvents, $progressHandler);
             }
         }
 
@@ -337,6 +352,7 @@ final class FetchResponse
         bool $sidebandAll,
         array &$progressMessages,
         array &$errorMessages,
+        array &$sidebandEvents,
         ?callable $progressHandler
     ): ?array {
         while (true) {
@@ -358,22 +374,24 @@ final class FetchResponse
             }
 
             if ($sideband['band'] === 2) {
-                self::recordSidebandText(false, $sideband['data'], $progressMessages, $progressHandler);
+                self::recordSidebandText(false, $sideband['data'], $progressMessages, $sidebandEvents, $progressHandler);
                 continue;
             }
 
-            self::recordSidebandError($sideband['data'], $errorMessages, $progressHandler);
+            self::recordSidebandError($sideband['data'], $errorMessages, $sidebandEvents, $progressHandler);
         }
     }
 
     /**
      * @param list<string> $messages
+     * @param list<array{isError:bool,text:string}> $sidebandEvents
      * @param null|callable(bool, string):bool $progressHandler
      */
-    private static function recordSidebandText(bool $isError, string $data, array &$messages, ?callable $progressHandler): void
+    private static function recordSidebandText(bool $isError, string $data, array &$messages, array &$sidebandEvents, ?callable $progressHandler): void
     {
         $text = self::trimOneTrailingNewline($data);
         $messages[] = $text;
+        $sidebandEvents[] = ['isError' => $isError, 'text' => $text];
 
         if ($progressHandler !== null && $progressHandler($isError, $text) === false) {
             throw new \RuntimeException('fetch response: interrupted by user');
@@ -382,11 +400,13 @@ final class FetchResponse
 
     /**
      * @param list<string> $messages
+     * @param list<array{isError:bool,text:string}> $sidebandEvents
      * @param null|callable(bool, string):bool $progressHandler
      */
-    private static function recordSidebandError(string $data, array &$messages, ?callable $progressHandler): void
+    private static function recordSidebandError(string $data, array &$messages, array &$sidebandEvents, ?callable $progressHandler): void
     {
         if ($data === '') {
+            $sidebandEvents[] = ['isError' => true, 'text' => ''];
             if ($progressHandler !== null && $progressHandler(true, '') === false) {
                 throw new \RuntimeException('fetch response: interrupted by user');
             }
@@ -394,7 +414,7 @@ final class FetchResponse
             return;
         }
 
-        self::recordSidebandText(true, $data, $messages, $progressHandler);
+        self::recordSidebandText(true, $data, $messages, $sidebandEvents, $progressHandler);
     }
 
     /**

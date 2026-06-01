@@ -830,6 +830,52 @@ return [
             ['isError' => false, 'text' => 'Enumerating objects: 1, done.'],
         ], $calls);
     },
+    'preserves sideband-all progress and error event order between protocol v2 sections' => static function (TestRunner $t): void {
+        $fixture = require dirname(__DIR__) . '/fixtures/wordpress-protocol-v2-fetch-response.php';
+        $calls = [];
+        $response = FetchResponse::fromV2PacketLines(
+            $fixture['interleavedSidebandAllResponse'],
+            true,
+            static function (bool $isError, string $text) use (&$calls): bool {
+                $calls[] = ['isError' => $isError, 'text' => $text];
+
+                return true;
+            }
+        );
+
+        $events = [
+            ['isError' => false, 'text' => 'remote: preparing interleaved WordPress fetch'],
+            ['isError' => true, 'text' => 'remote: advisory before ACK rows'],
+            ['isError' => false, 'text' => 'remote: ACKs continue'],
+            ['isError' => true, 'text' => 'remote: shallow boundary advisory'],
+            ['isError' => false, 'text' => 'remote: wanted refs follow'],
+            ['isError' => true, 'text' => 'remote: warning before pack data'],
+            ['isError' => false, 'text' => 'Enumerating objects: 1, done.'],
+        ];
+
+        $t->same(true, $response->hasPack());
+        $t->same(FetchAcknowledgement::COMMON, $response->acknowledgements()[0]->kind);
+        $t->same($fixture['objects']['installed'], $response->acknowledgements()[0]->object);
+        $t->same(FetchAcknowledgement::READY, $response->acknowledgements()[1]->kind);
+        $t->same(FetchShallowUpdate::SHALLOW, $response->shallowUpdates()[0]->kind);
+        $t->same($fixture['objects']['main'], $response->shallowUpdates()[0]->object);
+        $t->same('refs/heads/main', $response->wantedRefs()[0]->path);
+        $t->same($fixture['packData'], $response->packData());
+        $t->same([
+            'remote: preparing interleaved WordPress fetch',
+            'remote: ACKs continue',
+            'remote: wanted refs follow',
+            'Enumerating objects: 1, done.',
+        ], $response->progressMessages());
+        $t->same([
+            'remote: advisory before ACK rows',
+            'remote: shallow boundary advisory',
+            'remote: warning before pack data',
+        ], $response->errorMessages());
+        $t->same($events, $response->sidebandEvents());
+        $t->same($events, $calls);
+        $t->same('flush', $response->terminator());
+    },
     'parses upstream v2 ref-in-want wanted-refs response with sideband pack' => static function (TestRunner $t): void {
         $fixtures = require dirname(__DIR__) . '/fixtures/upstream-gix-protocol-v2-fetch-ref-in-want-sideband.php';
         $fixture = $fixtures['refInWant'];
@@ -1148,6 +1194,29 @@ return [
             ['isError' => false, 'text' => 'Enumerating objects: 1, done.'],
         ], $summary['sidebandAllCapabilityExchangeMessages']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['sidebandAllCapabilityExchangePackTrailer']);
+        $t->same(true, $summary['interleavedSidebandAllParsed']);
+        $t->same([
+            'remote: preparing interleaved WordPress fetch',
+            'remote: ACKs continue',
+            'remote: wanted refs follow',
+            'Enumerating objects: 1, done.',
+        ], $summary['interleavedSidebandAllProgress']);
+        $t->same([
+            'remote: advisory before ACK rows',
+            'remote: shallow boundary advisory',
+            'remote: warning before pack data',
+        ], $summary['interleavedSidebandAllErrors']);
+        $t->same([
+            ['isError' => false, 'text' => 'remote: preparing interleaved WordPress fetch'],
+            ['isError' => true, 'text' => 'remote: advisory before ACK rows'],
+            ['isError' => false, 'text' => 'remote: ACKs continue'],
+            ['isError' => true, 'text' => 'remote: shallow boundary advisory'],
+            ['isError' => false, 'text' => 'remote: wanted refs follow'],
+            ['isError' => true, 'text' => 'remote: warning before pack data'],
+            ['isError' => false, 'text' => 'Enumerating objects: 1, done.'],
+        ], $summary['interleavedSidebandAllEvents']);
+        $t->same($summary['interleavedSidebandAllEvents'], $summary['interleavedSidebandAllMessages']);
+        $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['interleavedSidebandAllPackTrailer']);
         $t->same(true, $summary['responseEndNoPackParsed']);
         $t->same(true, $summary['responseEndPackParsed']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['responseEndPackTrailer']);

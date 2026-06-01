@@ -330,9 +330,11 @@ final class MergeBaseFinder
      */
     private function orderMergeBaseCandidates(array $candidates): array
     {
-        usort($candidates, function (string $left, string $right): int {
+        $originalPositions = array_flip($candidates);
+
+        usort($candidates, function (string $left, string $right) use ($originalPositions): int {
             return $this->compareCommitPriority($left, $right)
-                ?: strcmp($left, $right);
+                ?: $originalPositions[$left] <=> $originalPositions[$right];
         });
 
         return $candidates;
@@ -600,7 +602,7 @@ final class MergeBaseFinder
     }
 
     /**
-     * @param list<array{oid: string, priority: array{int, int, string}}> $queue
+     * @param list<array{oid: string, priority: array{int, int}}> $queue
      * @param array<string, int> $flagsByCommit
      */
     private function queueContainsNonStaleCommit(array $queue, array $flagsByCommit): bool
@@ -616,8 +618,8 @@ final class MergeBaseFinder
     }
 
     /**
-     * @param list<array{oid: string, priority: array{int, int, string}}> $queue
-     * @return array{oid: string, priority: array{int, int, string}}
+     * @param list<array{oid: string, priority: array{int, int}}> $queue
+     * @return array{oid: string, priority: array{int, int}}
      */
     private function popHighestPriority(array &$queue): array
     {
@@ -635,7 +637,7 @@ final class MergeBaseFinder
     }
 
     /**
-     * @return ?array{int, int, string}
+     * @return ?array{int, int}
      */
     private function walkPriorityIfPresent(string $oid): ?array
     {
@@ -647,19 +649,17 @@ final class MergeBaseFinder
         return [
             $this->useCommitGraphGenerations ? $this->graphWalkGeneration($oid) : 0,
             $commitTime,
-            $oid,
         ];
     }
 
     /**
-     * @param array{int, int, string} $left
-     * @param array{int, int, string} $right
+     * @param array{int, int} $left
+     * @param array{int, int} $right
      */
     private function compareWalkPriority(array $left, array $right): int
     {
         return $left[0] <=> $right[0]
-            ?: $left[1] <=> $right[1]
-            ?: strcmp($left[2], $right[2]);
+            ?: $left[1] <=> $right[1];
     }
 
     private function compareCommitPriority(string $left, string $right): int

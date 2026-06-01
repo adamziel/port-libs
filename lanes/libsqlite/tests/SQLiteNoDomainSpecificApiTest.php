@@ -40,6 +40,7 @@ $keyValueSourceFiles = [
     $sourceRoot . '/SQLiteKeyValueRowWritePlan.php',
     $sourceRoot . '/SQLiteMalformedTextCurrentNextCursor.php',
     $sourceRoot . '/SQLiteTenantImportSavepointPlan.php',
+    $sourceRoot . '/SQLiteTenantJsonWalSavepointPlan.php',
     $sourceRoot . '/SQLiteTenantKeyValueWalPlan.php',
     $sourceRoot . '/SQLiteUtf16CollationAffinityCursor.php',
     $sourceRoot . '/SQLiteUtf16CollationAffinitySourceSwitchPlan.php',
