@@ -2,15 +2,15 @@
     "schemaVersion": 1,
     "library": "LightningCSS",
     "estimatedProgress": 99.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS unicode-bidi target prefix browser-boundary parity. Verification passed focused PHP lint on changed files, git diff --check, changed example smoke, and full LightningCSS lane 13 files / 6998 assertions / 0 failures.",
-    "phpPass": 6998,
+    "suiteProgress": "Supervisor-integrated LightningCSS bundle import graph, CSSOM animation-composition, custom at-rule token/visitor, and media range layer parity. Verification passed focused PHP lint on changed files, git diff --check, changed example smoke, and full LightningCSS lane 13 files / 7032 assertions / 0 failures.",
+    "phpPass": 7032,
     "phpFail": 0,
-    "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics and source-map pruning, CSS Modules exports with escaped custom idents, custom at-rule selector visitors, media range fallbacks, source-map import/remap offsets, CSSOM declaration manipulation including SVG rendering keywords, grid property-value minification, nesting, unicode-bidi target prefix browser boundaries, and selector/logical target prefixing for block/theme styles without Node/WASM at runtime.",
+    "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics and source-map pruning, CSS Modules exports with escaped custom idents, custom at-rule parser/selector/function visitors, media range/layer fallbacks, source-map import/remap offsets, CSSOM declaration manipulation including animation-composition/SVG rendering keywords, grid property-value minification, nesting, unicode-bidi target prefix browser boundaries, and selector/logical target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 supervisor batch: accepted source 9b57a0640eb0 with unicode-bidi target prefix browser-boundary parity. Full LightningCSS lane passed 13 files / 6998 assertions / 0 failures; full upstream Rust/Node/WASM runners were not executed.",
-    "currentWork": "Unicode-bidi target prefix browser-boundary parity integrated on current base.",
+    "audit": "2026-06-01 supervisor batch: accepted source 88617a74195c with bundle import graph, CSSOM animation-composition, custom at-rule token/visitor, and media range layer parity. Full LightningCSS lane passed 13 files / 7032 assertions / 0 failures; full upstream Rust/Node/WASM runners were not executed.",
+    "currentWork": "Bundle import graph, CSSOM animation-composition, custom at-rule token/visitor, and media range layer parity integrated on current base.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "9b57a0640eb0ba8cc624599153e1de7e6cd0bee7",
-    "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom-at-rule, and target-prefix slices; rebase stale trigger/media handoffs before retry.",
-    "commit": "9b57a0640eb0ba8cc624599153e1de7e6cd0bee7"
+    "latestCommit": "88617a74195cc3a4a79fab5df2b2d61e155749d7",
+    "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom-at-rule, and target-prefix slices; rebase stale property-value handoffs before retry.",
+    "commit": "88617a74195cc3a4a79fab5df2b2d61e155749d7"
 }

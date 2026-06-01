@@ -1,8 +1,8 @@
 | Project | Queue | State | Progress | PHP Tests | Mapped | Remaining Gate | Commit |
 | --- | --- | --- | ---: | ---: | ---: | --- | --- |
-| [libsqlite](lanes/libsqlite/lane-status.json) | Primary | 7 failures open | 99.6% | 5,766,885 pass / 7 fail | [1,589 / 1,589](lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json) | Broad release/all still has 7 known failures | 9b57a06 |
-| [LightningCSS](lanes/lightningcss/lane-status.json) | Active | PHP green; upstream gap | 99.8% | 6,998 pass / 0 fail | [2,360 / 3,532](lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json) | Rust/Node/WASM upstream runners not run | 9b57a06 |
-| [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 96.2% | 8,324 pass / 0 fail | [1,773 / 2,886](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | Cargo workspace not run | 9b57a06 |
+| [libsqlite](lanes/libsqlite/lane-status.json) | Primary | 7 failures open | 99.6% | 5,775,902 pass / 7 fail | [1,589 / 1,589](lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json) | Broad release/all still has 7 known failures | 88617a7 |
+| [LightningCSS](lanes/lightningcss/lane-status.json) | Active | PHP green; upstream gap | 99.8% | 7,032 pass / 0 fail | [2,365 / 3,532](lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json) | Rust/Node/WASM upstream runners not run | 88617a7 |
+| [gitoxide](lanes/gitoxide/lane-status.json) | Active | High coverage | 96.2% | 8,355 pass / 0 fail | [1,776 / 2,886](lanes/gitoxide/UPSTREAM_TEST_MANIFEST.json) | Cargo workspace not run | 88617a7 |
 | [Readability/content rewrite engine](lanes/readability/lane-status.json) | Backlog | Active port | 85.0% | 154 pass / 0 fail | [1,578 / 1,984](lanes/readability/UPSTREAM_TEST_MANIFEST.json) | No local blocker | cd2e8a0 |
 | [pandoc](lanes/pandoc/lane-status.json) | Backlog | High coverage | 95.0% | 239 pass / 0 fail | [660 / 2,276](lanes/pandoc/UPSTREAM_TEST_MANIFEST.json) | No local blocker | cd2e8a0 |
 | [quadrable](lanes/quadrable/lane-status.json) | Backlog | High coverage | 98.0% | 137 pass / 0 fail | [55 / 55](lanes/quadrable/UPSTREAM_TEST_MANIFEST.json) | No local blocker | cd2e8a0 |
