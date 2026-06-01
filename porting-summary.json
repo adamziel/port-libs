@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 18:55:18 UTC",
-    "sourceCommit": "43d71b4bbe44542f5ac7314b2569830122967e6d",
-    "sourceCommitShort": "43d71b4bbe44",
+    "generated": "2026-06-01 19:00:05 UTC",
+    "sourceCommit": "91f23c84d0e8478b5fda9db860f0bfb2385032ea",
+    "sourceCommitShort": "91f23c84d0e8",
     "sourceBranch": "unknown",
-    "dashboardCommit": "43d71b4bbe44542f5ac7314b2569830122967e6d",
-    "dashboardCommitShort": "43d71b4bbe44",
+    "dashboardCommit": "91f23c84d0e8478b5fda9db860f0bfb2385032ea",
+    "dashboardCommitShort": "91f23c84d0e8",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -15,20 +15,20 @@
             "state": "16 open failures",
             "progressPercent": "99.6",
             "completion": "99.6%",
-            "suite": "mapped; current-base WAL checkpoint and VFS shared-cache corpus cover...",
-            "benchmark": "mapped; current-base WAL checkpoint and VFS shared-cache corpus cover...",
+            "suite": "mapped; current-base row-value aggregate tuple parity integrated",
+            "benchmark": "mapped; current-base row-value aggregate tuple parity integrated",
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,188,394 pass / 16 fail",
-            "phase": "current-base source integration accepted by supervisor with focused P...",
-            "audit": "2026-06-01 18:52 UTC supervisor integration: source commit efac734afc...",
-            "currentWork": "WAL checkpoint followup recovery and VFS shared-cache shared6 upstream corpus coverag...",
+            "php": "6,188,474 pass / 16 fail",
+            "phase": "current-base source integration accepted by supervisor with focused a...",
+            "audit": "2026-06-01 19:00 UTC supervisor integration: source commit 91f23c84d0...",
+            "currentWork": "Row-value aggregate tuple parity, WAL checkpoint followup recovery, and VFS shared-ca...",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "efac734"
+            "commit": "91f23c8"
         },
         {
             "lane": "lightningcss",
