@@ -1478,6 +1478,45 @@ return [
         $t->same([], $child->getNames());
         $t->same('', $child->writeVlq());
     },
+    'source map merges buffered column-drained child spans with negative offsets' => static function (TestRunner $t): void {
+        $child = new SourceMap();
+        $childSource = $child->addSource('buffered-column-drained-child.css');
+        $child->setSourceContent($childSource, ".buffered{}\n");
+        $child->addMapping(2, 0, $childSource, 2, 0, 'buffered-child-rule');
+        $child->offsetColumns(2, 1, -1);
+
+        $restoredChild = SourceMap::fromBuffer('/', $child->toBuffer());
+        $t->same(';;', $child->writeVlq());
+        $t->same(';;', $restoredChild->writeVlq());
+
+        $parent = new SourceMap();
+        $parentSource = $parent->addSource('parent.css');
+        foreach ([0, 1, 2, 3] as $line) {
+            $parent->addMapping($line, 0, $parentSource, $line, 0, 'parent' . $line);
+        }
+
+        $parent->addSourceMap($restoredChild, -1);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+        $roundTrip = SourceMap::fromBuffer('/', $parent->toBuffer());
+
+        $t->same(';;AAEAE;AACAC', $parent->writeVlq());
+        $t->same([2, 3], array_column($decoded, 'generatedLine'));
+        $t->same([0, 0], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([2, 3], array_column($decoded, 'originalLine'));
+        $t->same([2, 3], array_column($decoded, 'nameIndex'));
+        $t->same(['parent.css', 'buffered-column-drained-child.css'], $data['sources']);
+        $t->same(['', ".buffered{}\n"], $data['sourcesContent']);
+        $t->same(['parent0', 'parent1', 'parent2', 'parent3', 'buffered-child-rule'], $data['names']);
+        $t->same(null, $parent->findClosestMapping(0, 0));
+        $t->same(2, $parent->findClosestMapping(2, 0)['originalLine'] ?? null);
+        $t->same(';;AAEAE;AACAC', $roundTrip->writeVlq());
+        $t->same([], $restoredChild->getSources());
+        $t->same('', $restoredChild->writeVlq());
+        $t->same(['buffered-column-drained-child.css'], $child->getSources());
+        $t->same(['buffered-child-rule'], $child->getNames());
+    },
     'source map replaces parent mappings with empty child lines from nested maps' => static function (TestRunner $t): void {
         $parent = new SourceMap();
         $entry = $parent->addSource('entry.css');

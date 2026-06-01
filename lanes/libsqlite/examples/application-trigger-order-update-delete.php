@@ -6,45 +6,45 @@ use PortLibs\LibSqlite\SQLiteUpdateDeleteTriggerOrderPlan;
 
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
-$options = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'bytes' => 24, 'value' => 'https://example.test'],
-    ['option_id' => 2, 'option_name' => '_transient_feed', 'autoload' => 'no', 'bytes' => 12, 'value' => 'feed'],
-    ['option_id' => 3, 'option_name' => 'plugin_settings', 'autoload' => 'yes', 'bytes' => 48, 'value' => '{"enabled":true}'],
+$settings = [
+    ['setting_id' => 1, 'key_name' => 'base_url', 'load_policy' => 'yes', 'bytes' => 24, 'value' => 'https://example.test'],
+    ['setting_id' => 2, 'key_name' => 'cache_feed', 'load_policy' => 'no', 'bytes' => 12, 'value' => 'feed'],
+    ['setting_id' => 3, 'key_name' => 'module_settings', 'load_policy' => 'yes', 'bytes' => 48, 'value' => '{"enabled":true}'],
 ];
 
 $triggers = [
     [
-        'name' => 'wp_options_before_update',
+        'name' => 'app_settings_before_update',
         'timing' => 'before',
         'event' => 'update',
-        'table' => 'wp_options',
+        'table' => 'app_settings',
         'of' => ['value'],
-        'values' => ['option_id' => 'old.option_id', 'before_value' => 'old.value', 'after_value' => 'new.value'],
+        'values' => ['setting_id' => 'old.setting_id', 'before_value' => 'old.value', 'after_value' => 'new.value'],
     ],
     [
-        'name' => 'wp_options_after_delete',
+        'name' => 'app_settings_after_delete',
         'timing' => 'after',
         'event' => 'delete',
-        'table' => 'wp_options',
-        'values' => ['option_id' => 'old.option_id', 'deleted_name' => 'old.option_name'],
+        'table' => 'app_settings',
+        'values' => ['setting_id' => 'old.setting_id', 'deleted_name' => 'old.key_name'],
     ],
 ];
 
 $updated = SQLiteUpdateDeleteTriggerOrderPlan::updateRows(
-    $options,
+    $settings,
     ['value' => static fn (array $row): string => $row['value'] . ':checked'],
-    static fn (array $row): bool => $row['option_name'] === 'plugin_settings',
+    static fn (array $row): bool => $row['key_name'] === 'module_settings',
     $triggers,
 );
 
 $deleted = SQLiteUpdateDeleteTriggerOrderPlan::deleteRows(
     $updated['rows'],
-    static fn (array $row): bool => str_starts_with($row['option_name'], '_transient_'),
+    static fn (array $row): bool => str_starts_with($row['key_name'], 'cache_'),
     $triggers,
 );
 
 echo json_encode([
     'updatedAudit' => $updated['audit'],
     'deletedAudit' => $deleted['audit'],
-    'remainingOptions' => array_column($deleted['rows'], 'option_name'),
+    'remainingSettings' => array_column($deleted['rows'], 'key_name'),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

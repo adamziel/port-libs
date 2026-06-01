@@ -939,6 +939,50 @@ return [
             'wp-content/themes/twentytwentyfive/style.css',
         ], $walkPaths($records));
     },
+    'explicit nil and empty magic pathspecs inherit caller prefixes during tree walks' => static function (TestRunner $t) use ($makeTreeStore, $walkPaths): void {
+        [$root, $read] = $makeTreeStore();
+
+        $nil = PathspecSearch::fromSpecs([':'], 'wp-content/themes');
+        $t->same(true, $nil->patterns()[0]->nil);
+        $t->same('wp-content/themes', $nil->patterns()[0]->path);
+        $t->same('wp-content/themes', $nil->commonPrefix());
+        $t->same(true, $nil->canMatch('wp-content', true));
+        $t->same(false, $nil->canMatch('wp-admin', true));
+        $t->same(null, $nil->match('index.php', false));
+        $t->same(PathspecMatch::KIND_ALWAYS, $nil->match('wp-content/themes/acme/style.css', false)?->kind);
+        $t->same([
+            'wp-content/themes/acme/theme.json',
+            'wp-content/themes/acme/style.css',
+            'wp-content/themes/twentytwentyfive/style.css',
+        ], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $nil,
+            $read,
+            includeTrees: false,
+        )));
+
+        $emptyMagic = PathspecSearch::fromSpecs([':()'], 'wp-content/plugins/gutenberg');
+        $t->same('wp-content/plugins/gutenberg', $emptyMagic->patterns()[0]->path);
+        $t->same(false, $emptyMagic->patterns()[0]->nil);
+        $t->same(null, $emptyMagic->match('wp-content/plugins/akismet/akismet.php', false));
+        $t->same(PathspecMatch::KIND_PREFIX, $emptyMagic->match('wp-content/plugins/gutenberg/src/editor.js', false)?->kind);
+        $t->same([
+            'wp-content/plugins/gutenberg/block.json',
+            'wp-content/plugins/gutenberg/readme.txt',
+            'wp-content/plugins/gutenberg/build/index.js',
+            'wp-content/plugins/gutenberg/src/editor.js',
+        ], $walkPaths(TreePathspecWalk::breadthFirst(
+            $root,
+            $emptyMagic,
+            $read,
+            includeTrees: false,
+        )));
+
+        $excludePrefix = PathspecSearch::fromSpecs([':(exclude)'], 'wp-content/themes');
+        $t->same(true, $excludePrefix->isIncluded('index.php', false));
+        $t->same(false, $excludePrefix->isIncluded('wp-content/themes/acme/style.css', false));
+        $t->same(true, $excludePrefix->match('wp-content/themes/acme/style.css', false)?->isExcluded());
+    },
     'empty pathspecs without prefix match and walk every entry' => static function (TestRunner $t) use ($makeTreeStore, $walkPaths): void {
         [$root, $read] = $makeTreeStore();
         $search = PathspecSearch::fromSpecs([]);
@@ -1008,6 +1052,22 @@ return [
         $t->same(false, $example['excludeNilCanDescendIntoContent']);
         $t->same([], $example['excludeNilContentPaths']);
         $t->same([], $example['excludeNilReadPaths']);
+        $t->same('wp-content/themes', $example['prefixedNilCommonPrefix']);
+        $t->same([
+            'wp-content/themes/acme/theme.json',
+            'wp-content/themes/acme/theme.?son',
+            'wp-content/themes/acme/style.css',
+        ], $example['prefixedNilContentPaths']);
+        $t->same(true, $example['prefixedNilRootIndexSkipped']);
+        $t->same([
+            'wp-content/plugins/gutenberg/block.json',
+            'wp-content/plugins/gutenberg/block.gson',
+            'wp-content/plugins/gutenberg/build/index.js',
+            'wp-content/plugins/gutenberg/src/editor.js',
+        ], $example['prefixedEmptyMagicContentPaths']);
+        $t->same(true, $example['prefixedEmptyMagicAkismetSkipped']);
+        $t->same(true, $example['prefixedExcludeNilKeepsIndex']);
+        $t->same(true, $example['prefixedExcludeNilSkipsTheme']);
         $t->same(['wp-content/plugins/safe.php'], $example['rawComponentGuardContentPaths']);
         $t->same(['wp-content', 'wp-content/plugins'], $example['rawComponentGuardReadPaths']);
         $t->same(true, $example['rawParentComponentSkipped']);

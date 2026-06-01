@@ -9,6 +9,7 @@ return [
     'expectedRemoteUser' => 'Deploy.User',
     'expectedRemoteHost' => 'git.example.test',
     'expectedRemotePath' => '~wp-content/site.git',
+    'expectedRemoteAlternativeUrl' => 'Deploy.User@git.example.test:~wp-content/site.git',
     'expectedRemoteArgumentSafety' => [
         'user' => ['status' => 'usable', 'value' => 'Deploy.User'],
         'host' => ['status' => 'usable', 'value' => 'git.example.test'],
@@ -53,6 +54,9 @@ return [
     'expectedLocalMirrorUser' => 'Deploy',
     'expectedLocalMirrorHost' => '[::1]',
     'expectedLocalMirrorPath' => '/var/cache/wp-content/site.git',
+    'canonicalFileMirrorUrl' => 'file:///var/cache/wp-content/site.git',
+    'expectedCanonicalFileMirrorUrl' => 'file:///var/cache/wp-content/site.git',
+    'expectedCanonicalFileMirrorAlternativeUrl' => '/var/cache/wp-content/site.git',
     'homeMirrorUrl' => 'file:///~Deploy.User/wp-content/site.git',
     'expectedHomeMirrorUrl' => 'file:///~Deploy.User/wp-content/site.git',
     'expectedHomeMirrorUser' => 'Deploy.User',

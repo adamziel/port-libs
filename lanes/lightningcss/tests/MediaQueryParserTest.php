@@ -130,7 +130,10 @@ return [
     'media query parser maps upstream feature values qualifiers and lists' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 
+        $t->same('', $parser->minifyList(''));
         $t->same('screen,print', $parser->minifyList('screen, print'));
+        $t->same('screen', $parser->minifyList('screen,'));
+        $t->same('(width>=240px)', $parser->minifyList('(width >= 240px),'));
         $t->same('(hover:hover)', $parser->minifyList('(hover: hover)'));
         $t->same('(hover)', $parser->minifyList('(hover)'));
         $t->same('(aspect-ratio:11/5)', $parser->minifyList('(aspect-ratio: 11 / 5)'));
@@ -221,6 +224,10 @@ return [
         $parser = new MediaQueryParser();
         $invalid = [
             '(example, all,), speech',
+            ',screen',
+            'screen,,print',
+            'screen, ,print',
+            '(width >= 1px),,(hover)',
             '&test',
             '(min-width: hi)',
             '(width >= hi)',
@@ -474,6 +481,7 @@ return [
         $t->same('@layer blocks{@media (hover) or (100px<=width<=200px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (hover) o\\72 (100px <= w\\69 dth <= 200px) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (theme-state=expanded){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (theme\\2d state = exp\\61 nded) { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media (Theme-Breakpoint>=2) and (--WP-Breakpoint>=3){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (Theme-Breakpoint >= 2) and (--WP-Breakpoint >= 3) { .foo { color: yellow } } }'));
+        $t->same('@layer blocks{@media (width>=240px){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (width >= 240px), { .foo { color: yellow } } }'));
     },
     'css minifier treats comments as media query token separators inside layers' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
@@ -518,6 +526,8 @@ return [
             '@layer blocks { @media not screen (width >= 240px) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media only screen (width >= 240px) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media print (100px <= width <= 200px) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (width >= 240px),, (hover) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media ,screen { .wp-block-query { color: chartreuse; } } }',
         ] as $css) {
             $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify($css));
         }

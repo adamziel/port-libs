@@ -204,6 +204,22 @@ $mergedColumnDrainedChildParent->addSourceMap($mergedColumnDrainedChild, 1);
 $mergedColumnDrainedChildConsumed = $mergedColumnDrainedChild->toJson(null, false);
 $mergedColumnDrainedChildClosest = $mergedColumnDrainedChildParent->findClosestMapping(2, 0);
 
+$bufferedNegativeColumnDrainedParent = new SourceMap();
+$bufferedNegativeColumnDrainedParentSource = $bufferedNegativeColumnDrainedParent->addSource('wp-content/themes/example/source-map-buffered-negative-parent.css');
+foreach ([0, 1, 2, 3] as $line) {
+    $bufferedNegativeColumnDrainedParent->addMapping($line, 0, $bufferedNegativeColumnDrainedParentSource, $line, 0, 'buffered-negative-parent-' . $line);
+}
+$bufferedNegativeColumnDrainedChild = new SourceMap();
+$bufferedNegativeColumnDrainedChildSource = $bufferedNegativeColumnDrainedChild->addSource('wp-content/themes/example/buffered-negative-column-drained-child.css');
+$bufferedNegativeColumnDrainedChild->setSourceContent($bufferedNegativeColumnDrainedChildSource, ".wp-block-buffered-negative-column-drained{}\n");
+$bufferedNegativeColumnDrainedChild->addMapping(2, 0, $bufferedNegativeColumnDrainedChildSource, 2, 0, 'buffered-negative-column-drain-child-rule');
+$bufferedNegativeColumnDrainedChild->offsetColumns(2, 1, -1);
+$bufferedNegativeColumnDrainedChildBeforeMerge = $bufferedNegativeColumnDrainedChild->toJson(null, false);
+$bufferedNegativeColumnDrainedRestoredChild = SourceMap::fromBuffer('/', $bufferedNegativeColumnDrainedChild->toBuffer());
+$bufferedNegativeColumnDrainedParent->addSourceMap($bufferedNegativeColumnDrainedRestoredChild, -1);
+$bufferedNegativeColumnDrainedRestoredChildConsumed = $bufferedNegativeColumnDrainedRestoredChild->toJson(null, false);
+$bufferedNegativeColumnDrainedClosest = $bufferedNegativeColumnDrainedParent->findClosestMapping(0, 0);
+
 $rawLeadingSemicolonOffsetMap = new SourceMap();
 $rawLeadingSemicolonOffsetMap->addVlqMap(
     ';;AACA',
@@ -803,6 +819,10 @@ $actual = [
     'mergedColumnDrainedChildParentMap' => $mergedColumnDrainedChildParent->toJson(null, false),
     'mergedColumnDrainedChildConsumed' => $mergedColumnDrainedChildConsumed,
     'mergedColumnDrainedChildClosest' => $mergedColumnDrainedChildClosest,
+    'bufferedNegativeColumnDrainedChildBeforeMerge' => $bufferedNegativeColumnDrainedChildBeforeMerge,
+    'bufferedNegativeColumnDrainedParentMap' => $bufferedNegativeColumnDrainedParent->toJson(null, false),
+    'bufferedNegativeColumnDrainedRestoredChildConsumed' => $bufferedNegativeColumnDrainedRestoredChildConsumed,
+    'bufferedNegativeColumnDrainedClosest' => $bufferedNegativeColumnDrainedClosest,
     'rawLeadingSemicolonOffsetMap' => $rawLeadingSemicolonOffsetMap->toJson(null, false),
     'negativeChildLineOffsetMap' => $negativeChildLineOffsetParent->toJson(null, false),
     'negativeChildLineOffsetChildConsumed' => $negativeChildLineOffsetChildConsumed,
@@ -899,6 +919,10 @@ if (($argv[1] ?? null) === '--self-test') {
         'mergedColumnDrainedChildParentMap' => '{"version":3,"mappings":"AAAAA;;;","sources":["wp-content/themes/example/source-map-merge-parent.css","wp-content/themes/example/column-drained-child.css"],"sourcesContent":["",".wp-block-column-drained-child{}\n"],"names":["merged-parent-0","merged-parent-1","merged-parent-2","merged-parent-3","merged-column-drain-child-rule"]}',
         'mergedColumnDrainedChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'mergedColumnDrainedChildClosest' => null,
+        'bufferedNegativeColumnDrainedChildBeforeMerge' => '{"version":3,"mappings":";;","sources":["wp-content/themes/example/buffered-negative-column-drained-child.css"],"sourcesContent":[".wp-block-buffered-negative-column-drained{}\n"],"names":["buffered-negative-column-drain-child-rule"]}',
+        'bufferedNegativeColumnDrainedParentMap' => '{"version":3,"mappings":";;AAEAE;AACAC","sources":["wp-content/themes/example/source-map-buffered-negative-parent.css","wp-content/themes/example/buffered-negative-column-drained-child.css"],"sourcesContent":["",".wp-block-buffered-negative-column-drained{}\n"],"names":["buffered-negative-parent-0","buffered-negative-parent-1","buffered-negative-parent-2","buffered-negative-parent-3","buffered-negative-column-drain-child-rule"]}',
+        'bufferedNegativeColumnDrainedRestoredChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'bufferedNegativeColumnDrainedClosest' => null,
         'rawLeadingSemicolonOffsetMap' => '{"version":3,"mappings":";;;;GACA","sources":["wp-content/themes/example/source-map-leading-semicolon.css"],"sourcesContent":[".wp-block-leading-semicolon{}"],"names":[]}',
         'negativeChildLineOffsetMap' => '{"version":3,"mappings":";;AAEAE;AACAC","sources":["wp-content/themes/example/negative-child-parent.css","wp-content/themes/example/negative-child.css"],"sourcesContent":[],"names":["negative-child-parent-0","negative-child-parent-1","negative-child-parent-2","negative-child-parent-3","negative-child-rule"]}',
         'negativeChildLineOffsetChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',

@@ -119,6 +119,9 @@ $directoryOnlyHintPathspecs = PathspecSearch::fromSpecs([
     'wp-content/plugins/gutenberg/',
 ]);
 $excludeNilPathspecs = PathspecSearch::fromSpecs([':(exclude)']);
+$prefixedNilPathspecs = PathspecSearch::fromSpecs([':'], 'wp-content/themes');
+$prefixedEmptyMagicPathspecs = PathspecSearch::fromSpecs([':()'], 'wp-content/plugins/gutenberg');
+$prefixedExcludeNilPathspecs = PathspecSearch::fromSpecs([':(exclude)'], 'wp-content/themes');
 $rawComponentGuardPathspecs = PathspecSearch::fromSpecs([
     'wp-content/secret.php',
     'wp-content/plugins/safe.php',
@@ -304,6 +307,30 @@ $excludeNilRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$prefixedNilRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $prefixedNilPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
+$prefixedEmptyMagicRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $prefixedEmptyMagicPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 $rawComponentReadPaths = [];
 $rawComponentGuardRecords = TreePathspecWalk::breadthFirst(
     $root,
@@ -364,6 +391,13 @@ return [
     'excludeNilCanDescendIntoContent' => $excludeNilPathspecs->canMatch('wp-content', true),
     'excludeNilContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $excludeNilRecords),
     'excludeNilReadPaths' => $excludeNilReadPaths,
+    'prefixedNilCommonPrefix' => $prefixedNilPathspecs->commonPrefix(),
+    'prefixedNilContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $prefixedNilRecords),
+    'prefixedNilRootIndexSkipped' => !$prefixedNilPathspecs->isIncluded('index.php', false),
+    'prefixedEmptyMagicContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $prefixedEmptyMagicRecords),
+    'prefixedEmptyMagicAkismetSkipped' => !$prefixedEmptyMagicPathspecs->isIncluded('wp-content/plugins/akismet/akismet.php', false),
+    'prefixedExcludeNilKeepsIndex' => $prefixedExcludeNilPathspecs->isIncluded('index.php', false),
+    'prefixedExcludeNilSkipsTheme' => !$prefixedExcludeNilPathspecs->isIncluded('wp-content/themes/acme/style.css', false),
     'rawComponentGuardContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $rawComponentGuardRecords),
     'rawComponentGuardReadPaths' => $rawComponentReadPaths,
     'rawParentComponentSkipped' => $rawComponentGuardPathspecs->match('wp-content/plugins/../secret.php', false) === null,

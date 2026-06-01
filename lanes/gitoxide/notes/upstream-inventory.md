@@ -1584,3 +1584,26 @@ Reference transaction packed-delete parity slice prepared on 2026-06-01:
   `php lanes/gitoxide/examples/wordpress-reference-transaction.php` exited 0.
   Full Cargo workspace runner was not executed.
 - Expected mapped denominator movement: `1716 / 2886` to `1717 / 2886`.
+
+URL/refspec alternate serialization parity slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-url-refspec-parse-normalize-parity-20260601T040657Z`
+  on accepted base `431362468a9b0d67073256297cf9e0acadb56383` maps the
+  upstream `gix-url` writer/access boundary where canonical file and SSH URLs
+  can be rendered in alternate path/SCP-like form, while passwords, ports, and
+  non-file/non-SSH schemes retain canonical URL bytes.
+- Source truth: upstream Gitoxide `gix-url/src/lib.rs` serialization logic and
+  focused `gix-url/tests/url/parse/{file.rs,ssh.rs}` alternate-form
+  boundaries at commit `87433ed33eee9ba974111d20b854f6acb07cd4a6`.
+- Native PHP delta: `GitUrl` now exposes immutable `withAlternativeForm()`;
+  the URL/refspec fixture/example records alternate deployment remote bytes
+  and canonical local mirror path rendering without invoking Git.
+- Verification: red-first focused `UrlRefSpecTest.php` failed with missing
+  `GitUrl::withAlternativeForm()` and reported `1 file / 608 assertions / 1
+  failure`; after implementation, focused `UrlRefSpecTest.php` passed `1 file
+  / 629 assertions / 0 failures`, and full Gitoxide lane verification passed
+  `40 files / 7323 assertions / 0 failures`. PHP lint passed for changed
+  Gitoxide PHP files, and
+  `php lanes/gitoxide/examples/wordpress-url-refspec-normalize.php --self-test`
+  exited 0. Full Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1729 / 2886` to `1730 / 2886`.

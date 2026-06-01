@@ -183,6 +183,19 @@ final class GitUrl
         return $this->alternativeForm;
     }
 
+    public function withAlternativeForm(bool $alternativeForm): self
+    {
+        return new self(
+            $this->scheme,
+            $this->user,
+            $this->password,
+            $this->host,
+            $this->port,
+            $this->path,
+            $alternativeForm
+        );
+    }
+
     public function portOrDefault(): ?int
     {
         return $this->port ?? match ($this->scheme) {
@@ -690,10 +703,6 @@ final class GitUrl
 
     private function alternativeBytes(): string
     {
-        if ($this->scheme === self::SCHEME_FILE) {
-            return $this->path;
-        }
-
         $out = '';
         if ($this->user !== null) {
             $out .= $this->user . '@';
@@ -701,8 +710,11 @@ final class GitUrl
         if ($this->host !== null) {
             $out .= $this->hostForSerialization($this->host, false);
         }
+        if ($this->scheme === self::SCHEME_SSH) {
+            $out .= ':';
+        }
 
-        return $out . ':' . $this->path;
+        return $out . $this->path;
     }
 
     private function encodedPath(): string

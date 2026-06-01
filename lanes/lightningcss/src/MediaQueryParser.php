@@ -8,7 +8,7 @@ final class MediaQueryParser
 {
     public function minifyList(string $queryList, bool $allowCompactedNegation = false): string
     {
-        $queries = $this->splitTopLevel($queryList, ',');
+        $queries = $this->splitMediaQueryList($queryList);
         if ($queries === []) {
             return '';
         }
@@ -95,6 +95,76 @@ final class MediaQueryParser
         }
 
         return $this->serializeMediaQueryForCombination($qualifier, $type, $condition);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitMediaQueryList(string $queryList): array
+    {
+        if (trim($queryList) === '') {
+            return [];
+        }
+
+        $rawQueries = $this->splitTopLevelPreservingEmpty($queryList, ',');
+        $last = count($rawQueries) - 1;
+        $queries = [];
+
+        foreach ($rawQueries as $index => $query) {
+            $query = trim($query);
+            if ($query === '') {
+                if ($index === $last && $index > 0) {
+                    continue;
+                }
+
+                throw new \InvalidArgumentException('Media query list contains an empty query');
+            }
+
+            $queries[] = $query;
+        }
+
+        return $queries;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitTopLevelPreservingEmpty(string $value, string $delimiter): array
+    {
+        $parts = [''];
+        $quote = null;
+        $parenDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $parts[array_key_last($parts)] .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $parts[array_key_last($parts)] .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === $delimiter && $parenDepth === 0) {
+                $parts[] = '';
+                continue;
+            }
+
+            $parts[array_key_last($parts)] .= $char;
+        }
+
+        return $parts;
     }
 
     private function minifyQuery(string $query, bool $allowCompactedNegation): string

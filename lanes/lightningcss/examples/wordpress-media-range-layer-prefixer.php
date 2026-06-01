@@ -271,6 +271,10 @@ CSS,
             'exclude' => ['MediaRangeSyntax'],
         ]
     ),
+    'trailingCommaRangeList' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (width >= 240px), { .wp-block-query.is-trailing-comma { color: yellow; } } }',
+        ['firefox' => 60]
+    ),
 ];
 
 try {
@@ -343,6 +347,16 @@ try {
     $actual['missingAndGuard'] = 'invalid-media-query';
 }
 
+try {
+    $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (width >= 240px),, (hover) { .wp-block-query { color: chartreuse; } } }',
+        ['firefox' => 60]
+    );
+    $actual['emptyMediaListGuard'] = 'missing';
+} catch (InvalidArgumentException) {
+    $actual['emptyMediaListGuard'] = 'invalid-media-query';
+}
+
 $expected = [
     'safari15' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query{color:#7fff00}}@media (width:320px){.wp-block-query.is-exact-width{color:#ff0}}@media not screen and not (min-width:240px){.wp-block-query.is-print-narrow{color:#ff0}}@media screen and not (max-width:max(10px,1rem)){.wp-block-query.is-fluid-breakpoint{color:#ff0}}@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query.is-style-featured{color:#ff0}}@media (color) and (-webkit-min-device-pixel-ratio:2),(color) and (min-resolution:2dppx){.wp-block-query.is-density-aware{color:#ff0}}@media (min-aspect-ratio:16/9) and (not (max-color-index:2)){.wp-block-query.is-wide-color{color:#ff0}}@media (min-theme-breakpoint:2){.wp-block-query.is-custom-breakpoint{color:#ff0}}@media (theme-state:expanded){.wp-block-query.is-expanded-state{color:#ff0}}}',
     'firefox60' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query{color:#7fff00}}@media (width:320px){.wp-block-query.is-exact-width{color:#ff0}}@media not screen and not (min-width:240px){.wp-block-query.is-print-narrow{color:#ff0}}@media screen and not (max-width:max(10px,1rem)){.wp-block-query.is-fluid-breakpoint{color:#ff0}}@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query.is-style-featured{color:#ff0}}@media (color) and (min-resolution:2dppx){.wp-block-query.is-density-aware{color:#ff0}}@media (min-aspect-ratio:16/9) and (not (max-color-index:2)){.wp-block-query.is-wide-color{color:#ff0}}@media (min-theme-breakpoint:2){.wp-block-query.is-custom-breakpoint{color:#ff0}}@media (theme-state:expanded){.wp-block-query.is-expanded-state{color:#ff0}}}',
@@ -376,6 +390,7 @@ $expected = [
     'scientificRangeFallbacks' => '@layer theme.blocks{@media (min-width:1000px){.wp-block-query.is-scientific-wide{color:#ff0}}@media (min-width:100px) and (max-width:200px){.wp-block-query.is-scientific-window{color:#ff0}}@media (min-aspect-ratio:16/9){.wp-block-query.is-scientific-ratio{color:#ff0}}@media (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query.is-scientific-density{color:#ff0}}@media (min-theme-breakpoint:100px){.wp-block-query.is-scientific-token{color:#ff0}}}',
     'caseSensitiveCustomRangeFallback' => '@layer theme.blocks{@media (min-Theme-Breakpoint:2) and (min---WP-Breakpoint:3){.wp-block-query.is-custom-case{color:#ff0}}}',
     'caseSensitiveCustomRangeModern' => '@layer theme.blocks{@media Speech and (--WP-Breakpoint>=2){.wp-block-query.is-custom-speech{color:#ff0}}}',
+    'trailingCommaRangeList' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query.is-trailing-comma{color:#ff0}}}',
     'invalidRangeGuard' => 'invalid-media-query',
     'invalidIntervalGuard' => 'invalid-media-query',
     'invalidFunctionGuard' => 'invalid-media-query',
@@ -383,6 +398,7 @@ $expected = [
     'invalidIntegerCalcGuard' => 'invalid-media-query',
     'invalidResolutionCalcGuard' => 'invalid-media-query',
     'missingAndGuard' => 'invalid-media-query',
+    'emptyMediaListGuard' => 'invalid-media-query',
 ];
 
 if ($actual !== $expected) {

@@ -7,53 +7,53 @@ require __DIR__ . '/../../../tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteDmlTriggerCurrentNextPlan;
 
 $rows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => '_transient_feed', 'option_value' => 'cached', 'autoload' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'cache_feed', 'key_value' => 'cached', 'load_policy' => 'no'],
 ];
 
 $triggers = [
     [
-        'name' => 'wp_options_after_insert',
+        'name' => 'app_settings_after_insert',
         'timing' => 'after',
         'event' => 'insert',
-        'table' => 'wp_options',
-        'values' => ['phase' => 'inserted', 'rowid' => 'new.option_id', 'name' => 'new.option_name', 'value' => 'new.option_value'],
+        'table' => 'app_settings',
+        'values' => ['phase' => 'inserted', 'rowid' => 'new.setting_id', 'name' => 'new.key_name', 'value' => 'new.key_value'],
     ],
     [
-        'name' => 'wp_options_after_update',
+        'name' => 'app_settings_after_update',
         'timing' => 'after',
         'event' => 'update',
-        'table' => 'wp_options',
-        'of' => ['option_value'],
-        'values' => ['phase' => 'updated', 'rowid' => 'old.option_id', 'name' => 'old.option_name', 'old_value' => 'old.option_value', 'new_value' => 'new.option_value'],
+        'table' => 'app_settings',
+        'of' => ['key_value'],
+        'values' => ['phase' => 'updated', 'rowid' => 'old.setting_id', 'name' => 'old.key_name', 'old_value' => 'old.key_value', 'new_value' => 'new.key_value'],
     ],
     [
-        'name' => 'wp_options_after_delete',
+        'name' => 'app_settings_after_delete',
         'timing' => 'after',
         'event' => 'delete',
-        'table' => 'wp_options',
-        'values' => ['phase' => 'deleted', 'rowid' => 'old.option_id', 'name' => 'old.option_name', 'value' => 'old.option_value'],
+        'table' => 'app_settings',
+        'values' => ['phase' => 'deleted', 'rowid' => 'old.setting_id', 'name' => 'old.key_name', 'value' => 'old.key_value'],
     ],
 ];
 
 $insert = SQLiteDmlTriggerCurrentNextPlan::insertRows($rows, [
-    ['option_id' => null, 'option_name' => 'blogname', 'option_value' => 'Example Site', 'autoload' => 'yes'],
+    ['setting_id' => null, 'key_name' => 'site_title', 'key_value' => 'Example Site', 'load_policy' => 'yes'],
 ], $triggers);
 
 $update = SQLiteDmlTriggerCurrentNextPlan::updateRows(
     $insert['rows'],
-    ['option_value' => 'Example Site Updated'],
-    static fn (array $row): bool => $row['option_name'] === 'blogname',
+    ['key_value' => 'Example Site Updated'],
+    static fn (array $row): bool => $row['key_name'] === 'site_title',
     $triggers,
 );
 
 $delete = SQLiteDmlTriggerCurrentNextPlan::deleteRows(
     $update['rows'],
-    static fn (array $row): bool => $row['autoload'] === 'no',
+    static fn (array $row): bool => $row['load_policy'] === 'no',
     $triggers,
 );
 
 echo json_encode([
-    'remaining' => array_column($delete['rows'], 'option_name'),
+    'remaining' => array_column($delete['rows'], 'key_name'),
     'audit' => array_merge($insert['audit'], $update['audit'], $delete['audit']),
 ], JSON_PRETTY_PRINT) . PHP_EOL;

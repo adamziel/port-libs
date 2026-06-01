@@ -8,50 +8,50 @@ require_once __DIR__ . '/../src/SQLiteUpsertReturningTriggerPlan.php';
 use PortLibs\LibSqlite\SQLiteUpsertReturningTriggerPlan;
 
 $rows = [
-    ['option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes', 'revision' => 5, 'touched' => 'old'],
-    ['option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes', 'revision' => 2, 'touched' => 'old'],
+    ['key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes', 'revision' => 5, 'touched' => 'old'],
+    ['key_name' => 'public_url', 'key_value' => 'https://public.test', 'load_policy' => 'yes', 'revision' => 2, 'touched' => 'old'],
 ];
 
 $assignments = [
-    'option_value' => static fn (array $current, array $excluded): mixed => $excluded['option_value'],
-    'autoload' => static fn (array $current, array $excluded): mixed => $excluded['autoload'],
+    'key_value' => static fn (array $current, array $excluded): mixed => $excluded['key_value'],
+    'load_policy' => static fn (array $current, array $excluded): mixed => $excluded['load_policy'],
     'revision' => static fn (array $current, array $excluded): int => (int) $current['revision'] + (int) $excluded['revision'],
     'touched' => static fn (array $current, array $excluded): mixed => $excluded['touched'],
 ];
 
 $triggers = [[
-    'name' => 'audit_option_update',
+    'name' => 'audit_setting_update',
     'timing' => 'after',
     'event' => 'update',
-    'table' => 'wp_options',
-    'values' => ['name' => 'new.option_name', 'old_value' => 'old.option_value', 'new_value' => 'new.option_value'],
+    'table' => 'app_settings',
+    'values' => ['name' => 'new.key_name', 'old_value' => 'old.key_value', 'new_value' => 'new.key_value'],
     'mutate_target' => true,
     'set' => ['touched' => 'after-trigger'],
 ], [
-    'name' => 'audit_option_insert',
+    'name' => 'audit_setting_insert',
     'timing' => 'after',
     'event' => 'insert',
-    'table' => 'wp_options',
-    'values' => ['name' => 'new.option_name', 'new_value' => 'new.option_value'],
+    'table' => 'app_settings',
+    'values' => ['name' => 'new.key_name', 'new_value' => 'new.key_value'],
 ]];
 
 $result = SQLiteUpsertReturningTriggerPlan::execute(
     $rows,
     [
-        ['option_name' => 'siteurl', 'option_value' => 'https://new.test', 'autoload' => 'yes', 'revision' => 1, 'touched' => 'statement'],
-        ['option_name' => 'new_plugin', 'option_value' => 'enabled', 'autoload' => 'no', 'revision' => 1, 'touched' => 'statement'],
+        ['key_name' => 'base_url', 'key_value' => 'https://new.test', 'load_policy' => 'yes', 'revision' => 1, 'touched' => 'statement'],
+        ['key_name' => 'new_module', 'key_value' => 'enabled', 'load_policy' => 'no', 'revision' => 1, 'touched' => 'statement'],
     ],
-    ['option_name'],
+    ['key_name'],
     $assignments,
     $triggers,
     null,
-    [['option_name']],
+    [['key_name']],
 );
 
 $payload = [
     'scenario' => 'application-upsert-returning-trigger-current',
-    'applicationUse' => 'Preview copied wp_options UPSERT RETURNING rows alongside INSERT/UPDATE trigger audit effects, preserving SQLite current-row RETURNING values before AFTER-trigger target mutations without requiring ext/sqlite.',
-    'returningNames' => array_column($result['returning_rows'], 'option_name'),
+    'applicationUse' => 'Preview copied app_settings UPSERT RETURNING rows alongside INSERT/UPDATE trigger audit effects, preserving SQLite current-row RETURNING values before AFTER-trigger target mutations without requiring ext/sqlite.',
+    'returningNames' => array_column($result['returning_rows'], 'key_name'),
     'returningTouched' => array_column($result['returning_rows'], 'touched'),
     'afterTouched' => array_column($result['after'], 'touched'),
     'triggerNames' => array_column($result['trigger_effects'], 'trigger'),
@@ -59,10 +59,10 @@ $payload = [
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($payload['returningNames'] === ['siteurl', 'new_plugin']);
+    assert($payload['returningNames'] === ['base_url', 'new_module']);
     assert($payload['returningTouched'] === ['statement', 'statement']);
     assert($payload['afterTouched'][0] === 'after-trigger');
-    assert($payload['triggerNames'] === ['audit_option_update', 'audit_option_insert']);
+    assert($payload['triggerNames'] === ['audit_setting_update', 'audit_setting_insert']);
     assert($payload['changes'] === 2);
 }
 

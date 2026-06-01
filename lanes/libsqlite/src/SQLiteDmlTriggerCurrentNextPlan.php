@@ -15,7 +15,7 @@ final class SQLiteDmlTriggerCurrentNextPlan
         array $rows,
         array $inputRows,
         array $triggers,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         self::validateIdentifier($rowIdColumn, 'rowid column');
         $rows = array_values($rows);
@@ -57,7 +57,7 @@ final class SQLiteDmlTriggerCurrentNextPlan
         array $triggers,
         array $orderBy = [],
         ?int $limit = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         self::validateIdentifier($rowIdColumn, 'rowid column');
         self::validateAssignments($assignments);
@@ -95,7 +95,7 @@ final class SQLiteDmlTriggerCurrentNextPlan
         array $triggers,
         array $orderBy = [],
         ?int $limit = null,
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
         self::validateIdentifier($rowIdColumn, 'rowid column');
         $rows = array_values($rows);
@@ -336,7 +336,7 @@ final class SQLiteDmlTriggerCurrentNextPlan
         if (!in_array(strtolower((string) ($trigger['event'] ?? '')), ['insert', 'update', 'delete'], true)) {
             throw new \InvalidArgumentException('SQLite DML trigger event is unsupported');
         }
-        if (($trigger['table'] ?? null) !== 'wp_options') {
+        if (($trigger['table'] ?? null) !== 'app_settings') {
             throw new \InvalidArgumentException('SQLite DML trigger target table is unsupported');
         }
         if (isset($trigger['of'])) {

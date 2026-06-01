@@ -209,6 +209,42 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => $url->withUser("bad\xFF"));
         $t->throws(InvalidArgumentException::class, static fn () => $url->withPassword("bad\xFF"));
     },
+    'git url toggles alternate serialization like gix-url serialize_alternate_form' => static function (TestRunner $t): void {
+        $file = GitUrl::parse('file:///var/cache/wp-content/site.git');
+        $fileAlternate = $file->withAlternativeForm(true);
+        $t->same(false, $file->usesAlternativeForm());
+        $t->same(true, $fileAlternate->usesAlternativeForm());
+        $t->same('file:///var/cache/wp-content/site.git', $file->toBytes(), 'canonical file URL remains unchanged');
+        $t->same('/var/cache/wp-content/site.git', $fileAlternate->toBytes(), 'file URL alternate form writes a path');
+        $t->same('/var/cache/wp-content/site.git', $fileAlternate->display());
+
+        $localPath = GitUrl::parse('/var/cache/wp-content/site.git');
+        $localCanonical = $localPath->withAlternativeForm(false);
+        $t->same(true, $localPath->usesAlternativeForm());
+        $t->same(false, $localCanonical->usesAlternativeForm());
+        $t->same('/var/cache/wp-content/site.git', $localPath->toBytes());
+        $t->same('file:///var/cache/wp-content/site.git', $localCanonical->toBytes());
+
+        $ssh = GitUrl::parse('ssh://deploy@git.example.test/~wp-content/site.git');
+        $sshAlternate = $ssh->withAlternativeForm(true);
+        $t->same(false, $ssh->usesAlternativeForm());
+        $t->same(true, $sshAlternate->usesAlternativeForm());
+        $t->same('ssh://deploy@git.example.test/~wp-content/site.git', $ssh->toBytes());
+        $t->same('deploy@git.example.test:~wp-content/site.git', $sshAlternate->toBytes());
+
+        $absoluteSsh = GitUrl::parse('ssh://deploy@git.example.test/var/git/site.git');
+        $t->same('deploy@git.example.test:/var/git/site.git', $absoluteSsh->withAlternativeForm(true)->toBytes());
+
+        $passwordSsh = GitUrl::parse('ssh://deploy:secret@git.example.test/site.git')->withAlternativeForm(true);
+        $t->same('ssh://deploy:secret@git.example.test/site.git', $passwordSsh->toBytes(), 'passwords require canonical URL form');
+        $t->same('ssh://deploy:redacted@git.example.test/site.git', $passwordSsh->display());
+
+        $portSsh = GitUrl::parse('ssh://git.example.test:2222/site.git')->withAlternativeForm(true);
+        $t->same('ssh://git.example.test:2222/site.git', $portSsh->toBytes(), 'ports require canonical URL form');
+
+        $https = GitUrl::parse('https://git.example.test/wp-content/site.git')->withAlternativeForm(true);
+        $t->same('https://git.example.test/wp-content/site.git', $https->toBytes(), 'non-file non-SSH schemes ignore alternate serialization');
+    },
     'git url rejects invalid utf8 in url and scp forms while keeping raw local paths byte-safe' => static function (TestRunner $t): void {
         $internationalPath = GitUrl::parse('https://example.com/caf%C3%A9');
         $t->same("/caf\xC3\xA9", $internationalPath->path());
@@ -807,6 +843,7 @@ return [
         $t->same($fixture['expectedRemoteHost'], $summary['remote']['host']);
         $t->same($fixture['expectedRemotePath'], $summary['remote']['path']);
         $t->same($fixture['expectedRemoteUrl'], $summary['remote']['normalized']);
+        $t->same($fixture['expectedRemoteAlternativeUrl'], $summary['remoteAlternativeUrl']);
         $t->same($fixture['expectedEmptyPortRemoteHost'], $summary['emptyPortRemote']['host']);
         $t->same($fixture['expectedEmptyPortRemotePath'], $summary['emptyPortRemote']['path']);
         $t->same($fixture['expectedEmptyPortRemoteUrl'], $summary['emptyPortRemote']['normalized']);
@@ -815,6 +852,8 @@ return [
         $t->same($fixture['expectedLocalMirrorHost'], $summary['localMirror']['host']);
         $t->same($fixture['expectedLocalMirrorPath'], $summary['localMirror']['path']);
         $t->same($fixture['expectedLocalMirrorUrl'], $summary['localMirror']['normalized']);
+        $t->same($fixture['expectedCanonicalFileMirrorUrl'], $summary['canonicalFileMirror']['normalized']);
+        $t->same($fixture['expectedCanonicalFileMirrorAlternativeUrl'], $summary['canonicalFileMirrorAlternativeUrl']);
         $t->same($fixture['expectedHomeMirrorUrl'], $summary['homeMirror']['normalized']);
         $t->same($fixture['expectedHomeMirrorUser'], $summary['homeMirrorHome']['user']);
         $t->same($fixture['expectedHomeMirrorTail'], $summary['homeMirrorHome']['path']);

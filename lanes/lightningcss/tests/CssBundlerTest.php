@@ -1429,6 +1429,7 @@ CSS,
             throw new RuntimeException('Expected repeated anonymous layer combination exception');
         }
 
+        $rejectedNestedAnonymousLayer = false;
         try {
             $bundle([
                 '/a.css' => '@import "b.css" layer; .a { color: red }',
@@ -1440,11 +1441,30 @@ CSS,
             $t->same('/b.css', $exception->sourceFile);
             $t->same(1, $exception->sourceLine);
             $t->same(1, $exception->sourceColumn);
+            $rejectedNestedAnonymousLayer = true;
+        }
+
+        if (!$rejectedNestedAnonymousLayer) {
+            throw new RuntimeException('Expected unsupported anonymous layer combination exception');
+        }
+
+        try {
+            $bundle([
+                '/a.css' => '@import "b.css" layer; .a { color: red }',
+                '/b.css' => '@import "c.css" layer(foo); .b { color: green }',
+                '/c.css' => '.c { color: green }',
+            ], '/a.css');
+        } catch (CssBundleException $exception) {
+            $t->same('unsupported-layer-combination', $exception->kind);
+            $t->same('Unsupported layer combination in @import', $exception->getMessage());
+            $t->same('/b.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
 
             return;
         }
 
-        throw new RuntimeException('Expected unsupported anonymous layer combination exception');
+        throw new RuntimeException('Expected unsupported named child layer under anonymous parent exception');
     },
     'css bundler preserves escaped import layer names through graph composition' => static function (TestRunner $t) use ($bundle): void {
         $t->same(

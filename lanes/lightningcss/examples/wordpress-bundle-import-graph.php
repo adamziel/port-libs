@@ -673,6 +673,39 @@ if ($escapedLayerBundle !== '@layer plugin\\.cards.palette\\,dark{:root{--wp--pr
 
 echo 'escaped-layer-imports: preserved' . PHP_EOL;
 
+$anonymousChildLayerReads = [];
+try {
+    (new CssBundler())->bundleWithReader(
+        '/anonymous-child-layer.css',
+        static function (string $file) use (&$anonymousChildLayerReads): string {
+            $anonymousChildLayerReads[] = $file;
+
+            return match ($file) {
+                '/anonymous-child-layer.css' => '@import "blocks/card.css" layer; .wp-site-blocks { color: red }',
+                '/blocks/card.css' => '@import "../tokens.css" layer(theme.tokens); .wp-block-card { color: green }',
+                default => throw new RuntimeException("Unexpected anonymous layer fixture read {$file}"),
+            };
+        }
+    );
+
+    fwrite(STDERR, "Expected nested named layer under anonymous block import to be rejected\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'unsupported-layer-combination'
+        || $exception->getMessage() !== 'Unsupported layer combination in @import'
+        || $exception->sourceFile !== '/blocks/card.css'
+        || $exception->sourceLine !== 1
+        || $exception->sourceColumn !== 1
+        || $anonymousChildLayerReads !== ['/anonymous-child-layer.css', '/blocks/card.css']
+    ) {
+        fwrite(STDERR, 'Unexpected anonymous child layer diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+}
+
+echo 'anonymous-child-layer: rejected-before-child-read' . PHP_EOL;
+
 try {
     (new CssBundler())->bundle('/broken-theme.css', [
         '/broken-theme.css' => '.wp-site-blocks { color: red } @import "tokens.css";',

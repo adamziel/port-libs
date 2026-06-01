@@ -260,6 +260,10 @@ final class PathspecSearch
     private static function normalizePattern(PathspecPattern $pattern, string $prefix, string $root): PathspecPattern
     {
         if ($pattern->nil || $pattern->path === '') {
+            if ($prefix !== '' && !$pattern->top) {
+                return $pattern->withPath($prefix, strlen($prefix));
+            }
+
             return $pattern;
         }
 

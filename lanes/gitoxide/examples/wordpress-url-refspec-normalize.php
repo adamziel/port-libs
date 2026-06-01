@@ -10,10 +10,13 @@ use PortLibs\Gitoxide\RefSpec;
 $fixture = require __DIR__ . '/../fixtures/wordpress-url-refspec-normalize.php';
 
 $remote = GitUrl::parse($fixture['remoteUrl']);
+$remoteAlternative = $remote->withAlternativeForm(true);
 $unsafeRemote = GitUrl::parse($fixture['unsafeRemoteUrl']);
 $rootRemote = GitUrl::parse($fixture['rootRemoteUrl']);
 $emptyPortRemote = GitUrl::parse($fixture['emptyPortRemoteUrl']);
 $localMirror = GitUrl::parse($fixture['localMirrorUrl']);
+$canonicalFileMirror = GitUrl::parse($fixture['canonicalFileMirrorUrl']);
+$canonicalFileMirrorAlternative = $canonicalFileMirror->withAlternativeForm(true);
 $homeMirror = GitUrl::parse($fixture['homeMirrorUrl']);
 $homeMirrorHome = GitUrl::parseHomePath($homeMirror->path());
 $homeMirrorShellPath = GitUrl::forShellPath($homeMirror->path());
@@ -65,6 +68,7 @@ try {
 
 $summary = [
     'remote' => $remote->toArray(),
+    'remoteAlternativeUrl' => $remoteAlternative->toBytes(),
     'remoteArgumentSafety' => [
         'user' => $remote->userArgumentSafety(),
         'host' => $remote->hostArgumentSafety(),
@@ -79,6 +83,8 @@ $summary = [
     'rootRemotePathArgumentSafety' => $rootRemote->pathArgumentSafety(),
     'emptyPortRemote' => $emptyPortRemote->toArray(),
     'localMirror' => $localMirror->toArray(),
+    'canonicalFileMirror' => $canonicalFileMirror->toArray(),
+    'canonicalFileMirrorAlternativeUrl' => $canonicalFileMirrorAlternative->toBytes(),
     'homeMirror' => $homeMirror->toArray(),
     'homeMirrorHome' => $homeMirrorHome,
     'homeMirrorShellPath' => $homeMirrorShellPath,
@@ -105,6 +111,9 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     if ($summary['remote']['normalized'] !== $fixture['expectedRemoteUrl']) {
         throw new RuntimeException('Unexpected normalized remote URL');
     }
+    if ($summary['remoteAlternativeUrl'] !== $fixture['expectedRemoteAlternativeUrl']) {
+        throw new RuntimeException('Unexpected remote alternate URL');
+    }
     if ($summary['remoteArgumentSafety'] !== $fixture['expectedRemoteArgumentSafety']) {
         throw new RuntimeException('Unexpected deployment remote argument safety');
     }
@@ -128,6 +137,12 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if ($summary['localMirror']['normalized'] !== $fixture['expectedLocalMirrorUrl']) {
         throw new RuntimeException('Unexpected normalized local mirror URL');
+    }
+    if ($summary['canonicalFileMirror']['normalized'] !== $fixture['expectedCanonicalFileMirrorUrl']) {
+        throw new RuntimeException('Unexpected canonical file mirror URL');
+    }
+    if ($summary['canonicalFileMirrorAlternativeUrl'] !== $fixture['expectedCanonicalFileMirrorAlternativeUrl']) {
+        throw new RuntimeException('Unexpected canonical file mirror alternate URL');
     }
     if ($summary['homeMirror']['normalized'] !== $fixture['expectedHomeMirrorUrl']) {
         throw new RuntimeException('Unexpected normalized home mirror URL');

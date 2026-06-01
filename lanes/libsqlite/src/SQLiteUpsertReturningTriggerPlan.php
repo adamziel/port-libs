@@ -271,7 +271,7 @@ final class SQLiteUpsertReturningTriggerPlan
         if (!isset($trigger['name']) || !is_string($trigger['name']) || $trigger['name'] === '') {
             throw new \InvalidArgumentException('SQLite UPSERT trigger name is required');
         }
-        if (($trigger['table'] ?? null) !== 'wp_options') {
+        if (($trigger['table'] ?? null) !== 'app_settings') {
             throw new \InvalidArgumentException('SQLite UPSERT trigger target table is unsupported');
         }
         if (!in_array(strtolower((string) ($trigger['timing'] ?? '')), ['before', 'after'], true)) {
