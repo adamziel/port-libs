@@ -236,6 +236,7 @@ final class SQLiteAffinityComparison
             'BINARY' => strcmp($left, $right),
             'NOCASE' => strcmp(strtolower($left), strtolower($right)),
             'RTRIM' => strcmp(rtrim($left, ' '), rtrim($right, ' ')),
+            'REVERSE' => strcmp($right, $left),
             default => throw new \InvalidArgumentException("SQLite comparison collation {$collation} is not supported"),
         };
     }

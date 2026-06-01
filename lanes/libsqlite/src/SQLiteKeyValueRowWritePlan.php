@@ -39,8 +39,8 @@ final class SQLiteKeyValueRowWritePlan
         return [
             'table_root_page' => $this->tableRootPage,
             'rowid' => $this->rowId,
-            'key_name' => $this->keyName,
-            'load_policy' => $this->loadPolicy,
+            SQLiteKeyValueRow::KEY_COLUMN => $this->keyName,
+            SQLiteKeyValueRow::LOAD_POLICY_COLUMN => $this->loadPolicy,
             'overflow_page_numbers' => $this->overflowPageNumbers,
             'local_payload_length' => $this->localPayloadLength,
             'database_page_count' => $this->databasePageCount,

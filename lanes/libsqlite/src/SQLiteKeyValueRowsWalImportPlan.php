@@ -46,13 +46,13 @@ final class SQLiteKeyValueRowsWalImportPlan
         $updated = [];
 
         foreach (self::normalizeRows($importRows, false) as $row) {
-            $name = (string) $row['key_name'];
+            $name = (string) $row[SQLiteKeyValueRow::KEY_COLUMN];
             if (array_key_exists($name, $nextRows)) {
                 $updated[$name] = true;
-                $row['setting_id'] = $nextRows[$name]['setting_id'];
+                $row[SQLiteKeyValueRow::ID_COLUMN] = $nextRows[$name][SQLiteKeyValueRow::ID_COLUMN];
             } else {
                 $inserted[$name] = true;
-                $row['setting_id'] = self::nextKeyValueId($nextRows);
+                $row[SQLiteKeyValueRow::ID_COLUMN] = self::nextKeyValueId($nextRows);
             }
             $nextRows[$name] = $row;
         }
@@ -125,19 +125,19 @@ final class SQLiteKeyValueRowsWalImportPlan
     {
         $normalized = [];
         foreach ($rows as $index => $row) {
-            $name = trim((string) ($row['key_name'] ?? ''));
+            $name = trim((string) ($row[SQLiteKeyValueRow::KEY_COLUMN] ?? ''));
             if ($name === '') {
                 throw new \InvalidArgumentException('SQLite Application settings WAL import requires key_name');
             }
-            $settingId = $row['setting_id'] ?? ($index + 1);
+            $settingId = $row[SQLiteKeyValueRow::ID_COLUMN] ?? ($index + 1);
             if ($requireIds && (!is_int($settingId) || $settingId < 1)) {
                 throw new \InvalidArgumentException('SQLite Application settings WAL import requires positive current setting_id values');
             }
             $normalized[$name] = [
-                'setting_id' => is_int($settingId) && $settingId > 0 ? $settingId : 0,
-                'key_name' => $name,
-                'key_value' => (string) ($row['key_value'] ?? ''),
-                'load_policy' => self::normalizeLoadPolicy((string) ($row['load_policy'] ?? 'yes')),
+                SQLiteKeyValueRow::ID_COLUMN => is_int($settingId) && $settingId > 0 ? $settingId : 0,
+                SQLiteKeyValueRow::KEY_COLUMN => $name,
+                SQLiteKeyValueRow::VALUE_COLUMN => (string) ($row[SQLiteKeyValueRow::VALUE_COLUMN] ?? ''),
+                SQLiteKeyValueRow::LOAD_POLICY_COLUMN => self::normalizeLoadPolicy((string) ($row[SQLiteKeyValueRow::LOAD_POLICY_COLUMN] ?? 'yes')),
             ];
         }
         ksort($normalized, SORT_STRING);
@@ -152,7 +152,7 @@ final class SQLiteKeyValueRowsWalImportPlan
     {
         $max = 0;
         foreach ($rows as $row) {
-            $max = max($max, (int) $row['setting_id']);
+            $max = max($max, (int) $row[SQLiteKeyValueRow::ID_COLUMN]);
         }
 
         return $max + 1;
@@ -187,11 +187,11 @@ final class SQLiteKeyValueRowsWalImportPlan
     {
         $json = json_encode([
             'page' => $pageNumber,
-            'table' => 'app_settings',
-            'setting_id' => $row['setting_id'],
-            'key_name' => $row['key_name'],
-            'key_value' => $row['key_value'],
-            'load_policy' => $row['load_policy'],
+            'table' => SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::ID_COLUMN => $row[SQLiteKeyValueRow::ID_COLUMN],
+            SQLiteKeyValueRow::KEY_COLUMN => $row[SQLiteKeyValueRow::KEY_COLUMN],
+            SQLiteKeyValueRow::VALUE_COLUMN => $row[SQLiteKeyValueRow::VALUE_COLUMN],
+            SQLiteKeyValueRow::LOAD_POLICY_COLUMN => $row[SQLiteKeyValueRow::LOAD_POLICY_COLUMN],
         ], JSON_UNESCAPED_SLASHES);
         if (!is_string($json)) {
             throw new \RuntimeException('Unable to encode Application settings WAL import row');
@@ -212,7 +212,7 @@ final class SQLiteKeyValueRowsWalImportPlan
         $json = json_encode([
             'page' => $pageNumber,
             'index' => 'app_settings_load_policy',
-            'load_policy' => 'yes',
+            SQLiteKeyValueRow::LOAD_POLICY_COLUMN => 'yes',
             'key_names' => $names,
         ], JSON_UNESCAPED_SLASHES);
         if (!is_string($json)) {
@@ -233,8 +233,8 @@ final class SQLiteKeyValueRowsWalImportPlan
     {
         $names = [];
         foreach ($rows as $row) {
-            if ($row['load_policy'] === 'yes') {
-                $names[] = $row['key_name'];
+            if ($row[SQLiteKeyValueRow::LOAD_POLICY_COLUMN] === 'yes') {
+                $names[] = $row[SQLiteKeyValueRow::KEY_COLUMN];
             }
         }
         sort($names, SORT_STRING);

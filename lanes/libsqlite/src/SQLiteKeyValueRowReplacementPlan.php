@@ -125,8 +125,8 @@ final class SQLiteKeyValueRowReplacementPlan
         return [
             'table_root_page' => $this->tableRootPage,
             'rowid' => $this->rowId,
-            'key_name' => $this->keyName,
-            'load_policy' => $this->loadPolicy,
+            SQLiteKeyValueRow::KEY_COLUMN => $this->keyName,
+            SQLiteKeyValueRow::LOAD_POLICY_COLUMN => $this->loadPolicy,
             'overflow_page_numbers' => $this->overflowPageNumbers,
             'obsolete_overflow_page_numbers' => $this->obsoleteOverflowPageNumbers,
             'local_payload_length' => $this->localPayloadLength,

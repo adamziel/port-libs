@@ -6,6 +6,12 @@ namespace PortLibs\LibSqlite;
 
 final class SQLiteKeyValueRow
 {
+    public const TABLE_NAME = 'app_settings';
+    public const ID_COLUMN = 'setting_id';
+    public const KEY_COLUMN = 'key_name';
+    public const VALUE_COLUMN = 'key_value';
+    public const LOAD_POLICY_COLUMN = 'load_policy';
+
     public function __construct(
         public readonly int $settingId,
         public readonly string $keyName,
@@ -44,10 +50,10 @@ final class SQLiteKeyValueRow
     public function toArray(): array
     {
         return [
-            'setting_id' => $this->settingId,
-            'key_name' => $this->keyName,
-            'key_value' => $this->keyValue,
-            'load_policy' => $this->loadPolicy,
+            self::ID_COLUMN => $this->settingId,
+            self::KEY_COLUMN => $this->keyName,
+            self::VALUE_COLUMN => $this->keyValue,
+            self::LOAD_POLICY_COLUMN => $this->loadPolicy,
             'rowid' => $this->rowId,
         ];
     }

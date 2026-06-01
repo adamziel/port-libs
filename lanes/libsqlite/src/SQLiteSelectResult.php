@@ -89,7 +89,7 @@ final class SQLiteSelectResult
                 throw new \InvalidArgumentException('SQLite ORDER BY direction must be ASC or DESC');
             }
             $collation = strtoupper($term['collation'] ?? 'BINARY');
-            if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM'], true)) {
+            if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM', 'REVERSE'], true)) {
                 throw new \InvalidArgumentException("Unsupported SQLite ORDER BY collation: {$term['collation']}");
             }
             $nulls = strtoupper($term['nulls'] ?? '');
@@ -361,6 +361,7 @@ final class SQLiteSelectResult
                 'BINARY' => $value,
                 'NOCASE' => strtr($value, 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'),
                 'RTRIM' => rtrim($value, ' '),
+                'REVERSE' => strrev($value),
                 default => throw new \InvalidArgumentException("Unsupported SQLite SELECT DISTINCT collation: {$collation}"),
             };
             return 'text:' . $value;

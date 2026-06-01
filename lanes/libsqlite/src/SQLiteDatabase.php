@@ -987,7 +987,7 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite app_settings insert rowid must be positive');
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             throw new \InvalidArgumentException('SQLite app_settings table is not present');
         }
@@ -1123,7 +1123,7 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite app_settings insert-or-replace rowid must be positive');
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             throw new \InvalidArgumentException('SQLite app_settings table is not present');
         }
@@ -1216,7 +1216,7 @@ final class SQLiteDatabase
         bool $allowAppend = true,
         bool $secureDelete = false,
     ): SQLiteKeyValueRowReplacementPlan {
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             throw new \InvalidArgumentException('SQLite app_settings table is not present');
         }
@@ -1229,7 +1229,7 @@ final class SQLiteDatabase
         $replacementIndexes = $this->supportedKeyValueRowIndexesForReplacement();
         $existingCells = $targetLeaf['entries'];
         $matchedRowId = $targetLeaf['rowid'];
-        $matchedLoadPolicy = $targetLeaf['load_policy'];
+        $matchedLoadPolicy = $targetLeaf[SQLiteKeyValueRow::LOAD_POLICY_COLUMN];
         $replacementLoadPolicy = $loadPolicy ?? $matchedLoadPolicy;
         $replacementLocalPayloadLength = 0;
         $replacementOverflowPayload = '';
@@ -1604,7 +1604,7 @@ final class SQLiteDatabase
 
                 $matched = [
                     'rowid' => $cell->rowId,
-                    'load_policy' => $setting->loadPolicy,
+                    SQLiteKeyValueRow::LOAD_POLICY_COLUMN => $setting->loadPolicy,
                     'values' => $row->values(),
                     'obsoleteOverflowPageNumbers' => $obsoleteOverflowPageNumbers,
                 ];
@@ -1617,7 +1617,7 @@ final class SQLiteDatabase
                     'headerOffset' => $headerOffset,
                     'entries' => $entries,
                     'rowid' => $matched['rowid'],
-                    'load_policy' => $matched['load_policy'],
+                    SQLiteKeyValueRow::LOAD_POLICY_COLUMN => $matched[SQLiteKeyValueRow::LOAD_POLICY_COLUMN],
                     'values' => $matched['values'],
                     'obsoleteOverflowPageNumbers' => $matched['obsoleteOverflowPageNumbers'],
                     'parent' => $parentContext,
@@ -2227,7 +2227,7 @@ final class SQLiteDatabase
         $indexes = [];
         $automaticIndexColumns = null;
         $automaticIndexOrdinal = 0;
-        foreach ($this->indexRecordsForTable('app_settings') as $record) {
+        foreach ($this->indexRecordsForTable(SQLiteKeyValueRow::TABLE_NAME) as $record) {
             $columns = $this->applicationWriteIndexColumns(
                 $record,
                 $automaticIndexColumns,
@@ -2237,13 +2237,13 @@ final class SQLiteDatabase
 
             if (
                 count($columns) === 1
-                && strcasecmp($columns[0]->columnName, 'key_name') === 0
+                && strcasecmp($columns[0]->columnName, SQLiteKeyValueRow::KEY_COLUMN) === 0
             ) {
                 $indexValues = [$keyName];
             } elseif (
                 count($columns) === 2
-                && strcasecmp($columns[0]->columnName, 'load_policy') === 0
-                && strcasecmp($columns[1]->columnName, 'key_name') === 0
+                && strcasecmp($columns[0]->columnName, SQLiteKeyValueRow::LOAD_POLICY_COLUMN) === 0
+                && strcasecmp($columns[1]->columnName, SQLiteKeyValueRow::KEY_COLUMN) === 0
             ) {
                 $indexValues = [$loadPolicy, $keyName];
             } else {
@@ -2271,7 +2271,7 @@ final class SQLiteDatabase
         $indexes = [];
         $automaticIndexColumns = null;
         $automaticIndexOrdinal = 0;
-        foreach ($this->indexRecordsForTable('app_settings') as $record) {
+        foreach ($this->indexRecordsForTable(SQLiteKeyValueRow::TABLE_NAME) as $record) {
             $columns = $this->applicationWriteIndexColumns(
                 $record,
                 $automaticIndexColumns,
@@ -2281,11 +2281,11 @@ final class SQLiteDatabase
 
             $isSupported = (
                 count($columns) === 1
-                && strcasecmp($columns[0]->columnName, 'key_name') === 0
+                && strcasecmp($columns[0]->columnName, SQLiteKeyValueRow::KEY_COLUMN) === 0
             ) || (
                 count($columns) === 2
-                && strcasecmp($columns[0]->columnName, 'load_policy') === 0
-                && strcasecmp($columns[1]->columnName, 'key_name') === 0
+                && strcasecmp($columns[0]->columnName, SQLiteKeyValueRow::LOAD_POLICY_COLUMN) === 0
+                && strcasecmp($columns[1]->columnName, SQLiteKeyValueRow::KEY_COLUMN) === 0
             );
             if (!$isSupported) {
                 throw new \InvalidArgumentException('SQLite app_settings replacement planning currently supports only key_name or load_policy, key_name indexes');
@@ -2322,12 +2322,12 @@ final class SQLiteDatabase
             return $columns;
         }
 
-        if (!self::isAutomaticIndex($record, 'app_settings')) {
+        if (!self::isAutomaticIndex($record, SQLiteKeyValueRow::TABLE_NAME)) {
             throw new \InvalidArgumentException("SQLite app_settings {$operation} planning currently supports only explicit or automatic key_name indexes");
         }
 
         if ($automaticIndexColumns === null) {
-            $automaticIndexColumns = $this->automaticIndexColumnsForTable('app_settings');
+            $automaticIndexColumns = $this->automaticIndexColumnsForTable(SQLiteKeyValueRow::TABLE_NAME);
         }
         $columns = $automaticIndexColumns[$automaticIndexOrdinal] ?? null;
         $automaticIndexOrdinal++;
@@ -2366,7 +2366,7 @@ final class SQLiteDatabase
     private static function partialPredicateCoversAllKeyValueNameRows(SQLiteIndexPredicate $predicate): bool
     {
         if ($predicate->operator === SQLiteIndexPredicate::IS_NOT_NULL) {
-            return strcasecmp($predicate->columnName, 'key_name') === 0;
+            return strcasecmp($predicate->columnName, SQLiteKeyValueRow::KEY_COLUMN) === 0;
         }
 
         if ($predicate->operator === SQLiteIndexPredicate::OR) {
@@ -3445,11 +3445,11 @@ final class SQLiteDatabase
     ): array {
         $values = [];
         foreach ($columns as $column) {
-            if (strcasecmp($column->columnName, 'key_name') === 0) {
+            if (strcasecmp($column->columnName, SQLiteKeyValueRow::KEY_COLUMN) === 0) {
                 $values[] = $keyName;
                 continue;
             }
-            if (strcasecmp($column->columnName, 'load_policy') === 0) {
+            if (strcasecmp($column->columnName, SQLiteKeyValueRow::LOAD_POLICY_COLUMN) === 0) {
                 $values[] = $loadPolicy;
                 continue;
             }
@@ -6259,7 +6259,7 @@ final class SQLiteDatabase
         }
 
         $settings = [];
-        foreach ($this->tableRowsByName('app_settings', $limit) as $row) {
+        foreach ($this->tableRowsByName(SQLiteKeyValueRow::TABLE_NAME, $limit) as $row) {
             $settings[] = SQLiteKeyValueRow::fromTableRow($row);
         }
 
@@ -6287,7 +6287,7 @@ final class SQLiteDatabase
 
         $column = self::normalizeKeyValueRowOrderColumn($orderBy);
         $settings = [];
-        foreach ($this->tableRowsByName('app_settings', null) as $row) {
+        foreach ($this->tableRowsByName(SQLiteKeyValueRow::TABLE_NAME, null) as $row) {
             $settings[] = SQLiteKeyValueRow::fromTableRow($row);
         }
 
@@ -6329,7 +6329,7 @@ final class SQLiteDatabase
         $settings = [];
         foreach (
             $this->tableRowsByRowIdRangeByName(
-                'app_settings',
+                SQLiteKeyValueRow::TABLE_NAME,
                 $lowerInclusive,
                 $upperBound,
                 $limit,
@@ -6359,7 +6359,7 @@ final class SQLiteDatabase
         }
 
         $settings = [];
-        foreach ($this->tableRowsByName('app_settings', null) as $row) {
+        foreach ($this->tableRowsByName(SQLiteKeyValueRow::TABLE_NAME, null) as $row) {
             $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (!self::likeMatches($setting->keyName, $pattern, $escape, $caseSensitive)) {
                 continue;
@@ -6464,7 +6464,7 @@ final class SQLiteDatabase
         }
 
         $settings = [];
-        foreach ($this->tableRowsByName('app_settings', null) as $row) {
+        foreach ($this->tableRowsByName(SQLiteKeyValueRow::TABLE_NAME, null) as $row) {
             $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (!self::globMatches($setting->keyName, $pattern)) {
                 continue;
@@ -6515,7 +6515,7 @@ final class SQLiteDatabase
     {
         $column = strtolower($orderBy);
         return match ($column) {
-            'setting_id', 'key_name', 'key_value', 'load_policy', 'rowid' => $column,
+            SQLiteKeyValueRow::ID_COLUMN, SQLiteKeyValueRow::KEY_COLUMN, SQLiteKeyValueRow::VALUE_COLUMN, SQLiteKeyValueRow::LOAD_POLICY_COLUMN, 'rowid' => $column,
             default => throw new \InvalidArgumentException("SQLite app_settings ordered scan cannot order by {$orderBy}"),
         };
     }
@@ -6523,10 +6523,10 @@ final class SQLiteDatabase
     private static function keyValueRowOrderValue(SQLiteKeyValueRow $setting, string $column): int|string|null
     {
         return match ($column) {
-            'setting_id' => $setting->settingId,
-            'key_name' => $setting->keyName,
-            'key_value' => $setting->keyValue,
-            'load_policy' => $setting->loadPolicy,
+            SQLiteKeyValueRow::ID_COLUMN => $setting->settingId,
+            SQLiteKeyValueRow::KEY_COLUMN => $setting->keyName,
+            SQLiteKeyValueRow::VALUE_COLUMN => $setting->keyValue,
+            SQLiteKeyValueRow::LOAD_POLICY_COLUMN => $setting->loadPolicy,
             'rowid' => $setting->rowId,
         };
     }
@@ -6557,7 +6557,7 @@ final class SQLiteDatabase
         }
 
         $settings = [];
-        foreach ($this->tableRowsByName('app_settings', null) as $row) {
+        foreach ($this->tableRowsByName(SQLiteKeyValueRow::TABLE_NAME, null) as $row) {
             $setting = SQLiteKeyValueRow::fromTableRow($row);
             if (!self::regexpMatches($setting->keyName, $pattern, $regexp)) {
                 continue;
@@ -6574,12 +6574,12 @@ final class SQLiteDatabase
 
     public function keyValueRowByIndexedName(string $keyName): ?SQLiteKeyValueRow
     {
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return null;
         }
 
-        $indexLookup = $this->indexLookupForColumn('app_settings', 'key_name', $keyName, true);
+        $indexLookup = $this->indexLookupForColumn(SQLiteKeyValueRow::TABLE_NAME, SQLiteKeyValueRow::KEY_COLUMN, $keyName, true);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException('SQLite app_settings key_name index is not present');
         }
@@ -6622,14 +6622,14 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForColumnWithCollation(
-            'app_settings',
-            'key_name',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::KEY_COLUMN,
             $collationName,
             $keyName,
         );
@@ -6681,14 +6681,14 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForColumnRangeWithCollation(
-            'app_settings',
-            'key_name',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::KEY_COLUMN,
             $collationName,
             $lowerInclusive,
             $upperBound,
@@ -6753,12 +6753,12 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForColumnInList('app_settings', 'key_name', $keyNames);
+        $indexLookup = $this->indexLookupForColumnInList(SQLiteKeyValueRow::TABLE_NAME, SQLiteKeyValueRow::KEY_COLUMN, $keyNames);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException('SQLite app_settings key_name IN-list index is not present');
         }
@@ -6809,12 +6809,12 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForLowerExpressionColumnInList('app_settings', 'key_name', $lookupValues);
+        $indexLookup = $this->indexLookupForLowerExpressionColumnInList(SQLiteKeyValueRow::TABLE_NAME, SQLiteKeyValueRow::KEY_COLUMN, $lookupValues);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException('SQLite app_settings lower(key_name) expression IN-list index is not present');
         }
@@ -6868,12 +6868,12 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForUpperExpressionColumnInList('app_settings', 'key_name', $lookupValues);
+        $indexLookup = $this->indexLookupForUpperExpressionColumnInList(SQLiteKeyValueRow::TABLE_NAME, SQLiteKeyValueRow::KEY_COLUMN, $lookupValues);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException('SQLite app_settings upper(key_name) expression IN-list index is not present');
         }
@@ -6905,13 +6905,13 @@ final class SQLiteDatabase
 
     public function keyValueRowByIndexedNameForLoadPolicy(string $keyName, string $loadPolicy): ?SQLiteKeyValueRow
     {
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return null;
         }
 
-        $indexLookup = $this->indexLookupForColumn('app_settings', 'key_name', $keyName, true, [
-            'load_policy' => $loadPolicy,
+        $indexLookup = $this->indexLookupForColumn(SQLiteKeyValueRow::TABLE_NAME, SQLiteKeyValueRow::KEY_COLUMN, $keyName, true, [
+            SQLiteKeyValueRow::LOAD_POLICY_COLUMN => $loadPolicy,
         ]);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException('SQLite app_settings key_name index matching the load_policy constraint is not present');
@@ -6945,12 +6945,12 @@ final class SQLiteDatabase
 
     public function keyValueRowByIndexedLowercaseName(string $keyName): ?SQLiteKeyValueRow
     {
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return null;
         }
 
-        $indexLookup = $this->indexLookupForLowerExpressionColumn('app_settings', 'key_name', $keyName);
+        $indexLookup = $this->indexLookupForLowerExpressionColumn(SQLiteKeyValueRow::TABLE_NAME, SQLiteKeyValueRow::KEY_COLUMN, $keyName);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException('SQLite app_settings lower(key_name) expression index is not present');
         }
@@ -6996,14 +6996,14 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForLowerExpressionColumnWithCollation(
-            'app_settings',
-            'key_name',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::KEY_COLUMN,
             $collationName,
             $keyName,
         );
@@ -7071,14 +7071,14 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForLowerExpressionColumnInListWithCollation(
-            'app_settings',
-            'key_name',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::KEY_COLUMN,
             $collationName,
             $lookupValues,
         );
@@ -7135,14 +7135,14 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForLowerExpressionColumnRangeWithCollation(
-            'app_settings',
-            'key_name',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::KEY_COLUMN,
             $collationName,
             $lowerInclusive,
             $upperBound,
@@ -7193,12 +7193,12 @@ final class SQLiteDatabase
 
     public function keyValueRowByIndexedUppercaseName(string $keyName): ?SQLiteKeyValueRow
     {
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return null;
         }
 
-        $indexLookup = $this->indexLookupForUpperExpressionColumn('app_settings', 'key_name');
+        $indexLookup = $this->indexLookupForUpperExpressionColumn(SQLiteKeyValueRow::TABLE_NAME, SQLiteKeyValueRow::KEY_COLUMN);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException('SQLite app_settings upper(key_name) expression index is not present');
         }
@@ -7232,12 +7232,12 @@ final class SQLiteDatabase
         string $functionName = 'trim',
         ?string $characters = null,
     ): ?SQLiteKeyValueRow {
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return null;
         }
 
-        $indexLookup = $this->indexLookupForTrimExpressionColumn('app_settings', 'key_name', $functionName, $characters);
+        $indexLookup = $this->indexLookupForTrimExpressionColumn(SQLiteKeyValueRow::TABLE_NAME, SQLiteKeyValueRow::KEY_COLUMN, $functionName, $characters);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException('SQLite app_settings trim(key_name) expression index is not present');
         }
@@ -7285,15 +7285,15 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $length = strlen($prefix);
         $indexLookup = $this->indexLookupForSubstringExpressionColumn(
-            'app_settings',
-            'key_name',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::KEY_COLUMN,
             1,
             $length,
         );
@@ -7371,14 +7371,14 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForSubstringExpressionColumnInList(
-            'app_settings',
-            'key_name',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::KEY_COLUMN,
             1,
             $prefixLength,
             $prefixes,
@@ -7431,15 +7431,15 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $start = -self::sqliteLength($suffix);
         $indexLookup = $this->indexLookupForSubstringExpressionColumn(
-            'app_settings',
-            'key_name',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::KEY_COLUMN,
             $start,
             null,
         );
@@ -7495,12 +7495,12 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForLengthExpressionColumn('app_settings', 'key_name', $length);
+        $indexLookup = $this->indexLookupForLengthExpressionColumn(SQLiteKeyValueRow::TABLE_NAME, SQLiteKeyValueRow::KEY_COLUMN, $length);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException('SQLite app_settings length(key_name) expression index is not present');
         }
@@ -7560,12 +7560,12 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForLengthExpressionColumnInList('app_settings', 'key_name', $lengths);
+        $indexLookup = $this->indexLookupForLengthExpressionColumnInList(SQLiteKeyValueRow::TABLE_NAME, SQLiteKeyValueRow::KEY_COLUMN, $lengths);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException('SQLite app_settings length(key_name) expression IN-list index is not present');
         }
@@ -7611,14 +7611,14 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForLengthExpressionColumnRange(
-            'app_settings',
-            'key_name',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::KEY_COLUMN,
             $lowerInclusive,
             $upperBound,
             $upperInclusive,
@@ -7680,12 +7680,12 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForIntegerCastExpressionColumn('app_settings', 'key_value', $value);
+        $indexLookup = $this->indexLookupForIntegerCastExpressionColumn(SQLiteKeyValueRow::TABLE_NAME, SQLiteKeyValueRow::VALUE_COLUMN, $value);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException('SQLite app_settings CAST(key_value AS INTEGER) expression index is not present');
         }
@@ -7739,12 +7739,12 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForIntegerCastExpressionColumnInList('app_settings', 'key_value', $values);
+        $indexLookup = $this->indexLookupForIntegerCastExpressionColumnInList(SQLiteKeyValueRow::TABLE_NAME, SQLiteKeyValueRow::VALUE_COLUMN, $values);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException('SQLite app_settings CAST(key_value AS INTEGER) expression IN-list index is not present');
         }
@@ -7790,14 +7790,14 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForIntegerCastExpressionColumnRange(
-            'app_settings',
-            'key_value',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::VALUE_COLUMN,
             $lowerInclusive,
             $upperBound,
             $upperInclusive,
@@ -7860,14 +7860,14 @@ final class SQLiteDatabase
         }
 
         $lookupValue = self::sqliteJsonScalar($value);
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForJsonExtractExpressionColumn(
-            'app_settings',
-            'key_value',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::VALUE_COLUMN,
             $jsonPath,
         );
         if ($indexLookup === null) {
@@ -7920,14 +7920,14 @@ final class SQLiteDatabase
         }
 
         $lookupValue = self::sqliteJsonTextValue($value);
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForJsonValueOperatorExpressionColumn(
-            'app_settings',
-            'key_value',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::VALUE_COLUMN,
             $jsonPath,
         );
         if ($indexLookup === null) {
@@ -7981,14 +7981,14 @@ final class SQLiteDatabase
         }
 
         $lookupValues = self::sqliteJsonTextValueList($values);
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForJsonValueOperatorExpressionColumn(
-            'app_settings',
-            'key_value',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::VALUE_COLUMN,
             $jsonPath,
         );
         if ($indexLookup === null) {
@@ -8049,14 +8049,14 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite app_settings JSON -> range lookup requires at least one bound');
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForJsonValueOperatorExpressionColumnRange(
-            'app_settings',
-            'key_value',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::VALUE_COLUMN,
             $jsonPath,
             $lowerKey,
             $upperKey,
@@ -8129,14 +8129,14 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForJsonExtractExpressionColumn(
-            'app_settings',
-            'key_value',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::VALUE_COLUMN,
             $jsonPath,
         );
         if ($indexLookup === null) {
@@ -8199,14 +8199,14 @@ final class SQLiteDatabase
             throw new \InvalidArgumentException('SQLite app_settings json_extract(key_value) range lookup requires at least one bound');
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForJsonExtractExpressionColumnRange(
-            'app_settings',
-            'key_value',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::VALUE_COLUMN,
             $jsonPath,
             $lowerKey,
             $upperKey,
@@ -8273,14 +8273,14 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForLowerExpressionColumnRange(
-            'app_settings',
-            'key_name',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::KEY_COLUMN,
             $lowerInclusive,
             $upperBound,
             $upperInclusive,
@@ -8349,14 +8349,14 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $indexLookup = $this->indexLookupForUpperExpressionColumnRange(
-            'app_settings',
-            'key_name',
+            SQLiteKeyValueRow::TABLE_NAME,
+            SQLiteKeyValueRow::KEY_COLUMN,
             $lowerInclusive,
             $upperBound,
             $upperInclusive,
@@ -8414,14 +8414,14 @@ final class SQLiteDatabase
      */
     public function keyValueRowsByIndexedLoadPolicy(string $loadPolicy, ?int $limit = null): array
     {
-        return $this->keyValueRowsByIndexedFirstColumn('load_policy', $loadPolicy, $limit);
+        return $this->keyValueRowsByIndexedFirstColumn(SQLiteKeyValueRow::LOAD_POLICY_COLUMN, $loadPolicy, $limit);
     }
 
     public function keyValueRowByIndexedLoadPolicyAndName(string $loadPolicy, string $keyName): ?SQLiteKeyValueRow
     {
         $settings = $this->keyValueRowsByIndexedColumnPrefix([
-            'load_policy' => $loadPolicy,
-            'key_name' => $keyName,
+            SQLiteKeyValueRow::LOAD_POLICY_COLUMN => $loadPolicy,
+            SQLiteKeyValueRow::KEY_COLUMN => $keyName,
         ], 1);
 
         return $settings[0] ?? null;
@@ -8438,8 +8438,8 @@ final class SQLiteDatabase
         bool $upperInclusive = false,
     ): array {
         return $this->keyValueRowsByIndexedColumnPrefixRange(
-            ['load_policy' => $loadPolicy],
-            'key_name',
+            [SQLiteKeyValueRow::LOAD_POLICY_COLUMN => $loadPolicy],
+            SQLiteKeyValueRow::KEY_COLUMN,
             $lowerInclusive,
             $upperBound,
             $limit,
@@ -8464,7 +8464,7 @@ final class SQLiteDatabase
 
         return $this->keyValueRowsByIndexedColumnPrefixRange(
             $equalityPrefix,
-            'key_name',
+            SQLiteKeyValueRow::KEY_COLUMN,
             $lowerInclusive,
             $upperBound,
             $limit,
@@ -8492,7 +8492,7 @@ final class SQLiteDatabase
 
         return $this->keyValueRowsByIndexedColumnPrefixRangeWithCollation(
             $equalityPrefix,
-            'key_name',
+            SQLiteKeyValueRow::KEY_COLUMN,
             $lowerInclusive,
             $upperBound,
             $collationName,
@@ -8521,7 +8521,7 @@ final class SQLiteDatabase
 
         return $this->keyValueRowsByIndexedColumnPrefixRangeWithCollations(
             $equalityPrefix,
-            'key_name',
+            SQLiteKeyValueRow::KEY_COLUMN,
             $lowerInclusive,
             $upperBound,
             $customCollations,
@@ -8541,7 +8541,7 @@ final class SQLiteDatabase
     ): array
     {
         return $this->keyValueRowsByIndexedFirstColumnRange(
-            'key_name',
+            SQLiteKeyValueRow::KEY_COLUMN,
             $lowerInclusive,
             $upperBound,
             $limit,
@@ -8957,12 +8957,12 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForColumn('app_settings', $columnName, $value, true);
+        $indexLookup = $this->indexLookupForColumn(SQLiteKeyValueRow::TABLE_NAME, $columnName, $value, true);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException("SQLite app_settings {$columnName} index is not present");
         }
@@ -9008,12 +9008,12 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
-        $indexLookup = $this->indexLookupForColumnRange('app_settings', $columnName, $lowerInclusive, $upperBound, $upperInclusive);
+        $indexLookup = $this->indexLookupForColumnRange(SQLiteKeyValueRow::TABLE_NAME, $columnName, $lowerInclusive, $upperBound, $upperInclusive);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException("SQLite app_settings {$columnName} range index is not present");
         }
@@ -9066,14 +9066,14 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
 
         $columnNames = array_keys($columnValues);
         $values = array_values($columnValues);
-        $indexLookup = $this->indexLookupForColumnPrefix('app_settings', $columnNames, $values);
+        $indexLookup = $this->indexLookupForColumnPrefix(SQLiteKeyValueRow::TABLE_NAME, $columnNames, $values);
         if ($indexLookup === null) {
             throw new \InvalidArgumentException('SQLite app_settings composite index is not present');
         }
@@ -9117,7 +9117,7 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
@@ -9125,7 +9125,7 @@ final class SQLiteDatabase
         $equalityColumnNames = array_keys($equalityColumnValues);
         $equalityValues = array_values($equalityColumnValues);
         $indexLookup = $this->indexLookupForColumnPrefixRange(
-            'app_settings',
+            SQLiteKeyValueRow::TABLE_NAME,
             $equalityColumnNames,
             $equalityValues,
             $rangeColumnName,
@@ -9204,7 +9204,7 @@ final class SQLiteDatabase
             return [];
         }
 
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
@@ -9212,7 +9212,7 @@ final class SQLiteDatabase
         $equalityColumnNames = array_keys($equalityColumnValues);
         $equalityValues = array_values($equalityColumnValues);
         $indexLookup = $this->indexLookupForColumnPrefixRangeWithRangeCollation(
-            'app_settings',
+            SQLiteKeyValueRow::TABLE_NAME,
             $equalityColumnNames,
             $equalityValues,
             $rangeColumnName,
@@ -9301,7 +9301,7 @@ final class SQLiteDatabase
         }
 
         $normalizedCollations = self::normalizeCustomCollations($customCollations);
-        $tableRootPage = $this->tableRootPage('app_settings');
+        $tableRootPage = $this->tableRootPage(SQLiteKeyValueRow::TABLE_NAME);
         if ($tableRootPage === null) {
             return [];
         }
@@ -9309,7 +9309,7 @@ final class SQLiteDatabase
         $equalityColumnNames = array_keys($equalityColumnValues);
         $equalityValues = array_values($equalityColumnValues);
         $indexLookup = $this->indexLookupForColumnPrefixRangeWithCollations(
-            'app_settings',
+            SQLiteKeyValueRow::TABLE_NAME,
             $equalityColumnNames,
             $equalityValues,
             $rangeColumnName,
