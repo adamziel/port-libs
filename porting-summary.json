@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 09:26:24 UTC",
-    "sourceCommit": "16d025e08bb0a29729c8dbfed81991606a05d007",
-    "sourceCommitShort": "16d025e08bb0",
+    "generated": "2026-06-01 09:32:16 UTC",
+    "sourceCommit": "87df2af69228f75752e0877649015b5339271443",
+    "sourceCommitShort": "87df2af69228",
     "sourceBranch": "unknown",
-    "dashboardCommit": "16d025e08bb0a29729c8dbfed81991606a05d007",
-    "dashboardCommitShort": "16d025e08bb0",
+    "dashboardCommit": "87df2af69228f75752e0877649015b5339271443",
+    "dashboardCommitShort": "87df2af69228",
     "averageProgressPercent": "88.6",
     "lanes": [
         {
@@ -18,13 +18,13 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1,589 / 1,589",
-            "php": "5,789,109 pass / 7 fail",
-            "phase": "source-neutral compound/window defaults dynamic coverage accepted; br...",
-            "audit": "2026-06-01 supervisor batch: accepted source 16d025e08bb0 with source...",
-            "currentWork": "Source-neutral compound/window defaults dynamic coverage inte...",
+            "php": "5,791,113 pass / 7 fail",
+            "phase": "json102 subtype, WAL checkpoint-boundary, and source-neutral cast/lik...",
+            "audit": "2026-06-01 supervisor batch: accepted source 87df2af69228 with json10...",
+            "currentWork": "json102 subtype SELECT SQL, WAL checkpoint-boundary real-corp...",
             "nextTarget": "Continue broad release/all parity blockers, source-neutral cl...",
             "remainingGate": "Broad release/all still has 7 known failures",
-            "commit": "16d025e"
+            "commit": "87df2af"
         },
         {
             "lane": "lightningcss",
@@ -37,13 +37,13 @@
             "denominator": "3532",
             "mapped": "2365",
             "coverage": "2,365 / 3,532",
-            "php": "7,142 pass / 0 fail",
+            "php": "7,172 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: accepted source 16d025e08bb0 with custom...",
-            "currentWork": "Custom at-rule location metadata and CSS Regions target-prefi...",
+            "audit": "2026-06-01 supervisor batch: accepted source 87df2af69228 with bundle...",
+            "currentWork": "Bundle/import literal-null handling, color-token minification...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Mo...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "16d025e"
+            "commit": "87df2af"
         },
         {
             "lane": "gitoxide",
@@ -56,13 +56,13 @@
             "denominator": "2886",
             "mapped": "1778",
             "coverage": "1,778 / 2,886",
-            "php": "8,487 pass / 0 fail",
+            "php": "8,501 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: accepted source 16d025e08bb0 with receiv...",
-            "currentWork": "Receive-pack, smart-http proxy/header, and SSH receive-pack t...",
+            "audit": "2026-06-01 supervisor batch: accepted source 87df2af69228 with pack-i...",
+            "currentWork": "Pack-index/MIDX large-offset boundary parity integrated on cu...",
             "nextTarget": "Keep Gitoxide workers on current-base non-overlapping sparse-...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "16d025e"
+            "commit": "87df2af"
         },
         {
             "lane": "readability",

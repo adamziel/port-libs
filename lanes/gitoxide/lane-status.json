@@ -2,15 +2,15 @@
     "schemaVersion": 1,
     "library": "gitoxide",
     "estimatedProgress": 96.2,
-    "suiteProgress": "Supervisor-integrated Gitoxide receive-pack, smart-http proxy/header, and SSH receive-pack transport parity. Verification passed changed PHP lint, git diff --cached --check, changed example smokes, and full Gitoxide lane 40 files / 8487 assertions / 0 failures.",
-    "phpPass": 8487,
+    "suiteProgress": "Supervisor-integrated Gitoxide pack-index/MIDX large-offset boundary parity. Verification passed changed PHP lint, git diff --cached --check, changed example smokes, and full Gitoxide lane 40 files / 8501 assertions / 0 failures.",
+    "phpPass": 8501,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering boundaries, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing including multi-report no-refname receive-status parity, protocol-v2 ref-in-want fetch exchange sideband parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base graph behavior, URL/refspec canonical writing, tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 supervisor batch: accepted source 16d025e08bb0 with receive-pack, smart-http proxy/header, and SSH receive-pack transport parity. Full Gitoxide lane passed 40 files / 8487 assertions / 0 failures; full Cargo workspace was not executed.",
-    "currentWork": "Receive-pack, smart-http proxy/header, and SSH receive-pack transport parity integrated on current base.",
+    "audit": "2026-06-01 supervisor batch: accepted source 87df2af69228 with pack-index/MIDX large-offset boundary parity. Full Gitoxide lane passed 40 files / 8501 assertions / 0 failures; full Cargo workspace was not executed.",
+    "currentWork": "Pack-index/MIDX large-offset boundary parity integrated on current base.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "16d025e08bb0a29729c8dbfed81991606a05d007",
+    "latestCommit": "87df2af69228f75752e0877649015b5339271443",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping sparse-checkout, attributes/pathspec, credential, config, partial-clone, transport/protocol, pack/index, reference, tree-merge, merge-base, URL/refspec, and object-database parity slices; integrate only full-lane-green batches.",
-    "commit": "16d025e08bb0a29729c8dbfed81991606a05d007"
+    "commit": "87df2af69228f75752e0877649015b5339271443"
 }
