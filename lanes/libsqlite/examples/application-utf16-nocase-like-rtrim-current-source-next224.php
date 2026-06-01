@@ -8,8 +8,8 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -32,7 +32,7 @@ $nextRows = [
 ];
 $escape = SQLiteEncodingCollationSourceCursor::encodeText('!', 'UTF-16LE');
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameKeysetResumePlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyKeysetResumePlan(
     $currentRows,
     $nextRows,
     'plugin!_cache%',
@@ -59,7 +59,7 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
 
 return [
     'scenario' => 'application-utf16-nocase-like-rtrim-current-source-next224',
-    'applicationUse' => 'Copied wp_options scans can fence a resumed UTF-16 NOCASE LIKE RTRIM cursor by the saved keyset tail so new option_name rows before the next page cannot be skipped after source refresh.',
+    'applicationUse' => 'Copied app_settings scans can fence a resumed UTF-16 NOCASE LIKE RTRIM cursor by the saved keyset tail so new key_name rows before the next page cannot be skipped after source refresh.',
     'currentResumePageRowids' => $plan['currentResumePageRowids'],
     'nextResumePageRowids' => $plan['nextResumePageRowids'],
     'invalidationReasons' => $plan['invalidationReasons'],

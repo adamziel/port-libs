@@ -143,6 +143,42 @@ return [
         $t->same(['Resolving deltas: 100% (1/1)'], $response->progressMessages());
         $t->same('refs/heads/main', $response->refStatuses()[0]->effectiveRefName());
     },
+    'send-pack session parses report-status-v2 object options with negotiated object format' => static function (TestRunner $t) use ($packet, $flush): void {
+        $oldObject = str_repeat('a', 40);
+        $oldStatusPrefix = str_repeat('b', 40);
+        $newStatusPrefix = str_repeat('c', 40);
+        $advertisement = ReceivePackAdvertisement::fromV1PacketLines(
+            $packet("{$oldObject} refs/heads/main\0report-status-v2 side-band-64k object-format=sha1\n")
+            . $flush
+        );
+        $session = SendPackSession::create($advertisement);
+        $direct = $session->parseReportStatusResponse(
+            $packet("unpack ok\n")
+            . $packet("ok refs/for/wp-release accepted with hook object diagnostics\n")
+            . $packet("option old-oid {$oldStatusPrefix}feed\n")
+            . $packet("option new-oid {$newStatusPrefix}cafe\n")
+            . $flush
+        );
+        $sideband = $session->parseSidebandResponse(
+            $packet("\x02remote: proc-receive appended sha1 diagnostics\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/for/wp-release accepted with hook object diagnostics\n"))
+            . $packet("\x01" . $packet("option old-oid {$oldStatusPrefix}feed\n"))
+            . $packet("\x01" . $packet("option new-oid {$newStatusPrefix}cafe\n"))
+            . $packet("\x01" . $flush)
+            . $flush
+        );
+
+        $t->same(true, $direct->isSuccessful());
+        $t->same('refs/for/wp-release', $direct->refStatuses()[0]->effectiveRefName());
+        $t->same($oldStatusPrefix, $direct->refStatuses()[0]->oldObject);
+        $t->same($newStatusPrefix, $direct->refStatuses()[0]->newObject);
+        $t->same(true, $direct->refStatuses()[0]->hasReportOption());
+        $t->same(true, $sideband->isSuccessful());
+        $t->same(['remote: proc-receive appended sha1 diagnostics'], $sideband->progressMessages());
+        $t->same($oldStatusPrefix, $sideband->refStatuses()[0]->oldObject);
+        $t->same($newStatusPrefix, $sideband->refStatuses()[0]->newObject);
+    },
     'send-pack session builds thin ref-delta requests from remote bases' => static function (TestRunner $t) use ($packet, $flush, $readPacketSequence, $buildSimilarBlobs): void {
         [$base, $target] = $buildSimilarBlobs();
         $advertisement = ReceivePackAdvertisement::fromV1PacketLines(
@@ -185,6 +221,8 @@ return [
             static fn (PushRefStatus $status): string => $status->effectiveRefName(),
             $response->refStatuses()
         ));
+        $t->same($fixture['expectedStatusObjects']['oldObject'], $response->refStatuses()[0]->oldObject);
+        $t->same($fixture['expectedStatusObjects']['newObject'], $response->refStatuses()[0]->newObject);
     },
     'wordpress fixture builds a thin ref-delta send-pack request' => static function (TestRunner $t) use ($readPacketSequence): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-send-pack-thin.php';

@@ -100,12 +100,12 @@ final class SendPackSession
 
     public function parseSidebandResponse(string $bytes): PushResponse
     {
-        return PushResponse::fromSidebandPacketLines($bytes);
+        return PushResponse::fromSidebandPacketLines($bytes, $this->objectFormatFromFeatures());
     }
 
     public function parseReportStatusResponse(string $bytes): PushResponse
     {
-        return PushResponse::fromReportStatusPacketLines($bytes);
+        return PushResponse::fromReportStatusPacketLines($bytes, $this->objectFormatFromFeatures());
     }
 
     private function needsPack(): bool
@@ -117,5 +117,19 @@ final class SendPackSession
         }
 
         return false;
+    }
+
+    private function objectFormatFromFeatures(): string
+    {
+        foreach ($this->command->features() as $feature) {
+            [$name, $value] = array_pad(explode('=', $feature, 2), 2, null);
+            if ($name !== 'object-format') {
+                continue;
+            }
+
+            return $value === 'sha256' ? 'sha256' : 'sha1';
+        }
+
+        return 'sha1';
     }
 }

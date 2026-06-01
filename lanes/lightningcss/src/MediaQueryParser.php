@@ -818,6 +818,10 @@ final class MediaQueryParser
             return false;
         }
 
+        if ($type === 'length' && $this->isMarkedUnitlessLengthMathValue($value)) {
+            return true;
+        }
+
         if (preg_match('/^(?:' . self::MEDIA_MATH_FUNCTION_PATTERN . ')\(/i', $value) === 1) {
             if (preg_match('/^calc\(/i', $value) === 1 && $this->isInvalidSimpleMultiplicativeCalc($value)) {
                 return false;
@@ -832,6 +836,9 @@ final class MediaQueryParser
             if (preg_match('/^(?:sqrt|pow|log|exp)\(/i', $value) === 1) {
                 return in_array($type, ['length', 'number', 'ratio', 'unknown'], true)
                     && $this->foldSimpleMathFunction($value, $type) !== $value;
+            }
+            if ($this->containsInvalidMediaMathDimension($value, $type)) {
+                return false;
             }
 
             return match ($type) {
@@ -858,8 +865,9 @@ final class MediaQueryParser
             'resolution' => preg_match('/^' . $number . '(?:dpcm|dpi|dppx|x)$/i', $value) === 1,
             'ratio' => preg_match('/^' . $number . '(?:\s*\/\s*' . $number . ')?$/', $value) === 1,
             'unknown' => $this->isValidUnknownRangeValue($value),
-            default => preg_match('/^' . $number . '$/', $value) === 1
-                || preg_match('/^' . $number . '(?:[a-zA-Z]+)$/', $value) === 1,
+            'length' => preg_match('/^' . $number . '$/', $value) === 1
+                || $this->isCssLengthDimension($value),
+            default => false,
         };
     }
 
@@ -871,14 +879,39 @@ final class MediaQueryParser
     private function isValidUnknownRangeValue(string $value, bool $allowPercentage = false): bool
     {
         $number = $this->cssNumberPattern();
-        $unit = $allowPercentage ? '[a-zA-Z%]+' : '[a-zA-Z]+';
+        if ($allowPercentage && preg_match('/^' . $number . '%$/', $value) === 1) {
+            return true;
+        }
 
         return preg_match('/^' . $number . '$/', $value) === 1
             || preg_match('/^' . $number . '(?:\s*\/\s*' . $number . ')$/', $value) === 1
-            || preg_match('/^' . $number . '(?:' . $unit . ')$/', $value) === 1
-            || preg_match('/^' . $number . '(?:dpcm|dpi|dppx|x)$/i', $value) === 1
+            || $this->isCssLengthDimension($value)
+            || $this->isCssResolutionDimension($value)
             || preg_match('/^' . $this->cssIdentifierPattern() . '$/', $value) === 1
             || preg_match('/^[-_a-zA-Z][-_a-zA-Z0-9]*$/', $value) === 1;
+    }
+
+    private function isCssLengthDimension(string $value): bool
+    {
+        if (preg_match('/^' . $this->cssNumberPattern() . '([a-zA-Z]+)$/', trim($value), $matches) !== 1) {
+            return false;
+        }
+
+        return $this->isCssLengthUnit($matches[1]);
+    }
+
+    private function isCssResolutionDimension(string $value): bool
+    {
+        if (preg_match('/^' . $this->cssNumberPattern() . '([a-zA-Z]+)$/', trim($value), $matches) !== 1) {
+            return false;
+        }
+
+        return $this->isCssResolutionUnit($matches[1]);
+    }
+
+    private function isCssResolutionUnit(string $unit): bool
+    {
+        return in_array(strtolower($unit), ['dpcm', 'dpi', 'dppx', 'x'], true);
     }
 
     private function isRecoverableInvalidFeatureValue(string $value): bool
@@ -1511,7 +1544,11 @@ final class MediaQueryParser
             'pt',
             'px',
             'q',
+            'rcap',
+            'rch',
             'rem',
+            'rex',
+            'ric',
             'rlh',
             'svb',
             'svh',
@@ -1572,6 +1609,15 @@ final class MediaQueryParser
             return null;
         }
 
+        if ($unit !== '' && $unit !== '%') {
+            if ($type === 'length' && !$this->isCssLengthUnit($unit)) {
+                return null;
+            }
+            if ($type === 'unknown' && !$this->isCssLengthUnit($unit)) {
+                return null;
+            }
+        }
+
         if ($coerceUnitlessLength && $type === 'length' && $unit === '' && (float) $matches[1] !== 0.0) {
             $unit = 'px';
         }
@@ -1581,6 +1627,42 @@ final class MediaQueryParser
             'unit' => $unit,
             'ratio' => false,
         ];
+    }
+
+    private function containsInvalidMediaMathDimension(string $value, ?string $type): bool
+    {
+        $number = $this->cssNumberPattern();
+        if (preg_match_all('/(?:^|[^\w.-])' . $number . '\s*([a-zA-Z%]+)/', $value, $matches) === 0) {
+            return false;
+        }
+
+        foreach ($matches[1] as $unit) {
+            $unit = strtolower($unit);
+            if ($unit === self::UNITLESS_LENGTH_MATH_MARKER) {
+                continue;
+            }
+            if ($unit === '%') {
+                return true;
+            }
+            if (in_array($type, ['length', 'unknown'], true)) {
+                if (!$this->isCssLengthUnit($unit)) {
+                    return true;
+                }
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private function isMarkedUnitlessLengthMathValue(string $value): bool
+    {
+        return preg_match(
+            '/^' . $this->cssNumberPattern() . preg_quote(self::UNITLESS_LENGTH_MATH_MARKER, '/') . '$/i',
+            trim($value)
+        ) === 1;
     }
 
     /**

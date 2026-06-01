@@ -8,8 +8,8 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -29,7 +29,7 @@ $nextRows = [
     $row(3, 'plugin_cache_alpha', 'UTF-8'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameUnicodeSpaceRtrimPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyUnicodeSpaceRtrimPlan(
     $currentRows,
     $nextRows,
     'plugin!_cache%',
@@ -55,7 +55,7 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
 
 return [
     'scenario' => 'application-utf16-nocase-like-rtrim-current-source-next229',
-    'applicationUse' => 'Copied wp_options scans keep UTF-16 non-ASCII whitespace distinct from SQLite RTRIM ASCII-space trimming while still invalidating a refreshed NOCASE LIKE cursor when visually similar option_name rows enter or leave the page.',
+    'applicationUse' => 'Copied app_settings scans keep UTF-16 non-ASCII whitespace distinct from SQLite RTRIM ASCII-space trimming while still invalidating a refreshed NOCASE LIKE cursor when visually similar key_name rows enter or leave the page.',
     'currentUnicodeSpaceMatchedRowids' => $plan['currentUnicodeSpaceMatchedRowids'],
     'nextUnicodeSpaceMatchedRowids' => $plan['nextUnicodeSpaceMatchedRowids'],
     'currentAsciiSpaceTrimmedRowids' => $plan['currentAsciiSpaceTrimmedRowids'],

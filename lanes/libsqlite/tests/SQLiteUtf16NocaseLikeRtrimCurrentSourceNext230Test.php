@@ -9,8 +9,8 @@ $tests = [];
 
 $enc230 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row230 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc230($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc230($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -18,8 +18,8 @@ $row230 = static fn (int $id, string $name, int|string $encoding): array => [
     },
 ];
 $bad230 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -78,7 +78,7 @@ $valueAt230 = static function (array $value, string $path): mixed {
 $cases230 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoThreeZero'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? /* line-break RTRIM boundary */'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? /* line-break RTRIM boundary */'],
     'pattern' => ['pattern', 'plugin_cache'],
     'escape' => ['escape', null],
     'collation' => ['collation', 'NOCASE'],
@@ -213,7 +213,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeZero escaped undersco
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoThreeZero rejects malformed row shape'] = static function (TestRunner $t) use ($enc230): void {
-    $rows = [['option_id' => 1, 'option_name_bytes' => $enc230('plugin_cache', 'UTF-16LE')]];
+    $rows = [['setting_id' => 1, 'key_name_bytes' => $enc230('plugin_cache', 'UTF-16LE')]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyLineBreakBoundaryPlan($rows, $rows));
 };
 

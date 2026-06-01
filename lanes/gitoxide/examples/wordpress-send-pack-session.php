@@ -29,5 +29,9 @@ return [
         static fn (PushRefStatus $status): string => $status->effectiveRefName(),
         $response->refStatuses()
     ),
+    'mainStatusObjects' => [
+        'oldObject' => $response->refStatuses()[0]->oldObject,
+        'newObject' => $response->refStatuses()[0]->newObject,
+    ],
     'commitSummary' => trim(substr($commit->body, strpos($commit->body, "\n\n") + 2)),
 ];

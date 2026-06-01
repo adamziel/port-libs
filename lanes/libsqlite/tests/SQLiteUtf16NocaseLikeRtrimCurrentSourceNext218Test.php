@@ -14,13 +14,13 @@ $encodingId218 = static fn (int|string $encoding): int => match ($encoding) {
     'UTF-16BE', 3 => 3,
 };
 $row218 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc218($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc218($name, $encoding),
     'text_encoding' => $encodingId218($encoding),
 ];
 $bad218 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 $escapeBytes218 = static fn (string $text, int|string $encoding, bool $bom = false): string => ($bom ? match ($encoding) {
@@ -97,7 +97,7 @@ $cases218 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoOneEight'],
     'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroEight'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? ORDER BY rtrim(option_name) COLLATE NOCASE, rowid LIMIT ? OFFSET ?'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? ORDER BY rtrim(key_name) COLLATE NOCASE, rowid LIMIT ? OFFSET ?'],
     'pattern' => ['pattern', 'plugin!_cache%'],
     'current escape' => ['currentEscape', '!'],
     'next escape' => ['nextEscape', '!'],

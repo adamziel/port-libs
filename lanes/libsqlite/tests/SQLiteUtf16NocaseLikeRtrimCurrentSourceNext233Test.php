@@ -14,13 +14,13 @@ $encodingId233 = static fn (int|string $encoding): int => match ($encoding) {
     'UTF-16BE', 3 => 3,
 };
 $row233 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc233($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc233($name, $encoding),
     'text_encoding' => $encodingId233($encoding),
 ];
 $bad233 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -85,7 +85,7 @@ $valueAt233 = static function (array $value, string $path): mixed {
 $cases233 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoThreeThree'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* no Unicode normalization */'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* no Unicode normalization */'],
     'pattern' => ['pattern', 'plugin!_caf_'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
@@ -236,7 +236,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeThree stable precompo
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoThreeThree rejects malformed row shape'] = static function (TestRunner $t) use ($enc233): void {
-    $rows = [['option_id' => 1, 'option_name_bytes' => $enc233('plugin_cafe', 'UTF-16LE')]];
+    $rows = [['setting_id' => 1, 'key_name_bytes' => $enc233('plugin_cafe', 'UTF-16LE')]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCanonicalUnicodePlan($rows, $rows));
 };
 

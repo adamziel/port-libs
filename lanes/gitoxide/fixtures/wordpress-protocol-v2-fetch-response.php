@@ -181,6 +181,20 @@ return [
         . $packet("\x02Counting objects: 100% (1/1)\n")
         . $packet("\x01" . $packData)
         . $flush,
+    'noNewlineSidebandAllResponse' => $packet("\x01acknowledgments")
+        . $packet("\x01ACK {$installed} common")
+        . $packet("\x01ready")
+        . $delimiter
+        . $packet("\x01shallow-info")
+        . $packet("\x01shallow {$main}")
+        . $delimiter
+        . $packet("\x01wanted-refs")
+        . $packet("\x01{$main} refs/heads/main")
+        . $delimiter
+        . $packet("\x01packfile")
+        . $packet("\x02Counting objects: 100% (1/1)")
+        . $packet("\x01" . $packData)
+        . $flush,
     'invalidUtf8ProtocolLineResponse' => $packet("\x01wanted-refs\n")
         . $packet("\x01{$main} refs/heads/wp-\xFF\n")
         . $delimiter
@@ -236,6 +250,7 @@ return [
     'smartHttpUploadPackUse' => 'A WordPress deployment fetch can unwrap a smart HTTP upload-pack result response, validate the upload-pack result content type and length, then parse the sidebanded protocol v2 fetch response without invoking git.',
     'trailingWhitespaceUse' => 'Protocol v2 fetch response section lines with trailing spaces or tabs are trimmed like Gitoxide before WordPress deployment tooling validates ACKs, shallow updates, wanted refs, and the following sideband pack bytes.',
     'unicodeWhitespaceUse' => 'Protocol v2 fetch response sideband-all section lines with trailing UTF-8 whitespace are trimmed like Gitoxide before WordPress deployment tooling validates ACKs, shallow updates, wanted refs, and pack bytes.',
+    'noNewlineSidebandAllUse' => 'Protocol v2 fetch response sideband-all channel-1 section lines do not require trailing LF bytes, so WordPress deployment tooling can parse compact upload-pack responses before importing pack data.',
     'invalidUtf8ProtocolLineUse' => 'Protocol v2 fetch response section lines with invalid UTF-8 are rejected before WordPress deployment tooling trusts wanted refs or imports the following pack bytes.',
     'binarySidebandUse' => 'Protocol v2 fetch sideband progress/error and pack bytes remain binary-safe while only response section lines are UTF-8 validated.',
 ];

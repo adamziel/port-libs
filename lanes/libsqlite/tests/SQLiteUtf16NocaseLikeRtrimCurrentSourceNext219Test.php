@@ -9,8 +9,8 @@ $tests = [];
 
 $enc219 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row219 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc219($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc219($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -18,8 +18,8 @@ $row219 = static fn (int $id, string $name, int|string $encoding): array => [
     },
 ];
 $bad219 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -82,7 +82,7 @@ $valueAt219 = static function (array $value, string $path): mixed {
 $cases219 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoOneNine'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* supplementary wildcard */'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* supplementary wildcard */'],
     'pattern' => ['pattern', 'plugin!_cache_'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
@@ -232,7 +232,7 @@ $tests['utf16 nocase like rtrim current source nextTwoOneNine ascii-space rtrim 
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoOneNine rejects malformed row shape'] = static function (TestRunner $t) use ($enc219): void {
-    $rows = [['option_id' => 1, 'option_name_bytes' => $enc219('plugin_cacheA', 'UTF-16LE')]];
+    $rows = [['setting_id' => 1, 'key_name_bytes' => $enc219('plugin_cacheA', 'UTF-16LE')]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySupplementaryWildcardPlan($rows, $rows));
 };
 

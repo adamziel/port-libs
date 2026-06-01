@@ -12,8 +12,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -40,7 +40,7 @@ $nextRows = [
     $row(6, 'plugin_cache' . $rocket, 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSupplementaryWildcardPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySupplementaryWildcardPlan(
     $currentRows,
     $nextRows,
 );
@@ -58,7 +58,7 @@ $payload = [
     'likeUnderscoreConsumesUnicodeCharacter' => $plan['likeUnderscoreConsumesUnicodeCharacter'],
     'utf16SurrogatePairIsOneLikeCharacter' => $plan['utf16SurrogatePairIsOneLikeCharacter'],
     'invalidationReasons' => $plan['invalidationReasons'],
-    'applicationUse' => 'Copied wp_options scans can keep UTF-16 supplementary-plane option names binary safe: one LIKE underscore wildcard consumes one decoded emoji character, while RTRIM and NOCASE remain SQLite-compatible ASCII operations.',
+    'applicationUse' => 'Copied app_settings scans can keep UTF-16 supplementary-plane option names binary safe: one LIKE underscore wildcard consumes one decoded emoji character, while RTRIM and NOCASE remain SQLite-compatible ASCII operations.',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

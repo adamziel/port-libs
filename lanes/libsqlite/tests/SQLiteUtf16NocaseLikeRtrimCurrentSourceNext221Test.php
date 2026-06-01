@@ -9,8 +9,8 @@ $tests = [];
 
 $enc221 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row221 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc221($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc221($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -18,8 +18,8 @@ $row221 = static fn (int $id, string $name, int|string $encoding): array => [
     },
 ];
 $bad221 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -89,7 +89,7 @@ $cases221 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoTwoOne'],
     'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroZero'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 byte signature */'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 byte signature */'],
     'current pattern' => ['currentPattern', 'plugin!_cache%'],
     'next pattern' => ['nextPattern', 'plugin!_cache%'],
     'current escape' => ['currentEscape', '!'],

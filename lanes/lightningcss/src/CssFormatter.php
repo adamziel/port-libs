@@ -29,18 +29,29 @@ final class CssFormatter
             }
 
             $prelude = trim(substr($css, $cursor, $open - $cursor));
+            $close = $this->findMatchingBrace($css, $open);
             if (preg_match('/^@counter-style\s+([_a-zA-Z-][_a-zA-Z0-9-]*)$/', $prelude) === 1) {
-                $close = $this->findMatchingBrace($css, $open);
                 $rules[] = $this->formatCounterStyleRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
                 $cursor = $close + 1;
                 continue;
             }
 
-            if (!preg_match('/^@page(?:\s|:|$)/i', $prelude)) {
-                throw new \InvalidArgumentException('CssFormatter currently supports @page and @counter-style rules only');
+            if ($this->isPropertyRulePrelude($prelude)) {
+                $rules[] = $this->formatPropertyRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
+                $cursor = $close + 1;
+                continue;
             }
 
-            $close = $this->findMatchingBrace($css, $open);
+            if ($this->isConditionalGroupPrelude($prelude)) {
+                $rules[] = $this->formatConditionalGroupRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
+                $cursor = $close + 1;
+                continue;
+            }
+
+            if (!preg_match('/^@page(?:\s|:|$)/i', $prelude)) {
+                throw new \InvalidArgumentException('CssFormatter currently supports @page, @counter-style, @property, @media, and @layer rules only');
+            }
+
             $rules[] = $this->formatPageRule($prelude, substr($css, $open + 1, $close - $open - 1), 0);
             $cursor = $close + 1;
         }
@@ -159,6 +170,96 @@ final class CssFormatter
             . $indent . '}';
     }
 
+    private function formatPropertyRule(string $prelude, string $body, int $indentLevel): string
+    {
+        $name = $this->propertyRuleName($prelude);
+        $indent = $this->indent($indentLevel);
+        $body = trim($body);
+        if ($body === '') {
+            return $indent . '@property ' . $name . ' {}';
+        }
+
+        return $indent . '@property ' . $name . " {\n"
+            . $this->formatPropertyDeclarations($body, $indentLevel + 1) . "\n"
+            . $indent . '}';
+    }
+
+    private function formatConditionalGroupRule(string $prelude, string $body, int $indentLevel): string
+    {
+        $items = $this->parseConditionalGroupItems($body, $indentLevel + 1);
+        $indent = $this->indent($indentLevel);
+        if ($items === []) {
+            return $indent . $this->normalizeConditionalGroupPrelude($prelude) . ' {}';
+        }
+
+        return $indent . $this->normalizeConditionalGroupPrelude($prelude) . " {\n"
+            . implode("\n\n", $items) . "\n"
+            . $indent . '}';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function parseConditionalGroupItems(string $body, int $indentLevel): array
+    {
+        $items = [];
+        $cursor = 0;
+        $length = strlen($body);
+
+        while (true) {
+            $cursor = $this->skipWhitespace($body, $cursor);
+            if ($cursor >= $length) {
+                break;
+            }
+
+            if ($body[$cursor] !== '@') {
+                throw new \InvalidArgumentException('@media and @layer formatter groups only support nested at-rules');
+            }
+
+            $open = $this->findNextTopLevel($body, '{', $cursor);
+            if ($open === null) {
+                throw new \InvalidArgumentException('Invalid nested at-rule in formatter group');
+            }
+
+            $prelude = trim(substr($body, $cursor, $open - $cursor));
+            $close = $this->findMatchingBrace($body, $open);
+            $nestedBody = substr($body, $open + 1, $close - $open - 1);
+            if ($this->isPropertyRulePrelude($prelude)) {
+                $items[] = $this->formatPropertyRule($prelude, $nestedBody, $indentLevel);
+            } elseif ($this->isConditionalGroupPrelude($prelude)) {
+                $items[] = $this->formatConditionalGroupRule($prelude, $nestedBody, $indentLevel);
+            } else {
+                throw new \InvalidArgumentException('Unsupported nested at-rule in formatter group: ' . $prelude);
+            }
+
+            $cursor = $close + 1;
+        }
+
+        return $items;
+    }
+
+    private function formatPropertyDeclarations(string $body, int $indentLevel): string
+    {
+        $declarations = $this->parseDeclarations($body);
+        $hasInitialValue = false;
+        foreach ($declarations as [$property]) {
+            if ($property === 'initial-value') {
+                $hasInitialValue = true;
+                break;
+            }
+        }
+
+        $lines = [];
+        $last = count($declarations) - 1;
+        foreach ($declarations as $index => [$property, $value]) {
+            $suffix = (!$hasInitialValue && $index === $last) ? '' : ';';
+            $lines[] = $this->indent($indentLevel)
+                . $property . ': ' . $this->formatPropertyDeclarationValue($property, $value) . $suffix;
+        }
+
+        return implode("\n", $lines);
+    }
+
     private function formatDeclarations(string $body, int $indentLevel): string
     {
         $lines = [];
@@ -213,11 +314,68 @@ final class CssFormatter
         return preg_replace('/^@counter-style\s+/i', '@counter-style ', $prelude) ?? $prelude;
     }
 
+    private function normalizeConditionalGroupPrelude(string $prelude): string
+    {
+        return trim(preg_replace('/\s+/', ' ', $prelude) ?? $prelude);
+    }
+
     private function formatDeclarationValue(string $value): string
     {
         $value = trim(preg_replace('/\s+/', ' ', $value) ?? $value);
 
         return preg_replace('/\bcounter\(\s*([_a-zA-Z-][_a-zA-Z0-9-]*)\s*\)/', 'counter($1)', $value) ?? $value;
+    }
+
+    private function formatPropertyDeclarationValue(string $property, string $value): string
+    {
+        $property = strtolower($property);
+        if ($property === 'syntax') {
+            return $this->formatPropertySyntaxValue($value);
+        }
+
+        if ($property === 'inherits') {
+            return strtolower(trim($value));
+        }
+
+        return $this->formatDeclarationValue($value);
+    }
+
+    private function formatPropertySyntaxValue(string $value): string
+    {
+        $syntax = trim($value);
+        if (strlen($syntax) >= 2 && (($syntax[0] === '"' && substr($syntax, -1) === '"') || ($syntax[0] === "'" && substr($syntax, -1) === "'"))) {
+            $syntax = substr($syntax, 1, -1);
+        }
+
+        $syntax = trim(preg_replace('/\s+/', ' ', $syntax) ?? $syntax);
+        $syntax = preg_replace('/\s*\|\s*/', ' | ', $syntax) ?? $syntax;
+        $syntax = preg_replace('/\s*([#+])\s*/', '$1', $syntax) ?? $syntax;
+
+        return '"' . str_replace('"', '\\"', $syntax) . '"';
+    }
+
+    private function isPropertyRulePrelude(string $prelude): bool
+    {
+        return preg_match('/^@property\b/i', trim($prelude)) === 1;
+    }
+
+    private function isConditionalGroupPrelude(string $prelude): bool
+    {
+        return preg_match('/^@(media|layer)\b/i', trim($prelude)) === 1;
+    }
+
+    private function propertyRuleName(string $prelude): string
+    {
+        if (preg_match('/^@property\b(.*)$/i', trim($prelude), $matches) !== 1) {
+            throw new \InvalidArgumentException('Invalid @property rule prelude: ' . $prelude);
+        }
+
+        $name = trim($matches[1]);
+        if (preg_match('/^--[-_a-zA-Z0-9]+$/', $name) !== 1) {
+            throw new \InvalidArgumentException("Invalid @property name: {$name}");
+        }
+
+        return $name;
     }
 
     private function pageMarginAtRuleName(string $prelude): ?string

@@ -695,6 +695,9 @@ return [
         $packetWithValueOnlyExtra = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['version=2', 'value-only', 'key=value']);
         $t->same("git-receive-pack /repo.git\0host=example.test\0\0version=2\0value-only\0key=value\0", substr($packetWithValueOnlyExtra, 4));
 
+        $packetWithEmptyValueExtra = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['server-option=']);
+        $t->same("git-receive-pack /repo.git\0host=example.test\0\0server-option=\0", substr($packetWithEmptyValueExtra, 4));
+
         $ipv6Packet = GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', '2001:db8::1', null, ['version=2']);
         $t->same("git-receive-pack /repo.git\0host=[2001:db8::1]\0\0version=2\0", substr($ipv6Packet, 4));
 
@@ -757,8 +760,8 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ["bad\nextra"]));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['=2']));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['1bad']));
-        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['bad=']));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['bad key=1']));
+        $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, ['bad key=']));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytes('/repo.git', 'example.test', null, [], 0));
         $t->throws(InvalidArgumentException::class, static fn () => GitDaemonReceivePackTransport::serviceRequestBytesForUrl('git://example.test/repo.git', [], 3));
     },
@@ -990,7 +993,7 @@ return [
                     'body' => $flush,
                 ];
             },
-            ['session-id', 'object-format=sha1'],
+            ['session-id', 'object-format=sha1', 'server-option='],
             30.0,
             [],
             ['protocolVersion' => 2],
@@ -1000,7 +1003,7 @@ return [
         $v2Transport->writeRequest('0000');
         $t->same($flush, $v2Transport->readResponse());
         $t->same(['GET', 'POST'], array_column($v2Requests, 'method'));
-        $t->same('version=2:session-id:object-format=sha1', $v2Requests[0]['headers']['Git-Protocol']);
+        $t->same('version=2:session-id:object-format=sha1:server-option=', $v2Requests[0]['headers']['Git-Protocol']);
         $t->same('version=2', $v2Requests[1]['headers']['Git-Protocol']);
         $t->same('0000', $v2Requests[1]['body']);
 
@@ -1063,7 +1066,7 @@ return [
                     'body' => $flush,
                 ];
             },
-            ['session-id'],
+            ['session-id', 'server-option='],
             30.0,
             [],
             ['protocolVersion' => 1],
@@ -1071,7 +1074,7 @@ return [
         $explicitV1Transport->readAdvertisement();
         $explicitV1Transport->writeRequest('0000');
         $explicitV1Transport->readResponse();
-        $t->same('session-id', $explicitV1Requests[0]['headers']['Git-Protocol']);
+        $t->same('session-id:server-option=', $explicitV1Requests[0]['headers']['Git-Protocol']);
         $t->same(null, $explicitV1Requests[1]['headers']['Git-Protocol'] ?? null);
 
         $t->throws(InvalidArgumentException::class, static fn () => new SmartHttpReceivePackTransport('https://example.test/repo.git', null, [], 30.0, [], ['protocolVersion' => 0]));
@@ -5321,6 +5324,7 @@ return [
         $t->same(true, $fixture['oversizePushOptionRejected']);
         $t->same("git-receive-pack /wp-content.git\0host=git-mirror.example.test\0\0version=2\0", substr($fixture['gitDaemonEncodedUrlServiceRequest'], 4));
         $t->same("git-receive-pack /wp-content.git\0host=git.example.test\0\0version=2\0session-id\0object-format=sha1\0", substr($fixture['gitDaemonValueOnlyExtraServiceRequest'], 4));
+        $t->same("git-receive-pack /wp-content.git\0host=git.example.test\0\0version=2\0server-option=\0", substr($fixture['gitDaemonEmptyValueExtraServiceRequest'], 4));
         $t->same("git-receive-pack ~/wp-content.git\0host=git.example.test\0\0version=2\0session-id\0object-format=sha1\0", substr($fixture['gitDaemonProtocolV2HomeServiceRequest'], 4));
         $t->same("git-receive-pack ~deploy/wp-content.git\0host=git.example.test\0\0version=2\0session-id\0", substr($fixture['gitDaemonProtocolV2NamedHomeUrlServiceRequest'], 4));
         $t->same("git-receive-pack /wp-content.git\0host=git.example.test:9440\0\0version=2\0session-id\0object-format=sha1\0", substr($fixture['gitDaemonVirtualHostServiceRequest'], 4));
@@ -5358,7 +5362,7 @@ return [
         $t->same(true, $fixture['smartHttpTransportOptionsBoundary']['postBodyPreserved']);
         $t->same(true, $fixture['smartHttpTransportOptionsBoundary']['responseSuccessful']);
         $t->same(['GET', 'POST'], $fixture['smartHttpProtocolHeaderBoundary']['v2RequestMethods']);
-        $t->same('version=2:session-id:object-format=sha1', $fixture['smartHttpProtocolHeaderBoundary']['v2DiscoveryGitProtocol']);
+        $t->same('version=2:session-id:object-format=sha1:server-option=', $fixture['smartHttpProtocolHeaderBoundary']['v2DiscoveryGitProtocol']);
         $t->same('version=2', $fixture['smartHttpProtocolHeaderBoundary']['v2PostGitProtocol']);
         $t->same(true, $fixture['smartHttpProtocolHeaderBoundary']['v2PostBodyPreserved']);
         $t->same('version=2:session-id', $fixture['smartHttpProtocolHeaderBoundary']['downgradeDiscoveryGitProtocol']);

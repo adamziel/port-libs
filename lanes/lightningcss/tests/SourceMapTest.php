@@ -2995,4 +2995,47 @@ return [
             $data['names']
         );
     },
+    'source map appends generated-offset child maps with line-local vlq columns' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $parentSource = $parent->addSource('cache/theme.css');
+        $parent->setSourceContent($parentSource, ".theme{color:green}\n");
+        $parent->addMapping(0, 0, $parentSource, 0, 0, 'themeRoot');
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('src/blocks/card.css');
+        $child->setSourceContent($childSource, ".card{color:red}\n.card__icon{display:inline-block}\n");
+        $child->addMapping(0, 0, $childSource, 0, 0, 'cardBlock');
+        $child->addMapping(0, 11, $childSource, 0, 11, 'cardDecl');
+        $child->addMapping(1, 3, $childSource, 1, 3, 'cardIcon');
+        $child->addGeneratedMapping(1, 18);
+        $child->offsetLines(2, 2);
+
+        $parent->appendSourceMapWithGeneratedOffset($child, 2, 4);
+
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+
+        $t->same('AAAAA;;ICAAC,WAAWC;GACRC,e;;', $parent->writeVlq());
+        $t->same([0, 2, 2, 3, 3], array_column($decoded, 'generatedLine'));
+        $t->same([0, 4, 15, 3, 18], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1, 1, 1, null], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 0, 0, 1, null], array_column($decoded, 'originalLine'));
+        $t->same([0, 0, 11, 3, null], array_column($decoded, 'originalColumn'));
+        $t->same([0, 1, 2, 3, null], array_column($decoded, 'nameIndex'));
+        $t->same(['cache/theme.css', 'src/blocks/card.css'], $data['sources']);
+        $t->same(
+            [
+                ".theme{color:green}\n",
+                ".card{color:red}\n.card__icon{display:inline-block}\n",
+            ],
+            $data['sourcesContent']
+        );
+        $t->same(['themeRoot', 'cardBlock', 'cardDecl', 'cardIcon'], $data['names']);
+        $t->same(2, $decoded[1]['generatedLine']);
+        $t->same(4, $decoded[1]['generatedColumn']);
+        $t->same(3, $decoded[3]['generatedLine']);
+        $t->same(3, $decoded[3]['generatedColumn']);
+        $t->same(null, $parent->findClosestMapping(4, 0));
+        $t->same('{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}', $child->toJson(null, false));
+    },
 ];

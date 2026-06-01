@@ -7966,25 +7966,55 @@ final class CustomAtRuleTransformer
                 return $this->customPreludeTokenListCssReplacement($replacement, $originalCss, $depth);
             }
 
-            $hasFunctionExitVisitor = ($this->functionExitVisitors[strtolower($name)] ?? $this->genericFunctionExitVisitor) !== null;
             $arguments = $function['arguments'] ?? [];
-            if (!$hasFunctionExitVisitor && is_array($arguments)) {
+            $argumentsChanged = false;
+            $exitVisitor = $this->functionExitVisitors[strtolower($name)] ?? $this->genericFunctionExitVisitor;
+            $shouldVisitArguments = is_array($arguments) && (
+                $exitVisitor === null || (($function['argumentSeparator'] ?? null) === 'space')
+            );
+            if ($shouldVisitArguments) {
                 $visitedArguments = $this->visitCustomPreludeTokenList($arguments, $depth + 1, $skipTokenType);
                 if ($visitedArguments['changed']) {
                     $function['arguments'] = $visitedArguments['value'];
                     $component['value'] = $function;
-
-                    return ['value' => [$component], 'changed' => true];
+                    $argumentsChanged = true;
+                    $argumentsCss = $this->functionValueArgumentsCss($function);
+                    $raw = $name . '(' . $argumentsCss . ')';
                 }
             }
 
-            $visited = $this->visitFunctionExit($name, $argumentsCss, $raw);
-            $visitedCss = $this->serializeVisitorValue($visited);
-            if ($visitedCss !== $originalCss) {
-                return $this->customPreludeTokenListCssReplacement($visitedCss, $originalCss, $depth);
+            if ($exitVisitor !== null) {
+                $exitFunction = [
+                    'type' => 'function',
+                    'name' => strtolower($name),
+                    'arguments' => is_array($function['arguments'] ?? null) ? $function['arguments'] : [],
+                    'raw' => $raw,
+                ];
+                if (isset($function['argumentSeparator'])) {
+                    $exitFunction['argumentSeparator'] = $function['argumentSeparator'];
+                }
+
+                $replacement = $exitVisitor($exitFunction, $this);
+                if ($replacement !== null) {
+                    return $this->customPreludeTokenListReplacement(
+                        $this->applyValueVisitors($this->normalizeVisitorValue($replacement), ['function']),
+                        $originalCss,
+                        $depth
+                    );
+                }
+            } elseif ($argumentsChanged) {
+                return ['value' => [$component], 'changed' => true];
             }
 
-            return ['value' => [$component], 'changed' => false];
+            if ($exitVisitor === null) {
+                $visited = $this->visitFunctionExit($name, $argumentsCss, $raw);
+                $visitedCss = $this->serializeVisitorValue($visited);
+                if ($visitedCss !== $originalCss) {
+                    return $this->customPreludeTokenListCssReplacement($visitedCss, $originalCss, $depth);
+                }
+            }
+
+            return ['value' => [$component], 'changed' => $argumentsChanged];
         }
 
         if ($type === 'var' && isset($component['value']) && is_array($component['value'])) {

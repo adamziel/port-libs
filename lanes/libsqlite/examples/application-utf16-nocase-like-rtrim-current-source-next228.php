@@ -8,8 +8,8 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -28,7 +28,7 @@ $nextRows = [
     $row(3, 'plugin_cache_alpha', 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameHeaderEncodingFencePlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyHeaderEncodingFencePlan(
     $currentRows,
     $nextRows,
     currentDatabaseEncoding: 'UTF-16LE',
@@ -50,7 +50,7 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
 
 return [
     'scenario' => 'application-utf16-nocase-like-rtrim-current-source-next228',
-    'applicationUse' => 'Copied wp_options scans retain the logical NOCASE/RTRIM LIKE rowset across a UTF-16LE to UTF-16BE source refresh, but force prepared cursor reprepare because the SQLite database text-encoding header changed.',
+    'applicationUse' => 'Copied app_settings scans retain the logical NOCASE/RTRIM LIKE rowset across a UTF-16LE to UTF-16BE source refresh, but force prepared cursor reprepare because the SQLite database text-encoding header changed.',
     'currentMatchedRowids' => $plan['currentMatchedRowids'],
     'nextMatchedRowids' => $plan['nextMatchedRowids'],
     'invalidationReasons' => $plan['invalidationReasons'],

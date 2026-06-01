@@ -37,9 +37,13 @@ $session->createOrUpdate('refs/tags/wp-release', $commit->oid());
 $request = $session->buildRequest([$commit, $tree, $blob]);
 
 $progress = 'Resolving deltas: 100% (0/0), completed with 0 local objects.';
+$statusOldPrefix = str_repeat('d', 40);
+$statusNewPrefix = str_repeat('e', 40);
 $responseBytes = $packet("\x02{$progress}\n")
     . $packet("\x01" . $packet("unpack ok\n"))
-    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main accepted with hook object diagnostics\n"))
+    . $packet("\x01" . $packet("option old-oid {$statusOldPrefix}feed\n"))
+    . $packet("\x01" . $packet("option new-oid {$statusNewPrefix}cafe\n"))
     . $packet("\x01" . $packet("ok refs/tags/wp-release\n"))
     . $packet("\x01" . $flush)
     . $flush;
@@ -56,6 +60,10 @@ return [
     'expectedRefs' => [
         'refs/heads/main',
         'refs/tags/wp-release',
+    ],
+    'expectedStatusObjects' => [
+        'oldObject' => $statusOldPrefix,
+        'newObject' => $statusNewPrefix,
     ],
     'wordpressUse' => 'A PHP deployment tool can parse receive-pack advertised refs, build a native pack, send a branch/tag update request, and parse the remote status response without invoking git.',
 ];

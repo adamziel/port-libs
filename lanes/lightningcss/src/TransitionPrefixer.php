@@ -805,7 +805,6 @@ final class TransitionPrefixer
         $cursorPrefixChanged = $this->rewriteCursorPrefixEntries($entries, $targetOptions);
         $boxSizingChanged = $this->rewriteBoxSizingPrefixEntries($entries, $targetOptions);
         $objectFitChanged = $this->rewriteObjectFitPrefixEntries($entries, $targetOptions);
-        $cssRegionsChanged = $this->rewriteCssRegionsPrefixEntries($entries, $targetOptions);
         $shapeChanged = $this->rewriteShapePrefixEntries($entries, $targetOptions);
         $unicodeBidiChanged = $this->rewriteUnicodeBidiPrefixEntries($entries, $targetOptions);
         $textCompatibilityPrefixChanged = $this->rewriteTextCompatibilityPrefixEntries($entries, $targetOptions);
@@ -890,7 +889,7 @@ final class TransitionPrefixer
             return $logicalTextAlignFallback . implode('', $supportRules);
         }
         $selectorVariants = $this->selectorPrefixVariants($selectors, $targetOptions);
-        if ($transitionChanged || $displayFlexChanged || $displayGridChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $cssRegionsChanged || $shapeChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $crossFadeChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $imageRenderingPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
+        if ($transitionChanged || $displayFlexChanged || $displayGridChanged || $flexChanged || $animationChanged || $colorSchemeChanged || $printColorAdjustChanged || $columnsChanged || $uiPrefixChanged || $cursorPrefixChanged || $boxSizingChanged || $objectFitChanged || $shapeChanged || $unicodeBidiChanged || $textCompatibilityPrefixChanged || $scrollSnapPrefixChanged || $breakPrefixChanged || $overflowShorthandChanged || $transformPrefixChanged || $positionStickyChanged || $backgroundSizeOriginChanged || $backgroundClipChanged || $clipPathChanged || $maskChanged || $filterChanged || $boxShadowChanged || $textShadowChanged || $textDecorationChanged || $textEmphasisChanged || $caretChanged || $listStyleChanged || $borderRadiusChanged || $borderImageChanged || $imageSetChanged || $crossFadeChanged || $gradientPrefixChanged || $sizingKeywordChanged || $logicalSizeFallbackChanged || $clampChanged || $colorChanged || $lightDarkChanged || $lightDarkSerializationChanged || $alphaHexChanged || $modernColorChanged || $fontTargetChanged || $fontTypographyPrefixChanged || $imageRenderingPrefixChanged || $lengthTargetChanged || $selectorVariants !== null) {
             return $this->serializeRulesForSelectors($selectorVariants ?? [$selectors], $entries) . implode('', $supportRules);
         }
 
@@ -2282,11 +2281,6 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'safari', [3, 1], [5]),
             'boxSizingNeedsMoz' => $this->targetInRange($normalized, 'firefox', [2], [28]),
             'objectFitNeedsO' => $this->targetInRange($normalized, 'opera', [10, 6], [12, 1]),
-            'cssRegionsNeedsWebkit' => $this->targetInRange($normalized, 'chrome', [15], [18])
-                || $this->targetInRange($normalized, 'ios_saf', [7], [11])
-                || $this->targetInRange($normalized, 'safari', [6, 1], [11]),
-            'cssRegionsNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
-                || $this->targetAtLeast($normalized, 'ie', [10]),
             'shapeNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [8], [10])
                 || $this->targetInRange($normalized, 'safari', [7, 1], [10]),
             'writingModeNeedsWebkit' => $this->targetInRange($normalized, 'android', [3], [4, 4, 3])
@@ -6755,27 +6749,6 @@ final class TransitionPrefixer
             $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, $property, [
                 '-webkit-' => $targetOptions['scrollSnapNeedsWebkit'] ?? false,
                 '-ms-' => $targetOptions['scrollSnapNeedsMs'] ?? false,
-            ]) || $changed;
-        }
-
-        return $changed;
-    }
-
-    /**
-     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
-     * @param array<string, bool> $targetOptions
-     */
-    private function rewriteCssRegionsPrefixEntries(array &$entries, array $targetOptions): bool
-    {
-        $changed = false;
-        foreach ([
-            'flow-into',
-            'flow-from',
-            'region-fragment',
-        ] as $property) {
-            $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, $property, [
-                '-webkit-' => $targetOptions['cssRegionsNeedsWebkit'] ?? false,
-                '-ms-' => $targetOptions['cssRegionsNeedsMs'] ?? false,
             ]) || $changed;
         }
 

@@ -9,8 +9,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -33,7 +33,7 @@ $next = [
     $row(5, 'plugin_cache', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameLineBreakBoundaryPlan($current, $next);
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyLineBreakBoundaryPlan($current, $next);
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['status'] === 'utf16-nocase-like-rtrim-current-source-next230');

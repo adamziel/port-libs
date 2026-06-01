@@ -6243,6 +6243,95 @@ CSS;
         $t->same('--theme-wp-min', $seen['rule']['preludeAst']['value'][1]['value']['arguments'][1]['value']);
         $t->same('live', $seen['rule']['preludeAst']['value'][1]['value']['arguments'][2]['value']['value']);
     },
+    'custom at-rules visit upstream function prelude arguments before FunctionExit' => static function (TestRunner $t): void {
+        $seen = [
+            'events' => [],
+            'exitArguments' => null,
+            'exitSeparator' => null,
+            'rule' => null,
+        ];
+        $css = <<<'CSS'
+@wp-design-token theme(16px --wp-gap draft);
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'wp-design-token' => ['prelude' => '*'],
+        ], [
+            'Length' => static function (array $length) use (&$seen): ?array {
+                if ($length['unit'] !== 'px') {
+                    return null;
+                }
+
+                $seen['events'][] = 'length:' . $length['value'] . $length['unit'];
+
+                return ['unit' => 'rem', 'value' => $length['value'] / 16];
+            },
+            'DashedIdent' => static function (string $ident) use (&$seen): string {
+                $seen['events'][] = 'dashed:' . $ident;
+
+                return '--theme-' . substr($ident, 2);
+            },
+            'Token' => [
+                'ident' => static function (array $token) use (&$seen): ?string {
+                    if (($token['value'] ?? null) !== 'draft') {
+                        return null;
+                    }
+
+                    $seen['events'][] = 'token:ident:' . $token['value'];
+
+                    return 'live';
+                },
+            ],
+            'FunctionExit' => [
+                'theme' => static function (array $function) use (&$seen): ?array {
+                    $seen['events'][] = 'exit:' . implode(',', array_map(
+                        static fn (array $argument): string => $argument['type'] ?? 'raw',
+                        $function['arguments'] ?? []
+                    ));
+                    $seen['exitArguments'] = $function['arguments'] ?? null;
+                    $seen['exitSeparator'] = $function['argumentSeparator'] ?? null;
+
+                    return null;
+                },
+            ],
+            'Rule' => [
+                'custom' => [
+                    'wp-design-token' => static function (array $rule) use (&$seen): array {
+                        $seen['events'][] = 'rule:' . $rule['prelude'];
+                        $seen['rule'] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:red}', $result);
+        $t->same([
+            'length:16px',
+            'dashed:--wp-gap',
+            'token:ident:draft',
+            'exit:length,dashed-ident,token',
+            'rule:theme(1rem --theme-wp-gap live)',
+        ], $seen['events']);
+        $t->same('space', $seen['exitSeparator']);
+        $t->same(['length', 'dashed-ident', 'token'], array_map(
+            static fn (array $argument): string => $argument['type'],
+            $seen['exitArguments']
+        ));
+        $t->same(['unit' => 'rem', 'value' => 1.0], $seen['exitArguments'][0]['value']);
+        $t->same('--theme-wp-gap', $seen['exitArguments'][1]['value']);
+        $t->same('live', $seen['exitArguments'][2]['value']['value']);
+        $t->same('theme(1rem --theme-wp-gap live)', $seen['rule']['prelude']);
+        $t->same('space', $seen['rule']['preludeAst']['value'][0]['value']['argumentSeparator'] ?? null);
+    },
     'custom at-rules expose upstream attribute selectors to parser bodies and Selector visitors' => static function (TestRunner $t): void {
         $seen = [
             'customAttribute' => null,

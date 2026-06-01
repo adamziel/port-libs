@@ -62,6 +62,7 @@ $sidebandAllResponseEndResponse = FetchResponse::fromV2PacketLines(
 );
 $trailingWhitespaceResponse = FetchResponse::fromV2PacketLines($fixture['trailingWhitespaceResponse'], true);
 $unicodeWhitespaceResponse = FetchResponse::fromV2PacketLines($fixture['unicodeWhitespaceResponse'], true);
+$noNewlineSidebandAllResponse = FetchResponse::fromV2PacketLines($fixture['noNewlineSidebandAllResponse'], true);
 $binarySidebandResponse = FetchResponse::fromV2PacketLines($fixture['binarySidebandResponse'], true);
 $smartHttpUploadPackResponse = FetchResponse::fromSmartHttpUploadPackResult($fixture['smartHttpUploadPackResponse']);
 $uploadPackError = null;
@@ -247,6 +248,16 @@ return [
         && $unicodeWhitespaceResponse->packData() === $fixture['packData']
         && $unicodeWhitespaceResponse->remoteProgress()[0]->percent === 100,
     'unicodeWhitespacePackTrailer' => bin2hex(substr($unicodeWhitespaceResponse->packData(), -20)),
+    'noNewlineSidebandAllParsed' => $noNewlineSidebandAllResponse->hasPack()
+        && $noNewlineSidebandAllResponse->acknowledgements()[0]->object === $fixture['objects']['installed']
+        && $noNewlineSidebandAllResponse->acknowledgements()[1]->kind === 'ready'
+        && $noNewlineSidebandAllResponse->shallowUpdates()[0]->object === $fixture['objects']['main']
+        && $noNewlineSidebandAllResponse->wantedRefs()[0]->path === 'refs/heads/main'
+        && $noNewlineSidebandAllResponse->wantedRefs()[0]->object === $fixture['objects']['main']
+        && $noNewlineSidebandAllResponse->packData() === $fixture['packData']
+        && $noNewlineSidebandAllResponse->progressMessages() === ['Counting objects: 100% (1/1)']
+        && $noNewlineSidebandAllResponse->remoteProgress()[0]->percent === 100,
+    'noNewlineSidebandAllPackTrailer' => bin2hex(substr($noNewlineSidebandAllResponse->packData(), -20)),
     'invalidUtf8ProtocolLineRejected' => $invalidUtf8ProtocolLineError === 'fetch response: invalid UTF-8 protocol line',
     'invalidUtf8ProtocolLineError' => $invalidUtf8ProtocolLineError,
     'binarySidebandPayloadsPreserved' => $binarySidebandResponse->packData() === $fixture['binaryPackData']

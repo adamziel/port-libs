@@ -699,7 +699,7 @@ final class SQLiteRealExpressionAffinityCorpusPlan
             return sprintf('%.1F', $value);
         }
 
-        $text = sprintf('%.15G', $value);
+        $text = sprintf('%.17G', $value);
 
         return str_contains($text, 'E') ? str_replace('E', 'e', $text) : $text;
     }

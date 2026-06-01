@@ -2482,7 +2482,7 @@ final class SQLiteCoreScalarFunction
             return ($value < 0 ? '-' : '') . $mantissa . 'e+' . $exponent;
         }
 
-        $formatted = sprintf('%.15G', $value);
+        $formatted = sprintf('%.17G', $value);
         if (!str_contains($formatted, '.') && !str_contains($formatted, 'E')) {
             $formatted .= '.0';
         }

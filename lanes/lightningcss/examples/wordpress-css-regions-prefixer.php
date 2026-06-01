@@ -36,8 +36,8 @@ $actual = [
 ];
 
 $expected = [
-    'legacy_editor' => '.wp-block-post-template.is-region-source{-webkit-flow-into:wp-region-feed;-ms-flow-into:wp-region-feed;flow-into:wp-region-feed}.wp-block-query-pagination.is-region-frame{-webkit-flow-from:wp-region-feed;-ms-flow-from:wp-region-feed;flow-from:wp-region-feed;-webkit-region-fragment:break;-ms-region-fragment:break;region-fragment:break}',
-    'legacy_safari' => '.wp-block-post-template.is-region-source{-webkit-flow-into:wp-region-feed;flow-into:wp-region-feed}.wp-block-query-pagination.is-region-frame{-webkit-flow-from:wp-region-feed;flow-from:wp-region-feed;-webkit-region-fragment:break;region-fragment:break}',
+    'legacy_editor' => '.wp-block-post-template.is-region-source{flow-into:wp-region-feed}.wp-block-query-pagination.is-region-frame{flow-from:wp-region-feed;region-fragment:break}',
+    'legacy_safari' => '.wp-block-post-template.is-region-source{flow-into:wp-region-feed}.wp-block-query-pagination.is-region-frame{flow-from:wp-region-feed;region-fragment:break}',
     'modern_frontend' => '.wp-block-post-template.is-region-source{flow-into:wp-region-feed}.wp-block-query-pagination.is-region-frame{flow-from:wp-region-feed;region-fragment:break}',
 ];
 

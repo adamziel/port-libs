@@ -9765,7 +9765,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoOneSeven',
             'baseStatus' => $base['status'],
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 pattern space */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 pattern space */',
             'currentPattern' => $currentPattern,
             'nextPattern' => $nextPattern,
             'currentPatternEncoding' => self::v217_encodingName($currentPatternEncoding),
@@ -9833,7 +9833,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
                 'sqlite-current-source-nexttwoOneSeven',
             ],
             'dependency_closure' => 'no new support component needed; reuses native UTF-16 decode, prepared LIKE pattern text, ASCII NOCASE prefix planning, RTRIM expression keys, and residual matching',
-            'non_overlap' => 'nextTwoOneSeven covers decoded UTF-16 prepared LIKE pattern spaces before the first wildcard remaining significant while rtrim(option_name) trims only the left expression; avoids accepted embedded-NUL nextTwoOneZero, Unicode ESCAPE nextTwoOneTwo, source refresh nextTwoOneOne, ASCII-space row RTRIM nextTwoZeroNine, Unicode GLOB, and malformed UTF-16 insert guards',
+            'non_overlap' => 'nextTwoOneSeven covers decoded UTF-16 prepared LIKE pattern spaces before the first wildcard remaining significant while rtrim(key_name) trims only the left expression; avoids accepted embedded-NUL nextTwoOneZero, Unicode ESCAPE nextTwoOneTwo, source refresh nextTwoOneOne, ASCII-space row RTRIM nextTwoZeroNine, Unicode GLOB, and malformed UTF-16 insert guards',
         ];
     }
 
@@ -9914,18 +9914,18 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     {
         $decoded = [];
         foreach ($rows as $row) {
-            if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneSeven rows require integer option_id');
+            if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneSeven rows require integer setting_id');
             }
-            if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneSeven rows require option_name_bytes');
+            if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneSeven rows require key_name_bytes');
             }
             if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
                 throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneSeven rows require integer text_encoding');
             }
 
             try {
-                $decoded[$row['option_id']] = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $decoded[$row['setting_id']] = SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']);
             } catch (\InvalidArgumentException) {
                 continue;
             }
@@ -10057,7 +10057,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoOneEight',
             'baseStatus' => $base['status'],
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? ORDER BY rtrim(option_name) COLLATE NOCASE, rowid LIMIT ? OFFSET ?',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? ORDER BY rtrim(key_name) COLLATE NOCASE, rowid LIMIT ? OFFSET ?',
             'pattern' => $pattern,
             'currentEscape' => $base['currentEscape'],
             'nextEscape' => $base['nextEscape'],
@@ -10262,7 +10262,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoOneNine',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* supplementary wildcard */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* supplementary wildcard */',
             'pattern' => $pattern,
             'escape' => $escape,
             'collation' => 'NOCASE',
@@ -10344,25 +10344,25 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         foreach ($rows as $row) {
             self::supplementaryWildcardAssertRow($row);
             try {
-                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']);
                 $rtrim = rtrim($text, ' ');
                 $supplementaryCount = self::supplementaryWildcardSupplementaryCount($rtrim);
                 if ($supplementaryCount > 0) {
-                    $supplementary[] = $row['option_id'];
+                    $supplementary[] = $row['setting_id'];
                 }
                 $decoded[] = [
-                    'rowid' => $row['option_id'],
+                    'rowid' => $row['setting_id'],
                     'text' => $text,
                     'rtrimText' => $rtrim,
                     'nocaseKey' => self::supplementaryWildcardAsciiLower($rtrim),
                     'characterCount' => self::supplementaryWildcardCharacterCount($rtrim),
                     'utf16CodeUnits' => self::supplementaryWildcardUtf16CodeUnits($rtrim),
                     'supplementaryCount' => $supplementaryCount,
-                    'bytesHex' => bin2hex($row['option_name_bytes']),
+                    'bytesHex' => bin2hex($row['key_name_bytes']),
                 ];
             } catch (\InvalidArgumentException $exception) {
-                $malformed[] = $row['option_id'];
-                $errors[$row['option_id']] = $exception->getMessage();
+                $malformed[] = $row['setting_id'];
+                $errors[$row['setting_id']] = $exception->getMessage();
             }
         }
 
@@ -10408,11 +10408,11 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     /** @param array<string,mixed> $row */
     private static function supplementaryWildcardAssertRow(array $row): void
     {
-        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneNine rows require integer option_id');
+        if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneNine rows require integer setting_id');
         }
-        if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneNine rows require option_name_bytes');
+        if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneNine rows require key_name_bytes');
         }
         if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoOneNine rows require integer text_encoding');
@@ -10641,7 +10641,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoTwoOne',
             'baseStatus' => $base['status'],
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 byte signature */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* prepared UTF-16 byte signature */',
             'currentPattern' => $currentPattern,
             'nextPattern' => $nextPattern,
             'currentEscape' => $currentEscape,
@@ -10837,7 +10837,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoTwoThree',
             'baseStatus' => $base['status'],
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? ORDER BY rtrim(option_name) COLLATE NOCASE DESC, rowid DESC LIMIT ? OFFSET ?',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? ORDER BY rtrim(key_name) COLLATE NOCASE DESC, rowid DESC LIMIT ? OFFSET ?',
             'pattern' => $pattern,
             'currentEscape' => $base['currentEscape'],
             'nextEscape' => $base['nextEscape'],
@@ -11072,7 +11072,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoTwoFour',
             'baseStatus' => $base['status'],
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? AND (rtrim(option_name) COLLATE NOCASE, rowid) > (?, ?) ORDER BY rtrim(option_name) COLLATE NOCASE, rowid LIMIT ?',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? AND (rtrim(key_name) COLLATE NOCASE, rowid) > (?, ?) ORDER BY rtrim(key_name) COLLATE NOCASE, rowid LIMIT ?',
             'pattern' => $pattern,
             'currentEscape' => $base['currentEscape'],
             'nextEscape' => $base['nextEscape'],
@@ -11280,7 +11280,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoTwoFive',
             'baseStatus' => $base['status'],
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* source-byte fence */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* source-byte fence */',
             'pattern' => $base['pattern'],
             'escape' => $base['escape'],
             'collation' => $base['collation'],
@@ -11392,21 +11392,21 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     {
         $mapped = [];
         foreach ($rows as $row) {
-            if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoFive rows require integer option_id');
+            if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoFive rows require integer setting_id');
             }
-            if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoFive rows require option_name_bytes');
+            if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoFive rows require key_name_bytes');
             }
             if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
                 throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoFive rows require integer text_encoding');
             }
             $encoding = $row['text_encoding'];
-            $mapped[$row['option_id']] = [
+            $mapped[$row['setting_id']] = [
                 'encoding' => $encoding,
                 'encodingName' => self::v225_encodingName($encoding),
                 'byteOrder' => self::v225_byteOrder($encoding),
-                'bytesHex' => bin2hex($row['option_name_bytes']),
+                'bytesHex' => bin2hex($row['key_name_bytes']),
             ];
         }
         ksort($mapped);
@@ -11526,7 +11526,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoTwoSix',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? /* combining mark normalization boundary */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? /* combining mark normalization boundary */',
             'pattern' => $pattern,
             'escape' => $escape,
             'collation' => 'NOCASE',
@@ -11608,25 +11608,25 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         foreach ($rows as $row) {
             self::v226_assertRow($row);
             try {
-                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']);
                 $rtrim = rtrim($text, ' ');
                 $combiningCount = self::v226_combiningMarkCount($rtrim);
                 if ($combiningCount > 0) {
-                    $combining[] = $row['option_id'];
+                    $combining[] = $row['setting_id'];
                 }
                 $decoded[] = [
-                    'rowid' => $row['option_id'],
+                    'rowid' => $row['setting_id'],
                     'text' => $text,
                     'rtrimText' => $rtrim,
                     'nocaseKey' => self::v226_asciiLower($rtrim),
                     'characterCount' => count(self::v226_characters($rtrim)),
                     'combiningMarkCount' => $combiningCount,
                     'normalizationForm' => self::v226_normalizationForm($rtrim),
-                    'bytesHex' => bin2hex($row['option_name_bytes']),
+                    'bytesHex' => bin2hex($row['key_name_bytes']),
                 ];
             } catch (\InvalidArgumentException $exception) {
-                $malformed[] = $row['option_id'];
-                $errors[$row['option_id']] = $exception->getMessage();
+                $malformed[] = $row['setting_id'];
+                $errors[$row['setting_id']] = $exception->getMessage();
             }
         }
 
@@ -11671,11 +11671,11 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     /** @param array<string,mixed> $row */
     private static function v226_assertRow(array $row): void
     {
-        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoSix rows require integer option_id');
+        if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoSix rows require integer setting_id');
         }
-        if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoSix rows require option_name_bytes');
+        if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoSix rows require key_name_bytes');
         }
         if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoSix rows require integer text_encoding');
@@ -11895,7 +11895,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoTwoSeven',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? /* ASCII-space RTRIM boundary */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? /* ASCII-space RTRIM boundary */',
             'pattern' => $pattern,
             'escape' => $escape,
             'collation' => 'NOCASE',
@@ -11976,26 +11976,26 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         foreach ($rows as $row) {
             self::v227_assertRow($row);
             try {
-                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']);
                 $rtrim = rtrim($text, ' ');
                 $suffixClass = self::v227_suffixClass($text);
                 if ($suffixClass === 'ascii-space') {
-                    $asciiSpace[] = $row['option_id'];
+                    $asciiSpace[] = $row['setting_id'];
                 } elseif ($suffixClass === 'nbsp') {
-                    $nbsp[] = $row['option_id'];
+                    $nbsp[] = $row['setting_id'];
                 } elseif ($suffixClass === 'tab') {
-                    $tabs[] = $row['option_id'];
+                    $tabs[] = $row['setting_id'];
                 }
                 $decoded[] = [
-                    'rowid' => $row['option_id'],
+                    'rowid' => $row['setting_id'],
                     'text' => $text,
                     'rtrimText' => $rtrim,
                     'nocaseKey' => self::v227_asciiLower($rtrim),
                     'suffixClass' => $suffixClass,
                 ];
             } catch (\InvalidArgumentException $exception) {
-                $malformed[] = $row['option_id'];
-                $errors[$row['option_id']] = $exception->getMessage();
+                $malformed[] = $row['setting_id'];
+                $errors[$row['setting_id']] = $exception->getMessage();
             }
         }
 
@@ -12038,11 +12038,11 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     /** @param array<string,mixed> $row */
     private static function v227_assertRow(array $row): void
     {
-        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoSeven rows require integer option_id');
+        if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoSeven rows require integer setting_id');
         }
-        if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoSeven rows require option_name_bytes');
+        if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoSeven rows require key_name_bytes');
         }
         if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoTwoSeven rows require integer text_encoding');
@@ -12231,7 +12231,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoTwoEight',
             'baseStatus' => $base['status'],
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* database text-encoding fence */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* database text-encoding fence */',
             'pattern' => $pattern,
             'escape' => $escape,
             'collation' => $base['collation'],
@@ -12383,7 +12383,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return array_replace($base, [
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoTwoNine',
             'baseStatus' => $base['status'],
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* UTF-16 non-ASCII spaces are not RTRIM spaces */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* UTF-16 non-ASCII spaces are not RTRIM spaces */',
             'currentSource' => $currentSource,
             'nextSource' => $nextSource,
             'currentSchemaCookie' => $currentSchemaCookie,
@@ -12501,12 +12501,12 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     {
         $texts = [];
         foreach ($rows as $row) {
-            if (!isset($row['option_id'], $row['option_name_bytes'], $row['text_encoding'])) {
+            if (!isset($row['setting_id'], $row['key_name_bytes'], $row['text_encoding'])) {
                 continue;
             }
             try {
-                $texts[(int) $row['option_id']] = SQLiteEncodingCollationSourceCursor::decodeText(
-                    (string) $row['option_name_bytes'],
+                $texts[(int) $row['setting_id']] = SQLiteEncodingCollationSourceCursor::decodeText(
+                    (string) $row['key_name_bytes'],
                     (int) $row['text_encoding'],
                 );
             } catch (\InvalidArgumentException) {
@@ -12603,7 +12603,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoThreeZero',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? /* line-break RTRIM boundary */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? /* line-break RTRIM boundary */',
             'pattern' => $pattern,
             'escape' => $escape,
             'collation' => 'NOCASE',
@@ -12685,26 +12685,26 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         foreach ($rows as $row) {
             self::v230_assertRow($row);
             try {
-                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']);
                 $rtrim = rtrim($text, ' ');
                 $suffixClass = self::v230_suffixClass($text);
                 if ($suffixClass === 'ascii-space') {
-                    $asciiSpace[] = $row['option_id'];
+                    $asciiSpace[] = $row['setting_id'];
                 } elseif ($suffixClass === 'line-break') {
-                    $lineBreaks[] = $row['option_id'];
+                    $lineBreaks[] = $row['setting_id'];
                 } elseif ($suffixClass === 'form-feed') {
-                    $formFeeds[] = $row['option_id'];
+                    $formFeeds[] = $row['setting_id'];
                 }
                 $decoded[] = [
-                    'rowid' => $row['option_id'],
+                    'rowid' => $row['setting_id'],
                     'text' => $text,
                     'rtrimText' => $rtrim,
                     'nocaseKey' => self::v230_asciiLower($rtrim),
                     'suffixClass' => $suffixClass,
                 ];
             } catch (\InvalidArgumentException $exception) {
-                $malformed[] = $row['option_id'];
-                $errors[$row['option_id']] = $exception->getMessage();
+                $malformed[] = $row['setting_id'];
+                $errors[$row['setting_id']] = $exception->getMessage();
             }
         }
 
@@ -12757,11 +12757,11 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     /** @param array<string,mixed> $row */
     private static function v230_assertRow(array $row): void
     {
-        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeZero rows require integer option_id');
+        if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeZero rows require integer setting_id');
         }
-        if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeZero rows require option_name_bytes');
+        if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeZero rows require key_name_bytes');
         }
         if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeZero rows require integer text_encoding');
@@ -12947,7 +12947,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoThreeOne',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? /* ASCII-only NOCASE boundary */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? /* ASCII-only NOCASE boundary */',
             'pattern' => $pattern,
             'escape' => $escape,
             'collation' => 'NOCASE',
@@ -13025,26 +13025,26 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         foreach ($rows as $row) {
             self::v231_assertRow($row);
             try {
-                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']);
                 $rtrim = rtrim($text, ' ');
                 $nocaseKey = self::v231_asciiLower($rtrim);
                 $class = self::v231_nonAsciiCaseClass($rtrim);
                 if ($class !== 'none') {
-                    $nonAsciiVariants[] = $row['option_id'];
+                    $nonAsciiVariants[] = $row['setting_id'];
                 }
                 if ($nocaseKey !== $rtrim) {
-                    $asciiFolded[] = $row['option_id'];
+                    $asciiFolded[] = $row['setting_id'];
                 }
                 $decoded[] = [
-                    'rowid' => $row['option_id'],
+                    'rowid' => $row['setting_id'],
                     'text' => $text,
                     'rtrimText' => $rtrim,
                     'nocaseKey' => $nocaseKey,
                     'nonAsciiCaseClass' => $class,
                 ];
             } catch (\InvalidArgumentException $exception) {
-                $malformed[] = $row['option_id'];
-                $errors[$row['option_id']] = $exception->getMessage();
+                $malformed[] = $row['setting_id'];
+                $errors[$row['setting_id']] = $exception->getMessage();
             }
         }
 
@@ -13085,11 +13085,11 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     /** @param array<string,mixed> $row */
     private static function v231_assertRow(array $row): void
     {
-        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeOne rows require integer option_id');
+        if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeOne rows require integer setting_id');
         }
-        if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeOne rows require option_name_bytes');
+        if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeOne rows require key_name_bytes');
         }
         if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeOne rows require integer text_encoding');
@@ -13288,7 +13288,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoThreeThree',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* no Unicode normalization */',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* no Unicode normalization */',
             'pattern' => $pattern,
             'escape' => $escape,
             'collation' => 'NOCASE',
@@ -13381,22 +13381,22 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         foreach ($rows as $row) {
             self::v233_assertRow($row);
             try {
-                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']);
                 $rtrim = rtrim($text, ' ');
                 $canonicalKey = self::v233_canonicalAccentKey($rtrim);
                 $hasCombining = self::v233_hasCombiningMark($rtrim);
                 $hasPrecomposed = str_contains($rtrim, "\u{00e9}") || str_contains($rtrim, "\u{00c9}");
                 if ($hasCombining) {
-                    $combining[] = $row['option_id'];
+                    $combining[] = $row['setting_id'];
                 }
                 if ($hasPrecomposed) {
-                    $precomposed[] = $row['option_id'];
+                    $precomposed[] = $row['setting_id'];
                 }
                 if ($hasCombining || $hasPrecomposed) {
-                    $canonicalEquivalent[] = $row['option_id'];
+                    $canonicalEquivalent[] = $row['setting_id'];
                 }
                 $decoded[] = [
-                    'rowid' => $row['option_id'],
+                    'rowid' => $row['setting_id'],
                     'text' => $text,
                     'rtrimText' => $rtrim,
                     'nocaseKey' => self::v233_asciiLower($rtrim),
@@ -13407,8 +13407,8 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
                     'hasPrecomposedAccent' => $hasPrecomposed,
                 ];
             } catch (\InvalidArgumentException $exception) {
-                $malformed[] = $row['option_id'];
-                $errors[$row['option_id']] = $exception->getMessage();
+                $malformed[] = $row['setting_id'];
+                $errors[$row['setting_id']] = $exception->getMessage();
             }
         }
 
@@ -13458,11 +13458,11 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     /** @param array<string,mixed> $row */
     private static function v233_assertRow(array $row): void
     {
-        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeThree rows require integer option_id');
+        if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeThree rows require integer setting_id');
         }
-        if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeThree rows require option_name_bytes');
+        if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeThree rows require key_name_bytes');
         }
         if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM nextTwoThreeThree rows require integer text_encoding');

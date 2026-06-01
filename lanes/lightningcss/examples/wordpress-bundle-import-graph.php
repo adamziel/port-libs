@@ -179,6 +179,38 @@ if (
 
 echo 'source-map-input-offset: remapped' . PHP_EOL;
 
+$licenseOffsetBlockMap = 'data:application/json;base64,' . base64_encode(json_encode([
+    'version' => 3,
+    'mappings' => 'AAAA',
+    'sources' => ['blocks/generated-license-card.scss'],
+    'sourcesContent' => ['.wp-block-card { color: $theme-green }'],
+    'names' => [],
+], JSON_THROW_ON_ERROR));
+
+$licenseOffsetSourceBundle = (new CssBundler())->bundleWithSourceMap('/theme.css', [
+    '/theme.css' => '@import "blocks/license.css"; @import "blocks/generated-license-card.css"; .wp-site-blocks { color: red }',
+    '/blocks/license.css' => "/*! WP block package */\n.wp-block-base { color: blue }",
+    '/blocks/generated-license-card.css' => ".wp-block-card { color: green }\n/*# sourceMappingURL={$licenseOffsetBlockMap} */",
+], null, '/');
+$licenseOffsetSourceDecoded = SourceMap::decodeVlq($licenseOffsetSourceBundle['sourceMap']->toArray(null, false)['mappings']);
+
+if (
+    $licenseOffsetSourceBundle['code'] !== "/*! WP block package */\n.wp-block-base{color:#00f}.wp-block-card{color:green}.wp-site-blocks{color:red}"
+    || $licenseOffsetSourceBundle['sourceMap']->toArray(null, false)['sources'] !== [
+        'theme.css',
+        'blocks/license.css',
+        'blocks/generated-license-card.scss',
+    ]
+    || ($licenseOffsetSourceDecoded[0]['generatedLine'] ?? null) !== 1
+    || ($licenseOffsetSourceDecoded[0]['generatedColumn'] ?? null) !== strlen('.wp-block-base{color:#00f}')
+    || ($licenseOffsetSourceDecoded[0]['sourceIndex'] ?? null) !== 2
+) {
+    fwrite(STDERR, "Expected inline input source map to offset after hoisted block CSS license comments\n");
+    exit(1);
+}
+
+echo 'source-map-input-license-offset: remapped' . PHP_EOL;
+
 $stringFragmentBlockMap = 'data:application/json;base64,' . base64_encode(json_encode([
     'version' => 3,
     'mappings' => 'AAAA',

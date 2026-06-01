@@ -14,8 +14,8 @@ $encodingId = static fn (int|string $encoding): int => match ($encoding) {
     'UTF-16BE', 3 => 3,
 };
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encodingId($encoding),
 ];
 
@@ -33,7 +33,7 @@ $next = [
     $row(5, 'PLUGIN_CACHE_AARDVARK', 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameYieldPagePlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyYieldPagePlan(
     $current,
     $next,
     'plugin!_cache%',
@@ -43,15 +43,15 @@ $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameYieldPageP
     'UTF-16LE',
     2,
     1,
-    'main.wp_options@copy-current',
-    'main.wp_options@copy-next',
+    'main.app_settings@copy-current',
+    'main.app_settings@copy-next',
     217,
     218,
 );
 
 $summary = [
     'scenario' => 'application-utf16-nocase-like-rtrim-current-source-next218',
-    'applicationUse' => 'Copied wp_options imports can resume a UTF-16 RTRIM/NOCASE LIKE page only when the ordered LIMIT window still matches the current-source token.',
+    'applicationUse' => 'Copied app_settings imports can resume a UTF-16 RTRIM/NOCASE LIKE page only when the ordered LIMIT window still matches the current-source token.',
     'status' => $plan['status'],
     'currentPageRowids' => $plan['currentPageRowids'],
     'nextPageRowids' => $plan['nextPageRowids'],

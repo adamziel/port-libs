@@ -80,6 +80,7 @@ return [
     'gitDaemonServiceRequestPayload' => substr($fixture['gitDaemonServiceRequest'], 4),
     'gitDaemonUrlServiceRequestPayload' => substr($fixture['gitDaemonUrlServiceRequest'], 4),
     'gitDaemonValueOnlyExtraServiceRequestPayload' => substr($fixture['gitDaemonValueOnlyExtraServiceRequest'], 4),
+    'gitDaemonEmptyValueExtraServiceRequestPayload' => substr($fixture['gitDaemonEmptyValueExtraServiceRequest'], 4),
     'gitDaemonProtocolV2HomeServiceRequestPayload' => substr($fixture['gitDaemonProtocolV2HomeServiceRequest'], 4),
     'gitDaemonProtocolV2NamedHomeUrlServiceRequestPayload' => substr($fixture['gitDaemonProtocolV2NamedHomeUrlServiceRequest'], 4),
     'gitDaemonEncodedUrlServiceRequestPayload' => substr($fixture['gitDaemonEncodedUrlServiceRequest'], 4),

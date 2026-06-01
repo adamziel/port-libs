@@ -9,8 +9,8 @@ $tests = [];
 
 $enc231 = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row231 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc231($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc231($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -18,8 +18,8 @@ $row231 = static fn (int $id, string $name, int|string $encoding): array => [
     },
 ];
 $bad231 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -79,7 +79,7 @@ $valueAt231 = static function (array $value, string $path): mixed {
 $cases231 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoThreeOne'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? /* ASCII-only NOCASE boundary */'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? /* ASCII-only NOCASE boundary */'],
     'pattern' => ['pattern', 'plugin_cafÉ%'],
     'escape' => ['escape', null],
     'collation' => ['collation', 'NOCASE'],
@@ -223,7 +223,7 @@ $tests['utf16 nocase like rtrim current source nextTwoThreeOne ascii prefix stil
 };
 
 $tests['utf16 nocase like rtrim current source nextTwoThreeOne rejects malformed row shape'] = static function (TestRunner $t) use ($enc231): void {
-    $rows = [['option_id' => 1, 'option_name_bytes' => $enc231('plugin_cafÉ_main', 'UTF-16LE')]];
+    $rows = [['setting_id' => 1, 'key_name_bytes' => $enc231('plugin_cafÉ_main', 'UTF-16LE')]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyAsciiOnlyNocasePlan($rows, $rows));
 };
 

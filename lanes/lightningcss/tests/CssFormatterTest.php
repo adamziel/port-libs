@@ -92,6 +92,106 @@ CSS));
 }
 CSS));
     },
+    'css formatter maps upstream property rule printer cases' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+@property --property-name {
+  syntax: "*";
+  inherits: false;
+  initial-value: ;
+}
+
+CSS, $formatter->format(<<<'CSS'
+@property --property-name {
+  syntax: '*';
+  inherits: false;
+  initial-value: ;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@property --property-name {
+  syntax: "*";
+  inherits: false;
+  initial-value: ;
+}
+
+CSS, $formatter->format(<<<'CSS'
+@property --property-name {
+  syntax: '*';
+  inherits: false;
+  initial-value:;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@property --property-name {
+  syntax: "<length> | none";
+  inherits: false;
+  initial-value: none;
+}
+
+CSS, $formatter->format(<<<'CSS'
+@property --property-name {
+  syntax: '<length>|none';
+  inherits: false;
+  initial-value: none;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@media (width < 800px) {
+  @property --property-name {
+    syntax: "*";
+    inherits: false
+  }
+}
+
+CSS, $formatter->format(<<<'CSS'
+@media (width < 800px) {
+  @property --property-name {
+    syntax: '*';
+    inherits: false;
+  }
+}
+CSS));
+
+        $t->same(<<<'CSS'
+@layer foo {
+  @property --property-name {
+    syntax: "*";
+    inherits: false
+  }
+}
+
+CSS, $formatter->format(<<<'CSS'
+@layer foo {
+  @property --property-name {
+    syntax: '*';
+    inherits: false;
+  }
+}
+CSS));
+    },
+    'wordpress property registration formatting preserves design token blocks' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@layer theme.tokens {
+  @property --wp--custom--card-accent { syntax: '<color>'; inherits: true; initial-value: blue; }
+}
+CSS;
+
+        $t->same(<<<'CSS'
+@layer theme.tokens {
+  @property --wp--custom--card-accent {
+    syntax: "<color>";
+    inherits: true;
+    initial-value: blue;
+  }
+}
+
+CSS, (new CssFormatter())->format($css));
+    },
     'wordpress print export page rules format without node' => static function (TestRunner $t): void {
         $css = <<<'CSS'
 @page chapter:right {

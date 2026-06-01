@@ -12,8 +12,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -34,7 +34,7 @@ $nextRows = [
     $row(5, 'plugin_cache_beta', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameSourceBytePlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeySourceBytePlan(
     $currentRows,
     $nextRows,
     'plugin!_cache%',
@@ -54,7 +54,7 @@ $payload = [
     'changedSourceByteRowids' => $plan['changedSourceByteRowids'],
     'stableDecodedChangedSourceRowids' => $plan['stableDecodedChangedSourceRowids'],
     'invalidationReasons' => $plan['invalidationReasons'],
-    'applicationUse' => 'Copied wp_options cursors must restart when UTF-16 source bytes or endian encoding change, even when decoded NOCASE/RTRIM LIKE results are unchanged.',
+    'applicationUse' => 'Copied app_settings cursors must restart when UTF-16 source bytes or endian encoding change, even when decoded NOCASE/RTRIM LIKE results are unchanged.',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

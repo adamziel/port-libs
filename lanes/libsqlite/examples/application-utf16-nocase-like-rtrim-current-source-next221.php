@@ -12,8 +12,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -27,7 +27,7 @@ $rows = [
     $row(3, 'plugin-cache', 'UTF-8'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedByteSignaturePlan(
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyPreparedByteSignaturePlan(
     $rows,
     $rows,
     $enc('plugin!_cache%', 'UTF-16LE'),
@@ -38,8 +38,8 @@ $plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNamePreparedBy
     'UTF-16LE',
     $enc('!', 'UTF-16BE'),
     'UTF-16BE',
-    'copied.wp_options',
-    'copied.wp_options',
+    'copied.app_settings',
+    'copied.app_settings',
     221,
     221,
 );
@@ -54,7 +54,7 @@ $payload = [
     'nextMatchedRowids' => $plan['nextMatchedRowids'],
     'cursorInvalidated' => $plan['cursorInvalidated'],
     'invalidationReasons' => $plan['invalidationReasons'],
-    'applicationUse' => 'Copied wp_options scanners must fence current-source cursor reuse when a prepared UTF-16 LIKE pattern decodes to the same SQL text but carries different endian byte metadata.',
+    'applicationUse' => 'Copied app_settings scanners must fence current-source cursor reuse when a prepared UTF-16 LIKE pattern decodes to the same SQL text but carries different endian byte metadata.',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

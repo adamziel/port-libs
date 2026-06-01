@@ -14,13 +14,13 @@ $encodingId228 = static fn (int|string $encoding): int => match ($encoding) {
     'UTF-16BE', 3 => 3,
 };
 $row228 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc228($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc228($name, $encoding),
     'text_encoding' => $encodingId228($encoding),
 ];
 $bad228 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -82,7 +82,7 @@ $cases228 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoTwoEight'],
     'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nexttwoOneOne'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE ? ESCAPE ? /* database text-encoding fence */'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE ? ESCAPE ? /* database text-encoding fence */'],
     'pattern' => ['pattern', 'plugin!_cache%'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],

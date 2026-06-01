@@ -102,6 +102,49 @@ return [
         $t->same('(width)', $parser->minifyList('(min-width)'));
         $t->same('(scan)', $parser->minifyList('(max-scan)'));
     },
+    'media query parser maps upstream range dimension units inside layers' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+        $minifier = new CssMinifier();
+
+        $t->same('(width>=2q)', $parser->minifyList('(width >= 2Q)'));
+        $t->same('(width>=2rcap)', $parser->minifyList('(width >= 2rcap)'));
+        $t->same('(theme-breakpoint>=2ic)', $parser->minifyList('(theme-breakpoint >= 2ic)'));
+        $t->same('(theme-breakpoint>=2dppx)', $parser->minifyList('(theme-breakpoint >= 2dppx)'));
+        $t->same('(theme-breakpoint>=max(1em,2px))', $parser->minifyList('(theme-breakpoint >= max(1em, 2px))'));
+        $t->same('(theme-breakpoint>=3rem)', $parser->minifyList('(theme-breakpoint >= max(2rem, 3rem))'));
+        $t->same('(width>=1)', $parser->minifyList('(width >= sign(2rcap))'));
+        $t->same('(width>=sign(1rcap + 2px))', $parser->minifyList('(width >= sign(calc(1rcap + 2px)))'));
+        $t->same('(min-width:2rcap)', $parser->lowerRangeSyntaxList('(width >= 2rcap)'));
+        $t->same('(min-theme-breakpoint:2q)', $parser->lowerRangeSyntaxList('(theme-breakpoint >= 2q)'));
+        $t->same('(min-theme-breakpoint:max(1em,2px))', $parser->lowerRangeSyntaxList('(theme-breakpoint >= max(1em, 2px))'));
+        $t->same('(min-width:1)', $parser->lowerRangeSyntaxList('(width >= sign(2rcap))'));
+        $t->same(
+            '@layer blocks{@media (width>=2rcap){.wp-block-query{color:#ff0}}}',
+            $minifier->minify('@layer blocks { @media (width >= 2rcap) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (theme-breakpoint>=max(1em,2px)){.wp-block-query{color:#ff0}}}',
+            $minifier->minify('@layer blocks { @media (theme-breakpoint >= max(1em, 2px)) { .wp-block-query { color: yellow; } } }')
+        );
+        $t->same(
+            '@layer blocks{@media (width>=1){.wp-block-query{color:#ff0}}}',
+            $minifier->minify('@layer blocks { @media (width >= sign(2rcap)) { .wp-block-query { color: yellow; } } }')
+        );
+
+        foreach ([
+            '(width >= 2foo)',
+            '(theme-breakpoint >= 2foo)',
+            '(theme-breakpoint >= 2s)',
+            '(--wp-breakpoint >= 2deg)',
+            '(theme-breakpoint >= max(1em, 2foo))',
+            '(theme-breakpoint >= max(1dppx, 2dppx))',
+            '(width >= max(1, 2foo))',
+            '(width >= round(22px, 5foo))',
+            '(-webkit-device-pixel-ratio >= max(1, 2px))',
+        ] as $query) {
+            $t->throws(InvalidArgumentException::class, static fn () => $parser->minifyList($query));
+        }
+    },
     'media query parser maps upstream unknown range feature parity' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 
@@ -875,6 +918,10 @@ return [
             '@layer blocks { @media (width >= calc(50% + 1px)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (width >= calc(6px / 2px)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (width >= var(--theme-breakpoint)) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (width >= 2foo) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (theme-breakpoint >= max(1em, 2foo)) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (theme-breakpoint >= max(1dppx, 2dppx)) { .wp-block-query { color: chartreuse; } } }',
+            '@layer blocks { @media (-webkit-device-pixel-ratio >= max(1, 2px)) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media var(--theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media screen and calc(theme-breakpoint) { .wp-block-query { color: chartreuse; } } }',
             '@layer blocks { @media (unk\\6e own(foo)) { .wp-block-query { color: chartreuse; } } }',

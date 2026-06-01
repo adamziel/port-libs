@@ -14,13 +14,13 @@ $encodingId229 = static fn (int|string $encoding): int => match ($encoding) {
     'UTF-16BE', 3 => 3,
 };
 $row229 = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc229($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc229($name, $encoding),
     'text_encoding' => $encodingId229($encoding),
 ];
 $bad229 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 

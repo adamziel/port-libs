@@ -12,8 +12,8 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int|string $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => match ($encoding) {
         'UTF-8', 1 => 1,
         'UTF-16LE', 2 => 2,
@@ -35,7 +35,7 @@ $next = [
     $row(4, 'PLUGIN_CAF' . $composed, 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::optionRowNameCombiningMarkPlan($current, $next);
+$plan = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyCombiningMarkPlan($current, $next);
 
 $payload = [
     'status' => $plan['status'],
@@ -48,7 +48,7 @@ $payload = [
     'unicodeNormalizationIsNotApplied' => $plan['unicodeNormalizationIsNotApplied'],
     'invalidationReasons' => $plan['invalidationReasons'],
     'dependency_closure' => $plan['dependency_closure'],
-    'applicationUse' => 'Copied wp_options scans keep SQLite-compatible UTF-16 LIKE semantics: composed and decomposed accents are not normalized, a combining mark remains its own LIKE character, and NOCASE/RTRIM stay ASCII scoped.',
+    'applicationUse' => 'Copied app_settings scans keep SQLite-compatible UTF-16 LIKE semantics: composed and decomposed accents are not normalized, a combining mark remains its own LIKE character, and NOCASE/RTRIM stay ASCII scoped.',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

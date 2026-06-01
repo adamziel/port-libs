@@ -72,6 +72,46 @@ $utf16KeyValuePlanLegacyDefaultMatches = static function () use ($libsqliteRoot)
     return array_map(static fn (string $match): string => "{$relative}: {$match}", $matches[0]);
 };
 
+$utf16LateKeyValuePlanLegacyDefaultMatches = static function () use ($libsqliteRoot): array {
+    $reflection = new ReflectionClass(SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::class);
+    $file = $reflection->getFileName();
+    if ($file === false) {
+        throw new RuntimeException('Unable to locate UTF-16 NOCASE LIKE RTRIM source file');
+    }
+
+    $contents = file_get_contents($file);
+    if ($contents === false) {
+        throw new RuntimeException("Unable to read {$file}");
+    }
+
+    $start = strpos($contents, 'public static function keyValueRowKeyPreparedPatternSpacePlan(');
+    $end = strpos($contents, 'public static function keyValueRowKeyNullPatternRebindPlan(', $start === false ? 0 : $start);
+    if ($start === false || $end === false || $end <= $start) {
+        throw new RuntimeException('Unable to isolate UTF-16 NOCASE LIKE RTRIM next217 through next233 source segment');
+    }
+
+    $source = substr($contents, $start, $end - $start);
+    $terms = [
+        'wp' . '_',
+        'wp' . '_options',
+        'wp' . '_option',
+        'option_id',
+        'option_name',
+        'option_value',
+        'autoload',
+        'blog_id',
+        'optionRowName',
+    ];
+    $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
+    if (preg_match_all($pattern, $source, $matches) < 1) {
+        return [];
+    }
+
+    $relative = str_replace($libsqliteRoot . '/', '', $file);
+
+    return array_map(static fn (string $match): string => "{$relative}: {$match}", $matches[0]);
+};
+
 $legacyOptionTableDefaultMatches = static function () use ($optionTableDefaultSourceFiles, $libsqliteRoot): array {
     $terms = [
         'wp' . '_',
@@ -208,6 +248,7 @@ $triggerNewRow = [
 return [
     'source-neutral option table default source files contain no hardcoded wp table defaults' => static fn (TestRunner $t) => $t->same([], $legacyOptionTableDefaultMatches()),
     'utf16 key value byte-order plan source uses neutral setting defaults' => static fn (TestRunner $t) => $t->same([], $utf16KeyValuePlanLegacyDefaultMatches()),
+    'utf16 late key value source uses neutral setting defaults' => static fn (TestRunner $t) => $t->same([], $utf16LateKeyValuePlanLegacyDefaultMatches()),
     'source-neutral json path defaults use generic setting keys in source' => static fn (TestRunner $t) => $t->same([], $jsonPathLegacyDefaultMatches()),
     'source-neutral trigger foreign key returning defaults use generic setting rowids in source' => static fn (TestRunner $t) => $t->same([], $triggerForeignKeyLegacyDefaultMatches()),
     'trigger foreign key returning default rowid is setting id' => static function (TestRunner $t): void {
