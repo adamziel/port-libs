@@ -684,7 +684,14 @@ final class CssBundler
         }
 
         if ($rule['layer'] !== null) {
-            if ($entry['layer'] !== null && ($entry['layer'] !== $rule['layer'] || $rule['layer'] === '')) {
+            if (
+                $entry['layer'] !== null
+                && (
+                    $rule['layer'] === ''
+                    || $entry['layer'] === ''
+                    || !$this->layerNamesEquivalent($entry['layer'], $rule['layer'])
+                )
+            ) {
                 throw new CssBundleException(
                     'unsupported-layer-combination',
                     'Unsupported layer combination in @import',
@@ -694,7 +701,9 @@ final class CssBundler
                 );
             }
 
-            $entry['layer'] = $rule['layer'];
+            if ($entry['layer'] === null) {
+                $entry['layer'] = $rule['layer'];
+            }
         }
     }
 
@@ -1383,7 +1392,15 @@ final class CssBundler
     private function parseImportStatement(string $statement, array $loc, string $file): array
     {
         $statement = rtrim(trim($statement), ';');
-        $rest = trim(substr($statement, $this->atKeywordEndOffset($statement, 0, '@import') ?? strlen('@import')));
+        $restStart = $this->atKeywordEndOffset($statement, 0, '@import') ?? strlen('@import');
+        $restEnd = strlen($statement);
+        while ($restStart < $restEnd && ctype_space($statement[$restStart])) {
+            $restStart++;
+        }
+        while ($restEnd > $restStart && ctype_space($statement[$restEnd - 1])) {
+            $restEnd--;
+        }
+        $rest = substr($statement, $restStart, $restEnd - $restStart);
         $offset = $this->skipWhitespaceAndComments($rest, 0);
         $specifier = null;
 
@@ -1448,7 +1465,9 @@ final class CssBundler
         }
 
         if ($offset < strlen($rest)) {
-            $media = trim(substr($rest, $offset));
+            $mediaTail = substr($rest, $offset);
+            $this->assertNoImportMediaTopLevelFunctions($mediaTail, $statement, $restStart + $offset, $file, $loc);
+            $media = trim($mediaTail);
             $this->validateImportMediaQueryList($media, $file, $loc);
         }
 
@@ -1500,6 +1519,117 @@ final class CssBundler
         } catch (\InvalidArgumentException $exception) {
             throw new CssBundleException('parser-error', $exception->getMessage(), $file, $loc['line'], $loc['column']);
         }
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function assertNoImportMediaTopLevelFunctions(
+        string $mediaTail,
+        string $statement,
+        int $tailOffsetInStatement,
+        string $file,
+        array $loc
+    ): void {
+        $function = $this->firstImportMediaTopLevelFunction($mediaTail);
+        if ($function === null) {
+            return;
+        }
+
+        $diagnostic = $this->sourceLocationRelativeTo($statement, $tailOffsetInStatement + $function['offset'], $loc);
+        throw new CssBundleException(
+            'parser-error',
+            'Unexpected token Function("' . $function['name'] . '")',
+            $file,
+            $diagnostic['line'],
+            $diagnostic['column']
+        );
+    }
+
+    /**
+     * @return array{name:string,offset:int}|null
+     */
+    private function firstImportMediaTopLevelFunction(string $mediaTail): ?array
+    {
+        $length = strlen($mediaTail);
+        $offset = 0;
+        while ($offset < $length) {
+            $tokenStart = $offset;
+            while ($offset < $length) {
+                while ($offset < $length && ctype_space($mediaTail[$offset])) {
+                    $offset++;
+                }
+                if ($offset >= $length) {
+                    return null;
+                }
+                if ($mediaTail[$offset] === '/' && ($mediaTail[$offset + 1] ?? '') === '*') {
+                    $end = strpos($mediaTail, '*/', $offset + 2);
+                    if ($end === false) {
+                        return null;
+                    }
+                    $offset = $end + 2;
+                    continue;
+                }
+
+                break;
+            }
+
+            if ($offset >= $length) {
+                return null;
+            }
+
+            $char = $mediaTail[$offset];
+            if ($char === '"' || $char === "'") {
+                try {
+                    $offset = $this->readQuotedTokenEnd($mediaTail, $offset);
+                } catch (CssBundleException) {
+                    return null;
+                }
+                continue;
+            }
+
+            if ($char === '(' || $char === '[' || $char === '{') {
+                $right = $char === '(' ? ')' : ($char === '[' ? ']' : '}');
+                try {
+                    $offset = $this->findMatchingDelimiter($mediaTail, $offset, $char, $right) + 1;
+                } catch (CssBundleException) {
+                    return null;
+                }
+                continue;
+            }
+
+            $identifier = $this->readCssIdentifierToken($mediaTail, $offset);
+            if ($identifier !== null) {
+                if (($mediaTail[$identifier['end']] ?? '') === '(') {
+                    return [
+                        'name' => $identifier['name'],
+                        'offset' => $tokenStart,
+                    ];
+                }
+
+                $offset = $identifier['end'];
+                continue;
+            }
+
+            $offset++;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array{line:int,column:int} $baseLoc
+     * @return array{line:int,column:int}
+     */
+    private function sourceLocationRelativeTo(string $source, int $offset, array $baseLoc): array
+    {
+        $relative = $this->sourceLocation($source, $offset);
+        $line = $baseLoc['line'] + $relative['line'] - 1;
+        $column = $relative['line'] === 1
+            ? $baseLoc['column'] + $relative['column'] - 1
+            : $relative['column'];
+
+        return ['line' => $line, 'column' => $column];
     }
 
     /**
@@ -1861,6 +1991,42 @@ final class CssBundler
         }
 
         return $offset === $length;
+    }
+
+    private function layerNamesEquivalent(string $a, string $b): bool
+    {
+        if ($a === '' || $b === '') {
+            return $a === $b;
+        }
+
+        return $this->layerNameKey($a) === $this->layerNameKey($b);
+    }
+
+    private function layerNameKey(string $layer): string
+    {
+        $segments = [];
+        $length = strlen($layer);
+        $offset = 0;
+
+        while ($offset < $length) {
+            $start = $offset;
+            if (!$this->consumeLayerNameSegment($layer, $offset)) {
+                return $layer;
+            }
+
+            $segments[] = $this->decodeCssEscapes(substr($layer, $start, $offset - $start));
+            if ($offset >= $length) {
+                break;
+            }
+
+            if ($layer[$offset] !== '.') {
+                return $layer;
+            }
+
+            $offset++;
+        }
+
+        return implode("\0", $segments);
     }
 
     private function consumeLayerNameSegment(string $layer, int &$offset): bool

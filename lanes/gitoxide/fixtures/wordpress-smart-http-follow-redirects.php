@@ -270,6 +270,70 @@ $chainedRedirectResponse = $chainedRedirectClient->send($chainedRedirectSession-
 $chainedFirstRetryCookieHeader = $chainedRedirectRequests[2]['headers']['Cookie'] ?? '';
 $chainedFinalCookieHeader = $chainedRedirectRequests[3]['headers']['Cookie'] ?? '';
 
+$longDiscoveryRequests = [];
+$longDiscoveryRedirectCount = 0;
+$longDiscoveryTransport = new SmartHttpReceivePackTransport(
+    'https://git.example.test/wp-content.git',
+    static function (string $method, string $url, array $headers, ?string $body) use (&$longDiscoveryRequests, &$longDiscoveryRedirectCount, $packet, $flush, $advertisement): array {
+        $longDiscoveryRequests[] = [
+            'method' => $method,
+            'url' => $url,
+            'headers' => $headers,
+            'body' => $body,
+        ];
+
+        if ($longDiscoveryRedirectCount < 50) {
+            $longDiscoveryRedirectCount++;
+
+            return [
+                'status' => 302,
+                'headers' => ['Location' => "https://git.example.test/mirror-{$longDiscoveryRedirectCount}.git/info/refs?service=git-receive-pack"],
+                'body' => '',
+            ];
+        }
+
+        return [
+            'status' => 200,
+            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+        ];
+    },
+    ['version=1'],
+    5.0,
+    ['User-Agent' => 'port-libs-wordpress-redirects/1'],
+);
+$longDiscoveryAdvertisement = $longDiscoveryTransport->readAdvertisement();
+
+$longDiscoveryOverflowRequests = [];
+$longDiscoveryOverflowCount = 0;
+$longDiscoveryOverflowRejected = false;
+$longDiscoveryOverflowTransport = new SmartHttpReceivePackTransport(
+    'https://git.example.test/wp-content.git',
+    static function (string $method, string $url, array $headers, ?string $body) use (&$longDiscoveryOverflowRequests, &$longDiscoveryOverflowCount): array {
+        $longDiscoveryOverflowRequests[] = [
+            'method' => $method,
+            'url' => $url,
+            'headers' => $headers,
+            'body' => $body,
+        ];
+        $longDiscoveryOverflowCount++;
+
+        return [
+            'status' => 302,
+            'headers' => ['Location' => "https://git.example.test/overflow-{$longDiscoveryOverflowCount}.git/info/refs?service=git-receive-pack"],
+            'body' => '',
+        ];
+    },
+    ['version=1'],
+    5.0,
+    ['User-Agent' => 'port-libs-wordpress-redirects/1'],
+);
+try {
+    $longDiscoveryOverflowTransport->readAdvertisement();
+} catch (RuntimeException) {
+    $longDiscoveryOverflowRejected = true;
+}
+
 $rewritingRequests = [];
 $rewritingRequester = static function (string $method, string $url, array $headers, ?string $body) use (&$rewritingRequests, $packet, $flush, $advertisement): array {
     $rewritingRequests[] = [
@@ -614,6 +678,12 @@ return [
         && $pathOrderReceivePosition < $pathOrderRedirectPosition
         && $pathOrderRedirectPosition < $pathOrderRootPosition,
     'dotSegmentPostRedirectNormalized' => ($requests[2]['url'] ?? null) === 'https://git.example.test/redirected.git/git-receive-pack',
+    'curlDefaultRedirectLimitAccepted' => $longDiscoveryAdvertisement === $advertisement
+        && count($longDiscoveryRequests) === 51
+        && ($longDiscoveryRequests[50]['url'] ?? null) === 'https://git.example.test/mirror-50.git/info/refs?service=git-receive-pack',
+    'curlDefaultRedirectLimitRequestCount' => count($longDiscoveryRequests),
+    'curlDefaultRedirectOverflowRejected' => $longDiscoveryOverflowRejected,
+    'curlDefaultRedirectOverflowRequestCount' => count($longDiscoveryOverflowRequests),
     'postBodyPreserved' => ($requests[2]['body'] ?? null) === $request->requestBytes(),
     'rewritingPostRedirectRejected' => $rewritingRedirectRejected,
     'rewritingRequestMethods' => array_map(static fn (array $request): string => $request['method'], $rewritingRequests),
@@ -630,5 +700,5 @@ return [
     'missingLocationPostRedirectRejected' => $missingLocationRedirectRejected,
     'missingLocationRequestMethods' => array_map(static fn (array $request): string => $request['method'], $missingLocationRequests),
     'responseSuccessful' => $response->isSuccessful(),
-    'wordpressUse' => 'A WordPress deployment tool can opt into following safe same-host receive-pack POST redirects while preserving the generated pack request body and caller-supplied WordPress cookies, recomputing managed cookies for each redirected retry, honoring redirect-issued cookie expiration, default Path on discovery and redirected POST responses, explicit Domain/Path/Secure scope including same-name scoped cookies, same-scope replacement, malformed Path quarantine, and Max-Age precedence, and rejecting rewriting 301/302/303, wrong-endpoint, credential-bearing, fragment-bearing, or missing-Location POST redirects before replaying a generated pack.',
+    'wordpressUse' => 'A WordPress deployment tool can opt into following safe same-host receive-pack POST redirects while preserving the generated pack request body and caller-supplied WordPress cookies, recomputing managed cookies for each redirected retry, honoring redirect-issued cookie expiration, default Path on discovery and redirected POST responses, explicit Domain/Path/Secure scope including same-name scoped cookies, same-scope replacement, malformed Path quarantine, Max-Age precedence, and the upstream curl 50-redirect discovery boundary, and rejecting rewriting 301/302/303, wrong-endpoint, credential-bearing, fragment-bearing, missing-Location, or 51st discovery redirects before replaying a generated pack.',
 ];

@@ -3295,6 +3295,26 @@ CSS;
             '@-webkit-keyframes test{0%{opacity:0}to{opacity:1}}@keyframes test{0%{opacity:0}to{opacity:1}}',
             $prefixer->prefixForTargets('@-webkit-keyframes test { from { opacity: 0 } to { opacity: 1 } } @keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['safari' => 8])
         );
+        $t->same(
+            '@-o-keyframes test{0%{opacity:0}to{opacity:1}}@keyframes test{0%{opacity:0}to{opacity:1}}',
+            $prefixer->prefixForTargets('@keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['opera' => 12])
+        );
+        $t->same(
+            '@keyframes test{0%{opacity:0}to{opacity:1}}',
+            $prefixer->prefixForTargets('@keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['opera' => 13])
+        );
+        $t->same(
+            '@-webkit-keyframes test{0%{opacity:0}to{opacity:1}}@keyframes test{0%{opacity:0}to{opacity:1}}',
+            $prefixer->prefixForTargets('@keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['opera' => 15])
+        );
+        $t->same(
+            '@keyframes test{0%{opacity:0}to{opacity:1}}',
+            $prefixer->prefixForTargets('@-o-keyframes test { from { opacity: 0 } to { opacity: 1 } } @keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['opera' => 13])
+        );
+        $t->same(
+            '@-o-keyframes test{0%{opacity:0}to{opacity:1}}@keyframes test{0%{opacity:0}to{opacity:1}}',
+            $prefixer->prefixForTargets('@-o-keyframes test { from { opacity: 0 } to { opacity: 1 } } @keyframes test { from { opacity: 0 } to { opacity: 1 } }', ['opera' => 12])
+        );
     },
     'transition prefixer maps upstream animation declaration target prefixes' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();

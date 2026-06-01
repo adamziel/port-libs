@@ -30,7 +30,7 @@ final class SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan
         array $options = [],
         ?callable $where = null,
     ): array {
-        $transaction = self::identifier((string) ($options['transaction'] ?? 'wp_import_txn'), 'transaction');
+        $transaction = self::identifier((string) ($options['transaction'] ?? 'app_import_txn'), 'transaction');
         $currentSource = (string) ($options['current_source'] ?? 'current-upsert-returning-source');
         $nextSource = (string) ($options['next_source'] ?? 'next-deferred-fk-commit-source');
         $rollbackTransaction = (bool) ($options['rollback_transaction'] ?? true);
@@ -128,7 +128,7 @@ final class SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan
             }
             $violations[] = [
                 'table' => $childTable,
-                'rowid' => $child['rowid'] ?? $child['id'] ?? $child['meta_id'] ?? $rowid + 1,
+                'rowid' => $child['rowid'] ?? $child['id'] ?? $child['setting_id'] ?? $rowid + 1,
                 'parent' => $parentTable,
                 'child_key' => $childKey,
                 'parent_key' => $parentKey,

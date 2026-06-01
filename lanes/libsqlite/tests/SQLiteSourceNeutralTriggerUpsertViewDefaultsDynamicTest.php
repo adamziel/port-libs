@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan;
 
 $libsqliteRoot = dirname(__DIR__);
@@ -11,7 +13,9 @@ $sourceRoot = $libsqliteRoot . '/src';
 
 $sourceFiles = [
     $sourceRoot . '/SQLiteTriggerDeferredViewReturningCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerRecursiveViewDeleteReturningCurrentSourceNextPlan.php',
+    $sourceRoot . '/SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan.php',
     $sourceRoot . '/SQLiteTriggerUpsertReturningViewCurrentSourceNextPlan.php',
 ];
 
@@ -137,6 +141,55 @@ $deleteDefaults = static fn (array $options = []): array => SQLiteTriggerRecursi
     $options,
 );
 
+$doNothingDefaults = static fn (): array => SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan::execute(
+    [
+        ['setting_id' => 1, 'tenant_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],
+    ],
+    [
+        ['setting_id' => 2, 'tenant_id' => 1, 'key_name' => 'module_seed', 'key_value' => 'seed', 'load_policy' => 'no'],
+    ],
+    [
+        ['setting_id' => 3, 'tenant_id' => 1, 'key_name' => 'theme_variant', 'key_value' => 'theme', 'load_policy' => 'yes'],
+    ],
+    ['tenant_id', 'key_name'],
+    [],
+    [
+        ['expr' => 'new.setting_id', 'as' => 'id'],
+        ['expr' => 'new.key_name', 'as' => 'name'],
+    ],
+);
+
+$deferredUpsertDefaults = static fn (): array => SQLiteTriggerDeferredUpsertReturningCurrentSourceNextPlan::executeDeferredCommit(
+    [
+        ['setting_id' => 1, 'parent_id' => 10, 'key_name' => 'source_marker', 'key_value' => 'old', 'revision' => 1],
+    ],
+    [
+        ['setting_id' => 2, 'parent_id' => 10, 'key_name' => 'cache_policy', 'key_value' => 'fresh', 'revision' => 1],
+    ],
+    ['key_name'],
+    [
+        'setting_id' => static fn (array $old): int => (int) $old['setting_id'],
+        'key_value' => static fn (array $old, array $incoming): mixed => $incoming['key_value'],
+        'revision' => static fn (array $old): int => (int) $old['revision'] + 1,
+    ],
+    [],
+    [
+        'setting_id',
+        'key_name',
+        ['expr' => 'new.revision', 'as' => 'next_revision'],
+    ],
+    [
+        ['parent_id' => 10, 'parent_title' => 'Application parent'],
+    ],
+    [
+        'child_table' => 'app_child_settings',
+        'parent_table' => 'app_parent_settings',
+        'child_key' => 'parent_id',
+        'parent_key' => 'parent_id',
+        'deferred' => true,
+    ],
+);
+
 return [
     'source-neutral trigger view defaults contain no legacy domain strings' => static fn (TestRunner $t) => $t->same([], $legacyTriggerViewDefaultMatches()),
     'trigger upsert returning view defaults are application settings' => static function (TestRunner $t) use ($upsertDefaults): void {
@@ -167,5 +220,21 @@ return [
         $t->same('parent_key_name', $released['parent_key']);
         $t->same(['cache_root', 'cache_child'], $released['current_deleted_keys']);
         $t->same('cache_child', $blocked['current_blocked_rows'][0]['returning']['key_name']);
+    },
+    'trigger upsert do nothing defaults are application settings' => static function (TestRunner $t) use ($doNothingDefaults): void {
+        $plan = $doNothingDefaults();
+
+        $t->same('app_upsert_do_nothing_returning', $plan['savepoint']);
+        $t->same(['module_seed'], array_column($plan['current_returning_rows'], 'name'));
+        $t->same(['theme_variant'], array_column($plan['next_returning_rows'], 'name'));
+        $t->same(['base_url', 'module_seed', 'theme_variant'], array_column($plan['next_rows'], 'key_name'));
+    },
+    'trigger deferred upsert transaction defaults are application settings' => static function (TestRunner $t) use ($deferredUpsertDefaults): void {
+        $plan = $deferredUpsertDefaults();
+
+        $t->same('app_import_txn', $plan['transaction']);
+        $t->same('ok', $plan['commit_status']);
+        $t->same(['source_marker', 'cache_policy'], array_column($plan['after_statement'], 'key_name'));
+        $t->same([], $plan['deferred_violations']);
     },
 ];

@@ -8,66 +8,66 @@ use PortLibs\LibSqlite\SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSour
 
 $plan = SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan::execute(
     [
-        ['option_id' => 1, 'blog_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://old.test', 'autoload' => 'yes'],
-        ['option_id' => 2, 'blog_id' => 1, 'option_name' => 'home', 'option_value' => 'https://home.test', 'autoload' => 'yes'],
+        ['setting_id' => 1, 'tenant_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],
+        ['setting_id' => 2, 'tenant_id' => 1, 'key_name' => 'public_url', 'key_value' => 'https://public_url.test', 'load_policy' => 'yes'],
     ],
     [
-        ['option_id' => 10, 'blog_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://duplicate.test', 'autoload' => 'yes'],
-        ['option_id' => 11, 'blog_id' => 1, 'option_name' => 'plugin_seed', 'option_value' => 'seed', 'autoload' => 'no'],
+        ['setting_id' => 10, 'tenant_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://duplicate.test', 'load_policy' => 'yes'],
+        ['setting_id' => 11, 'tenant_id' => 1, 'key_name' => 'module_seed', 'key_value' => 'seed', 'load_policy' => 'no'],
     ],
     [
-        ['option_id' => 20, 'blog_id' => 1, 'option_name' => 'plugin_seed', 'option_value' => 'seed-next', 'autoload' => 'no'],
-        ['option_id' => 21, 'blog_id' => 1, 'option_name' => 'theme_mods', 'option_value' => 'theme', 'autoload' => 'yes'],
+        ['setting_id' => 20, 'tenant_id' => 1, 'key_name' => 'module_seed', 'key_value' => 'seed-next', 'load_policy' => 'no'],
+        ['setting_id' => 21, 'tenant_id' => 1, 'key_name' => 'theme_variant', 'key_value' => 'theme', 'load_policy' => 'yes'],
     ],
-    ['blog_id', 'option_name'],
+    ['tenant_id', 'key_name'],
     [
         [
-            'name' => 'wp_options_bi_prepare',
+            'name' => 'app_settings_bi_prepare',
             'timing' => 'before',
             'event' => 'insert',
             'action' => 'set-new',
-            'when' => ['new.autoload', '=', 'no'],
-            'set' => ['option_value' => 'concat:new.option_value:-prepared'],
-            'values' => ['name' => 'new.option_name', 'value' => 'new.option_value'],
+            'when' => ['new.load_policy', '=', 'no'],
+            'set' => ['key_value' => 'concat:new.key_value:-prepared'],
+            'values' => ['name' => 'new.key_name', 'value' => 'new.key_value'],
         ],
         [
-            'name' => 'wp_options_ai_audit',
+            'name' => 'app_settings_ai_audit',
             'timing' => 'after',
             'event' => 'insert',
             'action' => 'audit',
-            'values' => ['name' => 'new.option_name', 'value' => 'new.option_value'],
+            'values' => ['name' => 'new.key_name', 'value' => 'new.key_value'],
         ],
     ],
     [
-        ['expr' => 'new.option_id', 'as' => 'id'],
-        ['expr' => 'new.option_name', 'as' => 'name'],
-        ['expr' => 'new.option_value', 'as' => 'value'],
+        ['expr' => 'new.setting_id', 'as' => 'id'],
+        ['expr' => 'new.key_name', 'as' => 'name'],
+        ['expr' => 'new.key_value', 'as' => 'value'],
     ],
     [
-        'savepoint' => 'wp_import_do_nothing_142',
-        'current_source' => 'wp-options-current142',
-        'next_source' => 'wp-options-next142',
+        'savepoint' => 'app_import_do_nothing_142',
+        'current_source' => 'app-settings-current142',
+        'next_source' => 'app-settings-next142',
     ],
 );
 
 $summary = [
     'scenario' => 'application-trigger-upsert-do-nothing-returning-current-source-next',
-    'applicationUse' => 'Preview copied wp_options import batches that use INSERT ... ON CONFLICT DO NOTHING RETURNING inside a savepoint: duplicate option rows fire BEFORE trigger diagnostics but yield no RETURNING row, while the next source sees either the released current insert or the savepoint image.',
+    'applicationUse' => 'Preview copied app_settings import batches that use INSERT ... ON CONFLICT DO NOTHING RETURNING inside a savepoint: duplicate setting rows fire BEFORE trigger diagnostics but yield no RETURNING row, while the next source sees either the released current insert or the savepoint image.',
     'status' => $plan['status'],
     'currentReturned' => array_column($plan['current_returning_rows'], 'name'),
-    'currentSkipped' => array_column(array_column($plan['current_skipped_conflicts'], 'incoming'), 'option_name'),
+    'currentSkipped' => array_column(array_column($plan['current_skipped_conflicts'], 'incoming'), 'key_name'),
     'nextReturned' => array_column($plan['next_returning_rows'], 'name'),
-    'nextSkipped' => array_column(array_column($plan['next_skipped_conflicts'], 'incoming'), 'option_name'),
+    'nextSkipped' => array_column(array_column($plan['next_skipped_conflicts'], 'incoming'), 'key_name'),
     'committedChanges' => $plan['committed_changes'],
     'dependencyClosure' => 'no new support component needed; this reuses native PHP trigger, UPSERT conflict, RETURNING projection, and savepoint current-source planning',
 ];
 
 if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     assert($summary['status'] === 'trigger-upsert-do-nothing-returning-current-source-next142-released');
-    assert($summary['currentReturned'] === ['plugin_seed']);
-    assert($summary['currentSkipped'] === ['siteurl']);
-    assert($summary['nextReturned'] === ['theme_mods']);
-    assert($summary['nextSkipped'] === ['plugin_seed']);
+    assert($summary['currentReturned'] === ['module_seed']);
+    assert($summary['currentSkipped'] === ['base_url']);
+    assert($summary['nextReturned'] === ['theme_variant']);
+    assert($summary['nextSkipped'] === ['module_seed']);
     assert($summary['committedChanges'] === 2);
     echo "application-trigger-upsert-do-nothing-returning-current-source-next self-test passed\n";
     return;

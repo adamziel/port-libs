@@ -191,7 +191,7 @@ final class TransitionPrefixer
 
     private function isKeyframesPrelude(string $prelude): bool
     {
-        return preg_match('/^@(?:-(?:webkit|moz)-)?keyframes\b/i', $prelude) === 1;
+        return preg_match('/^@(?:-(?:webkit|moz|o)-)?keyframes\b/i', $prelude) === 1;
     }
 
     /**
@@ -200,7 +200,7 @@ final class TransitionPrefixer
      */
     private function rewriteKeyframesRule(string $prelude, string $body, array $targetOptions, array &$emittedKeyframes): string
     {
-        if (preg_match('/^@(?:(-(?:webkit|moz)-))?keyframes\s+(.+)$/i', $prelude, $matches) !== 1) {
+        if (preg_match('/^@(?:(-(?:webkit|moz|o)-))?keyframes\s+(.+)$/i', $prelude, $matches) !== 1) {
             return $prelude . '{' . $body . '}';
         }
 
@@ -216,6 +216,12 @@ final class TransitionPrefixer
         if ($targetOptions['keyframesNeedsMoz']) {
             $this->appendKeyframesRule($rules, $emittedKeyframes, '@-moz-keyframes', $name, $body);
         } elseif ($prefix === '-moz-') {
+            return '';
+        }
+
+        if ($targetOptions['keyframesNeedsO']) {
+            $this->appendKeyframesRule($rules, $emittedKeyframes, '@-o-keyframes', $name, $body);
+        } elseif ($prefix === '-o-') {
             return '';
         }
 
@@ -1887,6 +1893,7 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'opera', [15], [29])
                 || $this->targetInRange($normalized, 'safari', [4], [8]),
             'keyframesNeedsMoz' => $this->targetInRange($normalized, 'firefox', [5], [15]),
+            'keyframesNeedsO' => $this->targetInRange($normalized, 'opera', [12], [12]),
             'transitionNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 2])
                 || $this->targetInRange($normalized, 'chrome', [4], [25])
                 || $this->targetInRange($normalized, 'ios_saf', [3], [6])

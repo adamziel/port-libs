@@ -1031,7 +1031,7 @@ CSS,
         $t->same([['', '/entry.css']], $resolved);
     },
     'css bundler rejects malformed import condition tails before resolver reads' => static function (TestRunner $t): void {
-        $assertMalformedImportCondition = static function (string $css, string $message) use ($t): void {
+        $assertMalformedImportCondition = static function (string $css, string $message, int $column = 1) use ($t): void {
             $reads = [];
             try {
                 (new CssBundler())->bundleWithReader('/entry.css', static function (string $file) use (&$reads, $css): string {
@@ -1044,7 +1044,7 @@ CSS,
                 $t->same($message, $exception->getMessage());
                 $t->same('/entry.css', $exception->sourceFile);
                 $t->same(1, $exception->sourceLine);
-                $t->same(1, $exception->sourceColumn);
+                $t->same($column, $exception->sourceColumn);
                 $t->same(['/entry.css'], $reads);
 
                 return;
@@ -1063,7 +1063,8 @@ CSS,
         );
         $assertMalformedImportCondition(
             '@import "tokens.css" unknown(foo);',
-            'Unknown media query condition function: unknown(foo)'
+            'Unexpected token Function("unknown")',
+            22
         );
         $assertMalformedImportCondition(
             '@import "tokens.css" layer(theme.tokens',
@@ -1072,6 +1073,40 @@ CSS,
         $assertMalformedImportCondition(
             '@import "tokens.css" supports(display: grid',
             'CSS contains an unbalanced () pair'
+        );
+    },
+    'css bundler reports import media function diagnostics at upstream token locations' => static function (TestRunner $t): void {
+        $assertUnexpectedFunction = static function (string $css, string $function, int $column) use ($t): void {
+            $reads = [];
+            try {
+                (new CssBundler())->bundleWithReader('/entry.css', static function (string $file) use (&$reads, $css): string {
+                    $reads[] = $file;
+
+                    return $file === '/entry.css' ? $css : '.bad { color: red }';
+                });
+            } catch (CssBundleException $exception) {
+                $t->same('parser-error', $exception->kind);
+                $t->same('Unexpected token Function("' . $function . '")', $exception->getMessage());
+                $t->same('/entry.css', $exception->sourceFile);
+                $t->same(1, $exception->sourceLine);
+                $t->same($column, $exception->sourceColumn);
+                $t->same(['/entry.css'], $reads);
+
+                return;
+            }
+
+            throw new RuntimeException('Expected import media function diagnostic');
+        };
+
+        $assertUnexpectedFunction('@import "b.css" foo(bar); .entry { color: red }', 'foo', 17);
+        $assertUnexpectedFunction('@import "b.css" supports(display: grid) l\\61yer(theme.blocks); .entry { color: red }', 'layer', 41);
+        $assertUnexpectedFunction('@import "b.css" screen and/**/foo(bar); .entry { color: red }', 'foo', 27);
+        $t->same(
+            '@media (width:2px){.card{color:green}}.entry{color:red}',
+            (new CssBundler())->bundle('/entry.css', [
+                '/entry.css' => '@import "b.css" (width: calc(1px + 1px)); .entry { color: red }',
+                '/b.css' => '.card { color: green }',
+            ])
         );
     },
     'css bundler rejects invalid import supports conditions before resolver reads' => static function (TestRunner $t): void {
@@ -1575,6 +1610,40 @@ CSS,
                 '/b.css' => '.b { color: green }',
             ], '/a.css')
         );
+
+        $t->same(
+            '@layer foo\\.bar{.b{color:green}}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(foo\2e bar); @import "b.css" layer(foo\.bar);',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@layer \\31 theme{.b{color:green}}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(\31 theme); @import "b.css" layer(\000031 theme);',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $rejectedEscapedSegmentVsNestedLayer = false;
+        try {
+            $bundle([
+                '/a.css' => '@import "b.css" layer(foo\2e bar); @import "b.css" layer(foo.bar);',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css');
+        } catch (CssBundleException $exception) {
+            $t->same('unsupported-layer-combination', $exception->kind);
+            $t->same('/a.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(36, $exception->sourceColumn);
+            $rejectedEscapedSegmentVsNestedLayer = true;
+        }
+
+        if (!$rejectedEscapedSegmentVsNestedLayer) {
+            throw new RuntimeException('Expected escaped single-segment and nested layer names to remain distinct');
+        }
     },
     'css bundler rejects invalid import layer names before graph resolution' => static function (TestRunner $t): void {
         $assertInvalidLayerImport = static function (string $css, string $message) use ($t): void {

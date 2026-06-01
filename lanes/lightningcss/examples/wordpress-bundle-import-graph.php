@@ -506,6 +506,37 @@ try {
     echo 'malformed-import-media: rejected-before-read' . PHP_EOL;
 }
 
+$badImportMediaFunctionReads = [];
+try {
+    (new CssBundler())->bundleWithReader(
+        '/bad-import-media-function.css',
+        static function (string $file) use (&$badImportMediaFunctionReads): string {
+            $badImportMediaFunctionReads[] = $file;
+
+            return $file === '/bad-import-media-function.css'
+                ? '@import "blocks/card.css" screen and foo(bar); .wp-site-blocks { color: red; }'
+                : '.wp-block-card { color: green; }';
+        }
+    );
+
+    fwrite(STDERR, "Expected top-level import media function to be rejected before reading block CSS\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'Unexpected token Function("foo")'
+        || $exception->sourceFile !== '/bad-import-media-function.css'
+        || $exception->sourceLine !== 1
+        || $exception->sourceColumn !== 37
+        || $badImportMediaFunctionReads !== ['/bad-import-media-function.css']
+    ) {
+        fwrite(STDERR, 'Unexpected import media function diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'malformed-import-media-function: rejected-before-read' . PHP_EOL;
+}
+
 $badImportSupportsReads = [];
 try {
     (new CssBundler())->bundleWithReader(
@@ -692,6 +723,18 @@ if ($escapedLayerBundle !== '@layer plugin\\.cards.palette\\,dark{:root{--wp--pr
 }
 
 echo 'escaped-layer-imports: preserved' . PHP_EOL;
+
+$escapedEquivalentLayerBundle = (new CssBundler())->bundle('/escaped-equivalent-layer-entry.css', [
+    '/escaped-equivalent-layer-entry.css' => '@import "blocks/card.css" layer(plugin\2e cards); @import "blocks/card.css" layer(plugin\.cards); .wp-site-blocks { color: red }',
+    '/blocks/card.css' => '.wp-block-card { color: green }',
+]);
+
+if ($escapedEquivalentLayerBundle !== '@layer plugin\\.cards{.wp-block-card{color:green}}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected escaped-equivalent import layer names to merge one block stylesheet\n");
+    exit(1);
+}
+
+echo 'escaped-equivalent-layer-imports: merged' . PHP_EOL;
 
 $anonymousChildLayerReads = [];
 try {

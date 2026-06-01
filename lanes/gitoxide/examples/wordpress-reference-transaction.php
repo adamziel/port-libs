@@ -175,6 +175,32 @@ $preparedPackedUpdateEdits = $preparedPackedUpdate->commit();
 $preparedPackedUpdateCleanedPackedLock = !is_file($packedUpdateDir . '/packed-refs.lock');
 $preparedPackedUpdatePackedNames = PackedReferences::open($packedUpdateDir . '/packed-refs')->names();
 
+$packedShadowDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-packed-shadow-' . bin2hex(random_bytes(4));
+mkdir($packedShadowDir, 0777, true);
+file_put_contents(
+    $packedShadowDir . '/packed-refs',
+    "{$fixture['productionCommit']} {$fixture['preparedPackedShadowRef']}\n",
+);
+$packedShadowStore = ReferenceStore::at($packedShadowDir);
+$preparedPackedShadow = $packedShadowStore->prepareLooseUpdateTransaction(
+    [$fixture['preparedPackedShadowRef'] => ReferenceTarget::object($fixture['reviewCommit'])],
+    'sha1',
+    new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+    $fixture['preparedPackedShadowReflogMessage'],
+    false,
+    ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+    ReferenceTarget::object($fixture['productionCommit']),
+);
+$preparedPackedShadowPath = $packedShadowDir . '/' . $fixture['preparedPackedShadowRef'];
+$preparedPackedShadowHadLocks = is_file($packedShadowDir . '/packed-refs.lock')
+    && is_file($preparedPackedShadowPath . '.lock');
+$preparedPackedShadowEdits = $preparedPackedShadow->commit();
+$preparedPackedShadowCleanedLocks = !is_file($packedShadowDir . '/packed-refs.lock')
+    && !is_file($preparedPackedShadowPath . '.lock');
+$preparedPackedShadowPackedCommit = PackedReferences::open($packedShadowDir . '/packed-refs')
+    ->find($fixture['preparedPackedShadowRef'])
+    ->targetObjectId();
+
 $packedPseudoDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-packed-pseudo-' . bin2hex(random_bytes(4));
 mkdir($packedPseudoDir, 0777, true);
 file_put_contents($packedPseudoDir . '/packed-refs.lock', 'held by packed ref compaction');
@@ -429,6 +455,13 @@ return [
     'preparedPackedUpdateSource' => $packedUpdateStore->find($packedUpdateRef)->source,
     'preparedPackedUpdateCommit' => $packedUpdateStore->find($packedUpdateRef)->targetObjectId(),
     'preparedPackedUpdateReflog' => $packedUpdateStore->reflogContents($packedUpdateRef),
+    'preparedPackedShadowEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedPackedShadowEdits),
+    'preparedPackedShadowHadLocks' => $preparedPackedShadowHadLocks,
+    'preparedPackedShadowCleanedLocks' => $preparedPackedShadowCleanedLocks,
+    'preparedPackedShadowPackedCommit' => $preparedPackedShadowPackedCommit,
+    'preparedPackedShadowSource' => $packedShadowStore->find($fixture['preparedPackedShadowRef'])->source,
+    'preparedPackedShadowLooseCommit' => $packedShadowStore->find($fixture['preparedPackedShadowRef'])->targetObjectId(),
+    'preparedPackedShadowReflog' => $packedShadowStore->reflogContents($fixture['preparedPackedShadowRef']),
     'preparedPackedPseudoEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedPackedPseudoEdits),
     'preparedPackedPseudoHadLooseLock' => $preparedPackedPseudoHadLooseLock,
     'preparedPackedPseudoPackedLockPreserved' => is_file($packedPseudoDir . '/packed-refs.lock')

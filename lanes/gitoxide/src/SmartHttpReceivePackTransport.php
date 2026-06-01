@@ -6,7 +6,7 @@ namespace PortLibs\Gitoxide;
 
 final class SmartHttpReceivePackTransport implements ReceivePackTransport
 {
-    private const MAX_INITIAL_REDIRECTS = 10;
+    private const MAX_INITIAL_REDIRECTS = 50;
     private const DEFAULT_USER_AGENT = 'git/oxide-port-libs';
 
     private bool $advertisementRead = false;
@@ -725,7 +725,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
 
             return ['authorization' => null, 'credentialAction' => null];
         }
-        $helperProxyUrl = $proxy['username'] === null ? $proxy['url'] : $proxy['credentialUrl'];
+        $helperProxyUrl = $proxy['credentialUrl'];
         if ($proxyCredentialAction !== null
             && $proxyCredentialAction['proxyUrl'] === $helperProxyUrl
             && strcasecmp($proxyCredentialAction['requestHost'], $requestHost) === 0
@@ -1128,12 +1128,14 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         $host = self::validateAuthorityHost($parts['host'], 'smart HTTP receive-pack proxy host');
-        $port = isset($parts['port']) ? (int) $parts['port'] : self::defaultProxyPort($type);
-        $authority = self::authority($host, $port);
+        $explicitPort = isset($parts['port']);
+        $port = $explicitPort ? (int) $parts['port'] : self::defaultProxyPort($type);
+        $streamAuthority = self::authority($host, $port);
+        $urlAuthority = self::authority($host, $explicitPort ? $port : null);
+        $credentialPort = $explicitPort && $port !== self::defaultProxyPort($type) ? $port : null;
+        $credentialUrlAuthority = self::authority($host, $credentialPort);
         $authorization = null;
         $username = null;
-        $urlAuthority = $authority;
-        $credentialUrlAuthority = $authority;
         if (isset($parts['user'])) {
             $username = rawurldecode((string) $parts['user']);
             if (self::containsControlByte($username)) {
@@ -1147,16 +1149,16 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
                     $password,
                     'smart HTTP receive-pack proxy credentials',
                 );
-                $credentialUrlAuthority = $encodedUsername . ':' . rawurlencode($password) . '@' . $authority;
+                $credentialUrlAuthority = $encodedUsername . ':' . rawurlencode($password) . '@' . $credentialUrlAuthority;
             } else {
-                $urlAuthority = $encodedUsername . '@' . $authority;
-                $credentialUrlAuthority = $urlAuthority;
+                $credentialUrlAuthority = $encodedUsername . '@' . $credentialUrlAuthority;
+                $urlAuthority = $encodedUsername . '@' . $urlAuthority;
             }
         }
 
         return [
             'type' => $type,
-            'stream' => 'tcp://' . $authority,
+            'stream' => 'tcp://' . $streamAuthority,
             'url' => $type . '://' . $urlAuthority,
             'credentialUrl' => $type . '://' . $credentialUrlAuthority,
             'authorization' => $authorization,

@@ -28,6 +28,22 @@ return [
         $fixture['usernameOnlyProxyStores']
     ),
     'usernameOnlyOriginProxyHeaderLeaked' => $fixture['usernameOnlyOriginProxyHeaderLeaked'],
+    'defaultPortProxyResponseSuccessful' => $fixture['defaultPortProxyResponseSuccessful'],
+    'defaultPortProxyHelperCalls' => $fixture['defaultPortProxyHelperCalls'],
+    'defaultPortProxyCredentialUrl' => $fixture['defaultPortProxyHelperCalls'][0][0] ?? null,
+    'defaultPortProxyRequestProxyUrl' => $fixture['defaultPortProxyRequestProxyUrl'],
+    'defaultPortProxyRequestProxyStream' => $fixture['defaultPortProxyRequestProxyStream'],
+    'defaultPortProxyAuthorizationSent' => $fixture['defaultPortProxyAuthorizationSent'],
+    'defaultPortProxyCredentialsStored' => array_map(
+        static fn (array $entry): array => [
+            'proxyUrl' => $entry[0],
+            'requestHost' => $entry[1],
+            'username' => $entry[2]['username'],
+        ],
+        $fixture['defaultPortProxyStores']
+    ),
+    'defaultPortProxyOriginProxyHeaderLeaked' => $fixture['defaultPortProxyOriginProxyHeaderLeaked'],
+    'defaultPortProxyPostCookieHeader' => $fixture['defaultPortProxyPostCookieHeader'],
     'cidrNoProxyBypassedProxy' => $fixture['cidrNoProxyBypassedProxy'],
     'cidrNoProxyHelperCalls' => $fixture['cidrNoProxyHelperCalls'],
     'cidrNoProxyPostCookieHeader' => $fixture['cidrNoProxyPostCookieHeader'],

@@ -25,7 +25,7 @@ final class SQLiteTriggerUpsertDoNothingReturningSavepointCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'wp_upsert_do_nothing_returning'), 'savepoint');
+        $savepoint = self::identifier((string) ($options['savepoint'] ?? 'app_upsert_do_nothing_returning'), 'savepoint');
         $currentSource = self::source((string) ($options['current_source'] ?? 'current-upsert-do-nothing-returning'));
         $nextSource = self::source((string) ($options['next_source'] ?? 'next-upsert-do-nothing-returning'));
         $rollbackCurrent = (bool) ($options['rollback_current'] ?? false);

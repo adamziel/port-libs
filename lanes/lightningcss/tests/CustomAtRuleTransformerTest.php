@@ -814,6 +814,61 @@ CSS;
         $t->same('compact compact', $seen['rules']['mode']['prelude']);
         $t->same(['compact', 'compact'], array_column($seen['rules']['mode']['preludeAst']['value']['components'], 'value'));
     },
+    'custom at-rules decode upstream escaped at-rule names before parser lookup' => static function (TestRunner $t): void {
+        $mixins = [];
+        $seen = [];
+        $css = <<<'CSS'
+@m\69 xin card {
+  color: yellow;
+
+  & .wp-block-button__link {
+    color: red;
+  }
+}
+
+.wp-block-card {
+  @ap\70 ly card;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'mixin' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'style-block',
+            ],
+            'apply' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ], [
+            'Rule' => [
+                'custom' => [
+                    'mixin' => static function (array $rule) use (&$mixins, &$seen): array {
+                        $seen[] = $rule['name'] . ':' . $rule['prelude'];
+                        $mixins[$rule['prelude']] = $rule['body'];
+
+                        return [];
+                    },
+                    'apply' => static function (array $rule, CustomAtRuleTransformer $transformer) use (&$mixins, &$seen): array {
+                        $seen[] = $rule['name'] . ':' . $rule['prelude'];
+
+                        return $transformer->styleBlock($mixins[$rule['prelude']] ?? '');
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('.wp-block-card{color:#ff0}.wp-block-card .wp-block-button__link{color:red}', $result);
+        $t->same(['mixin:card', 'apply:card'], $seen);
+
+        $preserved = (new CustomAtRuleTransformer())->transform('@bl\6f ck hero { color: yellow; }', [
+            'block' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+        ]);
+
+        $t->same('@block hero{color:#ff0}', $preserved);
+    },
     'custom at-rules visit upstream unit component preludes before custom rule visitors' => static function (TestRunner $t): void {
         $seen = [
             'angles' => [],

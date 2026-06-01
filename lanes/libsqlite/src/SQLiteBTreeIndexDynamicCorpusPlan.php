@@ -13927,6 +13927,105 @@ final class SQLiteBTreeIndexDynamicCorpusPlan
     }
 
     /**
+     * @return list<array{source:string,case:int,upstream_section:string,setup_section:string,batch:int,scenario:string,statement:string,table_shape:string,primary_key:string,index_columns:list<string>,row_count:int,target_c:int,target_d:string,result_rows:list<array{d:string}>,plan_detail:string,skip_prefix_columns:list<string>,constrained_columns:list<string>,uses_any_skip_scan:bool,uses_unary_plus_guard:bool,uses_without_rowid:bool,intermediate_terms_skipped:list<string>,analyze_state:string,detail:string,integrity:string}>
+     */
+    public static function skipscan3IntermediateTermCases(int $cases = 1000): array
+    {
+        if ($cases < 1) {
+            throw new \InvalidArgumentException('SQLite skipscan3 dynamic corpus requires at least one case');
+        }
+
+        $templates = [
+            [
+                'skipscan3-1.2',
+                'skipscan3-1.1',
+                'rowid primary-key index uses skip-scan when unary plus disables direct a equality',
+                'SELECT d FROM t1 WHERE +a=1 AND c=:c',
+                'rowid-table-primary-key-index',
+                'PRIMARY KEY(a,b,c)',
+                false,
+                true,
+            ],
+            [
+                'skipscan3-1.3',
+                'skipscan3-1.1',
+                'rowid primary-key index still skips intermediate b with ordinary a equality',
+                'SELECT d FROM t1 WHERE a=1 AND c=:c',
+                'rowid-table-primary-key-index',
+                'PRIMARY KEY(a,b,c)',
+                false,
+                false,
+            ],
+            [
+                'skipscan3-2.2',
+                'skipscan3-2.1',
+                'WITHOUT ROWID primary-key b-tree uses skip-scan when unary plus disables direct a equality',
+                'SELECT d FROM t2 WHERE +a=1 AND c=:c',
+                'without-rowid-primary-key-btree',
+                'PRIMARY KEY(a,b,c) WITHOUT ROWID',
+                true,
+                true,
+            ],
+            [
+                'skipscan3-2.3',
+                'skipscan3-2.1',
+                'WITHOUT ROWID primary-key b-tree still skips intermediate b with ordinary a equality',
+                'SELECT d FROM t2 WHERE a=1 AND c=:c',
+                'without-rowid-primary-key-btree',
+                'PRIMARY KEY(a,b,c) WITHOUT ROWID',
+                true,
+                false,
+            ],
+        ];
+
+        $out = [];
+        for ($case = 1; $case <= $cases; $case++) {
+            [
+                $section,
+                $setupSection,
+                $scenario,
+                $statement,
+                $tableShape,
+                $primaryKey,
+                $withoutRowid,
+                $unaryPlus,
+            ] = $templates[($case - 1) % count($templates)];
+            $batch = intdiv($case - 1, count($templates)) + 1;
+            $targetC = (($batch - 1) % 1000) + 1;
+            $targetD = sprintf('x%04d', $targetC);
+
+            $out[] = [
+                'source' => 'skipscan3.test sections skipscan3-1.1 through skipscan3-2.3',
+                'case' => $case,
+                'upstream_section' => $section,
+                'setup_section' => $setupSection,
+                'batch' => $batch,
+                'scenario' => $scenario . ' dynamic c=' . $targetC,
+                'statement' => str_replace(':c', (string) $targetC, $statement),
+                'table_shape' => $tableShape,
+                'primary_key' => $primaryKey,
+                'index_columns' => ['a', 'b', 'c'],
+                'row_count' => 1000,
+                'target_c' => $targetC,
+                'target_d' => $targetD,
+                'result_rows' => [['d' => $targetD]],
+                'plan_detail' => 'SEARCH ' . ($withoutRowid ? 't2' : 't1') . ' USING PRIMARY KEY (ANY(a) AND ANY(b) AND c=?)',
+                'skip_prefix_columns' => ['a', 'b'],
+                'constrained_columns' => [$unaryPlus ? '+a=1' : 'a=1', 'c=?'],
+                'uses_any_skip_scan' => true,
+                'uses_unary_plus_guard' => $unaryPlus,
+                'uses_without_rowid' => $withoutRowid,
+                'intermediate_terms_skipped' => ['b'],
+                'analyze_state' => 'analyzed-primary-key-duplicates',
+                'detail' => 'skipscan3 dynamic replay ' . $batch . ' skips intermediate b term for c=' . $targetC,
+                'integrity' => 'ok',
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * @return list<array{source:string,case:int,upstream_section:string,batch:int,scenario:string,statement:string,stat1_rows:list<array{idx:string,stat:string}>,or_terms:list<string>,range_terms:list<string>,chosen_indexes:list<string>,rejected_plan_terms:list<string>,uses_multi_index_or:bool,uses_any_skip_scan:bool,detail:string,integrity:string}>
      */
     public static function whereJMultiIndexRangeCostCases(int $cases = 1000): array

@@ -322,6 +322,48 @@ return [
         $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/main'));
         $t->same(false, is_file($dir . '/packed-refs.lock'));
     },
+    'prepared reference transaction looks up packed previous values and writes loose shadow refs' => static function (TestRunner $t) use ($old, $new, $other): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-packed-shadow-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        $packedContents = "# pack-refs with: peeled fully-peeled sorted \n"
+            . "{$old} refs/heads/main\n"
+            . "{$other} refs/heads/side\n";
+        file_put_contents($dir . '/packed-refs', $packedContents);
+        $store = ReferenceStore::at($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+
+        $transaction = $store->prepareLooseUpdateTransaction(
+            ['refs/heads/main' => ReferenceTarget::object($new)],
+            'sha1',
+            $committer,
+            'prepared loose shadow over packed ref',
+            false,
+            ReferenceStore::PREVIOUS_MUST_EXIST_AND_MATCH,
+            ReferenceTarget::object($old),
+        );
+
+        $t->same(true, is_file($dir . '/packed-refs.lock'), 'prepare holds the packed refs lock while existing packed values are consulted');
+        $t->same(true, is_file($dir . '/refs/heads/main.lock'));
+        $t->same(null, $store->reflogContents('refs/heads/main'), 'prepared locks do not write reflogs before commit');
+
+        $edits = $transaction->commit();
+        $packed = PackedReferences::open($dir . '/packed-refs');
+
+        $t->same(['refs/heads/main'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same([$old], array_map(static fn ($edit): ?string => $edit->previousTarget?->value, $edits));
+        $t->same([$new], array_map(static fn ($edit): ?string => $edit->newTarget?->value, $edits));
+        $t->same(false, is_file($dir . '/packed-refs.lock'));
+        $t->same(false, is_file($dir . '/refs/heads/main.lock'));
+        $t->same($old, $packed->find('refs/heads/main')->targetObjectId(), 'default prepared updates leave packed refs unchanged');
+        $t->same($other, $packed->find('refs/heads/side')->targetObjectId());
+        $t->same("{$new}\n", file_get_contents($dir . '/refs/heads/main'));
+        $t->same('loose', $store->find('refs/heads/main')->source);
+        $t->same($new, $store->find('refs/heads/main')->targetObjectId());
+        $t->contains(
+            "{$old} {$new} Deploy Bot <deploy@example.com> 1234 +0000\tprepared loose shadow over packed ref\n",
+            (string) $store->reflogContents('refs/heads/main'),
+        );
+    },
     'reference store refreshes packed ref buffers after external file changes' => static function (TestRunner $t) use ($old, $new, $other): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-packed-refresh-' . bin2hex(random_bytes(4));
         mkdir($dir, 0777, true);
@@ -1897,6 +1939,16 @@ return [
             $fixture['reviewCommit'] . ' ' . $fixture['productionCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedPackedUpdateReflogMessage'],
             (string) $summary['preparedPackedUpdateReflog'],
         );
+        $t->same($fixture['expectedPreparedPackedShadowEditNames'], $summary['preparedPackedShadowEditNames']);
+        $t->same($fixture['expectedPreparedPackedShadowHadLocks'], $summary['preparedPackedShadowHadLocks']);
+        $t->same($fixture['expectedPreparedPackedShadowCleanedLocks'], $summary['preparedPackedShadowCleanedLocks']);
+        $t->same($fixture['expectedPreparedPackedShadowPackedCommit'], $summary['preparedPackedShadowPackedCommit']);
+        $t->same($fixture['expectedPreparedPackedShadowSource'], $summary['preparedPackedShadowSource']);
+        $t->same($fixture['expectedPreparedPackedShadowLooseCommit'], $summary['preparedPackedShadowLooseCommit']);
+        $t->contains(
+            $fixture['productionCommit'] . ' ' . $fixture['reviewCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedPackedShadowReflogMessage'],
+            (string) $summary['preparedPackedShadowReflog'],
+        );
         $t->same($fixture['expectedPreparedPackedPseudoEditNames'], $summary['preparedPackedPseudoEditNames']);
         $t->same($fixture['expectedPreparedPackedPseudoHadLooseLock'], $summary['preparedPackedPseudoHadLooseLock']);
         $t->same($fixture['expectedPreparedPackedPseudoPackedLockPreserved'], $summary['preparedPackedPseudoPackedLockPreserved']);
@@ -1970,6 +2022,7 @@ return [
         $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
         $t->contains('prepared packed-refs commit phase', $summary['wordpressUse']);
         $t->contains('pack prepared object updates before pruning loose review sources', $summary['wordpressUse']);
+        $t->contains('prepared loose shadows over packed baselines', $summary['wordpressUse']);
         $t->contains('detached HEAD preview updates loose', $summary['wordpressUse']);
         $t->contains('clone-style symbolic review pointer', $summary['wordpressUse']);
         $t->contains('dereferenced symbolic HEAD publish', $summary['wordpressUse']);

@@ -1755,6 +1755,14 @@ return [
         $t->same(true, $redirectExample['callerCookieHeaderPreserved']);
         $t->same(true, $redirectExample['pathSpecificRedirectCookiesFirst']);
         $t->same(true, $redirectExample['dotSegmentPostRedirectNormalized']);
+        $t->same(true, $redirectFixture['curlDefaultRedirectLimitAccepted']);
+        $t->same(51, $redirectFixture['curlDefaultRedirectLimitRequestCount']);
+        $t->same(true, $redirectFixture['curlDefaultRedirectOverflowRejected']);
+        $t->same(51, $redirectFixture['curlDefaultRedirectOverflowRequestCount']);
+        $t->same($redirectFixture['curlDefaultRedirectLimitAccepted'], $redirectExample['curlDefaultRedirectLimitAccepted']);
+        $t->same($redirectFixture['curlDefaultRedirectLimitRequestCount'], $redirectExample['curlDefaultRedirectLimitRequestCount']);
+        $t->same($redirectFixture['curlDefaultRedirectOverflowRejected'], $redirectExample['curlDefaultRedirectOverflowRejected']);
+        $t->same($redirectFixture['curlDefaultRedirectOverflowRequestCount'], $redirectExample['curlDefaultRedirectOverflowRequestCount']);
         $t->same(true, $redirectFixture['rewritingPostRedirectRejected']);
         $t->same(true, $redirectFixture['permanentPostRedirectRejected']);
         $t->same(true, $redirectFixture['seeOtherPostRedirectRejected']);
@@ -1981,6 +1989,59 @@ return [
         $t->throws(RuntimeException::class, static fn () => $missingLocationPostRedirectClient->send($missingLocationPostRedirectRequest));
         $t->same(['GET', 'POST'], array_column($missingLocationPostRedirectRequests, 'method'));
         $t->same($missingLocationPostRedirectRequest->requestBytes(), $missingLocationPostRedirectRequests[1]['body']);
+    },
+    'smart http receive-pack follows upstream curl redirect limit for discovery' => static function (TestRunner $t) use ($packet, $flush): void {
+        $advertisement = $packet("58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a refs/heads/main\0report-status object-format=sha1\n") . $flush;
+        $redirectCount = 0;
+        $requests = [];
+        $transport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body) use (&$redirectCount, &$requests, $packet, $flush, $advertisement): array {
+                $requests[] = ['method' => $method, 'url' => $url, 'headers' => $headers, 'body' => $body];
+                if ($redirectCount < 50) {
+                    $redirectCount++;
+
+                    return [
+                        'status' => 302,
+                        'headers' => ['Location' => "https://git.example.test/redirect-{$redirectCount}.git/info/refs?service=git-receive-pack"],
+                        'body' => '',
+                    ];
+                }
+
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                ];
+            },
+        );
+
+        $t->same($advertisement, $transport->readAdvertisement());
+        $t->same(51, count($requests));
+        $t->same('GET', $requests[50]['method']);
+        $t->same('https://git.example.test/redirect-50.git/info/refs?service=git-receive-pack', $requests[50]['url']);
+        $t->same(null, $requests[50]['body']);
+
+        $overflowRequests = [];
+        $overflowRedirectCount = 0;
+        $overflowTransport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static function (string $method, string $url, array $headers, ?string $body) use (&$overflowRedirectCount, &$overflowRequests): array {
+                $overflowRequests[] = ['method' => $method, 'url' => $url, 'headers' => $headers, 'body' => $body];
+                $overflowRedirectCount++;
+
+                return [
+                    'status' => 302,
+                    'headers' => ['Location' => "https://git.example.test/overflow-{$overflowRedirectCount}.git/info/refs?service=git-receive-pack"],
+                    'body' => '',
+                ];
+            },
+        );
+
+        $t->throws(RuntimeException::class, static fn () => $overflowTransport->readAdvertisement());
+        $t->same(51, count($overflowRequests));
+        $t->same('https://git.example.test/overflow-49.git/info/refs?service=git-receive-pack', $overflowRequests[49]['url']);
+        $t->same('https://git.example.test/overflow-50.git/info/refs?service=git-receive-pack', $overflowRequests[50]['url']);
     },
     'smart http receive-pack applies proxy options and credential helpers' => static function (TestRunner $t) use ($packet, $flush): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
@@ -2538,6 +2599,82 @@ return [
         );
         $defaultPortTransport->readAdvertisement();
         $t->same('tcp://proxy.example.test:80', $defaultPortRequests[0]['proxy']);
+        $t->same('http://proxy.example.test', $defaultPortRequests[0]['proxyUrl']);
+
+        $defaultPortProxyRequests = [];
+        $defaultPortProxyHelperCalls = [];
+        $defaultPortProxyStores = [];
+        $defaultPortProxyBlob = new GitObject('blob', 'WordPress default-port proxy cookie payload');
+        $defaultPortProxyClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$defaultPortProxyRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $defaultPortProxyRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_session=default-port; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'proxy' => 'http://default-proxy.example.test:80',
+                    'proxyCredentialHelper' => static function (string $proxyUrl, string $requestHost) use (&$defaultPortProxyHelperCalls): array {
+                        $defaultPortProxyHelperCalls[] = [$proxyUrl, $requestHost];
+
+                        return ['username' => 'default-port-user', 'password' => 'default-port-pass'];
+                    },
+                    'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$defaultPortProxyStores): void {
+                        $defaultPortProxyStores[] = [$proxyUrl, $requestHost, $credentials];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $defaultPortProxySession = $defaultPortProxyClient->handshake();
+        $defaultPortProxySession->createOrUpdate('refs/heads/main', $defaultPortProxyBlob->oid());
+        $defaultPortProxyRequest = $defaultPortProxySession->buildRequest([$defaultPortProxyBlob]);
+
+        $defaultPortProxyResponse = $defaultPortProxyClient->send($defaultPortProxyRequest);
+
+        $t->same(true, $defaultPortProxyResponse->isSuccessful());
+        $t->same([
+            ['http://default-proxy.example.test', 'git.example.test'],
+            ['http://default-proxy.example.test', 'git.example.test'],
+        ], $defaultPortProxyHelperCalls);
+        $t->same(['GET', 'POST'], array_column($defaultPortProxyRequests, 'method'));
+        $t->same('tcp://default-proxy.example.test:80', $defaultPortProxyRequests[0]['httpOptions']['proxy']);
+        $t->same('http://default-proxy.example.test:80', $defaultPortProxyRequests[0]['httpOptions']['proxyUrl']);
+        $t->same('Basic ' . base64_encode('default-port-user:default-port-pass'), $defaultPortProxyRequests[0]['httpOptions']['proxyAuthorization']);
+        $t->same('Basic ' . base64_encode('default-port-user:default-port-pass'), $defaultPortProxyRequests[1]['httpOptions']['proxyAuthorization']);
+        $t->same(null, $defaultPortProxyRequests[0]['headers']['Proxy-Authorization'] ?? null);
+        $t->same(null, $defaultPortProxyRequests[1]['headers']['Proxy-Authorization'] ?? null);
+        $t->same([
+            ['http://default-proxy.example.test', 'git.example.test', ['username' => 'default-port-user', 'password' => 'default-port-pass']],
+            ['http://default-proxy.example.test', 'git.example.test', ['username' => 'default-port-user', 'password' => 'default-port-pass']],
+        ], $defaultPortProxyStores);
+        $t->same('wp_session=default-port', $defaultPortProxyRequests[1]['headers']['Cookie']);
+        $t->same($defaultPortProxyRequest->requestBytes(), $defaultPortProxyRequests[1]['body']);
 
         $httpsFallbackRequests = [];
         $httpsFallbackHelperCalls = 0;
@@ -3163,7 +3300,7 @@ return [
         $socksTransport->readAdvertisement();
         $t->same('socks5h', $socksRequests[0]['proxyType']);
         $t->same('tcp://socks.example.test:1080', $socksRequests[0]['proxy']);
-        $t->same('socks5h://socks.example.test:1080', $socksRequests[0]['proxyUrl']);
+        $t->same('socks5h://socks.example.test', $socksRequests[0]['proxyUrl']);
         $t->same(false, $socksRequests[0]['requestFullUri']);
         $t->same('negotiate', $socksRequests[0]['proxyAuthMethod']);
 
@@ -3982,6 +4119,36 @@ return [
         $t->same($fixture['usernameOnlyProxyUrl'], $summary['usernameOnlyProxyCredentialUrl']);
         $t->same($fixture['usernameOnlyProxyAuthorizationSent'], $summary['usernameOnlyProxyAuthorizationSent']);
         $t->same(false, $summary['usernameOnlyOriginProxyHeaderLeaked']);
+        $t->same(true, $fixture['defaultPortProxyResponseSuccessful']);
+        $t->same([
+            ['http://wp-default-proxy.example.test', 'git.example.test'],
+            ['http://wp-default-proxy.example.test', 'git.example.test'],
+        ], $fixture['defaultPortProxyHelperCalls']);
+        $t->same('http://wp-default-proxy.example.test:80', $fixture['defaultPortProxyRequestProxyUrl']);
+        $t->same('tcp://wp-default-proxy.example.test:80', $fixture['defaultPortProxyRequestProxyStream']);
+        $t->same('Basic ' . base64_encode('default-port-proxy-user:default-port-proxy-pass'), $fixture['defaultPortProxyAuthorizationSent']);
+        $t->same(false, $fixture['defaultPortProxyOriginProxyHeaderLeaked']);
+        $t->same('wp_session=default-port', $fixture['defaultPortProxyPostCookieHeader']);
+        $t->same($fixture['defaultPortProxyResponseSuccessful'], $summary['defaultPortProxyResponseSuccessful']);
+        $t->same($fixture['defaultPortProxyHelperCalls'], $summary['defaultPortProxyHelperCalls']);
+        $t->same('http://wp-default-proxy.example.test', $summary['defaultPortProxyCredentialUrl']);
+        $t->same($fixture['defaultPortProxyRequestProxyUrl'], $summary['defaultPortProxyRequestProxyUrl']);
+        $t->same($fixture['defaultPortProxyRequestProxyStream'], $summary['defaultPortProxyRequestProxyStream']);
+        $t->same($fixture['defaultPortProxyAuthorizationSent'], $summary['defaultPortProxyAuthorizationSent']);
+        $t->same([
+            [
+                'proxyUrl' => 'http://wp-default-proxy.example.test',
+                'requestHost' => 'git.example.test',
+                'username' => 'default-port-proxy-user',
+            ],
+            [
+                'proxyUrl' => 'http://wp-default-proxy.example.test',
+                'requestHost' => 'git.example.test',
+                'username' => 'default-port-proxy-user',
+            ],
+        ], $summary['defaultPortProxyCredentialsStored']);
+        $t->same(false, $summary['defaultPortProxyOriginProxyHeaderLeaked']);
+        $t->same($fixture['defaultPortProxyPostCookieHeader'], $summary['defaultPortProxyPostCookieHeader']);
         $t->same(true, $fixture['cidrNoProxyBypassedProxy']);
         $t->same(0, $fixture['cidrNoProxyHelperCalls']);
         $t->same('wp_session=cidr', $fixture['cidrNoProxyPostCookieHeader']);

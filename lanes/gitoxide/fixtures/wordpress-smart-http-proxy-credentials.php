@@ -93,6 +93,65 @@ $usernameOnlyProxyTransport = new SmartHttpReceivePackTransport(
 );
 $usernameOnlyProxyAdvertisement = $usernameOnlyProxyTransport->readAdvertisement();
 
+$defaultPortProxyRequests = [];
+$defaultPortProxyHelperCalls = [];
+$defaultPortProxyStores = [];
+$defaultPortProxyBlob = new GitObject('blob', 'WordPress default-port proxy helper payload');
+$defaultPortProxyResponseBytes = $packet("\x01" . $packet("unpack ok\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $flush)
+    . $flush;
+$defaultPortProxyClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://git.example.test/wp-content.git',
+        static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$defaultPortProxyRequests, $packet, $flush, $advertisementBytes, $defaultPortProxyResponseBytes): array {
+            $defaultPortProxyRequests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'timeout' => $timeout,
+                'httpOptions' => $httpOptions,
+            ];
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => [
+                        'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                        'Set-Cookie' => 'wp_session=default-port; Path=/; Secure',
+                    ],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $defaultPortProxyResponseBytes,
+            ];
+        },
+        [],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+        [
+            'proxy' => 'http://wp-default-proxy.example.test:80',
+            'proxyCredentialHelper' => static function (string $proxyUrl, string $requestHost) use (&$defaultPortProxyHelperCalls): array {
+                $defaultPortProxyHelperCalls[] = [$proxyUrl, $requestHost];
+
+                return ['username' => 'default-port-proxy-user', 'password' => 'default-port-proxy-pass'];
+            },
+            'proxyCredentialStore' => static function (string $proxyUrl, string $requestHost, array $credentials) use (&$defaultPortProxyStores): void {
+                $defaultPortProxyStores[] = [$proxyUrl, $requestHost, $credentials];
+            },
+        ],
+    ),
+    'port-libs/wordpress',
+);
+$defaultPortProxySession = $defaultPortProxyClient->handshake();
+$defaultPortProxySession->createOrUpdate('refs/heads/main', $defaultPortProxyBlob->oid());
+$defaultPortProxyResponse = $defaultPortProxyClient->send($defaultPortProxySession->buildRequest([$defaultPortProxyBlob]));
+
 $cidrNoProxyRequests = [];
 $cidrNoProxyHelperCalls = 0;
 $cidrNoProxyBlob = new GitObject('blob', 'WordPress CIDR no-proxy payload');
@@ -772,6 +831,15 @@ return [
     'usernameOnlyProxyAuthorizationSent' => $usernameOnlyProxyRequests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'usernameOnlyProxyUrl' => $usernameOnlyProxyRequests[0]['httpOptions']['proxyUrl'] ?? null,
     'usernameOnlyOriginProxyHeaderLeaked' => isset($usernameOnlyProxyRequests[0]['headers']['Proxy-Authorization']),
+    'defaultPortProxyResponseSuccessful' => $defaultPortProxyResponse->isSuccessful(),
+    'defaultPortProxyHelperCalls' => $defaultPortProxyHelperCalls,
+    'defaultPortProxyStores' => $defaultPortProxyStores,
+    'defaultPortProxyRequestProxyUrl' => $defaultPortProxyRequests[0]['httpOptions']['proxyUrl'] ?? null,
+    'defaultPortProxyRequestProxyStream' => $defaultPortProxyRequests[0]['httpOptions']['proxy'] ?? null,
+    'defaultPortProxyAuthorizationSent' => $defaultPortProxyRequests[0]['httpOptions']['proxyAuthorization'] ?? null,
+    'defaultPortProxyOriginProxyHeaderLeaked' => isset($defaultPortProxyRequests[0]['headers']['Proxy-Authorization'])
+        || isset($defaultPortProxyRequests[1]['headers']['Proxy-Authorization']),
+    'defaultPortProxyPostCookieHeader' => $defaultPortProxyRequests[1]['headers']['Cookie'] ?? null,
     'cidrNoProxyBypassedProxy' => $cidrNoProxyResponse->isSuccessful()
         && ($cidrNoProxyRequests[0]['httpOptions'] ?? null) === []
         && ($cidrNoProxyRequests[1]['httpOptions'] ?? null) === [],
@@ -842,5 +910,5 @@ return [
     'notModifiedProxyPostCookieHeader' => $notModifiedProxyRequests[1]['headers']['Cookie'] ?? null,
     'proxyAuthorizationSent' => $requests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'originProxyHeaderLeaked' => isset($requests[0]['headers']['Proxy-Authorization']),
-    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, preserve proxy use for curl-style port-qualified noProxy literal tokens, use HTTPS-specific proxy fallbacks with receive-pack cookies intact, keep an HTTP-origin request direct when a safe redirect upgrades it to HTTPS, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
+    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, canonicalize default proxy ports out of credential-helper context while preserving concrete proxy streams, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, preserve proxy use for curl-style port-qualified noProxy literal tokens, use HTTPS-specific proxy fallbacks with receive-pack cookies intact, keep an HTTP-origin request direct when a safe redirect upgrades it to HTTPS, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
 ];

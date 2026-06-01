@@ -8598,11 +8598,76 @@ final class CustomAtRuleTransformer
      */
     private function parseAtPrelude(string $prelude): array
     {
-        if (preg_match('/^@([_a-zA-Z][-_a-zA-Z0-9]*)(?:\s+(.*))?$/s', trim($prelude), $matches) !== 1) {
+        $prelude = trim($prelude);
+        if ($prelude === '' || $prelude[0] !== '@') {
             throw new \InvalidArgumentException("Invalid CSS at-rule prelude: {$prelude}");
         }
 
-        return [strtolower($matches[1]), trim($matches[2] ?? '')];
+        $offset = 1;
+        $length = strlen($prelude);
+        $rawName = '';
+
+        while ($offset < $length) {
+            $char = $prelude[$offset];
+            if ($char === '\\') {
+                $escapeEnd = $this->consumeCssIdentifierEscape($prelude, $offset);
+                if ($escapeEnd === null) {
+                    throw new \InvalidArgumentException("Invalid CSS at-rule prelude: {$prelude}");
+                }
+
+                $rawName .= substr($prelude, $offset, $escapeEnd - $offset);
+                $offset = $escapeEnd;
+                continue;
+            }
+
+            if (preg_match('/[-_a-zA-Z0-9]/', $char) === 1) {
+                $rawName .= $char;
+                $offset++;
+                continue;
+            }
+
+            break;
+        }
+
+        $name = strtolower($this->decodeCssEscapes($rawName));
+        if ($name === '' || preg_match('/^-?[_a-zA-Z][-_a-zA-Z0-9]*$/', $name) !== 1) {
+            throw new \InvalidArgumentException("Invalid CSS at-rule prelude: {$prelude}");
+        }
+
+        return [$name, trim(substr($prelude, $offset))];
+    }
+
+    private function consumeCssIdentifierEscape(string $css, int $offset): ?int
+    {
+        if (($css[$offset] ?? '') !== '\\') {
+            return null;
+        }
+
+        $length = strlen($css);
+        $cursor = $offset + 1;
+        if ($cursor >= $length) {
+            return null;
+        }
+
+        $char = $css[$cursor];
+        if ($char === "\n" || $char === "\r" || $char === "\f") {
+            return null;
+        }
+
+        if (ctype_xdigit($char)) {
+            $count = 0;
+            while ($cursor < $length && $count < 6 && ctype_xdigit($css[$cursor])) {
+                $cursor++;
+                $count++;
+            }
+            if ($cursor < $length && ctype_space($css[$cursor])) {
+                $cursor++;
+            }
+
+            return $cursor;
+        }
+
+        return $cursor + 1;
     }
 
     /**
