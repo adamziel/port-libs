@@ -7,7 +7,7 @@
     "phpFail": 0,
     "wordpressScenarios": "Git-backed workflows remain covered; latest accepted source adds merge-base commit-graph cache lookup, URL/refspec Unix colon-path classification, and attributes/pathspec parent-traversal rejection parity.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 17:22 UTC supervisor integration: source commit bcb2d8dea08658893a01083057f692f7e03d329c accepted merge-base equal-priority ordering and protocol-v2 fetch sideband transcript parity. Changed PHP lint passed for 13 changed PHP files across the batch; git diff --check passed; focused Gitoxide gate passed 2 files / 939 assertions / 0 failures; example smokes exited 0; full Gitoxide PHP lane passed 40 files / 10222 assertions / 0 failures. Cargo workspace was not run.",
+    "audit": "2026-06-01 16:52 UTC supervisor integration: source commit bcb2d8dea08658893a01083057f692f7e03d329c accepted merge-base equal-priority ordering and protocol-v2 fetch sideband transcript parity. Changed PHP lint passed for 13 changed PHP files across the batch; git diff --check passed; focused Gitoxide gate passed 2 files / 939 assertions / 0 failures; example smokes exited 0; full Gitoxide PHP lane passed 40 files / 10222 assertions / 0 failures. Cargo workspace was not run.",
     "currentWork": "Merge-base equal-priority ordering, protocol-v2 fetch sideband transcript parity, sparse-checkout index mode, tree/pathspec rootless absolute guard, and URL/refspec match-rhs parity integrated on current main.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
     "latestCommit": "bcb2d8dea08658893a01083057f692f7e03d329c",
