@@ -475,7 +475,7 @@ final class LooseObjectStore
                     self::throwNoTypeSizeDelimiterUnknownKindOrMissingNul($inflated);
                 }
 
-                throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
+                self::throwNoTypeSizeDelimiterUnknownKindOrMissingNul($window);
             }
         }
 
@@ -518,7 +518,7 @@ final class LooseObjectStore
                 $nul = strpos($inflated, "\0");
                 if ($nul === false) {
                     if (strlen($inflated) >= self::HEADER_MAX_SIZE) {
-                        throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
+                        self::throwNoTypeSizeDelimiterUnknownKindOrMissingNul(substr($inflated, 0, self::HEADER_MAX_SIZE));
                     }
                     if ($status === ZLIB_STREAM_END) {
                         self::throwNoTypeSizeDelimiterUnknownKindOrMissingNul($inflated);
@@ -536,7 +536,7 @@ final class LooseObjectStore
                     continue;
                 }
                 if ($nul + 1 > self::HEADER_MAX_SIZE) {
-                    throw new \InvalidArgumentException('Loose object header exceeds maximum size of 64 bytes');
+                    self::throwNoTypeSizeDelimiterUnknownKindOrMissingNul(substr($inflated, 0, self::HEADER_MAX_SIZE));
                 }
 
                 $header = GitObject::decodeLooseHeader(substr($inflated, 0, $nul + 1));

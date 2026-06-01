@@ -1013,6 +1013,64 @@ return [
             $t->contains("Unknown object kind: commit\0", $exception->getMessage());
         }
     },
+    'object database loose integrity preserves overlong first-window header decode ordering across stores' => static function (TestRunner $t) use ($writeCompressedLooseBytes, $looseObjectPath): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-overlong-header-window-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateGitDir = $root . '/shared-cache/.git';
+        $alternateObjectsDir = $alternateGitDir . '/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+
+        $primaryOid = str_repeat('1', 40);
+        $alternateOid = str_repeat('2', 40);
+        $writeCompressedLooseBytes($gitDir, $primaryOid, 'blob ' . str_repeat('1', 60) . "\0primary body");
+        $writeCompressedLooseBytes($alternateGitDir, $alternateOid, 'wordpress ' . str_repeat('1', 60) . "\0alternate body");
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $database = new ObjectDatabase($gitDir);
+        foreach ([
+            'primary header' => static fn () => $database->readHeader($primaryOid),
+            'primary body' => static fn () => $database->read($primaryOid),
+        ] as $operation => $callback) {
+            try {
+                $callback();
+                throw new RuntimeException("Expected overlong primary loose object {$operation} to fail");
+            } catch (InvalidArgumentException $exception) {
+                $t->same('Did not find 0 byte in header', $exception->getMessage());
+            }
+        }
+
+        foreach ([
+            'alternate header' => static fn () => $database->readHeader($alternateOid),
+            'alternate body' => static fn () => $database->read($alternateOid),
+        ] as $operation => $callback) {
+            try {
+                $callback();
+                throw new RuntimeException("Expected overlong alternate loose object {$operation} to fail");
+            } catch (InvalidArgumentException $exception) {
+                $t->same('Unknown object kind: wordpress', $exception->getMessage());
+            }
+        }
+
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected primary overlong loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$primaryOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Did not find 0 byte in header', $exception->getMessage());
+        }
+
+        unlink($looseObjectPath($gitDir, $primaryOid));
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected alternate overlong loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$alternateOid} could not be read exactly", $exception->getMessage());
+            $t->contains('Unknown object kind: wordpress', $exception->getMessage());
+        }
+    },
     'object database loose integrity canonicalizes zero-padded size headers across alternates' => static function (TestRunner $t) use ($writeCompressedLooseBytes): void {
         $root = sys_get_temp_dir() . '/port-libs-git-odb-zero-padded-size-' . bin2hex(random_bytes(4));
         $gitDir = $root . '/site/.git';

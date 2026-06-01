@@ -49,6 +49,11 @@ $unknownKindHeaderMessage = null;
 $unknownKindReadRejected = false;
 $unknownKindIntegrityRejected = false;
 $unknownKindIntegrityMessage = null;
+$overlongHeaderRejected = false;
+$overlongHeaderMessage = null;
+$overlongReadRejected = false;
+$overlongIntegrityRejected = false;
+$overlongIntegrityMessage = null;
 $allocationLimitRejected = false;
 $allocationLimitMessage = null;
 $trailingStreamIgnored = false;
@@ -277,6 +282,35 @@ try {
     $unknownKindIntegrityMessage = $exception->getMessage();
 }
 
+$overlongHeaderDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-overlong-window-' . bin2hex(random_bytes(4)) . '/objects';
+$overlongHeaderPath = $overlongHeaderDirectory . '/' . substr($fixture['overlongHeaderOid'], 0, 2) . '/' . substr($fixture['overlongHeaderOid'], 2);
+if (!is_dir(dirname($overlongHeaderPath)) && !mkdir(dirname($overlongHeaderPath), 0777, true) && !is_dir(dirname($overlongHeaderPath))) {
+    throw new RuntimeException('Unable to create object-header overlong first-window fixture directory');
+}
+$overlongHeaderCompressed = gzcompress($fixture['overlongHeaderStorage']);
+if ($overlongHeaderCompressed === false) {
+    throw new RuntimeException('Unable to compress object-header overlong first-window fixture');
+}
+file_put_contents($overlongHeaderPath, $overlongHeaderCompressed);
+$overlongHeaderStore = LooseObjectStore::fromObjectsDirectory($overlongHeaderDirectory);
+try {
+    $overlongHeaderStore->readHeader($fixture['overlongHeaderOid']);
+} catch (InvalidArgumentException $exception) {
+    $overlongHeaderRejected = true;
+    $overlongHeaderMessage = $exception->getMessage();
+}
+try {
+    $overlongHeaderStore->read($fixture['overlongHeaderOid']);
+} catch (InvalidArgumentException $exception) {
+    $overlongReadRejected = $exception->getMessage() === 'Did not find 0 byte in header';
+}
+try {
+    $overlongHeaderStore->verifyIntegrity();
+} catch (RuntimeException $exception) {
+    $overlongIntegrityRejected = true;
+    $overlongIntegrityMessage = $exception->getMessage();
+}
+
 $trailingObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-trailing-' . bin2hex(random_bytes(4)) . '/objects';
 $trailingPath = $trailingObjectsDirectory . '/' . substr($object->oid(), 0, 2) . '/' . substr($object->oid(), 2);
 if (!is_dir(dirname($trailingPath)) && !mkdir(dirname($trailingPath), 0777, true) && !is_dir(dirname($trailingPath))) {
@@ -440,6 +474,11 @@ return [
     'unknownKindReadRejected' => $unknownKindReadRejected,
     'unknownKindIntegrityRejected' => $unknownKindIntegrityRejected,
     'unknownKindIntegrityMessage' => $unknownKindIntegrityMessage,
+    'overlongHeaderRejected' => $overlongHeaderRejected,
+    'overlongHeaderMessage' => $overlongHeaderMessage,
+    'overlongReadRejected' => $overlongReadRejected,
+    'overlongIntegrityRejected' => $overlongIntegrityRejected,
+    'overlongIntegrityMessage' => $overlongIntegrityMessage,
     'allocationLimitBytes' => $boundedStore->allocationLimitBytes(),
     'oversizedHeaderSize' => $oversizedHeader['size'],
     'allocationLimitRejected' => $allocationLimitRejected,

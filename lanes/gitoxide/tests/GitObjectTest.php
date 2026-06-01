@@ -347,6 +347,52 @@ return [
         file_put_contents($badPath, 'not-zlib');
         $t->throws(RuntimeException::class, static fn () => $store->readHeader($badZlibOid));
     },
+    'loose object overlong first header window preserves upstream decode error ordering' => static function (TestRunner $t) use ($writeLooseStorage): void {
+        $cases = [
+            'knownKindDelayedNul' => [
+                'oid' => str_repeat('1', 40),
+                'storage' => 'blob ' . str_repeat('1', 60) . "\0body",
+                'message' => 'Did not find 0 byte in header',
+            ],
+            'unknownKindDelayedNul' => [
+                'oid' => str_repeat('2', 40),
+                'storage' => 'wordpress ' . str_repeat('1', 60) . "\0body",
+                'message' => 'Unknown object kind: wordpress',
+            ],
+            'missingDelimiterDelayedNul' => [
+                'oid' => str_repeat('3', 40),
+                'storage' => str_repeat('b', 64) . "\0body",
+                'message' => "Expected '<type> <size>'",
+            ],
+        ];
+
+        foreach ($cases as $case => $fixture) {
+            $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-overlong-header-window-' . $case . '-' . bin2hex(random_bytes(4)) . '/objects';
+            $writeLooseStorage($objectsDirectory, $fixture['oid'], $fixture['storage']);
+            $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+
+            foreach ([
+                'readHeader' => static fn () => $store->readHeader($fixture['oid']),
+                'tryReadHeader' => static fn () => $store->tryReadHeader($fixture['oid']),
+                'read' => static fn () => $store->read($fixture['oid']),
+            ] as $operation => $callback) {
+                try {
+                    $callback();
+                    throw new RuntimeException("Expected overlong loose object header {$operation} to fail for {$case}");
+                } catch (InvalidArgumentException $exception) {
+                    $t->same($fixture['message'], $exception->getMessage());
+                }
+            }
+
+            try {
+                $store->verifyIntegrity();
+                throw new RuntimeException("Expected overlong loose object header integrity failure for {$case}");
+            } catch (RuntimeException $exception) {
+                $t->contains("Loose object {$fixture['oid']} could not be read exactly", $exception->getMessage());
+                $t->contains($fixture['message'], $exception->getMessage());
+            }
+        }
+    },
     'loose object integrity rejects missing type-size delimiter before missing-NUL checks' => static function (TestRunner $t) use ($writeLooseStorage): void {
         $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-no-type-size-delimiter-' . bin2hex(random_bytes(4)) . '/objects';
         $oid = str_repeat('9', 40);
@@ -1090,6 +1136,11 @@ return [
         $t->same(true, $summary['unknownKindReadRejected']);
         $t->same(true, $summary['unknownKindIntegrityRejected']);
         $t->contains('Unknown object kind: wordpress', $summary['unknownKindIntegrityMessage']);
+        $t->same(true, $summary['overlongHeaderRejected']);
+        $t->same('Did not find 0 byte in header', $summary['overlongHeaderMessage']);
+        $t->same(true, $summary['overlongReadRejected']);
+        $t->same(true, $summary['overlongIntegrityRejected']);
+        $t->contains('Did not find 0 byte in header', $summary['overlongIntegrityMessage']);
         $t->same($fixture['allocationLimitBytes'], $summary['allocationLimitBytes']);
         $t->same(4096, $summary['oversizedHeaderSize']);
         $t->same(true, $summary['allocationLimitRejected']);
