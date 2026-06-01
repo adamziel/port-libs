@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 19:09:04 UTC",
-    "sourceCommit": "e8d3a8d1abfba3b95db37d5527bf21b36888f271",
-    "sourceCommitShort": "e8d3a8d1abfb",
+    "generated": "2026-06-01 19:14:18 UTC",
+    "sourceCommit": "1aa392ceefd412e0ef46b4197c2ed4862e90884b",
+    "sourceCommitShort": "1aa392ceefd4",
     "sourceBranch": "unknown",
-    "dashboardCommit": "e8d3a8d1abfba3b95db37d5527bf21b36888f271",
-    "dashboardCommitShort": "e8d3a8d1abfb",
+    "dashboardCommit": "1aa392ceefd412e0ef46b4197c2ed4862e90884b",
+    "dashboardCommitShort": "1aa392ceefd4",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,188,474 pass / 16 fail",
+            "php": "6,191,969 pass / 16 fail",
             "phase": "current-base source integration accepted by supervisor with focused a...",
-            "audit": "2026-06-01 19:00 UTC supervisor integration: source commit 91f23c84d0...",
-            "currentWork": "Row-value aggregate tuple parity, WAL checkpoint followup recovery, and VFS shared-ca...",
+            "audit": "2026-06-01 19:18 UTC supervisor integration: source commit 1aa392ceef...",
+            "currentWork": "atof1 random roundtrip rows, func2 substr negative-window behavior, selectA UNION ALL...",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "91f23c8"
+            "commit": "1aa392c"
         },
         {
             "lane": "lightningcss",
