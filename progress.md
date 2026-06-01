@@ -55,6 +55,26 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (loose/sparse/CSS/pager replay intake
+  05:18 UTC): kept the cleanup policy bounded after the active-session audit:
+  `main` is the only tmux session and the visible worker pool has live Codex
+  children, so no active development window was killed. Accepted 6
+  source-changing handoffs as source commit
+  `96cca5011c5eadcf313fc456524b47b359b352dd` (`ports: integrate loose sparse
+  css and pager parity`). The batch adds Gitoxide loose-object finalization
+  read-only/occupied-path parity and sparse-checkout pattern-file trimming
+  boundaries; LightningCSS CSS Modules single `:is()` local/global rewriting,
+  property-value color/font/grid minifier coverage, and source-map VLQ
+  skipped-state parity; and libsqlite real upstream pager/WAL journal-mode
+  dynamic corpus coverage. Verification passed PHP lint, `git diff --check`,
+  full Gitoxide `40 files / 7576 assertions / 0 failures`, full LightningCSS
+  `13 files / 6179 assertions / 0 failures`, focused libsqlite `3 files /
+  42079 assertions / 0 failures`, touched examples, and no new
+  WordPress/wp_/numbered `CurrentSourceNext` strings in changed libsqlite
+  source. Dashboard status should report Gitoxide `1746 / 2886` mapped and
+  `7576 pass / 0 fail`, LightningCSS `2356 / 3532` mapped and `6179 pass / 0
+  fail`, and libsqlite `1589 / 1589` mapped with `5591045 pass / 7 fail`.
+
 - 2026-06-01 supervisor continuation (attributes/media/target replay intake
   05:20 UTC): continued the cleanup/integration pass from the current
   `origin/main`. The CSSOM handoff did not apply on current main
