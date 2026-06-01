@@ -105,6 +105,24 @@ $missingGenerationPairwiseBase = $missingGenerationFinder->mergeBase(
     $fixture['missingGenerationPluginReview'],
     $fixture['missingGenerationThemeReview'],
 );
+$hydratedPromisorCommits = $fixture['commits'];
+$hydratedPromisorReleaseCommit = $hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']];
+unset($hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']]);
+$hydratedPromisorFinder = new MergeBaseFinder(
+    static function (string $oid) use (&$hydratedPromisorCommits): ?Commit {
+        return $hydratedPromisorCommits[$oid] ?? null;
+    },
+    useCommitGraphGenerations: false,
+);
+$hydratedPromisorBeforeBases = $hydratedPromisorFinder->mergeBases(
+    $fixture['hydratedPromisorPluginReview'],
+    $fixture['hydratedPromisorThemeReview'],
+);
+$hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']] = $hydratedPromisorReleaseCommit;
+$hydratedPromisorAfterBases = $hydratedPromisorFinder->mergeBases(
+    $fixture['hydratedPromisorPluginReview'],
+    $fixture['hydratedPromisorThemeReview'],
+);
 
 return [
     'reviewHeads' => $fixture['heads'],
@@ -174,6 +192,11 @@ return [
     'missingGenerationPairwiseBase' => $missingGenerationPairwiseBase,
     'missingGenerationProviderKeepsReleaseBaseline' => $missingGenerationGraphWalkBase === $fixture['missingGenerationReleaseBaseline']
         && $missingGenerationPairwiseBase === $fixture['missingGenerationReleaseBaseline'],
+    'hydratedPromisorHeads' => $fixture['hydratedPromisorHeads'],
+    'hydratedPromisorBeforeBases' => $hydratedPromisorBeforeBases,
+    'hydratedPromisorAfterBases' => $hydratedPromisorAfterBases,
+    'hydratedPromisorReusesFinderAfterMissingAncestor' => $hydratedPromisorBeforeBases === []
+        && $hydratedPromisorAfterBases === [$fixture['hydratedPromisorReleaseBaseline']],
     'sha256ReviewHeads' => $fixture['sha256ReviewHeads'],
     'sha256ReviewBase' => $sha256ReviewBase,
     'sha256GraphWalkBase' => $sha256GraphWalkBase,

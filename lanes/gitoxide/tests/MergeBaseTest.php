@@ -878,6 +878,44 @@ BASELINE;
         $t->same(true, in_array($missingParent, $reads, true));
         $t->same(true, in_array($missingFirst, $reads, true));
     },
+    'maps upstream graph reuse by not pinning missing commits after hydration' => static function (TestRunner $t) use ($oid): void {
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+        $release = $oid('1');
+        $pluginReview = $oid('2');
+        $themeReview = $oid('3');
+        $reads = [];
+        $commits = [
+            $pluginReview => $timedCommit(1700000100, [$release]),
+            $themeReview => $timedCommit(1700000200, [$release]),
+        ];
+        $mergeBase = new MergeBaseFinder(static function (string $oid) use (&$commits, &$reads): ?Commit {
+            $reads[] = $oid;
+
+            return $commits[$oid] ?? null;
+        }, useCommitGraphGenerations: false);
+
+        $t->same([], $mergeBase->mergeBases($pluginReview, $themeReview));
+        $t->same(true, in_array($release, $reads, true));
+
+        $commits[$release] = $timedCommit(1700000000);
+        $reads = [];
+
+        $t->same([$release], $mergeBase->mergeBases($pluginReview, $themeReview));
+        $t->same($release, $mergeBase->mergeBase($pluginReview, $themeReview));
+        $t->same(true, in_array($release, $reads, true));
+    },
     'wordpress fixture finds shared release baseline for multiple review branches' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-merge-base.php';
         $example = require dirname(__DIR__) . '/examples/wordpress-merge-base.php';
@@ -976,6 +1014,21 @@ BASELINE;
         $t->same($fixture['missingGenerationReleaseBaseline'], $example['missingGenerationGraphWalkBase']);
         $t->same($fixture['missingGenerationReleaseBaseline'], $example['missingGenerationPairwiseBase']);
         $t->same(true, $example['missingGenerationProviderKeepsReleaseBaseline']);
+        $hydratedPromisorCommits = $fixture['commits'];
+        $hydratedPromisorReleaseCommit = $hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']];
+        unset($hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']]);
+        $hydratedPromisorFinder = new MergeBaseFinder(
+            static function (string $oid) use (&$hydratedPromisorCommits): ?Commit {
+                return $hydratedPromisorCommits[$oid] ?? null;
+            },
+            useCommitGraphGenerations: false,
+        );
+        $t->same([], $hydratedPromisorFinder->mergeBases($fixture['hydratedPromisorPluginReview'], $fixture['hydratedPromisorThemeReview']));
+        $hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']] = $hydratedPromisorReleaseCommit;
+        $t->same([$fixture['hydratedPromisorReleaseBaseline']], $hydratedPromisorFinder->mergeBases($fixture['hydratedPromisorPluginReview'], $fixture['hydratedPromisorThemeReview']));
+        $t->same([], $example['hydratedPromisorBeforeBases']);
+        $t->same([$fixture['hydratedPromisorReleaseBaseline']], $example['hydratedPromisorAfterBases']);
+        $t->same(true, $example['hydratedPromisorReusesFinderAfterMissingAncestor']);
     },
     'object database reader requires commit objects' => static function (TestRunner $t): void {
         $gitDir = sys_get_temp_dir() . '/port-libs-git-merge-base-' . bin2hex(random_bytes(4)) . '/.git';

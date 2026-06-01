@@ -1483,3 +1483,25 @@ Partial-clone promisor refresh-never slice prepared on 2026-05-31:
   `git diff --check -- lanes/gitoxide` also passed. Full upstream Cargo
   workspace runner was not executed.
 - Expected mapped denominator movement: `1657 / 2886` to `1658 / 2886`.
+
+Merge-base graph reuse hydration slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-merge-base-graph-walk-parity-20260601T015217Z` on
+  accepted base `d422a4f583db5c682fa3bc6c48dc5ce9f8a1bae6` maps the
+  `gix_revwalk::Graph::get_or_insert_full_commit()` miss boundary used by
+  `gix_revision::merge_base::paint_down_to_common()`: missing commits are
+  skipped without being inserted into the reusable graph, so a later graph
+  walk can observe a shallow/promisor ancestor after hydration.
+- Native PHP delta: `MergeBaseFinder` keeps caching successful `Commit`
+  objects but no longer pins `null` commit lookups in a permanent missing-id
+  cache. The WordPress merge-base fixture/example now covers a hydrated
+  promisor release baseline that is absent for the first walk and visible to
+  the same finder after hydration.
+- Verification: red-first focused `MergeBaseTest.php` failed with the hydrated
+  release ancestor still missing; after implementation focused
+  `MergeBaseTest.php` passed `1 file / 378 assertions / 0 failures`, full
+  Gitoxide lane passed `40 files / 6770 assertions / 0 failures`, and the
+  touched WordPress merge-base example, PHP lint, and
+  `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace runner was
+  not executed.
+- Expected mapped denominator movement: `1697 / 2886` to `1698 / 2886`.

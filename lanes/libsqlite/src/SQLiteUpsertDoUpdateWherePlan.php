@@ -869,6 +869,7 @@ final class SQLiteUpsertDoUpdateWherePlan
             if (!is_string($expression) || trim($expression) === '') {
                 throw new \InvalidArgumentException('SQLite UPSERT conflict target expression must be a non-empty string');
             }
+            self::rejectUnsupportedNullsModifier($expression);
             if ($collation !== null && (!is_string($collation) || trim($collation) === '')) {
                 throw new \InvalidArgumentException('SQLite UPSERT conflict target collation must be null or a non-empty string');
             }
@@ -891,6 +892,14 @@ final class SQLiteUpsertDoUpdateWherePlan
         }
 
         return strtolower($expression);
+    }
+
+    private static function rejectUnsupportedNullsModifier(string $expression): void
+    {
+        $expression = preg_replace('/\'(?:\'\'|[^\'])*\'|"(?:""|[^"])*"|\[(?:\]\]|[^\]])*\]/', ' ', $expression) ?? $expression;
+        if (preg_match('/\bNULLS\s+(FIRST|LAST)\b/i', $expression, $match) === 1) {
+            throw new \InvalidArgumentException('unsupported use of NULLS ' . strtoupper($match[1]));
+        }
     }
 
     private static function outerParenthesesWrapExpression(string $expression): bool

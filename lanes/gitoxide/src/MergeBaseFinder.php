@@ -27,11 +27,6 @@ final class MergeBaseFinder
     private array $commitCache = [];
 
     /**
-     * @var array<string, true>
-     */
-    private array $missingCommitCache = [];
-
-    /**
      * @var array<string, array<string, int>>
      */
     private array $ancestorCache = [];
@@ -519,14 +514,9 @@ final class MergeBaseFinder
     private function tryCommit(string $oid): ?Commit
     {
         $oid = strtolower($oid);
-        if (isset($this->missingCommitCache[$oid])) {
-            return null;
-        }
         if (!isset($this->commitCache[$oid])) {
             $commit = ($this->readCommit)($oid);
             if ($commit === null) {
-                $this->missingCommitCache[$oid] = true;
-
                 return null;
             }
             if (!$commit instanceof Commit) {

@@ -1213,6 +1213,7 @@ final class SQLiteUpsertReturningSql
         $identifiers = [];
         foreach (self::splitComma($sql) as $part) {
             $part = trim($part);
+            self::rejectUnsupportedNullsModifier($part);
             $dequoted = self::dequoteIdentifier($part);
             if ($dequoted !== null) {
                 if ($dequoted === '') {
@@ -1228,6 +1229,14 @@ final class SQLiteUpsertReturningSql
         }
 
         return $identifiers;
+    }
+
+    private static function rejectUnsupportedNullsModifier(string $sql): void
+    {
+        $sql = preg_replace('/\'(?:\'\'|[^\'])*\'|"(?:""|[^"])*"|\[(?:\]\]|[^\]])*\]/', ' ', $sql) ?? $sql;
+        if (preg_match('/\bNULLS\s+(FIRST|LAST)\b/i', $sql, $match) === 1) {
+            throw new \InvalidArgumentException('unsupported use of NULLS ' . strtoupper($match[1]));
+        }
     }
 
     private static function readIdentifier(string $sql, int $offset, string $label): string
