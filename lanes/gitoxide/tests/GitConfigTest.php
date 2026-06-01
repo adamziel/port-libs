@@ -92,6 +92,33 @@ return [
         $t->same(11, count($config->sections()));
     },
 
+    'config value wrapping follows gix-config LF CRLF EOF and comment boundaries' => static function (TestRunner $t): void {
+        $config = GitConfig::fromString("[core]\n"
+            . "file = a\\\n"
+            . "    c\n"
+            . "crlf = one\\\r\n"
+            . "  two\n"
+            . "quoted = \"a\\\n"
+            . ";b\";comment\n"
+            . "fragment = value#comment\n"
+            . "trailing = hello\\");
+
+        $t->same('a    c', $config->value('core', null, 'file'));
+        $t->same('one  two', $config->value('core', null, 'crlf'));
+        $t->same('a;b', $config->value('core', null, 'quoted'));
+        $t->same('value', $config->value('core', null, 'fragment'));
+        $t->same('hello', $config->value('core', null, 'trailing'));
+
+        $t->throws(
+            RuntimeException::class,
+            static fn () => GitConfig::fromString("[core]\nfile = hello\\\r  world\n"),
+        );
+        $t->throws(
+            RuntimeException::class,
+            static fn () => GitConfig::fromString("[core]\nfile = hello\\\r\r\n  world\n"),
+        );
+    },
+
     'conditional include max depth follows gix-config zero and truncation boundaries' => static function (TestRunner $t) use ($tmpDir, $write): void {
         $root = $tmpDir();
         $rootConfig = $root . '/config';
@@ -1561,6 +1588,9 @@ return [
         $t->same('refs/heads/deploy/site-a', $fixture['activeBranch']);
         $t->same('https://git.example.test/wp-content.git', $fixture['remoteUrl']);
         $t->same('enabled', $fixture['preview']);
+        $t->same('Deploy    Window', $fixture['wrappedNotice']);
+        $t->same('Deploy;Window', $fixture['quotedWrappedNotice']);
+        $t->same(true, $fixture['crOnlyContinuationRejected']);
         $t->same('matched', $fixture['singleComponentBranchPolicy']);
         $t->same(null, $fixture['singleComponentSlashPolicy']);
         $t->same('matched', $fixture['quotedCommentPathPolicy']);
@@ -1623,6 +1653,9 @@ return [
         $t->same(true, $fixture['depthZeroError']);
         $t->same(null, $fixture['mixedCaseIncludeIfPolicy']);
         $t->same($fixture['preview'], $summary['preview']);
+        $t->same($fixture['wrappedNotice'], $summary['wrappedNotice']);
+        $t->same($fixture['quotedWrappedNotice'], $summary['quotedWrappedNotice']);
+        $t->same($fixture['crOnlyContinuationRejected'], $summary['crOnlyContinuationRejected']);
         $t->same($fixture['singleComponentBranchPolicy'], $summary['singleComponentBranchPolicy']);
         $t->same($fixture['singleComponentSlashPolicy'], $summary['singleComponentSlashPolicy']);
         $t->same($fixture['quotedCommentPathPolicy'], $summary['quotedCommentPathPolicy']);

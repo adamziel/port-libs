@@ -325,6 +325,11 @@ CFG);
 $write($gitDir . '/config', <<<CFG
 [core]
 repositoryformatversion = 0
+[wordpress]
+wrappedNotice = Deploy\
+    Window
+quotedWrappedNotice = "Deploy\
+;Window";comment
 [merge]
 conflictStyle = diff3
 [remote "origin"]
@@ -503,6 +508,13 @@ $plannedGitDirConfig = GitConfig::fromFile($root . '/planned-gitdir.config', [
     'homeDir' => $root,
 ]);
 
+$crOnlyContinuationRejected = false;
+try {
+    GitConfig::fromString("[wordpress]\nwrapped = bad\\\r still\n");
+} catch (RuntimeException) {
+    $crOnlyContinuationRejected = true;
+}
+
 $environmentConfig = GitConfig::fromEnvironmentPairs([
     ['key' => 'includeIf.onbranch:deploy/*.path', 'value' => $repo . '/environment-branch.config'],
     ['key' => 'includeIf.onbranch:deploy*.path', 'value' => $repo . '/environment-branch-boundary.config'],
@@ -566,6 +578,9 @@ return [
     'activeBranch' => 'refs/heads/deploy/site-a',
     'remoteUrl' => $config->value('remote', 'origin', 'url'),
     'preview' => $config->value('wordpress', null, 'preview'),
+    'wrappedNotice' => $config->value('wordpress', null, 'wrappedNotice'),
+    'quotedWrappedNotice' => $config->value('wordpress', null, 'quotedWrappedNotice'),
+    'crOnlyContinuationRejected' => $crOnlyContinuationRejected,
     'singleComponentBranchPolicy' => $config->value('wordpress', null, 'singleComponentBranch'),
     'singleComponentSlashPolicy' => $config->value('wordpress', null, 'singleComponentSlash'),
     'quotedCommentPathPolicy' => $config->value('wordpress', null, 'quotedCommentPath'),

@@ -62,6 +62,12 @@ $danglingBackslashAttributes = GitAttributes::fromString(
     . 'wp-content/plugins/trailing\\\\ escaped-backslash' . "\n",
     withBuiltInMacros: false,
 );
+$wrappedBackslashAttributes = GitAttributes::fromString(
+    'wp-content/plugins/wrapped\\' . "\n"
+    . "  deploy\n"
+    . 'wp-content/plugins/literal\\\\ deploy' . "\n",
+    withBuiltInMacros: false,
+);
 $malformedBracketAttributes = GitAttributes::fromString(
     "wp-content/uploads/foo[ malformed\n"
     . "wp-content/uploads/foo[] empty-class\n"
@@ -82,6 +88,8 @@ $danglingBackslashPath = 'wp-content/plugins/trailing\\';
 $danglingBackslashPathspec = 'wp-content/plugins/trailing\\';
 $danglingBackslashMatch = PathspecSearch::fromSpecs([$danglingBackslashPathspec])
     ->match($danglingBackslashPath, false);
+$wrappedBackslashPath = 'wp-content/plugins/wrapped';
+$literalBackslashPath = 'wp-content/plugins/literal\\';
 $escapedBackslashPathspec = ':(glob,attr:escaped-backslash)wp-content/plugins/trailing\\\\';
 $malformedBracketMatch = PathspecSearch::fromSpecs(['wp-content/uploads/foo['])
     ->match('wp-content/uploads/foo[', false);
@@ -547,6 +555,30 @@ return [
     'escapedBackslashAttributeStillMatches' => $danglingBackslashAttributes->attributesForPath(
         $danglingBackslashPath,
         ['escaped-backslash'],
+    ),
+    'wrappedBackslashAttributeSkipped' => $wrappedBackslashAttributes->attributesForPath(
+        $wrappedBackslashPath,
+        ['deploy'],
+    ),
+    'wrappedBackslashLiteralPathSkipped' => $wrappedBackslashAttributes->attributesForPath(
+        $wrappedBackslashPath . '\\',
+        ['deploy'],
+    ),
+    'literalBackslashAttributeStillMatches' => $wrappedBackslashAttributes->attributesForPath(
+        $literalBackslashPath,
+        ['deploy'],
+    ),
+    'wrappedBackslashAttrPathspecSkipped' => !PathspecMatcher::matchesOne(
+        ':(attr:deploy)wp-content/plugins/wrapped',
+        $wrappedBackslashPath,
+        false,
+        $wrappedBackslashAttributes,
+    ),
+    'literalBackslashAttrPathspecMatches' => PathspecMatcher::matchesOne(
+        ':(glob,attr:deploy)wp-content/plugins/literal\\\\',
+        $literalBackslashPath,
+        false,
+        $wrappedBackslashAttributes,
     ),
     'danglingBackslashPathspecFallsBackVerbatim' => $danglingBackslashMatch?->kind,
     'danglingBackslashAttrPathspecSkipped' => !PathspecSearch::fromSpecs([

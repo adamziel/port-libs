@@ -357,6 +357,30 @@ return [
         $t->same(true, PathspecMatcher::matchesOne($escapedBackslashPathspec, $path, false, $attributes));
         $t->same(true, PathspecSearch::fromSpecs([$escapedBackslashPathspec])->isIncluded($path, false, $attributes));
     },
+    'attribute parser does not join trailing backslash lines like gix attributes' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString(
+            'wp-content/plugins/wrapped\\' . "\n"
+            . "  deploy\n"
+            . 'wp-content/plugins/literal\\\\ deploy' . "\n",
+            withBuiltInMacros: false,
+        );
+
+        $t->same(['deploy' => null], $attributes->attributesForPath('wp-content/plugins/wrapped', ['deploy']));
+        $t->same(['deploy' => null], $attributes->attributesForPath('wp-content/plugins/wrapped\\', ['deploy']));
+        $t->same(['deploy' => true], $attributes->attributesForPath('wp-content/plugins/literal\\', ['deploy']));
+        $t->same(false, PathspecMatcher::matchesOne(
+            ':(attr:deploy)wp-content/plugins/wrapped',
+            'wp-content/plugins/wrapped',
+            false,
+            $attributes,
+        ));
+        $t->same(true, PathspecMatcher::matchesOne(
+            ':(glob,attr:deploy)wp-content/plugins/literal\\\\',
+            'wp-content/plugins/literal\\',
+            false,
+            $attributes,
+        ));
+    },
     'attribute pathspec filters keep path aware double star component local like gix wildmatch' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString(
             "wp-content/plugins/a**f.php component-local\n"
@@ -1015,6 +1039,11 @@ return [
         $t->same(true, $example['backslashPathspecSkipsSlash']);
         $t->same(['dangling-backslash' => null], $example['danglingBackslashAttributeSkipped']);
         $t->same(['escaped-backslash' => true], $example['escapedBackslashAttributeStillMatches']);
+        $t->same(['deploy' => null], $example['wrappedBackslashAttributeSkipped']);
+        $t->same(['deploy' => null], $example['wrappedBackslashLiteralPathSkipped']);
+        $t->same(['deploy' => true], $example['literalBackslashAttributeStillMatches']);
+        $t->same(true, $example['wrappedBackslashAttrPathspecSkipped']);
+        $t->same(true, $example['literalBackslashAttrPathspecMatches']);
         $t->same(PathspecMatch::KIND_VERBATIM, $example['danglingBackslashPathspecFallsBackVerbatim']);
         $t->same(true, $example['danglingBackslashAttrPathspecSkipped']);
         $t->same(true, $example['escapedBackslashAttrPathspecMatches']);

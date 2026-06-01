@@ -348,26 +348,48 @@ final class GitConfig
      */
     private static function logicalLines(string $contents): array
     {
-        $rawLines = preg_split('/\r\n|\n|\r/', $contents);
-        if ($rawLines === false) {
-            return [];
-        }
-
         $lines = [];
         $pending = '';
-        foreach ($rawLines as $line) {
-            $backslashes = 0;
-            for ($index = strlen($line) - 1; $index >= 0 && $line[$index] === '\\'; $index--) {
-                $backslashes++;
+        $line = '';
+        $length = strlen($contents);
+
+        for ($index = 0; $index < $length;) {
+            $byte = $contents[$index];
+            if ($byte !== "\n" && $byte !== "\r") {
+                $line .= $byte;
+                $index++;
+                continue;
             }
 
-            if ($backslashes % 2 === 1) {
+            $newline = $byte;
+            if ($byte === "\r" && ($contents[$index + 1] ?? null) === "\n") {
+                $newline = "\r\n";
+                $index += 2;
+            } else {
+                $index++;
+            }
+
+            if (self::lineContinues($line)) {
+                if ($newline === "\r") {
+                    throw new \RuntimeException('Git config value continuation requires LF or CRLF line endings');
+                }
                 $pending .= substr($line, 0, -1);
+                $line = '';
                 continue;
             }
 
             $lines[] = $pending . $line;
             $pending = '';
+            $line = '';
+        }
+
+        if ($line !== '') {
+            if (self::lineContinues($line)) {
+                $pending .= substr($line, 0, -1);
+            } else {
+                $lines[] = $pending . $line;
+                $pending = '';
+            }
         }
 
         if ($pending !== '') {
@@ -375,6 +397,16 @@ final class GitConfig
         }
 
         return $lines;
+    }
+
+    private static function lineContinues(string $line): bool
+    {
+        $backslashes = 0;
+        for ($index = strlen($line) - 1; $index >= 0 && $line[$index] === '\\'; $index--) {
+            $backslashes++;
+        }
+
+        return $backslashes % 2 === 1;
     }
 
     private static function parseValue(string $value): string
@@ -407,7 +439,7 @@ final class GitConfig
                 $inQuote = !$inQuote;
                 continue;
             }
-            if (!$inQuote && ($byte === '#' || $byte === ';') && ($index === 0 || ctype_space($value[$index - 1]))) {
+            if (!$inQuote && ($byte === '#' || $byte === ';')) {
                 return substr($value, 0, $index);
             }
         }
