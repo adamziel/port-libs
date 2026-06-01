@@ -39,6 +39,13 @@ $autofillSelectorListCss = <<<'CSS'
 }
 CSS;
 
+$scrollNavigationCss = <<<'CSS'
+.wp-block-navigation a:target-before,
+.wp-block-navigation a:target-after {
+  color: currentColor;
+}
+CSS;
+
 $androidSelectorCss = <<<'CSS'
 .wp-block-navigation:is(.is-open, .has-modal-open) {
   color: currentColor;
@@ -60,6 +67,8 @@ $actual = [
     'samsung25_dir_boundary' => $prefixer->prefixForTargets($androidSelectorCss, ['samsung' => 25]),
     'chrome109_autofill_list' => $prefixer->prefixForTargets($autofillSelectorListCss, ['chrome' => 109]),
     'chrome110_autofill_list' => $prefixer->prefixForTargets($autofillSelectorListCss, ['chrome' => 110]),
+    'chrome141_scroll_target' => $prefixer->prefixForTargets($scrollNavigationCss, ['chrome' => 141]),
+    'chrome142_scroll_target' => $prefixer->prefixForTargets($scrollNavigationCss, ['chrome' => 142]),
 ];
 
 $rtlLangs = ':lang(ae),:lang(ar),:lang(arc),:lang(bcc),:lang(bqi),:lang(ckb),:lang(dv),:lang(fa),:lang(glk),:lang(he),:lang(ku),:lang(mzn),:lang(nqo),:lang(pnb),:lang(ps),:lang(sd),:lang(ug),:lang(ur),:lang(yi)';
@@ -76,6 +85,8 @@ $expected = [
     'samsung25_dir_boundary' => '.wp-block-navigation:is(.is-open,.has-modal-open){color:currentColor}.wp-block-comment-author:dir(rtl){color:red}',
     'chrome109_autofill_list' => ':-webkit-any(.wp-block-search__input:placeholder-shown,.wp-block-search__input:-webkit-autofill){color:var(--wp--preset--color--contrast)}:is(.wp-block-search__input:placeholder-shown,.wp-block-search__input:autofill){color:var(--wp--preset--color--contrast)}',
     'chrome110_autofill_list' => '.wp-block-search__input:placeholder-shown,.wp-block-search__input:autofill{color:var(--wp--preset--color--contrast)}',
+    'chrome141_scroll_target' => ':is(.wp-block-navigation a:target-before,.wp-block-navigation a:target-after){color:currentColor}',
+    'chrome142_scroll_target' => '.wp-block-navigation a:target-before,.wp-block-navigation a:target-after{color:currentColor}',
 ];
 
 if ($actual !== $expected) {

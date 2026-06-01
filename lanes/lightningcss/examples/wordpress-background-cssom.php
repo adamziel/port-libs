@@ -13,6 +13,7 @@ $gallery = 'background: url(card.jpg), url(texture.png)';
 $cover = 'background: url(hero.jpg)';
 $heroPosition = 'background-position: 20px 10px; background-size: cover';
 $legacyClip = '-webkit-background-clip: Text; background-clip: Text; color: var(--wp--preset--color--contrast)';
+$directLonghands = 'background-image: URL("hero.jpg"); background-size: 0PX AUTO; background-repeat: repeat no-repeat; background-attachment: Fixed; background-origin: Content-Box; background-position: Left 0PX Top 50%; color: var(--wp--preset--color--contrast)';
 
 $actual = [
     'themeBackgroundColor' => $block->setProperty(
@@ -70,6 +71,35 @@ $actual = [
         'background-position: 20px 10px; background-position-x: 30px; color: var(--wp--preset--color--contrast)',
         'background-position'
     ),
+    'directBackgroundImage' => $block->getProperty(
+        $directLonghands,
+        'background-image'
+    ),
+    'directBackgroundSize' => $block->getProperty(
+        $directLonghands,
+        'background-size'
+    ),
+    'directBackgroundRepeat' => $block->getProperty(
+        $directLonghands,
+        'background-repeat'
+    ),
+    'directBackgroundAttachment' => $block->getProperty(
+        $directLonghands,
+        'background-attachment'
+    ),
+    'directBackgroundOrigin' => $block->getProperty(
+        $directLonghands,
+        'background-origin'
+    ),
+    'directBackgroundPosition' => $block->getProperty(
+        $directLonghands,
+        'background-position'
+    ),
+    'updateDirectBackgroundSize' => $block->setProperty(
+        $directLonghands,
+        'background-size',
+        'AUTO 0PX'
+    ),
 ];
 
 $expected = [
@@ -85,6 +115,13 @@ $expected = [
     'heroFocalPointY' => 'background-position: 20px bottom; background-size: cover',
     'resetHeroFocalX' => 'background-position-y: 10px; background-size: cover',
     'resetHeroFocalPoint' => 'color: var(--wp--preset--color--contrast)',
+    'directBackgroundImage' => ['value' => 'url(hero.jpg)', 'important' => false],
+    'directBackgroundSize' => ['value' => '0', 'important' => false],
+    'directBackgroundRepeat' => ['value' => 'repeat-x', 'important' => false],
+    'directBackgroundAttachment' => ['value' => 'fixed', 'important' => false],
+    'directBackgroundOrigin' => ['value' => 'content-box', 'important' => false],
+    'directBackgroundPosition' => ['value' => '0 50%', 'important' => false],
+    'updateDirectBackgroundSize' => 'background-image: url(hero.jpg); background-size: auto 0; background-repeat: repeat-x; background-attachment: fixed; background-origin: content-box; background-position: 0 50%; color: var(--wp--preset--color--contrast)',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

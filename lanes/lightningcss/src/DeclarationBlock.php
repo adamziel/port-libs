@@ -7942,6 +7942,270 @@ final class DeclarationBlock
         return implode(', ', $parts);
     }
 
+    private function normalizeBackgroundLonghandDeclarationValue(string $property, string $value): ?string
+    {
+        return match ($property) {
+            'background-image' => $this->normalizeBackgroundImageDeclarationValue($value),
+            'background-position' => $this->normalizeBackgroundPositionDeclarationValue($value),
+            'background-position-x',
+            'background-position-y' => $this->normalizeBackgroundPositionAxisDeclarationValue($value),
+            'background-size' => $this->normalizeBackgroundSizeDeclarationValue($value),
+            'background-repeat' => $this->normalizeBackgroundRepeatDeclarationValue($value),
+            'background-attachment' => $this->normalizeKeywordListDeclarationValue($value, ['scroll', 'fixed', 'local']),
+            'background-origin' => $this->normalizeKeywordListDeclarationValue($value, ['border-box', 'padding-box', 'content-box']),
+            default => null,
+        };
+    }
+
+    private function normalizeBackgroundImageDeclarationValue(string $value): string
+    {
+        $parts = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            $part = trim($part);
+            if ($part === '') {
+                return trim($value);
+            }
+
+            if (strcasecmp($part, 'none') === 0) {
+                $parts[] = 'none';
+                continue;
+            }
+
+            $parts[] = $this->normalizeCssUrlToken($part);
+        }
+
+        return implode(', ', $parts);
+    }
+
+    private function normalizeBackgroundSizeDeclarationValue(string $value): string
+    {
+        $parts = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            $normalized = $this->normalizeBackgroundSizeLayer($part);
+            if ($normalized === null) {
+                return trim($value);
+            }
+
+            $parts[] = $normalized;
+        }
+
+        return implode(', ', $parts);
+    }
+
+    private function normalizeBackgroundSizeLayer(string $layer): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($layer));
+        if ($tokens === [] || count($tokens) > 2) {
+            return null;
+        }
+
+        if (count($tokens) === 1) {
+            $lower = strtolower($tokens[0]);
+            if (in_array($lower, ['cover', 'contain', 'auto'], true)) {
+                return $lower;
+            }
+
+            return $this->normalizeBackgroundSizeComponent($tokens[0]);
+        }
+
+        $first = $this->normalizeBackgroundSizeComponent($tokens[0]);
+        $second = $this->normalizeBackgroundSizeComponent($tokens[1]);
+        if ($first === null || $second === null) {
+            return null;
+        }
+
+        return $second === 'auto' ? $first : $first . ' ' . $second;
+    }
+
+    private function normalizeBackgroundSizeComponent(string $token): ?string
+    {
+        $token = trim($token);
+        if (strcasecmp($token, 'auto') === 0) {
+            return 'auto';
+        }
+
+        $normalized = $this->normalizeLengthPercentageDeclarationToken($token);
+        if ($normalized !== null) {
+            return $normalized;
+        }
+
+        return preg_match('/^(?:calc|var|min|max|clamp)\(/i', $token) === 1 ? $token : null;
+    }
+
+    private function normalizeBackgroundRepeatDeclarationValue(string $value): string
+    {
+        $parts = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            $normalized = $this->normalizeBackgroundRepeatLayer($part);
+            if ($normalized === null) {
+                return trim($value);
+            }
+
+            $parts[] = $normalized;
+        }
+
+        return implode(', ', $parts);
+    }
+
+    private function normalizeBackgroundRepeatLayer(string $layer): ?string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($layer));
+        if ($tokens === [] || count($tokens) > 2) {
+            return null;
+        }
+
+        $tokens = array_map(static fn (string $token): string => strtolower($token), $tokens);
+        if (!$this->isBackgroundRepeatToken($tokens[0])) {
+            return null;
+        }
+
+        if (count($tokens) === 1) {
+            return $tokens[0];
+        }
+
+        if (!in_array($tokens[0], ['repeat', 'no-repeat', 'space', 'round'], true)
+            || !in_array($tokens[1], ['repeat', 'no-repeat', 'space', 'round'], true)
+        ) {
+            return null;
+        }
+
+        if ($tokens[0] === $tokens[1]) {
+            return $tokens[0];
+        }
+
+        return $this->compressBackgroundRepeat($tokens[0] . ' ' . $tokens[1]);
+    }
+
+    private function normalizeBackgroundPositionDeclarationValue(string $value): string
+    {
+        $parts = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            $normalized = $this->normalizeBackgroundPositionLayer($part);
+            if ($normalized === null) {
+                return trim($value);
+            }
+
+            $parts[] = $normalized;
+        }
+
+        return implode(', ', $parts);
+    }
+
+    private function normalizeBackgroundPositionLayer(string $layer): ?string
+    {
+        $tokens = $this->normalizeBackgroundPositionTokens($layer);
+        if ($tokens === null) {
+            return null;
+        }
+
+        $lower = array_map(static fn (string $token): string => strtolower($token), $tokens);
+
+        if (count($tokens) === 1) {
+            return match ($lower[0]) {
+                'left', 'top' => '0',
+                'right', 'bottom' => '100%',
+                'center' => '50%',
+                default => $tokens[0],
+            };
+        }
+
+        if (count($tokens) === 2) {
+            return match (true) {
+                $lower[0] === 'center' && $lower[1] === 'center' => '50%',
+                $this->sameBackgroundPositionKeywordPair($lower, 'left', 'center') => '0',
+                $this->sameBackgroundPositionKeywordPair($lower, 'right', 'center') => '100%',
+                $this->sameBackgroundPositionKeywordPair($lower, 'top', 'center') => 'top',
+                $this->sameBackgroundPositionKeywordPair($lower, 'bottom', 'center') => 'bottom',
+                $this->sameBackgroundPositionKeywordPair($lower, 'left', 'top') => '0 0',
+                $this->sameBackgroundPositionKeywordPair($lower, 'right', 'top') => '100% 0',
+                $this->sameBackgroundPositionKeywordPair($lower, 'left', 'bottom') => '0 100%',
+                $this->sameBackgroundPositionKeywordPair($lower, 'right', 'bottom') => '100% 100%',
+                $lower[1] === 'center' && !$this->isBackgroundPositionKeyword($lower[0]) => $tokens[0],
+                $lower[0] === 'center' && !$this->isBackgroundPositionKeyword($lower[1]) => '50% ' . $tokens[1],
+                default => implode(' ', $tokens),
+            };
+        }
+
+        if (count($tokens) === 3) {
+            if ($lower[0] === 'left' && $lower[2] === 'center') {
+                return $tokens[1];
+            }
+
+            if ($lower[0] === 'center' && $lower[1] === 'top') {
+                return '50% ' . $tokens[2];
+            }
+
+            if ($lower[0] === 'left' && $lower[2] === 'top') {
+                return $tokens[1] . ' 0';
+            }
+
+            return implode(' ', $tokens);
+        }
+
+        if (count($tokens) === 4 && $lower[0] === 'left' && $lower[2] === 'top') {
+            return $tokens[1] . ' ' . $tokens[3];
+        }
+
+        return count($tokens) <= 4 ? implode(' ', $tokens) : null;
+    }
+
+    private function normalizeBackgroundPositionAxisDeclarationValue(string $value): string
+    {
+        $parts = [];
+        foreach ($this->splitTopLevel($value, ',') as $part) {
+            $tokens = $this->normalizeBackgroundPositionTokens($part);
+            if ($tokens === null) {
+                return trim($value);
+            }
+
+            $parts[] = implode(' ', $tokens);
+        }
+
+        return implode(', ', $parts);
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function normalizeBackgroundPositionTokens(string $value): ?array
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === []) {
+            return null;
+        }
+
+        return array_map(
+            fn (string $token): string => $this->normalizeBackgroundPositionToken($token),
+            $tokens
+        );
+    }
+
+    private function normalizeBackgroundPositionToken(string $token): string
+    {
+        $token = trim($token);
+        $lower = strtolower($token);
+        if ($this->isBackgroundPositionKeyword($lower)) {
+            return $lower;
+        }
+
+        return $this->normalizeLengthPercentageDeclarationToken($token) ?? $token;
+    }
+
+    /**
+     * @param list<string> $tokens
+     */
+    private function sameBackgroundPositionKeywordPair(array $tokens, string $first, string $second): bool
+    {
+        return count($tokens) === 2
+            && (($tokens[0] === $first && $tokens[1] === $second)
+                || ($tokens[0] === $second && $tokens[1] === $first));
+    }
+
+    private function isBackgroundPositionKeyword(string $token): bool
+    {
+        return in_array(strtolower($token), ['left', 'right', 'top', 'bottom', 'center'], true);
+    }
+
     /**
      * @return array{0:?string,1:?string}
      */
@@ -14503,6 +14767,11 @@ final class DeclarationBlock
 
         if ($property === 'border-spacing') {
             return $this->normalizeBorderSpacingValue($value);
+        }
+
+        $backgroundLonghandValue = $this->normalizeBackgroundLonghandDeclarationValue($property, $value);
+        if ($backgroundLonghandValue !== null) {
+            return $backgroundLonghandValue;
         }
 
         if (in_array($property, self::BACKGROUND_CLIP_PROPERTIES, true)) {

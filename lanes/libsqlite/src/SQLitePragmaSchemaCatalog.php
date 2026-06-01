@@ -997,6 +997,7 @@ final class SQLitePragmaSchemaCatalog
             return [];
         }
 
+        $withoutRowid = self::isWithoutRowidSql($sql);
         $tablePrimaryKeys = [];
         $columns = [];
         foreach (self::splitTopLevel($body, ',') as $definition) {
@@ -1008,7 +1009,7 @@ final class SQLitePragmaSchemaCatalog
             $constraint = self::stripLeadingConstraint($definition);
             if (self::startsWithKeyword($constraint, 'PRIMARY')) {
                 $list = self::parenthesizedBody($constraint);
-                $tablePrimaryKeys = $list === null ? [] : self::tablePrimaryKeyColumns($list);
+                $tablePrimaryKeys = $list === null ? [] : self::tablePrimaryKeyColumns($list, $withoutRowid);
                 continue;
             }
             if (
@@ -1043,6 +1044,14 @@ final class SQLitePragmaSchemaCatalog
                 $column['primaryKey'] = $primaryKeyOrdinal;
             }
         }
+        if ($withoutRowid) {
+            foreach ($columns as &$column) {
+                if ($column['primaryKey'] > 0) {
+                    $column['notNull'] = true;
+                }
+            }
+        }
+        unset($column);
 
         return $columns;
     }
@@ -1180,7 +1189,7 @@ final class SQLitePragmaSchemaCatalog
     /**
      * @return array<string, int>
      */
-    private static function tablePrimaryKeyColumns(string $list): array
+    private static function tablePrimaryKeyColumns(string $list, bool $compressDuplicateOrdinals = false): array
     {
         $columns = [];
         $ordinal = 1;
@@ -1190,8 +1199,12 @@ final class SQLitePragmaSchemaCatalog
                 $normalized = strtolower($identifier['identifier']);
                 if (!isset($columns[$normalized])) {
                     $columns[$normalized] = $ordinal;
+                    $ordinal++;
+                    continue;
                 }
-                $ordinal++;
+                if (!$compressDuplicateOrdinals) {
+                    $ordinal++;
+                }
             }
         }
 

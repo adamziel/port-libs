@@ -8,38 +8,38 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteEncodingAffinityLikeCurrentSourceNextPlan;
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'glob_pattern' => 'https://*'],
-    ['option_id' => 2, 'option_name' => 'retry_count', 'option_value' => 10, 'glob_pattern' => '1*'],
-    ['option_id' => 3, 'option_name' => 'plugin_alpha', 'option_value' => 'Plugin_Alpha', 'glob_pattern' => 'Plugin_*'],
-    ['option_id' => 4, 'option_name' => 'plugin_latin', 'option_value' => 'plugin_Éclair', 'glob_pattern' => 'plugin_[À-ÿ]*'],
-    ['option_id' => 5, 'option_name' => 'plugin_emoji', 'option_value' => 'plugin_😀_cache', 'glob_pattern' => 'plugin_😀*'],
-    ['option_id' => 6, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin_blob'), 'glob_pattern' => 'plugin_*'],
-    ['option_id' => 7, 'option_name' => 'old_plugin', 'option_value' => 'plugin_removed', 'glob_pattern' => 'plugin_*'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://example.test', 'glob_pattern' => 'https://*'],
+    ['setting_id' => 2, 'key_name' => 'retry_count', 'key_value' => 10, 'glob_pattern' => '1*'],
+    ['setting_id' => 3, 'key_name' => 'module_alpha', 'key_value' => 'Module_Alpha', 'glob_pattern' => 'Module_*'],
+    ['setting_id' => 4, 'key_name' => 'module_latin', 'key_value' => 'module_Éclair', 'glob_pattern' => 'module_[À-ÿ]*'],
+    ['setting_id' => 5, 'key_name' => 'module_emoji', 'key_value' => 'module_😀_cache', 'glob_pattern' => 'module_😀*'],
+    ['setting_id' => 6, 'key_name' => 'module_blob', 'key_value' => new SQLiteBlobValue('module_blob'), 'glob_pattern' => 'module_*'],
+    ['setting_id' => 7, 'key_name' => 'old_module', 'key_value' => 'module_removed', 'glob_pattern' => 'module_*'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'glob_pattern' => 'https://*'],
-    ['option_id' => 2, 'option_name' => 'retry_count', 'option_value' => '10', 'glob_pattern' => '1[0-9]'],
-    ['option_id' => 3, 'option_name' => 'plugin_alpha', 'option_value' => 'Plugin_Alpha', 'glob_pattern' => 'Plugin_[A-Z]*'],
-    ['option_id' => 4, 'option_name' => 'plugin_latin', 'option_value' => 'plugin_Éclair', 'glob_pattern' => 'plugin_[À-ÿ]*'],
-    ['option_id' => 5, 'option_name' => 'plugin_emoji', 'option_value' => 'plugin_😀_cache_v2', 'glob_pattern' => 'plugin_😀*'],
-    ['option_id' => 6, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin_blob'), 'glob_pattern' => 'plugin_*'],
-    ['option_id' => 8, 'option_name' => 'new_plugin', 'option_value' => 'plugin_new', 'glob_pattern' => 'plugin_*'],
-    ['option_id' => 9, 'option_name' => 'latin_lower_new', 'option_value' => 'plugin_éclair', 'glob_pattern' => 'plugin_[À-ÿ]*'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://example.test', 'glob_pattern' => 'https://*'],
+    ['setting_id' => 2, 'key_name' => 'retry_count', 'key_value' => '10', 'glob_pattern' => '1[0-9]'],
+    ['setting_id' => 3, 'key_name' => 'module_alpha', 'key_value' => 'Module_Alpha', 'glob_pattern' => 'Module_[A-Z]*'],
+    ['setting_id' => 4, 'key_name' => 'module_latin', 'key_value' => 'module_Éclair', 'glob_pattern' => 'module_[À-ÿ]*'],
+    ['setting_id' => 5, 'key_name' => 'module_emoji', 'key_value' => 'module_😀_cache_v2', 'glob_pattern' => 'module_😀*'],
+    ['setting_id' => 6, 'key_name' => 'module_blob', 'key_value' => new SQLiteBlobValue('module_blob'), 'glob_pattern' => 'module_*'],
+    ['setting_id' => 8, 'key_name' => 'new_module', 'key_value' => 'module_new', 'glob_pattern' => 'module_*'],
+    ['setting_id' => 9, 'key_name' => 'latin_lower_new', 'key_value' => 'module_éclair', 'glob_pattern' => 'module_[À-ÿ]*'],
 ];
 
-$plan = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValueDynamicLikeGlobPlan(
+$plan = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicLikeGlobPlan(
     $currentRows,
     $nextRows,
-    'option_value',
+    'key_value',
     'glob_pattern',
     'GLOB',
     null,
     false,
     'UTF-16LE',
     'UTF-16BE',
-    'main.wp_options@cookie104',
-    'main.wp_options@cookie105',
+    'main.app_settings@cookie104',
+    'main.app_settings@cookie105',
     104,
     105,
 );

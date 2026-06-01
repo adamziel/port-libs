@@ -6,6 +6,7 @@ require __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\Gitoxide\GitAttributes;
 use PortLibs\Gitoxide\GitObject;
+use PortLibs\Gitoxide\PathspecMatch;
 use PortLibs\Gitoxide\PathspecPattern;
 use PortLibs\Gitoxide\PathspecSearch;
 use PortLibs\Gitoxide\Tree;
@@ -16,6 +17,7 @@ use PortLibs\Gitoxide\TreeWalkEntry;
 $objects = [];
 $blobOid = str_repeat('1', 40);
 $gitlinkOid = str_repeat('2', 40);
+$symlinkOid = str_repeat('3', 40);
 $worktreeRoot = '/srv/www/example.com/current';
 $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
 $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
@@ -37,6 +39,7 @@ $root = new Tree([
             $tree('..', new Tree([$blob('secret.php')])),
             $tree('akismet', new Tree([$blob('akismet.php'), $blob('block.json')])),
             new TreeEntry('160000', 'commerce-submodule', $gitlinkOid),
+            new TreeEntry('120000', 'linked-plugin', $symlinkOid),
             $tree('f', new Tree([$blob('not-block.json')])),
             $tree('foo', new Tree([$blob('block.json')])),
             $tree('f\\oo', new Tree([$blob('block.json')])),
@@ -136,6 +139,10 @@ $directoryOnlyHintPathspecs = PathspecSearch::fromSpecs([
 ]);
 $gitlinkDirectoryPathspecs = PathspecSearch::fromSpecs([
     'wp-content/plugins/commerce-submodule/',
+]);
+$symlinkDirectoryBoundaryPathspecs = PathspecSearch::fromSpecs([
+    'wp-content/plugins/linked-plugin/',
+    'wp-content/plugins/gutenberg/',
 ]);
 $excludeNilPathspecs = PathspecSearch::fromSpecs([':(exclude)']);
 $prefixedNilPathspecs = PathspecSearch::fromSpecs([':'], 'wp-content/themes');
@@ -562,6 +569,20 @@ $gitlinkDirectoryRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$symlinkDirectoryBoundaryReadPaths = [];
+$symlinkDirectoryBoundaryRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $symlinkDirectoryBoundaryPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects, &$symlinkDirectoryBoundaryReadPaths): GitObject {
+        $symlinkDirectoryBoundaryReadPaths[] = $path;
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 
 return [
     'matchedContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $records),
@@ -598,6 +619,10 @@ return [
     'gitlinkDirectoryReadPaths' => $gitlinkDirectoryReadPaths,
     'gitlinkDirectoryMatchKind' => $gitlinkDirectoryPathspecs->match('wp-content/plugins/commerce-submodule', true)?->kind,
     'gitlinkDirectoryFileModeSkipped' => $gitlinkDirectoryPathspecs->match('wp-content/plugins/commerce-submodule', false) === null,
+    'symlinkDirectoryBoundaryContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $symlinkDirectoryBoundaryRecords),
+    'symlinkDirectoryBoundaryReadPaths' => $symlinkDirectoryBoundaryReadPaths,
+    'symlinkDirectoryBoundaryFileModeSkipped' => $symlinkDirectoryBoundaryPathspecs->match('wp-content/plugins/linked-plugin', false) === null,
+    'symlinkDirectoryBoundaryDirectoryModeWouldMatch' => $symlinkDirectoryBoundaryPathspecs->match('wp-content/plugins/linked-plugin', true)?->kind === PathspecMatch::KIND_VERBATIM,
     'excludeNilCanDescendIntoContent' => $excludeNilPathspecs->canMatch('wp-content', true),
     'excludeNilContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $excludeNilRecords),
     'excludeNilReadPaths' => $excludeNilReadPaths,

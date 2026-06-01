@@ -8,44 +8,44 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteEncodingAffinityLikeCurrentSourceNextPlan;
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'blog_public', 'option_value' => 1],
-    ['option_id' => 2, 'option_name' => 'plugin_alpha', 'option_value' => 'plugin_Alpha'],
-    ['option_id' => 3, 'option_name' => 'plugin_percent', 'option_value' => 'plugin_100%_enabled'],
-    ['option_id' => 4, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin_blob')],
-    ['option_id' => 5, 'option_name' => 'plugin_removed', 'option_value' => 'plugin_removed'],
+    ['setting_id' => 1, 'key_name' => 'public_flag', 'key_value' => 1],
+    ['setting_id' => 2, 'key_name' => 'module_alpha', 'key_value' => 'module_Alpha'],
+    ['setting_id' => 3, 'key_name' => 'module_percent', 'key_value' => 'module_100%_enabled'],
+    ['setting_id' => 4, 'key_name' => 'module_blob', 'key_value' => new SQLiteBlobValue('module_blob')],
+    ['setting_id' => 5, 'key_name' => 'module_removed', 'key_value' => 'module_removed'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'blog_public', 'option_value' => '1'],
-    ['option_id' => 2, 'option_name' => 'plugin_alpha', 'option_value' => 'plugin_alpha'],
-    ['option_id' => 3, 'option_name' => 'plugin_percent', 'option_value' => 'plugin_100%_enabled'],
-    ['option_id' => 4, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin_blob')],
-    ['option_id' => 6, 'option_name' => 'plugin_new', 'option_value' => 'plugin_new'],
+    ['setting_id' => 1, 'key_name' => 'public_flag', 'key_value' => '1'],
+    ['setting_id' => 2, 'key_name' => 'module_alpha', 'key_value' => 'module_alpha'],
+    ['setting_id' => 3, 'key_name' => 'module_percent', 'key_value' => 'module_100%_enabled'],
+    ['setting_id' => 4, 'key_name' => 'module_blob', 'key_value' => new SQLiteBlobValue('module_blob')],
+    ['setting_id' => 6, 'key_name' => 'module_new', 'key_value' => 'module_new'],
 ];
 
 $summary = [
-    'scenario' => 'copied wp_options option_value LIKE current-source to next-source affinity scan current-next94',
-    'applicationUse' => 'Copied Application option imports can invalidate LIKE/GLOB value cursors when text-affinity coercion, UTF-16 scan encoding, or matched rowsets change, without treating BLOB payloads as text and without ext/sqlite.',
-    'pluginValuePlan' => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValuePlan(
+    'scenario' => 'copied app_settings key_value LIKE current-source to next-source affinity scan current-next94',
+    'applicationUse' => 'Copied application setting imports can invalidate LIKE/GLOB value cursors when text-affinity coercion, UTF-16 scan encoding, or matched rowsets change, without treating BLOB payloads as text and without ext/sqlite.',
+    'moduleValuePlan' => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValuePlan(
         $currentRows,
         $nextRows,
-        'option_value',
-        'plugin%',
+        'key_value',
+        'module%',
         'LIKE',
         'NOCASE',
         null,
         false,
         'UTF-16LE',
         'UTF-16BE',
-        'main.wp_options',
-        'main.wp_options',
+        'main.app_settings',
+        'main.app_settings',
         41,
         42,
     ),
-    'numericValuePlan' => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::optionRowValuePlan(
+    'numericValuePlan' => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValuePlan(
         $currentRows,
         $nextRows,
-        'option_value',
+        'key_value',
         '1%',
         'LIKE',
         'BINARY',
@@ -53,18 +53,18 @@ $summary = [
         true,
         'UTF-16LE',
         'UTF-16LE',
-        'main.wp_options',
-        'main.wp_options',
+        'main.app_settings',
+        'main.app_settings',
         41,
         41,
     ),
 ];
 
 if (in_array('--self-test', $argv, true)) {
-    assert($summary['pluginValuePlan']['currentRowids'] === [2, 3, 5]);
-    assert($summary['pluginValuePlan']['nextRowids'] === [2, 3, 6]);
-    assert($summary['pluginValuePlan']['changedTextRowids'] === [2]);
-    assert($summary['pluginValuePlan']['changedEncodingRowids'] === [2, 3]);
+    assert($summary['moduleValuePlan']['currentRowids'] === [2, 3, 5]);
+    assert($summary['moduleValuePlan']['nextRowids'] === [2, 3, 6]);
+    assert($summary['moduleValuePlan']['changedTextRowids'] === [2]);
+    assert($summary['moduleValuePlan']['changedEncodingRowids'] === [2, 3]);
     assert($summary['numericValuePlan']['changedStorageRowids'] === [1]);
     echo "application-option-value-affinity-like-current-next94 self-test passed\n";
     return;

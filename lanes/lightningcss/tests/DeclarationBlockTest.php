@@ -1475,6 +1475,64 @@ return [
         $t->same(['value' => 'border-box', 'important' => false], $block->getProperty($sizedBackground, 'background-origin'));
         $t->same(['value' => 'content-box', 'important' => false], $block->getProperty($sizedBackground, 'background-clip'));
     },
+    'declaration block canonicalizes upstream direct background longhand cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'background-image: URL("hero.jpg"), None; background-position: Left 0PX Top 50%; background-position-x: Right; background-position-y: Bottom; background-size: 0PX AUTO, CONTAIN; background-repeat: repeat no-repeat, No-Repeat Repeat; background-attachment: Fixed, LOCAL; background-origin: Content-Box, Border-Box; --Background-Size: 0PX AUTO';
+
+        $t->same(
+            [
+                'background-image' => 'url(hero.jpg), none',
+                'background-position' => '0 50%',
+                'background-position-x' => 'right',
+                'background-position-y' => 'bottom',
+                'background-size' => '0, contain',
+                'background-repeat' => 'repeat-x, repeat-y',
+                'background-attachment' => 'fixed, local',
+                'background-origin' => 'content-box, border-box',
+                '--Background-Size' => '0PX AUTO',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(
+            ['value' => 'url(hero.jpg), none', 'important' => false],
+            $block->getProperty($declarations, 'background-image')
+        );
+        $t->same(
+            ['value' => '0 50%', 'important' => false],
+            $block->getProperty('background-position: Left 0PX Top 50%', 'background-position')
+        );
+        $t->same(['value' => 'right', 'important' => false], $block->getProperty($declarations, 'background-position-x'));
+        $t->same(['value' => 'bottom', 'important' => false], $block->getProperty($declarations, 'background-position-y'));
+        $t->same(['value' => '0, contain', 'important' => false], $block->getProperty($declarations, 'background-size'));
+        $t->same(['value' => 'repeat-x, repeat-y', 'important' => false], $block->getProperty($declarations, 'background-repeat'));
+        $t->same(['value' => 'fixed, local', 'important' => false], $block->getProperty($declarations, 'background-attachment'));
+        $t->same(['value' => 'content-box, border-box', 'important' => false], $block->getProperty($declarations, 'background-origin'));
+        $t->same(['value' => '0PX AUTO', 'important' => false], $block->getProperty($declarations, '--Background-Size'));
+        $t->same(
+            'background: url(hero.jpg) 0 0 / 0; color: var(--wp--preset--color--contrast)',
+            $block->setProperty(
+                'background: url(hero.jpg); color: var(--wp--preset--color--contrast)',
+                'background-size',
+                '0PX AUTO'
+            )
+        );
+        $t->same(
+            'color: red; background-repeat: repeat-y !important',
+            $block->setProperty('background-repeat: repeat; color: red', 'background-repeat', 'No-Repeat Repeat', true)
+        );
+        $t->same(
+            'background-image: url("new hero.jpg"); color: red',
+            $block->setProperty('background-image: none; color: red', 'background-image', 'URL("new hero.jpg")')
+        );
+        $t->same(
+            'background-position: 100% 0; color: red',
+            $block->setProperty('background-position: 20px 10px; color: red', 'background-position', 'Right Top')
+        );
+        $t->same(
+            'background-position-y: 50%; color: red',
+            $block->removeProperty('background-position: Left 0PX Top 50%; color: red', 'background-position-x')
+        );
+    },
     'declaration block canonicalizes upstream direct background clip cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'background-clip: Text, Padding-Box; -webkit-background-clip: Text; -moz-background-clip: Border; --Background-Clip: Text';
@@ -3303,7 +3361,7 @@ return [
             $block->setProperty('background-position: 20px 10px', 'background-position-y', 'bottom')
         );
         $t->same(
-            'background-position: 30px 10px, right top',
+            'background-position: 30px 10px, right 0',
             $block->setProperty('background-position: 20px 10px, left top', 'background-position-x', '30px, right')
         );
         $t->same(

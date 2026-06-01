@@ -2659,6 +2659,16 @@ final class TransitionPrefixer
                 'safari' => [15, 4],
                 'samsung' => [14],
             ]),
+            'targetCurrentNeedsSelectorListFallback' => $this->targetsNeedFeatureFallback($normalized, [
+                'android' => [135],
+                'chrome' => [135],
+                'edge' => [135],
+            ]),
+            'targetBeforeAfterNeedsSelectorListFallback' => $this->targetsNeedFeatureFallback($normalized, [
+                'android' => [142],
+                'chrome' => [142],
+                'edge' => [142],
+            ]),
             'placeholderNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [56])
                 || $this->targetInRange($normalized, 'ios_saf', [4, 3], [10])
@@ -3720,7 +3730,11 @@ final class TransitionPrefixer
         return (($targetOptions['focusVisibleNeedsSelectorListFallback'] ?? false)
                 && preg_match($this->pseudoClassPattern('focus-visible'), $selector) === 1)
             || (($targetOptions['focusWithinNeedsSelectorListFallback'] ?? false)
-                && preg_match($this->pseudoClassPattern('focus-within'), $selector) === 1);
+                && preg_match($this->pseudoClassPattern('focus-within'), $selector) === 1)
+            || (($targetOptions['targetCurrentNeedsSelectorListFallback'] ?? false)
+                && preg_match($this->pseudoClassPattern('target-current'), $selector) === 1)
+            || (($targetOptions['targetBeforeAfterNeedsSelectorListFallback'] ?? false)
+                && preg_match('/:target-(?:before|after)(?![-_a-z0-9])/i', $selector) === 1);
     }
 
     /**

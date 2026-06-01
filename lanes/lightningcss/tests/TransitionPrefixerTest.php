@@ -297,6 +297,44 @@ return [
             $prefixer->prefixForTargets('a::after:hover, a::after:focus-visible { color: red; }', ['safari' => 14])
         );
     },
+    'transition prefixer maps upstream scroll navigation target pseudo boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $targetPair = 'a:target-before, a:target-after { color: green; }';
+        $targetCurrentPair = 'a:target-current, a:hover { color: green; }';
+
+        $t->same(
+            ':is(a:target-before,a:target-after){color:green}',
+            $prefixer->prefixForTargets($targetPair, ['chrome' => 141])
+        );
+        $t->same(
+            'a:target-before,a:target-after{color:green}',
+            $prefixer->prefixForTargets($targetPair, ['chrome' => 142])
+        );
+        $t->same(
+            ':is(a:target-before,a:target-after){color:green}',
+            $prefixer->prefixForTargets($targetPair, ['edge' => 141])
+        );
+        $t->same(
+            'a:target-before,a:target-after{color:green}',
+            $prefixer->prefixForTargets($targetPair, ['edge' => 142])
+        );
+        $t->same(
+            'a:target-before{color:green}a:target-after{color:green}',
+            $prefixer->prefixForTargets($targetPair, ['chrome' => 80])
+        );
+        $t->same(
+            ':is(a:target-current,a:hover){color:green}',
+            $prefixer->prefixForTargets($targetCurrentPair, ['chrome' => 134])
+        );
+        $t->same(
+            'a:target-current,a:hover{color:green}',
+            $prefixer->prefixForTargets($targetCurrentPair, ['chrome' => 135])
+        );
+        $t->same(
+            ':is(a:target-before,a:target-after){color:green}',
+            $prefixer->prefixForTargets($targetPair, ['safari' => 17])
+        );
+    },
     'transition prefixer composes upstream unsupported selector-list isolation with logical fallbacks' => static function (TestRunner $t) use ($variants): void {
         $prefixer = new TransitionPrefixer();
 
