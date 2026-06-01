@@ -9,34 +9,34 @@ $tests = [];
 
 $currentRows = [
     ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
-    ['setting_id' => 2, 'key_name' => 'plugin_rate', 'key_value' => '4.5ms', 'load_policy' => 'yes'],
-    ['setting_id' => 3, 'key_name' => 'plugin_limit', 'key_value' => '42 widgets', 'load_policy' => 'yes'],
-    ['setting_id' => 4, 'key_name' => 'plugin_zero', 'key_value' => 'off', 'load_policy' => 'no'],
-    ['setting_id' => 5, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin:blob  '), 'load_policy' => 'yes'],
-    ['setting_id' => 6, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN:CACHE', 'load_policy' => 'yes'],
-    ['setting_id' => 7, 'key_name' => 'plugin_spaces', 'key_value' => 'plugin:cache  ', 'load_policy' => 'yes'],
-    ['setting_id' => 8, 'key_name' => 'plugin_tab', 'key_value' => "plugin:cache\t", 'load_policy' => 'yes'],
-    ['setting_id' => 9, 'key_name' => 'plugin_null', 'key_value' => null, 'load_policy' => 'no'],
+    ['setting_id' => 2, 'key_name' => 'module_rate', 'key_value' => '4.5ms', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'module_limit', 'key_value' => '42 widgets', 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'module_zero', 'key_value' => 'off', 'load_policy' => 'no'],
+    ['setting_id' => 5, 'key_name' => 'module_blob', 'key_value' => new SQLiteBlobValue('module:blob  '), 'load_policy' => 'yes'],
+    ['setting_id' => 6, 'key_name' => 'module_upper', 'key_value' => 'MODULE:CACHE', 'load_policy' => 'yes'],
+    ['setting_id' => 7, 'key_name' => 'module_spaces', 'key_value' => 'module:cache  ', 'load_policy' => 'yes'],
+    ['setting_id' => 8, 'key_name' => 'module_tab', 'key_value' => "module:cache\t", 'load_policy' => 'yes'],
+    ['setting_id' => 9, 'key_name' => 'module_null', 'key_value' => null, 'load_policy' => 'no'],
 ];
 
 $nextRows = [
     ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'https://example.test', 'load_policy' => 'yes'],
-    ['setting_id' => 2, 'key_name' => 'plugin_rate', 'key_value' => '5.5ms', 'load_policy' => 'yes'],
-    ['setting_id' => 3, 'key_name' => 'plugin_limit', 'key_value' => '42 widgets', 'load_policy' => 'yes'],
-    ['setting_id' => 4, 'key_name' => 'plugin_zero', 'key_value' => 'off', 'load_policy' => 'no'],
-    ['setting_id' => 5, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin:blob'), 'load_policy' => 'yes'],
-    ['setting_id' => 6, 'key_name' => 'plugin_upper', 'key_value' => 'PLUGIN:CACHE', 'load_policy' => 'yes'],
-    ['setting_id' => 7, 'key_name' => 'plugin_spaces', 'key_value' => 'plugin:cache', 'load_policy' => 'yes'],
-    ['setting_id' => 8, 'key_name' => 'plugin_tab', 'key_value' => "plugin:cache\t", 'load_policy' => 'yes'],
-    ['setting_id' => 9, 'key_name' => 'plugin_null', 'key_value' => null, 'load_policy' => 'no'],
-    ['setting_id' => 10, 'key_name' => 'plugin_added', 'key_value' => '49', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'module_rate', 'key_value' => '5.5ms', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'module_limit', 'key_value' => '42 widgets', 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'module_zero', 'key_value' => 'off', 'load_policy' => 'no'],
+    ['setting_id' => 5, 'key_name' => 'module_blob', 'key_value' => new SQLiteBlobValue('module:blob'), 'load_policy' => 'yes'],
+    ['setting_id' => 6, 'key_name' => 'module_upper', 'key_value' => 'MODULE:CACHE', 'load_policy' => 'yes'],
+    ['setting_id' => 7, 'key_name' => 'module_spaces', 'key_value' => 'module:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 8, 'key_name' => 'module_tab', 'key_value' => "module:cache\t", 'load_policy' => 'yes'],
+    ['setting_id' => 9, 'key_name' => 'module_null', 'key_value' => null, 'load_policy' => 'no'],
+    ['setting_id' => 10, 'key_name' => 'module_added', 'key_value' => '49', 'load_policy' => 'yes'],
 ];
 
 $textPlan = static fn (): array => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan(
     $currentRows,
     $nextRows,
     'TEXT',
-    'plugin:%',
+    'module:%',
     'LIKE',
     'RTRIM',
     null,
@@ -58,7 +58,7 @@ $blobPlan = static fn (): array => SQLiteCastCollationLikeCurrentSourceNextPlan:
     $currentRows,
     $nextRows,
     'BLOB',
-    'PLUGIN:%',
+    'MODULE:%',
     'LIKE',
     'NOCASE',
     null,
@@ -80,7 +80,7 @@ $textCases = [
     'operator' => ['operator', 'LIKE'],
     'cast target' => ['castTarget', 'TEXT'],
     'collation' => ['collation', 'RTRIM'],
-    'pattern' => ['pattern', 'plugin:%'],
+    'pattern' => ['pattern', 'module:%'],
     'case insensitive like' => ['caseSensitiveLike', false],
     'schema cookie current' => ['currentSchemaCookie', 17],
     'schema cookie next' => ['nextSchemaCookie', 18],
@@ -96,9 +96,9 @@ $textCases = [
     'dependency residual' => ['dependencies.1', 'sqlite-like-glob-residual'],
     'dependency collation' => ['dependencies.2', 'sqlite-collation-comparison'],
     'current blob cast storage is text' => ['currentTrace.4.castStorage', 'text'],
-    'current blob text retains spaces' => ['currentTrace.4.castText', 'plugin:blob  '],
-    'current blob rtrim key trims spaces' => ['currentTrace.4.collationKey', 'plugin:blob'],
-    'current tab rtrim key keeps tab' => ['currentTrace.7.collationKey', "plugin:cache\t"],
+    'current blob text retains spaces' => ['currentTrace.4.castText', 'module:blob  '],
+    'current blob rtrim key trims spaces' => ['currentTrace.4.collationKey', 'module:blob'],
+    'current tab rtrim key keeps tab' => ['currentTrace.7.collationKey', "module:cache\t"],
     'next inserted text is tracked' => ['nextTrace.9.castText', '49'],
     'next inserted row does not match text pattern' => ['nextTrace.9.matched', false],
 ];
@@ -140,10 +140,10 @@ $blobCases = [
     'current rowids' => ['currentRowids', [5, 6, 7, 8]],
     'next rowids' => ['nextRowids', [5, 6, 7, 8]],
     'blob cast storage is blob' => ['currentTrace.4.castStorage', 'blob'],
-    'blob cast hex retains trailing spaces' => ['currentTrace.4.castTextHex', '706C7567696E3A626C6F622020'],
-    'nocase collation lowers uppercase' => ['currentTrace.5.collationKey', 'plugin:cache'],
-    'rtrim not used by nocase leaves spaces' => ['currentTrace.6.collationKey', 'plugin:cache  '],
-    'next shortened blob cast changes' => ['nextTrace.4.castTextHex', '706C7567696E3A626C6F62'],
+    'blob cast hex retains trailing spaces' => ['currentTrace.4.castTextHex', '6D6F64756C653A626C6F622020'],
+    'nocase collation lowers uppercase' => ['currentTrace.5.collationKey', 'module:cache'],
+    'rtrim not used by nocase leaves spaces' => ['currentTrace.6.collationKey', 'module:cache  '],
+    'next shortened blob cast changes' => ['nextTrace.4.castTextHex', '6D6F64756C653A626C6F62'],
     'blob plan changes cast rows' => ['changedCastRowids', [2, 5, 7, 10]],
     'blob plan only inserted row changes match set' => ['changedMatchRowids', [10]],
     'blob plan records matched text change' => ['invalidationReasons.2', 'matched-text'],
@@ -156,17 +156,17 @@ foreach ($blobCases as $name => [$path, $expected]) {
 }
 
 $tests['cast collation like current source next123 stable sources are reusable'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($currentRows, $currentRows, 'TEXT', 'plugin:%', 'LIKE', 'NOCASE');
+    $plan = SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($currentRows, $currentRows, 'TEXT', 'module:%', 'LIKE', 'NOCASE');
     $t->same(true, $plan['reusable']);
 };
 
 $tests['cast collation like current source next123 stable sources have no reasons'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($currentRows, $currentRows, 'TEXT', 'plugin:%', 'LIKE', 'NOCASE');
+    $plan = SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($currentRows, $currentRows, 'TEXT', 'module:%', 'LIKE', 'NOCASE');
     $t->same([], $plan['invalidationReasons']);
 };
 
 $tests['cast collation like current source next123 stable sources keep matched rowids'] = static function (TestRunner $t) use ($currentRows): void {
-    $plan = SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($currentRows, $currentRows, 'TEXT', 'plugin:%', 'LIKE', 'NOCASE');
+    $plan = SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($currentRows, $currentRows, 'TEXT', 'module:%', 'LIKE', 'NOCASE');
     $t->same([5, 7, 8], $plan['currentRowids']);
 };
 
@@ -179,7 +179,7 @@ $tests['cast collation like current source next123 rejects glob escape'] = stati
 };
 
 $tests['cast collation like current source next123 rejects unsupported collation'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($currentRows, $currentRows, 'TEXT', '%', 'LIKE', 'WP_LOCALE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($currentRows, $currentRows, 'TEXT', '%', 'LIKE', 'APP_LOCALE'));
 };
 
 $tests['cast collation like current source next123 rejects malformed cast target'] = static function (TestRunner $t) use ($currentRows): void {
@@ -187,7 +187,7 @@ $tests['cast collation like current source next123 rejects malformed cast target
 };
 
 $tests['cast collation like current source next123 rejects missing setting id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan([['key_value' => 'plugin']], [], 'TEXT', '%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan([['key_value' => 'module']], [], 'TEXT', '%'));
 };
 
 $tests['cast collation like current source next123 rejects missing setting value'] = static function (TestRunner $t): void {
@@ -195,11 +195,11 @@ $tests['cast collation like current source next123 rejects missing setting value
 };
 
 $tests['cast collation like current source next123 rejects non integer setting id'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan([['setting_id' => '1', 'key_value' => 'plugin']], [], 'TEXT', '%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan([['setting_id' => '1', 'key_value' => 'module']], [], 'TEXT', '%'));
 };
 
 $tests['cast collation like current source next123 rejects multi-byte escape'] = static function (TestRunner $t) use ($currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($currentRows, $currentRows, 'TEXT', 'plugin!_%', 'LIKE', 'BINARY', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($currentRows, $currentRows, 'TEXT', 'module!_%', 'LIKE', 'BINARY', '!!'));
 };
 
 $tests['cast collation like current source next123 accepts decimal type target'] = static function (TestRunner $t) use ($currentRows): void {
@@ -208,8 +208,8 @@ $tests['cast collation like current source next123 accepts decimal type target']
 };
 
 $tests['cast collation like current source next123 escaped LIKE pattern matches literal underscore'] = static function (TestRunner $t): void {
-    $rows = [['setting_id' => 1, 'key_value' => 'plugin_key'], ['setting_id' => 2, 'key_value' => 'pluginXkey']];
-    $plan = SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($rows, $rows, 'TEXT', 'plugin!_key', 'LIKE', 'BINARY', '!');
+    $rows = [['setting_id' => 1, 'key_value' => 'module_key'], ['setting_id' => 2, 'key_value' => 'moduleXkey']];
+    $plan = SQLiteCastCollationLikeCurrentSourceNextPlan::keyValueRowValueCastScan($rows, $rows, 'TEXT', 'module!_key', 'LIKE', 'BINARY', '!');
     $t->same([1], $plan['currentRowids']);
 };
 

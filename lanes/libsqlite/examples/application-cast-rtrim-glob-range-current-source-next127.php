@@ -8,30 +8,30 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteCastRtrimGlobRangeCurrentSourceNextPlan;
 
 $currentRows = [
-    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'plugin_cache'],
-    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'plugin_cache '],
-    ['setting_id' => 3, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('plugin_blob ')],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'module_cache'],
+    ['setting_id' => 2, 'key_name' => 'base_url', 'key_value' => 'module_cache '],
+    ['setting_id' => 3, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('module_blob ')],
     ['setting_id' => 4, 'key_name' => 'retry_count', 'key_value' => '42 retries'],
 ];
 
 $nextRows = [
-    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'plugin_cache'],
-    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'plugin_cache'],
-    ['setting_id' => 3, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('plugin_blob')],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'module_cache'],
+    ['setting_id' => 2, 'key_name' => 'base_url', 'key_value' => 'module_cache'],
+    ['setting_id' => 3, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('module_blob')],
     ['setting_id' => 4, 'key_name' => 'retry_count', 'key_value' => 42],
-    ['setting_id' => 5, 'key_name' => 'fresh_plugin', 'key_value' => 'plugin_cache_new'],
+    ['setting_id' => 5, 'key_name' => 'fresh_module', 'key_value' => 'module_cache_new'],
 ];
 
 $plan = SQLiteCastRtrimGlobRangeCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows,
     $nextRows,
     'TEXT',
-    'plugin_cache',
+    'module_cache',
 );
 
 $summary = [
     'scenario' => 'application-cast-rtrim-glob-range-current-source-next127',
-    'applicationUse' => 'Copied app_settings key_value scans can use an RTRIM expression range over CAST(key_value AS TEXT) while retaining a binary GLOB residual so space-padded option payloads do not become exact GLOB matches during import diffing.',
+    'applicationUse' => 'Copied app_settings key_value scans can use an RTRIM expression range over CAST(key_value AS TEXT) while retaining a binary GLOB residual so space-padded setting payloads do not become exact GLOB matches during import diffing.',
     'range' => $plan['range'],
     'currentCandidateRowids' => $plan['currentCandidateRowids'],
     'currentResidualRejectedRowids' => $plan['currentResidualRejectedRowids'],

@@ -8,26 +8,26 @@ use PortLibs\LibSqlite\SQLiteCastLikeGlobAffinityCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $currentRows = [
-    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'plugin:alpha'],
-    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'plugin:beta'],
-    ['setting_id' => 3, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('plugin:blob')],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'module:alpha'],
+    ['setting_id' => 2, 'key_name' => 'base_url', 'key_value' => 'module:beta'],
+    ['setting_id' => 3, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('module:blob')],
     ['setting_id' => 4, 'key_name' => 'retry_count', 'key_value' => '42 widgets'],
-    ['setting_id' => 5, 'key_name' => 'theme', 'key_value' => 'theme:alpha'],
+    ['setting_id' => 5, 'key_name' => 'bundle', 'key_value' => 'bundle:alpha'],
 ];
 
 $nextRows = [
-    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'plugin:alpha'],
-    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'plugin:beta2'],
-    ['setting_id' => 3, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('plugin:blob2')],
+    ['setting_id' => 1, 'key_name' => 'service_url', 'key_value' => 'module:alpha'],
+    ['setting_id' => 2, 'key_name' => 'base_url', 'key_value' => 'module:beta2'],
+    ['setting_id' => 3, 'key_name' => 'active_modules', 'key_value' => new SQLiteBlobValue('module:blob2')],
     ['setting_id' => 4, 'key_name' => 'retry_count', 'key_value' => 42],
-    ['setting_id' => 6, 'key_name' => 'fresh', 'key_value' => 'plugin:fresh'],
+    ['setting_id' => 6, 'key_name' => 'fresh', 'key_value' => 'module:fresh'],
 ];
 
 $like = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows,
     $nextRows,
     'TEXT',
-    'plugin:%',
+    'module:%',
     'LIKE',
 );
 $glob = SQLiteCastLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan(

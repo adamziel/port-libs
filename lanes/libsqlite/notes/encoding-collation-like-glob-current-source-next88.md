@@ -1,9 +1,9 @@
 # encoding-collation-like-glob-current-source-next88
 
-Status: focused PHP behavior growth for LIKE/GLOB prepared cursor reuse across current and next Application option-name sources.
+Status: focused PHP behavior growth for LIKE/GLOB prepared cursor reuse across current and next application key-name sources.
 
 Behavior:
-- Adds `SQLiteLikeGlobCurrentSourceNextPlan::optionRowNameStatement()` for copied `wp_options.option_name` LIKE/GLOB scans.
+- Adds `SQLiteLikeGlobCurrentSourceNextPlan::keyValueRowKeyStatement()` for copied `app_settings.key_name` LIKE/GLOB scans.
 - Compares current and next prepared statement metadata: source fingerprint, operator, pattern, collation, ESCAPE, and `case_sensitive_like`.
 - Reuses existing UTF-8/UTF-16 source cursors to compute current/next rowsets, byte/encoding changes, retained/exited/entered rowids, and reprepare reasons.
 
@@ -12,8 +12,8 @@ Focused verification:
 - Result: `1 test files, 54 assertions, 0 failures`.
 - `php -l lanes/libsqlite/src/SQLiteLikeGlobCurrentSourceNextPlan.php`
 - `php -l lanes/libsqlite/tests/SQLiteLikeGlobCurrentSourceNext88Test.php`
-- `php -l lanes/libsqlite/examples/application-option-name-like-glob-current-source-next88.php`
-- `php lanes/libsqlite/examples/application-option-name-like-glob-current-source-next88.php --self-test`
+- `php -l lanes/libsqlite/examples/application-key-name-like-glob-current-source-next88.php`
+- `php lanes/libsqlite/examples/application-key-name-like-glob-current-source-next88.php --self-test`
 - `git diff --check -- lanes/libsqlite`
 
 Dashboard delta:

@@ -27,31 +27,31 @@ $row = static function (int $id, string $name, string $encoding) use ($encodingN
 };
 
 $currentRows = [
-    $row(1, 'plugin_%_cache', 'UTF-8'),
-    $row(2, 'Plugin_Z_cache', 'UTF-16LE'),
-    $row(3, 'plugin_abc_cache', 'UTF-16BE'),
-    $row(4, 'plugin_%_cache_extra', 'UTF-16LE'),
+    $row(1, 'module_%_cache', 'UTF-8'),
+    $row(2, 'Module_Z_cache', 'UTF-16LE'),
+    $row(3, 'module_abc_cache', 'UTF-16BE'),
+    $row(4, 'module_%_cache_extra', 'UTF-16LE'),
 ];
 
 $nextRows = [
-    $row(1, 'plugin_%_cache', 'UTF-16LE'),
-    $row(2, 'Plugin_Z_cache', 'UTF-16BE'),
-    $row(3, 'plugin_abc_cache', 'UTF-16BE'),
-    $row(4, 'plugin_%_cache_v2', 'UTF-8'),
-    $row(5, 'plugin_%_cache_new', 'UTF-16BE'),
+    $row(1, 'module_%_cache', 'UTF-16LE'),
+    $row(2, 'Module_Z_cache', 'UTF-16BE'),
+    $row(3, 'module_abc_cache', 'UTF-16BE'),
+    $row(4, 'module_%_cache_v2', 'UTF-8'),
+    $row(5, 'module_%_cache_new', 'UTF-16BE'),
 ];
 
 $like = [
     'source' => 'main.app_settings@schema147',
     'operator' => 'LIKE',
-    'pattern' => 'plugin!_!%!_cache%',
+    'pattern' => 'module!_!%!_cache%',
     'collation' => 'NOCASE',
     'escape' => '!',
 ];
 $glob = [
     'source' => 'main.app_settings@schema147',
     'operator' => 'GLOB',
-    'pattern' => 'plugin_[A-z]*_cache*',
+    'pattern' => 'module_[A-z]*_cache*',
     'collation' => 'NOCASE',
 ];
 

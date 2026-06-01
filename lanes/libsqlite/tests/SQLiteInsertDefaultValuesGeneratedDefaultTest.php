@@ -159,9 +159,9 @@ $tests['insert default values generated default rejects unsupported generated ex
 };
 
 $tests['insert default values generated default ignores table constraints'] = static function (TestRunner $t): void {
-    $schema = "CREATE TABLE app_defaults(id INTEGER PRIMARY KEY, label TEXT DEFAULT 'home', CHECK(label <> ''), UNIQUE(label))";
+    $schema = "CREATE TABLE app_defaults(id INTEGER PRIMARY KEY, label TEXT DEFAULT 'base_url', CHECK(label <> ''), UNIQUE(label))";
     $result = SQLiteInsertDefaultValuesSql::execute('INSERT INTO app_defaults DEFAULT VALUES', ['app_defaults' => []], ['app_defaults' => $schema]);
-    $t->same('home', $result['inserted_row']['label']);
+    $t->same('base_url', $result['inserted_row']['label']);
 };
 
 $tests['insert default values generated default double quoted text default works'] = static function (TestRunner $t): void {

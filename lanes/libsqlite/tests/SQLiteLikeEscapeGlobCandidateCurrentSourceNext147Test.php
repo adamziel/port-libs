@@ -25,30 +25,30 @@ $row147 = static function (int $id, string $name, string $encoding, string $load
 };
 
 $currentRows147 = [
-    $row147(1, 'plugin_%_cache', 'UTF-8'),
-    $row147(2, 'plugin_abc_cache', 'UTF-16LE'),
-    $row147(3, 'Plugin_%_Cache', 'UTF-16BE'),
-    $row147(4, 'plugin_%_cache ', 'UTF-16LE'),
-    $row147(5, 'plugin__cache', 'UTF-8'),
-    $row147(6, 'plugin_%_cache_extra', 'UTF-16BE'),
-    $row147(7, 'theme_%_cache', 'UTF-8'),
-    $row147(8, 'plugin_😀_cache', 'UTF-16LE'),
-    $row147(9, 'plugin_é_cache', 'UTF-8'),
-    $row147(10, 'Plugin_Z_cache', 'UTF-8'),
+    $row147(1, 'module_%_cache', 'UTF-8'),
+    $row147(2, 'module_abc_cache', 'UTF-16LE'),
+    $row147(3, 'Module_%_Cache', 'UTF-16BE'),
+    $row147(4, 'module_%_cache ', 'UTF-16LE'),
+    $row147(5, 'module__cache', 'UTF-8'),
+    $row147(6, 'module_%_cache_extra', 'UTF-16BE'),
+    $row147(7, 'bundle_%_cache', 'UTF-8'),
+    $row147(8, 'module_😀_cache', 'UTF-16LE'),
+    $row147(9, 'module_é_cache', 'UTF-8'),
+    $row147(10, 'Module_Z_cache', 'UTF-8'),
 ];
 
 $nextRows147 = [
-    $row147(1, 'plugin_%_cache', 'UTF-16LE'),
-    $row147(2, 'plugin_abc_cache', 'UTF-16BE'),
-    $row147(3, 'Plugin_%_Cache', 'UTF-16LE'),
-    $row147(4, 'plugin_%_cache', 'UTF-8'),
-    $row147(5, 'plugin__cache', 'UTF-8'),
-    $row147(6, 'plugin_%_cache_v2', 'UTF-16BE'),
-    $row147(7, 'theme_%_cache', 'UTF-8'),
-    $row147(8, 'plugin_😀_cache', 'UTF-16BE'),
-    $row147(9, 'plugin_é_cache', 'UTF-16LE'),
-    $row147(10, 'Plugin_Z_cache', 'UTF-8'),
-    $row147(11, 'plugin_%_cache_new', 'UTF-16BE'),
+    $row147(1, 'module_%_cache', 'UTF-16LE'),
+    $row147(2, 'module_abc_cache', 'UTF-16BE'),
+    $row147(3, 'Module_%_Cache', 'UTF-16LE'),
+    $row147(4, 'module_%_cache', 'UTF-8'),
+    $row147(5, 'module__cache', 'UTF-8'),
+    $row147(6, 'module_%_cache_v2', 'UTF-16BE'),
+    $row147(7, 'bundle_%_cache', 'UTF-8'),
+    $row147(8, 'module_😀_cache', 'UTF-16BE'),
+    $row147(9, 'module_é_cache', 'UTF-16LE'),
+    $row147(10, 'Module_Z_cache', 'UTF-8'),
+    $row147(11, 'module_%_cache_new', 'UTF-16BE'),
 ];
 
 $statement147 = static function (
@@ -81,13 +81,13 @@ $plan147 = static fn (
     $nextStatement,
 );
 
-$escaped147 = $statement147('plugin!_!%!_cache%');
-$glob147 = $statement147('plugin_[A-z]*_cache*', 'GLOB', 'NOCASE', null);
-$globBinary147 = $statement147('plugin_[A-z]*_cache*', 'GLOB', 'BINARY', null);
+$escaped147 = $statement147('module!_!%!_cache%');
+$glob147 = $statement147('module_[A-z]*_cache*', 'GLOB', 'NOCASE', null);
+$globBinary147 = $statement147('module_[A-z]*_cache*', 'GLOB', 'BINARY', null);
 
 $cases147 = [
-    'escaped current range lower includes literal underscore percent' => [$escaped147, $escaped147, 'current.range.lowerInclusive', 'plugin_%_cache'],
-    'escaped current range upper advances literal prefix' => [$escaped147, $escaped147, 'current.range.upperBound', 'plugin_%_cachf'],
+    'escaped current range lower includes literal underscore percent' => [$escaped147, $escaped147, 'current.range.lowerInclusive', 'module_%_cache'],
+    'escaped current range upper advances literal prefix' => [$escaped147, $escaped147, 'current.range.upperBound', 'module_%_cachf'],
     'escaped current candidates include residual false positives' => [$escaped147, $escaped147, 'current.candidateRowids', [1, 3, 4, 6]],
     'escaped current matches include percent cache rows' => [$escaped147, $escaped147, 'current.rowids', [1, 3, 4, 6]],
     'escaped current false positives empty when wildcard suffix matches all candidates' => [$escaped147, $escaped147, 'current.falsePositiveRowids', []],
@@ -102,16 +102,16 @@ $cases147 = [
     'escaped reprepare includes key bytes reason' => [$escaped147, $escaped147, 'reprepareReasons.1', 'key-bytes'],
     'escaped reprepare includes matched rowset reason' => [$escaped147, $escaped147, 'reprepareReasons.2', 'matched-rowset'],
     'escaped dependency records candidate scan' => [$escaped147, $escaped147, 'dependencies.3', 'sqlite-like-glob-range-candidates'],
-    'escaped current candidate bytes expose utf16be uppercase row' => [$escaped147, $escaped147, 'current.candidateBytesHex.3', '0050006c007500670069006e005f0025005f00430061006300680065'],
-    'escaped next candidate bytes expose utf16le uppercase row' => [$escaped147, $escaped147, 'next.candidateBytesHex.3', '50006c007500670069006e005f0025005f0043006100630068006500'],
+    'escaped current candidate bytes expose utf16be uppercase row' => [$escaped147, $escaped147, 'current.candidateBytesHex.3', '004d006f00640075006c0065005f0025005f00430061006300680065'],
+    'escaped next candidate bytes expose utf16le uppercase row' => [$escaped147, $escaped147, 'next.candidateBytesHex.3', '4d006f00640075006c0065005f0025005f0043006100630068006500'],
     'escaped current candidate encoding row four is utf16le' => [$escaped147, $escaped147, 'current.candidateEncodings.4', 'UTF-16LE'],
     'escaped next candidate encoding row four is utf8' => [$escaped147, $escaped147, 'next.candidateEncodings.4', 'UTF-8'],
-    'escaped source switch reason precedes row changes' => [$escaped147, $statement147('plugin!_!%!_cache%', source: 'main.app_settings@cookie148'), 'reprepareReasons.0', 'source-name'],
-    'escape character switch records pattern' => [$escaped147, $statement147('plugin#_#%#_cache%', escape: '#'), 'reprepareReasons.0', 'pattern'],
-    'escape character switch records escape' => [$escaped147, $statement147('plugin#_#%#_cache%', escape: '#'), 'reprepareReasons.1', 'escape'],
-    'case sensitive like has binary-style candidate lower' => [$statement147('plugin!_!%!_cache%', collation: 'BINARY', caseSensitiveLike: true), $statement147('plugin!_!%!_cache%', collation: 'BINARY', caseSensitiveLike: true), 'current.range.lowerInclusive', 'plugin_%_cache'],
-    'case sensitive like skips uppercase matched row' => [$statement147('plugin!_!%!_cache%', collation: 'BINARY', caseSensitiveLike: true), $statement147('plugin!_!%!_cache%', collation: 'BINARY', caseSensitiveLike: true), 'current.rowids', [1, 4, 6]],
-    'case sensitive like skips uppercase candidate row' => [$statement147('plugin!_!%!_cache%', collation: 'BINARY', caseSensitiveLike: true), $statement147('plugin!_!%!_cache%', collation: 'BINARY', caseSensitiveLike: true), 'current.candidateRowids', [1, 4, 6]],
+    'escaped source switch reason precedes row changes' => [$escaped147, $statement147('module!_!%!_cache%', source: 'main.app_settings@cookie148'), 'reprepareReasons.0', 'source-name'],
+    'escape character switch records pattern' => [$escaped147, $statement147('module#_#%#_cache%', escape: '#'), 'reprepareReasons.0', 'pattern'],
+    'escape character switch records escape' => [$escaped147, $statement147('module#_#%#_cache%', escape: '#'), 'reprepareReasons.1', 'escape'],
+    'case sensitive like has binary-style candidate lower' => [$statement147('module!_!%!_cache%', collation: 'BINARY', caseSensitiveLike: true), $statement147('module!_!%!_cache%', collation: 'BINARY', caseSensitiveLike: true), 'current.range.lowerInclusive', 'module_%_cache'],
+    'case sensitive like skips uppercase matched row' => [$statement147('module!_!%!_cache%', collation: 'BINARY', caseSensitiveLike: true), $statement147('module!_!%!_cache%', collation: 'BINARY', caseSensitiveLike: true), 'current.rowids', [1, 4, 6]],
+    'case sensitive like skips uppercase candidate row' => [$statement147('module!_!%!_cache%', collation: 'BINARY', caseSensitiveLike: true), $statement147('module!_!%!_cache%', collation: 'BINARY', caseSensitiveLike: true), 'current.candidateRowids', [1, 4, 6]],
     'glob nocase current candidates include prefix range rows' => [$glob147, $glob147, 'current.candidateRowids', [1, 3, 4, 6, 5, 2, 10, 9, 8]],
     'glob nocase current matches only lowercase glob row' => [$glob147, $glob147, 'current.rowids', [2]],
     'glob nocase false positives expose collation range rows' => [$glob147, $glob147, 'current.falsePositiveRowids', [1, 3, 4, 6, 5, 10, 9, 8]],
@@ -121,24 +121,24 @@ $cases147 = [
     'glob nocase candidate changed encoding captures range rows' => [$glob147, $glob147, 'candidateChangedEncodingRowids', [1, 2, 3, 4, 8, 9]],
     'glob nocase changed encoding captures row two' => [$glob147, $glob147, 'changedEncodingRowids', [2]],
     'glob nocase candidate bytes capture range rows' => [$glob147, $glob147, 'candidateChangedBytesRowids', [1, 2, 3, 4, 6, 8, 9]],
-    'glob nocase range lower is literal prefix' => [$glob147, $glob147, 'current.range.lowerInclusive', 'plugin_'],
-    'glob nocase range upper is next binary prefix' => [$glob147, $glob147, 'current.range.upperBound', 'plugin`'],
+    'glob nocase range lower is literal prefix' => [$glob147, $glob147, 'current.range.lowerInclusive', 'module_'],
+    'glob nocase range upper is next binary prefix' => [$glob147, $glob147, 'current.range.upperBound', 'module`'],
     'glob binary candidates skip uppercase range row' => [$globBinary147, $globBinary147, 'current.candidateRowids', [1, 4, 6, 5, 2, 9, 8]],
     'glob binary false positives expose prefix rows' => [$globBinary147, $globBinary147, 'current.falsePositiveRowids', [1, 4, 6, 5, 9, 8]],
-    'glob ignores supplied escape in normalized current' => [$statement147('plugin_[A-z]*_cache*', 'GLOB', 'NOCASE', '!'), $glob147, 'current.escape', null],
-    'glob ignores supplied escape in normalized next' => [$glob147, $statement147('plugin_[A-z]*_cache*', 'GLOB', 'NOCASE', '!'), 'next.escape', null],
+    'glob ignores supplied escape in normalized current' => [$statement147('module_[A-z]*_cache*', 'GLOB', 'NOCASE', '!'), $glob147, 'current.escape', null],
+    'glob ignores supplied escape in normalized next' => [$glob147, $statement147('module_[A-z]*_cache*', 'GLOB', 'NOCASE', '!'), 'next.escape', null],
     'glob stable false positive only source is reusable when row bytes unchanged' => [$glob147, $glob147, 'status', 'reprepare-required'],
     'leading wildcard has no candidates' => [$statement147('%!_cache'), $statement147('%!_cache'), 'current.candidateRowids', []],
     'leading wildcard has null range' => [$statement147('%!_cache'), $statement147('%!_cache'), 'current.range', null],
-    'theme escaped pattern candidates theme row' => [$statement147('theme!_!%!_cache%'), $statement147('theme!_!%!_cache%'), 'current.candidateRowids', [7]],
-    'theme escaped pattern matches theme row' => [$statement147('theme!_!%!_cache%'), $statement147('theme!_!%!_cache%'), 'current.rowids', [7]],
-    'theme escaped stable cursor reusable' => [$statement147('theme!_!%!_cache%', source: 'stable'), $statement147('theme!_!%!_cache%', source: 'stable'), 'status', 'cursor-reusable'],
-    'theme escaped stable has no reasons' => [$statement147('theme!_!%!_cache%', source: 'stable'), $statement147('theme!_!%!_cache%', source: 'stable'), 'reprepareReasons', []],
-    'emoji literal escaped wildcard does not match emoji row' => [$statement147('plugin!_!%!_cache%'), $statement147('plugin!_!%!_cache%'), 'current.candidateEncodings.8', null],
-    'emoji glob matches emoji row with star prefix' => [$statement147('plugin_😀*', 'GLOB', 'BINARY', null), $statement147('plugin_😀*', 'GLOB', 'BINARY', null), 'current.rowids', [8]],
-    'emoji glob candidate changed encoding tracks row eight' => [$statement147('plugin_😀*', 'GLOB', 'BINARY', null), $statement147('plugin_😀*', 'GLOB', 'BINARY', null), 'candidateChangedEncodingRowids', [8]],
-    'latin like escaped prefix matches e acute row' => [$statement147('plugin!_é%', collation: 'BINARY', escape: '!', caseSensitiveLike: true), $statement147('plugin!_é%', collation: 'BINARY', escape: '!', caseSensitiveLike: true), 'current.rowids', [9]],
-    'latin like next encoding change tracks e acute row' => [$statement147('plugin!_é%', collation: 'BINARY', escape: '!', caseSensitiveLike: true), $statement147('plugin!_é%', collation: 'BINARY', escape: '!', caseSensitiveLike: true), 'candidateChangedEncodingRowids', [9]],
+    'bundle escaped pattern candidates bundle row' => [$statement147('bundle!_!%!_cache%'), $statement147('bundle!_!%!_cache%'), 'current.candidateRowids', [7]],
+    'bundle escaped pattern matches bundle row' => [$statement147('bundle!_!%!_cache%'), $statement147('bundle!_!%!_cache%'), 'current.rowids', [7]],
+    'bundle escaped stable cursor reusable' => [$statement147('bundle!_!%!_cache%', source: 'stable'), $statement147('bundle!_!%!_cache%', source: 'stable'), 'status', 'cursor-reusable'],
+    'bundle escaped stable has no reasons' => [$statement147('bundle!_!%!_cache%', source: 'stable'), $statement147('bundle!_!%!_cache%', source: 'stable'), 'reprepareReasons', []],
+    'emoji literal escaped wildcard does not match emoji row' => [$statement147('module!_!%!_cache%'), $statement147('module!_!%!_cache%'), 'current.candidateEncodings.8', null],
+    'emoji glob matches emoji row with star prefix' => [$statement147('module_😀*', 'GLOB', 'BINARY', null), $statement147('module_😀*', 'GLOB', 'BINARY', null), 'current.rowids', [8]],
+    'emoji glob candidate changed encoding tracks row eight' => [$statement147('module_😀*', 'GLOB', 'BINARY', null), $statement147('module_😀*', 'GLOB', 'BINARY', null), 'candidateChangedEncodingRowids', [8]],
+    'latin like escaped prefix matches e acute row' => [$statement147('module!_é%', collation: 'BINARY', escape: '!', caseSensitiveLike: true), $statement147('module!_é%', collation: 'BINARY', escape: '!', caseSensitiveLike: true), 'current.rowids', [9]],
+    'latin like next encoding change tracks e acute row' => [$statement147('module!_é%', collation: 'BINARY', escape: '!', caseSensitiveLike: true), $statement147('module!_é%', collation: 'BINARY', escape: '!', caseSensitiveLike: true), 'candidateChangedEncodingRowids', [9]],
 ];
 
 foreach ($cases147 as $name => [$currentStatement, $nextStatement, $path, $expected]) {
@@ -152,19 +152,19 @@ foreach ($cases147 as $name => [$currentStatement, $nextStatement, $path, $expec
 }
 
 $tests['like escape glob candidate current source next147 rejects non text escape'] = static function (TestRunner $t) use ($statement147, $plan147): void {
-    $bad = $statement147('plugin!_!%!_cache%');
+    $bad = $statement147('module!_!%!_cache%');
     $bad['escape'] = 1;
-    $t->throws(InvalidArgumentException::class, static fn () => $plan147($bad, $statement147('plugin!_!%!_cache%')));
+    $t->throws(InvalidArgumentException::class, static fn () => $plan147($bad, $statement147('module!_!%!_cache%')));
 };
 
 $tests['like escape glob candidate current source next147 rejects multi character escape'] = static function (TestRunner $t) use ($statement147, $plan147): void {
-    $bad = $statement147('plugin!_!%!_cache%', escape: '!!');
-    $t->throws(InvalidArgumentException::class, static fn () => $plan147($bad, $statement147('plugin!_!%!_cache%')));
+    $bad = $statement147('module!_!%!_cache%', escape: '!!');
+    $t->throws(InvalidArgumentException::class, static fn () => $plan147($bad, $statement147('module!_!%!_cache%')));
 };
 
 $tests['like escape glob candidate current source next147 rejects malformed utf16 candidate bytes'] = static function (TestRunner $t) use ($statement147, $plan147, $currentRows147): void {
     $next = [['setting_id' => 1, 'key_name_bytes' => "\x70", 'text_encoding' => 2]];
-    $t->throws(InvalidArgumentException::class, static fn () => $plan147($statement147('plugin%'), $statement147('plugin%'), $currentRows147, $next));
+    $t->throws(InvalidArgumentException::class, static fn () => $plan147($statement147('module%'), $statement147('module%'), $currentRows147, $next));
 };
 
 return $tests;
