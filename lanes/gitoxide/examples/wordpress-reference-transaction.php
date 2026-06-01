@@ -370,6 +370,34 @@ $preparedReferentEdits = $preparedReferent->commit();
 $preparedReferentCleanedLock = !is_file($preparedReferentDir . '/' . $preparedReferentPrefix . $fixture['preparedReferentRef'] . '.lock');
 $preparedReferentHeadReflogAfter = $preparedReferentStore->reflogContents('HEAD');
 
+$preparedDuplicateDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-duplicate-deref-' . bin2hex(random_bytes(4));
+mkdir($preparedDuplicateDir, 0777, true);
+file_put_contents($preparedDuplicateDir . '/packed-refs.lock', 'held by packed compaction');
+$preparedDuplicateStore = new ReferenceStore($preparedDuplicateDir, null, $fixture['namespace']);
+$preparedDuplicatePrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedDuplicateStore->looseStore()->writeSymbolic(
+    $preparedDuplicatePrefix . $fixture['preparedDuplicateHeadRef'],
+    $preparedDuplicatePrefix . $fixture['preparedDuplicateTargetRef'],
+);
+$preparedDuplicateStore->looseStore()->writeDirect(
+    $preparedDuplicatePrefix . $fixture['preparedDuplicateTargetRef'],
+    $fixture['productionCommit'],
+);
+$preparedDuplicateError = null;
+try {
+    $preparedDuplicateStore->prepareLooseUpdateTransaction(
+        [
+            $fixture['preparedDuplicateHeadRef'] => ReferenceTarget::object($fixture['reviewCommit']),
+            $fixture['preparedDuplicateTargetRef'] => ReferenceTarget::object($fixture['productionCommit']),
+        ],
+        deref: true,
+    );
+} catch (RuntimeException $exception) {
+    $preparedDuplicateError = $exception->getMessage();
+}
+$preparedDuplicateNoLooseLocks = !is_file($preparedDuplicateDir . '/' . $preparedDuplicatePrefix . $fixture['preparedDuplicateHeadRef'] . '.lock')
+    && !is_file($preparedDuplicateDir . '/' . $preparedDuplicatePrefix . $fixture['preparedDuplicateTargetRef'] . '.lock');
+
 $preparedDisabledDeleteDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-disabled-delete-' . bin2hex(random_bytes(4));
 $preparedDisabledDeleteSetup = new ReferenceStore($preparedDisabledDeleteDir, null, $fixture['namespace']);
 $preparedDisabledDeletePrefix = ReferenceName::expandNamespace($fixture['namespace']);
@@ -572,6 +600,10 @@ return [
     'preparedReferentProductionCommit' => $preparedReferentStore->find($fixture['preparedReferentRef'])->targetObjectId(),
     'preparedReferentHeadReflog' => $preparedReferentHeadReflogAfter,
     'preparedReferentProductionReflog' => $preparedReferentStore->reflogContents($fixture['preparedReferentRef']),
+    'preparedDuplicateError' => $preparedDuplicateError,
+    'preparedDuplicatePackedLockPreserved' => is_file($preparedDuplicateDir . '/packed-refs.lock')
+        && file_get_contents($preparedDuplicateDir . '/packed-refs.lock') === 'held by packed compaction',
+    'preparedDuplicateNoLooseLocks' => $preparedDuplicateNoLooseLocks,
     'preparedDisabledDeleteEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedDisabledDeleteEdits),
     'preparedDisabledDeleteHadLock' => $preparedDisabledDeleteHadLock,
     'preparedDisabledDeleteCleanedLock' => $preparedDisabledDeleteCleanedLock,

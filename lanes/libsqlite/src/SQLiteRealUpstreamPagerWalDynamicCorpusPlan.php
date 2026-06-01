@@ -2211,6 +2211,101 @@ final class SQLiteRealUpstreamPagerWalDynamicCorpusPlan
     /**
      * @return list<array<string, mixed>>
      */
+    public static function walChecksumSavepointRegressionRows(int $count = 1000): array
+    {
+        if ($count < 1) {
+            throw new \InvalidArgumentException('SQLite WAL checksum savepoint regression rows require a positive count');
+        }
+
+        $scenarios = [
+            [
+                'section' => 'walcksum-3.0..3.2',
+                'phase' => 'transaction-savepoint-rollback-then-commit',
+                'description' => 'BEGIN with cache_size=1 rolls back savepoint writes then commits a replacement row recoverable by a copied WAL',
+                'outer_scope' => 'begin-commit',
+                'initial_rows' => [[1, 'one']],
+                'rolled_back_rows' => [[3, 'three'], [4, 'four'], [5, 'five'], [6, 'six'], [7, 'seven']],
+                'expected_rows' => [[1, 'one'], [2, 'two'], [8, 'eight']],
+                'post_rollback_rows' => [[8, 'eight']],
+                'active_reader_before_savepoint' => false,
+                'copy_recovery_section' => 'walcksum-1.3',
+            ],
+            [
+                'section' => 'walcksum-4.0..4.3',
+                'phase' => 'top-level-savepoint-rollback-release',
+                'description' => 'top-level SAVEPOINT rolls back cache-spill writes, inserts row eight, and RELEASE leaves a copied WAL recoverable',
+                'outer_scope' => 'savepoint-release',
+                'initial_rows' => [[1, 'one']],
+                'rolled_back_rows' => [[2, 'two'], [3, 'three'], [4, 'four'], [5, 'five'], [6, 'six'], [7, 'seven']],
+                'expected_rows' => [[1, 'one'], [8, 'eight']],
+                'post_rollback_rows' => [[8, 'eight']],
+                'active_reader_before_savepoint' => false,
+                'copy_recovery_section' => 'walcksum-4.3',
+            ],
+            [
+                'section' => 'walcksum-5.0..5.3',
+                'phase' => 'active-reader-savepoint-rollback-then-commit',
+                'description' => 'active SELECT count before SAVEPOINT does not make rolled-back WAL frames visible to copied recovery',
+                'outer_scope' => 'begin-reader-commit',
+                'initial_rows' => [[1, 'one'], [2, 'two'], [3, 'three']],
+                'rolled_back_rows' => [[4, 'four'], [5, 'five'], [6, 'six'], [7, 'seven']],
+                'expected_rows' => [[1, 'one'], [2, 'two'], [3, 'three'], [8, 'eight'], [9, 'nine']],
+                'post_rollback_rows' => [[8, 'eight'], [9, 'nine']],
+                'active_reader_before_savepoint' => true,
+                'copy_recovery_section' => 'walcksum-5.2',
+            ],
+        ];
+
+        $pageSizes = [512, 1024, 2048, 4096];
+        $rows = [];
+        foreach (range(1, $count) as $case) {
+            $scenario = $scenarios[($case - 1) % count($scenarios)];
+            $pageSize = $pageSizes[($case - 1) % count($pageSizes)];
+            $databasePageCount = 4 + (($case - 1) % 5);
+            $committedFrameCount = 2 + (($case - 1) % 4);
+            $rolledBackFrameCount = count($scenario['rolled_back_rows']) + (($case - 1) % 4);
+            $rowPageNumber = 2 + (($case - 1) % ($databasePageCount - 1));
+            $draftPageNumber = 2 + (($case + 1) % ($databasePageCount - 1));
+            $expectedSignature = hash('sha256', $scenario['section'] . '|expected|' . json_encode($scenario['expected_rows']));
+            $rolledBackSignature = hash('sha256', $scenario['section'] . '|rolled-back|' . json_encode($scenario['rolled_back_rows']) . '|' . $case);
+
+            $rows[] = array_replace($scenario, [
+                'upstream' => sprintf('walcksum.test %s savepoint checksum recovery dynamic case %04d', $scenario['section'], $case),
+                'script' => 'walcksum.test',
+                'case' => $case,
+                'page_size' => $pageSize,
+                'cache_size' => 1,
+                'randomblob_bytes' => 2048,
+                'database_page_count' => $databasePageCount,
+                'row_page_number' => $rowPageNumber,
+                'draft_page_number' => $draftPageNumber,
+                'committed_frame_count' => $committedFrameCount,
+                'rolled_back_frame_count' => $rolledBackFrameCount,
+                'total_frame_count' => $committedFrameCount + $rolledBackFrameCount,
+                'expected_signature' => $expectedSignature,
+                'rolled_back_signature' => $rolledBackSignature,
+                'expected_rowids' => array_map(static fn (array $row): int => (int) $row[0], $scenario['expected_rows']),
+                'rolled_back_rowids' => array_map(static fn (array $row): int => (int) $row[0], $scenario['rolled_back_rows']),
+                'post_rollback_rowids' => array_map(static fn (array $row): int => (int) $row[0], $scenario['post_rollback_rows']),
+                'expected_boundary_status' => 'recovered_committed_prefix',
+                'expected_boundary_reason' => 'uncommitted_valid_tail_after_last_commit',
+                'expected_integrity_check' => 'ok',
+                'copied_wal_recovery_is_readable' => true,
+                'dependencies' => [
+                    'real-upstream-corpus-walcksum',
+                    'sqlite-wal-checksum-savepoint-regression',
+                    'sqlite-wal-transaction-recovery-boundary',
+                    'sqlite-pager-wal-dynamic-corpus',
+                ],
+            ]);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
     public static function walReusedLogPrefixRows(int $count = 1000): array
     {
         if ($count < 1) {

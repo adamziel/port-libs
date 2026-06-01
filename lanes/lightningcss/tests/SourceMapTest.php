@@ -2361,6 +2361,52 @@ return [
         $t->same([], $child->getNames());
         $t->same('', $child->writeVlq());
     },
+    'source map rejects same-line child name remaps without replacing that line' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $parentSource = $parent->addSource('parent.css');
+        foreach ([0, 1, 2, 3] as $line) {
+            $parent->addMapping($line, 0, $parentSource, $line, 0, 'parent' . $line);
+        }
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('same-line-child.css');
+        $child->setSourceContent($childSource, ".line0{}\n.line1{}\n");
+        $child->addMapping(0, 4, $childSource, 10, 1, 'childLine0');
+        $child->addMapping(1, 2, $childSource, 20, 1, 'sameLineValid');
+        $child->addMapping(1, 8, $childSource, 21, 2, 'sameLineBroken');
+
+        $corruptChildMapping = Closure::bind(static function (SourceMap $sourceMap): void {
+            $sourceMap->mappings[2]['nameIndex'] = 99;
+        }, null, SourceMap::class);
+        if ($corruptChildMapping === null) {
+            throw new RuntimeException('Unable to bind SourceMap test helper.');
+        }
+
+        $corruptChildMapping($child);
+
+        $t->throws(InvalidArgumentException::class, static function () use ($parent, $child): void {
+            $parent->addSourceMap($child, 1);
+        });
+
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+
+        $t->same('AAAAA;ICUCI;ADRDF;AACAC', $parent->writeVlq());
+        $t->same([0, 1, 2, 3], array_column($decoded, 'generatedLine'));
+        $t->same([0, 4, 0, 0], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1, 0, 0], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 10, 2, 3], array_column($decoded, 'originalLine'));
+        $t->same([0, 1, 0, 0], array_column($decoded, 'originalColumn'));
+        $t->same([0, 4, 2, 3], array_column($decoded, 'nameIndex'));
+        $t->same(['parent.css', 'same-line-child.css'], $data['sources']);
+        $t->same(['', ".line0{}\n.line1{}\n"], $data['sourcesContent']);
+        $t->same(['parent0', 'parent1', 'parent2', 'parent3', 'childLine0', 'sameLineValid', 'sameLineBroken'], $data['names']);
+        $t->same(10, $parent->findClosestMapping(1, 4)['originalLine'] ?? null);
+        $t->same(2, $parent->findClosestMapping(2, 0)['originalLine'] ?? null);
+        $t->same([], $child->getSources());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map adds upstream empty line maps with line offsets' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $map->addEmptyMap('theme.css', ".wp-block-cover {}\n\n.wp-block-button {}\n", 2);

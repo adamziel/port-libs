@@ -1087,8 +1087,9 @@ final class TreeMerge
                                 $writeObject,
                                 $conflictStyle,
                                 $bigFileThreshold,
-                                self::ancestorEntriesForTargetRenameCollision(
+                                self::ancestorEntriesForRenameTargetAdd(
                                     $pathPrefix,
+                                    $ourRename['path'],
                                     $baseEntries,
                                     [$path, $theirRenamesByTarget[$ourRename['path']] ?? null],
                                 ),
@@ -1230,8 +1231,9 @@ final class TreeMerge
                                 $writeObject,
                                 $conflictStyle,
                                 $bigFileThreshold,
-                                self::ancestorEntriesForTargetRenameCollision(
+                                self::ancestorEntriesForRenameTargetAdd(
                                     $pathPrefix,
+                                    $theirRename['path'],
                                     $baseEntries,
                                     [$ourRenamesByTarget[$theirRename['path']] ?? null, $path],
                                 ),
@@ -1466,6 +1468,31 @@ final class TreeMerge
         }
 
         return count($ancestorEntries) > 1 ? $ancestorEntries : [];
+    }
+
+    /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param list<?string> $sourcePaths
+     * @return array<string, TreeEntry>
+     */
+    private static function ancestorEntriesForRenameTargetAdd(string $pathPrefix, string $targetPath, array $baseEntries, array $sourcePaths): array
+    {
+        $ancestorEntries = self::ancestorEntriesForTargetRenameCollision($pathPrefix, $baseEntries, $sourcePaths);
+        if ($ancestorEntries !== []) {
+            return $ancestorEntries;
+        }
+
+        foreach ($sourcePaths as $sourcePath) {
+            if ($sourcePath === null || $sourcePath === '') {
+                continue;
+            }
+            $sourceEntry = $baseEntries[$sourcePath] ?? null;
+            if ($sourceEntry !== null) {
+                return [self::joinPath($pathPrefix, $targetPath) => $sourceEntry];
+            }
+        }
+
+        return [];
     }
 
     /**

@@ -3407,6 +3407,11 @@ return [
 
         $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
         $mergedBar = $read($result->tree->entryNamed('bar')?->oid ?? '');
+        $bodyOf = static function (Tree $tree, string $path) use ($read): ?string {
+            $entry = $tree->entryNamed($path);
+
+            return $entry === null ? null : $read($entry->oid)->body;
+        };
 
         $t->same(false, $result->isClean());
         $t->same(['bar'], $names($result->tree));
@@ -3438,6 +3443,29 @@ return [
             $result->indexEntries(),
         ));
         $t->same(['bar'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
+
+        $ancestorResolved = $result->resolveTreeConflicts(
+            $read,
+            $write,
+            TreeMergeResult::RESOLVE_ANCESTOR,
+            TreeMergeResult::RESOLVE_ANCESTOR,
+        );
+        $oursResolved = $result->resolveTreeConflicts(
+            $read,
+            $write,
+            TreeMergeResult::RESOLVE_OURS,
+            TreeMergeResult::RESOLVE_OURS,
+        );
+
+        $t->true($ancestorResolved->isClean());
+        $t->same(['bar'], $names($ancestorResolved->tree));
+        $t->same("original file\n", $bodyOf($ancestorResolved->tree, 'bar'));
+        $t->same([], $ancestorResolved->indexEntries());
+        $t->same([], $ancestorResolved->worktreeConflictFiles($read));
+        $t->true($oursResolved->isClean());
+        $t->same(['bar'], $names($oursResolved->tree));
+        $t->same("different file\n", $bodyOf($oursResolved->tree, 'bar'));
+        $t->same([], $oursResolved->indexEntries());
     },
     'maps upstream gix-merge tree-baseline rename-rename-delete-delete fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();

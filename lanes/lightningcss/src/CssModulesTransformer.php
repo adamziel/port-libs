@@ -452,6 +452,7 @@ final class CssModulesTransformer
             $prefix = substr($body, $cursor, $nextBlock - $cursor);
             [$declarations, $nestedPrelude] = $this->splitDeclarationsAndNestedPrelude($prefix);
             $output .= $this->rewriteTrailingDeclarations($declarations, $composes, $styleNestingDepth, $composesNestedContext);
+            $output = $this->preserveEmptyComposesRuleBody($output, $composes);
             $trimmedNested = trim($nestedPrelude);
             $close = $this->findMatchingBrace($body, $nextBlock);
             $nestedBody = substr($body, $nextBlock + 1, $close - $nextBlock - 1);
@@ -4976,7 +4977,7 @@ final class CssModulesTransformer
             $output .= substr($value, $cursor, $i - $cursor)
                 . $functionName
                 . '('
-                . $this->rewriteDashedFunctionArguments($inner)
+                . $this->rewriteDashedFunctionArguments($inner, $functionName)
                 . ')';
             $cursor = $close + 1;
             $i = $close;
@@ -4985,12 +4986,12 @@ final class CssModulesTransformer
         return $output . substr($value, $cursor);
     }
 
-    private function rewriteDashedFunctionArguments(string $inner): string
+    private function rewriteDashedFunctionArguments(string $inner, string $functionName): string
     {
         $comma = $this->findNextTopLevel($inner, ',', 0);
         $head = $comma === null ? trim($inner) : trim(substr($inner, 0, $comma));
         $tail = $comma === null ? null : substr($inner, $comma + 1);
-        $rewrittenHead = $this->rewriteDashedReferenceToken($head);
+        $rewrittenHead = $this->rewriteDashedReferenceToken($head, strcasecmp($functionName, 'env') !== 0);
 
         if ($tail === null) {
             return $rewrittenHead ?? $inner;
@@ -5001,7 +5002,7 @@ final class CssModulesTransformer
         return ($rewrittenHead ?? $head) . ',' . $rewrittenTail;
     }
 
-    private function rewriteDashedReferenceToken(string $token): ?string
+    private function rewriteDashedReferenceToken(string $token, bool $allowDependencyFrom = true): ?string
     {
         $parts = $this->splitWhitespaceTopLevel($token);
         if ($parts === [] || !str_starts_with($parts[0], '--')) {
@@ -5020,6 +5021,10 @@ final class CssModulesTransformer
         $fromKeyword = $this->decodeCssIdentifierToken($parts[1]);
         if ($fromKeyword === null || strcasecmp($fromKeyword, 'from') !== 0) {
             return null;
+        }
+
+        if (!$allowDependencyFrom) {
+            throw new \InvalidArgumentException('Unexpected token Ident("from")');
         }
 
         $globalKeyword = $this->decodeCssIdentifierToken($parts[2]);

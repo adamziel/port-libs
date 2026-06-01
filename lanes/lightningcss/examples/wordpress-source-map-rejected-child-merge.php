@@ -60,6 +60,35 @@ try {
     $partialRejected = true;
 }
 
+$sameLineParent = new SourceMap();
+$sameLineParentSource = $sameLineParent->addSource('wp-content/themes/example/same-line-style.css');
+for ($line = 0; $line < 4; $line++) {
+    $sameLineParent->addMapping($line, 0, $sameLineParentSource, $line, 0, 'same-line-parent-' . $line);
+}
+
+$sameLineChild = new SourceMap();
+$sameLineChildSource = $sameLineChild->addSource('wp-content/themes/example/blocks/same-line-broken-child.css');
+$sameLineChild->setSourceContent($sameLineChildSource, ".wp-block-same-line-0{}\n.wp-block-same-line-1{}\n");
+$sameLineChild->addMapping(0, 4, $sameLineChildSource, 10, 1, 'same-line-child-0');
+$sameLineChild->addMapping(1, 2, $sameLineChildSource, 20, 1, 'same-line-valid');
+$sameLineChild->addMapping(1, 8, $sameLineChildSource, 21, 2, 'same-line-broken');
+
+$corruptSameLineChildMapping = Closure::bind(static function (SourceMap $sourceMap): void {
+    $sourceMap->mappings[2]['nameIndex'] = 99;
+}, null, SourceMap::class);
+if ($corruptSameLineChildMapping === null) {
+    throw new RuntimeException('Unable to bind SourceMap example helper.');
+}
+
+$corruptSameLineChildMapping($sameLineChild);
+
+$sameLineRejected = false;
+try {
+    $sameLineParent->addSourceMap($sameLineChild, 1);
+} catch (InvalidArgumentException) {
+    $sameLineRejected = true;
+}
+
 $actual = [
     'rejected' => $rejected,
     'parentMap' => $parent->toJson(null, false),
@@ -70,6 +99,12 @@ $actual = [
     'partialParentMappings' => $partialParent->getMappings(),
     'partialValidLookup' => $partialParent->findClosestMapping(1, 4),
     'partialChildConsumed' => $partialChild->toJson(null, false),
+    'sameLineRejected' => $sameLineRejected,
+    'sameLineParentMap' => $sameLineParent->toJson(null, false),
+    'sameLineParentMappings' => $sameLineParent->getMappings(),
+    'sameLineAppliedLookup' => $sameLineParent->findClosestMapping(1, 4),
+    'sameLineRetainedLookup' => $sameLineParent->findClosestMapping(2, 0),
+    'sameLineChildConsumed' => $sameLineChild->toJson(null, false),
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -89,6 +124,17 @@ if (($argv[1] ?? null) === '--self-test') {
         ],
         'partialValidLookup' => ['generatedLine' => 1, 'generatedColumn' => 4, 'sourceIndex' => 1, 'originalLine' => 10, 'originalColumn' => 1, 'nameIndex' => 3],
         'partialChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'sameLineRejected' => true,
+        'sameLineParentMap' => '{"version":3,"mappings":"AAAAA;ICUCI;ADRDF;AACAC","sources":["wp-content/themes/example/same-line-style.css","wp-content/themes/example/blocks/same-line-broken-child.css"],"sourcesContent":["",".wp-block-same-line-0{}\n.wp-block-same-line-1{}\n"],"names":["same-line-parent-0","same-line-parent-1","same-line-parent-2","same-line-parent-3","same-line-child-0","same-line-valid","same-line-broken"]}',
+        'sameLineParentMappings' => [
+            ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0],
+            ['generatedLine' => 1, 'generatedColumn' => 4, 'sourceIndex' => 1, 'originalLine' => 10, 'originalColumn' => 1, 'nameIndex' => 4],
+            ['generatedLine' => 2, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 2, 'originalColumn' => 0, 'nameIndex' => 2],
+            ['generatedLine' => 3, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 3, 'originalColumn' => 0, 'nameIndex' => 3],
+        ],
+        'sameLineAppliedLookup' => ['generatedLine' => 1, 'generatedColumn' => 4, 'sourceIndex' => 1, 'originalLine' => 10, 'originalColumn' => 1, 'nameIndex' => 4],
+        'sameLineRetainedLookup' => ['generatedLine' => 2, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 2, 'originalColumn' => 0, 'nameIndex' => 2],
+        'sameLineChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
     ];
 
     if ($actual !== $expected) {

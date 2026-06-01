@@ -59,4 +59,11 @@ return [
         'ours' => new Tree([$blob('content', "name: demo\nversion: 1.1\nstatus: publish\n")]),
         'theirs' => new Tree([$blob('renamed-content', "name: demo\nversion: 2.0\nstatus: review\n")]),
     ],
+    'renameAddDelete' => [
+        'read' => $read,
+        'write' => $write,
+        'base' => new Tree([$blob('acme.php', "Plugin: Acme\nStatus: stable\n")]),
+        'ours' => new Tree([$blob('acme-review.php', "Plugin: Acme\nStatus: review\n")]),
+        'theirs' => new Tree([$blob('acme-review.php', "Plugin: Acme\nStatus: stable\n")]),
+    ],
 ];

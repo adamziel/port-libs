@@ -1288,6 +1288,35 @@ return [
             (string) $store->reflogContents('refs/heads/main'),
         );
     },
+    'prepared deref duplicate leaf updates fail before packed refs lock acquisition like upstream' => static function (TestRunner $t) use ($old, $new, $other): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-deref-duplicate-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . '/packed-refs.lock', 'held by packed compaction');
+        $store = ReferenceStore::at($dir);
+        $store->looseStore()->writeSymbolic('HEAD', 'refs/heads/main');
+        $store->looseStore()->writeDirect('refs/heads/main', $old);
+
+        try {
+            $store->prepareLooseUpdateTransaction(
+                [
+                    'HEAD' => ReferenceTarget::object($new),
+                    'refs/heads/main' => ReferenceTarget::object($other),
+                ],
+                deref: true,
+            );
+            $t->same(true, false, 'duplicate deref leaf should fail before lock acquisition');
+        } catch (RuntimeException $exception) {
+            $t->contains('A reference named "refs/heads/main" has multiple prepared edits', $exception->getMessage());
+        }
+
+        $t->same('held by packed compaction', file_get_contents($dir . '/packed-refs.lock'));
+        $t->same(false, is_file($dir . '/HEAD.lock'));
+        $t->same(false, is_file($dir . '/refs/heads/main.lock'));
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/HEAD'));
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/main'));
+        $t->same(null, $store->reflogContents('HEAD'));
+        $t->same(null, $store->reflogContents('refs/heads/main'));
+    },
     'prepared deref update obeys store reflog write mode like upstream gix ref' => static function (TestRunner $t) use ($new): void {
         foreach ([
             ReferenceStore::WRITE_REFLOG_NORMAL => true,
@@ -2093,6 +2122,12 @@ return [
         $t->same($fixture['reviewCommit'], $summary['preparedReferentProductionCommit']);
         $t->same($fixture['expectedPreparedReferentHeadReflog'], $summary['preparedReferentHeadReflog']);
         $t->contains($fixture['expectedPreparedReferentReflogLine'], (string) $summary['preparedReferentProductionReflog']);
+        $t->same(
+            $fixture['expectedPreparedDuplicateErrorPrefix'],
+            substr((string) $summary['preparedDuplicateError'], 0, strlen($fixture['expectedPreparedDuplicateErrorPrefix'])),
+        );
+        $t->same($fixture['expectedPreparedDuplicatePackedLockPreserved'], $summary['preparedDuplicatePackedLockPreserved']);
+        $t->same($fixture['expectedPreparedDuplicateNoLooseLocks'], $summary['preparedDuplicateNoLooseLocks']);
         $t->same($fixture['expectedPreparedDisabledDeleteEditNames'], $summary['preparedDisabledDeleteEditNames']);
         $t->same($fixture['expectedPreparedDisabledDeleteHadLock'], $summary['preparedDisabledDeleteHadLock']);
         $t->same($fixture['expectedPreparedDisabledDeleteCleanedLock'], $summary['preparedDisabledDeleteCleanedLock']);
@@ -2123,6 +2158,7 @@ return [
         $t->contains('clone-style symbolic review pointer', $summary['wordpressUse']);
         $t->contains('dereferenced symbolic HEAD publish', $summary['wordpressUse']);
         $t->contains('direct production referent publish', $summary['wordpressUse']);
+        $t->contains('reject duplicate dereferenced prepared updates before waiting on packed-ref locks', $summary['wordpressUse']);
         $t->contains('quiet publish previews', $summary['wordpressUse']);
         $t->contains('disabled write-mode audit cleanup', $summary['wordpressUse']);
         $t->contains('protected Windows device refnames', $summary['wordpressUse']);

@@ -10910,6 +10910,146 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * Model triggerC.test triggerC-1.11..1.15. The upstream block verifies
+     * that recursive AFTER UPDATE trigger work rolls back cleanly, that an
+     * INTEGER PRIMARY KEY self-assignment can fire a trigger without error,
+     * and that OR ROLLBACK unique conflicts unwind prior trigger side-effects.
+     *
+     * @return array<string,mixed>
+     */
+    public static function triggerCUpdateConflictRollbackPlan(int $baseKey, int $replacementKey, int $recursionDepthLimit, int $uniqueConflictKey): array
+    {
+        if ($baseKey < 1) {
+            throw new \InvalidArgumentException('SQLite triggerC update conflict base key must be positive');
+        }
+        if ($replacementKey === $baseKey) {
+            throw new \InvalidArgumentException('SQLite triggerC update conflict replacement key must change the row key');
+        }
+        if ($recursionDepthLimit < 1) {
+            throw new \InvalidArgumentException('SQLite triggerC update conflict recursion depth limit must be positive');
+        }
+
+        $initialRecursiveRow = [
+            'a' => $baseKey,
+            'b' => $baseKey + 1,
+            'c' => $baseKey + 2,
+        ];
+        $outerNewRow = [
+            'a' => $replacementKey,
+            'b' => $initialRecursiveRow['b'],
+            'c' => $initialRecursiveRow['c'],
+        ];
+
+        $recursiveFrames = [];
+        $attemptedRecursiveRow = $outerNewRow;
+        for ($depth = 1; $depth <= $recursionDepthLimit; ++$depth) {
+            $old = $attemptedRecursiveRow;
+            $attemptedRecursiveRow = [
+                'a' => $replacementKey,
+                'b' => $old['b'],
+                'c' => 10,
+            ];
+            $recursiveFrames[] = [
+                'depth' => $depth,
+                'old_a' => $old['a'],
+                'old_c' => $old['c'],
+                'new_a' => $attemptedRecursiveRow['a'],
+                'new_c' => $attemptedRecursiveRow['c'],
+                'inner_conflict_policy' => 'ignore',
+                'fires_after_update_again' => true,
+            ];
+        }
+
+        $sameRowidInitial = ['a' => $baseKey + 30, 'b' => $baseKey + 31];
+
+        $uniqueRows = [
+            ['a' => $baseKey, 'b' => $baseKey + 1, 'c' => $baseKey + 2, 'd' => $baseKey + 3, 'e' => $baseKey + 4],
+            ['a' => $baseKey + 5, 'b' => $baseKey + 6, 'c' => $baseKey + 7, 'd' => $baseKey + 8, 'e' => $baseKey + 9],
+            ['a' => $baseKey + 10, 'b' => $baseKey + 11, 'c' => $baseKey + 12, 'd' => $baseKey + 13, 'e' => $baseKey + 14],
+        ];
+        $existingKeys = array_fill_keys(array_map(static fn (array $row): string => (string) $row['a'], $uniqueRows), true);
+        if (isset($existingKeys[(string) $uniqueConflictKey])) {
+            throw new \InvalidArgumentException('SQLite triggerC update conflict target key must not already exist');
+        }
+
+        $attemptedBeforeRollback = $uniqueRows;
+        $attemptedBeforeRollback[0]['a'] = $uniqueConflictKey;
+        $conflictRow = $uniqueRows[1];
+        $updatedKeysBeforeConflict = [$uniqueConflictKey, $uniqueRows[1]['a'], $uniqueRows[2]['a']];
+
+        return [
+            'source' => 'triggerC.test triggerC-1.11..1.15',
+            'scenarios' => ['triggerC-1.11', 'triggerC-1.12', 'triggerC-1.13', 'triggerC-1.14', 'triggerC-1.15'],
+            'operation' => 'after-update-conflict-rollback-order',
+            'status' => 'constraint-failed',
+            'recursive_update' => [
+                'scenario' => 'triggerC-1.12',
+                'table_name' => 't5',
+                'trigger_name' => 'au_tbl',
+                'statement' => 'UPDATE OR REPLACE t5 SET a = ' . $replacementKey . ' WHERE a = ' . $baseKey,
+                'trigger_statement' => 'UPDATE OR IGNORE t5 SET a = new.a, c = 10',
+                'status' => 'constraint-failed',
+                'error' => 'too many levels of trigger recursion',
+                'outer_conflict_policy' => 'replace',
+                'inner_conflict_policy' => 'ignore',
+                'recursive_triggers' => true,
+                'initial_row' => $initialRecursiveRow,
+                'outer_new_row' => $outerNewRow,
+                'recursive_frame_count' => count($recursiveFrames),
+                'first_recursive_frame' => $recursiveFrames[0],
+                'last_recursive_frame' => $recursiveFrames[count($recursiveFrames) - 1],
+                'attempted_final_row' => $attemptedRecursiveRow,
+                'rows_after_statement' => [$initialRecursiveRow],
+                'statement_rolled_back' => true,
+            ],
+            'same_rowid_update' => [
+                'scenario' => 'triggerC-1.13',
+                'table_name' => 't6',
+                'trigger_name' => 'r1',
+                'statement' => 'UPDATE t6 SET a=a',
+                'status' => 'commit-ok',
+                'integer_primary_key_self_assignment' => true,
+                'after_trigger_fire_count' => 1,
+                'initial_row' => $sameRowidInitial,
+                'rows_after_statement' => [$sameRowidInitial],
+                'statement_rolled_back' => false,
+            ],
+            'rollback_conflict' => [
+                'scenario' => 'triggerC-1.15',
+                'table_name' => 't1',
+                'counter_table_name' => 'cnt',
+                'trigger_name' => 't1r1',
+                'statement' => 'UPDATE OR ROLLBACK t1 SET a=' . $uniqueConflictKey,
+                'status' => 'constraint-failed',
+                'error' => 'UNIQUE constraint failed: t1.a',
+                'conflict_policy' => 'rollback',
+                'unique_columns' => ['a'],
+                'secondary_unique_columns' => ['b'],
+                'initial_rows' => $uniqueRows,
+                'attempted_rows_before_conflict' => $attemptedBeforeRollback,
+                'updated_keys_before_conflict' => $updatedKeysBeforeConflict,
+                'conflict_row' => $conflictRow,
+                'conflict_row_ordinal' => 1,
+                'not_visited_row' => $uniqueRows[2],
+                'counter_before' => 0,
+                'counter_attempted_before_rollback' => 1,
+                'counter_after_rollback' => 0,
+                'after_trigger_fire_count_before_rollback' => 1,
+                'after_trigger_fire_count_after_rollback' => 0,
+                'constraint_checked_before_after_trigger_on_conflict_row' => true,
+                'rows_after_statement' => $uniqueRows,
+                'statement_rolled_back' => true,
+            ],
+            'dependencies' => [
+                'sqlite-triggerC-update-or-replace-recursive-after-trigger-rolls-back',
+                'sqlite-triggerC-rowid-self-update-fires-trigger-without-conflict',
+                'sqlite-triggerC-update-or-rollback-unique-conflict-unwinds-trigger-side-effects',
+            ],
+            'non_overlap' => 'covers triggerC-1.11..1.15 conflict and rollback ordering, not triggerC-1.2..1.10 OLD/NEW lifecycle or triggerC-13 depth-limit counters',
+        ];
+    }
+
+    /**
      * @param list<int> $values
      * @param list<int> $allowed
      * @return list<int>

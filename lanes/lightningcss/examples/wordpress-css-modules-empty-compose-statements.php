@@ -17,6 +17,15 @@ $css = <<<'CSS'
   color: red;
 }
 
+.slot {
+  composes: reset;
+  composes: wp-block-column from global;
+
+  .label {
+    color: green;
+  }
+}
+
 .reset {
   color: blue;
 }
@@ -36,10 +45,11 @@ $actual = [
             ? 'Theme_token'
             : null
     ),
+    'slotClassList' => CssModulesTransformer::exportClassList($result['exports'], 'slot'),
 ];
 
 $expected = [
-    'code' => '.BlockA_card{color:red}.BlockA_reset{color:#00f}',
+    'code' => '.BlockA_card{color:red}.BlockA_slot{}.BlockA_slot .BlockA_label{color:green}.BlockA_reset{color:#00f}',
     'exports' => [
         'card' => [
             'name' => 'BlockA_card',
@@ -60,6 +70,25 @@ $expected = [
             ],
             'isReferenced' => false,
         ],
+        'slot' => [
+            'name' => 'BlockA_slot',
+            'composes' => [
+                [
+                    'type' => 'local',
+                    'name' => 'BlockA_reset',
+                ],
+                [
+                    'type' => 'global',
+                    'name' => 'wp-block-column',
+                ],
+            ],
+            'isReferenced' => false,
+        ],
+        'label' => [
+            'name' => 'BlockA_label',
+            'composes' => [],
+            'isReferenced' => false,
+        ],
         'reset' => [
             'name' => 'BlockA_reset',
             'composes' => [],
@@ -67,6 +96,7 @@ $expected = [
         ],
     ],
     'cardClassList' => 'BlockA_card BlockA_reset wp-block-button Theme_token',
+    'slotClassList' => 'BlockA_slot BlockA_reset wp-block-column',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -82,3 +112,4 @@ if (($argv[1] ?? null) === '--self-test') {
 echo $actual['code'] . PHP_EOL;
 echo json_encode($actual['exports'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
 echo 'card-class-list: ' . $actual['cardClassList'] . PHP_EOL;
+echo 'slot-class-list: ' . $actual['slotClassList'] . PHP_EOL;

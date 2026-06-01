@@ -3178,14 +3178,14 @@ CSS,
             '--inline-size' => $moduleDashed('--entry_inline-size', true),
         ], $result['exports']);
     },
-    'css bundler maps upstream css module env name dependency graph' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
+    'css bundler maps upstream css module var dependency graph and rejects env from syntax' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
         $resolved = [];
         $result = $bundleModules([
             '/entry.css' => <<<'CSS'
 @import "pkg:theme.css";
 
 .card {
-  margin: env(--wp-card-gap from "pkg:tokens.css", var(--fallback-gap from "pkg:fallback.css"));
+  margin: var(--wp-card-gap from "pkg:tokens.css", var(--fallback-gap from "pkg:fallback.css"));
   color: red;
 }
 CSS,
@@ -3215,7 +3215,7 @@ CSS,
         ]);
 
         $t->same(
-            '.tok_tokens{--tok_wp-card-gap:24px}.fallback_fallback{--fallback_fallback-gap:12px}.theme_theme{color:#00f}.entry_card{margin:env(--tok_wp-card-gap,var(--fallback_fallback-gap));color:red}',
+            '.tok_tokens{--tok_wp-card-gap:24px}.fallback_fallback{--fallback_fallback-gap:12px}.theme_theme{color:#00f}.entry_card{margin:var(--tok_wp-card-gap,var(--fallback_fallback-gap));color:red}',
             $result['code']
         );
         $t->same([
@@ -3239,20 +3239,43 @@ CSS,
   }
 }
 CSS,
-            ], '/entry.css', null, [
+            ], '/entry.css', static function (): string {
+                throw new RuntimeException('Unexpected env() dependency resolution');
+            }, [
                 'dashedIdents' => true,
             ]);
         } catch (CssBundleException $exception) {
-            $t->same('resolver-error', $exception->kind);
-            $t->same('Could not read `/missing.css`.', $exception->getMessage());
+            $t->same('parser-error', $exception->kind);
+            $t->same('Unexpected token Ident("from")', $exception->getMessage());
             $t->same('/entry.css', $exception->sourceFile);
-            $t->same(4, $exception->sourceLine);
-            $t->same(3, $exception->sourceColumn);
+            $t->same(5, $exception->sourceLine);
+            $t->same(30, $exception->sourceColumn);
 
-            return;
+            $topLevelEnvResolverCalled = false;
+            try {
+                $bundleModules([
+                    '/entry.css' => '.card { margin: env(--gap from "./missing.css", 1rem); color: red }',
+                ], '/entry.css', static function () use (&$topLevelEnvResolverCalled): string {
+                    $topLevelEnvResolverCalled = true;
+                    throw new RuntimeException('Unexpected top-level env() dependency resolution');
+                }, [
+                    'dashedIdents' => true,
+                ]);
+            } catch (CssBundleException $topLevelException) {
+                $t->same('parser-error', $topLevelException->kind);
+                $t->same('Unexpected token Ident("from")', $topLevelException->getMessage());
+                $t->same('/entry.css', $topLevelException->sourceFile);
+                $t->same(1, $topLevelException->sourceLine);
+                $t->same(26, $topLevelException->sourceColumn);
+                $t->same(false, $topLevelEnvResolverCalled);
+
+                return;
+            }
+
+            throw new RuntimeException('Expected top-level env() from parser diagnostic');
         }
 
-        throw new RuntimeException('Expected missing env() CSS Modules dependency diagnostic');
+        throw new RuntimeException('Expected env() from parser diagnostic before dependency resolution');
     },
     'css bundler maps upstream css module content-hash imports' => static function (TestRunner $t) use ($bundleModules, $moduleExport): void {
         $result = $bundleModules([
@@ -3854,16 +3877,16 @@ CSS,
                 'dashedIdents' => true,
             ]);
         } catch (CssBundleException $exception) {
-            $t->same('resolver-error', $exception->kind);
-            $t->same('Could not read `/missing.css`.', $exception->getMessage());
+            $t->same('parser-error', $exception->kind);
+            $t->same('Unexpected token Ident("from")', $exception->getMessage());
             $t->same('/entry.css', $exception->sourceFile);
-            $t->same(2, $exception->sourceLine);
-            $t->same(3, $exception->sourceColumn);
+            $t->same(3, $exception->sourceLine);
+            $t->same(22, $exception->sourceColumn);
 
             return;
         }
 
-        throw new RuntimeException('Expected escaped CSS Modules dependency diagnostics');
+        throw new RuntimeException('Expected escaped env() from parser diagnostic');
     },
     'css bundler rejects external css module from references like upstream' => static function (TestRunner $t) use ($bundleModules): void {
         try {

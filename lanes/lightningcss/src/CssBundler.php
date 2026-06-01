@@ -317,6 +317,17 @@ final class CssBundler
         $cssModuleFirstComposesLoc = null;
         $originalImportLocations = [];
         if ($this->cssModules) {
+            $invalidEnvFromLoc = $this->firstInvalidCssModuleEnvFromLocation($source);
+            if ($invalidEnvFromLoc !== null) {
+                throw new CssBundleException(
+                    'parser-error',
+                    'Unexpected token Ident("from")',
+                    $file,
+                    $invalidEnvFromLoc['line'],
+                    $invalidEnvFromLoc['column'],
+                );
+            }
+
             $originalImportLocations = $this->importLocationsForItems($this->topLevelItems($source, $file));
             $cssModuleDependencyLocations = $this->cssModuleDependencyLocations($source);
             $cssModuleFirstComposesLoc = $this->firstCssModuleComposesLocation($source);
@@ -3095,6 +3106,42 @@ final class CssBundler
             }
 
             return $this->sourceLocation($source, $colon + 1);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{line:int,column:int}|null
+     */
+    private function firstInvalidCssModuleEnvFromLocation(string $source): ?array
+    {
+        $offset = 0;
+        while (($function = $this->findNextCssIdentifierInSet($source, ['env'], $offset)) !== null) {
+            $open = $function['end'];
+            $offset = $function['end'];
+            if (($source[$open] ?? null) !== '(') {
+                continue;
+            }
+
+            try {
+                $close = $this->findMatchingDelimiter($source, $open, '(', ')');
+            } catch (CssBundleException) {
+                continue;
+            }
+
+            $inner = substr($source, $open + 1, $close - $open - 1);
+            $comma = $this->findNextTopLevel($inner, ',', 0);
+            $head = $comma === null ? $inner : substr($inner, 0, $comma);
+            $from = $this->findNextCssIdentifierInSet($head, ['from'], 0);
+            if ($from !== null) {
+                $loc = $this->sourceLocation($source, $open + 1 + $from['start']);
+                $loc['column'] = max(1, $loc['column'] - 1);
+
+                return $loc;
+            }
+
+            $offset = $close + 1;
         }
 
         return null;

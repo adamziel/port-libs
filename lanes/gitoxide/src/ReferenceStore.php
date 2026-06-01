@@ -94,20 +94,45 @@ final class ReferenceStore
                 || $forceCreateReflog
                 || $this->writeReflogMode === self::WRITE_REFLOG_ALWAYS
             );
-        $forcePackedRefsLock = false;
-        $hasPackablePackedRef = false;
+
+        $preparedUpdates = [];
+        $preparedNames = [];
         foreach ($updates as $name => $target) {
-            if (!is_string($name) || !$target instanceof ReferenceTarget) {
-                continue;
+            if (!$target instanceof ReferenceTarget) {
+                throw new \InvalidArgumentException('Prepared reference updates must be keyed by name and contain ReferenceTarget values');
             }
 
-            $packedPhysicalName = $this->packedTransactionPhysicalName($this->physicalName($name));
+            [$physicalName, $derefParents] = $this->dereferenceUpdateSplit($this->physicalName((string) $name), $deref, $algorithm);
+            $physicalTarget = $this->physicalTarget($target);
+            foreach ($derefParents as $parent) {
+                $parentPhysicalName = $parent['name'];
+                if (isset($preparedNames[$parentPhysicalName])) {
+                    throw new \RuntimeException("A reference named \"{$this->storeRelativeName($parentPhysicalName)}\" has multiple prepared edits");
+                }
+                $preparedNames[$parentPhysicalName] = true;
+            }
+            if (isset($preparedNames[$physicalName])) {
+                throw new \RuntimeException("A reference named \"{$this->storeRelativeName($physicalName)}\" has multiple prepared edits");
+            }
+            $preparedNames[$physicalName] = true;
+
+            $preparedUpdates[] = [
+                'physicalName' => $physicalName,
+                'physicalTarget' => $physicalTarget,
+                'derefParents' => $derefParents,
+            ];
+        }
+
+        $forcePackedRefsLock = false;
+        $hasPackablePackedRef = false;
+        foreach ($preparedUpdates as $preparedUpdate) {
+            $packedPhysicalName = $this->packedTransactionPhysicalName($preparedUpdate['physicalName']);
             if ($packedPhysicalName === null) {
                 continue;
             }
 
             $hasPackablePackedRef = true;
-            if ($packedRefsMode !== self::PACKED_DELETIONS_ONLY && $this->physicalTarget($target)->isObject()) {
+            if ($packedRefsMode !== self::PACKED_DELETIONS_ONLY && $preparedUpdate['physicalTarget']->isObject()) {
                 $forcePackedRefsLock = true;
                 break;
             }
@@ -117,13 +142,10 @@ final class ReferenceStore
             : null;
 
         try {
-            foreach ($updates as $name => $target) {
-                if (!$target instanceof ReferenceTarget) {
-                    throw new \InvalidArgumentException('Prepared reference updates must be keyed by name and contain ReferenceTarget values');
-                }
-
-                [$physicalName, $derefParents] = $this->dereferenceUpdateSplit($this->physicalName((string) $name), $deref, $algorithm);
-                $physicalTarget = $this->physicalTarget($target);
+            foreach ($preparedUpdates as $preparedUpdate) {
+                $physicalName = $preparedUpdate['physicalName'];
+                $physicalTarget = $preparedUpdate['physicalTarget'];
+                $derefParents = $preparedUpdate['derefParents'];
                 $existing = $this->tryFindPhysical($physicalName, $algorithm);
                 $this->assertPreviousValueAllowsUpdate($physicalName, $physicalTarget, $existing, $previous, $expectedTarget);
                 $packedPhysicalName = $this->packedTransactionPhysicalName($physicalName);

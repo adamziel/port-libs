@@ -1789,6 +1789,40 @@ if (
 
 echo 'css-modules-import-first-resolution: ordered' . PHP_EOL;
 
+$envFromResolverCalled = false;
+try {
+    (new CssBundler())->bundleCssModules('/modules/env-card.css', [
+        '/modules/env-card.css' => <<<'CSS'
+.wp-block-card {
+  margin: env(--wp-card-gap from "pkg:tokens.css", 1rem);
+  color: red;
+}
+CSS,
+    ], static function () use (&$envFromResolverCalled): string {
+        $envFromResolverCalled = true;
+        throw new RuntimeException('Unexpected env() CSS Modules dependency resolution');
+    }, [
+        'dashedIdents' => true,
+    ]);
+
+    fwrite(STDERR, "Expected env() from syntax to stop before block dependency resolution\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'Unexpected token Ident("from")'
+        || $exception->sourceFile !== '/modules/env-card.css'
+        || $exception->sourceLine !== 2
+        || $exception->sourceColumn !== 28
+        || $envFromResolverCalled
+    ) {
+        fwrite(STDERR, 'Unexpected env() from diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+}
+
+echo 'css-modules-env-from: rejected-before-resolve' . PHP_EOL;
+
 try {
     (new CssBundler())->bundleCssModules('/modules/missing-card.css', [
         '/modules/missing-card.css' => <<<'CSS'
@@ -2057,12 +2091,12 @@ if (
 
 echo 'css-modules-external-after-hoist: preserved' . PHP_EOL;
 
-$cssModuleEnvDependency = (new CssBundler())->bundleCssModules('/blocks/card.css', [
+$cssModuleVarDependency = (new CssBundler())->bundleCssModules('/blocks/card.css', [
     '/blocks/card.css' => <<<'CSS'
 @import "pkg:theme.css";
 
 .wp-block-card {
-  margin: env(--wp-card-gap from "pkg:tokens.css", var(--fallback-gap from "pkg:fallback.css"));
+  margin: var(--wp-card-gap from "pkg:tokens.css", var(--fallback-gap from "pkg:fallback.css"));
   color: red;
 }
 CSS,
@@ -2090,14 +2124,14 @@ CSS,
 ]);
 
 if (
-    $cssModuleEnvDependency['code'] !== '.tok_tokens{--tok_wp-card-gap:24px}.fallback_fallback{--fallback_fallback-gap:12px}.theme_theme{color:#00f}.card_wp-block-card{margin:env(--tok_wp-card-gap,var(--fallback_fallback-gap));color:red}'
-    || ($cssModuleEnvDependency['exports']['wp-block-card']['name'] ?? null) !== 'card_wp-block-card'
+    $cssModuleVarDependency['code'] !== '.tok_tokens{--tok_wp-card-gap:24px}.fallback_fallback{--fallback_fallback-gap:12px}.theme_theme{color:#00f}.card_wp-block-card{margin:var(--tok_wp-card-gap,var(--fallback_fallback-gap));color:red}'
+    || ($cssModuleVarDependency['exports']['wp-block-card']['name'] ?? null) !== 'card_wp-block-card'
 ) {
-    fwrite(STDERR, "Unexpected CSS Modules env() dependency graph output\n");
+    fwrite(STDERR, "Unexpected CSS Modules var() dependency graph output\n");
     exit(1);
 }
 
-echo 'css-modules-env-dependency: resolved' . PHP_EOL;
+echo 'css-modules-var-dependency: resolved' . PHP_EOL;
 
 $conditionalComposesFiles = [
     '/modules/conditional-card.css' => '@import "blocks/card.css" layer(theme.blocks) screen; .wp-site-blocks { color: red }',

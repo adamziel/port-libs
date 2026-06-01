@@ -2377,6 +2377,63 @@ CSS;
         ], $result['exports']);
         $t->same([], $result['references']);
     },
+    'css modules preserves upstream empty parent rules for composes before nested blocks' => static function (TestRunner $t) use ($export, $local, $global, $dependency): void {
+        $css = <<<'CSS'
+.card {
+  ;
+  composes: base;
+  composes: wp-block-card from global;
+  composes: token from "./theme.css";
+  ;
+
+  .title {
+    color: red;
+  }
+
+  @media (min-width: 1px) {
+    color: blue;
+  }
+
+  color: green;
+}
+
+.late {
+  .label {
+    color: yellow;
+  }
+
+  composes: base;
+}
+
+.base {
+  color: white;
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css);
+
+        $t->same('.EgL3uq_card{}.EgL3uq_card .EgL3uq_title{color:red}@media (width>=1px){.EgL3uq_card{color:#00f}}.EgL3uq_card{color:green}.EgL3uq_late .EgL3uq_label{color:#ff0}.EgL3uq_base{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [
+                $local('EgL3uq_base'),
+                $global('wp-block-card'),
+                $dependency('token', './theme.css'),
+            ]),
+            'title' => $export('EgL3uq_title'),
+            'late' => $export('EgL3uq_late', [$local('EgL3uq_base')]),
+            'label' => $export('EgL3uq_label'),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_card EgL3uq_base wp-block-card Theme_token', CssModulesTransformer::exportClassList(
+            $result['exports'],
+            'card',
+            static fn (string $name, string $specifier): ?string => $name === 'token' && $specifier === './theme.css'
+                ? 'Theme_token'
+                : null
+        ));
+        $t->same('EgL3uq_late EgL3uq_base', CssModulesTransformer::exportClassList($result['exports'], 'late'));
+    },
     'css modules rewrites upstream nest preludes before lowering local global composes selectors' => static function (TestRunner $t) use ($export, $local): void {
         $css = <<<'CSS'
 .card {
@@ -2765,6 +2822,18 @@ CSS;
                 'specifier' => './tokens.css',
             ],
         ], $result['references']);
+
+        try {
+            (new CssModulesTransformer())->transform('.card { margin: env(--gap from "./tokens.css", 1rem); color: red }', [
+                'dashedIdents' => true,
+            ]);
+        } catch (InvalidArgumentException $exception) {
+            $t->same('Unexpected token Ident("from")', $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected env() from syntax to be rejected before CSS Modules references are recorded');
     },
     'css modules scopes upstream media env dashed idents without nested composes' => static function (TestRunner $t) use ($export, $dashed): void {
         $css = <<<'CSS'
