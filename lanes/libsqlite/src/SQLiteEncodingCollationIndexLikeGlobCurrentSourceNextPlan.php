@@ -67,7 +67,7 @@ final class SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan
             if ($currentByRowid[$rowid]['text_encoding'] !== $nextByRowid[$rowid]['text_encoding']) {
                 $changedEncodingRowids[] = $rowid;
             }
-            if ($currentByRowid[$rowid]['option_name_bytes'] !== $nextByRowid[$rowid]['option_name_bytes']) {
+            if ($currentByRowid[$rowid]['key_name_bytes'] !== $nextByRowid[$rowid]['key_name_bytes']) {
                 $changedBytesRowids[] = $rowid;
             }
         }
@@ -170,23 +170,23 @@ final class SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan
 
     /**
      * @param list<array<string,mixed>> $rows
-     * @return array<int,array{option_name_bytes:string,text_encoding:int}>
+     * @return array<int,array{key_name_bytes:string,text_encoding:int}>
      */
     private static function sourceRowsByRowid(array $rows): array
     {
         $indexed = [];
         foreach ($rows as $row) {
-            if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite encoding index current-source rows require integer option_id');
+            if (!isset($row['setting_id']) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite encoding index current-source rows require integer setting_id');
             }
-            if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-                throw new \InvalidArgumentException('SQLite encoding index current-source rows require option_name_bytes');
+            if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+                throw new \InvalidArgumentException('SQLite encoding index current-source rows require key_name_bytes');
             }
             if (!isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
                 throw new \InvalidArgumentException('SQLite encoding index current-source rows require integer text_encoding');
             }
-            $indexed[$row['option_id']] = [
-                'option_name_bytes' => $row['option_name_bytes'],
+            $indexed[$row['setting_id']] = [
+                'key_name_bytes' => $row['key_name_bytes'],
                 'text_encoding' => $row['text_encoding'],
             ];
         }

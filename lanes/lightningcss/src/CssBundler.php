@@ -917,7 +917,10 @@ final class CssBundler
     {
         $exports = $this->stylesheets[$sourceIndex]['cssModuleExports'];
         foreach ($exports as $name => $export) {
-            $exports[$name]['composes'] = $this->resolveCssModuleReferences($sourceIndex, $export['composes'], []);
+            $rootKey = $sourceIndex . ':' . $name;
+            $exports[$name]['composes'] = $this->resolveCssModuleReferences($sourceIndex, $export['composes'], [
+                $rootKey => true,
+            ]);
         }
 
         return $exports;

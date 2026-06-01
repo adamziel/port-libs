@@ -415,7 +415,8 @@ final class PathspecSearch
                 if ($i + 1 < $length) {
                     $regex .= preg_quote($pattern[++$i], '#');
                 } else {
-                    $regex .= preg_quote($char, '#');
+                    // gix wildmatch aborts dangling escapes; pathspec search then falls back to verbatim.
+                    $regex .= '(?!)';
                 }
                 continue;
             }

@@ -56,6 +56,52 @@ if ($result !== $expected) {
     exit(1);
 }
 
+$cycleResult = (new CssBundler())->bundleCssModules('/entry.module.css', [
+    '/entry.module.css' => <<<'CSS'
+.entry {
+  composes: card from "./card.module.css";
+  color: red;
+}
+CSS,
+    '/card.module.css' => <<<'CSS'
+.card {
+  composes: utility;
+  composes: entry from "./entry.module.css";
+  composes: wp-card from global;
+  background: green;
+}
+
+.utility {
+  color: blue;
+}
+CSS,
+], null, [
+    'hashes' => [
+        '/entry.module.css' => 'entry',
+        '/card.module.css' => 'card',
+    ],
+]);
+
+$expectedCycleResult = [
+    'code' => '.card_card{background:green}.card_utility{color:#00f}.entry_entry{color:red}',
+    'exports' => [
+        'entry' => [
+            'name' => 'entry_entry',
+            'composes' => [
+                ['type' => 'local', 'name' => 'card_card'],
+                ['type' => 'local', 'name' => 'card_utility'],
+                ['type' => 'global', 'name' => 'wp-card'],
+            ],
+            'isReferenced' => false,
+        ],
+    ],
+];
+
+if ($cycleResult !== $expectedCycleResult) {
+    fwrite(STDERR, "Unexpected CSS Modules cyclic bundled composes output:\n" . var_export($cycleResult, true) . "\n");
+    exit(1);
+}
+
 $optionResult = (new CssBundler())->bundleCssModules('/block.module.css', [
     '/block.module.css' => <<<'CSS'
 .card {
@@ -221,5 +267,6 @@ if (!$pureRejected) {
 
 echo $result['code'] . PHP_EOL;
 echo 'source-index-composes: preserved' . PHP_EOL;
+echo 'source-index-cycle: guarded' . PHP_EOL;
 echo 'css-module-options: forwarded' . PHP_EOL;
 echo 'css-module-advanced-options: forwarded' . PHP_EOL;

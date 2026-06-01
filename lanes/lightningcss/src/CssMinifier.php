@@ -1704,7 +1704,6 @@ final class CssMinifier
 
         $tail = trim(substr($rest, $offset));
         $parts = [$source];
-        $sawLayerModifier = false;
         while ($tail !== '') {
             $layerOpen = $this->cssFunctionOpenOffset($tail, 0, 'layer');
             if ($layerOpen !== null) {
@@ -1716,7 +1715,6 @@ final class CssMinifier
 
                 $parts[] = 'layer(' . $this->minifyLayerName($layerName) . ')';
                 $tail = trim(substr($tail, $functionEnd + 1));
-                $sawLayerModifier = true;
                 continue;
             }
 
@@ -1731,13 +1729,11 @@ final class CssMinifier
 
                     $parts[] = 'layer(' . $this->minifyLayerName($layerName) . ')';
                     $tail = trim(substr($tail, $functionEnd + 1));
-                    $sawLayerModifier = true;
                     continue;
                 }
 
                 $parts[] = 'layer';
                 $tail = trim(substr($tail, $layerToken['end']));
-                $sawLayerModifier = true;
                 continue;
             }
 
@@ -1745,10 +1741,7 @@ final class CssMinifier
             if ($supportsOpen !== null) {
                 [$function, $functionEnd] = $this->readFunctionRaw($tail, $supportsOpen);
                 $condition = substr($function, 1, -1);
-                $wrappedCondition = $sawLayerModifier ? $this->unwrapSingleParenthesizedValue($condition) : null;
-                $parts[] = $wrappedCondition === null
-                    ? 'supports(' . $this->minifySupportsCondition($condition, false) . ')'
-                    : 'supports((' . $this->minifySupportsCondition($wrappedCondition, false) . '))';
+                $parts[] = 'supports(' . $this->minifyImportSupportsCondition($condition) . ')';
                 $tail = trim(substr($tail, $functionEnd + 1));
                 continue;
             }
@@ -1758,6 +1751,41 @@ final class CssMinifier
         }
 
         return '@import ' . $this->serializeImportParts($parts);
+    }
+
+    private function minifyImportSupportsCondition(string $condition): string
+    {
+        $generalEnclosedUnknown = $this->generalEnclosedBareSupportsUnknown($condition);
+        if ($generalEnclosedUnknown !== null) {
+            return '(' . $generalEnclosedUnknown . ')';
+        }
+
+        return $this->minifySupportsCondition($condition, false);
+    }
+
+    private function generalEnclosedBareSupportsUnknown(string $condition): ?string
+    {
+        $condition = trim($condition);
+        $sawParentheses = false;
+
+        while (($inner = $this->unwrapSingleParenthesizedValue($condition)) !== null) {
+            $condition = trim($inner);
+            $sawParentheses = true;
+        }
+
+        if (!$sawParentheses || !$this->isBareSupportsUnknownToken($condition)) {
+            return null;
+        }
+
+        return $this->minifySupportsCondition($condition, false);
+    }
+
+    private function isBareSupportsUnknownToken(string $condition): bool
+    {
+        $condition = trim($condition);
+        $identifier = $this->readCssIdentifierToken($condition, 0);
+
+        return $identifier !== null && $identifier['end'] === strlen($condition);
     }
 
     /**

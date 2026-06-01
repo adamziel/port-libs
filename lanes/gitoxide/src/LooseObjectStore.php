@@ -446,6 +446,11 @@ final class LooseObjectStore
             }
 
             $inflated .= $decoded;
+            $status = inflate_get_status($context);
+            if ($offset >= $length && $status !== ZLIB_STREAM_END && strlen($inflated) < self::HEADER_MAX_SIZE) {
+                throw new \RuntimeException("Unable to inflate loose object header: {$oid}");
+            }
+
             $nul = strpos($inflated, "\0");
             if ($nul !== false) {
                 if ($nul + 1 > self::HEADER_MAX_SIZE) {
@@ -489,6 +494,11 @@ final class LooseObjectStore
             }
 
             $inflated .= $decoded;
+            $status = inflate_get_status($context);
+            if ($expectedLength === null && $offset >= $length && $status !== ZLIB_STREAM_END && strlen($inflated) < self::HEADER_MAX_SIZE) {
+                throw new \RuntimeException("Unable to inflate loose object: {$oid}");
+            }
+
             if ($expectedLength === null) {
                 $nul = strpos($inflated, "\0");
                 if ($nul === false) {
@@ -514,7 +524,7 @@ final class LooseObjectStore
                 return substr($inflated, 0, $expectedLength);
             }
 
-            if ($expectedLength !== null && inflate_get_status($context) === ZLIB_STREAM_END) {
+            if ($expectedLength !== null && $status === ZLIB_STREAM_END) {
                 $actualLength = strlen($inflated);
                 if ($actualLength !== $expectedLength) {
                     throw new \RuntimeException("Loose object inflated size mismatch: expected {$expectedLength}, got {$actualLength}");

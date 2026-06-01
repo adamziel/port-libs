@@ -23,11 +23,40 @@ $trailingStreamIgnored = false;
 $trailingStreamIntegrityVerified = false;
 $lateSameStreamOverrunIgnored = false;
 $lateSameStreamIntegrityVerified = false;
+$truncatedHeaderInflateRejected = false;
+$truncatedHeaderMessage = null;
 $finalizedReadOnly = false;
 $finalizedExistingObjectPreserved = false;
 $integrityInterruptHandled = false;
 $integrityInterruptChecks = 0;
 $integrityInterruptMessage = null;
+
+$truncatedBeforeHeaderWindowCompletes = static function (string $storageBytes): string {
+    $compressed = gzcompress($storageBytes);
+    if ($compressed === false) {
+        throw new RuntimeException('Unable to compress object-header truncated-stream fixture');
+    }
+
+    $length = strlen($compressed);
+    for ($candidateLength = 2; $candidateLength < $length; $candidateLength++) {
+        $candidate = substr($compressed, 0, $candidateLength);
+        $context = inflate_init(ZLIB_ENCODING_DEFLATE);
+        if ($context === false) {
+            throw new RuntimeException('Unable to initialize object-header truncated-stream probe');
+        }
+        $decoded = @inflate_add($context, $candidate, ZLIB_FINISH);
+        if (
+            $decoded !== false
+            && strpos($decoded, "\0") !== false
+            && strlen($decoded) < 64
+            && inflate_get_status($context) !== ZLIB_STREAM_END
+        ) {
+            return $candidate;
+        }
+    }
+
+    throw new RuntimeException('Unable to derive object-header truncated-stream fixture');
+};
 
 try {
     GitObject::fromStorageBytes($storage . 'next loose object bytes already buffered');
@@ -68,6 +97,23 @@ $lateSameStreamOverrunIgnored = $lateSameStreamStore->read($lateSameStreamObject
 $lateSameStreamIntegrity = $lateSameStreamStore->verifyIntegrity();
 $lateSameStreamIntegrityVerified = $lateSameStreamIntegrity['numObjects'] === 1
     && $lateSameStreamIntegrity['verifiedObjectIds'] === [$lateSameStreamObject->oid()];
+
+$truncatedHeaderDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-truncated-' . bin2hex(random_bytes(4)) . '/objects';
+$truncatedHeaderPath = $truncatedHeaderDirectory . '/' . substr($fixture['truncatedHeaderOid'], 0, 2) . '/' . substr($fixture['truncatedHeaderOid'], 2);
+if (!is_dir(dirname($truncatedHeaderPath)) && !mkdir(dirname($truncatedHeaderPath), 0777, true) && !is_dir(dirname($truncatedHeaderPath))) {
+    throw new RuntimeException('Unable to create object-header truncated-stream fixture directory');
+}
+file_put_contents(
+    $truncatedHeaderPath,
+    $truncatedBeforeHeaderWindowCompletes($fixture['truncatedHeaderStorage'])
+);
+$truncatedHeaderStore = LooseObjectStore::fromObjectsDirectory($truncatedHeaderDirectory);
+try {
+    $truncatedHeaderStore->readHeader($fixture['truncatedHeaderOid']);
+} catch (RuntimeException $exception) {
+    $truncatedHeaderInflateRejected = true;
+    $truncatedHeaderMessage = $exception->getMessage();
+}
 
 $finalizedObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-finalized-' . bin2hex(random_bytes(4)) . '/objects';
 $finalizedStore = LooseObjectStore::fromObjectsDirectory($finalizedObjectsDirectory);
@@ -137,6 +183,8 @@ return [
     'trailingStreamIntegrityVerified' => $trailingStreamIntegrityVerified,
     'lateSameStreamOverrunIgnored' => $lateSameStreamOverrunIgnored,
     'lateSameStreamIntegrityVerified' => $lateSameStreamIntegrityVerified,
+    'truncatedHeaderInflateRejected' => $truncatedHeaderInflateRejected,
+    'truncatedHeaderMessage' => $truncatedHeaderMessage,
     'finalizedReadOnly' => $finalizedReadOnly,
     'finalizedExistingObjectPreserved' => $finalizedExistingObjectPreserved,
     'integrityInterruptHandled' => $integrityInterruptHandled,

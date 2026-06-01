@@ -1036,6 +1036,30 @@ if ($externalResolverBundle !== '@import "https://cdn.example/wp\"blocks\\\\edit
 
 echo 'resolver-external-string: serialized' . PHP_EOL;
 
+$externalSupportsUnknownBundle = (new CssBundler())->bundle('/external-supports-unknown.css', [
+    '/external-supports-unknown.css' => <<<'CSS'
+@import "cdn:theme-variant.css" supports((--wp-theme-variant));
+@import "tokens.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/tokens.css' => ':root { --wp--preset--color--brand: blue; }',
+], static function (string $specifier): array|string {
+    if ($specifier === 'cdn:theme-variant.css') {
+        return ['external' => 'https://cdn.example/wp-theme-variant.css'];
+    }
+
+    return '/' . ltrim($specifier, './');
+});
+
+if ($externalSupportsUnknownBundle !== '@import "https://cdn.example/wp-theme-variant.css" supports((--wp-theme-variant));:root{--wp--preset--color--brand:blue}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected external import supports general-enclosed condition to stay wrapped\n");
+    exit(1);
+}
+
+echo 'external-supports-unknown: preserved' . PHP_EOL;
+
 $nestedExternalBundle = (new CssBundler())->bundle('/nested-external-entry.css', [
     '/nested-external-entry.css' => <<<'CSS'
 @import "blocks/card.css" layer(theme.blocks) screen;

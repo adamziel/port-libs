@@ -26,15 +26,15 @@ require_once __DIR__ . '/../src/SQLiteSelectSql.php';
 require_once __DIR__ . '/../src/SQLiteCompoundSelectRecursiveAffinityLimitPlan.php';
 
 $currentOptions = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'rank_value' => 1],
-    ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'rank_value' => '1'],
-    ['option_id' => 3, 'option_name' => 'active_plugins', 'autoload' => 'no', 'rank_value' => 2],
-    ['option_id' => 4, 'option_name' => 'theme_mods', 'autoload' => 'no', 'rank_value' => '2'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'load_policy' => 'yes', 'rank_value' => 1],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'load_policy' => 'yes', 'rank_value' => '1'],
+    ['setting_id' => 3, 'key_name' => 'module_registry', 'load_policy' => 'no', 'rank_value' => 2],
+    ['setting_id' => 4, 'key_name' => 'theme_variant', 'load_policy' => 'no', 'rank_value' => '2'],
 ];
 $nextOptions = [
     ...$currentOptions,
-    ['option_id' => 5, 'option_name' => 'plugin_cache', 'autoload' => 'no', 'rank_value' => 3],
-    ['option_id' => 6, 'option_name' => 'plugin_cache_text', 'autoload' => 'no', 'rank_value' => '3'],
+    ['setting_id' => 5, 'key_name' => 'module_cache', 'load_policy' => 'no', 'rank_value' => 3],
+    ['setting_id' => 6, 'key_name' => 'module_cache_text', 'load_policy' => 'no', 'rank_value' => '3'],
 ];
 $currentEdges = [
     ['src' => 1, 'dst' => 2, 'weight' => 1.0],
@@ -48,38 +48,38 @@ $nextEdges = [
 ];
 
 $sql = <<<'SQL'
-WITH RECURSIVE option_walk(item_id, key_value, source) AS MATERIALIZED (
+WITH RECURSIVE setting_walk(item_id, key_value, source) AS MATERIALIZED (
     VALUES (1, 1, 'seed')
     UNION
-    SELECT wp_option_edges.dst, wp_option_edges.weight, 'edge'
-      FROM wp_option_edges JOIN option_walk ON wp_option_edges.src = item_id
+    SELECT app_setting_edges.dst, app_setting_edges.weight, 'edge'
+      FROM app_setting_edges JOIN setting_walk ON app_setting_edges.src = item_id
      WHERE item_id < 8
     UNION
     SELECT item_id, key_value + 0.0, source
-      FROM option_walk
+      FROM setting_walk
      WHERE item_id = 1
 )
 SELECT item_id AS id,
        key_value,
        source
-  FROM option_walk
+  FROM setting_walk
 UNION
-SELECT option_id AS id,
+SELECT setting_id AS id,
        rank_value AS key_value,
-       option_name AS source
-  FROM wp_options
+       key_name AS source
+  FROM app_settings
  ORDER BY id, key_value, source
  LIMIT 5 OFFSET 1
 SQL;
 
 $summary = SQLiteCompoundSelectRecursiveAffinityLimitPlan::compareRecursiveAffinityLimit(
     $sql,
-    ['wp_options' => $currentOptions, 'wp_option_edges' => $currentEdges],
-    ['wp_options' => $nextOptions, 'wp_option_edges' => $nextEdges],
+    ['app_settings' => $currentOptions, 'app_setting_edges' => $currentEdges],
+    ['app_settings' => $nextOptions, 'app_setting_edges' => $nextEdges],
 );
 
 return [
-    'applicationUse' => 'Preview recursive option dependency walks during wp_options imports where UNION duplicate handling keeps numeric and text storage classes distinct before final ORDER BY/LIMIT pagination.',
+    'applicationUse' => 'Preview recursive option dependency walks during app_settings imports where UNION duplicate handling keeps numeric and text storage classes distinct before final ORDER BY/LIMIT pagination.',
     'status' => $summary['status'],
     'currentRows' => $summary['currentRows'],
     'nextRows' => $summary['nextRows'],

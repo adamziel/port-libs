@@ -1274,6 +1274,30 @@ return [
             )
         );
     },
+    'declaration block canonicalizes upstream mask type cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'mask-type: LUMINANCE; color: red; --Mask-Type: LUMINANCE';
+
+        $t->same(
+            [
+                'mask-type' => 'luminance',
+                'color' => 'red',
+                '--Mask-Type' => 'LUMINANCE',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'luminance', 'important' => false], $block->getProperty($declarations, 'mask-type'));
+        $t->same(['value' => 'alpha', 'important' => false], $block->getProperty('mask-type: ALPHA', 'mask-type'));
+        $t->same(['value' => 'LUMINANCE', 'important' => false], $block->getProperty($declarations, '--Mask-Type'));
+        $t->same(
+            'color: red; --Mask-Type: LUMINANCE; mask-type: alpha !important',
+            $block->setProperty($declarations, 'mask-type', 'Alpha', true)
+        );
+        $t->same(
+            'color: red; --Mask-Type: LUMINANCE',
+            $block->removeProperty($declarations, 'mask-type')
+        );
+    },
     'declaration block reads upstream border cssom shorthands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

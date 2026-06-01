@@ -7,17 +7,17 @@ use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 
 $tests = [];
 
-$makeRow = static function (int $id, string $name, string $encoding, string $autoload = 'yes'): array {
+$makeRow = static function (int $id, string $name, string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name' => $name,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name' => $name,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
         },
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
@@ -175,12 +175,12 @@ $tests['encoding collation index like glob current source next89 rejects glob es
 };
 
 $tests['encoding collation index like glob current source next89 rejects malformed next bytes'] = static function (TestRunner $t) use ($currentRows): void {
-    $nextRows = [['option_id' => 1, 'option_name_bytes' => "plugin_\xc3", 'text_encoding' => 1]];
+    $nextRows = [['setting_id' => 1, 'key_name_bytes' => "plugin_\xc3", 'text_encoding' => 1]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::keyValueRowKeyIndexPlan($currentRows, $nextRows, 'plugin%'));
 };
 
-$tests['encoding collation index like glob current source next89 rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $currentRows = [['option_name_bytes' => 'plugin', 'text_encoding' => 1]];
+$tests['encoding collation index like glob current source next89 rejects missing setting id'] = static function (TestRunner $t) use ($nextRows): void {
+    $currentRows = [['key_name_bytes' => 'plugin', 'text_encoding' => 1]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan::keyValueRowKeyIndexPlan($currentRows, $nextRows, 'plugin%'));
 };
 

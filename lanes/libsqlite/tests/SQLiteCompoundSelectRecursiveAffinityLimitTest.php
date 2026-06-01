@@ -6,15 +6,15 @@ use PortLibs\LibSqlite\SQLiteCompoundSelectRecursiveAffinityLimitPlan;
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'rank_value' => 1],
-    ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'rank_value' => '1'],
-    ['option_id' => 3, 'option_name' => 'active_plugins', 'autoload' => 'no', 'rank_value' => 2],
-    ['option_id' => 4, 'option_name' => 'theme_mods', 'autoload' => 'no', 'rank_value' => '2'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'load_policy' => 'yes', 'rank_value' => 1],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'load_policy' => 'yes', 'rank_value' => '1'],
+    ['setting_id' => 3, 'key_name' => 'module_registry', 'load_policy' => 'no', 'rank_value' => 2],
+    ['setting_id' => 4, 'key_name' => 'theme_variant', 'load_policy' => 'no', 'rank_value' => '2'],
 ];
 $nextOptions = [
     ...$currentOptions,
-    ['option_id' => 5, 'option_name' => 'plugin_cache', 'autoload' => 'no', 'rank_value' => 3],
-    ['option_id' => 6, 'option_name' => 'plugin_cache_text', 'autoload' => 'no', 'rank_value' => '3'],
+    ['setting_id' => 5, 'key_name' => 'module_cache', 'load_policy' => 'no', 'rank_value' => 3],
+    ['setting_id' => 6, 'key_name' => 'module_cache_text', 'load_policy' => 'no', 'rank_value' => '3'],
 ];
 $currentEdges = [
     ['src' => 1, 'dst' => 2, 'weight' => 1.0],
@@ -27,29 +27,29 @@ $nextEdges = [
     ['src' => 5, 'dst' => 6, 'weight' => '3'],
 ];
 
-$currentTables = ['wp_options' => $currentOptions, 'wp_option_edges' => $currentEdges];
-$nextTables = ['wp_options' => $nextOptions, 'wp_option_edges' => $nextEdges];
+$currentTables = ['app_settings' => $currentOptions, 'app_setting_edges' => $currentEdges];
+$nextTables = ['app_settings' => $nextOptions, 'app_setting_edges' => $nextEdges];
 $sql = <<<'SQL'
-WITH RECURSIVE option_walk(item_id, key_value, source) AS MATERIALIZED (
+WITH RECURSIVE setting_walk(item_id, key_value, source) AS MATERIALIZED (
     VALUES (1, 1, 'seed')
     UNION
-    SELECT wp_option_edges.dst, wp_option_edges.weight, 'edge'
-      FROM wp_option_edges JOIN option_walk ON wp_option_edges.src = item_id
+    SELECT app_setting_edges.dst, app_setting_edges.weight, 'edge'
+      FROM app_setting_edges JOIN setting_walk ON app_setting_edges.src = item_id
      WHERE item_id < 8
     UNION
     SELECT item_id, key_value + 0.0, source
-      FROM option_walk
+      FROM setting_walk
      WHERE item_id = 1
 )
 SELECT item_id AS id,
        key_value,
        source
-  FROM option_walk
+  FROM setting_walk
 UNION
-SELECT option_id AS id,
+SELECT setting_id AS id,
        rank_value AS key_value,
-       option_name AS source
-  FROM wp_options
+       key_name AS source
+  FROM app_settings
  ORDER BY id, key_value, source
  LIMIT 5 OFFSET 1
 SQL;
@@ -81,27 +81,27 @@ $tests['compound select recursive affinity limit compound metadata'] = static fu
 $tests['compound select recursive affinity limit current final limit rows'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['currentRows'];
     $t->same([1, 2, 2, 3, 3], array_column($rows, 'id'));
-    $t->same(['siteurl', 'edge', 'home', 'active_plugins', 'edge'], array_column($rows, 'source'));
+    $t->same(['seed', 'edge', 'landing_url', 'module_registry', 'edge'], array_column($rows, 'source'));
     $t->same([1, 1.0, '1', 2, '2'], array_column($rows, 'key_value'));
 };
 
 $tests['compound select recursive affinity limit next final limit unchanged until boundary'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextRows'];
     $t->same([1, 2, 2, 3, 3], array_column($rows, 'id'));
-    $t->same(['siteurl', 'edge', 'home', 'active_plugins', 'edge'], array_column($rows, 'source'));
+    $t->same(['seed', 'edge', 'landing_url', 'module_registry', 'edge'], array_column($rows, 'source'));
     $t->same([1, 1.0, '1', 2, '2'], array_column($rows, 'key_value'));
 };
 
 $tests['compound select recursive affinity limit unlimited next captures deferred boundary'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextUnlimitedRows'];
     $t->same([5, 5, 6, 6], array_slice(array_column($rows, 'id'), -4));
-    $t->same(['edge', 'plugin_cache', 'edge', 'plugin_cache_text'], array_slice(array_column($rows, 'source'), -4));
+    $t->same(['edge', 'module_cache', 'edge', 'module_cache_text'], array_slice(array_column($rows, 'source'), -4));
     $t->same([3.0, 3, '3', '3'], array_slice(array_column($rows, 'key_value'), -4));
 };
 
 $tests['compound select recursive affinity limit recursive trace deduplicates numeric seed'] = static function (TestRunner $t) use ($summary): void {
     $recursive = $summary()['recursive'];
-    $t->same('option_walk', $recursive['name']);
+    $t->same('setting_walk', $recursive['name']);
     $t->same(['item_id', 'key_value', 'source'], $recursive['columns']);
     $t->same('UNION', $recursive['operator']);
     $t->same([['item_id' => 1, 'key_value' => 1.0, 'source' => 'seed']], $recursive['currentSkipped']);
@@ -130,8 +130,8 @@ $tests['compound select recursive affinity limit limit trace applies after union
     $trace = $summary()['limitTrace']['next'];
     $t->same(12, $trace['preLimitCount']);
     $t->same(5, $trace['acceptedCount']);
-    $t->same([[1, 1, 'seed']], array_map(static fn (array $row): array => array_values($row), $trace['skippedBeforeOffset']));
-    $t->same([[4, 2.0, 'edge'], [4, '2', 'theme_mods'], [5, 3.0, 'edge'], [5, 3, 'plugin_cache'], [6, '3', 'edge'], [6, '3', 'plugin_cache_text']], array_map(static fn (array $row): array => array_values($row), $trace['truncatedAfterLimit']));
+    $t->same([[1, 1, 'base_url']], array_map(static fn (array $row): array => array_values($row), $trace['skippedBeforeOffset']));
+    $t->same([[4, 2.0, 'edge'], [4, '2', 'theme_variant'], [5, 3.0, 'edge'], [5, 3, 'module_cache'], [6, '3', 'edge'], [6, '3', 'module_cache_text']], array_map(static fn (array $row): array => array_values($row), $trace['truncatedAfterLimit']));
 };
 
 $tests['compound select recursive affinity limit changed diagnostics'] = static function (TestRunner $t) use ($summary): void {
@@ -145,7 +145,7 @@ $tests['compound select recursive affinity limit changed diagnostics'] = static 
 
 $tests['compound select recursive affinity limit rejects non recursive'] = static function (TestRunner $t) use ($currentTables): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitPlan::compareRecursiveAffinityLimit(
-        'SELECT option_id AS id, rank_value AS key_value, option_name AS source FROM wp_options UNION SELECT option_id, rank_value, option_name FROM wp_options ORDER BY id LIMIT 2',
+        'SELECT setting_id AS id, rank_value AS key_value, key_name AS source FROM app_settings UNION SELECT setting_id, rank_value, key_name FROM app_settings ORDER BY id LIMIT 2',
         $currentTables,
         $currentTables,
     ));
@@ -153,7 +153,7 @@ $tests['compound select recursive affinity limit rejects non recursive'] = stati
 
 $tests['compound select recursive affinity limit rejects union all'] = static function (TestRunner $t) use ($currentTables): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitPlan::compareRecursiveAffinityLimit(
-        "WITH RECURSIVE option_walk(item_id, key_value, source) AS (VALUES (1, 1, 'seed')) SELECT item_id AS id, key_value, source FROM option_walk UNION ALL SELECT option_id AS id, rank_value AS key_value, option_name AS source FROM wp_options ORDER BY id LIMIT 2",
+        "WITH RECURSIVE setting_walk(item_id, key_value, source) AS (VALUES (1, 1, 'seed')) SELECT item_id AS id, key_value, source FROM setting_walk UNION ALL SELECT setting_id AS id, rank_value AS key_value, key_name AS source FROM app_settings ORDER BY id LIMIT 2",
         $currentTables,
         $currentTables,
     ));
@@ -161,7 +161,7 @@ $tests['compound select recursive affinity limit rejects union all'] = static fu
 
 $tests['compound select recursive affinity limit rejects missing final limit'] = static function (TestRunner $t) use ($currentTables): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveAffinityLimitPlan::compareRecursiveAffinityLimit(
-        "WITH RECURSIVE option_walk(item_id, key_value, source) AS (VALUES (1, 1, 'seed')) SELECT item_id AS id, key_value, source FROM option_walk UNION SELECT option_id AS id, rank_value AS key_value, option_name AS source FROM wp_options ORDER BY id",
+        "WITH RECURSIVE setting_walk(item_id, key_value, source) AS (VALUES (1, 1, 'seed')) SELECT item_id AS id, key_value, source FROM setting_walk UNION SELECT setting_id AS id, rank_value AS key_value, key_name AS source FROM app_settings ORDER BY id",
         $currentTables,
         $currentTables,
     ));
@@ -170,19 +170,19 @@ $tests['compound select recursive affinity limit rejects missing final limit'] =
 foreach (range(1, 67) as $case) {
     $tests['compound select recursive affinity limit generated boundary ' . $case] = static function (TestRunner $t) use ($case): void {
         $tables = [
-            'wp_options' => [
-                ['option_id' => 1, 'option_name' => 'seed_' . $case, 'rank_value' => 1],
-                ['option_id' => 2, 'option_name' => 'home_' . $case, 'rank_value' => '1'],
-                ['option_id' => 3, 'option_name' => 'tail_' . $case, 'rank_value' => 2 + ($case % 3)],
+            'app_settings' => [
+                ['setting_id' => 1, 'key_name' => 'seed_' . $case, 'rank_value' => 1],
+                ['setting_id' => 2, 'key_name' => 'landing_url_' . $case, 'rank_value' => '1'],
+                ['setting_id' => 3, 'key_name' => 'tail_' . $case, 'rank_value' => 2 + ($case % 3)],
             ],
-            'wp_option_edges' => [
+            'app_setting_edges' => [
                 ['src' => 1, 'dst' => 2, 'weight' => 1.0],
                 ['src' => 2, 'dst' => 3, 'weight' => (string) (2 + ($case % 3))],
             ],
         ];
         $offset = $case % 2;
         $limit = 3 + ($case % 3);
-        $sql = "WITH RECURSIVE option_walk(item_id, key_value, source) AS (VALUES (1, 1, 'seed') UNION SELECT wp_option_edges.dst, wp_option_edges.weight, 'edge' FROM wp_option_edges JOIN option_walk ON wp_option_edges.src = item_id WHERE item_id < 4 UNION SELECT item_id, key_value + 0.0, source FROM option_walk WHERE item_id = 1) SELECT item_id AS id, key_value, source FROM option_walk UNION SELECT option_id AS id, rank_value AS key_value, option_name AS source FROM wp_options ORDER BY id, key_value, source LIMIT {$limit} OFFSET {$offset}";
+        $sql = "WITH RECURSIVE setting_walk(item_id, key_value, source) AS (VALUES (1, 1, 'seed') UNION SELECT app_setting_edges.dst, app_setting_edges.weight, 'edge' FROM app_setting_edges JOIN setting_walk ON app_setting_edges.src = item_id WHERE item_id < 4 UNION SELECT item_id, key_value + 0.0, source FROM setting_walk WHERE item_id = 1) SELECT item_id AS id, key_value, source FROM setting_walk UNION SELECT setting_id AS id, rank_value AS key_value, key_name AS source FROM app_settings ORDER BY id, key_value, source LIMIT {$limit} OFFSET {$offset}";
         $rows = SQLiteSelectSql::execute($sql, $tables);
 
         $t->true(count($rows) <= $limit);

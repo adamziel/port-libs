@@ -115,7 +115,16 @@ final class SQLiteCompoundSelectRecursiveAffinityLimitPlan
                 throw new \InvalidArgumentException('SQLite compound recursive affinity limit cannot isolate recursive CTE');
             }
 
-            return $match[1] . ' SELECT item_id, key_value, source FROM option_walk';
+            return $match[1] . ' SELECT item_id, key_value, source FROM ' . self::recursiveCteName($trimmed);
+        }
+
+        private static function recursiveCteName(string $sql): string
+        {
+            if (preg_match('/^\s*WITH\s+RECURSIVE\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/i', $sql, $match) !== 1) {
+                throw new \InvalidArgumentException('SQLite compound recursive affinity limit cannot identify recursive CTE name');
+            }
+
+            return $match[1];
         }
 
         /**

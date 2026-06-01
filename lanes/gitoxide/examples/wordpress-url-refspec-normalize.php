@@ -33,6 +33,8 @@ $credentialRemote = GitUrl::parse($fixture['credentialRemoteUrl'])
     ->withUser($fixture['credentialRemoteUser'])
     ->withPassword($fixture['credentialRemotePassword']);
 $credentialRemoteRoundtrip = GitUrl::parse($credentialRemote->toBytes());
+$passwordOnlyRemote = GitUrl::parse($fixture['passwordOnlyRemoteUrl']);
+$passwordOnlyRemoteRoundtrip = GitUrl::parse($passwordOnlyRemote->toBytes());
 $byteRoundtripRemote = GitUrl::fromBytes($fixture['byteRoundtripRemoteUrl']);
 $byteRoundtripRemoteFromParse = GitUrl::parse($byteRoundtripRemote->toBytes());
 $partsRemote = GitUrl::fromParts(
@@ -123,6 +125,9 @@ $summary = [
     'credentialRemote' => $credentialRemote->toArray(),
     'credentialRemoteDisplay' => $credentialRemote->display(),
     'credentialRemoteRoundtrip' => $credentialRemoteRoundtrip->toArray(),
+    'passwordOnlyRemote' => $passwordOnlyRemote->toArray(),
+    'passwordOnlyRemoteDisplay' => $passwordOnlyRemote->display(),
+    'passwordOnlyRemoteRoundtrip' => $passwordOnlyRemoteRoundtrip->toArray(),
     'byteRoundtripRemote' => $byteRoundtripRemote->toArray(),
     'byteRoundtripRemoteFromParse' => $byteRoundtripRemoteFromParse->toArray(),
     'partsRemote' => $partsRemote->toArray(),
@@ -222,6 +227,30 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if ($summary['credentialRemoteRoundtrip']['password'] !== $fixture['credentialRemotePassword']) {
         throw new RuntimeException('Unexpected credential remote roundtrip password');
+    }
+    if ($summary['passwordOnlyRemote']['user'] !== $fixture['expectedPasswordOnlyRemoteUser']) {
+        throw new RuntimeException('Unexpected password-only remote user');
+    }
+    if ($summary['passwordOnlyRemote']['password'] !== $fixture['expectedPasswordOnlyRemotePassword']) {
+        throw new RuntimeException('Unexpected password-only remote password');
+    }
+    if ($summary['passwordOnlyRemote']['path'] !== $fixture['expectedPasswordOnlyRemotePath']) {
+        throw new RuntimeException('Unexpected password-only remote path');
+    }
+    if ($summary['passwordOnlyRemote']['normalized'] !== $fixture['expectedPasswordOnlyRemoteUrl']) {
+        throw new RuntimeException('Unexpected password-only remote normalized URL');
+    }
+    if ($summary['passwordOnlyRemoteDisplay'] !== $fixture['expectedPasswordOnlyRemoteDisplay']) {
+        throw new RuntimeException('Unexpected password-only remote display URL');
+    }
+    if ($summary['passwordOnlyRemoteRoundtrip']['normalized'] !== $fixture['expectedPasswordOnlyRemoteUrl']) {
+        throw new RuntimeException('Unexpected password-only remote roundtrip URL');
+    }
+    if ($summary['passwordOnlyRemoteRoundtrip']['user'] !== $fixture['expectedPasswordOnlyRemoteUser']) {
+        throw new RuntimeException('Unexpected password-only remote roundtrip user');
+    }
+    if ($summary['passwordOnlyRemoteRoundtrip']['password'] !== $fixture['expectedPasswordOnlyRemotePassword']) {
+        throw new RuntimeException('Unexpected password-only remote roundtrip password');
     }
     if ($summary['byteRoundtripRemote']['normalized'] !== $fixture['expectedByteRoundtripRemoteUrl']) {
         throw new RuntimeException('Unexpected byte-roundtrip remote URL');

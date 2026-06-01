@@ -7,26 +7,26 @@ use PortLibs\LibSqlite\SQLiteEncodingNumericAffinityCurrentSourceNextPlan;
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'retry_limit', 'option_value' => '10'],
-    ['option_id' => 2, 'option_name' => 'retry_limit_int', 'option_value' => 10],
-    ['option_id' => 3, 'option_name' => 'retry_limit_decimal', 'option_value' => '10.0'],
-    ['option_id' => 4, 'option_name' => 'retry_limit_text', 'option_value' => '10x'],
-    ['option_id' => 5, 'option_name' => 'retry_limit_legacy', 'option_value' => 'Ten '],
+    ['setting_id' => 1, 'key_name' => 'retry_limit', 'key_value' => '10'],
+    ['setting_id' => 2, 'key_name' => 'retry_limit_int', 'key_value' => 10],
+    ['setting_id' => 3, 'key_name' => 'retry_limit_decimal', 'key_value' => '10.0'],
+    ['setting_id' => 4, 'key_name' => 'retry_limit_text', 'key_value' => '10x'],
+    ['setting_id' => 5, 'key_name' => 'retry_limit_legacy', 'key_value' => 'Ten '],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'retry_limit', 'option_value' => 10],
-    ['option_id' => 2, 'option_name' => 'retry_limit_int', 'option_value' => '10'],
-    ['option_id' => 3, 'option_name' => 'retry_limit_decimal', 'option_value' => '10.5'],
-    ['option_id' => 4, 'option_name' => 'retry_limit_text', 'option_value' => '10x'],
-    ['option_id' => 5, 'option_name' => 'retry_limit_legacy', 'option_value' => 'Ten'],
-    ['option_id' => 6, 'option_name' => 'retry_limit_new', 'option_value' => '0010'],
+    ['setting_id' => 1, 'key_name' => 'retry_limit', 'key_value' => 10],
+    ['setting_id' => 2, 'key_name' => 'retry_limit_int', 'key_value' => '10'],
+    ['setting_id' => 3, 'key_name' => 'retry_limit_decimal', 'key_value' => '10.5'],
+    ['setting_id' => 4, 'key_name' => 'retry_limit_text', 'key_value' => '10x'],
+    ['setting_id' => 5, 'key_name' => 'retry_limit_legacy', 'key_value' => 'Ten'],
+    ['setting_id' => 6, 'key_name' => 'retry_limit_new', 'key_value' => '0010'],
 ];
 
 $numericPlan = SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan(
     $currentRows,
     $nextRows,
-    'option_value',
+    'key_value',
     10,
     '=',
     'NUMERIC',
@@ -43,7 +43,7 @@ $numericPlan = SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowVa
 $rtrimPlan = SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan(
     $currentRows,
     $nextRows,
-    'option_value',
+    'key_value',
     'Ten',
     '=',
     'NUMERIC',

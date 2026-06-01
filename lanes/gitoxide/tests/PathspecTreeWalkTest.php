@@ -354,6 +354,56 @@ return [
             "wp-content/plugins/new\nline/block.json",
         ], $walkPaths($pathAwareRecords));
     },
+    'falls back to verbatim matches after dangling backslash wildmatch aborts' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
+        $literalDangling = PathspecSearch::fromSpecs([':(glob)wp-content/plugins/dangling\\']);
+        $wildcardDangling = PathspecSearch::fromSpecs([':(glob)wp-content/plugins/dang*\\']);
+
+        $literalMatch = $literalDangling->match('wp-content/plugins/dangling\\', false);
+        $t->same(PathspecMatch::KIND_VERBATIM, $literalMatch?->kind);
+        $t->same(true, $literalDangling->isIncluded('wp-content/plugins/dangling\\', false));
+        $t->same(false, $literalDangling->isIncluded('wp-content/plugins/dangling', false));
+        $t->same(false, $wildcardDangling->isIncluded('wp-content/plugins/dangling\\', false));
+        $t->same(PathspecMatch::KIND_VERBATIM, $wildcardDangling->match('wp-content/plugins/dang*\\', false)?->kind);
+
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $root = new Tree([
+            $tree('wp-content', new Tree([
+                $tree('plugins', new Tree([
+                    $blob('dangling\\'),
+                    $blob('dang*\\'),
+                    $blob('dangx\\'),
+                ])),
+            ])),
+        ]);
+
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            PathspecSearch::fromSpecs([
+                ':(glob)wp-content/plugins/dangling\\',
+                ':(glob)wp-content/plugins/dang*\\',
+            ]),
+            static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+                if (!isset($objects[$entry->oid])) {
+                    throw new RuntimeException("Missing tree object for {$path}");
+                }
+
+                return $objects[$entry->oid];
+            },
+            includeTrees: false,
+        );
+
+        $t->same([
+            'wp-content/plugins/dangling\\',
+            'wp-content/plugins/dang*\\',
+        ], $walkPaths($records));
+    },
     'matches gix wildmatch POSIX blank and invalid class boundaries during tree walks' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
         $blankClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/slot[[:blank:]]/photo.jpg']);
         $spaceClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/slot[[:space:]]/photo.jpg']);
@@ -1122,6 +1172,13 @@ return [
             "wp-content/plugins/new\nline/block.json",
         ], $example['shellGlobNewlineContentPaths']);
         $t->same(true, $example['shellGlobNewlineIncluded']);
+        $t->same([
+            'wp-content/plugins/dangling\\',
+            'wp-content/plugins/dang*\\',
+        ], $example['danglingBackslashContentPaths']);
+        $t->same(PathspecMatch::KIND_VERBATIM, $example['danglingBackslashExactMatchKind']);
+        $t->same(true, $example['danglingBackslashWildcardSkipped']);
+        $t->same(true, $example['danglingBackslashLiteralStarIncluded']);
         $t->same([
             'wp-content/uploads/[[:alpha]/hero.jpg',
         ], $example['malformedPosixClassContentPaths']);

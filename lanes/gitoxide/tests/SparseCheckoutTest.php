@@ -569,6 +569,33 @@ return [
         $t->same(['plugins', 'uploads'], $entryNames($spec->includedTreeEntries($wpContent, 'wp-content')));
         $t->same(['akismet', 'gutenberg'], $entryNames($spec->includedTreeEntries($plugins, 'wp-content/plugins')));
     },
+    'pathspec sparse checkout shell wildmatch treats LF as an ordinary byte' => static function (TestRunner $t) use ($entryNames): void {
+        $shellStar = SparseCheckoutSpec::fromPathspecs(['wp-content*']);
+        $shellQuestion = SparseCheckoutSpec::fromPathspecs(['wp-content?/plugins/gutenberg/block.json']);
+        $pathAwareQuestion = SparseCheckoutSpec::fromPathspecs([':(glob)wp-content?/plugins/gutenberg/block.json']);
+        $pathAwareStar = SparseCheckoutSpec::fromPathspecs([':(glob)wp-content*/plugins/gutenberg/block.json']);
+        $exact = SparseCheckoutSpec::fromPathspecs(['wp-content']);
+
+        $t->same(true, $shellStar->includesPath("wp-content\n/plugins/gutenberg/block.json", false));
+        $t->same(true, $shellStar->includesPath("wp-content\n", true));
+        $t->same(true, $shellQuestion->includesPath("wp-content\n/plugins/gutenberg/block.json", false));
+        $t->same(true, $pathAwareQuestion->includesPath("wp-content\n/plugins/gutenberg/block.json", false));
+        $t->same(true, $pathAwareStar->includesPath("wp-content\n/plugins/gutenberg/block.json", false));
+        $t->same(false, $pathAwareQuestion->includesPath("wp-content\n/plugins/gutenberg/readme.md", false));
+        $t->same(false, $exact->includesPath("wp-content\n", false));
+        $t->same(false, $exact->includesPath("wp-content\n", true));
+
+        $blob = str_repeat('1', 40);
+        $tree = str_repeat('2', 40);
+        $root = new Tree([
+            new TreeEntry('040000', "wp-content\n", $tree),
+            new TreeEntry('040000', 'wp-content', $tree),
+            new TreeEntry('040000', 'wp-admin', $tree),
+            new TreeEntry('100644', "wp-content\n-file.php", $blob),
+        ]);
+
+        $t->same(["wp-content\n", 'wp-content', "wp-content\n-file.php"], $entryNames($shellStar->includedTreeEntries($root)));
+    },
     'pathspec sparse checkout keeps gix double star path component boundaries' => static function (TestRunner $t): void {
         $componentLocal = SparseCheckoutSpec::fromPathspecs([
             ':(glob)wp-content/**.php',

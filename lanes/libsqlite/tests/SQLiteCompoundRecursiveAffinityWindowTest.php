@@ -6,17 +6,17 @@ use PortLibs\LibSqlite\SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPla
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'weight' => 1, 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'home', 'weight' => 1.0, 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'blogname', 'weight' => '1', 'autoload' => 'yes'],
-    ['option_id' => 4, 'option_name' => 'active_plugins', 'weight' => 2, 'autoload' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'weight' => 1, 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'weight' => 1.0, 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'site_title', 'weight' => '1', 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'module_registry', 'weight' => 2, 'load_policy' => 'no'],
 ];
 $nextOptions = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'weight' => 1, 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'home', 'weight' => 1.0, 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'blogname', 'weight' => '1', 'autoload' => 'yes'],
-    ['option_id' => 4, 'option_name' => 'active_plugins', 'weight' => 2, 'autoload' => 'no'],
-    ['option_id' => 5, 'option_name' => 'new_plugin_flag', 'weight' => '2', 'autoload' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'weight' => 1, 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'weight' => 1.0, 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'site_title', 'weight' => '1', 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'module_registry', 'weight' => 2, 'load_policy' => 'no'],
+    ['setting_id' => 5, 'key_name' => 'new_module_flag', 'weight' => '2', 'load_policy' => 'no'],
 ];
 $currentEdges = [
     ['src' => 1, 'dst' => 2, 'weight' => 1.0],
@@ -30,15 +30,15 @@ $nextEdges = [
     ['src' => 4, 'dst' => 5, 'weight' => '2'],
 ];
 
-$currentTables = ['wp_options' => $currentOptions, 'wp_option_edges' => $currentEdges];
-$nextTables = ['wp_options' => $nextOptions, 'wp_option_edges' => $nextEdges];
+$currentTables = ['app_settings' => $currentOptions, 'app_setting_edges' => $currentEdges];
+$nextTables = ['app_settings' => $nextOptions, 'app_setting_edges' => $nextEdges];
 
 $sql = <<<'SQL'
 WITH RECURSIVE wanted(node, weight) AS MATERIALIZED (
     VALUES (1, 1)
     UNION
-    SELECT wp_option_edges.dst, wp_option_edges.weight
-      FROM wp_option_edges JOIN wanted ON wp_option_edges.src = node
+    SELECT app_setting_edges.dst, app_setting_edges.weight
+      FROM app_setting_edges JOIN wanted ON app_setting_edges.src = node
      WHERE node < 5
     UNION
     SELECT node, weight + 0.0
@@ -53,14 +53,14 @@ SELECT node AS id,
        ) AS weighted_total
   FROM wanted
 UNION
-SELECT option_id AS id,
+SELECT setting_id AS id,
        weight AS class_value,
-       sum(CAST(weight AS REAL)) FILTER (WHERE autoload = 'no') OVER (
-           ORDER BY option_id
+       sum(CAST(weight AS REAL)) FILTER (WHERE load_policy = 'no') OVER (
+           ORDER BY setting_id
            ROWS BETWEEN CURRENT ROW AND CURRENT ROW
        ) AS weighted_total
-  FROM wp_options
- WHERE option_id IN (SELECT node FROM wanted)
+  FROM app_settings
+ WHERE setting_id IN (SELECT node FROM wanted)
  ORDER BY id, class_value
 SQL;
 
@@ -80,14 +80,14 @@ $tests['compound recursive affinity window current source current rows preserve 
     $rows = $summary()['currentRows'];
     $t->same([1, 1, 2, 2, 3, 4, 4], array_column($rows, 'id'));
     $t->same([1, 1, 1.0, 1.0, '1', 2, 2], array_column($rows, 'class_value'));
-    $t->same([2.0, null, 1.0, null, null, null, 2.0], array_column($rows, 'weighted_total'));
+    $t->same([null, 2.0, null, 1.0, null, null, 2.0], array_column($rows, 'weighted_total'));
 };
 
 $tests['compound recursive affinity window current source next rows include next source'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextRows'];
     $t->same([1, 1, 2, 2, 3, 4, 4, 5, 5], array_column($rows, 'id'));
     $t->same([1, 1, 1.0, 1.0, '1', 2, 2, '2', '2'], array_column($rows, 'class_value'));
-    $t->same([2.0, null, 1.0, null, null, null, 2.0, null, 2.0], array_column($rows, 'weighted_total'));
+    $t->same([null, 2.0, null, 1.0, null, null, 2.0, null, 2.0], array_column($rows, 'weighted_total'));
 };
 
 $tests['compound recursive affinity window current source recursive trace records numeric duplicate skip'] = static function (TestRunner $t) use ($summary): void {
@@ -111,7 +111,7 @@ $tests['compound recursive affinity window current source diagnostics identify w
     $t->true(in_array('string:2', $plan['affinity']['changedClasses'], true));
 };
 
-$tests['compound recursive affinity window current source changed signatures name next plugin'] = static function (TestRunner $t) use ($summary): void {
+$tests['compound recursive affinity window current source changed signatures name next module'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
     $t->same(2, count($plan['changedSignatures']));
     $t->true(str_contains(implode("\n", $plan['changedSignatures']), '"id":5'));
@@ -121,14 +121,14 @@ $tests['compound recursive affinity window current source changed signatures nam
 foreach (range(1, 28) as $stop) {
     $tests['compound recursive affinity window current source generated recursive stop ' . $stop] = static function (TestRunner $t) use ($stop): void {
         $tables = [
-            'wp_options' => [
-                ['option_id' => 1, 'weight' => 1, 'autoload' => 'yes'],
-                ['option_id' => 2, 'weight' => 1.0, 'autoload' => 'yes'],
-                ['option_id' => 3, 'weight' => '1', 'autoload' => 'no'],
+            'app_settings' => [
+                ['setting_id' => 1, 'weight' => 1, 'load_policy' => 'yes'],
+                ['setting_id' => 2, 'weight' => 1.0, 'load_policy' => 'yes'],
+                ['setting_id' => 3, 'weight' => '1', 'load_policy' => 'no'],
             ],
         ];
         $limit = min($stop, 3);
-        $sql = "WITH RECURSIVE wanted(node, weight) AS (VALUES (1, 1) UNION SELECT node + 1, weight + 0.0 FROM wanted WHERE node < {$limit} UNION SELECT node, CAST(weight AS TEXT) FROM wanted WHERE node = {$limit}) SELECT node AS id, weight AS class_value, sum(CAST(weight AS REAL)) FILTER (WHERE weight = 1) OVER (ORDER BY node ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS weighted_total FROM wanted UNION SELECT option_id AS id, weight AS class_value, sum(CAST(weight AS REAL)) OVER (ORDER BY option_id ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS weighted_total FROM wp_options WHERE option_id <= {$limit} ORDER BY id, class_value";
+        $sql = "WITH RECURSIVE wanted(node, weight) AS (VALUES (1, 1) UNION SELECT node + 1, weight + 0.0 FROM wanted WHERE node < {$limit} UNION SELECT node, CAST(weight AS TEXT) FROM wanted WHERE node = {$limit}) SELECT node AS id, weight AS class_value, sum(CAST(weight AS REAL)) FILTER (WHERE weight = 1) OVER (ORDER BY node ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS weighted_total FROM wanted UNION SELECT setting_id AS id, weight AS class_value, sum(CAST(weight AS REAL)) OVER (ORDER BY setting_id ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS weighted_total FROM app_settings WHERE setting_id <= {$limit} ORDER BY id, class_value";
         $rows = SQLiteSelectSql::execute($sql, $tables);
 
         $t->same(1, $rows[0]['id'] ?? null);

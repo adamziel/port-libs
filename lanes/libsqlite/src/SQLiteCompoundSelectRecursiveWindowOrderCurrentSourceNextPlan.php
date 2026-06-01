@@ -93,7 +93,16 @@ final class SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNextPlan
                 throw new \InvalidArgumentException('SQLite compound recursive window ORDER current-source cannot isolate recursive CTE');
             }
 
-            return $match[1] . ' SELECT id, label, depth, queue_key FROM option_walk';
+            return $match[1] . ' SELECT id, label, depth, queue_key FROM ' . self::recursiveCteName($sql);
+        }
+
+        private static function recursiveCteName(string $sql): string
+        {
+            if (preg_match('/^\s*WITH\s+RECURSIVE\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/i', $sql, $match) !== 1) {
+                throw new \InvalidArgumentException('SQLite compound recursive window ORDER current-source cannot identify recursive CTE name');
+            }
+
+            return $match[1];
         }
 
         /**

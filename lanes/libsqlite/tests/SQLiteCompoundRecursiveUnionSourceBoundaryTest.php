@@ -6,15 +6,15 @@ use PortLibs\LibSqlite\SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPla
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'weight' => 1, 'priority' => 50],
-    ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'weight' => 1.0, 'priority' => 40],
-    ['option_id' => 3, 'option_name' => 'blogname', 'autoload' => 'yes', 'weight' => '1', 'priority' => 30],
-    ['option_id' => 4, 'option_name' => 'active_plugins', 'autoload' => 'no', 'weight' => 2, 'priority' => 20],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'load_policy' => 'yes', 'weight' => 1, 'priority' => 50],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'load_policy' => 'yes', 'weight' => 1.0, 'priority' => 40],
+    ['setting_id' => 3, 'key_name' => 'site_title', 'load_policy' => 'yes', 'weight' => '1', 'priority' => 30],
+    ['setting_id' => 4, 'key_name' => 'module_registry', 'load_policy' => 'no', 'weight' => 2, 'priority' => 20],
 ];
 $nextOptions = [
     ...$currentOptions,
-    ['option_id' => 5, 'option_name' => 'plugin_alpha', 'autoload' => 'no', 'weight' => '2', 'priority' => 10],
-    ['option_id' => 6, 'option_name' => 'plugin_beta', 'autoload' => 'yes', 'weight' => 3, 'priority' => 5],
+    ['setting_id' => 5, 'key_name' => 'module_alpha', 'load_policy' => 'no', 'weight' => '2', 'priority' => 10],
+    ['setting_id' => 6, 'key_name' => 'module_beta', 'load_policy' => 'yes', 'weight' => 3, 'priority' => 5],
 ];
 $currentEdges = [
     ['src' => 1, 'dst' => 2, 'weight' => 1.0],
@@ -27,19 +27,19 @@ $nextEdges = [
     ['src' => 5, 'dst' => 6, 'weight' => 3],
 ];
 
-$currentTables = ['wp_options' => $currentOptions, 'wp_option_edges' => $currentEdges];
-$nextTables = ['wp_options' => $nextOptions, 'wp_option_edges' => $nextEdges];
+$currentTables = ['app_settings' => $currentOptions, 'app_setting_edges' => $currentEdges];
+$nextTables = ['app_settings' => $nextOptions, 'app_setting_edges' => $nextEdges];
 
 $sql = <<<'SQL'
-WITH RECURSIVE option_walk(item_id, key_value, source, score) AS MATERIALIZED (
+WITH RECURSIVE setting_walk(item_id, key_value, source, score) AS MATERIALIZED (
     VALUES (1, 1, 'seed', 50)
     UNION
-    SELECT wp_option_edges.dst, wp_option_edges.weight, 'edge', score - 7
-      FROM wp_option_edges JOIN option_walk ON wp_option_edges.src = item_id
+    SELECT app_setting_edges.dst, app_setting_edges.weight, 'edge', score - 7
+      FROM app_setting_edges JOIN setting_walk ON app_setting_edges.src = item_id
      WHERE item_id < 6
     UNION
     SELECT item_id, key_value + 0.0, source, score
-      FROM option_walk
+      FROM setting_walk
      WHERE item_id = 1
 )
 SELECT item_id AS id,
@@ -49,17 +49,17 @@ SELECT item_id AS id,
            ORDER BY item_id, source
            ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING
        ) AS window_score
-  FROM option_walk
+  FROM setting_walk
 UNION
-SELECT option_id AS id,
+SELECT setting_id AS id,
        weight AS key_value,
-       option_name AS source,
-       sum(priority) FILTER (WHERE autoload = 'no') OVER (
-           ORDER BY option_id
+       key_name AS source,
+       sum(priority) FILTER (WHERE load_policy = 'no') OVER (
+           ORDER BY setting_id
            ROWS BETWEEN CURRENT ROW AND CURRENT ROW
        ) AS window_score
-  FROM wp_options
- WHERE option_id IN (SELECT item_id FROM option_walk)
+  FROM app_settings
+ WHERE setting_id IN (SELECT item_id FROM setting_walk)
  ORDER BY id, key_value, source
 SQL;
 
@@ -89,21 +89,21 @@ $tests['compound recursive affinity window current source source-boundary compou
 $tests['compound recursive affinity window current source source-boundary current rows preserve left names'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['currentRows'];
     $t->same([1, 1, 2, 2, 3, 3, 4, 4], array_column($rows, 'id'));
-    $t->same(['seed', 'siteurl', 'edge', 'home', 'blogname', 'edge', 'active_plugins', 'edge'], array_column($rows, 'source'));
+    $t->same(['base_url', 'seed', 'edge', 'landing_url', 'edge', 'site_title', 'edge', 'module_registry'], array_column($rows, 'source'));
     $t->same([1, 1, 1.0, 1.0, '1', '1', 2, 2], array_column($rows, 'key_value'));
-    $t->same([93, null, 43, null, null, null, 20, null], array_column($rows, 'window_score'));
+    $t->same([null, 93, 43, null, null, null, null, 20], array_column($rows, 'window_score'));
 };
 
 $tests['compound recursive affinity window current source source-boundary next rows add source boundary'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextRows'];
     $t->same([1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6], array_column($rows, 'id'));
-    $t->same(['seed', 'siteurl', 'edge', 'home', 'blogname', 'edge', 'active_plugins', 'edge', 'edge', 'plugin_alpha', 'edge', 'plugin_beta'], array_column($rows, 'source'));
+    $t->same(['base_url', 'seed', 'edge', 'landing_url', 'edge', 'site_title', 'edge', 'module_registry', 'edge', 'module_alpha', 'edge', 'module_beta'], array_column($rows, 'source'));
     $t->same([1, 1, 1.0, 1.0, '1', '1', 2, 2, '2', '2', 3, 3], array_column($rows, 'key_value'));
 };
 
 $tests['compound recursive affinity window current source source-boundary recursive queue captures affinity duplicate skip'] = static function (TestRunner $t) use ($summary): void {
     $recursive = $summary()['recursive'];
-    $t->same('option_walk', $recursive['name']);
+    $t->same('setting_walk', $recursive['name']);
     $t->same(['item_id', 'key_value', 'source', 'score'], $recursive['columns']);
     $t->same('UNION', $recursive['operator']);
     $t->same([[ 'item_id' => 1, 'key_value' => 1.0, 'source' => 'seed', 'score' => 50 ]], $recursive['currentSkipped']);
@@ -141,15 +141,15 @@ $tests['compound recursive affinity window current source source-boundary source
     $delta = $summary()['sourceDelta'];
     $t->same(3, $delta['currentSources']['edge']);
     $t->same(5, $delta['nextSources']['edge']);
-    $t->same(['plugin_alpha', 'plugin_beta'], $delta['newSources']);
+    $t->same(['module_alpha', 'module_beta'], $delta['newSources']);
     $t->same([], $delta['removedSources']);
 };
 
 $tests['compound recursive affinity window current source source-boundary changed signatures and reasons'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
     $changed = implode("\n", $plan['changedSignatures']);
-    $t->true(str_contains($changed, '"source":"plugin_alpha"'));
-    $t->true(str_contains($changed, '"source":"plugin_beta"'));
+    $t->true(str_contains($changed, '"source":"module_alpha"'));
+    $t->true(str_contains($changed, '"source":"module_beta"'));
     $t->true(in_array('compound-rowset-changed', $plan['replanReasons'], true));
     $t->true(in_array('window-before-compound-union', $plan['replanReasons'], true));
     $t->true(in_array('affinity-key-class-changed', $plan['replanReasons'], true));
@@ -158,7 +158,7 @@ $tests['compound recursive affinity window current source source-boundary change
 
 $tests['compound recursive affinity window current source source-boundary rejects non compound recursive select'] = static function (TestRunner $t) use ($currentTables): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan::compareRecursiveUnionSourceBoundary(
-        'WITH RECURSIVE option_walk(item_id, key_value, source, score) AS (VALUES (1, 1, \'seed\', 1)) SELECT item_id FROM option_walk',
+        'WITH RECURSIVE setting_walk(item_id, key_value, source, score) AS (VALUES (1, 1, \'seed\', 1)) SELECT item_id FROM setting_walk',
         $currentTables,
         $currentTables,
     ));
@@ -166,7 +166,7 @@ $tests['compound recursive affinity window current source source-boundary reject
 
 $tests['compound recursive affinity window current source source-boundary rejects missing window'] = static function (TestRunner $t) use ($currentTables): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan::compareRecursiveUnionSourceBoundary(
-        'WITH RECURSIVE option_walk(item_id, key_value, source, score) AS (VALUES (1, 1, \'seed\', 1)) SELECT item_id AS id, key_value, source, score FROM option_walk UNION SELECT option_id AS id, weight AS key_value, option_name AS source, priority AS score FROM wp_options',
+        'WITH RECURSIVE setting_walk(item_id, key_value, source, score) AS (VALUES (1, 1, \'seed\', 1)) SELECT item_id AS id, key_value, source, score FROM setting_walk UNION SELECT setting_id AS id, weight AS key_value, key_name AS source, priority AS score FROM app_settings',
         $currentTables,
         $currentTables,
     ));
@@ -174,7 +174,7 @@ $tests['compound recursive affinity window current source source-boundary reject
 
 $tests['compound recursive affinity window current source source-boundary rejects union all only'] = static function (TestRunner $t) use ($currentTables): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan::compareRecursiveUnionSourceBoundary(
-        'WITH RECURSIVE option_walk(item_id, key_value, source, score) AS (VALUES (1, 1, \'seed\', 1)) SELECT item_id AS id, key_value, source, sum(score) OVER (ORDER BY item_id ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS window_score FROM option_walk UNION ALL SELECT option_id AS id, weight AS key_value, option_name AS source, priority AS window_score FROM wp_options',
+        'WITH RECURSIVE setting_walk(item_id, key_value, source, score) AS (VALUES (1, 1, \'seed\', 1)) SELECT item_id AS id, key_value, source, sum(score) OVER (ORDER BY item_id ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS window_score FROM setting_walk UNION ALL SELECT setting_id AS id, weight AS key_value, key_name AS source, priority AS window_score FROM app_settings',
         $currentTables,
         $currentTables,
     ));
@@ -183,17 +183,17 @@ $tests['compound recursive affinity window current source source-boundary reject
 foreach (range(1, 58) as $case) {
     $tests['compound recursive affinity window current source source-boundary generated affinity source boundary ' . $case] = static function (TestRunner $t) use ($case): void {
         $tables = [
-            'wp_options' => [
-                ['option_id' => 1, 'option_name' => 'autoload_' . $case, 'autoload' => 'yes', 'weight' => 1, 'priority' => 30 + $case],
-                ['option_id' => 2, 'option_name' => 'home_' . $case, 'autoload' => 'yes', 'weight' => 1.0, 'priority' => 20 + $case],
-                ['option_id' => 3, 'option_name' => 'plugin_' . $case, 'autoload' => 'no', 'weight' => (string) (1 + ($case % 3)), 'priority' => 10 + $case],
+            'app_settings' => [
+                ['setting_id' => 1, 'key_name' => 'load_policy_' . $case, 'load_policy' => 'yes', 'weight' => 1, 'priority' => 30 + $case],
+                ['setting_id' => 2, 'key_name' => 'landing_url_' . $case, 'load_policy' => 'yes', 'weight' => 1.0, 'priority' => 20 + $case],
+                ['setting_id' => 3, 'key_name' => 'module_' . $case, 'load_policy' => 'no', 'weight' => (string) (1 + ($case % 3)), 'priority' => 10 + $case],
             ],
-            'wp_option_edges' => [
+            'app_setting_edges' => [
                 ['src' => 1, 'dst' => 2, 'weight' => 1.0],
                 ['src' => 2, 'dst' => 3, 'weight' => (string) (1 + ($case % 3))],
             ],
         ];
-        $sql = "WITH RECURSIVE option_walk(item_id, key_value, source, score) AS (VALUES (1, 1, 'seed', {$case}) UNION SELECT wp_option_edges.dst, wp_option_edges.weight, 'edge', score + 1 FROM wp_option_edges JOIN option_walk ON wp_option_edges.src = item_id WHERE item_id < 3 UNION SELECT item_id, key_value + 0.0, source, score FROM option_walk WHERE item_id = 1) SELECT item_id AS id, key_value, source, sum(score) FILTER (WHERE key_value = 1) OVER (ORDER BY item_id, source ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS window_score FROM option_walk UNION SELECT option_id AS id, weight AS key_value, option_name AS source, sum(priority) FILTER (WHERE autoload = 'no') OVER (ORDER BY option_id ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS window_score FROM wp_options WHERE option_id IN (SELECT item_id FROM option_walk) ORDER BY id, key_value, source";
+        $sql = "WITH RECURSIVE setting_walk(item_id, key_value, source, score) AS (VALUES (1, 1, 'seed', {$case}) UNION SELECT app_setting_edges.dst, app_setting_edges.weight, 'edge', score + 1 FROM app_setting_edges JOIN setting_walk ON app_setting_edges.src = item_id WHERE item_id < 3 UNION SELECT item_id, key_value + 0.0, source, score FROM setting_walk WHERE item_id = 1) SELECT item_id AS id, key_value, source, sum(score) FILTER (WHERE key_value = 1) OVER (ORDER BY item_id, source ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) AS window_score FROM setting_walk UNION SELECT setting_id AS id, weight AS key_value, key_name AS source, sum(priority) FILTER (WHERE load_policy = 'no') OVER (ORDER BY setting_id ROWS BETWEEN CURRENT ROW AND CURRENT ROW) AS window_score FROM app_settings WHERE setting_id IN (SELECT item_id FROM setting_walk) ORDER BY id, key_value, source";
         $rows = SQLiteSelectSql::execute($sql, $tables);
 
         $t->same(1, $rows[0]['id'] ?? null);

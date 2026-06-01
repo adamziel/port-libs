@@ -104,7 +104,7 @@ final class SQLiteWindowRowValueUpsertCurrentSourcePlan
             'updated_rows' => $updated,
             'skipped_rows' => $skipped,
             'returning_rows' => $returning,
-            'window_rows' => self::windowRows($returning, $preceding, $following, $exclude),
+            'window_rows' => self::windowRows($returning, $preceding, $following, $exclude, $conflictColumns[0]),
             'decisions' => $decisions,
             'changes' => count($returning),
             'status' => 'window-rowvalue-upsert-current-source-ready',
@@ -116,26 +116,26 @@ final class SQLiteWindowRowValueUpsertCurrentSourcePlan
      * @param list<array<string,mixed>> $rows
      * @return list<array<string,mixed>>
      */
-    private static function windowRows(array $rows, int $preceding, int $following, string $exclude): array
+    private static function windowRows(array $rows, int $preceding, int $following, string $exclude, string $labelColumn): array
     {
         $priorities = array_map(static fn (array $row): int|float|bool => self::numericValue($row['priority'] ?? 0, 'priority'), $rows);
         $orderKeys = array_map(static fn (array $row): int|float|bool => self::numericValue($row['sequence'] ?? 0, 'sequence'), $rows);
         $frames = SQLiteWindowFunction::aggregateFrameRows($priorities, $orderKeys, 'ROWS', $preceding, $following, $exclude);
-        $firstNames = SQLiteWindowFunction::valueFrameValues('first_value', array_column($rows, 'option_name'), $orderKeys, 'ROWS', $preceding, $following, $exclude);
-        $lastNames = SQLiteWindowFunction::valueFrameValues('last_value', array_column($rows, 'option_name'), $orderKeys, 'ROWS', $preceding, $following, $exclude);
+        $firstNames = SQLiteWindowFunction::valueFrameValues('first_value', array_column($rows, $labelColumn), $orderKeys, 'ROWS', $preceding, $following, $exclude);
+        $lastNames = SQLiteWindowFunction::valueFrameValues('last_value', array_column($rows, $labelColumn), $orderKeys, 'ROWS', $preceding, $following, $exclude);
 
         $windowRows = [];
         foreach ($rows as $index => $row) {
             $windowRows[] = [
-                'option_name' => $row['option_name'] ?? null,
+                'key_name' => $row[$labelColumn] ?? null,
                 'action' => $row['_upsert_action'] ?? null,
                 'sequence' => $row['sequence'] ?? null,
                 'frame' => $frames[$index]['frame'],
                 'frame_count' => $frames[$index]['count'],
                 'frame_priority_sum' => $frames[$index]['sum'],
                 'frame_priority_concat' => $frames[$index]['groupConcat'],
-                'first_option_name' => $firstNames[$index],
-                'last_option_name' => $lastNames[$index],
+                'first_key_name' => $firstNames[$index],
+                'last_key_name' => $lastNames[$index],
             ];
         }
 

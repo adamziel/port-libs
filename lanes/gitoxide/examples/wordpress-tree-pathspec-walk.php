@@ -41,6 +41,9 @@ $root = new Tree([
             $tree("new\nline", new Tree([$blob('block.json')])),
             $blob('safe.php'),
             $blob('weird\\name.php'),
+            $blob('dangling\\'),
+            $blob('dang*\\'),
+            $blob('dangx\\'),
             $tree('[literal]', new Tree([$blob('block.?son')])),
         ])),
         $tree('themes', new Tree([
@@ -137,6 +140,10 @@ $rawComponentGuardPathspecs = PathspecSearch::fromSpecs([
 ]);
 $shellNewlinePathspecs = PathspecSearch::fromSpecs([
     'wp-content/plugins/new?line/block.json',
+]);
+$danglingBackslashPathspecs = PathspecSearch::fromSpecs([
+    ':(glob)wp-content/plugins/dangling\\',
+    ':(glob)wp-content/plugins/dang*\\',
 ]);
 $malformedPosixClassPathspecs = PathspecSearch::fromSpecs([
     ':(glob)wp-content/uploads/[[:alpha]/hero.jpg',
@@ -380,6 +387,18 @@ $shellNewlineRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$danglingBackslashRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $danglingBackslashPathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 $malformedPosixClassRecords = TreePathspecWalk::breadthFirst(
     $root,
     $malformedPosixClassPathspecs,
@@ -446,6 +465,10 @@ return [
     'rawBackslashComponentSkipped' => $rawComponentGuardPathspecs->match('wp-content/plugins/weird\\name.php', false) === null,
     'shellGlobNewlineContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $shellNewlineRecords),
     'shellGlobNewlineIncluded' => $shellNewlinePathspecs->isIncluded("wp-content/plugins/new\nline/block.json", false),
+    'danglingBackslashContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $danglingBackslashRecords),
+    'danglingBackslashExactMatchKind' => $danglingBackslashPathspecs->match('wp-content/plugins/dangling\\', false)?->kind,
+    'danglingBackslashWildcardSkipped' => !$danglingBackslashPathspecs->isIncluded('wp-content/plugins/dangx\\', false),
+    'danglingBackslashLiteralStarIncluded' => $danglingBackslashPathspecs->isIncluded('wp-content/plugins/dang*\\', false),
     'malformedPosixClassContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $malformedPosixClassRecords),
     'malformedPosixClassLetterSkipped' => !$malformedPosixClassPathspecs->isIncluded('wp-content/uploads/a/hero.jpg', false),
     'malformedPosixClassBracketSkipped' => !$malformedPosixClassPathspecs->isIncluded('wp-content/uploads/[/hero.jpg', false),

@@ -676,7 +676,7 @@ final class SparseCheckoutSpec
             $regex .= preg_quote($char, '#');
         }
 
-        return '#^' . $regex . '$#' . ($ignoreCase ? 'i' : '');
+        return '#^' . $regex . '\z#' . ($ignoreCase ? 'is' : 's');
     }
 
     private static function findCharacterClassEnd(string $pattern, int $start): ?int

@@ -131,7 +131,7 @@ CSS;
 CSS;
 
         $t->same(
-            '@import "./blocks/cards.css" layer(theme.blocks) screen and (width>=782px);@import "./blocks/animations.css" layer supports((animation-name:fade))(prefers-reduced-motion:no-preference);',
+            '@import "./blocks/cards.css" layer(theme.blocks) screen and (width>=782px);@import "./blocks/animations.css" layer supports(animation-name:fade)(prefers-reduced-motion:no-preference);',
             $transformAndMinify($css)
         );
     },
@@ -216,7 +216,7 @@ CSS;
 CSS;
 
         $t->same(
-            '@import "./blocks/cards.css" layer(theme.blocks) supports((display:grid)) screen and (width>=782px);',
+            '@import "./blocks/cards.css" layer(theme.blocks) supports(display:grid) screen and (width>=782px);',
             $transformAndMinify($css)
         );
     },
@@ -230,7 +230,7 @@ CSS;
 CSS;
 
         $t->same(
-            '@import "tokens.css" supports(--wide) screen and (width>=782px);@import "./blocks/cards.css" layer(theme.blocks) supports(display:grid) print and (prefers-reduced-motion:no-preference);',
+            '@import "tokens.css" supports((--wide)) screen and (width>=782px);@import "./blocks/cards.css" layer(theme.blocks) supports(display:grid) print and (prefers-reduced-motion:no-preference);',
             $transformAndMinify($css)
         );
     },

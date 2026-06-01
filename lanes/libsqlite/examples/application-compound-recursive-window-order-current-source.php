@@ -7,28 +7,28 @@ use PortLibs\LibSqlite\SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNext
 require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $currentOptions = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'parent_id' => 0, 'priority' => '8', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'home', 'parent_id' => 1, 'priority' => 2, 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'theme_mods', 'parent_id' => 1, 'priority' => '1', 'autoload' => 'no'],
-    ['option_id' => 4, 'option_name' => 'theme_mods_child', 'parent_id' => 2, 'priority' => 3, 'autoload' => 'no'],
-    ['option_id' => 50, 'option_name' => 'direct_autoload', 'parent_id' => -1, 'priority' => 1, 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'base_url', 'parent_id' => 0, 'priority' => '8', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'landing_url', 'parent_id' => 1, 'priority' => 2, 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'theme_variant', 'parent_id' => 1, 'priority' => '1', 'load_policy' => 'no'],
+    ['setting_id' => 4, 'key_name' => 'theme_variant_child', 'parent_id' => 2, 'priority' => 3, 'load_policy' => 'no'],
+    ['setting_id' => 50, 'key_name' => 'direct_load_policy', 'parent_id' => -1, 'priority' => 1, 'load_policy' => 'yes'],
 ];
 $nextOptions = [
     ...$currentOptions,
-    ['option_id' => 6, 'option_name' => 'plugin_rules', 'parent_id' => 1, 'priority' => 1.5, 'autoload' => 'yes'],
-    ['option_id' => 7, 'option_name' => 'plugin_rules_child', 'parent_id' => 6, 'priority' => '2', 'autoload' => 'no'],
+    ['setting_id' => 6, 'key_name' => 'module_rules', 'parent_id' => 1, 'priority' => 1.5, 'load_policy' => 'yes'],
+    ['setting_id' => 7, 'key_name' => 'module_rules_child', 'parent_id' => 6, 'priority' => '2', 'load_policy' => 'no'],
 ];
 
 $sql = <<<'SQL'
-WITH RECURSIVE option_walk(id, label, queue_key, depth) AS (
-    SELECT option_id, option_name, priority, 0
-      FROM wp_options
+WITH RECURSIVE setting_walk(id, label, queue_key, depth) AS (
+    SELECT setting_id, key_name, priority, 0
+      FROM app_settings
      WHERE parent_id = 0
     UNION ALL
-    SELECT child.option_id, child.option_name, child.priority, option_walk.depth + 1
-      FROM wp_options AS child
-      JOIN option_walk ON child.parent_id = option_walk.id
-     WHERE option_walk.depth < 3
+    SELECT child.setting_id, child.key_name, child.priority, setting_walk.depth + 1
+      FROM app_settings AS child
+      JOIN setting_walk ON child.parent_id = setting_walk.id
+     WHERE setting_walk.depth < 3
      ORDER BY 3 ASC, 1 ASC
      LIMIT 8
 )
@@ -37,14 +37,14 @@ SELECT id,
        depth,
        queue_key,
        row_number() OVER (ORDER BY queue_key ASC, id ASC) AS visit_rank
-  FROM option_walk
+  FROM setting_walk
 UNION ALL
-SELECT option_id AS id,
-       option_name AS label,
+SELECT setting_id AS id,
+       key_name AS label,
        0 AS depth,
        priority AS queue_key,
-       row_number() OVER (ORDER BY priority ASC, option_id ASC) AS visit_rank
-  FROM wp_options
+       row_number() OVER (ORDER BY priority ASC, setting_id ASC) AS visit_rank
+  FROM app_settings
  WHERE parent_id = -1
  ORDER BY visit_rank ASC, queue_key ASC, label ASC
  LIMIT 7
@@ -52,13 +52,13 @@ SQL;
 
 $summary = SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNextPlan::compare(
     $sql,
-    ['wp_options' => $currentOptions],
-    ['wp_options' => $nextOptions],
+    ['app_settings' => $currentOptions],
+    ['app_settings' => $nextOptions],
 );
 
 $result = [
     'scenario' => 'application-compound-recursive-window-order-current-source',
-    'applicationUse' => 'Copied wp_options dependency trees can be walked with recursive queue ORDER BY, ranked in each compound arm with window functions, and then sorted by the final compound ORDER BY before import diagnostics are shown.',
+    'applicationUse' => 'Copied app_settings dependency trees can be walked with recursive queue ORDER BY, ranked in each compound arm with window functions, and then sorted by the final compound ORDER BY before import diagnostics are shown.',
     'currentLabels' => array_column($summary['currentRows'], 'label'),
     'nextLabels' => array_column($summary['nextRows'], 'label'),
     'replanReasons' => $summary['replanReasons'],
@@ -66,7 +66,7 @@ $result = [
 ];
 
 if (PHP_SAPI === 'cli' && realpath($_SERVER['SCRIPT_FILENAME'] ?? '') === __FILE__) {
-    if (($result['nextLabels'][1] ?? null) !== 'plugin_rules') {
+    if (($result['nextLabels'][1] ?? null) !== 'module_rules') {
         fwrite(STDERR, "application-compound-recursive-window-order-current-source self-test failed\n");
         exit(1);
     }

@@ -602,6 +602,7 @@ final class DeclarationBlock
     ];
     private const MASK_BORDER_REPEAT_KEYWORDS = ['stretch', 'repeat', 'round', 'space'];
     private const MASK_BORDER_MODE_KEYWORDS = ['alpha', 'luminance'];
+    private const MASK_TYPE_KEYWORDS = ['alpha', 'luminance'];
     private const MASK_LONGHANDS = [
         'mask-image',
         'mask-position',
@@ -13838,6 +13839,10 @@ final class DeclarationBlock
 
         if (isset(self::SVG_LOWERCASE_KEYWORD_PROPERTIES[$property])) {
             return $this->normalizeKeywordDeclarationValue($value, self::SVG_LOWERCASE_KEYWORD_PROPERTIES[$property]);
+        }
+
+        if ($property === 'mask-type') {
+            return $this->normalizeKeywordDeclarationValue($value, self::MASK_TYPE_KEYWORDS);
         }
 
         if ($property === 'color-scheme') {

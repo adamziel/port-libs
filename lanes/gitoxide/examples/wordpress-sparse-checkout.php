@@ -108,6 +108,15 @@ $escapedByteTraversalPathspec = SparseCheckoutSpec::fromPathspecs([
 $escapedSlashTraversalPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/plugins/foo\\/block.json',
 ]);
+$newlineByteShellStarPathspec = SparseCheckoutSpec::fromPathspecs([
+    'wp-content*',
+]);
+$newlineByteShellQuestionPathspec = SparseCheckoutSpec::fromPathspecs([
+    'wp-content?/plugins/gutenberg/block.json',
+]);
+$newlineBytePathAwareQuestionPathspec = SparseCheckoutSpec::fromPathspecs([
+    ':(glob)wp-content?/plugins/gutenberg/block.json',
+]);
 $absoluteWildcardPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(icase)' . $deploymentRoot . '/*/readme.md',
 ], root: $deploymentRoot);
@@ -284,6 +293,9 @@ return [
     'pathspecEscapedByteVerbatimFileIncluded' => $escapedByteTraversalPathspec->includesPath('wp-content/plugins/f\\oo/block.json', false),
     'pathspecEscapedSlashDirectoryTraversable' => $escapedSlashTraversalPathspec->includesPath('wp-content/plugins/foo', true),
     'pathspecEscapedSlashFileIncluded' => $escapedSlashTraversalPathspec->includesPath('wp-content/plugins/foo/block.json', false),
+    'pathspecLfByteShellStarIncluded' => $newlineByteShellStarPathspec->includesPath("wp-content\n/plugins/gutenberg/block.json", false),
+    'pathspecLfByteShellQuestionIncluded' => $newlineByteShellQuestionPathspec->includesPath("wp-content\n/plugins/gutenberg/block.json", false),
+    'pathspecLfBytePathAwareQuestionIncluded' => $newlineBytePathAwareQuestionPathspec->includesPath("wp-content\n/plugins/gutenberg/block.json", false),
     'absoluteWildcardIcaseRealDirectorySkipped' => $absoluteWildcardPathspec->skipWorktree('wp-content/README.md', false),
     'absoluteWildcardIcaseLiteralStarIncluded' => $absoluteWildcardPathspec->includesPath('*/README.md', false),
     'absoluteWildcardOrdinaryGlobIncluded' => $ordinaryAbsoluteWildcardPathspec->includesPath('wp-content/readme.md', false),

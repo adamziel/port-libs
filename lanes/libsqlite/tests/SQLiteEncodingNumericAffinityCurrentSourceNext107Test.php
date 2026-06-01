@@ -8,45 +8,45 @@ use PortLibs\LibSqlite\SQLiteEncodingNumericAffinityCurrentSourceNextPlan;
 $tests = [];
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'retry_text', 'option_value' => '10'],
-    ['option_id' => 2, 'option_name' => 'retry_integer', 'option_value' => 10],
-    ['option_id' => 3, 'option_name' => 'retry_real', 'option_value' => 10.0],
-    ['option_id' => 4, 'option_name' => 'retry_padded', 'option_value' => '0010'],
-    ['option_id' => 5, 'option_name' => 'retry_decimal', 'option_value' => '10.0'],
-    ['option_id' => 6, 'option_name' => 'retry_exp', 'option_value' => '1e1'],
-    ['option_id' => 7, 'option_name' => 'retry_plus', 'option_value' => '+10'],
-    ['option_id' => 8, 'option_name' => 'retry_non_numeric', 'option_value' => '10x'],
-    ['option_id' => 9, 'option_name' => 'retry_null', 'option_value' => null],
-    ['option_id' => 10, 'option_name' => 'retry_blob', 'option_value' => new SQLiteBlobValue('10')],
-    ['option_id' => 11, 'option_name' => 'retry_false', 'option_value' => false],
-    ['option_id' => 12, 'option_name' => 'retry_true', 'option_value' => true],
-    ['option_id' => 13, 'option_name' => 'retry_small', 'option_value' => '9.5'],
-    ['option_id' => 14, 'option_name' => 'retry_large', 'option_value' => '11'],
-    ['option_id' => 15, 'option_name' => 'retry_spaces', 'option_value' => ' 10 '],
-    ['option_id' => 16, 'option_name' => 'legacy_text_ten', 'option_value' => 'Ten'],
-    ['option_id' => 17, 'option_name' => 'legacy_text_ten_space', 'option_value' => 'Ten '],
+    ['setting_id' => 1, 'key_name' => 'retry_text', 'key_value' => '10'],
+    ['setting_id' => 2, 'key_name' => 'retry_integer', 'key_value' => 10],
+    ['setting_id' => 3, 'key_name' => 'retry_real', 'key_value' => 10.0],
+    ['setting_id' => 4, 'key_name' => 'retry_padded', 'key_value' => '0010'],
+    ['setting_id' => 5, 'key_name' => 'retry_decimal', 'key_value' => '10.0'],
+    ['setting_id' => 6, 'key_name' => 'retry_exp', 'key_value' => '1e1'],
+    ['setting_id' => 7, 'key_name' => 'retry_plus', 'key_value' => '+10'],
+    ['setting_id' => 8, 'key_name' => 'retry_non_numeric', 'key_value' => '10x'],
+    ['setting_id' => 9, 'key_name' => 'retry_null', 'key_value' => null],
+    ['setting_id' => 10, 'key_name' => 'retry_blob', 'key_value' => new SQLiteBlobValue('10')],
+    ['setting_id' => 11, 'key_name' => 'retry_false', 'key_value' => false],
+    ['setting_id' => 12, 'key_name' => 'retry_true', 'key_value' => true],
+    ['setting_id' => 13, 'key_name' => 'retry_small', 'key_value' => '9.5'],
+    ['setting_id' => 14, 'key_name' => 'retry_large', 'key_value' => '11'],
+    ['setting_id' => 15, 'key_name' => 'retry_spaces', 'key_value' => ' 10 '],
+    ['setting_id' => 16, 'key_name' => 'legacy_text_ten', 'key_value' => 'Ten'],
+    ['setting_id' => 17, 'key_name' => 'legacy_text_ten_space', 'key_value' => 'Ten '],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'retry_text', 'option_value' => 10],
-    ['option_id' => 2, 'option_name' => 'retry_integer', 'option_value' => '10'],
-    ['option_id' => 3, 'option_name' => 'retry_real', 'option_value' => '10.00'],
-    ['option_id' => 4, 'option_name' => 'retry_padded', 'option_value' => '0010'],
-    ['option_id' => 5, 'option_name' => 'retry_decimal', 'option_value' => '10.5'],
-    ['option_id' => 6, 'option_name' => 'retry_exp', 'option_value' => '1.0e1'],
-    ['option_id' => 7, 'option_name' => 'retry_plus', 'option_value' => '+10'],
-    ['option_id' => 8, 'option_name' => 'retry_non_numeric', 'option_value' => '10x'],
-    ['option_id' => 9, 'option_name' => 'retry_null', 'option_value' => null],
-    ['option_id' => 10, 'option_name' => 'retry_blob', 'option_value' => new SQLiteBlobValue('10')],
-    ['option_id' => 11, 'option_name' => 'retry_false', 'option_value' => false],
-    ['option_id' => 12, 'option_name' => 'retry_true', 'option_value' => true],
-    ['option_id' => 13, 'option_name' => 'retry_small', 'option_value' => '9.5'],
-    ['option_id' => 14, 'option_name' => 'retry_large', 'option_value' => '11'],
-    ['option_id' => 15, 'option_name' => 'retry_spaces', 'option_value' => ' 10 '],
-    ['option_id' => 16, 'option_name' => 'legacy_text_ten', 'option_value' => 'ten'],
-    ['option_id' => 17, 'option_name' => 'legacy_text_ten_space', 'option_value' => 'ten   '],
-    ['option_id' => 18, 'option_name' => 'retry_new_text', 'option_value' => '10'],
-    ['option_id' => 19, 'option_name' => 'retry_new_real', 'option_value' => 10.0],
+    ['setting_id' => 1, 'key_name' => 'retry_text', 'key_value' => 10],
+    ['setting_id' => 2, 'key_name' => 'retry_integer', 'key_value' => '10'],
+    ['setting_id' => 3, 'key_name' => 'retry_real', 'key_value' => '10.00'],
+    ['setting_id' => 4, 'key_name' => 'retry_padded', 'key_value' => '0010'],
+    ['setting_id' => 5, 'key_name' => 'retry_decimal', 'key_value' => '10.5'],
+    ['setting_id' => 6, 'key_name' => 'retry_exp', 'key_value' => '1.0e1'],
+    ['setting_id' => 7, 'key_name' => 'retry_plus', 'key_value' => '+10'],
+    ['setting_id' => 8, 'key_name' => 'retry_non_numeric', 'key_value' => '10x'],
+    ['setting_id' => 9, 'key_name' => 'retry_null', 'key_value' => null],
+    ['setting_id' => 10, 'key_name' => 'retry_blob', 'key_value' => new SQLiteBlobValue('10')],
+    ['setting_id' => 11, 'key_name' => 'retry_false', 'key_value' => false],
+    ['setting_id' => 12, 'key_name' => 'retry_true', 'key_value' => true],
+    ['setting_id' => 13, 'key_name' => 'retry_small', 'key_value' => '9.5'],
+    ['setting_id' => 14, 'key_name' => 'retry_large', 'key_value' => '11'],
+    ['setting_id' => 15, 'key_name' => 'retry_spaces', 'key_value' => ' 10 '],
+    ['setting_id' => 16, 'key_name' => 'legacy_text_ten', 'key_value' => 'ten'],
+    ['setting_id' => 17, 'key_name' => 'legacy_text_ten_space', 'key_value' => 'ten   '],
+    ['setting_id' => 18, 'key_name' => 'retry_new_text', 'key_value' => '10'],
+    ['setting_id' => 19, 'key_name' => 'retry_new_real', 'key_value' => 10.0],
 ];
 
 $plan = static fn (
@@ -64,7 +64,7 @@ $plan = static fn (
 ): array => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan(
     $currentRows,
     $nextRows,
-    'option_value',
+    'key_value',
     $probe,
     $operator,
     $columnAffinity,
@@ -89,7 +89,7 @@ $valueAt = static function (array $plan, string $path): mixed {
 
 $cases = [
     'records operator' => ['operator', '='],
-    'records column' => ['column', 'option_value'],
+    'records column' => ['column', 'key_value'],
     'records column affinity' => ['columnAffinity', 'NUMERIC'],
     'records probe affinity' => ['probeAffinity', 'NONE'],
     'records probe storage' => ['probeStorage', 'integer'],
@@ -170,7 +170,7 @@ $tests['encoding numeric affinity current source next107 stable source reusable 
     $stable = SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan(
         $currentRows,
         $currentRows,
-        'option_value',
+        'key_value',
         10,
         '=',
         'NUMERIC',
@@ -187,15 +187,15 @@ $tests['encoding numeric affinity current source next107 stable source reusable 
 };
 
 $tests['encoding numeric affinity current source next107 rejects missing column'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan([['option_id' => 1]], $nextRows, 'option_value', 10));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan([['setting_id' => 1]], $nextRows, 'key_value', 10));
 };
 
 $tests['encoding numeric affinity current source next107 rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan($currentRows, $nextRows, 'option_value', 10, 'LIKE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan($currentRows, $nextRows, 'key_value', 10, 'LIKE'));
 };
 
 $tests['encoding numeric affinity current source next107 rejects unsupported collation'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan($currentRows, $nextRows, 'option_value', 10, '=', 'NUMERIC', 'NONE', 'UNICODE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingNumericAffinityCurrentSourceNextPlan::keyValueRowValueComparisonPlan($currentRows, $nextRows, 'key_value', 10, '=', 'NUMERIC', 'NONE', 'UNICODE'));
 };
 
 return $tests;

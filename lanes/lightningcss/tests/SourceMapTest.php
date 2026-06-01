@@ -1743,6 +1743,28 @@ return [
         $t->same([1], array_column($prefixDecoded, 'nameIndex'));
         $t->same(['prefix-a', 'prefix-b'], $prefixDrain->getNames());
     },
+    'source map keeps later vlq state after middle column drains' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('middle-column-drain.css');
+        $map->setSourceContent($sourceIndex, ".first{}\n.drained{}\n.after{}\n");
+        $map->addMapping(0, 0, $sourceIndex, 0, 0, 'first');
+        $map->addMapping(1, 0, $sourceIndex, 1, 0, 'drained');
+        $map->addMapping(2, 4, $sourceIndex, 2, 2, 'after');
+
+        $map->offsetColumns(1, 1, -1);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $roundTrip = SourceMap::fromBuffer('/', $map->toBuffer());
+
+        $t->same('AAAAA;;IAEEE', $map->writeVlq());
+        $t->same([0, 2], array_column($decoded, 'generatedLine'));
+        $t->same([0, 4], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 2], array_column($decoded, 'originalLine'));
+        $t->same([0, 2], array_column($decoded, 'nameIndex'));
+        $t->same(null, $map->findClosestMapping(1, 0));
+        $t->same(['first', 'drained', 'after'], $map->getNames());
+        $t->same([".first{}\n.drained{}\n.after{}\n"], $map->getSourcesContent());
+        $t->same('AAAAA;;IAEEE', $roundTrip->writeVlq());
+    },
     'source map merges column-drained empty child spans over parent lines' => static function (TestRunner $t): void {
         $parent = new SourceMap();
         $parentSource = $parent->addSource('parent.css');

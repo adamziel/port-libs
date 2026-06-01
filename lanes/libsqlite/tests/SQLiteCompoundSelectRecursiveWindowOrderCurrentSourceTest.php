@@ -6,30 +6,30 @@ use PortLibs\LibSqlite\SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNext
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions = [
-    ['option_id' => 1, 'option_name' => 'root', 'parent_id' => 0, 'priority' => '8', 'autoload' => 'yes'],
-    ['option_id' => 2, 'option_name' => 'numeric_child', 'parent_id' => 1, 'priority' => 2, 'autoload' => 'yes'],
-    ['option_id' => 3, 'option_name' => 'text_child', 'parent_id' => 1, 'priority' => '1', 'autoload' => 'no'],
-    ['option_id' => 4, 'option_name' => 'leaf_numeric', 'parent_id' => 2, 'priority' => 3, 'autoload' => 'no'],
-    ['option_id' => 50, 'option_name' => 'direct', 'parent_id' => -1, 'priority' => 1, 'autoload' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'root', 'parent_id' => 0, 'priority' => '8', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'numeric_child', 'parent_id' => 1, 'priority' => 2, 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'text_child', 'parent_id' => 1, 'priority' => '1', 'load_policy' => 'no'],
+    ['setting_id' => 4, 'key_name' => 'leaf_numeric', 'parent_id' => 2, 'priority' => 3, 'load_policy' => 'no'],
+    ['setting_id' => 50, 'key_name' => 'direct', 'parent_id' => -1, 'priority' => 1, 'load_policy' => 'yes'],
 ];
 $nextOptions = [
     ...$currentOptions,
-    ['option_id' => 6, 'option_name' => 'plugin_beta', 'parent_id' => 1, 'priority' => 1.5, 'autoload' => 'yes'],
-    ['option_id' => 7, 'option_name' => 'plugin_beta_child', 'parent_id' => 6, 'priority' => '2', 'autoload' => 'no'],
+    ['setting_id' => 6, 'key_name' => 'module_beta', 'parent_id' => 1, 'priority' => 1.5, 'load_policy' => 'yes'],
+    ['setting_id' => 7, 'key_name' => 'module_beta_child', 'parent_id' => 6, 'priority' => '2', 'load_policy' => 'no'],
 ];
-$currentTables = ['wp_options' => $currentOptions];
-$nextTables = ['wp_options' => $nextOptions];
+$currentTables = ['app_settings' => $currentOptions];
+$nextTables = ['app_settings' => $nextOptions];
 
 $sql = <<<'SQL'
-WITH RECURSIVE option_walk(id, label, queue_key, depth) AS (
-    SELECT option_id, option_name, priority, 0
-      FROM wp_options
+WITH RECURSIVE setting_walk(id, label, queue_key, depth) AS (
+    SELECT setting_id, key_name, priority, 0
+      FROM app_settings
      WHERE parent_id = 0
     UNION ALL
-    SELECT child.option_id, child.option_name, child.priority, option_walk.depth + 1
-      FROM wp_options AS child
-      JOIN option_walk ON child.parent_id = option_walk.id
-     WHERE option_walk.depth < 3
+    SELECT child.setting_id, child.key_name, child.priority, setting_walk.depth + 1
+      FROM app_settings AS child
+      JOIN setting_walk ON child.parent_id = setting_walk.id
+     WHERE setting_walk.depth < 3
      ORDER BY 3 ASC, 1 ASC
      LIMIT 8
 )
@@ -38,14 +38,14 @@ SELECT id,
        depth,
        queue_key,
        row_number() OVER (ORDER BY queue_key ASC, id ASC) AS visit_rank
-  FROM option_walk
+  FROM setting_walk
 UNION ALL
-SELECT option_id AS id,
-       option_name AS label,
+SELECT setting_id AS id,
+       key_name AS label,
        0 AS depth,
        priority AS queue_key,
-       row_number() OVER (ORDER BY priority ASC, option_id ASC) AS visit_rank
-  FROM wp_options
+       row_number() OVER (ORDER BY priority ASC, setting_id ASC) AS visit_rank
+  FROM app_settings
  WHERE parent_id = -1
  ORDER BY visit_rank ASC, queue_key ASC, label ASC
  LIMIT 7
@@ -86,18 +86,18 @@ $tests['compound select recursive window order current source current ordered ro
 $tests['compound select recursive window order current source next ordered rows'] = static function (TestRunner $t) use ($summary): void {
     $rows = $summary()['nextRows'];
     $t->same([50, 6, 2, 4, 3, 7, 1], array_column($rows, 'id'));
-    $t->same(['direct', 'plugin_beta', 'numeric_child', 'leaf_numeric', 'text_child', 'plugin_beta_child', 'root'], array_column($rows, 'label'));
+    $t->same(['direct', 'module_beta', 'numeric_child', 'leaf_numeric', 'text_child', 'module_beta_child', 'root'], array_column($rows, 'label'));
     $t->same([1, 1.5, 2, 3, '1', '2', '8'], array_column($rows, 'queue_key'));
     $t->same([1, 1, 2, 3, 4, 5, 6], array_column($rows, 'visit_rank'));
 };
 
 $tests['compound select recursive window order current source recursive queue order'] = static function (TestRunner $t) use ($summary): void {
     $recursive = $summary()['recursive'];
-    $t->same('option_walk', $recursive['name']);
+    $t->same('setting_walk', $recursive['name']);
     $t->same(['id', 'label', 'queue_key', 'depth'], $recursive['columns']);
     $t->same('UNION ALL', $recursive['operator']);
     $t->same(['root', 'numeric_child', 'leaf_numeric', 'text_child'], $recursive['currentVisitedLabels']);
-    $t->same(['root', 'plugin_beta', 'numeric_child', 'leaf_numeric', 'text_child', 'plugin_beta_child'], $recursive['nextVisitedLabels']);
+    $t->same(['root', 'module_beta', 'numeric_child', 'leaf_numeric', 'text_child', 'module_beta_child'], $recursive['nextVisitedLabels']);
     $t->same(['string:8', 'numeric:2', 'numeric:3', 'string:1'], $recursive['currentQueueKeys']);
     $t->same(['string:8', 'numeric:1.5', 'numeric:2', 'numeric:3', 'string:1', 'string:2'], $recursive['nextQueueKeys']);
 };
@@ -105,7 +105,7 @@ $tests['compound select recursive window order current source recursive queue or
 $tests['compound select recursive window order current source recursive accepted labels'] = static function (TestRunner $t) use ($summary): void {
     $recursive = $summary()['recursive'];
     $t->same([['numeric_child', 'text_child'], ['leaf_numeric'], [], []], $recursive['currentAcceptedNextLabels']);
-    $t->same([['numeric_child', 'text_child', 'plugin_beta'], ['plugin_beta_child'], ['leaf_numeric']], array_slice($recursive['nextAcceptedNextLabels'], 0, 3));
+    $t->same([['numeric_child', 'text_child', 'module_beta'], ['module_beta_child'], ['leaf_numeric']], array_slice($recursive['nextAcceptedNextLabels'], 0, 3));
     $t->true(in_array('sqlite-recursive-cte-current-row', $recursive['dependencies'], true));
 };
 
@@ -130,7 +130,7 @@ $tests['compound select recursive window order current source order boundary'] =
 $tests['compound select recursive window order current source changed signatures and reasons'] = static function (TestRunner $t) use ($summary): void {
     $plan = $summary();
     $changed = implode("\n", $plan['changedSignatures']);
-    $t->true(str_contains($changed, 'plugin_beta'));
+    $t->true(str_contains($changed, 'module_beta'));
     $t->true(str_contains($changed, '"queue_key":1.5'));
     $t->true(in_array('compound-recursive-window-rowset-changed', $plan['replanReasons'], true));
     $t->true(in_array('recursive-queue-order-before-window-changed', $plan['replanReasons'], true));
@@ -141,7 +141,7 @@ $tests['compound select recursive window order current source changed signatures
 
 $tests['compound select recursive window order current source rejects non recursive select'] = static function (TestRunner $t) use ($currentTables): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNextPlan::compare(
-        'SELECT option_id AS id, option_name AS label, row_number() OVER (ORDER BY option_id) AS visit_rank FROM wp_options ORDER BY visit_rank',
+        'SELECT setting_id AS id, key_name AS label, row_number() OVER (ORDER BY setting_id) AS visit_rank FROM app_settings ORDER BY visit_rank',
         $currentTables,
         $currentTables,
     ));
@@ -149,7 +149,7 @@ $tests['compound select recursive window order current source rejects non recurs
 
 $tests['compound select recursive window order current source rejects non compound select'] = static function (TestRunner $t) use ($currentTables): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectRecursiveWindowOrderCurrentSourceNextPlan::compare(
-        'WITH RECURSIVE option_walk(id, label, queue_key, depth) AS (SELECT option_id, option_name, priority, 0 FROM wp_options WHERE parent_id = 0 UNION ALL SELECT child.option_id, child.option_name, child.priority, option_walk.depth + 1 FROM wp_options AS child JOIN option_walk ON child.parent_id = option_walk.id WHERE option_walk.depth < 3 ORDER BY 3 ASC, 1 ASC LIMIT 8) SELECT id, label, depth, queue_key, row_number() OVER (ORDER BY queue_key ASC, id ASC) AS visit_rank FROM option_walk ORDER BY visit_rank',
+        'WITH RECURSIVE setting_walk(id, label, queue_key, depth) AS (SELECT setting_id, key_name, priority, 0 FROM app_settings WHERE parent_id = 0 UNION ALL SELECT child.setting_id, child.key_name, child.priority, setting_walk.depth + 1 FROM app_settings AS child JOIN setting_walk ON child.parent_id = setting_walk.id WHERE setting_walk.depth < 3 ORDER BY 3 ASC, 1 ASC LIMIT 8) SELECT id, label, depth, queue_key, row_number() OVER (ORDER BY queue_key ASC, id ASC) AS visit_rank FROM setting_walk ORDER BY visit_rank',
         $currentTables,
         $currentTables,
     ));
@@ -161,15 +161,15 @@ foreach (range(1, 56) as $case) {
         $text = (string) (1 + ($case % 4));
         $limit = 4 + ($case % 3);
         $tables = [
-            'wp_options' => [
-                ['option_id' => 1, 'option_name' => 'root_' . $case, 'parent_id' => 0, 'priority' => '9', 'autoload' => 'yes'],
-                ['option_id' => 2, 'option_name' => 'numeric_' . $case, 'parent_id' => 1, 'priority' => $numeric, 'autoload' => 'yes'],
-                ['option_id' => 3, 'option_name' => 'text_' . $case, 'parent_id' => 1, 'priority' => $text, 'autoload' => 'no'],
-                ['option_id' => 4, 'option_name' => 'numeric_child_' . $case, 'parent_id' => 2, 'priority' => $numeric + 1, 'autoload' => 'no'],
-                ['option_id' => 50, 'option_name' => 'direct_' . $case, 'parent_id' => -1, 'priority' => 0, 'autoload' => 'yes'],
+            'app_settings' => [
+                ['setting_id' => 1, 'key_name' => 'root_' . $case, 'parent_id' => 0, 'priority' => '9', 'load_policy' => 'yes'],
+                ['setting_id' => 2, 'key_name' => 'numeric_' . $case, 'parent_id' => 1, 'priority' => $numeric, 'load_policy' => 'yes'],
+                ['setting_id' => 3, 'key_name' => 'text_' . $case, 'parent_id' => 1, 'priority' => $text, 'load_policy' => 'no'],
+                ['setting_id' => 4, 'key_name' => 'numeric_child_' . $case, 'parent_id' => 2, 'priority' => $numeric + 1, 'load_policy' => 'no'],
+                ['setting_id' => 50, 'key_name' => 'direct_' . $case, 'parent_id' => -1, 'priority' => 0, 'load_policy' => 'yes'],
             ],
         ];
-        $sql = "WITH RECURSIVE option_walk(id, label, queue_key, depth) AS (SELECT option_id, option_name, priority, 0 FROM wp_options WHERE parent_id = 0 UNION ALL SELECT child.option_id, child.option_name, child.priority, option_walk.depth + 1 FROM wp_options AS child JOIN option_walk ON child.parent_id = option_walk.id WHERE option_walk.depth < 3 ORDER BY 3 ASC, 1 ASC LIMIT 8) SELECT id, label, depth, queue_key, row_number() OVER (ORDER BY queue_key ASC, id ASC) AS visit_rank FROM option_walk UNION ALL SELECT option_id AS id, option_name AS label, 0 AS depth, priority AS queue_key, row_number() OVER (ORDER BY priority ASC, option_id ASC) AS visit_rank FROM wp_options WHERE parent_id = -1 ORDER BY visit_rank ASC, queue_key ASC, label ASC LIMIT {$limit}";
+        $sql = "WITH RECURSIVE setting_walk(id, label, queue_key, depth) AS (SELECT setting_id, key_name, priority, 0 FROM app_settings WHERE parent_id = 0 UNION ALL SELECT child.setting_id, child.key_name, child.priority, setting_walk.depth + 1 FROM app_settings AS child JOIN setting_walk ON child.parent_id = setting_walk.id WHERE setting_walk.depth < 3 ORDER BY 3 ASC, 1 ASC LIMIT 8) SELECT id, label, depth, queue_key, row_number() OVER (ORDER BY queue_key ASC, id ASC) AS visit_rank FROM setting_walk UNION ALL SELECT setting_id AS id, key_name AS label, 0 AS depth, priority AS queue_key, row_number() OVER (ORDER BY priority ASC, setting_id ASC) AS visit_rank FROM app_settings WHERE parent_id = -1 ORDER BY visit_rank ASC, queue_key ASC, label ASC LIMIT {$limit}";
         $rows = SQLiteSelectSql::execute($sql, $tables);
 
         $t->same(min($limit, 5), count($rows));

@@ -204,6 +204,16 @@ $columnPrefixDrainMap->addMapping(2, 0, $columnPrefixDrainSource, 0, 0, 'prefix-
 $columnPrefixDrainMap->addMapping(2, 10, $columnPrefixDrainSource, 1, 0, 'prefix-b-rule');
 $columnPrefixDrainMap->offsetColumns(2, 5, -5);
 
+$middleColumnDrainedSpanMap = new SourceMap();
+$middleColumnDrainedSpanSource = $middleColumnDrainedSpanMap->addSource('wp-content/themes/example/source-map-middle-column-drain.css');
+$middleColumnDrainedSpanMap->setSourceContent($middleColumnDrainedSpanSource, ".wp-block-before-drain{}\n.wp-block-drained-middle{}\n.wp-block-after-drain{}\n");
+$middleColumnDrainedSpanMap->addMapping(0, 0, $middleColumnDrainedSpanSource, 0, 0, 'middle-drain-before');
+$middleColumnDrainedSpanMap->addMapping(1, 0, $middleColumnDrainedSpanSource, 1, 0, 'middle-drain-removed');
+$middleColumnDrainedSpanMap->addMapping(2, 4, $middleColumnDrainedSpanSource, 2, 2, 'middle-drain-after');
+$middleColumnDrainedSpanMap->offsetColumns(1, 1, -1);
+$middleColumnDrainedSpanRoundTrip = SourceMap::fromBuffer('/', $middleColumnDrainedSpanMap->toBuffer());
+$middleColumnDrainedSpanClosest = $middleColumnDrainedSpanMap->findClosestMapping(1, 0);
+
 $mergedColumnDrainedChildParent = new SourceMap();
 $mergedColumnDrainedParentSource = $mergedColumnDrainedChildParent->addSource('wp-content/themes/example/source-map-merge-parent.css');
 foreach ([0, 1, 2, 3] as $line) {
@@ -1004,6 +1014,9 @@ $actual = [
     'columnDrainedEmptySpanRoundTrip' => $columnDrainedEmptySpanRoundTrip->toJson(null, false),
     'columnDrainedEmptySpanClosest' => $columnDrainedEmptySpanClosest,
     'columnPrefixDrainMap' => $columnPrefixDrainMap->toJson(null, false),
+    'middleColumnDrainedSpanMap' => $middleColumnDrainedSpanMap->toJson(null, false),
+    'middleColumnDrainedSpanRoundTrip' => $middleColumnDrainedSpanRoundTrip->toJson(null, false),
+    'middleColumnDrainedSpanClosest' => $middleColumnDrainedSpanClosest,
     'mergedColumnDrainedChildBeforeMerge' => $mergedColumnDrainedChildBeforeMerge,
     'mergedColumnDrainedChildParentMap' => $mergedColumnDrainedChildParent->toJson(null, false),
     'mergedColumnDrainedChildConsumed' => $mergedColumnDrainedChildConsumed,
@@ -1142,6 +1155,9 @@ if (($argv[1] ?? null) === '--self-test') {
         'columnDrainedEmptySpanRoundTrip' => '{"version":3,"mappings":";;","sources":["wp-content/themes/example/column-drained-empty-span.css"],"sourcesContent":[".wp-block-column-drained{}\n"],"names":["column-drained-rule"]}',
         'columnDrainedEmptySpanClosest' => null,
         'columnPrefixDrainMap' => '{"version":3,"mappings":";;KACAC","sources":["wp-content/themes/example/column-prefix-drain.css"],"sourcesContent":[".wp-block-prefix-a{}\n.wp-block-prefix-b{}\n"],"names":["prefix-a-rule","prefix-b-rule"]}',
+        'middleColumnDrainedSpanMap' => '{"version":3,"mappings":"AAAAA;;IAEEE","sources":["wp-content/themes/example/source-map-middle-column-drain.css"],"sourcesContent":[".wp-block-before-drain{}\n.wp-block-drained-middle{}\n.wp-block-after-drain{}\n"],"names":["middle-drain-before","middle-drain-removed","middle-drain-after"]}',
+        'middleColumnDrainedSpanRoundTrip' => '{"version":3,"mappings":"AAAAA;;IAEEE","sources":["wp-content/themes/example/source-map-middle-column-drain.css"],"sourcesContent":[".wp-block-before-drain{}\n.wp-block-drained-middle{}\n.wp-block-after-drain{}\n"],"names":["middle-drain-before","middle-drain-removed","middle-drain-after"]}',
+        'middleColumnDrainedSpanClosest' => null,
         'mergedColumnDrainedChildBeforeMerge' => '{"version":3,"mappings":";;","sources":["wp-content/themes/example/column-drained-child.css"],"sourcesContent":[".wp-block-column-drained-child{}\n"],"names":["merged-column-drain-child-rule"]}',
         'mergedColumnDrainedChildParentMap' => '{"version":3,"mappings":"AAAAA;;;","sources":["wp-content/themes/example/source-map-merge-parent.css","wp-content/themes/example/column-drained-child.css"],"sourcesContent":["",".wp-block-column-drained-child{}\n"],"names":["merged-parent-0","merged-parent-1","merged-parent-2","merged-parent-3","merged-column-drain-child-rule"]}',
         'mergedColumnDrainedChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',

@@ -171,6 +171,48 @@ return [
         $t->same('/ %', $percent->path());
         $t->same('https://%20@%40:example.org/%20%25', $percent->toBytes());
     },
+    'git url keeps password-only http userinfo and query fragment path delimiters like gix-url' => static function (TestRunner $t): void {
+        $passwordOnly = GitUrl::parse('http://:password@example.com/~byron/hello');
+        $t->same(GitUrl::SCHEME_HTTP, $passwordOnly->scheme());
+        $t->same('', $passwordOnly->user(), 'empty HTTP user is retained when a password is present');
+        $t->same('password', $passwordOnly->password());
+        $t->same('example.com', $passwordOnly->host());
+        $t->same('/~byron/hello', $passwordOnly->path());
+        $t->same('http://:password@example.com/~byron/hello', $passwordOnly->toBytes());
+        $t->same('http://:redacted@example.com/~byron/hello', $passwordOnly->display());
+
+        $passwordOnlyRoundtrip = GitUrl::parse($passwordOnly->toBytes());
+        $t->same('', $passwordOnlyRoundtrip->user());
+        $t->same('password', $passwordOnlyRoundtrip->password());
+        $t->same($passwordOnly->toBytes(), $passwordOnlyRoundtrip->toBytes());
+
+        $queryPath = GitUrl::parse('https://host/repo.git?token=abc');
+        $t->same('/repo.git?token=abc', $queryPath->path());
+        $t->same('https://host/repo.git?token=abc', $queryPath->toBytes());
+
+        $fragmentPath = GitUrl::parse('https://host/repo.git#section');
+        $t->same('/repo.git#section', $fragmentPath->path());
+        $t->same('https://host/repo.git#section', $fragmentPath->toBytes());
+
+        $combinedPath = GitUrl::parse('https://host/repo.git?token=abc#section');
+        $t->same('/repo.git?token=abc#section', $combinedPath->path());
+        $t->same('https://host/repo.git?token=abc#section', $combinedPath->toBytes());
+
+        foreach ([
+            'http://example.com/ path',
+            'http://user name@example.com/path',
+            'http://user:pass word@example.com/path',
+            "http://example.com/\tpath",
+            "http://user\tname@example.com/path",
+            "http://user:pass\tword@example.com/path",
+        ] as $invalidWhitespaceUrl) {
+            $t->throws(
+                InvalidArgumentException::class,
+                static fn () => GitUrl::parse($invalidWhitespaceUrl),
+                "{$invalidWhitespaceUrl} rejects raw URL whitespace"
+            );
+        }
+    },
     'git url mutates credentials and roundtrips canonical bytes like gix-url access helpers' => static function (TestRunner $t): void {
         $url = GitUrl::parse('https://user@host/path');
         $mutated = $url
@@ -973,6 +1015,14 @@ return [
         $t->same($fixture['expectedCredentialRemoteUrl'], $summary['credentialRemoteRoundtrip']['normalized']);
         $t->same($fixture['credentialRemoteUser'], $summary['credentialRemoteRoundtrip']['user']);
         $t->same($fixture['credentialRemotePassword'], $summary['credentialRemoteRoundtrip']['password']);
+        $t->same($fixture['expectedPasswordOnlyRemoteUser'], $summary['passwordOnlyRemote']['user']);
+        $t->same($fixture['expectedPasswordOnlyRemotePassword'], $summary['passwordOnlyRemote']['password']);
+        $t->same($fixture['expectedPasswordOnlyRemotePath'], $summary['passwordOnlyRemote']['path']);
+        $t->same($fixture['expectedPasswordOnlyRemoteUrl'], $summary['passwordOnlyRemote']['normalized']);
+        $t->same($fixture['expectedPasswordOnlyRemoteDisplay'], $summary['passwordOnlyRemoteDisplay']);
+        $t->same($fixture['expectedPasswordOnlyRemoteUrl'], $summary['passwordOnlyRemoteRoundtrip']['normalized']);
+        $t->same($fixture['expectedPasswordOnlyRemoteUser'], $summary['passwordOnlyRemoteRoundtrip']['user']);
+        $t->same($fixture['expectedPasswordOnlyRemotePassword'], $summary['passwordOnlyRemoteRoundtrip']['password']);
         $t->same($fixture['expectedByteRoundtripRemoteUrl'], $summary['byteRoundtripRemote']['normalized']);
         $t->same($summary['byteRoundtripRemoteFromParse']['normalized'], $summary['byteRoundtripRemote']['normalized']);
         $t->same($fixture['expectedPartsRemoteUrl'], $summary['partsRemote']['normalized']);

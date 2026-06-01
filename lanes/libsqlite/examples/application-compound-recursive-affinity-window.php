@@ -7,28 +7,28 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteCompoundRecursiveAffinityWindowCurrentSourceNextPlan;
 
 $currentTables = [
-    'wp_options' => [
-        ['option_id' => 1, 'option_name' => 'siteurl', 'weight' => 1, 'autoload' => 'yes'],
-        ['option_id' => 2, 'option_name' => 'home', 'weight' => 1.0, 'autoload' => 'yes'],
-        ['option_id' => 3, 'option_name' => 'blogname', 'weight' => '1', 'autoload' => 'yes'],
-        ['option_id' => 4, 'option_name' => 'active_plugins', 'weight' => 2, 'autoload' => 'no'],
+    'app_settings' => [
+        ['setting_id' => 1, 'key_name' => 'base_url', 'weight' => 1, 'load_policy' => 'yes'],
+        ['setting_id' => 2, 'key_name' => 'landing_url', 'weight' => 1.0, 'load_policy' => 'yes'],
+        ['setting_id' => 3, 'key_name' => 'site_title', 'weight' => '1', 'load_policy' => 'yes'],
+        ['setting_id' => 4, 'key_name' => 'module_registry', 'weight' => 2, 'load_policy' => 'no'],
     ],
-    'wp_option_edges' => [
+    'app_setting_edges' => [
         ['src' => 1, 'dst' => 2, 'weight' => 1.0],
         ['src' => 2, 'dst' => 3, 'weight' => '1'],
         ['src' => 3, 'dst' => 4, 'weight' => 2],
     ],
 ];
 $nextTables = $currentTables;
-$nextTables['wp_options'][] = ['option_id' => 5, 'option_name' => 'new_plugin_flag', 'weight' => '2', 'autoload' => 'no'];
-$nextTables['wp_option_edges'][] = ['src' => 4, 'dst' => 5, 'weight' => '2'];
+$nextTables['app_settings'][] = ['setting_id' => 5, 'key_name' => 'new_module_flag', 'weight' => '2', 'load_policy' => 'no'];
+$nextTables['app_setting_edges'][] = ['src' => 4, 'dst' => 5, 'weight' => '2'];
 
 $sql = <<<'SQL'
 WITH RECURSIVE wanted(node, weight) AS MATERIALIZED (
     VALUES (1, 1)
     UNION
-    SELECT wp_option_edges.dst, wp_option_edges.weight
-      FROM wp_option_edges JOIN wanted ON wp_option_edges.src = node
+    SELECT app_setting_edges.dst, app_setting_edges.weight
+      FROM app_setting_edges JOIN wanted ON app_setting_edges.src = node
      WHERE node < 5
     UNION
     SELECT node, weight + 0.0
@@ -43,14 +43,14 @@ SELECT node AS id,
        ) AS weighted_total
   FROM wanted
 UNION
-SELECT option_id AS id,
+SELECT setting_id AS id,
        weight AS class_value,
-       sum(CAST(weight AS REAL)) FILTER (WHERE autoload = 'no') OVER (
-           ORDER BY option_id
+       sum(CAST(weight AS REAL)) FILTER (WHERE load_policy = 'no') OVER (
+           ORDER BY setting_id
            ROWS BETWEEN CURRENT ROW AND CURRENT ROW
        ) AS weighted_total
-  FROM wp_options
- WHERE option_id IN (SELECT node FROM wanted)
+  FROM app_settings
+ WHERE setting_id IN (SELECT node FROM wanted)
  ORDER BY id, class_value
 SQL;
 

@@ -625,6 +625,32 @@ CSS,
             })
         );
         $t->same([['remote.css', '/entry.css']], $resolved);
+
+        $unknownResolutions = [];
+        $t->same(
+            '@import "https://cdn.example/unknown.css" supports((unknown));.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "unknown.css" supports((unknown)); .entry { color: red }',
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$unknownResolutions): array {
+                $unknownResolutions[] = [$specifier, $originatingFile];
+
+                return ['external' => 'https://cdn.example/unknown.css'];
+            })
+        );
+        $t->same([['unknown.css', '/entry.css']], $unknownResolutions);
+
+        $customPropertyResolutions = [];
+        $t->same(
+            '@import "https://cdn.example/theme.css" supports((--wp-theme-variant));.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "theme.css" supports((--wp-theme-variant)); .entry { color: red }',
+            ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$customPropertyResolutions): array {
+                $customPropertyResolutions[] = [$specifier, $originatingFile];
+
+                return ['external' => 'https://cdn.example/theme.css'];
+            })
+        );
+        $t->same([['theme.css', '/entry.css']], $customPropertyResolutions);
     },
     'css bundler maps upstream url import modifiers with trailing media' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
@@ -2565,6 +2591,43 @@ CSS,
                 $moduleLocal('tok_token'),
             ]),
         ], $result['exports']);
+    },
+    'css bundler omits upstream cyclic source-index css module compose roots' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal, $moduleGlobal): void {
+        $result = $bundleModules([
+            '/entry.css' => <<<'CSS'
+.entry {
+  composes: card from "./card.css";
+  color: red;
+}
+CSS,
+            '/card.css' => <<<'CSS'
+.card {
+  composes: utility;
+  composes: entry from "./entry.css";
+  composes: wp-card from global;
+  background: green;
+}
+
+.utility {
+  color: blue;
+}
+CSS,
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/card.css' => 'card',
+            ],
+        ]);
+
+        $t->same('.card_card{background:green}.card_utility{color:#00f}.entry_entry{color:red}', $result['code']);
+        $t->same([
+            'entry' => $moduleExport('entry_entry', [
+                $moduleLocal('card_card'),
+                $moduleLocal('card_utility'),
+                $moduleGlobal('wp-card'),
+            ]),
+        ], $result['exports']);
+        $t->same(['card_card', 'card_utility', 'wp-card'], array_column($result['exports']['entry']['composes'], 'name'));
     },
     'css bundler keeps css module dependency imports unconditional like upstream' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal): void {
         $result = $bundleModules([

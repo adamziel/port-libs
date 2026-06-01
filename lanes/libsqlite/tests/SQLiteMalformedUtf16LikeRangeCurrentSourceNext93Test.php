@@ -7,20 +7,20 @@ use PortLibs\LibSqlite\SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan;
 
 $tests = [];
 
-$row = static function (int $id, string $name, string $encoding, string $autoload = 'yes'): array {
+$row = static function (int $id, string $name, string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => $encoding === 'UTF-16LE' ? 2 : 3,
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
-$raw = static fn (int $id, string $bytes, int $encoding, string $autoload = 'yes'): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+$raw = static fn (int $id, string $bytes, int $encoding, string $load_policy = 'yes'): array => [
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
-    'autoload' => $autoload,
+    'load_policy' => $load_policy,
 ];
 
 $currentRows = [
@@ -129,20 +129,20 @@ foreach ($cases as $name => $case) {
 
 $tests['malformed utf16 like range current source next93 rejects utf8 rows'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
     $bad = $currentRows;
-    $bad[] = ['option_id' => 20, 'option_name_bytes' => 'plugin_utf8', 'text_encoding' => 1];
+    $bad[] = ['setting_id' => 20, 'key_name_bytes' => 'plugin_utf8', 'text_encoding' => 1];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::keyValueRowKeyLikeRange($bad, $nextRows, 'plugin%'));
 };
 
 $tests['malformed utf16 like range current source next93 rejects missing bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::keyValueRowKeyLikeRange([['option_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::keyValueRowKeyLikeRange([['setting_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin%'));
 };
 
 $tests['malformed utf16 like range current source next93 rejects non integer rowid'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::keyValueRowKeyLikeRange([['option_id' => '1', 'option_name_bytes' => 'p', 'text_encoding' => 2]], $nextRows, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::keyValueRowKeyLikeRange([['setting_id' => '1', 'key_name_bytes' => 'p', 'text_encoding' => 2]], $nextRows, 'plugin%'));
 };
 
 $tests['malformed utf16 like range current source next93 rejects bad collation'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::keyValueRowKeyLikeRange($currentRows, $nextRows, 'plugin%', 'WP_LOCALE'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan::keyValueRowKeyLikeRange($currentRows, $nextRows, 'plugin%', 'APP_LOCALE'));
 };
 
 $tests['malformed utf16 like range current source next93 rejects bad escape'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {

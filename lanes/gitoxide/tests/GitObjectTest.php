@@ -28,6 +28,32 @@ $writeLooseCompressed = static function (string $objectsDirectory, string $oid, 
     }
     file_put_contents($path, $compressedBytes);
 };
+$truncatedBeforeHeaderWindowCompletes = static function (string $storageBytes): string {
+    $compressed = gzcompress($storageBytes);
+    if ($compressed === false) {
+        throw new RuntimeException('Unable to compress truncated loose-object fixture');
+    }
+
+    $length = strlen($compressed);
+    for ($candidateLength = 2; $candidateLength < $length; $candidateLength++) {
+        $candidate = substr($compressed, 0, $candidateLength);
+        $context = inflate_init(ZLIB_ENCODING_DEFLATE);
+        if ($context === false) {
+            throw new RuntimeException('Unable to initialize truncated loose-object inflate probe');
+        }
+        $decoded = @inflate_add($context, $candidate, ZLIB_FINISH);
+        if (
+            $decoded !== false
+            && strpos($decoded, "\0") !== false
+            && strlen($decoded) < 64
+            && inflate_get_status($context) !== ZLIB_STREAM_END
+        ) {
+            return $candidate;
+        }
+    }
+
+    throw new RuntimeException('Unable to derive a truncated loose-object header fixture');
+};
 
 return [
     'git blob oid matches canonical git hashing' => static function (TestRunner $t): void {
@@ -259,6 +285,46 @@ return [
         }
         file_put_contents($badPath, 'not-zlib');
         $t->throws(RuntimeException::class, static fn () => $store->readHeader($badZlibOid));
+    },
+    'loose object header rejects truncated first inflate windows before trusting size' => static function (TestRunner $t) use ($writeLooseCompressed, $truncatedBeforeHeaderWindowCompletes): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-truncated-header-window-' . bin2hex(random_bytes(4)) . '/objects';
+        $oid = str_repeat('7', 40);
+        $writeLooseCompressed(
+            $objectsDirectory,
+            $oid,
+            $truncatedBeforeHeaderWindowCompletes("blob 100\0" . str_repeat('A', 100))
+        );
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+
+        $t->same(true, $store->contains($oid));
+        try {
+            $store->readHeader($oid);
+            throw new RuntimeException('Expected truncated loose object header to fail before exposing size');
+        } catch (RuntimeException $exception) {
+            $t->same("Unable to inflate loose object header: {$oid}", $exception->getMessage());
+        }
+
+        try {
+            $store->tryReadHeader($oid);
+            throw new RuntimeException('Expected truncated loose object tryReadHeader to fail before exposing size');
+        } catch (RuntimeException $exception) {
+            $t->same("Unable to inflate loose object header: {$oid}", $exception->getMessage());
+        }
+
+        try {
+            $store->read($oid);
+            throw new RuntimeException('Expected truncated loose object read to fail during first inflate window');
+        } catch (RuntimeException $exception) {
+            $t->same("Unable to inflate loose object: {$oid}", $exception->getMessage());
+        }
+
+        try {
+            $store->verifyIntegrity();
+            throw new RuntimeException('Expected truncated loose object to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains("Loose object {$oid} could not be read exactly", $exception->getMessage());
+            $t->contains("Unable to inflate loose object: {$oid}", $exception->getMessage());
+        }
     },
     'loose object integrity ignores trailing compressed streams after the declared object' => static function (TestRunner $t) use ($writeLooseCompressed): void {
         $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-trailing-loose-stream-' . bin2hex(random_bytes(4)) . '/objects';
@@ -717,6 +783,8 @@ return [
         $t->same(true, $summary['lateSameStreamOverrunIgnored']);
         $t->same(true, $summary['lateSameStreamIntegrityVerified']);
         $t->same($fixture['lateSameStreamOid'], (new GitObject('blob', $fixture['lateSameStreamBody']))->oid());
+        $t->same(true, $summary['truncatedHeaderInflateRejected']);
+        $t->contains('Unable to inflate loose object header: ' . $fixture['truncatedHeaderOid'], $summary['truncatedHeaderMessage']);
         $t->same(true, $summary['finalizedReadOnly']);
         $t->same(true, $summary['finalizedExistingObjectPreserved']);
         $t->same(true, $summary['integrityInterruptHandled']);

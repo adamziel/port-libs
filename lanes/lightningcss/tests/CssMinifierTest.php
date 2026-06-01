@@ -2140,6 +2140,22 @@ CSS
             '@import "foo.css" supports(display:flex);',
             $minifier->minify('@import url(foo.css) supports((display: flex));')
         );
+        $t->same(
+            '@import "foo.css" supports((unknown));',
+            $minifier->minify('@import url(foo.css) supports((unknown));')
+        );
+        $t->same(
+            '@import "foo.css" supports((--wp-theme-variant));',
+            $minifier->minify('@import url(foo.css) supports((--wp-theme-variant));')
+        );
+        $t->same(
+            '@import "foo.css" layer(theme) supports(display:flex);',
+            $minifier->minify('@import "foo.css" layer(theme) supports((display: flex));')
+        );
+        $t->same(
+            '@import "foo.css" layer(theme) supports((unknown));',
+            $minifier->minify('@import "foo.css" layer(theme) supports((unknown));')
+        );
         $t->same('@import "foo.css";', $minifier->minify('@charset "UTF-8"; @import url(foo.css);'));
         $t->same('@layer foo;@import "foo.css";', $minifier->minify('@layer foo; @import url(foo.css);'));
         $t->same('@import "test.css" layer;', $minifier->minify("@import 'test.css' layer;"));

@@ -105,14 +105,14 @@ final class SQLiteMalformedUtf16LikeRangeCurrentSourceNextPlan
     {
         $scanned = [];
         foreach ($rows as $row) {
-            $rowid = $row['option_id'] ?? null;
-            $bytes = $row['option_name_bytes'] ?? null;
+            $rowid = $row['setting_id'] ?? null;
+            $bytes = $row['key_name_bytes'] ?? null;
             $encoding = $row['text_encoding'] ?? null;
             if (!is_int($rowid)) {
-                throw new \InvalidArgumentException('SQLite malformed UTF-16 LIKE range rows require integer option_id');
+                throw new \InvalidArgumentException('SQLite malformed UTF-16 LIKE range rows require integer setting_id');
             }
             if (!is_string($bytes)) {
-                throw new \InvalidArgumentException('SQLite malformed UTF-16 LIKE range rows require option_name_bytes');
+                throw new \InvalidArgumentException('SQLite malformed UTF-16 LIKE range rows require key_name_bytes');
             }
             if (!is_int($encoding) || !in_array($encoding, [2, 3], true)) {
                 throw new \InvalidArgumentException('SQLite malformed UTF-16 LIKE range rows require UTF-16LE or UTF-16BE text_encoding');
