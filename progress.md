@@ -55,6 +55,23 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor followup (protocol/CSS/PRAGMA replay intake):
+  accepted source commit `ae63ccbb7ec6b0d7bdde3b48d54a16b4fb980617`
+  (`Integrate protocol css sqlite followup handoffs`). Gitoxide added
+  protocol-v2 fetch exchange sideband callback passthrough and send-pack
+  receive-status object-prefix diagnostic parsing; full Gitoxide verification
+  passed `40 files / 7874 assertions / 0 failures` and conservative mapped
+  coverage moves to `1755 / 2886`. LightningCSS added CSS Modules
+  `:dir()`/`:lang()` parity, media feature values in layers, grid value
+  examples, and source-map VLQ trailing-window parity; full LightningCSS
+  verification passed `13 files / 6552 assertions / 0 failures`, mapped
+  coverage remains `2360 / 3532`. libsqlite added real upstream `pragma.test`
+  23.2a-23.5 schema reload dynamic corpus coverage plus source-neutral
+  key-value database API cleanup; focused verification passed `5 files / 8658
+  assertions / 0 failures`, selected evidence moves to `5623914 pass / 7
+  fail`, and mapped coverage remains `1589 / 1589`. Full upstream
+  Cargo/Rust/Node/WASM/release-all runners remain honestly unclaimed.
+
 - 2026-06-01 supervisor followup (published Gitoxide/CSS/libsqlite batch):
   source commit `30cc4700ec7a575690a1285590985639b7c012db` accepted the next
   current-base handoff batch. Gitoxide added URL/refspec from-parts

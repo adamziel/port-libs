@@ -2,16 +2,16 @@
   "schemaVersion": 1,
   "library": "libsqlite",
   "estimatedProgress": 99.5,
-  "suiteProgress": "Supervisor-integrated libsqlite real upstream select7 arity-error dynamic corpus and source-neutral domain-specific option-class cleanup. Verification passed PHP lint, git diff --check, focused libsqlite gate 7 files / 18346 assertions / 0 failures, touched application examples, and no-domain guard coverage.",
-  "phpPass": 5622663,
+  "suiteProgress": "Supervisor-integrated libsqlite real upstream pragma.test 23.2a-23.5 schema reload corpus coverage and source-neutral key-value database API cleanup. Verification passed PHP lint, git diff --check, focused libsqlite gate 5 files / 8658 assertions / 0 failures, touched application examples, and no-domain guard coverage.",
+  "phpPass": 5623914,
   "phpFail": 7,
   "wordpressScenarios": "Generic application/self-test coverage now includes source-neutral application option/view defaults, skipscan2 optoverview people/height skip-scan thresholds, PRAGMA trusted_schema schema-function safety, e_select2 derived-source SELECT joins, expression-affinity comparison, IN-list semantics, and bound NaN/Inf truth coercion, WAL rollback JSON tails and checkpoint-followup tail recovery, key-value WAL import cleanup, FK parent-index diagnostics, row-value UPDATE/DELETE LIMIT execution including random() expressions, master-journal WAL pager behavior, PRAGMA lock_proxy_file and data_store_directory handling, SELECT/window planner behavior, trigger/fkey limits, date/time modifier behavior including timediff1 leap/common month overflow, B-tree left-join/index/delete guards, JSON/JSONB update/subtype/char-built validity behavior, VFS fallocate/shared-lock/batch-atomic lifecycle and win32lock retry behavior, pager WAL reused-log prefix recovery, pager crash recovery, and app-WAL post-checkpoint tail recovery. No domain-specific libsqlite API is accepted.",
   "phase": "focused real-corpus and source-neutral coverage accepted; broad full-lane and release/all parity remain open",
-  "audit": "2026-06-01 supervisor followup: accepted source 30cc4700 with real upstream select7 arity-error dynamic corpus coverage and source-neutral domain-specific option-class cleanup. Focused libsqlite gate passed 7 files / 18346 assertions / 0 failures. Mapped denominator remains 1589 / 1589; cumulative selected pass count increases by 1002 focused PASS cases from select7 arity-error coverage.",
-  "currentWork": "Real upstream select7 arity-error dynamic corpus coverage and source-neutral domain-specific option-class cleanup integrated on current base.",
+  "audit": "2026-06-01 supervisor followup: accepted source ae63ccbb with real upstream pragma.test 23.2a-23.5 schema reload corpus coverage and source-neutral key-value database API cleanup. Focused libsqlite gate passed 5 files / 8658 assertions / 0 failures. Mapped denominator remains 1589 / 1589; cumulative selected pass count increases by 1251 focused PASS cases from pragma schema reload coverage.",
+  "currentWork": "Real upstream pragma.test 23.2a-23.5 schema reload corpus coverage and source-neutral key-value database API cleanup integrated on current base.",
   "blocker": "Broad libsqlite full-lane/release parity is not green: seven known failures remain in sampled broad gates, and release/all parity still needs a current clean run before libsqlite can be declared complete.",
   "nextTask": "Continue broad release/all parity blockers, source-neutral cleanup of remaining CurrentSourceNext/CurrentNext/numbered-plan names, PDO trust-underlying-lib cleanup, and non-overlapping real-corpus JSON, upsert, cast/LIKE, trigger, B-tree/index, STAT4, expression, VFS, WAL, pager, PRAGMA, and date/time coverage.",
   "wordpressScenarioLatest": "Latest accepted batch adds generic source-neutral application trigger examples plus real upstream select7 arity-error coverage without adding domain-specific libsqlite APIs. No-domain guard coverage remains required before each libsqlite batch.",
-  "latestCommit": "30cc4700ec7a575690a1285590985639b7c012db",
-  "commit": "30cc470"
+  "latestCommit": "ae63ccbb7ec6b0d7bdde3b48d54a16b4fb980617",
+  "commit": "ae63ccb"
 }
