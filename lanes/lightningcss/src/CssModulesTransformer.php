@@ -11,6 +11,8 @@ final class CssModulesTransformer
     private const RAW_AT_RULE_BODY_DECLARATION_PREFIX = '--__lightningcss-cssmodules-raw-at-rule-body-';
     private const COMMENT_IDENTIFIER_BOUNDARY = "\x1f";
     private const HAS_SCOPE_DESCENDANT_MARKER = "\x1e";
+    private const PSEUDO_ELEMENT_TAIL_PART = 'part';
+    private const PSEUDO_ELEMENT_TAIL_USER_ACTION = 'user-action';
     private const HASH_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_-';
     private const U32_MASK = 0xffffffff;
     private const U32_BASE = 4294967296;
@@ -2754,13 +2756,18 @@ final class CssModulesTransformer
                 $this->assertSelectorPseudoElementBoundaries($pseudoElement['inner']);
             }
 
-            $this->assertPseudoElementTail($selector, $pseudoElement['end'], $pseudoElement['allowPseudoClasses']);
+            $this->assertPseudoElementTail(
+                $selector,
+                $pseudoElement['end'],
+                $pseudoElement['allowPseudoClasses'],
+                $pseudoElement['tailMode'] ?? self::PSEUDO_ELEMENT_TAIL_USER_ACTION
+            );
             $i = $pseudoElement['end'] - 1;
         }
     }
 
     /**
-     * @return array{end:int,allowPseudoClasses:bool,inner?:string}|null
+     * @return array{end:int,allowPseudoClasses:bool,tailMode?:string,inner?:string}|null
      */
     private function cssModulesPseudoElementAt(string $selector, int $offset): ?array
     {
@@ -2781,6 +2788,7 @@ final class CssModulesTransformer
             return [
                 'end' => $close + 1,
                 'allowPseudoClasses' => true,
+                'tailMode' => self::PSEUDO_ELEMENT_TAIL_USER_ACTION,
             ];
         }
 
@@ -2790,6 +2798,9 @@ final class CssModulesTransformer
             return [
                 'end' => $close + 1,
                 'allowPseudoClasses' => true,
+                'tailMode' => $name === 'part'
+                    ? self::PSEUDO_ELEMENT_TAIL_PART
+                    : self::PSEUDO_ELEMENT_TAIL_USER_ACTION,
             ];
         }
 
@@ -2810,6 +2821,7 @@ final class CssModulesTransformer
                 return [
                     'end' => $close + 1,
                     'allowPseudoClasses' => true,
+                    'tailMode' => self::PSEUDO_ELEMENT_TAIL_USER_ACTION,
                     'inner' => substr($selector, $token['end'] + 1, $close - $token['end'] - 1),
                     'singleSelector' => true,
                 ];
@@ -2818,6 +2830,7 @@ final class CssModulesTransformer
             return [
                 'end' => $token['end'],
                 'allowPseudoClasses' => true,
+                'tailMode' => self::PSEUDO_ELEMENT_TAIL_USER_ACTION,
             ];
         }
 
@@ -2853,6 +2866,7 @@ final class CssModulesTransformer
             return [
                 'end' => $token['end'],
                 'allowPseudoClasses' => true,
+                'tailMode' => self::PSEUDO_ELEMENT_TAIL_USER_ACTION,
             ];
         }
 
@@ -2863,10 +2877,11 @@ final class CssModulesTransformer
         return [
             'end' => $token['end'],
             'allowPseudoClasses' => true,
+            'tailMode' => self::PSEUDO_ELEMENT_TAIL_USER_ACTION,
         ];
     }
 
-    private function assertPseudoElementTail(string $selector, int $offset, bool $allowPseudoClasses): void
+    private function assertPseudoElementTail(string $selector, int $offset, bool $allowPseudoClasses, string $tailMode): void
     {
         $length = strlen($selector);
         $cursor = $offset;
@@ -2890,9 +2905,26 @@ final class CssModulesTransformer
                 throw new \InvalidArgumentException('CSS pseudo-elements cannot be followed by selectors');
             }
 
+            $name = strtolower($token['decoded']);
             $cursor = $token['end'];
             if (($selector[$cursor] ?? '') === '(') {
-                $cursor = $this->findMatchingParen($selector, $cursor) + 1;
+                if (!$this->selectorFunctionArgumentsMustFollowPseudoElement($name)) {
+                    throw new \InvalidArgumentException('Invalid state');
+                }
+
+                $close = $this->findMatchingParen($selector, $cursor);
+                if ($name === 'not') {
+                    $inner = substr($selector, $cursor + 1, $close - $cursor - 1);
+                    foreach ($this->splitTopLevel($inner, ',') as $innerSelector) {
+                        if (!$this->selectorCanFollowPseudoElement($innerSelector, $tailMode)) {
+                            throw new \InvalidArgumentException($this->invalidPseudoClassAfterPseudoElementMessage());
+                        }
+                    }
+                }
+
+                $cursor = $close + 1;
+            } elseif (!$this->pseudoClassCanFollowPseudoElement($name, $tailMode)) {
+                throw new \InvalidArgumentException($this->invalidPseudoClassAfterPseudoElementMessage());
             }
 
             if ($cursor >= $length) {
@@ -2921,7 +2953,7 @@ final class CssModulesTransformer
         $output = '';
         $quote = null;
         $bracketDepth = 0;
-        $afterPseudoElement = false;
+        $afterPseudoElementTailMode = null;
         $length = strlen($selector);
 
         for ($i = 0; $i < $length; $i++) {
@@ -2965,8 +2997,11 @@ final class CssModulesTransformer
                 continue;
             }
 
-            if ($bracketDepth === 0 && !$afterPseudoElement && $this->cssModulesPseudoElementAt($selector, $i) !== null) {
-                $afterPseudoElement = true;
+            if ($bracketDepth === 0 && $afterPseudoElementTailMode === null) {
+                $pseudoElement = $this->cssModulesPseudoElementAt($selector, $i);
+                if ($pseudoElement !== null) {
+                    $afterPseudoElementTailMode = $pseudoElement['tailMode'] ?? self::PSEUDO_ELEMENT_TAIL_USER_ACTION;
+                }
             }
 
             $forgivingSelectorFunction = $bracketDepth === 0 ? $this->forgivingSelectorFunctionAt($selector, $i) : null;
@@ -2976,8 +3011,8 @@ final class CssModulesTransformer
                     $forgivingSelectorFunction['open'] + 1,
                     $forgivingSelectorFunction['close'] - $forgivingSelectorFunction['open'] - 1
                 );
-                if ($afterPseudoElement) {
-                    $rewrittenSelectors = $this->rewritePseudoElementForgivingSelectorListParts($inner);
+                if ($afterPseudoElementTailMode !== null) {
+                    $rewrittenSelectors = $this->rewritePseudoElementForgivingSelectorListParts($inner, $afterPseudoElementTailMode);
                 } elseif ($forgivingSelectorFunction['decodedName'] === 'has') {
                     $rewrittenSelectors = $this->rewriteHasSelectorListParts($inner, $mode, $locals);
                 } else {
@@ -3049,11 +3084,11 @@ final class CssModulesTransformer
                     $negationSelectorFunction['close'] - $negationSelectorFunction['open'] - 1
                 );
 
-                if ($afterPseudoElement) {
+                if ($afterPseudoElementTailMode !== null) {
                     $output .= ':'
                         . $negationSelectorFunction['canonicalName']
                         . '('
-                        . $this->rewritePseudoElementStrictSelectorList($inner)
+                        . $this->rewritePseudoElementStrictSelectorList($inner, $afterPseudoElementTailMode)
                         . ')';
                     $i = $negationSelectorFunction['close'];
                     continue;
@@ -3253,12 +3288,12 @@ final class CssModulesTransformer
     /**
      * @return list<string>
      */
-    private function rewritePseudoElementForgivingSelectorListParts(string $selectorList): array
+    private function rewritePseudoElementForgivingSelectorListParts(string $selectorList, string $tailMode): array
     {
         $rewritten = [];
 
         foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
-            if (!$this->selectorCanFollowPseudoElement($selector)) {
+            if (!$this->selectorCanFollowPseudoElement($selector, $tailMode)) {
                 continue;
             }
 
@@ -3274,13 +3309,13 @@ final class CssModulesTransformer
         return $rewritten;
     }
 
-    private function rewritePseudoElementStrictSelectorList(string $selectorList): string
+    private function rewritePseudoElementStrictSelectorList(string $selectorList, string $tailMode): string
     {
         $rewritten = [];
 
         foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
-            if (!$this->selectorCanFollowPseudoElement($selector)) {
-                throw new \InvalidArgumentException('CSS pseudo-elements cannot be followed by selectors');
+            if (!$this->selectorCanFollowPseudoElement($selector, $tailMode)) {
+                throw new \InvalidArgumentException($this->invalidPseudoClassAfterPseudoElementMessage());
             }
 
             $candidateLocals = [];
@@ -3295,7 +3330,7 @@ final class CssModulesTransformer
         return implode(',', $rewritten);
     }
 
-    private function selectorCanFollowPseudoElement(string $selector): bool
+    private function selectorCanFollowPseudoElement(string $selector, string $tailMode): bool
     {
         $selector = trim($selector);
         if ($selector === '') {
@@ -3326,19 +3361,23 @@ final class CssModulesTransformer
 
             $cursor = $token['end'];
             if (($selector[$cursor] ?? '') !== '(') {
+                if (!$this->pseudoClassCanFollowPseudoElement($name, $tailMode)) {
+                    return false;
+                }
+
                 continue;
+            }
+
+            if (!$this->selectorFunctionArgumentsMustFollowPseudoElement($name)) {
+                return false;
             }
 
             $close = $this->findMatchingParen($selector, $cursor);
             $inner = substr($selector, $cursor + 1, $close - $cursor - 1);
-            if ($this->selectorFunctionArgumentsMustFollowPseudoElement($name)) {
-                foreach ($this->splitTopLevel($inner, ',') as $innerSelector) {
-                    if (!$this->selectorCanFollowPseudoElement($innerSelector)) {
-                        return false;
-                    }
+            foreach ($this->splitTopLevel($inner, ',') as $innerSelector) {
+                if (!$this->selectorCanFollowPseudoElement($innerSelector, $tailMode)) {
+                    return false;
                 }
-            } elseif ($this->selectorFunctionArgumentsContainCssModulesModePseudo($inner)) {
-                return false;
             }
 
             $cursor = $close + 1;
@@ -3352,19 +3391,22 @@ final class CssModulesTransformer
         return in_array($name, ['-moz-any', '-webkit-any', 'has', 'is', 'not', 'where'], true);
     }
 
-    private function selectorFunctionArgumentsContainCssModulesModePseudo(string $arguments): bool
+    private function pseudoClassCanFollowPseudoElement(string $name, string $tailMode): bool
     {
-        $length = strlen($arguments);
-        for ($i = 0; $i < $length; $i++) {
-            if (
-                $this->cssModulesPseudoFunctionAt($arguments, $i, 'global') !== null
-                || $this->cssModulesPseudoFunctionAt($arguments, $i, 'local') !== null
-            ) {
-                return true;
-            }
+        if ($name === 'local' || $name === 'global') {
+            return false;
         }
 
-        return false;
+        if ($tailMode === self::PSEUDO_ELEMENT_TAIL_PART) {
+            return true;
+        }
+
+        return in_array($name, ['active', 'focus', 'focus-visible', 'focus-within', 'hover'], true);
+    }
+
+    private function invalidPseudoClassAfterPseudoElementMessage(): string
+    {
+        return 'Invalid pseudo class after pseudo element, only user action pseudo classes (e.g. :hover, :active) are allowed';
     }
 
     private function assertSelectorNamespaceDelimiter(string $selector, int $offset): void

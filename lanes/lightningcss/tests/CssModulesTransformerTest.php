@@ -412,7 +412,8 @@ CSS);
 .card::-webkit-input-placeholder,
 .card::file-selector-button:hover,
 .card::part(icon):hover,
-.card::picker(select):open {
+.card::part(icon):current,
+.card::selection:focus-within {
   color: red;
 }
 
@@ -426,7 +427,7 @@ CSS);
 }
 CSS);
 
-        $t->same('.EgL3uq_card::selection,.wp-block-list::marker,.EgL3uq_card::-webkit-input-placeholder,.EgL3uq_card::file-selector-button:hover,.EgL3uq_card::part(icon):hover,.EgL3uq_card::picker(select):open{color:red}.EgL3uq_button{color:#00f}.EgL3uq_card{color:green}', $result['code']);
+        $t->same('.EgL3uq_card::selection,.wp-block-list::marker,.EgL3uq_card::-webkit-input-placeholder,.EgL3uq_card::file-selector-button:hover,.EgL3uq_card::part(icon):hover,.EgL3uq_card::part(icon):current,.EgL3uq_card::selection:focus-within{color:red}.EgL3uq_button{color:#00f}.EgL3uq_card{color:green}', $result['code']);
         $t->same([
             'card' => $export('EgL3uq_card'),
             'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
@@ -445,10 +446,28 @@ CSS);
             ':global(.legacy::part(icon) .child) .card { color: red }',
             ':local(.card::picker(select) .child) { color: red }',
             '.card::picker(select) .child { color: red }',
+            '.card::picker(select):open { color: red }',
             '.card::part(icon) { composes: base; color: red }',
             '.card::picker(select) { composes: base; color: red }',
         ] as $css) {
             $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
+        }
+
+        $invalidPseudoClassAfterPseudoElement = 'Invalid pseudo class after pseudo element, only user action pseudo classes (e.g. :hover, :active) are allowed';
+        foreach ([
+            '.card::before:current { color: red } .button { composes: card; color: white } .card { color: blue }',
+            '.card::before:target-current { color: red } .button { composes: card; color: white } .card { color: blue }',
+            '.card::before:past { color: red } .button { composes: card; color: white } .card { color: blue }',
+            '.card::before:not(:current) { color: red } .button { composes: card; color: white } .card { color: blue }',
+        ] as $css) {
+            try {
+                (new CssModulesTransformer())->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same($invalidPseudoClassAfterPseudoElement, $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream invalid pseudo class after pseudo element exception');
         }
     },
     'css modules filters selector functions after pseudo-elements without exporting dropped locals' => static function (TestRunner $t) use ($export, $local): void {

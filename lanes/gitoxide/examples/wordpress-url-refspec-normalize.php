@@ -107,6 +107,10 @@ $reverseMatchedFetchRefs = RefSpec::matchFetchLocalRefs(
     $fixture['reverseFetchRefspecs'],
     $fixture['localTrackingRefs']
 );
+$matchedPushRefs = RefSpec::matchPushLocalRefs(
+    $fixture['pushMatchRefspecs'],
+    $fixture['localPushRefs']
+);
 $oversizedRemoteRejected = false;
 try {
     GitUrl::parse($fixture['oversizedRemoteUrl']);
@@ -181,6 +185,7 @@ $summary = [
     'validatedFetchRefs' => $validatedFetchRefs,
     'conflictingFetchRefs' => $conflictingFetchRefs,
     'reverseMatchedFetchRefs' => $reverseMatchedFetchRefs,
+    'matchedPushRefs' => $matchedPushRefs,
     'pushInstructionIdentityUniqueCount' => count(array_unique($pushInstructionIdentityKeys)),
     'sameNamedPushEquivalent' => $pushInstructionIdentitySpecs[0]->equivalentTo($pushInstructionIdentitySpecs[1]),
     'deleteForceEquivalent' => $pushInstructionIdentitySpecs[2]->equivalentTo($pushInstructionIdentitySpecs[3]),
@@ -421,6 +426,15 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if (array_column($summary['reverseMatchedFetchRefs'], 'local') !== $fixture['expectedReverseMatchedFetchLocals']) {
         throw new RuntimeException('Unexpected reverse-matched fetch local refs');
+    }
+    if (array_column($summary['matchedPushRefs'], 'local') !== $fixture['expectedMatchedPushLocals']) {
+        throw new RuntimeException('Unexpected matched push local refs');
+    }
+    if (array_column($summary['matchedPushRefs'], 'remote') !== $fixture['expectedMatchedPushRemotes']) {
+        throw new RuntimeException('Unexpected matched push remote refs');
+    }
+    if (array_column($summary['matchedPushRefs'], 'allowNonFastForward') !== $fixture['expectedMatchedPushForce']) {
+        throw new RuntimeException('Unexpected matched push force flags');
     }
     if (array_column($summary['push'], 'instruction') !== $fixture['expectedPushInstructions']) {
         throw new RuntimeException('Unexpected push refspec instructions');

@@ -1349,6 +1349,64 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchFetchLocalRefs([RefSpec::parsePush('refs/heads/main')], $localRefs));
         $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchFetchLocalRefs(['refs/heads/main:refs/remotes/origin/main'], [['name' => 'refs/remotes/origin/main', 'target' => 'not-an-object']]));
     },
+    'refspec match group maps push lhs local refs to remote refs like gix-refspec instructions' => static function (TestRunner $t): void {
+        $localRefs = [
+            ['name' => 'refs/heads/main', 'target' => str_repeat('1', 40)],
+            ['name' => 'refs/heads/release', 'target' => str_repeat('2', 40)],
+            ['name' => 'refs/heads/private', 'target' => str_repeat('3', 40)],
+            ['name' => 'refs/heads/feature/topic', 'target' => str_repeat('4', 40)],
+            ['name' => 'refs/tags/v1.0', 'target' => str_repeat('5', 40)],
+        ];
+
+        $matches = RefSpec::matchPushLocalRefs([
+            '+refs/heads/*:refs/deploy/*',
+            '^refs/heads/private',
+            'refs/tags/v1.0:refs/tags/v1.0',
+            'refs/heads/main',
+            str_repeat('A', 40) . ':refs/heads/object-deploy',
+            ':refs/heads/deleted',
+            ':',
+        ], $localRefs);
+
+        $t->same([
+            'refs/heads/main',
+            'refs/heads/release',
+            'refs/heads/feature/topic',
+            'refs/tags/v1.0',
+            'refs/heads/main',
+            str_repeat('a', 40),
+        ], array_column($matches, 'local'));
+        $t->same([
+            'refs/deploy/main',
+            'refs/deploy/release',
+            'refs/deploy/feature/topic',
+            'refs/tags/v1.0',
+            'refs/heads/main',
+            'refs/heads/object-deploy',
+        ], array_column($matches, 'remote'));
+        $t->same([0, 0, 0, 2, 3, 4], array_column($matches, 'specIndex'));
+        $t->same([0, 1, 3, 4, 0, null], array_column($matches, 'itemIndex'));
+        $t->same([true, true, true, false, false, false], array_column($matches, 'allowNonFastForward'));
+        $t->same([
+            RefSpec::INSTRUCTION_PUSH_MATCHING,
+            RefSpec::INSTRUCTION_PUSH_MATCHING,
+            RefSpec::INSTRUCTION_PUSH_MATCHING,
+            RefSpec::INSTRUCTION_PUSH_MATCHING,
+            RefSpec::INSTRUCTION_PUSH_MATCHING,
+            RefSpec::INSTRUCTION_PUSH_MATCHING,
+        ], array_column($matches, 'instruction'));
+
+        $dedup = RefSpec::matchPushLocalRefs([
+            'refs/heads/main',
+            'refs/heads/main:refs/heads/main',
+        ], $localRefs);
+        $t->same(1, count($dedup), 'source-only and explicit same-name push mappings deduplicate');
+        $t->same('refs/heads/main', $dedup[0]['remote']);
+
+        $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchPushLocalRefs(['refs/heads/main'], [['target' => str_repeat('9', 40)]]));
+        $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchPushLocalRefs([RefSpec::parseFetch('refs/heads/main')], $localRefs));
+        $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchPushLocalRefs([123], $localRefs));
+    },
     'refspec validated fetch outcome reports conflicts and partial-destination fixes like gix-refspec' => static function (TestRunner $t): void {
         $remoteRefs = [
             ['name' => 'refs/heads/f1', 'target' => str_repeat('1', 40)],
@@ -1502,6 +1560,9 @@ return [
         $t->same($fixture['expectedConflictingFetchIssueSources'], $summary['conflictingFetchRefs']['issues'][0]['sources']);
         $t->same($fixture['expectedReverseMatchedFetchRemotes'], array_column($summary['reverseMatchedFetchRefs'], 'remote'));
         $t->same($fixture['expectedReverseMatchedFetchLocals'], array_column($summary['reverseMatchedFetchRefs'], 'local'));
+        $t->same($fixture['expectedMatchedPushLocals'], array_column($summary['matchedPushRefs'], 'local'));
+        $t->same($fixture['expectedMatchedPushRemotes'], array_column($summary['matchedPushRefs'], 'remote'));
+        $t->same($fixture['expectedMatchedPushForce'], array_column($summary['matchedPushRefs'], 'allowNonFastForward'));
         $t->same($fixture['expectedPushInstructionIdentityUniqueCount'], $summary['pushInstructionIdentityUniqueCount']);
         $t->same($fixture['expectedSameNamedPushEquivalent'], $summary['sameNamedPushEquivalent']);
         $t->same($fixture['expectedDeleteForceEquivalent'], $summary['deleteForceEquivalent']);

@@ -457,6 +457,92 @@ final class RefSpec
     }
 
     /**
+     * Match push refspec left-hand sides against local refs.
+     *
+     * This mirrors the bounded behavior of gix-refspec MatchGroup over push
+     * instructions: local refs are transformed into remote destination refs,
+     * source-only push specs materialize their implicit same-name destination,
+     * object IDs map without requiring an advertised local ref, and negative
+     * push specs remove matching local-ref mappings.
+     *
+     * Delete and all-matching push instructions have no local source side and
+     * are therefore represented by parse/instruction metadata, not by this
+     * local-source matcher.
+     *
+     * @param list<string|self> $pushRefspecs
+     * @param list<string|array{name: string, target?: ?string, object?: ?string}> $localRefs
+     * @return list<array{local: string, remote: ?string, specIndex: int, itemIndex: ?int, allowNonFastForward: bool, instruction: string}>
+     */
+    public static function matchPushLocalRefs(array $pushRefspecs, array $localRefs): array
+    {
+        $specs = [];
+        foreach ($pushRefspecs as $index => $candidate) {
+            $specs[] = self::pushSpecForMatch($candidate, $index);
+        }
+
+        $items = [];
+        foreach ($localRefs as $index => $item) {
+            $items[] = self::localRefItemForMatch($item, $index);
+        }
+
+        $out = [];
+        $seen = [];
+        foreach ($specs as $specIndex => $spec) {
+            if ($spec->mode === self::MODE_NEGATIVE || $spec->source === null) {
+                continue;
+            }
+
+            if (self::looksLikeFullObjectHash($spec->source)) {
+                self::pushUniquePushMapping(
+                    $out,
+                    $seen,
+                    strtolower($spec->source),
+                    self::pushDestinationToRemote($spec, null),
+                    $specIndex,
+                    null,
+                    $spec->mode === self::MODE_FORCE,
+                    $spec->instructionName()
+                );
+                continue;
+            }
+
+            $oneSided = $spec->destination === null;
+            foreach ($items as $itemIndex => $item) {
+                $match = self::matchFetchSource($spec->source, $item['name'], $oneSided);
+                if ($match === null) {
+                    continue;
+                }
+
+                self::pushUniquePushMapping(
+                    $out,
+                    $seen,
+                    $item['name'],
+                    self::pushDestinationToRemote($spec, $match['capture']),
+                    $specIndex,
+                    $itemIndex,
+                    $spec->mode === self::MODE_FORCE,
+                    $spec->instructionName()
+                );
+            }
+        }
+
+        foreach ($specs as $spec) {
+            if ($spec->mode !== self::MODE_NEGATIVE || $spec->source === null) {
+                continue;
+            }
+
+            $source = $spec->source;
+            $out = array_values(array_filter(
+                $out,
+                static fn (array $mapping): bool => self::looksLikeFullObjectHash($mapping['local'])
+                    || self::matchFetchSource($source, $mapping['local'], true) === null
+            ));
+        }
+
+        return $out;
+    }
+
+    /**
      * Validate fetch match output like `gix_refspec::match_lhs().validated()`.
      *
      * Conflicting full local destinations are reported as terminal issues.
@@ -551,6 +637,23 @@ final class RefSpec
 
         if ($spec->operation !== self::OP_FETCH) {
             throw new \InvalidArgumentException("Refspec at index {$index} is not a fetch refspec");
+        }
+
+        return $spec;
+    }
+
+    private static function pushSpecForMatch(mixed $candidate, int $index): self
+    {
+        if ($candidate instanceof self) {
+            $spec = $candidate;
+        } elseif (is_string($candidate)) {
+            $spec = self::parsePush($candidate);
+        } else {
+            throw new \InvalidArgumentException("Push refspec at index {$index} must be a string or RefSpec");
+        }
+
+        if ($spec->operation !== self::OP_PUSH) {
+            throw new \InvalidArgumentException("Refspec at index {$index} is not a push refspec");
         }
 
         return $spec;
@@ -755,6 +858,11 @@ final class RefSpec
         return $base . $destination;
     }
 
+    private static function pushDestinationToRemote(self $spec, ?string $capture): ?string
+    {
+        return self::fetchDestinationToLocal($spec->destination ?? $spec->source, $capture);
+    }
+
     /**
      * @param list<array{remote: string, local: ?string, specIndex: int, itemIndex: ?int}> $out
      * @param array<string, true> $seen
@@ -778,6 +886,36 @@ final class RefSpec
             'local' => $local,
             'specIndex' => $specIndex,
             'itemIndex' => $itemIndex,
+        ];
+    }
+
+    /**
+     * @param list<array{local: string, remote: ?string, specIndex: int, itemIndex: ?int, allowNonFastForward: bool, instruction: string}> $out
+     * @param array<string, true> $seen
+     */
+    private static function pushUniquePushMapping(
+        array &$out,
+        array &$seen,
+        string $local,
+        ?string $remote,
+        int $specIndex,
+        ?int $itemIndex,
+        bool $allowNonFastForward,
+        string $instruction
+    ): void {
+        $key = $local . "\0" . ($remote ?? "\0");
+        if (isset($seen[$key])) {
+            return;
+        }
+
+        $seen[$key] = true;
+        $out[] = [
+            'local' => $local,
+            'remote' => $remote,
+            'specIndex' => $specIndex,
+            'itemIndex' => $itemIndex,
+            'allowNonFastForward' => $allowNonFastForward,
+            'instruction' => $instruction,
         ];
     }
 
