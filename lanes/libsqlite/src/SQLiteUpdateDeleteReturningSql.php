@@ -1229,10 +1229,15 @@ final class SQLiteUpdateDeleteReturningSql
             return ['matched' => true, 'value' => $likeGlob['not'] ? self::negateNullable($result) : $result];
         }
 
-        foreach (['IS NOT', 'IS', '<>', '!=', '>=', '<=', '=', '>', '<'] as $operator) {
+        foreach (['IS NOT DISTINCT FROM', 'IS DISTINCT FROM', 'IS NOT', 'IS', '<>', '!=', '==', '>=', '<=', '=', '>', '<'] as $operator) {
             $parts = self::splitLimitComparison($expression, $operator);
             if ($parts === null) {
                 continue;
+            }
+            if ($operator === 'IS DISTINCT FROM' || $operator === 'IS NOT DISTINCT FROM') {
+                $distinct = self::limitDistinctFrom($parts[0], $parts[1]);
+
+                return ['matched' => true, 'value' => $operator === 'IS NOT DISTINCT FROM' ? !$distinct : $distinct];
             }
             $leftExpression = self::limitCollatedExpression($parts[0]);
             $rightExpression = self::limitCollatedExpression($parts[1]);
@@ -1249,7 +1254,7 @@ final class SQLiteUpdateDeleteReturningSql
             $comparison = self::compareLimitScalarValues($left, $right, $collation);
             $equals = self::limitScalarEquals($left, $right, $collation);
             $result = match ($operator) {
-                '=' => $equals,
+                '=', '==' => $equals,
                 '<>', '!=' => !$equals,
                 '>' => $comparison > 0,
                 '>=' => $comparison >= 0,
@@ -1262,6 +1267,43 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return ['matched' => false, 'value' => null];
+    }
+
+    private static function limitDistinctFrom(string $leftSql, string $rightSql): bool
+    {
+        $leftRowValue = self::limitRowValueExpression($leftSql);
+        $rightRowValue = self::limitRowValueExpression($rightSql);
+        if ($leftRowValue !== null || $rightRowValue !== null) {
+            if ($leftRowValue === null || $rightRowValue === null) {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT row-value DISTINCT operands must have matching arity');
+            }
+
+            return self::rowValueIsDistinctFrom($leftRowValue, $rightRowValue);
+        }
+
+        $leftExpression = self::limitCollatedExpression($leftSql);
+        $rightExpression = self::limitCollatedExpression($rightSql);
+        $collation = $leftExpression['collation'] ?? $rightExpression['collation'];
+        $left = self::limitExpressionValue($leftExpression['expression']);
+        $right = self::limitExpressionValue($rightExpression['expression']);
+        if ($left === null || $right === null) {
+            return $left !== $right;
+        }
+
+        return !self::limitScalarEquals($left, $right, $collation);
+    }
+
+    /**
+     * @return list<mixed>|null
+     */
+    private static function limitRowValueExpression(string $expression): ?array
+    {
+        $stripped = self::stripEnclosingParentheses(trim($expression));
+        if ($stripped === null || count(self::splitComma($stripped)) < 2) {
+            return null;
+        }
+
+        return self::rowValueExpressions($stripped, []);
     }
 
     /**

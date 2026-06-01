@@ -248,6 +248,29 @@ foreach ($fixture['paths'] as $path => $isDirectory) {
 }
 sort($nestedSelected, SORT_STRING);
 $pluginSearchMatch = $search->match('wp-content/plugins/gutenberg/block.json', false, $attributes);
+$normalizedParentComponentPathspecMatches = PathspecMatcher::matchesOne(
+    ':(attr:deploy=theme)wp-content/plugins/../themes/**',
+    'wp-content/themes/twentytwentyfour/theme.json',
+    false,
+    $attributes,
+);
+$rootEscapingPathspecRejected = false;
+try {
+    PathspecMatcher::fromSpecs([':(attr:deploy=plugin)../wp-content/plugins/**']);
+} catch (InvalidArgumentException) {
+    $rootEscapingPathspecRejected = true;
+}
+$rootEscapingCandidateRejected = false;
+try {
+    PathspecMatcher::matchesOne(
+        ':(attr:deploy=plugin)wp-content/plugins/**',
+        '../wp-content/plugins/gutenberg/block.json',
+        false,
+        $attributes,
+    );
+} catch (InvalidArgumentException) {
+    $rootEscapingCandidateRejected = true;
+}
 
 return [
     'selectedForDeployment' => $matcher->matchingPaths($fixture['paths'], $attributes),
@@ -277,6 +300,9 @@ return [
         false,
         $attributes,
     ),
+    'normalizedParentComponentPathspecMatches' => $normalizedParentComponentPathspecMatches,
+    'rootEscapingPathspecRejected' => $rootEscapingPathspecRejected,
+    'rootEscapingCandidateRejected' => $rootEscapingCandidateRejected,
     'datedUploadAttributes' => $classAttributes->attributesForPath(
         'wp-content/uploads/05/photo.jpg',
         ['dated-upload'],

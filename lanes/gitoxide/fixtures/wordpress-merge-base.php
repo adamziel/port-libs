@@ -103,6 +103,10 @@ $generationHydrationLegacyBase = $oidPair('d7');
 $generationHydrationSecurityBase = $oidPair('d8');
 $generationHydrationPluginReview = $oidPair('d9');
 $generationHydrationThemeReview = $oidPair('da');
+$commitGraphOnlyReleaseBaseline = $oidPair('e6');
+$commitGraphOnlyPluginReview = $oidPair('e7');
+$commitGraphOnlyThemeReview = $oidPair('e8');
+$commitGraphOnlyArchiveReview = $oidPair('e9');
 $sha256Root = $oid256('1');
 $sha256Release = $oid256('2');
 $sha256PluginReview = $oid256('a');
@@ -201,6 +205,25 @@ return [
     'generationHydrationPluginReview' => $generationHydrationPluginReview,
     'generationHydrationThemeReview' => $generationHydrationThemeReview,
     'generationHydrationHeads' => [$generationHydrationPluginReview, $generationHydrationThemeReview],
+    'commitGraphOnlyReleaseBaseline' => $commitGraphOnlyReleaseBaseline,
+    'commitGraphOnlyPluginReview' => $commitGraphOnlyPluginReview,
+    'commitGraphOnlyThemeReview' => $commitGraphOnlyThemeReview,
+    'commitGraphOnlyArchiveReview' => $commitGraphOnlyArchiveReview,
+    'commitGraphOnlyHeads' => [$commitGraphOnlyPluginReview, $commitGraphOnlyThemeReview],
+    'commitGraphOnlyGraphWalkOthers' => [$commitGraphOnlyThemeReview, $commitGraphOnlyArchiveReview],
+    'commitGraphOnlyGenerations' => [
+        $commitGraphOnlyReleaseBaseline => 1,
+        $commitGraphOnlyPluginReview => 2,
+        $commitGraphOnlyThemeReview => 2,
+    ],
+    'commitGraphOnlyCommits' => [
+        $commitGraphOnlyReleaseBaseline => $commit([], 1700006600),
+        $commitGraphOnlyPluginReview => $commit([$commitGraphOnlyReleaseBaseline], 1700006610),
+        $commitGraphOnlyThemeReview => $commit([$commitGraphOnlyReleaseBaseline], 1700006620),
+    ],
+    'commitGraphObjectCommits' => [
+        $commitGraphOnlyArchiveReview => $commit([], 1700006630),
+    ],
     'sha256ReleaseBaseline' => $sha256Release,
     'sha256PluginReview' => $sha256PluginReview,
     'sha256ThemeReview' => $sha256ThemeReview,

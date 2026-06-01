@@ -422,6 +422,40 @@ return [
             'visibility: collapse; position: sticky; box-sizing: border-box; text-overflow: ellipsis; vertical-align: super; transform-style: preserve-3d; transform-box: fill-box; backface-visibility: hidden; mix-blend-mode: multiply; perspective: 0; z-index: auto; --Display: Inline Flow-Root',
             $block->removeProperty($declarations, 'display')
         );
+
+        $prefixed3d = '-webkit-transform-style: Preserve-3D; -moz-transform-style: Flat; -webkit-backface-visibility: Hidden; -moz-backface-visibility: Visible; -webkit-perspective: +0800.00PX; -moz-perspective: NONE; --Motion-Depth: +0800.00PX';
+        $t->same(
+            [
+                '-webkit-transform-style' => 'preserve-3d',
+                '-moz-transform-style' => 'flat',
+                '-webkit-backface-visibility' => 'hidden',
+                '-moz-backface-visibility' => 'visible',
+                '-webkit-perspective' => '800px',
+                '-moz-perspective' => 'none',
+                '--Motion-Depth' => '+0800.00PX',
+            ],
+            $block->parse($prefixed3d)
+        );
+        $t->same(['value' => 'preserve-3d', 'important' => false], $block->getProperty($prefixed3d, '-webkit-transform-style'));
+        $t->same(['value' => 'visible', 'important' => false], $block->getProperty($prefixed3d, '-moz-backface-visibility'));
+        $t->same(['value' => '800px', 'important' => false], $block->getProperty($prefixed3d, '-webkit-perspective'));
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty($prefixed3d, '-moz-perspective'));
+        $t->same(
+            '-webkit-transform-style: flat; -moz-transform-style: flat; -webkit-backface-visibility: hidden; -moz-backface-visibility: visible; -webkit-perspective: 800px; -moz-perspective: none; --Motion-Depth: +0800.00PX',
+            $block->setProperty($prefixed3d, '-webkit-transform-style', 'Flat')
+        );
+        $t->same(
+            '-webkit-transform-style: preserve-3d; -moz-transform-style: flat; -webkit-backface-visibility: hidden; -webkit-perspective: 800px; -moz-perspective: none; --Motion-Depth: +0800.00PX; -moz-backface-visibility: hidden !important',
+            $block->setProperty($prefixed3d, '-moz-backface-visibility', 'Hidden', true)
+        );
+        $t->same(
+            '-webkit-transform-style: preserve-3d; -moz-transform-style: flat; -webkit-backface-visibility: hidden; -moz-backface-visibility: visible; -moz-perspective: none; --Motion-Depth: +0800.00PX; -webkit-perspective: .5px !important',
+            $block->setProperty($prefixed3d, '-webkit-perspective', '.5000PX', true)
+        );
+        $t->same(
+            '-webkit-transform-style: preserve-3d; -moz-transform-style: flat; -webkit-backface-visibility: hidden; -moz-backface-visibility: visible; -moz-perspective: none; --Motion-Depth: +0800.00PX',
+            $block->removeProperty($prefixed3d, '-webkit-perspective')
+        );
     },
     'declaration block canonicalizes upstream ui direct enum cssom declarations' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();

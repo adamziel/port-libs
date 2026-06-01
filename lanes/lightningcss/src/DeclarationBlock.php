@@ -119,6 +119,8 @@ final class DeclarationBlock
         'transform-style' => ['flat', 'preserve-3d'],
         'transform-box' => ['content-box', 'border-box', 'fill-box', 'stroke-box', 'view-box'],
         'backface-visibility' => ['visible', 'hidden'],
+        '-webkit-backface-visibility' => ['visible', 'hidden'],
+        '-moz-backface-visibility' => ['visible', 'hidden'],
         'mix-blend-mode' => [
             'normal',
             'multiply',
@@ -139,7 +141,10 @@ final class DeclarationBlock
             'plus-darker',
             'plus-lighter',
         ],
+        '-webkit-transform-style' => ['flat', 'preserve-3d'],
+        '-moz-transform-style' => ['flat', 'preserve-3d'],
     ];
+    private const PERSPECTIVE_PROPERTIES = ['perspective', '-webkit-perspective', '-moz-perspective'];
     private const VERTICAL_ALIGN_KEYWORDS = [
         'baseline',
         'sub',
@@ -14278,7 +14283,7 @@ final class DeclarationBlock
             return $this->normalizeZIndexDeclarationValue($value);
         }
 
-        if ($property === 'perspective') {
+        if (in_array($property, self::PERSPECTIVE_PROPERTIES, true)) {
             return $this->normalizePerspectiveDeclarationValue($value);
         }
 
@@ -15641,7 +15646,7 @@ final class DeclarationBlock
         }
 
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))([a-z]+)$/i', $token, $matches) === 1) {
-            $number = $this->normalizeCssNumberLiteral($matches[1]);
+            $number = $this->normalizeCssNumericLiteral($matches[1]);
             if ($number === '0') {
                 return '0';
             }
@@ -15650,11 +15655,11 @@ final class DeclarationBlock
         }
 
         if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $token, $matches) === 1) {
-            return $this->normalizeCssNumberLiteral($matches[1]) . '%';
+            return $this->normalizeCssNumericLiteral($matches[1]) . '%';
         }
 
         if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $token) === 1) {
-            $number = $this->normalizeCssNumberLiteral($token);
+            $number = $this->normalizeCssNumericLiteral($token);
 
             return $number === '0' ? '0' : $number . 'px';
         }

@@ -2679,6 +2679,20 @@ final class SQLiteJsonImportRollbackWalPlan
     }
 
     /**
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicPostCheckpointTailRecoveryCheckpointFollowupRecoveryCheckpointFollowupTailRecoveryScenarios(int $scenarioCount = 16): array
+    {
+        if ($scenarioCount < 1) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL post-checkpoint tail recovery checkpoint followup recovery checkpoint followup tail recovery dynamic parity requires at least one scenario');
+        }
+
+        return self::dynamicPostCheckpointTailRecoveryCheckpointFollowupRecoveryCheckpointFollowupTailRecoveryScenariosFromTailFailureScenarios(
+            self::dynamicPostCheckpointTailRecoveryCheckpointFollowupRecoveryCheckpointFollowupTailFailureScenarios($scenarioCount)
+        );
+    }
+
+    /**
      * @param list<array<string,mixed>> $baseScenarios
      * @return list<array<string,mixed>>
      */
@@ -4156,6 +4170,101 @@ final class SQLiteJsonImportRollbackWalPlan
                 'followup_recovery_checkpoint_followup_tail_recovery_key_retained_before_outer_rollback' => in_array($base['expected_followup_recovery_inserted_key'], $finalKeys, true),
                 'followup_recovery_checkpoint_followup_tail_outer_discarded_frame_indexes' => $outerDiscardedFrameIndexes,
                 'followup_recovery_checkpoint_followup_tail_failed_statement_discarded_frame_indexes' => $failedStatementDiscardedFrameIndexes,
+            ]);
+        }
+
+        return $scenarios;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $baseScenarios
+     * @return list<array<string,mixed>>
+     */
+    public static function dynamicPostCheckpointTailRecoveryCheckpointFollowupRecoveryCheckpointFollowupTailRecoveryScenariosFromTailFailureScenarios(array $baseScenarios): array
+    {
+        if ($baseScenarios === []) {
+            throw new \InvalidArgumentException('SQLite Application JSON WAL post-checkpoint tail recovery checkpoint followup recovery checkpoint followup tail recovery dynamic parity requires at least one tail failure scenario');
+        }
+
+        $scenarios = [];
+        foreach ($baseScenarios as $base) {
+            $seed = (int) $base['seed'];
+            $tenantId = (int) $base['tenant_id'];
+            $pageSize = (int) $base['page_size'];
+            $jsonbMode = (bool) $base['jsonb_mode'];
+            $tailPlan = $base['tail_recovery_checkpoint_followup_recovery_checkpoint_followup_tail_plan'];
+            $followupPlan = $base['tail_recovery_checkpoint_followup_recovery_checkpoint_followup_plan'];
+            $committedPrefixFrameCount = (int) $tailPlan['wal_frame_count_after'];
+            $recoveryFrameStart = $committedPrefixFrameCount + 1;
+            $prefixPages = $base['expected_followup_recovery_checkpoint_followup_pages'];
+            $catalogPage = (int) $prefixPages[0];
+            $finalFollowupInsertPage = (int) $prefixPages[1];
+            $tailRecoveryInsertPage = 3020 + $seed;
+            $tailRecoveryInsertedKey = 'tail_recovery_checkpoint_followup_recovery_checkpoint_followup_tail_recovery_payload_' . $seed;
+
+            $recoveryMutations = [
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'followup_recovery_checkpoint_followup_tail_recovery_catalog_' . $seed,
+                    'key_name' => 'disabled_rollback_catalog_payload_' . $seed,
+                    'function' => $jsonbMode ? 'jsonb_set' : 'json_set',
+                    'path' => '$.after_final_followup_tail_recovery',
+                    'value' => 'after-final-followup-tail-recovery-' . $seed,
+                    'page_number' => $catalogPage,
+                    'wal_frame_index' => $recoveryFrameStart,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'followup_recovery_checkpoint_followup_tail_recovery_insert_' . $seed,
+                    'key_name' => $tailRecoveryInsertedKey,
+                    'function' => 'json_set',
+                    'path' => '$.recovered_after_final_followup_tail',
+                    'value' => true,
+                    'on_missing' => 'insert',
+                    'insert_setting_id' => $seed * 10000 + 19,
+                    'insert_load_policy' => 'auto',
+                    'initial_value' => '{}',
+                    'page_number' => $tailRecoveryInsertPage,
+                    'wal_frame_index' => $recoveryFrameStart + 1,
+                ],
+                [
+                    'tenant_id' => $tenantId,
+                    'statement' => 'followup_recovery_checkpoint_followup_tail_recovery_final_seen_' . $seed,
+                    'key_name' => $base['expected_followup_recovery_checkpoint_followup_inserted_key'],
+                    'function' => 'json_set',
+                    'path' => '$.after_final_followup_tail_recovery_seen',
+                    'value' => true,
+                    'page_number' => $finalFollowupInsertPage,
+                    'wal_frame_index' => $recoveryFrameStart + 2,
+                ],
+            ];
+
+            $recoveryPlan = self::plan($followupPlan['import_plan']['final_rows'], $recoveryMutations, [
+                'database_bytes' => (string) $tailPlan['restored_database_bytes'],
+                'page_size' => $pageSize,
+                'wal_bytes' => (string) $tailPlan['wal_bytes_after'],
+                'transaction' => 'application_followup_recovery_checkpoint_followup_tail_recovery_json_import_' . $seed,
+                'savepoint' => 'followup_recovery_checkpoint_followup_tail_recovery_json_batch_' . $seed,
+                'pre_savepoint_wal_pages' => $prefixPages,
+                'materialize_success_wal_frames' => true,
+            ]);
+
+            $finalKeys = array_column($recoveryPlan['import_plan']['final_rows'], 'key_name');
+            $scenarios[] = array_merge($base, [
+                'committed_prefix_frame_count_after_final_tail_failure' => $committedPrefixFrameCount,
+                'followup_recovery_checkpoint_followup_tail_recovery_input_database_hash' => hash('sha256', (string) $tailPlan['restored_database_bytes']),
+                'followup_recovery_checkpoint_followup_tail_recovery_input_wal_hash' => hash('sha256', (string) $tailPlan['wal_bytes_after']),
+                'followup_recovery_checkpoint_followup_tail_recovery_base_row_count' => count($followupPlan['import_plan']['final_rows']),
+                'expected_followup_recovery_checkpoint_followup_tail_recovery_pages' => [$catalogPage, $tailRecoveryInsertPage, $finalFollowupInsertPage],
+                'expected_followup_recovery_checkpoint_followup_tail_recovery_inserted_key' => $tailRecoveryInsertedKey,
+                'expected_followup_recovery_checkpoint_followup_tail_recovery_inserted_id' => $seed * 10000 + 19,
+                'tail_recovery_checkpoint_followup_recovery_checkpoint_followup_tail_recovery_plan' => $recoveryPlan,
+                'followup_recovery_checkpoint_followup_tail_recovery_inserted_key_retained' => in_array($tailRecoveryInsertedKey, $finalKeys, true),
+                'followup_recovery_checkpoint_followup_tail_recovery_final_followup_key_retained' => in_array($base['expected_followup_recovery_checkpoint_followup_inserted_key'], $finalKeys, true),
+                'followup_recovery_checkpoint_followup_tail_recovery_prior_recovery_key_retained' => in_array($base['expected_followup_recovery_inserted_key'], $finalKeys, true),
+                'followup_recovery_checkpoint_followup_tail_recovery_prior_followup_key_retained' => in_array($base['expected_tail_recovery_checkpoint_followup_inserted_key'], $finalKeys, true),
+                'followup_recovery_checkpoint_followup_tail_recovery_failed_tail_key_retained' => in_array($base['expected_followup_recovery_checkpoint_followup_tail_inserted_key'], $finalKeys, true),
+                'followup_recovery_checkpoint_followup_tail_recovery_failed_bad_key_retained' => in_array($base['expected_followup_recovery_checkpoint_followup_tail_failed_key'], $finalKeys, true),
             ]);
         }
 

@@ -808,6 +808,61 @@ CSS);
             throw new RuntimeException('Expected upstream relative local/global selector exception');
         }
     },
+    'css modules drops dangling local global mode pseudo branches in forgiving selectors while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:is(:local(.drop >), .kept) {
+  color: red;
+}
+
+.card:where(:global(.legacy +), .soft) {
+  color: yellow;
+}
+
+.card:has(:local(.media ~), .ok) {
+  color: blue;
+}
+
+.item:nth-child(odd of :global(.row >), .itemOk) {
+  color: green;
+}
+
+.button {
+  composes: card;
+  color: white;
+}
+CSS);
+
+        $t->same('.EgL3uq_card.EgL3uq_kept{color:red}.EgL3uq_card:where(.EgL3uq_soft){color:#ff0}.EgL3uq_card:has(.EgL3uq_ok){color:#00f}.EgL3uq_item:nth-child(odd of .EgL3uq_itemOk){color:green}.EgL3uq_button{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'kept' => $export('EgL3uq_kept'),
+            'soft' => $export('EgL3uq_soft'),
+            'ok' => $export('EgL3uq_ok'),
+            'item' => $export('EgL3uq_item'),
+            'itemOk' => $export('EgL3uq_itemOk'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+        $t->same([], array_intersect_key($result['exports'], array_flip(['drop', 'legacy', 'media', 'row'])));
+
+        foreach ([
+            ':local(.drop >) { color: red }' => 'Invalid dangling combinator in selector',
+            ':global(.legacy +) .card { color: red }' => 'Invalid dangling combinator in selector',
+            '.card:not(:local(.drop ~)) { color: red }' => 'Invalid dangling combinator in selector',
+            ':local(, .drop) { color: red }' => 'Invalid empty selector',
+            '.card:not(:global(, .legacy)) { color: red }' => 'Invalid empty selector',
+        ] as $css => $message) {
+            try {
+                (new CssModulesTransformer())->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same($message, $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream dangling local/global selector exception');
+        }
+    },
     'css modules unwraps upstream single is selector after local global rewriting while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card:is(:local(.featured)) {

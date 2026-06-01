@@ -49,6 +49,16 @@ $invalidGenerationFinder = new MergeBaseFinder(
     },
     commitGraphGeneration: static fn (string $oid): ?int => $fixture['invalidCommitGraphGenerations'][$oid] ?? null,
 );
+$commitGraphOnlyObjectReads = [];
+$commitGraphOnlyFinder = new MergeBaseFinder(
+    static function (string $oid) use ($fixture, &$commitGraphOnlyObjectReads): ?Commit {
+        $commitGraphOnlyObjectReads[] = $oid;
+
+        return $fixture['commitGraphObjectCommits'][$oid] ?? null;
+    },
+    commitGraphGeneration: static fn (string $oid): ?int => $fixture['commitGraphOnlyGenerations'][$oid] ?? null,
+    commitGraphCommit: static fn (string $oid): ?Commit => $fixture['commitGraphOnlyCommits'][$oid] ?? null,
+);
 $shortcutReads = [];
 $shortcutFinder = new MergeBaseFinder(static function (string $oid) use (&$shortcutReads): Commit {
     $shortcutReads[] = $oid;
@@ -152,6 +162,15 @@ try {
 } catch (InvalidArgumentException) {
     $invalidGenerationRejected = true;
 }
+$commitGraphOnlyBases = $commitGraphOnlyFinder->mergeBases(
+    $fixture['commitGraphOnlyPluginReview'],
+    $fixture['commitGraphOnlyThemeReview'],
+);
+$commitGraphOnlyStableBases = $commitGraphOnlyFinder->mergeBasesMany($fixture['commitGraphOnlyHeads']);
+$commitGraphOnlyGraphWalkBase = $commitGraphOnlyFinder->mergeBaseAgainst(
+    $fixture['commitGraphOnlyPluginReview'],
+    $fixture['commitGraphOnlyGraphWalkOthers'],
+);
 $hydratedPromisorCommits = $fixture['commits'];
 $hydratedPromisorReleaseCommit = $hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']];
 unset($hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']]);
@@ -376,6 +395,19 @@ return [
     'maxGenerationBase' => $maxGenerationBase,
     'maxGenerationProviderKeepsReleaseBaseline' => $maxGenerationBase === $fixture['releaseBaseline'],
     'invalidCommitGraphGenerationRejected' => $invalidGenerationRejected,
+    'commitGraphOnlyHeads' => $fixture['commitGraphOnlyHeads'],
+    'commitGraphOnlyBases' => $commitGraphOnlyBases,
+    'commitGraphOnlyStableBases' => $commitGraphOnlyStableBases,
+    'commitGraphOnlyGraphWalkBase' => $commitGraphOnlyGraphWalkBase,
+    'commitGraphOnlyObjectReads' => $commitGraphOnlyObjectReads,
+    'commitGraphOnlyBaseIsReleaseBaseline' => $commitGraphOnlyBases === [
+        $fixture['commitGraphOnlyReleaseBaseline'],
+    ] && $commitGraphOnlyStableBases === [
+        $fixture['commitGraphOnlyReleaseBaseline'],
+    ] && $commitGraphOnlyGraphWalkBase === $fixture['commitGraphOnlyReleaseBaseline'],
+    'commitGraphOnlyAvoidsObjectReadsForGraphCommits' => $commitGraphOnlyObjectReads === [
+        $fixture['commitGraphOnlyArchiveReview'],
+    ],
     'hydratedPromisorHeads' => $fixture['hydratedPromisorHeads'],
     'hydratedPromisorBeforeBases' => $hydratedPromisorBeforeBases,
     'hydratedPromisorAfterBases' => $hydratedPromisorAfterBases,

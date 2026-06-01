@@ -24,6 +24,11 @@ final class MergeBaseFinder
     private readonly ?\Closure $commitGraphGeneration;
 
     /**
+     * @var ?\Closure(string): (?Commit)
+     */
+    private readonly ?\Closure $commitGraphCommit;
+
+    /**
      * @var array<string, Commit>
      */
     private array $commitCache = [];
@@ -52,18 +57,23 @@ final class MergeBaseFinder
         callable $readCommit,
         private readonly bool $useCommitGraphGenerations = true,
         ?callable $commitGraphGeneration = null,
+        ?callable $commitGraphCommit = null,
     )
     {
         $this->readCommit = \Closure::fromCallable($readCommit);
         $this->commitGraphGeneration = $commitGraphGeneration === null
             ? null
             : \Closure::fromCallable($commitGraphGeneration);
+        $this->commitGraphCommit = $commitGraphCommit === null
+            ? null
+            : \Closure::fromCallable($commitGraphCommit);
     }
 
     public static function fromObjectDatabase(
         ObjectDatabase $database,
         bool $useCommitGraphGenerations = true,
         ?callable $commitGraphGeneration = null,
+        ?callable $commitGraphCommit = null,
     ): self
     {
         return new self(static function (string $oid) use ($database): ?Commit {
@@ -82,7 +92,7 @@ final class MergeBaseFinder
             }
 
             return Commit::parse($object->body, $algorithm);
-        }, $useCommitGraphGenerations, $commitGraphGeneration);
+        }, $useCommitGraphGenerations, $commitGraphGeneration, $commitGraphCommit);
     }
 
     private static function isSkippableObjectDatabaseMiss(\RuntimeException $exception): bool
@@ -552,6 +562,13 @@ final class MergeBaseFinder
     {
         $oid = strtolower($oid);
         if (!isset($this->commitCache[$oid])) {
+            $commitGraphCommit = $this->tryCommitGraphCommit($oid);
+            if ($commitGraphCommit !== null) {
+                $this->commitCache[$oid] = $commitGraphCommit;
+
+                return $commitGraphCommit;
+            }
+
             $commit = ($this->readCommit)($oid);
             if ($commit === null) {
                 return null;
@@ -563,6 +580,23 @@ final class MergeBaseFinder
         }
 
         return $this->commitCache[$oid];
+    }
+
+    private function tryCommitGraphCommit(string $oid): ?Commit
+    {
+        if ($this->commitGraphCommit === null) {
+            return null;
+        }
+
+        $commit = ($this->commitGraphCommit)($oid);
+        if ($commit === null) {
+            return null;
+        }
+        if (!$commit instanceof Commit) {
+            throw new \InvalidArgumentException('Commit graph provider must return ' . Commit::class . ' or null');
+        }
+
+        return $commit;
     }
 
     /**

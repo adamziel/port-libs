@@ -311,6 +311,9 @@ final class PathspecMatcher
                 continue;
             }
             if ($part === '..') {
+                if ($parts === []) {
+                    throw new \InvalidArgumentException('Pathspec path leaves the repository');
+                }
                 array_pop($parts);
                 continue;
             }

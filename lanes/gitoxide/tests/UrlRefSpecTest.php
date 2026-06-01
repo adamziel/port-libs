@@ -596,6 +596,50 @@ return [
         $t->same(null, $nonNumericPortRemainsHostText->port());
         $t->same('ssh://host.xz:abc/path', $nonNumericPortRemainsHostText->toBytes());
     },
+    'git url keeps unix colon path classification like gix-url' => static function (TestRunner $t): void {
+        $driveLike = GitUrl::parse('x:/path/to/git');
+        $t->same(GitUrl::SCHEME_SSH, $driveLike->scheme());
+        $t->same(null, $driveLike->user());
+        $t->same('x', $driveLike->host());
+        $t->same('/path/to/git', $driveLike->path());
+        $t->same(true, $driveLike->usesAlternativeForm());
+        $t->same('x:/path/to/git', $driveLike->toBytes());
+
+        $backslashDriveLike = GitUrl::parse('x:\path\to\git');
+        $t->same(GitUrl::SCHEME_SSH, $backslashDriveLike->scheme());
+        $t->same('x', $backslashDriveLike->host());
+        $t->same('\path\to\git', $backslashDriveLike->path());
+        $t->same(true, $backslashDriveLike->usesAlternativeForm());
+        $t->same('x:\path\to\git', $backslashDriveLike->toBytes());
+
+        $windowsPathRemote = GitUrl::parse('user@host.xz:C:/strange/absolute/path');
+        $t->same(GitUrl::SCHEME_SSH, $windowsPathRemote->scheme());
+        $t->same('user', $windowsPathRemote->user());
+        $t->same('host.xz', $windowsPathRemote->host());
+        $t->same('C:/strange/absolute/path', $windowsPathRemote->path());
+        $t->same('user@host.xz:C:/strange/absolute/path', $windowsPathRemote->toBytes());
+
+        $hostNamedFile = GitUrl::parse('file:..');
+        $t->same(GitUrl::SCHEME_SSH, $hostNamedFile->scheme());
+        $t->same('file', $hostNamedFile->host());
+        $t->same('..', $hostNamedFile->path());
+        $t->same(true, $hostNamedFile->usesAlternativeForm());
+        $t->same('file:..', $hostNamedFile->toBytes());
+
+        $relativeLocal = GitUrl::parse('./nohost:re/po');
+        $t->same(GitUrl::SCHEME_FILE, $relativeLocal->scheme());
+        $t->same(null, $relativeLocal->host());
+        $t->same('./nohost:re/po', $relativeLocal->path());
+        $t->same(true, $relativeLocal->usesAlternativeForm());
+        $t->same('./nohost:re/po', $relativeLocal->toBytes());
+
+        $bracketLocal = GitUrl::parse('./[::1]:re/po');
+        $t->same(GitUrl::SCHEME_FILE, $bracketLocal->scheme());
+        $t->same(null, $bracketLocal->host());
+        $t->same('./[::1]:re/po', $bracketLocal->path());
+        $t->same(true, $bracketLocal->usesAlternativeForm());
+        $t->same('./[::1]:re/po', $bracketLocal->toBytes());
+    },
     'git url expands home paths like gix-url expand_path' => static function (TestRunner $t): void {
         $current = GitUrl::parseHomePath('/~/hello/git');
         $t->same(true, $current['currentUser']);
@@ -1239,6 +1283,14 @@ return [
         $t->same($fixture['expectedHomeMirrorExpandedPath'], $summary['homeMirrorExpandedPath']);
         $t->same($fixture['expectedRelativeMirrorCanonicalPath'], $summary['relativeMirrorCanonical']['path']);
         $t->same($fixture['expectedRelativeMirrorCanonicalUrl'], $summary['relativeMirrorCanonical']['normalized']);
+        $t->same($fixture['expectedColonAliasRemoteScheme'], $summary['colonAliasRemote']['scheme']);
+        $t->same($fixture['expectedColonAliasRemoteHost'], $summary['colonAliasRemote']['host']);
+        $t->same($fixture['expectedColonAliasRemotePath'], $summary['colonAliasRemote']['path']);
+        $t->same($fixture['expectedColonAliasRemoteUrl'], $summary['colonAliasRemote']['normalized']);
+        $t->same($fixture['expectedExplicitLocalColonMirrorScheme'], $summary['explicitLocalColonMirror']['scheme']);
+        $t->same($fixture['expectedExplicitLocalColonMirrorHost'], $summary['explicitLocalColonMirror']['host']);
+        $t->same($fixture['expectedExplicitLocalColonMirrorPath'], $summary['explicitLocalColonMirror']['path']);
+        $t->same($fixture['expectedExplicitLocalColonMirrorUrl'], $summary['explicitLocalColonMirror']['normalized']);
         $t->same(true, $summary['deploymentRemoteSafe']);
         $t->same($fixture['expectedCredentialRemoteUrl'], $summary['credentialRemote']['normalized']);
         $t->same($fixture['expectedCredentialRemoteDisplay'], $summary['credentialRemoteDisplay']);

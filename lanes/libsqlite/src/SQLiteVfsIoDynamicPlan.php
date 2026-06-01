@@ -666,6 +666,161 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * @param array<string, mixed> $options
+     * @return array<string, mixed>
+     */
+    public static function pageCachePressureProfile(array $options = []): array
+    {
+        $scenario = trim((string) ($options['scenario'] ?? 'pcache-1.dynamic'));
+        if ($scenario === '' || preg_match('/[^A-Za-z0-9_.:-]/', $scenario) === 1) {
+            throw new \InvalidArgumentException('SQLite pcache pressure scenario must be identifier-like');
+        }
+
+        $intOption = static function (string $key, int $default) use ($options): int {
+            $value = $options[$key] ?? $default;
+            if (!is_int($value) && !(is_string($value) && preg_match('/^-?[0-9]+$/', $value) === 1)) {
+                throw new \InvalidArgumentException("SQLite pcache pressure {$key} must be an integer");
+            }
+
+            return (int) $value;
+        };
+
+        $primaryCache = $intOption('primary_cache_size', 12);
+        $peerCache = $intOption('peer_cache_size', 10);
+        $initialPrimaryPages = $intOption('initial_primary_pages', 1);
+        $dirtySchemaPages = $intOption('dirty_schema_pages', max(1, $primaryCache - 2));
+        $firstSchemaPages = $intOption('first_schema_pages', min(6, $dirtySchemaPages));
+        $peerPinnedPages = $intOption('peer_pinned_pages', 1);
+        $indexBurstPages = $intOption('index_burst_pages', $peerCache + 2);
+        $extraDirtyPages = $intOption('extra_dirty_pages', 1);
+        $expandedCache = $intOption('expanded_cache_size', max($primaryCache, 20));
+        $scanPages = $intOption('scan_pages', max(1, $expandedCache - 1));
+        $reducedCache = $intOption('reduced_cache_size', min($expandedCache, 15));
+        $corruptReloadPages = $intOption('corrupt_reload_pages', 2);
+        $rereadPages = $intOption('reread_pages', max(1, $reducedCache - 1));
+
+        foreach ([
+            'primary_cache_size' => $primaryCache,
+            'peer_cache_size' => $peerCache,
+            'initial_primary_pages' => $initialPrimaryPages,
+            'dirty_schema_pages' => $dirtySchemaPages,
+            'first_schema_pages' => $firstSchemaPages,
+            'peer_pinned_pages' => $peerPinnedPages,
+            'index_burst_pages' => $indexBurstPages,
+            'extra_dirty_pages' => $extraDirtyPages,
+            'expanded_cache_size' => $expandedCache,
+            'scan_pages' => $scanPages,
+            'reduced_cache_size' => $reducedCache,
+            'corrupt_reload_pages' => $corruptReloadPages,
+            'reread_pages' => $rereadPages,
+        ] as $key => $value) {
+            if ($value < 1) {
+                throw new \InvalidArgumentException("SQLite pcache pressure {$key} must be positive");
+            }
+        }
+        if ($firstSchemaPages > $dirtySchemaPages) {
+            throw new \InvalidArgumentException('SQLite pcache pressure first schema pages cannot exceed dirty schema pages');
+        }
+        if ($expandedCache < $primaryCache || $reducedCache > $expandedCache) {
+            throw new \InvalidArgumentException('SQLite pcache pressure cache resize bounds are inconsistent');
+        }
+        if ($initialPrimaryPages > $primaryCache || $dirtySchemaPages > $primaryCache) {
+            throw new \InvalidArgumentException('SQLite pcache pressure primary cache pages exceed the configured cache');
+        }
+
+        $primaryMin = 10;
+        $peerMin = 10;
+        $combinedMax = $primaryCache + $peerCache;
+        $combinedMin = $primaryMin + $peerMin;
+        $events = [];
+        $add = static function (
+            string $step,
+            string $upstream,
+            int $current,
+            int $max,
+            int $min,
+            int $recyclable,
+            string $reason,
+            int $writerDirtyPages = 0,
+            int $peerPinned = 0
+        ) use (&$events): void {
+            $events[] = [
+                'step' => $step,
+                'upstream' => $upstream,
+                'stats' => [
+                    'current' => $current,
+                    'max' => $max,
+                    'min' => $min,
+                    'recyclable' => $recyclable,
+                ],
+                'writer_dirty_pages' => $writerDirtyPages,
+                'peer_pinned_pages' => $peerPinned,
+                'over_limit' => $max > 0 && $current > $max,
+                'reason' => $reason,
+            ];
+        };
+
+        $add('reset-pcache', 'pcache.test pcache-1.1 reset global pcache stats', 0, 0, 0, 0, 'pcache_stats_reset');
+        $add('open-primary', 'pcache.test pcache-1.2 open primary cache_size=12', $initialPrimaryPages, $primaryCache, $primaryMin, $initialPrimaryPages, 'primary_schema_page_recyclable');
+        $add('begin-create-five-tables', 'pcache.test pcache-1.3 dirty schema pages are not recyclable inside transaction', $firstSchemaPages, $primaryCache, $primaryMin, 0, 'write_transaction_dirty_pages_not_recyclable', $firstSchemaPages);
+        $add('create-four-more-tables', 'pcache.test pcache-1.4 primary dirty pages fill the configured minimum', $dirtySchemaPages, $primaryCache, $primaryMin, 0, 'more_dirty_schema_pages_remain_pinned', $dirtySchemaPages);
+        $add('open-peer', 'pcache.test pcache-1.5 peer cache increases global max and contributes one recyclable page', $dirtySchemaPages + $peerPinnedPages, $combinedMax, $combinedMin, $peerPinnedPages, 'peer_schema_page_recyclable_until_read_transaction', $dirtySchemaPages, $peerPinnedPages);
+        $add('peer-read-pins-page', 'pcache.test pcache-1.6.1 peer read transaction pins its page', $dirtySchemaPages + $peerPinnedPages, $combinedMax, $combinedMin, 0, 'peer_read_transaction_pins_page', $dirtySchemaPages, $peerPinnedPages);
+        $burstCurrent = $dirtySchemaPages + $peerPinnedPages + $indexBurstPages;
+        $add('index-burst-over-limit', 'pcache.test pcache-1.6.2 dirty writer may exceed max while peer read lock prevents recycle', $burstCurrent, $combinedMax, $combinedMin, 0, 'dirty_writer_exceeds_global_max_until_peer_unpins', $dirtySchemaPages + $indexBurstPages, $peerPinnedPages);
+        $extraCurrent = $burstCurrent + $extraDirtyPages;
+        $add('extra-schema-over-limit', 'pcache.test pcache-1.7 another dirty page can remain above max', $extraCurrent, $combinedMax, $combinedMin, 0, 'additional_dirty_page_keeps_cache_over_limit', $dirtySchemaPages + $indexBurstPages + $extraDirtyPages, $peerPinnedPages);
+        $afterPeerRollback = max(0, $extraCurrent - $peerPinnedPages);
+        $add('peer-rollback-frees-pinned-page', 'pcache.test pcache-1.8 over-limit pinned peer page is freed immediately', $afterPeerRollback, $combinedMax, $combinedMin, 0, 'rollback_unpins_peer_page_and_frees_it_instead_of_recycling', $dirtySchemaPages + $indexBurstPages + $extraDirtyPages);
+        $afterCommit = min($combinedMax, $afterPeerRollback);
+        $add('primary-commit-recycles-to-limit', 'pcache.test pcache-1.9 commit recycles dirty pages down to global max', $afterCommit, $combinedMax, $combinedMin, $afterCommit, 'commit_recycles_writer_pages_to_global_limit');
+        $afterPeerClose = min($primaryCache, $afterCommit);
+        $add('close-peer-restores-primary-limit', 'pcache.test pcache-1.10 closing peer restores primary cache limit', $afterPeerClose, $primaryCache, $primaryMin, $afterPeerClose, 'closing_peer_drops_global_max_to_primary_cache');
+        $add('resize-primary-cache', 'pcache.test pcache-1.11 PRAGMA cache_size raises primary cache max', $afterPeerClose, $expandedCache, $primaryMin, $afterPeerClose, 'primary_cache_resize_preserves_recyclable_pages');
+        $scanCurrent = min($scanPages, $expandedCache);
+        $add('scan-tables-fills-recyclable-cache', 'pcache.test pcache-1.12 table scans populate recyclable cache pages', $scanCurrent, $expandedCache, $primaryMin, $scanCurrent, 'table_scans_populate_recyclable_pages');
+        $afterReduce = min($scanCurrent, $reducedCache);
+        $add('reduce-primary-cache', 'pcache.test pcache-1.13 reducing cache frees excess recyclable pages', $afterReduce, $reducedCache, $primaryMin, $afterReduce, 'cache_size_reduction_frees_excess_recyclable_pages');
+        $afterCorruptReload = min($corruptReloadPages, $reducedCache);
+        $add('header-change-reloads-cache', 'pcache.test pcache-1.14 direct header change invalidates cached schema pages', $afterCorruptReload, $reducedCache, $primaryMin, $afterCorruptReload, 'header_change_forces_schema_cache_reload');
+        $afterReread = min($rereadPages, $reducedCache);
+        $add('reread-after-header-change', 'pcache.test pcache-1.15 reread repopulates cache within reduced max', $afterReread, $reducedCache, $primaryMin, $afterReread, 'reread_repopulates_recyclable_cache_within_limit');
+
+        return [
+            'status' => 'ok',
+            'script' => 'pcache.test',
+            'scenario' => $scenario,
+            'upstream' => [
+                'pcache.test pcache-1.1 reset global pcache stats',
+                'pcache.test pcache-1.2 primary cache_size=12 opens one recyclable schema page',
+                'pcache.test pcache-1.3-pcache-1.4 dirty schema pages inside write transaction are not recyclable',
+                'pcache.test pcache-1.5-pcache-1.6 peer read transaction pins a page and raises the global cache max',
+                'pcache.test pcache-1.6.2-pcache-1.8 dirty writer may exceed global max until peer rollback frees the pinned page',
+                'pcache.test pcache-1.9-pcache-1.15 commit, close, resize, scan, header mutation, and reread cache transitions',
+            ],
+            'primary_cache_size' => $primaryCache,
+            'peer_cache_size' => $peerCache,
+            'combined_cache_max' => $combinedMax,
+            'events' => $events,
+            'over_limit_steps' => array_values(array_map(
+                static fn (array $event): string => $event['step'],
+                array_filter($events, static fn (array $event): bool => $event['over_limit'])
+            )),
+            'peer_rollback_frees_pinned_page' => $events[8]['stats']['current'] === ($events[7]['stats']['current'] - $peerPinnedPages),
+            'commit_recycles_to_global_limit' => $events[9]['stats']['current'] === min($combinedMax, $events[8]['stats']['current']),
+            'close_peer_restores_primary_limit' => $events[10]['stats']['max'] === $primaryCache,
+            'header_change_reloads_schema_cache' => $events[14]['stats']['current'] <= $corruptReloadPages,
+            'reason' => 'pcache_global_limit_pressure_matches_upstream_pcache_1_dirty_peer_read_lock_and_resize_transitions',
+            'dependencies' => [
+                'upstream-pcache-test',
+                'sqlite-pcache-global-limit',
+                'sqlite-pcache-peer-read-lock-overlimit-free',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function powersafeOverwriteJournalProfile(

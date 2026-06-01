@@ -2576,6 +2576,8 @@ final class CssModulesTransformer
      */
     private function rewriteSelectorFragment(string $selector, string $mode, array &$locals): string
     {
+        $this->assertNoDanglingCombinatorInSelector($selector);
+
         $output = '';
         $quote = null;
         $bracketDepth = 0;
@@ -4717,12 +4719,100 @@ final class CssModulesTransformer
         }
 
         // CSS Modules mode pseudos take a selector, not a relative selector.
-        if (str_contains('>+~', $trimmed[0])) {
+        if ($trimmed[0] === ',' || str_contains('>+~', $trimmed[0])) {
             throw new \InvalidArgumentException('Invalid empty selector');
         }
 
         if ($this->findNextTopLevel($selector, ',', 0) !== null) {
             throw new \InvalidArgumentException('Unexpected token Comma');
+        }
+
+        $this->assertNoDanglingCombinatorInSelector($selector);
+    }
+
+    private function assertNoDanglingCombinatorInSelector(string $selector): void
+    {
+        $quote = null;
+        $bracketDepth = 0;
+        $parenDepth = 0;
+        $lastTopLevel = '';
+        $length = strlen($selector);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selector[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\' && $i + 1 < $length) {
+                    $i++;
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                if ($bracketDepth === 0 && $parenDepth === 0) {
+                    $lastTopLevel = $char;
+                }
+                continue;
+            }
+
+            if ($char === '\\') {
+                $escapeEnd = $this->cssEscapeEnd($selector, $i);
+                if ($escapeEnd !== null) {
+                    if ($bracketDepth === 0 && $parenDepth === 0) {
+                        $lastTopLevel = '\\';
+                    }
+                    $i = $escapeEnd;
+                    continue;
+                }
+            }
+
+            if ($char === '[') {
+                if ($bracketDepth === 0 && $parenDepth === 0) {
+                    $lastTopLevel = $char;
+                }
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+                if ($bracketDepth === 0 && $parenDepth === 0) {
+                    $lastTopLevel = $char;
+                }
+                continue;
+            }
+
+            if ($char === '(') {
+                if ($bracketDepth === 0 && $parenDepth === 0) {
+                    $lastTopLevel = $char;
+                }
+                $parenDepth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+                if ($bracketDepth === 0 && $parenDepth === 0) {
+                    $lastTopLevel = $char;
+                }
+                continue;
+            }
+
+            if ($bracketDepth !== 0 || $parenDepth !== 0 || ctype_space($char)) {
+                continue;
+            }
+
+            $lastTopLevel = $char;
+        }
+
+        if ($lastTopLevel !== '' && str_contains('>+~', $lastTopLevel)) {
+            throw new \InvalidArgumentException('Invalid dangling combinator in selector');
         }
     }
 

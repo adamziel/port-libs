@@ -363,6 +363,58 @@ return [
         );
         $t->throws(InvalidArgumentException::class, static fn () => $invalidGenerationFinder->mergeBase($left, $right));
     },
+    'maps upstream commit graph lookup before object database reads' => static function (TestRunner $t) use ($oid): void {
+        $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
+            str_repeat('f', 40),
+            $parents,
+            "Ada <ada@example.test> {$seconds} +0000",
+            "CI <ci@example.test> {$seconds} +0000",
+            "commit\n",
+            [
+                'tree' => [str_repeat('f', 40)],
+                'parent' => $parents,
+                'author' => ["Ada <ada@example.test> {$seconds} +0000"],
+                'committer' => ["CI <ci@example.test> {$seconds} +0000"],
+            ],
+        );
+        $release = $oid('1');
+        $pluginReview = $oid('2');
+        $themeReview = $oid('3');
+        $archivedReview = $oid('4');
+        $objectReads = [];
+        $commitGraphCommits = [
+            $release => $timedCommit(1700000000),
+            $pluginReview => $timedCommit(1700000100, [$release]),
+            $themeReview => $timedCommit(1700000200, [$release]),
+        ];
+        $commitGraphGenerations = [
+            $release => 1,
+            $pluginReview => 2,
+            $themeReview => 2,
+        ];
+        $objectCommits = [
+            $archivedReview => $timedCommit(1700000300),
+        ];
+        $mergeBase = new MergeBaseFinder(
+            static function (string $oid) use ($objectCommits, &$objectReads): ?Commit {
+                $objectReads[] = $oid;
+                if (isset($objectCommits[$oid])) {
+                    return $objectCommits[$oid];
+                }
+
+                throw new RuntimeException("Object database should not be read for commit-graph-backed commit: {$oid}");
+            },
+            commitGraphGeneration: static fn (string $oid): ?int => $commitGraphGenerations[$oid] ?? null,
+            commitGraphCommit: static fn (string $oid): ?Commit => $commitGraphCommits[$oid] ?? null,
+        );
+
+        $t->same([$release], $mergeBase->mergeBases($pluginReview, $themeReview));
+        $t->same([$release], $mergeBase->mergeBasesMany([$pluginReview, $themeReview]));
+        $t->same([], $objectReads);
+
+        $t->same([$release], $mergeBase->mergeBasesAgainst($pluginReview, [$themeReview, $archivedReview]));
+        $t->same([$archivedReview], $objectReads);
+    },
     'maps upstream missing commit graph generations as infinity without recursive inflation' => static function (TestRunner $t) use ($oid): void {
         $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
             str_repeat('f', 40),
@@ -1191,6 +1243,16 @@ BASELINE;
             },
             commitGraphGeneration: static fn (string $oid): ?int => null,
         );
+        $commitGraphOnlyObjectReads = [];
+        $commitGraphOnlyFinder = new MergeBaseFinder(
+            static function (string $oid) use ($fixture, &$commitGraphOnlyObjectReads): ?Commit {
+                $commitGraphOnlyObjectReads[] = $oid;
+
+                return $fixture['commitGraphObjectCommits'][$oid] ?? null;
+            },
+            commitGraphGeneration: static fn (string $oid): ?int => $fixture['commitGraphOnlyGenerations'][$oid] ?? null,
+            commitGraphCommit: static fn (string $oid): ?Commit => $fixture['commitGraphOnlyCommits'][$oid] ?? null,
+        );
 
         $t->same($fixture['releaseBaseline'], $finder->mergeBaseMany($fixture['heads']));
         $t->same([$fixture['releaseBaseline']], $finder->mergeBasesMany($fixture['deploymentHeads']));
@@ -1289,6 +1351,21 @@ BASELINE;
         $t->same(true, $example['maxGenerationProviderKeepsReleaseBaseline']);
         $t->same(true, $example['invalidCommitGraphGenerationRejected']);
         $t->throws(InvalidArgumentException::class, static fn () => $invalidGenerationFinder->mergeBase($fixture['pluginReview'], $fixture['themeReview']));
+        $t->same(
+            [$fixture['commitGraphOnlyReleaseBaseline']],
+            $commitGraphOnlyFinder->mergeBases($fixture['commitGraphOnlyPluginReview'], $fixture['commitGraphOnlyThemeReview']),
+        );
+        $t->same(
+            [$fixture['commitGraphOnlyReleaseBaseline']],
+            $commitGraphOnlyFinder->mergeBasesMany($fixture['commitGraphOnlyHeads']),
+        );
+        $t->same([], $commitGraphOnlyObjectReads);
+        $t->same($fixture['commitGraphOnlyReleaseBaseline'], $example['commitGraphOnlyGraphWalkBase']);
+        $t->same([$fixture['commitGraphOnlyReleaseBaseline']], $example['commitGraphOnlyBases']);
+        $t->same([$fixture['commitGraphOnlyReleaseBaseline']], $example['commitGraphOnlyStableBases']);
+        $t->same([$fixture['commitGraphOnlyArchiveReview']], $example['commitGraphOnlyObjectReads']);
+        $t->same(true, $example['commitGraphOnlyBaseIsReleaseBaseline']);
+        $t->same(true, $example['commitGraphOnlyAvoidsObjectReadsForGraphCommits']);
         $hydratedPromisorCommits = $fixture['commits'];
         $hydratedPromisorReleaseCommit = $hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']];
         unset($hydratedPromisorCommits[$fixture['hydratedPromisorReleaseBaseline']]);

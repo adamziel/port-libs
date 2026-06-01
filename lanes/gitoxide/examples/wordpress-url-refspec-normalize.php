@@ -28,6 +28,8 @@ $homeMirrorExpandedPath = GitUrl::expandHomePath(
 );
 $relativeMirror = GitUrl::parse($fixture['relativeMirrorUrl']);
 $relativeMirrorCanonical = $relativeMirror->canonicalized($fixture['relativeMirrorCurrentDirectory']);
+$colonAliasRemote = GitUrl::parse($fixture['colonAliasRemoteUrl']);
+$explicitLocalColonMirror = GitUrl::parse($fixture['explicitLocalColonMirrorUrl']);
 $customHelperRemote = GitUrl::parse($fixture['customHelperRemoteUrl']);
 $unicodeRemote = GitUrl::parse($fixture['unicodeRemoteUrl']);
 $credentialRemote = GitUrl::parse($fixture['credentialRemoteUrl'])
@@ -149,6 +151,8 @@ $summary = [
     'homeMirrorShellPath' => $homeMirrorShellPath,
     'homeMirrorExpandedPath' => $homeMirrorExpandedPath,
     'relativeMirrorCanonical' => $relativeMirrorCanonical->toArray(),
+    'colonAliasRemote' => $colonAliasRemote->toArray(),
+    'explicitLocalColonMirror' => $explicitLocalColonMirror->toArray(),
     'customHelperRemote' => $customHelperRemote->toArray(),
     'customHelperRemotePathArgumentSafe' => $customHelperRemote->pathArgumentSafe(),
     'unicodeRemote' => $unicodeRemote->toArray(),
@@ -242,6 +246,30 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if ($summary['relativeMirrorCanonical']['normalized'] !== $fixture['expectedRelativeMirrorCanonicalUrl']) {
         throw new RuntimeException('Unexpected relative mirror canonical URL');
+    }
+    if ($summary['colonAliasRemote']['scheme'] !== $fixture['expectedColonAliasRemoteScheme']) {
+        throw new RuntimeException('Unexpected colon-alias remote scheme');
+    }
+    if ($summary['colonAliasRemote']['host'] !== $fixture['expectedColonAliasRemoteHost']) {
+        throw new RuntimeException('Unexpected colon-alias remote host');
+    }
+    if ($summary['colonAliasRemote']['path'] !== $fixture['expectedColonAliasRemotePath']) {
+        throw new RuntimeException('Unexpected colon-alias remote path');
+    }
+    if ($summary['colonAliasRemote']['normalized'] !== $fixture['expectedColonAliasRemoteUrl']) {
+        throw new RuntimeException('Unexpected colon-alias remote URL');
+    }
+    if ($summary['explicitLocalColonMirror']['scheme'] !== $fixture['expectedExplicitLocalColonMirrorScheme']) {
+        throw new RuntimeException('Unexpected explicit local colon mirror scheme');
+    }
+    if ($summary['explicitLocalColonMirror']['host'] !== $fixture['expectedExplicitLocalColonMirrorHost']) {
+        throw new RuntimeException('Unexpected explicit local colon mirror host');
+    }
+    if ($summary['explicitLocalColonMirror']['path'] !== $fixture['expectedExplicitLocalColonMirrorPath']) {
+        throw new RuntimeException('Unexpected explicit local colon mirror path');
+    }
+    if ($summary['explicitLocalColonMirror']['normalized'] !== $fixture['expectedExplicitLocalColonMirrorUrl']) {
+        throw new RuntimeException('Unexpected explicit local colon mirror URL');
     }
     if ($summary['customHelperRemote']['normalized'] !== $fixture['expectedCustomHelperRemoteUrl']) {
         throw new RuntimeException('Unexpected normalized custom helper remote URL');

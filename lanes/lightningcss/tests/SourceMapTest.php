@@ -1617,6 +1617,43 @@ return [
         $t->same([], $child->getNames());
         $t->same('', $child->writeVlq());
     },
+    'source map skips generated-only child segments during pruned input-map appends' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $parentSource = $parent->addSource('entry.css');
+        $parent->setSourceContent($parentSource, ".entry{}\n");
+        $parent->addMapping(0, 0, $parentSource, 0, 0, 'entryRule');
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('blocks/card.scss');
+        $unusedSource = $child->addSource('blocks/unused.scss');
+        $child->setSourceContent($childSource, ".card { color: \$brand; }\n");
+        $child->setSourceContent($unusedSource, ".unused { color: red; }\n");
+        $child->addGeneratedMapping(0, 0);
+        $child->addMapping(0, 5, $childSource, 2, 1, 'cardRule');
+        $child->addGeneratedMapping(1, 3);
+        $child->addMapping(1, 8, $childSource, 3, 2, 'cardDecl');
+        $child->addName('unusedName');
+
+        $parent->appendSourceMapWithGeneratedOffset($child, 2, 4, false);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $roundTrip = SourceMap::fromBuffer('/', $parent->toBuffer());
+        $data = $parent->toArray(null, false);
+
+        $t->same('AAAAA;;SCECC;QACCC', $parent->writeVlq());
+        $t->same([0, 2, 3], array_column($decoded, 'generatedLine'));
+        $t->same([0, 9, 8], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1, 1], array_column($decoded, 'sourceIndex'));
+        $t->same([0, 2, 3], array_column($decoded, 'originalLine'));
+        $t->same([0, 1, 2], array_column($decoded, 'originalColumn'));
+        $t->same([0, 1, 2], array_column($decoded, 'nameIndex'));
+        $t->same(['entry.css', 'blocks/card.scss'], $data['sources']);
+        $t->same([".entry{}\n", ".card { color: \$brand; }\n"], $data['sourcesContent']);
+        $t->same(['entryRule', 'cardRule', 'cardDecl'], $data['names']);
+        $t->same('AAAAA;;SCECC;QACCC', $roundTrip->writeVlq());
+        $t->same([], $child->getSources());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map normalizes upstream project-root source paths' => static function (TestRunner $t): void {
         $map = new SourceMap('/srv/www/site/wp-content/themes/example');
         $style = $map->addSource('/srv/www/site/wp-content/themes/example/style.css');

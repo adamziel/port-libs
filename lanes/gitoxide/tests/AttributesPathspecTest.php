@@ -826,6 +826,35 @@ return [
         $t->same(false, PathspecMatcher::matchesOne(':(icase,attr:deploy=plugin)WP-CONTENT/PLUGINS/GUTENBERG/**', 'WP-CONTENT/plugins/gutenberg/block.json', false, $attributes));
         $t->same(true, PathspecMatcher::fromSpecs([':!wp-content/cache/**'])->matches('wp-content/plugins/gutenberg/block.json', false, $attributes));
     },
+    'pathspec matcher rejects parent traversal above root before attr matching like gix normalize' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString(
+            "wp-content/plugins/** deploy=plugin\n"
+            . "wp-content/themes/** deploy=theme\n",
+            withBuiltInMacros: false,
+        );
+
+        $t->same(true, PathspecMatcher::matchesOne(
+            ':(attr:deploy=theme)wp-content/plugins/../themes/**',
+            'wp-content/themes/twentytwentyfour/theme.json',
+            false,
+            $attributes,
+        ));
+        $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([
+            '../wp-content/plugins/**',
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([
+            ':(attr:deploy=plugin)../wp-content/plugins/**',
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([
+            'wp-content/plugins/../../../outside/**',
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::matchesOne(
+            'wp-content/plugins/**',
+            '../wp-content/plugins/gutenberg/block.json',
+            false,
+            $attributes,
+        ));
+    },
     'recursive attribute macros follow gix lookup order for attr pathspec matches' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("[attr]my-text text\n"
             . "[attr]my-binary binary\n"
@@ -905,6 +934,9 @@ return [
         $t->same(PathspecMatch::KIND_WILDCARD, $example['pluginPathspecSearchKind']);
         $t->same(true, $example['explicitDeployUnspecifiedMatches']);
         $t->same(false, $example['absentDeployUnspecifiedMatches']);
+        $t->same(true, $example['normalizedParentComponentPathspecMatches']);
+        $t->same(true, $example['rootEscapingPathspecRejected']);
+        $t->same(true, $example['rootEscapingCandidateRejected']);
         $t->same(['dated-upload' => true], $example['datedUploadAttributes']);
         $t->same(true, $example['datedUploadPathspecMatches']);
         $t->same(true, $example['slashClassDoesNotCrossDirectory']);

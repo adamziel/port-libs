@@ -421,6 +421,10 @@ final class SourceMap
 
                 $lineMappings = [];
                 foreach ($mappingsByChildLine[$line] ?? [] as $mapping) {
+                    if (!$preserveUnusedTables && $mapping['sourceIndex'] === null) {
+                        continue;
+                    }
+
                     $sourceIndex = null;
                     if ($mapping['sourceIndex'] !== null) {
                         if (!array_key_exists($mapping['sourceIndex'], $sourceMap->sources)) {
