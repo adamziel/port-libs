@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 23:41:10 UTC",
-    "sourceCommit": "163ddd214496f312bde14e6432dd5b527846be58",
-    "sourceCommitShort": "163ddd214496",
+    "generated": "2026-06-01 23:46:45 UTC",
+    "sourceCommit": "f912484acb363faf597a23d09580c30024a204db",
+    "sourceCommitShort": "f912484acb36",
     "sourceBranch": "unknown",
-    "dashboardCommit": "163ddd214496f312bde14e6432dd5b527846be58",
-    "dashboardCommitShort": "163ddd214496",
+    "dashboardCommit": "f912484acb363faf597a23d09580c30024a204db",
+    "dashboardCommitShort": "f912484acb36",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -45,13 +45,13 @@
             "coverage": "2,439 / 3,532 (69.1%)",
             "mapPercent": "69.1%",
             "unmapped": "1,093",
-            "php": "9,164 pass / 0 fail",
+            "php": "9,186 pass / 0 fail",
             "phase": "wrap-up source parity plus runner-evidence consolidation; full Rust/N...",
             "audit": "2026-06-01 isolated worker on base 4891303774c9ca404591d2f3a4d35bc9e1...",
-            "currentWork": "SourceMap preserved reused content offsets, bundler decoded backslash import path ide...",
+            "currentWork": "CSSOM logical border-radius read/write, CSS Modules :has() pseudo-element branch pari...",
             "nextTarget": "Install or vendor the missing upstream runner dependencies in...",
             "remainingGate": "Full upstream runner closure is partial: bounded Rust media test and...",
-            "commit": "163ddd2"
+            "commit": "f912484"
         },
         {
             "lane": "gitoxide",
