@@ -10,8 +10,8 @@
     "audit": "2026-06-01 isolated worker on base 4891303774c9ca404591d2f3a4d35bc9e197e3fb: pinned LightningCSS native binding confirmed mixed not-all/all media-list output for range and interval syntax inside @layer blocks and layered @import tails. Changed PHP lint passed; focused MediaQueryParser/TransitionPrefixer gate passed 2 files / 2231 assertions / 0 failures; wordpress-media-range-layer-mixed-list.php --self-test passed; full LightningCSS PHP lane passed 13 files / 9100 assertions / 0 failures. phpPass moves 9084 -> 9100 (+16). Rust/Node/WASM runners were not run.",
     "currentWork": "Mixed all/not-all media-list range lowering inside layered @media blocks and layered @import tails is covered on current base, alongside accepted source-map skipped VLQ state, media range/layer stylesheet paths, legacy text supports-prefix boundaries, custom at-rule visitors, target-prefix boundaries, source-map, bundle/import graph, CSSOM, CSS Modules, parser recovery, media-query, and property-value gaps.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "pending isolated handoff from 4891303774c9ca404591d2f3a4d35bc9e197e3fb",
+    "latestCommit": "ccff9e05175be4f9c18178c601a928132fd12244",
     "nextTask": "Keep LightningCSS workers on current-base bundle/import graph, source-map, media query, property value, CSSOM, CSS Modules, custom-at-rule, target-prefix, selector, parser recovery, and upstream Rust/Node/WASM parity gaps that can be expressed in PHP.",
-    "commit": "pending isolated handoff from 4891303774c9ca404591d2f3a4d35bc9e197e3fb",
+    "commit": "ccff9e05175be4f9c18178c601a928132fd12244",
     "latestFocusedSlice": "2026-06-01 isolated media-query range/layer mixed-list slice: focused MediaQueryParser/TransitionPrefixer gate passed 2 files / 2231 assertions / 0 failures; full LightningCSS lane passed 13 files / 9100 assertions / 0 failures; phpPass moves 9084 -> 9100 (+16); mapped coverage remains 2439 / 3532; Rust/Node/WASM runners were not executed."
 }
