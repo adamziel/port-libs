@@ -12,7 +12,7 @@
     "blocker": "Broad libsqlite full-lane/release parity is not green: latest selected evidence still shows 16 failures, so workers continue reducing the failing set and PDO/native behavior gaps.",
     "nextTask": "Run/triage the 16 broad libsqlite failures, continue focused upstream-corpus slices for WITHOUT ROWID, window functions, trigger/FK, PRAGMA/schema, row-value, WAL/VFS, JSON subtype, UPSERT/RETURNING, PDO parity, remaining atof1 random REAL ordinals beyond 6000, and keep the no-domain source guard green.",
     "wordpressScenarioLatest": "Latest libsqlite batch adds generic SQLite upstream atof1 random REAL text-to-REAL and quote round-trip coverage for ordinals 4801..6000.",
-    "latestCommit": "c3bf2f17bba490ea2ed3f2ad50e91fffd3b01d67",
-    "commit": "c3bf2f17bba490ea2ed3f2ad50e91fffd3b01d67",
+    "latestCommit": "d3a74abc1733d6b8cb0ea95d5211f37995a39ef3",
+    "commit": "d3a74abc1733d6b8cb0ea95d5211f37995a39ef3",
     "latestFocusedSlice": "2026-06-01 isolated worker batch: real upstream atof1.test random REAL ordinals 4801..6000. Focused gates passed: php -l changed PHP test file; focused gate 1 file / 16826 assertions / 0 failures. phpPass moves 6272894 -> 6274097 (+1203); mapped coverage remains 1589 / 1589; broad full-lane/release parity remains open with 16 failures."
 }
