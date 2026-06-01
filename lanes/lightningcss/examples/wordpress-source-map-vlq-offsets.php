@@ -95,6 +95,21 @@ $partialSkippedNestedChild->addName('unused-partial-name');
 $partialSkippedNestedParent->addSourceMap($partialSkippedNestedChild, -1);
 $partialSkippedNestedChildConsumed = $partialSkippedNestedChild->toJson(null, false);
 
+$generatedOnlyChildOffsetParent = new SourceMap();
+$generatedOnlyChildOffsetParentSource = $generatedOnlyChildOffsetParent->addSource('wp-content/themes/example/source-map-generated-child-parent.css');
+foreach ([0, 1, 2, 3] as $line) {
+    $generatedOnlyChildOffsetParent->addMapping($line, 0, $generatedOnlyChildOffsetParentSource, $line, 0, 'generated-child-parent-' . $line);
+}
+$generatedOnlyChildOffsetChild = new SourceMap();
+$generatedOnlyChildOffsetChildSource = $generatedOnlyChildOffsetChild->addSource('wp-content/themes/example/source-map-generated-child.css');
+$generatedOnlyChildOffsetChild->setSourceContent($generatedOnlyChildOffsetChildSource, ".wp-block-generated-child{}\n");
+$generatedOnlyChildOffsetChild->addGeneratedMapping(0, 4);
+$generatedOnlyChildOffsetChild->addMapping(1, 6, $generatedOnlyChildOffsetChildSource, 3, 2, 'generated-child-rule');
+$generatedOnlyChildOffsetChild->addGeneratedMapping(2, 8);
+$generatedOnlyChildOffsetParent->addSourceMap($generatedOnlyChildOffsetChild, -1);
+$generatedOnlyChildOffsetChildConsumed = $generatedOnlyChildOffsetChild->toJson(null, false);
+$generatedOnlyChildOffsetClosest = $generatedOnlyChildOffsetParent->findClosestMapping(1, 8);
+
 $themeJsonMap = new SourceMap();
 $themeJsonMap->addEmptyMap(
     'wp-content/themes/example/theme-json.css',
@@ -891,6 +906,9 @@ $actual = [
     'skippedNestedChildConsumed' => $skippedNestedChildConsumed,
     'partialSkippedNestedSourceTableMap' => $partialSkippedNestedParent->toJson(null, false),
     'partialSkippedNestedChildConsumed' => $partialSkippedNestedChildConsumed,
+    'generatedOnlyChildOffsetMap' => $generatedOnlyChildOffsetParent->toJson(null, false),
+    'generatedOnlyChildOffsetChildConsumed' => $generatedOnlyChildOffsetChildConsumed,
+    'generatedOnlyChildOffsetClosest' => $generatedOnlyChildOffsetClosest,
     'emptyMap' => $themeJsonMap->toJson(null, false),
     'carriageReturnEmptyMap' => $carriageReturnEmptyMap->toJson(null, false),
     'lineSpanMap' => $inlineEditorMap->toJson(null, false),
@@ -1008,6 +1026,9 @@ if (($argv[1] ?? null) === '--self-test') {
         'skippedNestedChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'partialSkippedNestedSourceTableMap' => '{"version":3,"mappings":"ICCEC","sources":["wp-content/themes/example/blocks/skipped-partial.css","wp-content/themes/example/blocks/kept-partial.css","wp-content/themes/example/blocks/unused-partial.css"],"sourcesContent":[".wp-block-skipped-partial{}\n",".wp-block-kept-partial{}\n",".wp-block-unused-partial{}\n"],"names":["skipped-partial-rule","kept-partial-rule","unused-partial-name"]}',
         'partialSkippedNestedChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'generatedOnlyChildOffsetMap' => '{"version":3,"mappings":"MCGEI;Q;ADDFF;AACAC","sources":["wp-content/themes/example/source-map-generated-child-parent.css","wp-content/themes/example/source-map-generated-child.css"],"sourcesContent":["",".wp-block-generated-child{}\n"],"names":["generated-child-parent-0","generated-child-parent-1","generated-child-parent-2","generated-child-parent-3","generated-child-rule"]}',
+        'generatedOnlyChildOffsetChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'generatedOnlyChildOffsetClosest' => ['generatedLine' => 1, 'generatedColumn' => 8, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
         'emptyMap' => '{"version":3,"mappings":";AAAA;AACA;AACA","sources":["wp-content/themes/example/theme-json.css"],"sourcesContent":[":root {\n  --wp--style--global--content-size: 720px;\n}\n"],"names":[]}',
         'carriageReturnEmptyMap' => '{"version":3,"mappings":";AAAA;AACA;AACA","sources":["wp-content/themes/example/legacy-cr.css"],"sourcesContent":[".wp-block-legacy\r.wp-block-modern\n.wp-block-crlf\r\n.wp-block-tail\r.rule"],"names":[]}',
         'lineSpanMap' => '{"version":3,"mappings":"AAAA;;","sources":["wp-content/themes/example/editor-inline.css"],"sourcesContent":[".wp-block-spacer {\n  margin-top: 1rem;\n}\n"],"names":[]}',

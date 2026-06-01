@@ -71,6 +71,32 @@ final class DeclarationBlock
         'text-rendering' => ['auto', 'optimizespeed', 'optimizelegibility', 'geometricprecision'],
     ];
     private const PRINT_COLOR_ADJUST_PROPERTIES = ['print-color-adjust', '-webkit-print-color-adjust', '-moz-print-color-adjust'];
+    private const DIRECT_KEYWORD_PROPERTIES = [
+        'visibility' => ['visible', 'hidden', 'collapse'],
+        'box-sizing' => ['content-box', 'border-box'],
+        'position' => ['static', 'relative', 'absolute', 'fixed', 'sticky', '-webkit-sticky'],
+        'text-overflow' => ['clip', 'ellipsis'],
+        'mix-blend-mode' => [
+            'normal',
+            'multiply',
+            'screen',
+            'overlay',
+            'darken',
+            'lighten',
+            'color-dodge',
+            'color-burn',
+            'hard-light',
+            'soft-light',
+            'difference',
+            'exclusion',
+            'hue',
+            'saturation',
+            'color',
+            'luminosity',
+            'plus-darker',
+            'plus-lighter',
+        ],
+    ];
     private const VIEW_TRANSITION_KEYWORDS = [
         'view-transition-name' => ['none', 'auto'],
         'view-transition-class' => ['none'],
@@ -13701,6 +13727,18 @@ final class DeclarationBlock
             return $this->normalizeKeywordDeclarationValue($value, ['economy', 'exact']);
         }
 
+        if (isset(self::DIRECT_KEYWORD_PROPERTIES[$property])) {
+            return $this->normalizeKeywordDeclarationValue($value, self::DIRECT_KEYWORD_PROPERTIES[$property]);
+        }
+
+        if ($property === 'z-index') {
+            return $this->normalizeZIndexDeclarationValue($value);
+        }
+
+        if ($property === 'aspect-ratio') {
+            return $this->normalizeAspectRatioDeclarationValue($value);
+        }
+
         if (isset(self::VIEW_TRANSITION_KEYWORDS[$property])) {
             return $this->normalizeKeywordDeclarationValue($value, self::VIEW_TRANSITION_KEYWORDS[$property]);
         }
@@ -13901,6 +13939,69 @@ final class DeclarationBlock
         $keyword = strtolower($trimmed);
 
         return in_array($keyword, $keywords, true) ? $keyword : $trimmed;
+    }
+
+    private function normalizeZIndexDeclarationValue(string $value): string
+    {
+        $trimmed = trim($value);
+        if (strcasecmp($trimmed, 'auto') === 0) {
+            return 'auto';
+        }
+
+        return preg_match('/^[+-]?\d+$/', $trimmed) === 1
+            ? $this->normalizeCssIntegerLiteral($trimmed)
+            : $trimmed;
+    }
+
+    private function normalizeAspectRatioDeclarationValue(string $value): string
+    {
+        $trimmed = trim($value);
+        $auto = false;
+        $ratio = $trimmed;
+
+        if (preg_match('/^auto(?:\s+|$)/i', $ratio, $matches) === 1) {
+            $auto = true;
+            $ratio = trim(substr($ratio, strlen($matches[0])));
+        }
+
+        if ($ratio !== '' && preg_match('/(?:^|\s+)auto$/i', $ratio, $matches, PREG_OFFSET_CAPTURE) === 1) {
+            if ($auto) {
+                return $trimmed;
+            }
+
+            $auto = true;
+            $ratio = trim(substr($ratio, 0, $matches[0][1]));
+        }
+
+        if ($ratio === '') {
+            return $auto ? 'auto' : $trimmed;
+        }
+
+        $normalizedRatio = $this->normalizeCssRatioValue($ratio);
+        if ($normalizedRatio === null) {
+            return $trimmed;
+        }
+
+        return $auto ? 'auto ' . $normalizedRatio : $normalizedRatio;
+    }
+
+    private function normalizeCssRatioValue(string $value): ?string
+    {
+        $number = '[+-]?(?:\d+|\d*\.\d+)';
+        if (preg_match('/^(' . $number . ')(?:\s*\/\s*(' . $number . '))?$/', trim($value), $matches) !== 1) {
+            return null;
+        }
+
+        $first = $this->normalizeCssNumberLiteral($matches[1]);
+        $second = isset($matches[2]) && $matches[2] !== ''
+            ? $this->normalizeCssNumberLiteral($matches[2])
+            : '1';
+
+        if ($second === '1') {
+            return $first;
+        }
+
+        return $first . ' / ' . $second;
     }
 
     private function normalizeCursorDeclarationValue(string $value): string
@@ -14450,6 +14551,22 @@ final class DeclarationBlock
         }
 
         return ($negative ? '-' : '') . $number;
+    }
+
+    private function normalizeCssIntegerLiteral(string $number): string
+    {
+        $number = trim($number);
+        $negative = str_starts_with($number, '-');
+        if ($number !== '' && ($number[0] === '+' || $number[0] === '-')) {
+            $number = substr($number, 1);
+        }
+
+        $number = ltrim($number, '0');
+        if ($number === '') {
+            return '0';
+        }
+
+        return $negative ? '-' . $number : $number;
     }
 
     private function normalizeAlphaValue(string $value): string

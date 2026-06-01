@@ -2555,6 +2555,34 @@ CSS;
             $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) { .foo { color: var(--foo, lab(40% 56.6 39)); } }', ['safari' => 14])
         );
     },
+    'transition prefixer maps upstream supports guarded color fallback boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@supports (color:lab(0% 0 0)) and (color:color(display-p3 0 0 0)){.foo{color:lab(40% 56.6 39)}.bar{color:color(display-p3 .643308 .192455 .167712)}}',
+            $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) and (color: color(display-p3 0 0 0)) { .foo { color: lab(40% 56.6 39); } .bar { color: color(display-p3 .643308 .192455 .167712); } }', ['chrome' => 4])
+        );
+        $t->same(
+            '@supports (color:lab(40% 56.6 39)){.foo{color:lab(40% 56.6 39)}}',
+            $prefixer->prefixForTargets('@supports (color: lab(40% 56.6 39)) { .foo { color: lab(40% 56.6 39); } }', ['chrome' => 4])
+        );
+        $t->same(
+            '@supports (background-color:lab(40% 56.6 39)){.foo{background-color:lab(40% 56.6 39)}}',
+            $prefixer->prefixForTargets('@supports (background-color: lab(40% 56.6 39)) { .foo { background-color: lab(40% 56.6 39); } }', ['chrome' => 4])
+        );
+        $t->same(
+            '@supports (color:light-dark(#f00,#00f)){.foo{color:light-dark(#ff0,#0ff)}}',
+            $prefixer->prefixForTargets('@supports (color: light-dark(#f00, #00f)) { .foo { color: light-dark(#ff0, #0ff); } }', ['chrome' => 4])
+        );
+        $t->same(
+            '@supports (color:lab(0% 0 0)) and (not (color:color(display-p3 0 0 0))){.foo{color:#b32323;color:lab(40% 56.6 39)}.bar{color:#b32323;color:color(display-p3 .643308 .192455 .167712)}}',
+            $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) and (not (color: color(display-p3 0 0 0))) { .foo { color: lab(40% 56.6 39); } .bar { color: color(display-p3 .643308 .192455 .167712); } }', ['chrome' => 4])
+        );
+        $t->same(
+            '@supports (color:lab(0% 0 0)) or (color:color(display-p3 0 0 0)){.foo{color:#b32323;color:lab(40% 56.6 39)}.bar{color:#b32323;color:color(display-p3 .643308 .192455 .167712)}}',
+            $prefixer->prefixForTargets('@supports (color: lab(0% 0 0)) or (color: color(display-p3 0 0 0)) { .foo { color: lab(40% 56.6 39); } .bar { color: color(display-p3 .643308 .192455 .167712); } }', ['chrome' => 4])
+        );
+    },
     'transition prefixer maps upstream xyz color mix target fallback' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -3565,6 +3593,28 @@ CSS;
         $t->same(
             '@layer blocks{@media (width>=240px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media all and (width >= 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 64])
+        );
+        $t->same(
+            '@layer blocks{@media (-webkit-device-pixel-ratio>=2),(resolution>=2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (resolution >= 2dppx) { .wp-block-query { color: yellow; } } }', [
+                'safari' => 15,
+                'exclude' => ['MediaRangeSyntax'],
+            ])
+        );
+        $t->same(
+            '@layer blocks{@media (-webkit-device-pixel-ratio>2),(resolution>2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (resolution > 2dppx) { .wp-block-query { color: yellow; } } }', [
+                'safari' => 15,
+                'exclude' => ['MediaRangeSyntax'],
+            ])
+        );
+        $t->same(
+            '@media only screen and (-webkit-device-pixel-ratio>=1.3),only screen and (-moz-device-pixel-ratio>=1.3),only screen and (resolution>=124.8dpi){.foo{color:#ff0}}',
+            $prefixer->prefixForTargets('@media only screen and (resolution >= 124.8dpi) { .foo { color: yellow; } }', [
+                'safari' => 15,
+                'firefox' => 10,
+                'exclude' => ['MediaRangeSyntax'],
+            ])
         );
         $t->same(
             '@layer blocks{@media (-webkit-min-device-pixel-ratio:2){.wp-block-query{color:#ff0}}}',

@@ -737,6 +737,83 @@ CSS;
             $seen['rules']['tokens']['preludeAst']['value']['components'],
         ));
     },
+    'custom at-rules serialize upstream escaped custom parser preludes' => static function (TestRunner $t): void {
+        $css = <<<'CSS'
+@block t\65 st {
+  color: yellow;
+}
+@inline in\6c ine;
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'block' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+            'inline' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ]);
+
+        $t->same('@block test{color:#ff0}@inline inline;', $result);
+    },
+    'custom at-rules decode upstream escaped identifier preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'custom' => [],
+            'dashed' => [],
+            'rules' => [],
+        ];
+        $css = <<<'CSS'
+@slot h\65 ro;
+@tokens --wp\2d accent --wp\-spacing;
+@mode comp\61 ct compact;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'slot' => ['prelude' => '<custom-ident>'],
+            'tokens' => ['prelude' => '<dashed-ident>+'],
+            'mode' => ['prelude' => 'compact+'],
+        ], [
+            'CustomIdent' => static function (string $ident) use (&$seen): string {
+                $seen['custom'][] = $ident;
+
+                return 'wp-' . $ident;
+            },
+            'DashedIdent' => static function (string $ident) use (&$seen): string {
+                $seen['dashed'][] = $ident;
+
+                return '--theme-' . substr($ident, 2);
+            },
+            'Rule' => [
+                'custom' => static function (array $rule) use (&$seen): array {
+                    $seen['rules'][$rule['name']] = [
+                        'prelude' => $rule['prelude'],
+                        'preludeAst' => $rule['preludeAst'],
+                    ];
+
+                    return [];
+                },
+            ],
+        ]);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same(['hero'], $seen['custom']);
+        $t->same(['--wp-accent', '--wp-spacing'], $seen['dashed']);
+        $t->same('wp-hero', $seen['rules']['slot']['prelude']);
+        $t->same(['type' => 'custom-ident', 'value' => 'wp-hero'], $seen['rules']['slot']['preludeAst']);
+        $t->same('--theme-wp-accent --theme-wp-spacing', $seen['rules']['tokens']['prelude']);
+        $t->same('repeated', $seen['rules']['tokens']['preludeAst']['type']);
+        $t->same(['--theme-wp-accent', '--theme-wp-spacing'], array_map(
+            static fn (array $component): string => $component['value'],
+            $seen['rules']['tokens']['preludeAst']['value']['components'],
+        ));
+        $t->same('compact compact', $seen['rules']['mode']['prelude']);
+        $t->same(['compact', 'compact'], array_column($seen['rules']['mode']['preludeAst']['value']['components'], 'value'));
+    },
     'custom at-rules visit upstream unit component preludes before custom rule visitors' => static function (TestRunner $t): void {
         $seen = [
             'angles' => [],

@@ -1623,6 +1623,40 @@ return [
             (string) $store->reflogContents('refs/tags/wp-release-v2026.05'),
         );
     },
+    'prepared packed update mode leaves pseudo refs loose and ignores packed refs lock like upstream' => static function (TestRunner $t) use ($new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-packed-pseudo-' . bin2hex(random_bytes(4));
+        mkdir($dir, 0777, true);
+        file_put_contents($dir . '/packed-refs.lock', 'held by unrelated packed ref transaction');
+        $store = ReferenceStore::at($dir);
+
+        $transaction = $store->prepareLooseUpdateTransaction(
+            ['HEAD' => ReferenceTarget::object($new)],
+            'sha1',
+            new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+            'detach preview without pack-refs',
+            true,
+            ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+            null,
+            false,
+            ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE,
+        );
+
+        $t->same(true, is_file($dir . '/HEAD.lock'), 'pseudo refs still prepare through loose locks in packed update mode');
+        $t->same('held by unrelated packed ref transaction', file_get_contents($dir . '/packed-refs.lock'));
+        $t->same(false, is_file($dir . '/packed-refs'), 'preparing a pseudo ref does not create packed refs');
+
+        $edits = $transaction->commit();
+
+        $t->same(['HEAD'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same(false, is_file($dir . '/HEAD.lock'));
+        $t->same("{$new}\n", file_get_contents($dir . '/HEAD'));
+        $t->same(false, is_file($dir . '/packed-refs'));
+        $t->same('held by unrelated packed ref transaction', file_get_contents($dir . '/packed-refs.lock'));
+        $t->contains(
+            str_repeat('0', 40) . " {$new} Deploy Bot <deploy@example.com> 1234 +0000\tdetach preview without pack-refs\n",
+            (string) $store->reflogContents('HEAD'),
+        );
+    },
     'prepared reference transaction lock collision rolls back already prepared locks' => static function (TestRunner $t) use ($old, $new): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-lock-collision-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -1863,6 +1897,15 @@ return [
             $fixture['reviewCommit'] . ' ' . $fixture['productionCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedPackedUpdateReflogMessage'],
             (string) $summary['preparedPackedUpdateReflog'],
         );
+        $t->same($fixture['expectedPreparedPackedPseudoEditNames'], $summary['preparedPackedPseudoEditNames']);
+        $t->same($fixture['expectedPreparedPackedPseudoHadLooseLock'], $summary['preparedPackedPseudoHadLooseLock']);
+        $t->same($fixture['expectedPreparedPackedPseudoPackedLockPreserved'], $summary['preparedPackedPseudoPackedLockPreserved']);
+        $t->same($fixture['expectedPreparedPackedPseudoPackedRefsExists'], $summary['preparedPackedPseudoPackedRefsExists']);
+        $t->same($fixture['reviewCommit'], $summary['preparedPackedPseudoHeadCommit']);
+        $t->contains(
+            str_repeat('0', 40) . ' ' . $fixture['reviewCommit'] . ' ' . $fixture['preparedReflogCommitter'] . "\t" . $fixture['preparedPackedPseudoReflogMessage'],
+            (string) $summary['preparedPackedPseudoReflog'],
+        );
         $t->same($fixture['expectedPreparedLogOnlyDeleteEditNames'], $summary['preparedLogOnlyDeleteEditNames']);
         $t->same($fixture['expectedPreparedLogOnlyPackedLockPreserved'], $summary['preparedLogOnlyPackedLockPreserved']);
         $t->same($fixture['expectedPreparedLogOnlyRefStillExists'], $summary['preparedLogOnlyRefStillExists']);
@@ -1927,6 +1970,7 @@ return [
         $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
         $t->contains('prepared packed-refs commit phase', $summary['wordpressUse']);
         $t->contains('pack prepared object updates before pruning loose review sources', $summary['wordpressUse']);
+        $t->contains('detached HEAD preview updates loose', $summary['wordpressUse']);
         $t->contains('clone-style symbolic review pointer', $summary['wordpressUse']);
         $t->contains('dereferenced symbolic HEAD publish', $summary['wordpressUse']);
         $t->contains('direct production referent publish', $summary['wordpressUse']);

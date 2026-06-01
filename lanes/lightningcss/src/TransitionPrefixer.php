@@ -57,7 +57,12 @@ final class TransitionPrefixer
     /**
      * @param array<string, bool>|null $targetOptions
      */
-    private function rewriteRuleList(string $css, bool $insideAdvancedColorSupports = false, ?array $targetOptions = null): string
+    private function rewriteRuleList(
+        string $css,
+        bool $insideAdvancedColorSupports = false,
+        ?array $targetOptions = null,
+        bool $insideLightDarkSupports = false
+    ): string
     {
         $targetOptions ??= $this->targetOptions([]);
         $output = '';
@@ -93,10 +98,17 @@ final class TransitionPrefixer
                 $output .= $prelude . '{' . $this->rewriteRuleList(
                     $body,
                     $insideAdvancedColorSupports || $this->isAdvancedColorSupportsPrelude($prelude),
-                    $targetOptions
+                    $targetOptions,
+                    $insideLightDarkSupports || $this->isLightDarkSupportsPrelude($prelude)
                 ) . '}';
             } else {
-                $rewrittenStyleRule = $this->rewriteStyleRule($prelude, $body, $insideAdvancedColorSupports, $targetOptions);
+                $rewrittenStyleRule = $this->rewriteStyleRule(
+                    $prelude,
+                    $body,
+                    $insideAdvancedColorSupports,
+                    $insideLightDarkSupports,
+                    $targetOptions
+                );
                 $this->appendRewrittenStyleRule(
                     $output,
                     $rewrittenStyleRule,
@@ -288,7 +300,13 @@ final class TransitionPrefixer
     /**
      * @param array<string, bool> $targetOptions
      */
-    private function rewriteStyleRule(string $selectors, string $body, bool $insideAdvancedColorSupports, array $targetOptions): string
+    private function rewriteStyleRule(
+        string $selectors,
+        string $body,
+        bool $insideAdvancedColorSupports,
+        bool $insideLightDarkSupports,
+        array $targetOptions
+    ): string
     {
         $entries = $this->parseDeclarations($body);
         if ($entries === null) {
@@ -371,7 +389,9 @@ final class TransitionPrefixer
         $colorChanged = $insideAdvancedColorSupports
             ? false
             : $this->rewriteAdvancedColorFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
-        $lightDarkChanged = $this->rewriteLightDarkFallbackEntries($entries, $targetOptions);
+        $lightDarkChanged = $insideLightDarkSupports
+            ? false
+            : $this->rewriteLightDarkFallbackEntries($entries, $targetOptions);
         $lightDarkSerializationChanged = $this->rewriteLightDarkAdvancedColorSerializationEntries($entries, $targetOptions);
         $alphaHexChanged = $this->rewriteAlphaHexFallbackEntries($entries, $targetOptions);
         $modernColorChanged = $this->rewriteModernColorFunctionEntries($entries, $targetOptions);
@@ -591,12 +611,28 @@ final class TransitionPrefixer
     }
 
     /**
-     * @return list<array{offset:int,length:int,bound:string,value:string,negated:bool}>
+     * @return list<array{offset:int,length:int,bound:string,value:string,negated:bool,operator?:string}>
      */
     private function matchResolutionConditions(string $query): array
     {
+        $resolution = '[+-]?(?:\d+|\d*\.\d+)(?:dppx|x|dpi|dpcm)';
+        $matches = [];
+        if (preg_match_all('/(?:(not)\s+)?\(\s*(?:resolution\s*(<=|>=|<|>)\s*(' . $resolution . ')|(' . $resolution . ')\s*(<=|>=|<|>)\s*resolution)\s*\)/i', $query, $all, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) !== false) {
+            foreach ($all as $match) {
+                $negated = ($match[1][1] ?? -1) >= 0 && $match[1][0] !== '';
+                $nameFirst = $match[2][0] !== '';
+                $matches[] = [
+                    'offset' => $match[0][1],
+                    'length' => strlen($match[0][0]),
+                    'bound' => '',
+                    'operator' => $nameFirst ? $match[2][0] : $this->flipRangeOperator($match[5][0]),
+                    'value' => trim($nameFirst ? $match[3][0] : $match[4][0]),
+                    'negated' => $negated,
+                ];
+            }
+        }
+
         if (preg_match_all('/(?:(not)\s+)?\((min|max)-resolution:([^)]+)\)/i', $query, $all, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) !== false) {
-            $matches = [];
             foreach ($all as $match) {
                 $negated = ($match[1][1] ?? -1) >= 0 && $match[1][0] !== '';
                 $matches[] = [
@@ -608,14 +644,14 @@ final class TransitionPrefixer
                 ];
             }
 
-            return $matches;
+            usort($matches, static fn (array $a, array $b): int => $a['offset'] <=> $b['offset']);
         }
 
-        return [];
+        return $matches;
     }
 
     /**
-     * @param list<array{offset:int,length:int,bound:string,value:string,negated:bool}> $matches
+     * @param list<array{offset:int,length:int,bound:string,value:string,negated:bool,operator?:string}> $matches
      */
     private function replaceResolutionMediaQueryConditions(string $query, array $matches, string $vendor): ?string
     {
@@ -630,7 +666,9 @@ final class TransitionPrefixer
 
             $rewritten = substr_replace(
                 $rewritten,
-                $this->resolutionPrefixCondition($match['bound'], $ratio, $vendor, $match['negated']),
+                isset($match['operator'])
+                    ? $this->resolutionPrefixRangeCondition($match['operator'], $ratio, $vendor, $match['negated'])
+                    : $this->resolutionPrefixCondition($match['bound'], $ratio, $vendor, $match['negated']),
                 $match['offset'],
                 $match['length']
             );
@@ -658,6 +696,29 @@ final class TransitionPrefixer
         $condition = '(' . $feature . ':' . $ratio . ')';
 
         return $negated ? 'not ' . $condition : $condition;
+    }
+
+    private function resolutionPrefixRangeCondition(string $operator, string $ratio, string $vendor, bool $negated): string
+    {
+        $feature = match ($vendor) {
+            'webkit' => '-webkit-device-pixel-ratio',
+            'moz' => '-moz-device-pixel-ratio',
+            default => 'resolution',
+        };
+        $condition = '(' . $feature . $operator . $ratio . ')';
+
+        return $negated ? 'not ' . $condition : $condition;
+    }
+
+    private function flipRangeOperator(string $operator): string
+    {
+        return match ($operator) {
+            '<' => '>',
+            '<=' => '>=',
+            '>' => '<',
+            '>=' => '<=',
+            default => $operator,
+        };
     }
 
     private function resolutionValueToDevicePixelRatio(string $value): ?string
@@ -1129,7 +1190,49 @@ final class TransitionPrefixer
     private function isAdvancedColorSupportsPrelude(string $prelude): bool
     {
         return preg_match('/^@supports\b/i', $prelude) === 1
-            && preg_match('/:\s*(?:lab|lch|oklab|oklch|color)\(/i', $prelude) === 1;
+            && preg_match('/:\s*(?:lab|lch|oklab|oklch|color)\(/i', $prelude) === 1
+            && $this->supportsConditionAllowsFallbackSuppression(trim(substr($prelude, strlen('@supports'))));
+    }
+
+    private function isLightDarkSupportsPrelude(string $prelude): bool
+    {
+        return preg_match('/^@supports\b/i', $prelude) === 1
+            && preg_match('/:\s*light-dark\(/i', $prelude) === 1
+            && $this->supportsConditionAllowsFallbackSuppression(trim(substr($prelude, strlen('@supports'))));
+    }
+
+    private function supportsConditionAllowsFallbackSuppression(string $condition): bool
+    {
+        $condition = trim($condition);
+        if ($condition === '') {
+            return false;
+        }
+
+        $inner = $this->unwrapSingleSupportsParentheses($condition);
+        if ($inner !== null) {
+            return $this->supportsConditionAllowsFallbackSuppression($inner);
+        }
+
+        if (preg_match('/^not(?:\s|\()/i', $condition) === 1) {
+            return false;
+        }
+
+        $logical = $this->splitSupportsConditionByLogicalOperator($condition);
+        if ($logical === null) {
+            return true;
+        }
+
+        foreach ($logical as $item) {
+            if ($item['type'] === 'operator' && strtolower($item['value']) === 'or') {
+                return false;
+            }
+
+            if ($item['type'] === 'condition' && !$this->supportsConditionAllowsFallbackSuppression($item['value'])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -9249,6 +9352,7 @@ final class TransitionPrefixer
             'lab(51% 70.4544 -115.586)' => '#7773ff',
             'color(srgb .41587 .50367 .36664)' => '#6a805d',
             'color(display-p3 .43313 .50108 .3795)' => '#6a805d',
+            'color(display-p3 .643308 .192455 .167712)' => '#b32323',
             'color(display-p3 0 .5 1)' => '#4263eb',
             'color(display-p3 0 1 0)' => '#00f942',
             'color(a98-rgb .44091 .49971 .37408)' => '#6a805d',

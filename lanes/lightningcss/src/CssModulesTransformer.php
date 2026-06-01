@@ -2304,7 +2304,7 @@ final class CssModulesTransformer
                 $this->cssModulesBarePseudoNameAt($selector, $i, 'global')
                 || $this->cssModulesBarePseudoNameAt($selector, $i, 'local')
             )) {
-                throw new \InvalidArgumentException('CSS Modules :local and :global selectors must use functional syntax');
+                throw new \InvalidArgumentException('Ambiguous CSS module class not supported');
             }
 
             if ($bracketDepth === 0 && $mode === 'local' && ($char === '.' || $char === '#')) {
@@ -3510,11 +3510,11 @@ final class CssModulesTransformer
     private function assertCssModulesFunctionalSelector(string $selector): void
     {
         if (trim($selector) === '') {
-            throw new \InvalidArgumentException('CSS Modules :local and :global selectors cannot be empty');
+            throw new \InvalidArgumentException('Invalid empty selector');
         }
 
         if ($this->findNextTopLevel($selector, ',', 0) !== null) {
-            throw new \InvalidArgumentException('CSS Modules :local and :global selectors must contain a single selector');
+            throw new \InvalidArgumentException('Unexpected token Comma');
         }
     }
 

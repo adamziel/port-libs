@@ -82,10 +82,49 @@ CSS;
             '.x :global(.foo, .bar) { color: red }',
             ':global(.foo, .bar) .x { color: red }',
             ':local(.foo, .bar) { color: red }',
+        ] as $css) {
+            try {
+                $transformer->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same('Unexpected token Comma', $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream selector-list comma exception');
+        }
+
+        foreach ([
             ':global() { color: red }',
             ':local() { color: red }',
         ] as $css) {
-            $t->throws(InvalidArgumentException::class, static fn () => $transformer->transform($css));
+            try {
+                $transformer->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same('Invalid empty selector', $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream empty selector exception');
+        }
+    },
+    'css modules rejects upstream ambiguous bare local global pseudos before composing exports' => static function (TestRunner $t): void {
+        $transformer = new CssModulesTransformer();
+
+        foreach ([
+            ':global .foo { color: red }',
+            ':local .foo { color: red }',
+            '.foo:global { color: red }',
+            '.foo:local { color: red }',
+            '.button { composes: base; color: red } :global .legacy { color: blue } .base { color: white }',
+        ] as $css) {
+            try {
+                $transformer->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same('Ambiguous CSS module class not supported', $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream ambiguous CSS module class exception');
         }
     },
     'css modules rejects bare global pseudos from upstream nested regression' => static function (TestRunner $t): void {

@@ -12,6 +12,7 @@ final class SQLiteJsonbGeneratedPartialUpsertPlan
      * @param list<array{name?:string,sql:string,rootPage?:int,unique?:bool}> $indexes
      * @param array<string,mixed> $jsonSetValues
      * @param callable(array<string,mixed>,array<string,mixed>):bool|null $where
+     * @param array{keyColumn?:string,jsonColumn?:string,copyColumns?:list<string>} $options
      * @return array<string,mixed>
      */
     public static function plan(
@@ -22,23 +23,28 @@ final class SQLiteJsonbGeneratedPartialUpsertPlan
         array $jsonSetValues,
         ?callable $where = null,
         int $pageSize = 512,
+        array $options = [],
     ): array {
         if ($jsonSetValues === []) {
             throw new \InvalidArgumentException('SQLite JSONB generated partial UPSERT requires at least one jsonb_set path');
         }
 
+        $keyColumn = self::identifier((string) ($options['keyColumn'] ?? 'key_name'), 'key column');
+        $jsonColumn = self::identifier((string) ($options['jsonColumn'] ?? 'key_value'), 'JSON column');
+        $copyColumns = self::columnList($options['copyColumns'] ?? ['load_policy', 'updated_at', 'migration_generation']);
+
         $beforePlan = SQLiteGeneratedJsonPathIndexPlan::btreeYieldPlan($createTableSql, $rows, $indexes, [], $pageSize);
         $workingRows = $beforePlan['before'];
-        $positions = self::positions($workingRows, 'option_name');
+        $positions = self::positions($workingRows, $keyColumn);
         $inserted = [];
         $updated = [];
         $skipped = [];
         $matched = [];
 
         foreach ($incomingRows as $incoming) {
-            self::requireColumn($incoming, 'option_name', 'incoming');
-            self::requireColumn($incoming, 'option_value', 'incoming');
-            $key = (string) $incoming['option_name'];
+            self::requireColumn($incoming, $keyColumn, 'incoming');
+            self::requireColumn($incoming, $jsonColumn, 'incoming');
+            $key = (string) $incoming[$keyColumn];
             if (!array_key_exists($key, $positions)) {
                 $workingRows[] = $incoming;
                 $positions[$key] = count($workingRows) - 1;
@@ -55,8 +61,8 @@ final class SQLiteJsonbGeneratedPartialUpsertPlan
             }
 
             $updatedRow = $current;
-            $updatedRow['option_value'] = self::applyJsonbSetValues($current, $incoming, $jsonSetValues);
-            foreach (['autoload', 'updated_at', 'migration_generation'] as $column) {
+            $updatedRow[$jsonColumn] = self::applyJsonbSetValues($current, $incoming, $jsonSetValues, $jsonColumn);
+            foreach ($copyColumns as $column) {
                 if (array_key_exists($column, $incoming)) {
                     $updatedRow[$column] = $incoming[$column];
                 }
@@ -111,11 +117,11 @@ final class SQLiteJsonbGeneratedPartialUpsertPlan
      * @param array<string,mixed> $incoming
      * @param array<string,mixed> $jsonSetValues
      */
-    private static function applyJsonbSetValues(array $current, array $incoming, array $jsonSetValues): SQLiteBlobValue
+    private static function applyJsonbSetValues(array $current, array $incoming, array $jsonSetValues, string $jsonColumn): SQLiteBlobValue
     {
-        $json = $current['option_value'] ?? null;
+        $json = $current[$jsonColumn] ?? null;
         if (!$json instanceof SQLiteBlobValue && !is_string($json)) {
-            throw new \InvalidArgumentException('SQLite JSONB generated partial UPSERT current option_value must be JSONB or text JSON');
+            throw new \InvalidArgumentException("SQLite JSONB generated partial UPSERT current {$jsonColumn} must be JSONB or text JSON");
         }
 
         $arguments = [$json];
@@ -125,7 +131,7 @@ final class SQLiteJsonbGeneratedPartialUpsertPlan
             }
 
             $arguments[] = $path;
-            $arguments[] = self::resolveValue($value, $current, $incoming);
+            $arguments[] = self::resolveValue($value, $current, $incoming, $jsonColumn);
         }
 
         $mutated = SQLiteJsonMutation::mutateSqlFunctionArguments('jsonb_set', $arguments);
@@ -143,7 +149,7 @@ final class SQLiteJsonbGeneratedPartialUpsertPlan
      * @param array<string,mixed> $current
      * @param array<string,mixed> $incoming
      */
-    private static function resolveValue(mixed $value, array $current, array $incoming): mixed
+    private static function resolveValue(mixed $value, array $current, array $incoming, string $jsonColumn): mixed
     {
         if (!is_array($value)) {
             return $value;
@@ -166,13 +172,13 @@ final class SQLiteJsonbGeneratedPartialUpsertPlan
         }
         if (array_key_exists('excluded_json', $value)) {
             return SQLiteJsonExtract::extractJsonArgument(
-                self::jsonInput($incoming, 'option_value', 'incoming'),
+                self::jsonInput($incoming, $jsonColumn, 'incoming'),
                 (string) $value['excluded_json'],
             );
         }
         if (array_key_exists('current_json', $value)) {
             return SQLiteJsonExtract::extractJsonArgument(
-                self::jsonInput($current, 'option_value', 'target'),
+                self::jsonInput($current, $jsonColumn, 'target'),
                 (string) $value['current_json'],
             );
         }
@@ -203,6 +209,32 @@ final class SQLiteJsonbGeneratedPartialUpsertPlan
         }
 
         return $row[$column];
+    }
+
+    private static function identifier(string $value, string $label): string
+    {
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $value) !== 1) {
+            throw new \InvalidArgumentException("SQLite JSONB generated partial UPSERT {$label} must be an identifier");
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function columnList(mixed $columns): array
+    {
+        if (!is_array($columns)) {
+            throw new \InvalidArgumentException('SQLite JSONB generated partial UPSERT copyColumns must be a list of identifiers');
+        }
+
+        $result = [];
+        foreach ($columns as $column) {
+            $result[] = self::identifier((string) $column, 'copy column');
+        }
+
+        return $result;
     }
 
     /**

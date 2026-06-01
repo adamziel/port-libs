@@ -175,6 +175,26 @@ $preparedPackedUpdateEdits = $preparedPackedUpdate->commit();
 $preparedPackedUpdateCleanedPackedLock = !is_file($packedUpdateDir . '/packed-refs.lock');
 $preparedPackedUpdatePackedNames = PackedReferences::open($packedUpdateDir . '/packed-refs')->names();
 
+$packedPseudoDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-packed-pseudo-' . bin2hex(random_bytes(4));
+mkdir($packedPseudoDir, 0777, true);
+file_put_contents($packedPseudoDir . '/packed-refs.lock', 'held by packed ref compaction');
+$packedPseudoStore = new ReferenceStore($packedPseudoDir, null, $fixture['namespace']);
+$packedPseudoPrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedPackedPseudo = $packedPseudoStore->prepareLooseUpdateTransaction(
+    [$fixture['preparedPackedPseudoRef'] => ReferenceTarget::object($fixture['reviewCommit'])],
+    'sha1',
+    new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000'),
+    $fixture['preparedPackedPseudoReflogMessage'],
+    true,
+    ReferenceStore::PREVIOUS_MUST_NOT_EXIST,
+    null,
+    false,
+    ReferenceStore::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE,
+);
+$preparedPackedPseudoPath = $packedPseudoDir . '/' . $packedPseudoPrefix . $fixture['preparedPackedPseudoRef'];
+$preparedPackedPseudoHadLooseLock = is_file($preparedPackedPseudoPath . '.lock');
+$preparedPackedPseudoEdits = $preparedPackedPseudo->commit();
+
 $logOnlyDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-log-only-lock-' . bin2hex(random_bytes(4));
 mkdir($logOnlyDir, 0777, true);
 file_put_contents($logOnlyDir . '/packed-refs', "{$fixture['productionCommit']} refs/heads/production\n");
@@ -409,6 +429,13 @@ return [
     'preparedPackedUpdateSource' => $packedUpdateStore->find($packedUpdateRef)->source,
     'preparedPackedUpdateCommit' => $packedUpdateStore->find($packedUpdateRef)->targetObjectId(),
     'preparedPackedUpdateReflog' => $packedUpdateStore->reflogContents($packedUpdateRef),
+    'preparedPackedPseudoEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedPackedPseudoEdits),
+    'preparedPackedPseudoHadLooseLock' => $preparedPackedPseudoHadLooseLock,
+    'preparedPackedPseudoPackedLockPreserved' => is_file($packedPseudoDir . '/packed-refs.lock')
+        && file_get_contents($packedPseudoDir . '/packed-refs.lock') === 'held by packed ref compaction',
+    'preparedPackedPseudoPackedRefsExists' => is_file($packedPseudoDir . '/packed-refs'),
+    'preparedPackedPseudoHeadCommit' => $packedPseudoStore->find($fixture['preparedPackedPseudoRef'])->targetObjectId(),
+    'preparedPackedPseudoReflog' => $packedPseudoStore->reflogContents($fixture['preparedPackedPseudoRef']),
     'preparedLogOnlyDeleteEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedLogOnlyDeleteEdits),
     'preparedLogOnlyPackedLockPreserved' => is_file($logOnlyDir . '/packed-refs.lock')
         && file_get_contents($logOnlyDir . '/packed-refs.lock') === 'held by packed ref compaction',

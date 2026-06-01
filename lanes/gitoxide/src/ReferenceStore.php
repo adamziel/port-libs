@@ -93,16 +93,26 @@ final class ReferenceStore
                 || $this->writeReflogMode === self::WRITE_REFLOG_ALWAYS
             );
         $forcePackedRefsLock = false;
-        foreach ($updates as $target) {
-            if (!$target instanceof ReferenceTarget) {
+        $hasPackablePackedRef = false;
+        foreach ($updates as $name => $target) {
+            if (!is_string($name) || !$target instanceof ReferenceTarget) {
                 continue;
             }
+
+            $packedPhysicalName = $this->packedTransactionPhysicalName($this->physicalName($name));
+            if ($packedPhysicalName === null) {
+                continue;
+            }
+
+            $hasPackablePackedRef = true;
             if ($packedRefsMode !== self::PACKED_DELETIONS_ONLY && $this->physicalTarget($target)->isObject()) {
                 $forcePackedRefsLock = true;
                 break;
             }
         }
-        $packedRefsLockPath = $this->preparePackedRefsLockForLooseTransaction($forcePackedRefsLock);
+        $packedRefsLockPath = $hasPackablePackedRef
+            ? $this->preparePackedRefsLockForLooseTransaction($forcePackedRefsLock)
+            : null;
 
         try {
             foreach ($updates as $name => $target) {
@@ -114,13 +124,16 @@ final class ReferenceStore
                 $physicalTarget = $this->physicalTarget($target);
                 $existing = $this->tryFindPhysical($physicalName, $algorithm);
                 $this->assertPreviousValueAllowsUpdate($physicalName, $physicalTarget, $existing, $previous, $expectedTarget);
-                $writesObjectToPackedRefs = $packedRefsMode !== self::PACKED_DELETIONS_ONLY && $physicalTarget->isObject();
+                $packedPhysicalName = $this->packedTransactionPhysicalName($physicalName);
+                $writesObjectToPackedRefs = $packedPhysicalName !== null
+                    && $packedRefsMode !== self::PACKED_DELETIONS_ONLY
+                    && $physicalTarget->isObject();
                 $removesLooseSourceAfterPackedCommit = $packedRefsMode === self::PACKED_DELETIONS_AND_NON_SYMBOLIC_UPDATES_REMOVE_LOOSE_SOURCE_REFERENCE
                     && $physicalTarget->isObject();
 
                 if ($writesObjectToPackedRefs) {
-                    $packedRefsUpdates[$physicalName] = $this->packedReferenceForUpdate(
-                        $physicalName,
+                    $packedRefsUpdates[$packedPhysicalName] = $this->packedReferenceForUpdate(
+                        $packedPhysicalName,
                         $physicalTarget,
                         $algorithm,
                         $objectDatabase,
@@ -274,9 +287,9 @@ final class ReferenceStore
         $locks = [];
         $preparedNames = [];
         $packedRefDeletions = [];
-        $packedRefsLockPath = $reflogMode === ReferenceTransactionEdit::REFLOG_AND_REFERENCE
-            ? $this->preparePackedRefsLockForLooseTransaction()
-            : null;
+        $deletePlans = [];
+        $hasPackableDeletion = false;
+        $packedRefsLockPath = null;
 
         try {
             foreach ($names as $name) {
@@ -295,40 +308,57 @@ final class ReferenceStore
                     }
                     $preparedNames[$editPhysicalName] = true;
 
-                    $targetPath = $this->referencePath($editPhysicalName);
-                    $lockPath = $targetPath . '.lock';
-
-                    if (is_file($lockPath) || is_dir($lockPath)) {
-                        throw new \RuntimeException("A lock could not be obtained for reference \"{$edit->name}\"");
-                    }
-
-                    $directory = dirname($lockPath);
-                    if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
-                        throw new \RuntimeException("Unable to create prepared reference lock directory: {$directory}");
-                    }
-
-                    if (file_put_contents($lockPath, '', LOCK_EX) === false) {
-                        throw new \RuntimeException("Unable to write prepared reference deletion lock: {$editPhysicalName}");
-                    }
-
-                    $locks[] = [
-                        'action' => PreparedReferenceTransaction::ACTION_DELETE,
-                        'lockPath' => $lockPath,
+                    $deletePlans[] = [
                         'edit' => $edit,
-                        'delete' => [
-                            'physicalName' => $editPhysicalName,
-                            'deleteReference' => $edit->updatesReference || ($editPhysicalName === $physicalName && $brokenLooseExists),
-                            'deleteReflog' => true,
-                        ],
+                        'physicalName' => $editPhysicalName,
+                        'deleteReference' => $edit->updatesReference || ($editPhysicalName === $physicalName && $brokenLooseExists),
                     ];
 
-                    if (
-                        $edit->reflogMode === ReferenceTransactionEdit::REFLOG_AND_REFERENCE
-                        && $this->packedHasPhysical($editPhysicalName, $algorithm)
-                    ) {
-                        $packedRefDeletions[$editPhysicalName] = true;
+                    if ($edit->reflogMode === ReferenceTransactionEdit::REFLOG_AND_REFERENCE) {
+                        $packedPhysicalName = $this->packedTransactionPhysicalName($editPhysicalName);
+                        if ($packedPhysicalName !== null) {
+                            $hasPackableDeletion = true;
+                            if ($this->packedHasPhysical($packedPhysicalName, $algorithm)) {
+                                $packedRefDeletions[$packedPhysicalName] = true;
+                            }
+                        }
                     }
                 }
+            }
+
+            if ($hasPackableDeletion) {
+                $packedRefsLockPath = $this->preparePackedRefsLockForLooseTransaction();
+            }
+
+            foreach ($deletePlans as $deletePlan) {
+                $edit = $deletePlan['edit'];
+                $editPhysicalName = $deletePlan['physicalName'];
+                $targetPath = $this->referencePath($editPhysicalName);
+                $lockPath = $targetPath . '.lock';
+
+                if (is_file($lockPath) || is_dir($lockPath)) {
+                    throw new \RuntimeException("A lock could not be obtained for reference \"{$edit->name}\"");
+                }
+
+                $directory = dirname($lockPath);
+                if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+                    throw new \RuntimeException("Unable to create prepared reference lock directory: {$directory}");
+                }
+
+                if (file_put_contents($lockPath, '', LOCK_EX) === false) {
+                    throw new \RuntimeException("Unable to write prepared reference deletion lock: {$editPhysicalName}");
+                }
+
+                $locks[] = [
+                    'action' => PreparedReferenceTransaction::ACTION_DELETE,
+                    'lockPath' => $lockPath,
+                    'edit' => $edit,
+                    'delete' => [
+                        'physicalName' => $editPhysicalName,
+                        'deleteReference' => $deletePlan['deleteReference'],
+                        'deleteReflog' => true,
+                    ],
+                ];
             }
         } catch (\Throwable $throwable) {
             (new PreparedReferenceTransaction($this->gitDirectory, $locks, $packedRefsLockPath))->rollback();
@@ -395,8 +425,12 @@ final class ReferenceStore
 
         $this->assertPreviousValueAllowsUpdate($physicalName, $physicalTarget, $existing, $previous, $expectedTarget);
         $edits = $this->updateReport($derefParents, $existing?->target, $physicalTarget, $physicalName);
-        $writesObjectToPackedRefs = $packedRefsMode !== self::PACKED_DELETIONS_ONLY && $physicalTarget->isObject();
-        $packedRefsLock = $this->packedRefsTransactionNeedsLock($existing, $writesObjectToPackedRefs)
+        $packedPhysicalName = $this->packedTransactionPhysicalName($physicalName);
+        $writesObjectToPackedRefs = $packedPhysicalName !== null
+            && $packedRefsMode !== self::PACKED_DELETIONS_ONLY
+            && $physicalTarget->isObject();
+        $packedRefsLock = $packedPhysicalName !== null
+            && $this->packedRefsTransactionNeedsLock($existing, $writesObjectToPackedRefs)
             ? $this->acquirePackedRefsLock()
             : null;
 
@@ -404,10 +438,10 @@ final class ReferenceStore
             if ($existing !== null && self::targetsEqual($existing->target, $physicalTarget)) {
                 if (
                     $writesObjectToPackedRefs
-                    && !$this->packedReferenceMatchesUpdate($physicalName, $physicalTarget, $algorithm, $objectDatabase)
+                    && !$this->packedReferenceMatchesUpdate($packedPhysicalName, $physicalTarget, $algorithm, $objectDatabase)
                 ) {
                     $packedReference = $this->packedReferenceForUpdate(
-                        $physicalName,
+                        $packedPhysicalName,
                         $physicalTarget,
                         $algorithm,
                         $objectDatabase,
@@ -465,7 +499,7 @@ final class ReferenceStore
 
             if ($writesObjectToPackedRefs) {
                 $packedReference = $this->packedReferenceForUpdate(
-                    $physicalName,
+                    $packedPhysicalName,
                     $physicalTarget,
                     $algorithm,
                     $objectDatabase,
@@ -514,8 +548,10 @@ final class ReferenceStore
             [$existing, $brokenLooseExists] = $this->tryFindPhysicalForDeletion($physicalName, $algorithm);
 
             $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget, $brokenLooseExists);
-            $rewritesPackedRefs = $this->packedHasPhysical($physicalName, $algorithm);
-            $packedRefsLock = $this->packedRefsTransactionNeedsLock($existing, $rewritesPackedRefs)
+            $packedPhysicalName = $this->packedTransactionPhysicalName($physicalName);
+            $rewritesPackedRefs = $packedPhysicalName !== null && $this->packedHasPhysical($packedPhysicalName, $algorithm);
+            $packedRefsLock = $packedPhysicalName !== null
+                && $this->packedRefsTransactionNeedsLock($existing, $rewritesPackedRefs)
                 ? $this->acquirePackedRefsLock()
                 : null;
 
@@ -529,7 +565,7 @@ final class ReferenceStore
                 }
 
                 if ($rewritesPackedRefs) {
-                    $this->rewritePackedReferences([], [$physicalName], $algorithm, $packedRefsLock);
+                    $this->rewritePackedReferences([], [$packedPhysicalName], $algorithm, $packedRefsLock);
                     $packedRefsLock = null;
                 }
 
@@ -572,9 +608,12 @@ final class ReferenceStore
 
         $this->assertPreviousValueAllowsDeletion($physicalName, $existing, $previous, $expectedTarget, $brokenLooseExists);
         $edits = $this->deleteReport($derefParents, $existing?->target, $physicalName, $reflogMode);
+        $packedPhysicalName = $this->packedTransactionPhysicalName($physicalName);
         $rewritesPackedRefs = $reflogMode === ReferenceTransactionEdit::REFLOG_AND_REFERENCE
-            && $this->packedHasPhysical($physicalName, $algorithm);
+            && $packedPhysicalName !== null
+            && $this->packedHasPhysical($packedPhysicalName, $algorithm);
         $needsPackedRefsLock = $reflogMode === ReferenceTransactionEdit::REFLOG_AND_REFERENCE
+            && $packedPhysicalName !== null
             && $this->packedRefsTransactionNeedsLock($existing, $rewritesPackedRefs);
         $packedRefsLock = $needsPackedRefsLock ? $this->acquirePackedRefsLock() : null;
 
@@ -598,7 +637,7 @@ final class ReferenceStore
             }
 
             if ($rewritesPackedRefs) {
-                $this->rewritePackedReferences([], [$physicalName], $algorithm, $packedRefsLock);
+                $this->rewritePackedReferences([], [$packedPhysicalName], $algorithm, $packedRefsLock);
                 $packedRefsLock = null;
             }
 
@@ -1552,6 +1591,67 @@ final class ReferenceStore
         }
 
         return $packed->peeledObjectId === $this->resolvePeeledObjectId($target, $algorithm, $objectDatabase);
+    }
+
+    private function packedTransactionPhysicalName(string $physicalName): ?string
+    {
+        ReferenceName::assertValid($physicalName);
+
+        [$namespacePrefix, $relativeName] = $this->splitNamespacePrefix($physicalName);
+        $category = ReferenceName::categoryAndShortName($relativeName);
+        if ($category === null) {
+            return $physicalName;
+        }
+
+        return match ($category['category']) {
+            ReferenceName::CATEGORY_TAG,
+            ReferenceName::CATEGORY_LOCAL_BRANCH,
+            ReferenceName::CATEGORY_REMOTE_BRANCH,
+            ReferenceName::CATEGORY_NOTE => $physicalName,
+            ReferenceName::CATEGORY_MAIN_REF,
+            ReferenceName::CATEGORY_LINKED_REF => $this->packedTransactionPhysicalNameFromShortName(
+                $namespacePrefix,
+                $category['shortName'],
+            ),
+            ReferenceName::CATEGORY_BISECT,
+            ReferenceName::CATEGORY_REWRITTEN,
+            ReferenceName::CATEGORY_WORKTREE_PRIVATE,
+            ReferenceName::CATEGORY_PSEUDO_REF,
+            ReferenceName::CATEGORY_MAIN_PSEUDO_REF,
+            ReferenceName::CATEGORY_LINKED_PSEUDO_REF => null,
+            default => $physicalName,
+        };
+    }
+
+    private function packedTransactionPhysicalNameFromShortName(string $namespacePrefix, string $shortName): ?string
+    {
+        $shortCategory = ReferenceName::category($shortName);
+        if ($shortCategory === null || ReferenceName::isWorktreePrivate($shortName)) {
+            return null;
+        }
+
+        return $namespacePrefix . $shortName;
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private function splitNamespacePrefix(string $physicalName): array
+    {
+        $prefix = '';
+        $relativeName = $physicalName;
+        while (str_starts_with($relativeName, 'refs/namespaces/')) {
+            $rest = substr($relativeName, strlen('refs/namespaces/'));
+            $slash = strpos($rest, '/');
+            if ($slash === false) {
+                return ['', $physicalName];
+            }
+
+            $prefix .= 'refs/namespaces/' . substr($rest, 0, $slash) . '/';
+            $relativeName = substr($rest, $slash + 1);
+        }
+
+        return [$prefix, $relativeName];
     }
 
     private function packedRefsPath(): string

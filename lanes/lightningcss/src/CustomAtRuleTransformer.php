@@ -2370,6 +2370,9 @@ final class CustomAtRuleTransformer
         $preludeGrammar = $definition['prelude'] ?? null;
         $preludeValue = $this->parseCustomPreludeValue($name, $prelude, is_string($preludeGrammar) ? $preludeGrammar : null);
         $preludeAst = $this->customPreludeAst($preludeValue, is_string($preludeGrammar) ? $preludeGrammar : null);
+        if ($preludeAst !== null && str_contains($preludeValue, '\\') && $this->customPreludeAstUsesDecodedIdentifiers($preludeAst)) {
+            $preludeValue = $this->serializeVisitorValue($preludeAst);
+        }
         if ($preludeAst !== null && $visitPrelude) {
             $visitedPrelude = $this->visitCustomPreludeValue($preludeAst);
             if ($visitedPrelude['changed']) {
@@ -2838,6 +2841,28 @@ final class CustomAtRuleTransformer
         throw new \InvalidArgumentException("Invalid custom at-rule prelude for {$grammar}: {$prelude}");
     }
 
+    private function customPreludeAstUsesDecodedIdentifiers(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        $type = $value['type'] ?? null;
+        if (in_array($type, ['custom-ident', 'dashed-ident', 'literal'], true)) {
+            return true;
+        }
+
+        if ($type === 'repeated') {
+            foreach (($value['value']['components'] ?? []) as $component) {
+                if ($this->customPreludeAstUsesDecodedIdentifiers($component)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     /**
      * @return array{matched:bool,value:mixed}
      */
@@ -2978,7 +3003,7 @@ final class CustomAtRuleTransformer
             if ($multiplier === '#') {
                 return $this->tryRepeatedLiteralSyntaxAst($prelude, $literal, 'comma');
             }
-            if (trim($prelude) !== $literal) {
+            if ($this->decodeCssIdentifierToken(trim($prelude)) !== $literal) {
                 return ['matched' => false, 'value' => null];
             }
 
@@ -3046,7 +3071,7 @@ final class CustomAtRuleTransformer
 
         $components = [];
         foreach ($parts as $part) {
-            if (trim($part) !== $literal) {
+            if ($this->decodeCssIdentifierToken(trim($part)) !== $literal) {
                 return ['matched' => false, 'value' => null];
             }
             $components[] = [
@@ -3076,13 +3101,14 @@ final class CustomAtRuleTransformer
         if ($value === '') {
             return ['matched' => false, 'value' => null];
         }
+        $identifier = $this->decodeCssIdentifierToken($value);
 
         return match ($type) {
-            'custom-ident' => $this->isCustomIdentToken($value)
-                ? ['matched' => true, 'value' => ['type' => 'custom-ident', 'value' => $value]]
+            'custom-ident' => $identifier !== null && $this->isCustomIdentToken($identifier)
+                ? ['matched' => true, 'value' => ['type' => 'custom-ident', 'value' => $identifier]]
                 : ['matched' => false, 'value' => null],
-            'dashed-ident' => preg_match('/^--[-_a-zA-Z0-9]+$/', $value) === 1
-                ? ['matched' => true, 'value' => ['type' => 'dashed-ident', 'value' => $value]]
+            'dashed-ident' => $identifier !== null && preg_match('/^--[-_a-zA-Z0-9]+$/', $identifier) === 1
+                ? ['matched' => true, 'value' => ['type' => 'dashed-ident', 'value' => $identifier]]
                 : ['matched' => false, 'value' => null],
             'length' => $this->tryCustomLengthPreludeAst($value),
             'length-percentage' => $this->tryCustomLengthPercentagePreludeAst($value),
@@ -4120,6 +4146,25 @@ final class CustomAtRuleTransformer
             },
             $value
         ) ?? $value;
+    }
+
+    private function decodeCssIdentifierToken(string $token): ?string
+    {
+        $token = trim($token);
+        if ($token === '') {
+            return null;
+        }
+
+        if (!str_contains($token, '\\')) {
+            return $token;
+        }
+
+        $decoded = $this->decodeCssEscapes($token);
+        if ($decoded === '' || preg_match('/\s/', $decoded) === 1) {
+            return null;
+        }
+
+        return $decoded;
     }
 
     /**
@@ -8297,6 +8342,22 @@ final class CustomAtRuleTransformer
             if ($char === '"' || $char === "'") {
                 $quote = $char;
                 $current .= $char;
+                continue;
+            }
+            if ($char === '\\' && $i + 1 < $length) {
+                $current .= $char;
+                $next = $value[++$i];
+                $current .= $next;
+                if (ctype_xdigit($next)) {
+                    $hexLength = 1;
+                    while ($hexLength < 6 && $i + 1 < $length && ctype_xdigit($value[$i + 1])) {
+                        $current .= $value[++$i];
+                        $hexLength++;
+                    }
+                    if ($i + 1 < $length && ctype_space($value[$i + 1])) {
+                        $current .= $value[++$i];
+                    }
+                }
                 continue;
             }
             if ($char === '(') {

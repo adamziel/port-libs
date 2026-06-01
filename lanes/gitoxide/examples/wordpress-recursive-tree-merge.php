@@ -30,6 +30,7 @@ $read = static function (string $oid) use (&$objects): GitObject {
 };
 $blob = static fn (string $name, string $content): TreeEntry => new TreeEntry('100644', $name, $write(new GitObject('blob', $content)));
 $symlink = static fn (string $name, string $target): TreeEntry => new TreeEntry('120000', $name, $write(new GitObject('blob', $target)));
+$commit = static fn (string $name, string $oid): TreeEntry => new TreeEntry('160000', $name, $oid);
 $tree = static fn (string $name, Tree $tree): TreeEntry => new TreeEntry('40000', $name, $write($tree->toObject()));
 $treeAtPath = static function (Tree $root, string $path) use ($read): Tree {
     $current = $root;
@@ -445,6 +446,36 @@ $reciprocalRenameOursResolved = $reciprocalRenameResult->resolveTreeConflicts(
 $reciprocalAncestorMuPlugins = $treeAtPath($reciprocalRenameAncestorResolved->tree, 'wp-content/mu-plugins');
 $reciprocalOursMuPlugins = $treeAtPath($reciprocalRenameOursResolved->tree, 'wp-content/mu-plugins');
 $reciprocalOursSharedLoader = $reciprocalOursMuPlugins->entryNamed('shared-loader.php');
+$submoduleBaseOid = 'e835c0c403c8e494c0ca98f3d25d0b8464c18d38';
+$submoduleOursOid = '64466ebdff775ad618d9cc993cf52840e0af528c';
+$submoduleTheirsOid = 'ea6eb701e03c2497915c25a851f3da8f8e362ca0';
+$submoduleDependencyTree = static fn (string $oid): Tree => new Tree([
+    $tree('wp-content', new Tree([
+        $tree('plugins', new Tree([
+            $tree('acme', new Tree([
+                $tree('vendor', new Tree([
+                    $commit('acme-lib', $oid),
+                ])),
+            ])),
+        ])),
+    ])),
+]);
+$submoduleResult = TreeMerge::mergeRecursive(
+    $submoduleDependencyTree($submoduleBaseOid),
+    $submoduleDependencyTree($submoduleOursOid),
+    $submoduleDependencyTree($submoduleTheirsOid),
+    $read,
+    $write,
+);
+$submoduleAncestorResolved = $submoduleResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+$submoduleOursResolved = $submoduleResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+$submoduleTheirsResolved = $submoduleResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_THEIRS);
+$submoduleAncestorVendor = $treeAtPath($submoduleAncestorResolved->tree, 'wp-content/plugins/acme/vendor');
+$submoduleOursVendor = $treeAtPath($submoduleOursResolved->tree, 'wp-content/plugins/acme/vendor');
+$submoduleTheirsVendor = $treeAtPath($submoduleTheirsResolved->tree, 'wp-content/plugins/acme/vendor');
+$submoduleAncestorEntry = $submoduleAncestorVendor->entryNamed('acme-lib');
+$submoduleOursEntry = $submoduleOursVendor->entryNamed('acme-lib');
+$submoduleTheirsEntry = $submoduleTheirsVendor->entryNamed('acme-lib');
 $contentTree = Tree::fromObject($read($result->tree->entryNamed('wp-content', true)?->oid ?? ''));
 $metadata = $read($contentTree->entryNamed('post.meta')?->oid ?? '');
 $demoRoot = sys_get_temp_dir() . '/port-libs-recursive-merge-' . bin2hex(random_bytes(4));
@@ -665,5 +696,32 @@ echo json_encode([
         'oursSharedLoaderBody' => $reciprocalOursSharedLoader === null ? null : $read($reciprocalOursSharedLoader->oid)->body,
         'indexStagesAfterAncestorResolution' => count($reciprocalRenameAncestorResolved->indexEntries()),
         'indexStagesAfterOursResolution' => count($reciprocalRenameOursResolved->indexEntries()),
+    ],
+    'submoduleCommitResolution' => [
+        'cleanBeforeResolution' => $submoduleResult->isClean(),
+        'conflicts' => array_map(
+            static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
+            $submoduleResult->conflicts,
+        ),
+        'indexStages' => array_map(
+            static fn (MergeIndexEntry $entry): array => [
+                'path' => $entry->path,
+                'stage' => $entry->stage,
+                'side' => $entry->side(),
+                'oid' => $entry->oid,
+            ],
+            $submoduleResult->indexEntries(),
+        ),
+        'ancestorResolvedClean' => $submoduleAncestorResolved->isClean(),
+        'ancestorDependencyOid' => $submoduleAncestorEntry?->oid,
+        'oursResolvedClean' => $submoduleOursResolved->isClean(),
+        'oursDependencyOid' => $submoduleOursEntry?->oid,
+        'theirsResolvedClean' => $submoduleTheirsResolved->isClean(),
+        'theirsDependencyOid' => $submoduleTheirsEntry?->oid,
+        'indexStagesAfterOursResolution' => count($submoduleOursResolved->indexEntries()),
+        'worktreeConflictFiles' => array_map(
+            static fn ($file): string => $file->path,
+            $submoduleResult->worktreeConflictFiles($read),
+        ),
     ],
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n";

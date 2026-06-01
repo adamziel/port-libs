@@ -984,7 +984,7 @@ final class SQLiteUpdateDeleteReturningSql
         $scalarFunction = self::wholeLimitScalarFunction($expression);
         if (
             $scalarFunction !== null
-            && in_array($scalarFunction['name'], ['coalesce', 'ifnull', 'nullif', 'min', 'max', 'round', 'sign', 'ceil', 'ceiling', 'floor', 'trunc', 'sqrt', 'pow', 'power', 'exp', 'ln', 'log', 'log10', 'log2', 'mod', 'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'pi', 'upper', 'lower', 'trim', 'ltrim', 'rtrim', 'substr', 'substring', 'instr', 'replace', 'concat', 'concat_ws', 'char', 'unicode', 'octet_length', 'hex', 'unhex', 'unistr', 'unistr_quote', 'quote', 'typeof', 'printf', 'format', 'iif', 'if', 'likely', 'unlikely', 'likelihood', 'zeroblob', 'random', 'randomblob', 'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime', 'timediff', 'sqlite_version', 'sqlite_source_id', 'sqlite_compileoption_get', 'sqlite_compileoption_used', 'json', 'jsonb', 'json_array', 'jsonb_array', 'json_object', 'jsonb_object', 'json_valid', 'json_error_position', 'json_type', 'json_array_length', 'json_extract', 'jsonb_extract', 'json_quote'], true)
+            && in_array($scalarFunction['name'], ['coalesce', 'ifnull', 'nullif', 'min', 'max', 'round', 'sign', 'ceil', 'ceiling', 'floor', 'trunc', 'sqrt', 'pow', 'power', 'exp', 'ln', 'log', 'log10', 'log2', 'mod', 'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'pi', 'upper', 'lower', 'trim', 'ltrim', 'rtrim', 'substr', 'substring', 'instr', 'replace', 'concat', 'concat_ws', 'char', 'unicode', 'octet_length', 'hex', 'unhex', 'unistr', 'unistr_quote', 'quote', 'typeof', 'printf', 'format', 'like', 'glob', 'iif', 'if', 'likely', 'unlikely', 'likelihood', 'zeroblob', 'random', 'randomblob', 'date', 'time', 'datetime', 'julianday', 'unixepoch', 'strftime', 'timediff', 'sqlite_version', 'sqlite_source_id', 'sqlite_compileoption_get', 'sqlite_compileoption_used', 'json', 'jsonb', 'json_array', 'jsonb_array', 'json_object', 'jsonb_object', 'json_valid', 'json_error_position', 'json_type', 'json_array_length', 'json_extract', 'jsonb_extract', 'json_quote'], true)
         ) {
             return self::evaluateLimitScalarFunction($scalarFunction['name'], $scalarFunction['arguments']);
         }
@@ -1405,6 +1405,12 @@ final class SQLiteUpdateDeleteReturningSql
         if (($function === 'printf' || $function === 'format') && count($parts) < 1) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs a format argument");
         }
+        if ($function === 'like' && count($parts) !== 2 && count($parts) !== 3) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT like() needs two or three arguments');
+        }
+        if ($function === 'glob' && count($parts) !== 2) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT glob() needs two arguments');
+        }
         if (($function === 'iif' || $function === 'if') && count($parts) < 2) {
             throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() needs at least two arguments");
         }
@@ -1476,6 +1482,15 @@ final class SQLiteUpdateDeleteReturningSql
         }
         if (in_array($function, ['json', 'jsonb', 'json_array', 'jsonb_array', 'json_object', 'jsonb_object', 'json_valid', 'json_error_position', 'json_type', 'json_array_length', 'json_extract', 'jsonb_extract', 'json_quote'], true)) {
             return self::evaluateLimitJsonScalarFunction($function, $parts);
+        }
+        if ($function === 'like' || $function === 'glob') {
+            $values = array_map(static fn (string $part): int|float|string|SQLiteBlobValue|null => self::limitExpressionValue($part), $parts);
+            $value = SQLiteCoreScalarFunction::sqlFunctionArguments($function, $values);
+            if (!is_int($value) && $value !== null) {
+                throw new \InvalidArgumentException("SQLite UPDATE/DELETE LIMIT {$function}() returned an unsupported value");
+            }
+
+            return $value;
         }
 
         if ($function === 'iif' || $function === 'if') {

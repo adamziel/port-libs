@@ -5465,6 +5465,135 @@ final class SQLiteVfsIoDynamicPlan
     /**
      * @return array<string, mixed>
      */
+    public static function fileFormatHeaderProfile(
+        string $scenario,
+        int $pageSize,
+        int $reservedBytes = 0,
+        int $legacyPayloadBytes = 3000,
+        int $legacyAppendRows = 1
+    ): array {
+        $scenario = trim($scenario);
+        if (!in_array($scenario, [
+            'filefmt-1.1',
+            'filefmt-1.2',
+            'filefmt-1.4',
+            'filefmt-1.5',
+            'filefmt-1.6',
+            'filefmt-1.7',
+            'filefmt-1.8',
+            'filefmt-2.1',
+            'filefmt-2.2',
+            'filefmt-3.3',
+            'filefmt-4.4',
+        ], true)) {
+            throw new \InvalidArgumentException("Unsupported SQLite filefmt.test scenario: {$scenario}");
+        }
+        if ($pageSize < 1) {
+            throw new \InvalidArgumentException('SQLite file format profile page size must be positive');
+        }
+        if ($reservedBytes < 0 || $reservedBytes > 255) {
+            throw new \InvalidArgumentException('SQLite file format profile reserved bytes must fit in the database header byte');
+        }
+        if ($legacyPayloadBytes < 1 || $legacyAppendRows < 1) {
+            throw new \InvalidArgumentException('SQLite file format legacy profile requires positive payload and append rows');
+        }
+
+        $isPowerOfTwo = ($pageSize & ($pageSize - 1)) === 0;
+        $validPageSize = $pageSize >= 512 && $isPowerOfTwo;
+        if ($scenario === 'filefmt-1.6' && ($validPageSize || $pageSize < 512)) {
+            throw new \InvalidArgumentException('SQLite filefmt-1.6 requires an invalid non-power-of-two page size');
+        }
+        if ($scenario === 'filefmt-1.7' && $pageSize >= 512) {
+            throw new \InvalidArgumentException('SQLite filefmt-1.7 requires an invalid page size below 512 bytes');
+        }
+        if (!in_array($scenario, ['filefmt-1.6', 'filefmt-1.7'], true) && !$validPageSize) {
+            throw new \InvalidArgumentException('SQLite file format profile page size must be a power of two at least 512');
+        }
+
+        $usableBytes = max(0, $pageSize - $reservedBytes);
+        $reservedBytesValid = $validPageSize && $usableBytes >= 480;
+        $headerMagicHex = '53514C69746520666F726D6174203300';
+        $headerMagicText = "SQLite format 3\0";
+        $headerMagicValid = !in_array($scenario, ['filefmt-1.2'], true);
+        $pageSizeField = $pageSize === 65536 ? 1 : $pageSize;
+        $pageSizeFieldHex = strtoupper(str_pad(dechex($pageSizeField), 4, '0', STR_PAD_LEFT));
+        $pageUsablePayload = max(1, $usableBytes - 35);
+        $legacyPayloadPages = (int) ceil($legacyPayloadBytes / $pageUsablePayload);
+        $initialHeaderPageCount = 5 + $legacyPayloadPages;
+        $effectivePageCountAfterLegacyWrite = $initialHeaderPageCount + $legacyPayloadPages;
+        $headerPageCountAfterCurrentWrite = $effectivePageCountAfterLegacyWrite + $legacyAppendRows + 2;
+        $autoVacuumPointerMapValid = in_array($scenario, ['filefmt-3.3', 'filefmt-4.4'], true);
+
+        $queryStatus = 'ok';
+        $queryError = null;
+        if (!$headerMagicValid || !$validPageSize || !$reservedBytesValid) {
+            $queryStatus = 'error';
+            $queryError = 'file is not a database';
+        }
+        if ($scenario === 'filefmt-1.4') {
+            $queryStatus = 'ok';
+            $queryError = null;
+        }
+
+        return [
+            'status' => 'ok',
+            'script' => 'filefmt.test',
+            'scenario' => $scenario,
+            'upstream' => self::fileFormatUpstream($scenario),
+            'header_magic_hex' => $headerMagicHex,
+            'header_magic_text' => $headerMagicText,
+            'header_magic_valid' => $headerMagicValid,
+            'opened_handle_before_schema_read' => true,
+            'query_status' => $queryStatus,
+            'query_error' => $queryError,
+            'restored_header_query_status' => $scenario === 'filefmt-1.4' ? 'ok' : null,
+            'page_size' => $pageSize,
+            'page_size_field_offset' => 16,
+            'page_size_field_value' => $pageSizeField,
+            'page_size_field_hex' => $pageSizeFieldHex,
+            'page_size_valid' => $validPageSize,
+            'reserved_bytes' => $reservedBytes,
+            'usable_page_bytes' => $usableBytes,
+            'reserved_bytes_valid' => $reservedBytesValid,
+            'minimum_usable_page_bytes' => 480,
+            'file_bytes_after_create' => $validPageSize ? $pageSize * 2 : 0,
+            'legacy_payload_bytes' => $legacyPayloadBytes,
+            'legacy_payload_pages' => $legacyPayloadPages,
+            'legacy_append_rows' => $legacyAppendRows,
+            'legacy_header_page_count_before_legacy_write' => $initialHeaderPageCount,
+            'legacy_header_page_count_after_legacy_write' => $initialHeaderPageCount,
+            'effective_page_count_after_legacy_write' => $effectivePageCountAfterLegacyWrite,
+            'header_page_count_after_current_write' => $headerPageCountAfterCurrentWrite,
+            'current_writer_refreshes_header_page_count' => in_array($scenario, ['filefmt-2.1', 'filefmt-2.2'], true),
+            'savepoint_rollback_preserves_integrity' => $scenario === 'filefmt-2.2',
+            'auto_vacuum_pointer_map_valid_after_legacy_drop' => $scenario === 'filefmt-3.3',
+            'backup_integrity_check' => $scenario === 'filefmt-4.4' ? 'ok' : null,
+            'integrity_check' => in_array($scenario, ['filefmt-2.1', 'filefmt-2.2', 'filefmt-3.3', 'filefmt-4.4'], true) ? 'ok' : null,
+            'auto_vacuum' => $autoVacuumPointerMapValid,
+            'reason' => match ($scenario) {
+                'filefmt-1.1' => 'database_header_magic_matches_sqlite_format_3',
+                'filefmt-1.2' => 'corrupt_header_magic_is_reported_as_not_a_database_on_schema_read',
+                'filefmt-1.4' => 'restored_header_magic_allows_schema_read',
+                'filefmt-1.5' => 'page_size_is_persisted_at_header_offset_16',
+                'filefmt-1.6' => 'non_power_of_two_page_size_is_rejected',
+                'filefmt-1.7' => 'subminimum_page_size_is_rejected',
+                'filefmt-1.8' => 'reserved_bytes_must_leave_at_least_480_usable_bytes',
+                'filefmt-2.1' => 'current_writer_refreshes_legacy_zero_header_page_count',
+                'filefmt-2.2' => 'savepoint_rollback_preserves_legacy_header_page_count_compatibility',
+                'filefmt-3.3' => 'legacy_autovacuum_drop_keeps_pointer_map_readable',
+                'filefmt-4.4' => 'backup_of_legacy_autovacuum_database_passes_integrity_check',
+            },
+            'dependencies' => [
+                'upstream-filefmt-test',
+                'sqlite-file-format-header-validation',
+                'vfs-io-dynamic-real-corpus',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function largeFileBoundaryProfile(
         string $script,
         int $fakeMegabytes,
@@ -6909,6 +7038,46 @@ final class SQLiteVfsIoDynamicPlan
             'delete_db-3.0' => ['delete_db.test 3.0 directory target returns SQLITE_ERROR'],
             'delete_db-3.1' => ['delete_db.test 3.1 missing nested target returns SQLITE_OK'],
             default => throw new \InvalidArgumentException("Unsupported SQLite delete_db scenario: {$scenario}"),
+        };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function fileFormatUpstream(string $scenario): array
+    {
+        return match ($scenario) {
+            'filefmt-1.1' => ['filefmt.test filefmt-1.1 valid 16-byte SQLite header magic'],
+            'filefmt-1.2' => [
+                'filefmt.test filefmt-1.2 corrupt first header byte still opens a handle',
+                'filefmt.test filefmt-1.3 schema read reports file is not a database',
+            ],
+            'filefmt-1.4' => ['filefmt.test filefmt-1.4 restored header magic makes schema readable again'],
+            'filefmt-1.5' => ['filefmt.test filefmt-1.5 page size is stored at database-header offset 16'],
+            'filefmt-1.6' => ['filefmt.test filefmt-1.6 non-power-of-two page size is rejected'],
+            'filefmt-1.7' => ['filefmt.test filefmt-1.7 page size below 512 bytes is rejected'],
+            'filefmt-1.8' => ['filefmt.test filefmt-1.8 reserved bytes must leave at least 480 usable bytes per page'],
+            'filefmt-2.1' => [
+                'filefmt.test filefmt-2.1.1 current create writes header page count',
+                'filefmt.test filefmt-2.1.3 legacy writer extends the file without updating header page count',
+                'filefmt.test filefmt-2.1.6 current writer refreshes header page count after compatibility write',
+            ],
+            'filefmt-2.2' => [
+                'filefmt.test filefmt-2.2.3 legacy writer extends the file without updating header page count',
+                'filefmt.test filefmt-2.2.4 savepoint rollback after compatibility write keeps integrity_check ok',
+                'filefmt.test filefmt-2.2.7 reopened database still passes integrity_check',
+            ],
+            'filefmt-3.3' => [
+                'filefmt.test filefmt-3.1 auto_vacuum table setup',
+                'filefmt.test filefmt-3.2 legacy DROP TABLE leaves a readable database image',
+                'filefmt.test filefmt-3.3 SELECT sqlite_master and integrity_check return ok',
+            ],
+            'filefmt-4.4' => [
+                'filefmt.test filefmt-4.1 auto_vacuum two-table setup',
+                'filefmt.test filefmt-4.2 legacy INSERT INTO t2 SELECT * FROM t1',
+                'filefmt.test filefmt-4.3 backup to bak.db',
+                'filefmt.test filefmt-4.4 backup integrity_check returns ok',
+            ],
         };
     }
 

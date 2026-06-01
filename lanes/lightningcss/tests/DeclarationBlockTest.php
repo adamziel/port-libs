@@ -316,6 +316,52 @@ return [
             $block->removeProperty($declarations, 'appearance')
         );
     },
+    'declaration block canonicalizes upstream layout and effects direct cssom declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'visibility: Hidden; box-sizing: Border-Box; position: -WebKit-Sticky; text-overflow: Ellipsis; mix-blend-mode: Plus-Lighter; z-index: +0010; aspect-ratio: 16.0 / 9.00; --Editor-State: Hidden';
+
+        $t->same(
+            [
+                'visibility' => 'hidden',
+                'box-sizing' => 'border-box',
+                'position' => '-webkit-sticky',
+                'text-overflow' => 'ellipsis',
+                'mix-blend-mode' => 'plus-lighter',
+                'z-index' => '10',
+                'aspect-ratio' => '16 / 9',
+                '--Editor-State' => 'Hidden',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'hidden', 'important' => false], $block->getProperty($declarations, 'visibility'));
+        $t->same(['value' => 'border-box', 'important' => false], $block->getProperty($declarations, 'box-sizing'));
+        $t->same(['value' => '-webkit-sticky', 'important' => false], $block->getProperty($declarations, 'position'));
+        $t->same(['value' => 'ellipsis', 'important' => false], $block->getProperty($declarations, 'text-overflow'));
+        $t->same(['value' => 'plus-lighter', 'important' => false], $block->getProperty($declarations, 'mix-blend-mode'));
+        $t->same(['value' => '10', 'important' => false], $block->getProperty($declarations, 'z-index'));
+        $t->same(['value' => '16 / 9', 'important' => false], $block->getProperty($declarations, 'aspect-ratio'));
+        $t->same(['value' => 'Hidden', 'important' => false], $block->getProperty($declarations, '--Editor-State'));
+        $t->same(
+            'visibility: hidden; box-sizing: border-box; position: sticky; text-overflow: ellipsis; mix-blend-mode: plus-lighter; z-index: 10; aspect-ratio: 16 / 9; --Editor-State: Hidden',
+            $block->setProperty($declarations, 'position', 'Sticky')
+        );
+        $t->same(
+            'visibility: hidden; box-sizing: border-box; position: -webkit-sticky; text-overflow: ellipsis; mix-blend-mode: plus-lighter; aspect-ratio: 16 / 9; --Editor-State: Hidden; z-index: -5 !important',
+            $block->setProperty($declarations, 'z-index', '-0005', true)
+        );
+        $t->same(
+            'visibility: hidden; box-sizing: border-box; position: -webkit-sticky; text-overflow: ellipsis; mix-blend-mode: plus-lighter; z-index: 10; aspect-ratio: auto 9; --Editor-State: Hidden',
+            $block->setProperty($declarations, 'aspect-ratio', '9.0 / 1.0 auto')
+        );
+        $t->same(
+            'visibility: hidden; box-sizing: border-box; position: -webkit-sticky; text-overflow: ellipsis; z-index: 10; aspect-ratio: 16 / 9; --Editor-State: Hidden; mix-blend-mode: color-dodge !important',
+            $block->setProperty($declarations, 'mix-blend-mode', 'Color-Dodge', true)
+        );
+        $t->same(
+            'visibility: hidden; box-sizing: border-box; position: -webkit-sticky; mix-blend-mode: plus-lighter; z-index: 10; aspect-ratio: 16 / 9; --Editor-State: Hidden',
+            $block->removeProperty($declarations, 'text-overflow')
+        );
+    },
     'declaration block canonicalizes upstream cursor cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'cursor: URL("drag.cur") 4.0 12.00, Grab !important; --Block-Cursor: URL("drag.cur") 4.0 12.00, Grab; color: red';

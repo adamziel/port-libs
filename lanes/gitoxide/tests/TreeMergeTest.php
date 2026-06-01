@@ -2021,6 +2021,8 @@ return [
         $base = new Tree([$entry('sub', $baseOid, '160000')]);
         $ours = new Tree([$entry('sub', $ourOid, '160000')]);
         $theirs = new Tree([$entry('sub', $theirOid, '160000')]);
+        $readObject = static fn (string $oid): GitObject => throw new RuntimeException("No object read expected for {$oid}");
+        $writeObject = static fn (GitObject $object): string => throw new RuntimeException('No object write expected for submodule resolve-tree conflict');
 
         $result = TreeMerge::mergeFlat($base, $ours, $theirs);
         $sub = $result->tree->entryNamed('sub');
@@ -2055,7 +2057,29 @@ return [
             ],
             $result->indexEntries(),
         ));
-        $t->same([], $result->worktreeConflictFiles(static fn (string $oid): GitObject => throw new RuntimeException("No object read expected for {$oid}")));
+        $t->same([], $result->worktreeConflictFiles($readObject));
+
+        $ancestorResolved = $result->resolveTreeConflicts($readObject, $writeObject, TreeMergeResult::RESOLVE_ANCESTOR);
+        $oursResolved = $result->resolveTreeConflicts($readObject, $writeObject, TreeMergeResult::RESOLVE_OURS);
+        $theirsResolved = $result->resolveTreeConflicts($readObject, $writeObject, TreeMergeResult::RESOLVE_THEIRS);
+        $reverseOursResolved = TreeMerge::mergeFlat($base, $theirs, $ours)
+            ->resolveTreeConflicts($readObject, $writeObject, TreeMergeResult::RESOLVE_OURS);
+
+        $t->same(true, $ancestorResolved->isClean());
+        $t->same(['sub'], $names($ancestorResolved->tree));
+        $t->same('commit', $ancestorResolved->tree->entryNamed('sub')?->kind());
+        $t->same($baseOid, $ancestorResolved->tree->entryNamed('sub')?->oid);
+        $t->same([], $ancestorResolved->indexEntries());
+        $t->same([], $ancestorResolved->worktreeConflictFiles($readObject));
+        $t->same(true, $oursResolved->isClean());
+        $t->same($ourOid, $oursResolved->tree->entryNamed('sub')?->oid);
+        $t->same([], $oursResolved->indexEntries());
+        $t->same(true, $theirsResolved->isClean());
+        $t->same($theirOid, $theirsResolved->tree->entryNamed('sub')?->oid);
+        $t->same([], $theirsResolved->indexEntries());
+        $t->same(true, $reverseOursResolved->isClean());
+        $t->same($theirOid, $reverseOursResolved->tree->entryNamed('sub')?->oid);
+        $t->same([], $reverseOursResolved->indexEntries());
     },
     'maps upstream gix-merge tree-baseline same-rename-different-mode fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();

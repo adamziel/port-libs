@@ -21,6 +21,7 @@ final class TreeMergeResult
         'directory-rename-subtree-replacement' => true,
         'directory-rename-suggested' => true,
         'mode-change' => true,
+        'modify-modify' => true,
         'nested-directory-rename' => true,
         'rename-delete' => true,
         'rename-modify' => true,
