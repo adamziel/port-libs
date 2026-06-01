@@ -1434,9 +1434,9 @@ final class TransitionPrefixer
             'maskNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [119])
                 || $this->targetInRange($normalized, 'edge', [79], [119])
-                || $this->targetInRange($normalized, 'ios_saf', [3, 2], [15])
+                || $this->targetInRange($normalized, 'ios_saf', [3, 2], [15, 2])
                 || $this->targetInRange($normalized, 'opera', [15], [105])
-                || $this->targetInRange($normalized, 'safari', [4], [15])
+                || $this->targetInRange($normalized, 'safari', [4], [15, 2])
                 || $this->targetInRange($normalized, 'samsung', [4], [24]),
             'stickyNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [6], [12, 2])
                 || $this->targetInRange($normalized, 'safari', [6, 1], [12, 1]),

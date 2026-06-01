@@ -164,6 +164,15 @@ return [
         $t->same('only screen and ((color) or (hover))', $parser->minifyList('only screen and ((color) or (hover))'));
         $t->same('(hover) and (color) and (test)', $parser->minifyList('(hover) and ((color) and (test))'));
     },
+    'media query parser treats comments as upstream media-list trivia' => static function (TestRunner $t): void {
+        $parser = new MediaQueryParser();
+
+        $t->same('screen and (width>=240px)', $parser->minifyList('screen/* migration */and (width >= 240px)'));
+        $t->same('(hover) or (100px<=width<=200px)', $parser->minifyList('(hover)/* stale, alias */or/* breakpoint */(100px <= width <= 200px)'));
+        $t->same('(width>=1px),(hover)', $parser->minifyList('(width >= 1px)/* stale, comma */, (hover)'));
+        $t->same('screen', $parser->minifyList('/* generated import note */ screen, /* trailing build note */'));
+        $t->same('(width>=240px)', $parser->minifyList('(width >= 240px)/* unclosed build note'));
+    },
     'media query parser maps upstream media query conjunction semantics' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
 

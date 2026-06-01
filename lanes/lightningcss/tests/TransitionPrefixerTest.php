@@ -2374,6 +2374,22 @@ CSS;
             $prefixer->prefixForTargets('.foo { mask-mode: luminance; }', ['safari' => 15])
         );
         $t->same(
+            '.foo{-webkit-mask-image:linear-gradient(red,green);mask-image:linear-gradient(red,green)}',
+            $prefixer->prefixForTargets('.foo { mask-image: linear-gradient(red, green); }', ['safari' => '15.2'])
+        );
+        $t->same(
+            '.foo{mask-image:linear-gradient(red,green)}',
+            $prefixer->prefixForTargets('.foo { -webkit-mask-image: linear-gradient(red, green); mask-image: linear-gradient(red, green); }', ['safari' => '15.3'])
+        );
+        $t->same(
+            '.foo{-webkit-mask-image:linear-gradient(red,green);mask-image:linear-gradient(red,green)}',
+            $prefixer->prefixForTargets('.foo { mask-image: linear-gradient(red, green); }', ['ios_saf' => '15.2'])
+        );
+        $t->same(
+            '.foo{mask-image:linear-gradient(red,green)}',
+            $prefixer->prefixForTargets('.foo { -webkit-mask-image: linear-gradient(red, green); mask-image: linear-gradient(red, green); }', ['ios_saf' => '15.3'])
+        );
+        $t->same(
             '.foo{mask-mode:luminance}',
             $prefixer->prefixForTargets('.foo { mask-mode: luminance; }', ['safari' => 16])
         );

@@ -56,6 +56,12 @@ $tabAttributes = GitAttributes::fromString(
     "wp-content/plugins/gutenberg/** deploy review=yes\n",
     withBuiltInMacros: false,
 );
+$asciiWhitespaceAttributes = GitAttributes::fromString(
+    "wp-content/plugins/editor/** deploy\vreview=yes\n"
+    . "wp-content/themes/classic/** deploy\ftheme\n"
+    . "wp-content/uploads/** binary\fdiff=image\vreview\n",
+    withBuiltInMacros: false,
+);
 $recursiveMacroAttributes = GitAttributes::fromString(
     "[attr]my-text text\n"
     . "[attr]my-binary binary\n"
@@ -113,6 +119,12 @@ try {
     PathspecMatcher::fromSpecs([":(attr:deploy=plugin\treview=yes)wp-content/plugins/**"]);
 } catch (InvalidArgumentException) {
     $valueTabRequirementRejected = true;
+}
+$verticalValueRequirementRejected = false;
+try {
+    PathspecMatcher::fromSpecs([":(attr:deploy=plugin\vreview=yes)wp-content/plugins/**"]);
+} catch (InvalidArgumentException) {
+    $verticalValueRequirementRejected = true;
 }
 $emptyLongMagicComponentRejected = false;
 try {
@@ -317,7 +329,32 @@ return [
         false,
         $tabAttributes,
     ),
+    'verticalSeparatedAttributeFields' => $asciiWhitespaceAttributes->attributesForPath(
+        'wp-content/plugins/editor/block.json',
+        ['deploy', 'review'],
+    ),
+    'formFeedSeparatedAttributeFields' => $asciiWhitespaceAttributes->attributesForPath(
+        'wp-content/themes/classic/style.css',
+        ['deploy', 'theme'],
+    ),
+    'mixedAsciiWhitespaceAttributeFields' => $asciiWhitespaceAttributes->attributesForPath(
+        'wp-content/uploads/banner.png',
+        ['binary', 'diff', 'review'],
+    ),
+    'verticalSeparatedStatePathspecMatches' => PathspecMatcher::matchesOne(
+        ":(attr:deploy\vreview=yes)wp-content/plugins/editor/**",
+        'wp-content/plugins/editor/block.json',
+        false,
+        $asciiWhitespaceAttributes,
+    ),
+    'formFeedSeparatedStatePathspecMatches' => PathspecSearch::fromSpecs([
+        ":(attr:deploy\ftheme)wp-content/themes/classic/**",
+    ])->isIncluded('wp-content/themes/classic/style.css', false, $asciiWhitespaceAttributes),
+    'mixedAsciiWhitespacePathspecMatches' => PathspecSearch::fromSpecs([
+        ":(attr:binary\freview\vdiff=image)wp-content/uploads/**",
+    ])->isIncluded('wp-content/uploads/banner.png', false, $asciiWhitespaceAttributes),
     'valueTabRequirementRejected' => $valueTabRequirementRejected,
+    'verticalValueRequirementRejected' => $verticalValueRequirementRejected,
     'emptyLongMagicComponentRejected' => $emptyLongMagicComponentRejected,
     'unimplementedShortMagicRejected' => $unimplementedShortMagicRejected,
     'recursiveMacroAttributes' => $recursiveMacroAttributes->attributesForPath(

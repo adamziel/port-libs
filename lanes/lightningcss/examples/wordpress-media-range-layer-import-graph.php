@@ -14,7 +14,7 @@ $bundle = (new CssBundler())->bundle('/theme.css', [
 }
 CSS,
     '/blocks/query.css' => <<<'CSS'
-@import "../shared/query-card.css" (min-width: 250px), (hover);
+@import "../shared/query-card.css" (min-width: 250px) /* stale breakpoint note */, (hover);
 .wp-block-query {
   color: blue;
 }
@@ -82,7 +82,29 @@ if ($repeatedRangeBundle !== $expectedRepeatedRange) {
     exit(1);
 }
 
+$commentedMediaBundle = (new CssBundler())->bundle('/commented-media.css', [
+    '/commented-media.css' => <<<'CSS'
+@import "blocks/commented-card.css" layer(theme.blocks) screen/* migration breakpoint */and (width >= 250px), /* editor preview fallback */ (hover);
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/blocks/commented-card.css' => <<<'CSS'
+.wp-block-commented-card {
+  color: green;
+}
+CSS,
+]);
+
+$expectedCommentedMedia = '@media screen and (width>=250px),(hover){@layer theme.blocks{.wp-block-commented-card{color:green}}}.wp-site-blocks{color:red}';
+
+if ($commentedMediaBundle !== $expectedCommentedMedia) {
+    fwrite(STDERR, "Unexpected commented media range import graph output:\n{$commentedMediaBundle}\n");
+    exit(1);
+}
+
 echo $bundle . PHP_EOL;
 echo $conjunctionBundle . PHP_EOL;
 echo $repeatedRangeBundle . PHP_EOL;
+echo $commentedMediaBundle . PHP_EOL;
 echo 'media-range-layer-import-graph: bundled' . PHP_EOL;

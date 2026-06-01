@@ -364,6 +364,51 @@ return [
             ":(attr:deploy=plugin\treview)wp-content/plugins/**",
         ]));
     },
+    'attribute pathspec filters split ascii whitespace fields like gix attributes parse' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString(
+            "wp-content/plugins/** deploy\vreview=yes\n"
+            . "wp-content/themes/** deploy\ftheme\n"
+            . "wp-content/uploads/** binary\fdiff=image\vreview\n",
+            withBuiltInMacros: false,
+        );
+
+        $t->same([
+            'deploy' => true,
+            'review' => 'yes',
+        ], $attributes->attributesForPath('wp-content/plugins/editor/block.json', ['deploy', 'review']));
+        $t->same([
+            'deploy' => true,
+            'theme' => true,
+        ], $attributes->attributesForPath('wp-content/themes/classic/style.css', ['deploy', 'theme']));
+        $t->same([
+            'binary' => true,
+            'diff' => 'image',
+            'review' => true,
+        ], $attributes->attributesForPath('wp-content/uploads/banner.png', ['binary', 'diff', 'review']));
+
+        $t->same(true, PathspecMatcher::matchesOne(
+            ":(attr:deploy\vreview=yes)wp-content/plugins/**",
+            'wp-content/plugins/editor/block.json',
+            false,
+            $attributes,
+        ));
+        $t->same(false, PathspecMatcher::matchesOne(
+            ":(attr:deploy\vreview=no)wp-content/plugins/**",
+            'wp-content/plugins/editor/block.json',
+            false,
+            $attributes,
+        ));
+        $t->same(true, PathspecSearch::fromSpecs([":(attr:deploy\ftheme)wp-content/themes/**"])
+            ->isIncluded('wp-content/themes/classic/style.css', false, $attributes));
+        $t->same(true, PathspecSearch::fromSpecs([":(attr:binary\freview\vdiff=image)wp-content/uploads/**"])
+            ->isIncluded('wp-content/uploads/banner.png', false, $attributes));
+        $t->throws(InvalidArgumentException::class, static fn () => PathspecMatcher::fromSpecs([
+            ":(attr:deploy=plugin\vreview=yes)wp-content/plugins/**",
+        ]));
+        $t->throws(InvalidArgumentException::class, static fn () => PathspecSearch::fromSpecs([
+            ":(attr:deploy=plugin\freview=yes)wp-content/plugins/**",
+        ]));
+    },
     'attribute and pathspec state adjustments ignore value suffixes like gix attributes' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/mu-plugins/** deploy=mustuse -diff=legacy !review=stale\n"
             . "wp-content/mu-plugins/private/** !deploy=old -merge=ours\n");
@@ -621,7 +666,24 @@ return [
         $t->same(['folded-reversed-range' => true], $example['foldedReversedRangeAttributeMatchesMiddle']);
         $t->same(true, $example['foldedReversedRangePathspecMatchesMiddle']);
         $t->same(true, $example['tabSeparatedStatePathspecMatches']);
+        $t->same([
+            'deploy' => true,
+            'review' => 'yes',
+        ], $example['verticalSeparatedAttributeFields']);
+        $t->same([
+            'deploy' => true,
+            'theme' => true,
+        ], $example['formFeedSeparatedAttributeFields']);
+        $t->same([
+            'binary' => true,
+            'diff' => 'image',
+            'review' => true,
+        ], $example['mixedAsciiWhitespaceAttributeFields']);
+        $t->same(true, $example['verticalSeparatedStatePathspecMatches']);
+        $t->same(true, $example['formFeedSeparatedStatePathspecMatches']);
+        $t->same(true, $example['mixedAsciiWhitespacePathspecMatches']);
         $t->same(true, $example['valueTabRequirementRejected']);
+        $t->same(true, $example['verticalValueRequirementRejected']);
         $t->same(true, $example['emptyLongMagicComponentRejected']);
         $t->same(true, $example['unimplementedShortMagicRejected']);
         $t->same(true, $example['recursiveMacroPathspecMatches']);

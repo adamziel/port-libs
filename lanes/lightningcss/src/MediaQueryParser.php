@@ -8,6 +8,7 @@ final class MediaQueryParser
 {
     public function minifyList(string $queryList, bool $allowCompactedNegation = false): string
     {
+        $queryList = $this->stripCommentsAsWhitespace($queryList);
         $queries = $this->splitMediaQueryList($queryList);
         if ($queries === []) {
             return '';
@@ -1078,6 +1079,49 @@ final class MediaQueryParser
     private function normalizeWhitespace(string $value): string
     {
         return trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+    }
+
+    private function stripCommentsAsWhitespace(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                $output .= $char;
+                if ($char === '\\' && $i + 1 < $length) {
+                    $output .= $value[++$i];
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $output .= $char;
+                continue;
+            }
+
+            if ($char === '/' && ($value[$i + 1] ?? '') === '*') {
+                $output .= ' ';
+                $end = strpos($value, '*/', $i + 2);
+                if ($end === false) {
+                    break;
+                }
+
+                $i = $end + 1;
+                continue;
+            }
+
+            $output .= $char;
+        }
+
+        return $output;
     }
 
     private function normalizeEscapedMediaKeywords(string $query): string

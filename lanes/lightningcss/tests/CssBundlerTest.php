@@ -1228,6 +1228,23 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler treats comments as media-query trivia in layered imports' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@media screen and (width>=240px),(hover){@layer theme.blocks{.b{color:green}}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(theme.blocks) screen/* migration */and (width >= 240px), /* fallback comma */ (hover); .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@media (width>=250px){@layer theme.blocks{.b{color:green}}}.a{color:red}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(theme.blocks) (min-width: 250px) /* stale breakpoint */; @import "b.css" layer(theme.blocks) (width >= 250px); .a { color: red }',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+    },
     'css bundler merges repeated import conditions like upstream' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print,screen{.b{color:green}}.a{color:red}',
