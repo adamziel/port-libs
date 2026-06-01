@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 17:41:51 UTC",
-    "sourceCommit": "414faf83c81072f2c370784eb2953f27716e9102",
-    "sourceCommitShort": "414faf83c810",
+    "generated": "2026-06-01 17:52:16 UTC",
+    "sourceCommit": "6487cc65e72dc04566b0308751b730079a8649b2",
+    "sourceCommitShort": "6487cc65e72d",
     "sourceBranch": "main",
-    "dashboardCommit": "414faf83c81072f2c370784eb2953f27716e9102",
-    "dashboardCommitShort": "414faf83c810",
+    "dashboardCommit": "6487cc65e72dc04566b0308751b730079a8649b2",
+    "dashboardCommitShort": "6487cc65e72d",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -24,11 +24,11 @@
             "unmapped": "0",
             "php": "6,156,557 pass / 16 fail",
             "phase": "current-base source integration accepted; broad full-lane/release par...",
-            "audit": "2026-06-01 17:41 UTC supervisor integration: source commit 414faf83c8...",
-            "currentWork": "Real upstream select9 WHERE-filtered compound SELECT reverse-collation coverage, sour...",
+            "audit": "2026-06-01 17:45 UTC supervisor integration: source commit 6487cc65e7...",
+            "currentWork": "Source-neutral trigger/upsert/view current-next fixture cleanup, real upstream select...",
             "nextTarget": "Prioritize broad full-lane memory exhaustion and the 16 obser...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "414faf8"
+            "commit": "6487cc6"
         },
         {
             "lane": "lightningcss",
@@ -68,13 +68,13 @@
             "coverage": "1,808 / 2,886 (62.6%)",
             "mapPercent": "62.6%",
             "unmapped": "1,078",
-            "php": "10,314 pass / 0 fail",
+            "php": "10,364 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 17:27 UTC supervisor integration: source commit a4bef18500...",
-            "currentWork": "Pack-index/MIDX newline-boundary prefix parity, partial-clone promisor kept-orphan hy...",
+            "audit": "2026-06-01 17:45 UTC supervisor integration: source commit 6487cc65e7...",
+            "currentWork": "Loose-object NUL-before-space unknown-kind ordering parity, sparse-checkout pathspec...",
             "nextTarget": "Keep Gitoxide workers on current-base non-overlapping referen...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "a4bef18"
+            "commit": "6487cc6"
         },
         {
             "lane": "readability",
