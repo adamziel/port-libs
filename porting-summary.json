@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 20:09:11 UTC",
-    "sourceCommit": "287e36260b651a5e9c2cbd5a6899c6dc389dbbb4",
-    "sourceCommitShort": "287e36260b65",
+    "generated": "2026-06-01 20:16:25 UTC",
+    "sourceCommit": "0de17c607f569efe3d72db6526e707c7cd4366cd",
+    "sourceCommitShort": "0de17c607f56",
     "sourceBranch": "unknown",
-    "dashboardCommit": "287e36260b651a5e9c2cbd5a6899c6dc389dbbb4",
-    "dashboardCommitShort": "287e36260b65",
+    "dashboardCommit": "0de17c607f569efe3d72db6526e707c7cd4366cd",
+    "dashboardCommitShort": "0de17c607f56",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -45,13 +45,13 @@
             "coverage": "2,439 / 3,532 (69.1%)",
             "mapPercent": "69.1%",
             "unmapped": "1,093",
-            "php": "9,034 pass / 0 fail",
+            "php": "9,052 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 19:11 UTC supervisor integration: source commit e8d3a8d1ab...",
-            "currentWork": "Residual color-function color-mix rows, calc(infinity) media range/layer behavior, ne...",
+            "audit": "2026-06-01 20:24 UTC supervisor integration: source commit 0de17c607f...",
+            "currentWork": "Custom at-rule unknown token-list visitor parity, target-prefix animation support bou...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, bundle...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "e8d3a8d"
+            "commit": "0de17c6"
         },
         {
             "lane": "gitoxide",
@@ -59,8 +59,8 @@
             "priority": "Active",
             "queue": "Active",
             "state": "High coverage",
-            "progressPercent": "98.5",
-            "completion": "98.5%",
+            "progressPercent": "98.6",
+            "completion": "98.6%",
             "suite": "current-base Gitoxide partial-clone promisor malformed boolean parity",
             "benchmark": "current-base Gitoxide partial-clone promisor malformed boolean parity",
             "denominator": "2886",
@@ -68,13 +68,13 @@
             "coverage": "1,818 / 2,886 (63.0%)",
             "mapPercent": "63.0%",
             "unmapped": "1,068",
-            "php": "10,725 pass / 0 fail",
+            "php": "10,758 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 20:08 UTC supervisor integration: source commit 4666835820...",
-            "currentWork": "Partial-clone promisor malformed boolean rejection, pack-index object traversal parit...",
-            "nextTarget": "Keep Gitoxide workers on current-base sparse checkout, loose...",
+            "audit": "2026-06-01 20:24 UTC supervisor integration: source commit 0de17c607f...",
+            "currentWork": "Credential helper context URL boundary parity, partial-clone promisor malformed boole...",
+            "nextTarget": "Keep Gitoxide workers on current-base loose object, tree/path...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "4666835"
+            "commit": "0de17c6"
         },
         {
             "lane": "readability",
