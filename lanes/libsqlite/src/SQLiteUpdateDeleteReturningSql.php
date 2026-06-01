@@ -3924,13 +3924,18 @@ final class SQLiteUpdateDeleteReturningSql
             $sourceRows = self::orderRowValueSelectRows($sourceRows, $orderSql, $expressions);
         }
 
-        $tuples = [];
-        foreach ($sourceRows as $sourceRow) {
-            $tuple = [];
-            foreach ($expressions as $expression) {
-                $tuple[] = self::evaluateExpression(trim($expression), $sourceRow);
+        $aggregateTuple = self::rowValueAggregateTuple($expressions, $sourceRows);
+        if ($aggregateTuple['matched']) {
+            $tuples = [$aggregateTuple['tuple']];
+        } else {
+            $tuples = [];
+            foreach ($sourceRows as $sourceRow) {
+                $tuple = [];
+                foreach ($expressions as $expression) {
+                    $tuple[] = self::evaluateExpression(trim($expression), $sourceRow);
+                }
+                $tuples[] = $tuple;
             }
-            $tuples[] = $tuple;
         }
 
         if ($distinct) {
@@ -3950,6 +3955,133 @@ final class SQLiteUpdateDeleteReturningSql
         }
 
         return $tuples;
+    }
+
+    /**
+     * @param list<string> $expressions
+     * @param list<array<string,mixed>> $sourceRows
+     * @return array{matched:bool,tuple:list<mixed>}
+     */
+    private static function rowValueAggregateTuple(array $expressions, array $sourceRows): array
+    {
+        $tuple = [];
+        $hasAggregate = false;
+        $hasPlainExpression = false;
+
+        foreach ($expressions as $expression) {
+            $aggregate = self::rowValueAggregateExpression(trim($expression), $sourceRows);
+            if ($aggregate['matched']) {
+                $hasAggregate = true;
+                $tuple[] = $aggregate['value'];
+                continue;
+            }
+
+            $hasPlainExpression = true;
+        }
+
+        if (!$hasAggregate) {
+            return ['matched' => false, 'tuple' => []];
+        }
+        if ($hasPlainExpression) {
+            throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value aggregate subquery expressions must all be aggregate functions');
+        }
+
+        return ['matched' => true, 'tuple' => $tuple];
+    }
+
+    /**
+     * @param list<array<string,mixed>> $sourceRows
+     * @return array{matched:bool,value:mixed}
+     */
+    private static function rowValueAggregateExpression(string $expression, array $sourceRows): array
+    {
+        $stripped = self::stripEnclosingParentheses($expression);
+        if ($stripped !== null) {
+            return self::rowValueAggregateExpression($stripped, $sourceRows);
+        }
+
+        $collation = self::splitCollationExpression($expression);
+        if ($collation !== null) {
+            $aggregate = self::rowValueAggregateExpression($collation['expression'], $sourceRows);
+            if ($aggregate['matched'] && $aggregate['value'] !== null) {
+                $aggregate['value'] = self::collatedValue($aggregate['value'], $collation['collation']);
+            }
+
+            return $aggregate;
+        }
+
+        if (preg_match('/^(min|max|count)\s*\((.*)\)$/is', $expression, $match) !== 1) {
+            return ['matched' => false, 'value' => null];
+        }
+
+        $function = strtolower($match[1]);
+        $argument = trim($match[2]);
+        $distinct = false;
+        if (preg_match('/^DISTINCT\s+(.+)$/is', $argument, $distinctMatch) === 1) {
+            $distinct = true;
+            $argument = trim($distinctMatch[1]);
+        }
+
+        if ($function === 'count') {
+            if ($argument === '') {
+                throw new \InvalidArgumentException('SQLite UPDATE/DELETE row-value count() needs an argument');
+            }
+            if ($argument === '*') {
+                return ['matched' => true, 'value' => count($sourceRows)];
+            }
+
+            $seen = [];
+            $count = 0;
+            foreach ($sourceRows as $sourceRow) {
+                $value = self::evaluateExpression($argument, $sourceRow);
+                if ($value === null) {
+                    continue;
+                }
+                if ($distinct) {
+                    $key = self::rowValueTupleKey([$value]);
+                    if (isset($seen[$key])) {
+                        continue;
+                    }
+                    $seen[$key] = true;
+                }
+                $count++;
+            }
+
+            return ['matched' => true, 'value' => $count];
+        }
+
+        if ($argument === '' || $argument === '*') {
+            throw new \InvalidArgumentException("SQLite UPDATE/DELETE row-value {$function}() needs a value expression");
+        }
+
+        $seen = [];
+        $selected = null;
+        $hasSelected = false;
+        foreach ($sourceRows as $sourceRow) {
+            $value = self::evaluateExpression($argument, $sourceRow);
+            if ($value === null) {
+                continue;
+            }
+            if ($distinct) {
+                $key = self::rowValueTupleKey([$value]);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+            }
+            if (!$hasSelected) {
+                $selected = $value;
+                $hasSelected = true;
+                continue;
+            }
+
+            $comparison = self::rowValueScalarCompare($value, $selected);
+            if (($function === 'min' && $comparison < 0) || ($function === 'max' && $comparison > 0)) {
+                $selected = $value;
+            }
+        }
+
+        return ['matched' => true, 'value' => $hasSelected ? $selected : null];
     }
 
     /**
