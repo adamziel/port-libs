@@ -1,17 +1,17 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 98.1,
-    "suiteProgress": "Supervisor-integrated Gitoxide merge-base commit-graph cache lookup, URL/refspec Unix colon-path classification, and attributes/pathspec parent-traversal rejection parity. Verification passed changed PHP lint, git diff --check, changed example smokes, and full Gitoxide lane 40 files / 9974 assertions / 0 failures.",
-    "phpPass": 9974,
+    "estimatedProgress": 98.2,
+    "suiteProgress": "Supervisor-integrated Gitoxide protocol-v2 fetch sideband-all/no-newline parsing, receive-pack empty extra-parameter handling, and send-pack object-format receive-status parity. Verification passed changed PHP lint, git diff --check, changed example smokes, and full Gitoxide lane 40 files / 10004 assertions / 0 failures.",
+    "phpPass": 10004,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed workflows remain covered; latest accepted source adds merge-base commit-graph cache lookup, URL/refspec Unix colon-path classification, and attributes/pathspec parent-traversal rejection parity.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 15:29 UTC supervisor integration: source commit 7efc5758f2e7f4a69f5e8d831691075050e5a2fd accepted merge-base commit-graph cache lookup, URL/refspec Unix colon-path classification, and attributes/pathspec parent-traversal rejection parity. Changed PHP lint passed; git diff --check passed; changed example smokes passed; full Gitoxide PHP lane passed 40 files / 9974 assertions / 0 failures. Cargo workspace was not run.",
-    "currentWork": "Merge-base commit-graph cache lookup, URL/refspec Unix colon-path classification, and attributes/pathspec parent-traversal rejection parity integrated on current main.",
+    "audit": "2026-06-01 15:39 UTC supervisor integration: source commit 16e1dfdf006330664e013a30d47b766437c77b53 accepted protocol-v2 fetch sideband-all/no-newline parsing, receive-pack empty extra-parameter handling, and send-pack object-format receive-status parity. Changed PHP lint passed; git diff --check passed; changed example smokes passed; full Gitoxide PHP lane passed 40 files / 10004 assertions / 0 failures. Cargo workspace was not run.",
+    "currentWork": "Protocol-v2 fetch sideband-all/no-newline parsing, receive-pack empty extra-parameter handling, and send-pack object-format receive-status parity integrated on current main.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "7efc5758f2e7f4a69f5e8d831691075050e5a2fd",
+    "latestCommit": "16e1dfdf006330664e013a30d47b766437c77b53",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping reference transaction, partial-clone, credential/config, pack/index, object database, tree-merge, merge-base, protocol-v2, receive-pack/send-pack, smart-HTTP/SSH, sparse-checkout/pathspec, and URL/refspec parity slices.",
-    "commit": "7efc5758f2e7f4a69f5e8d831691075050e5a2fd",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: merge-base commit-graph cache lookup, URL/refspec Unix colon-path classification, and attributes/pathspec parent-traversal rejection parity. Full Gitoxide lane passed 40 files / 9974 assertions / 0 failures; phpPass moves 9913 -> 9974; mapped coverage moves 1799 -> 1801 / 2886; full upstream Cargo workspace was not executed."
+    "commit": "16e1dfdf006330664e013a30d47b766437c77b53",
+    "latestFocusedSlice": "2026-06-01 supervisor batch: protocol-v2 fetch sideband-all/no-newline parsing and send-pack object-format receive-status deepen represented protocol clusters; receive-pack empty extra-parameter handling maps +1 conservative row. Full Gitoxide lane passed 40 files / 10004 assertions / 0 failures; phpPass moves 9974 -> 10004; mapped coverage moves 1801 -> 1802 / 2886; full upstream Cargo workspace was not executed."
 }

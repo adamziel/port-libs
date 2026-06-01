@@ -169,7 +169,7 @@
         }
     },
     "benchmarkDenominator": {
-        "status": "current-base libsqlite VFS/WAL/row-value parity plus PDO invalid-column parity",
+        "status": "current-base libsqlite REAL/expression-affinity corpus plus PDO invalid-column parity",
         "total": 1589,
         "mapped": 1589,
         "latestMappedAddition": "Source commit 7efc5758f2e7f4a69f5e8d831691075050e5a2fd adds VFS pcache pressure, application WAL/rollback JSON recovery-tail, and row-value UPDATE/DELETE LIMIT DISTINCT coverage while preserving PDO invalid-column native parity. Mapped denominator remains complete at 1589 / 1589; focused libsqlite/PDO/source-neutral gate passed 6 files / 29698 assertions / 0 failures.",
@@ -2538,7 +2538,7 @@
         "focusedBatch102103CurrentSourceSubset": "Accepted implementation commit 04a264da4f1be4df0404eeca51f4e3ee3e697828 adds the batch102/103 clean current-source libsqlite subset. Verification: php -l for 44 changed/untracked PHP files; 14 Application examples/self-tests emitted valid JSON; git diff --check; focused changed/regression tests 25 files / 2642 assertions / 0 failures / 1478 PASS lines; full libsqlite 724 files / 82738 assertions / 0 failures / 40990 PASS lines; root 937 files / 107206 assertions / 0 failures / 44018 PASS lines with memory_limit=512M.",
         "focusedBatch104105CurrentSourceSubset": "Accepted implementation commit b3c4ecbf768d15d978a740cbb75a8109bca7e0f1 adds the batch104/105 clean current-source libsqlite subset. Verification: php -l for 44 changed/untracked PHP files; 14 Application examples/self-tests emitted valid JSON; git diff --check; focused changed tests 15 files / 1640 assertions / 0 failures / 895 PASS lines; full libsqlite 739 files / 84366 assertions / 0 failures / 41873 PASS lines; root 952 files / 108834 assertions / 0 failures / 44901 PASS lines with memory_limit=512M."
     },
-    "currentWork": "Source-neutral SQLiteDatabase key-value API guard/example cleanup integrated on current base; no domain-specific libsqlite API is accepted.",
+    "currentWork": "Source-neutral option-table defaults and SQLitePDO bad-column parity remain green with no domain-specific libsqlite API accepted.",
     "upstreamRuns": {
         "focusedResults": {
             "focusedCoreConcatScalarFunction": "The 2026-05-26 isolated dependency-suite scalar slice adds concat()/concat_ws() dispatch for copied wp_options string assembly, reusing accepted SQL expression/scalar evidence because this isolated worktree did not contain the hydrated upstream cache. Native smoke covers concat() NULL-as-empty behavior, all-NULL empty-string output, BLOB byte text coercion, concat_ws() NULL separator propagation, skipped NULL fields, empty output when all fields are NULL, arity/type errors, and Application option-key assembly diagnostics without requiring ext/sqlite.",
@@ -3431,10 +3431,10 @@
             "focusedUpstreamVeryquickShardCurrentSourceNext431": "The 2026-05-28 isolated current-source next431 suite veryquick-shard runner slice maps one additional runner-countability blocker row for launcher Base accepted HEAD fca16e3d, current integration source 8a447f44, lane-local zero-error guarded runner artifact rows, duplicate-runner gates, exact 96 focused PASS-line admission, focused current-source veryquick shard scope, and no release/all parity claim."
         }
     },
-    "latestFocusedSlice": "2026-06-01 supervisor batch: selectA reversed UNION ORDER BY c collation inheritance adds +1003 PASS cases. Focused selectA gate passed 4 files / 45562 assertions / 0 failures; phpPass moves 5898964 -> 5899967; mapped coverage remains 1589 / 1589.",
+    "latestFocusedSlice": "2026-06-01 supervisor batch: real upstream atof1 REAL quote roundtrip (+1203 PASS cases) and expression-affinity IN/BETWEEN corpus coverage (+1007 PASS cases); phpPass moves 5978211 -> 5980421; mapped coverage remains 1589 / 1589.",
     "latestNativePhpVerification": "Source commit b377ea5b2fa3ea8bf0b90afbb451893100795e29: PHP lint, git diff --check, focused selectA gate 4 files / 45562 assertions / 0 failures, SQLiteNoDomainSpecificApiTest.php 1 file / 6 assertions / 0 failures, and exact SQLitePDO invalid-column repro passed.",
     "runnerStatus": "Focused libsqlite selectA gate passed 4 files / 45562 assertions / 0 failures. Broad release/all still has 7 known failures and the full-lane memory blocker remains.",
-    "latestCommit": "b377ea5b2fa3ea8bf0b90afbb451893100795e29",
+    "latestCommit": "16e1dfdf006330664e013a30d47b766437c77b53",
     "latestFocusedCorpusBatch20260531T2250Z": {
         "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
         "selectedPassIncrease": 2411,
@@ -3476,7 +3476,7 @@
         "upstreamEvidence": "hydrated SQLite upstream corpus source sections for btree, pager WAL/savepoint, pragma malformed leaf, trigger/fkey, and windowB behavior; full release/all runner not executed for this micro-batch",
         "cleanupDebt": "pre-existing wp_ fixture strings and CurrentSourceNext/CurrentNext/numbered-plan source names remain; latest batch introduced none"
     },
-    "currentSlice": "Real upstream selectA reversed UNION ORDER BY collation-inheritance behavior integrated on current base.",
+    "currentSlice": "Real upstream atof1 REAL quote roundtrip and expression-affinity IN/BETWEEN corpus coverage integrated on current base.",
     "latestFocusedCorpusBatch20260601T0124Z": {
         "sourceCommit": "e899fc4a21fdb01ae8459804f624b30e40cbd9f5",
         "selectedPassIncrease": 14718,
@@ -3604,7 +3604,7 @@
         "nativeVerification": "PHP lint on changed/new libsqlite PHP files; git diff --check; focused libsqlite gate 3 files / 10270 assertions / 0 failures; no new WordPress/wp_/numbered CurrentSourceNext strings in changed libsqlite source",
         "upstreamEvidence": "hydrated SQLite upstream e_fkey runtime intro source sections plus source-neutral STAT4 planner handoff evidence; full release/all runner not executed for this micro-batch"
     },
-    "latestMappedAddition": "Source commit 7efc5758f2e7f4a69f5e8d831691075050e5a2fd adds VFS pcache pressure, application WAL/rollback JSON recovery-tail, and row-value UPDATE/DELETE LIMIT DISTINCT coverage while preserving PDO invalid-column native parity. Mapped denominator remains complete at 1589 / 1589; focused libsqlite/PDO/source-neutral gate passed 6 files / 29698 assertions / 0 failures.",
+    "latestMappedAddition": "Source commit 16e1dfdf006330664e013a30d47b766437c77b53 adds real upstream atof1 REAL quote roundtrip and expression-affinity IN/BETWEEN corpus coverage while preserving source-neutral option defaults and PDO invalid-column native parity. Mapped denominator remains complete at 1589 / 1589; focused libsqlite/PDO/source-neutral gate passed 20 files / 19329 assertions / 0 failures.",
     "audit": "2026-06-01 supervisor accepted source 9b57a0640eb0 with focused B-tree/no-domain gate 3 files / 84898 assertions / 0 failures; broad release/all remains at 7 known failures.",
     "latestFocusedCorpusBatch20260601T0820Z": {
         "sourceCommit": "2922247b0e6dda4df9c4afc836a7272ae2b0136e",
@@ -3676,7 +3676,7 @@
         "nativeVerification": "Changed PHP lint passed; git diff --check passed; SQLiteNoDomainSpecificApiTest.php 1 file / 6 assertions / 0 failures; application-json-path-validation-preflight.php self-test passed.",
         "upstreamEvidence": "Source-neutral guard evidence only; no new upstream corpus PASS delta. Broad release/all remains blocked by seven known failures and the memory-limited full-lane run."
     },
-    "currentSliceSource": "2026-06-01 supervisor batch: VFS pcache pressure, application WAL/rollback JSON recovery-tail, and row-value UPDATE/DELETE LIMIT DISTINCT parity add 1979 admitted PASS cases. Focused libsqlite/PDO/source-neutral gate passed 6 files / 29698 assertions / 0 failures; phpPass moves 5976232 -> 5978211; mapped coverage remains 1589 / 1589.",
+    "currentSliceSource": "2026-06-01 supervisor batch: real upstream atof1 REAL quote roundtrip and expression-affinity IN/BETWEEN corpus coverage add 2210 admitted PASS cases. Focused libsqlite/PDO/source-neutral gate passed 20 files / 19329 assertions / 0 failures; mapped coverage remains 1589 / 1589.",
     "focusedSelectAReversedUnionCollation20260601T133455Z": {
         "sourceCommit": "b377ea5b2fa3ea8bf0b90afbb451893100795e29",
         "selectedPassIncrease": 1003,

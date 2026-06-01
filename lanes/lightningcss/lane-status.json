@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "library": "LightningCSS",
     "estimatedProgress": 99.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS CSS Modules local/global dangling-combinator parity, prefixed 3D transform layout CSSOM read-write parity, and source-map VLQ generated-only child pruning. Verification passed changed PHP lint, git diff --check, changed example smokes, and full LightningCSS lane 13 files / 8432 assertions / 0 failures.",
-    "phpPass": 8432,
+    "suiteProgress": "Supervisor-integrated LightningCSS bundle import graph, @property formatter, media range/layer validation, source-map line-local VLQ offsets, custom at-rule function-prelude visitors, and CSS Regions target-prefix behavior. Verification passed changed PHP lint, git diff --check, changed example smokes, and full LightningCSS lane 13 files / 8500 assertions / 0 failures.",
+    "phpPass": 8500,
     "phpFail": 0,
     "wordpressScenarios": "LightningCSS examples remain generic coverage plus existing fixture smokes; latest accepted source adds CSS Modules local/global dangling-combinator parity, prefixed 3D transform layout CSSOM read-write parity, and source-map VLQ generated-only child pruning.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 15:29 UTC supervisor integration: source commit 7efc5758f2e7f4a69f5e8d831691075050e5a2fd accepted CSS Modules local/global dangling-combinator parity, prefixed 3D transform layout CSSOM read-write parity, and source-map VLQ generated-only child pruning. Changed PHP lint passed; git diff --check passed; changed example smokes passed; full LightningCSS PHP lane passed 13 files / 8432 assertions / 0 failures. Rust/Node/WASM runners were not run.",
-    "currentWork": "CSS Modules local/global dangling-combinator parity, prefixed 3D transform layout CSSOM read-write parity, and source-map VLQ generated-only child pruning integrated on current main.",
+    "audit": "2026-06-01 15:39 UTC supervisor integration: source commit 16e1dfdf006330664e013a30d47b766437c77b53 accepted bundle import graph, @property formatter, media range/layer validation, source-map line-local VLQ offsets, custom at-rule function-prelude visitors, and CSS Regions target-prefix behavior. Changed PHP lint passed; git diff --check passed; changed example smokes passed; full LightningCSS PHP lane passed 13 files / 8500 assertions / 0 failures. Rust/Node/WASM runners were not run.",
+    "currentWork": "Bundle import graph, @property formatter, media range/layer validation, source-map line-local VLQ offsets, custom at-rule function-prelude visitors, and CSS Regions target-prefix behavior integrated on current main.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "7efc5758f2e7f4a69f5e8d831691075050e5a2fd",
+    "latestCommit": "16e1dfdf006330664e013a30d47b766437c77b53",
     "nextTask": "Keep LightningCSS workers on current-base source maps, bundle/import graph, media query, property value, CSSOM, CSS Modules, custom-at-rule, target-prefix, selector, parser recovery, and upstream Rust/Node/WASM parity gaps that can be expressed in PHP.",
-    "commit": "7efc5758f2e7f4a69f5e8d831691075050e5a2fd",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: CSS Modules local/global dangling-combinator parity, prefixed 3D transform layout CSSOM read-write parity, and source-map VLQ generated-only child pruning. Full LightningCSS lane passed 13 files / 8432 assertions / 0 failures; phpPass moves 8399 -> 8432; mapped coverage remains 2393 / 3532 because these deepen represented clusters; Rust/Node/WASM upstream runners were not executed."
+    "commit": "16e1dfdf006330664e013a30d47b766437c77b53",
+    "latestFocusedSlice": "2026-06-01 supervisor batch: @property formatter maps +5 conservative property-rule rows; bundle import graph, media range/layer validation, source-map line-local VLQ offsets, custom at-rule function-prelude visitors, and CSS Regions target-prefix behavior deepen represented clusters. Full LightningCSS lane passed 13 files / 8500 assertions / 0 failures; phpPass moves 8432 -> 8500; mapped coverage moves 2393 -> 2398 / 3532; Rust/Node/WASM upstream runners were not executed."
 }
