@@ -12,8 +12,8 @@ use PortLibs\LibSqlite\SQLiteNocaseRtrimLikeCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -39,7 +39,7 @@ $nextRows = [
     $row(6, 'Plugin_New ', 'UTF-16LE'),
 ];
 
-$plan = SQLiteNocaseRtrimLikeCurrentSourceNextPlan::optionRowNamePlan(
+$plan = SQLiteNocaseRtrimLikeCurrentSourceNextPlan::keyValueRowKeyPlan(
     $currentRows,
     $nextRows,
     'plugin_%',
@@ -49,8 +49,8 @@ $plan = SQLiteNocaseRtrimLikeCurrentSourceNextPlan::optionRowNamePlan(
     null,
     null,
     false,
-    'main.wp_options@133',
-    'main.wp_options@134',
+    'main.app_settings@133',
+    'main.app_settings@134',
 );
 
 if (($argv[1] ?? '') === '--self-test') {
@@ -75,7 +75,7 @@ if (($argv[1] ?? '') === '--self-test') {
 
 echo json_encode([
     'scenario' => 'application-nocase-rtrim-like-current-source-next134',
-    'applicationUse' => 'Copied wp_options scans can invalidate a stale NOCASE LIKE prefix cursor when the next source is rebuilt under RTRIM collation, falling back to a residual LIKE scan without trimming trailing spaces.',
+    'applicationUse' => 'Copied app_settings scans can invalidate a stale NOCASE LIKE prefix cursor when the next source is rebuilt under RTRIM collation, falling back to a residual LIKE scan without trimming trailing spaces.',
     'currentIndexUsable' => $plan['currentIndexUsable'],
     'nextIndexUsable' => $plan['nextIndexUsable'],
     'nextRejectedReason' => $plan['nextRejectedReason'],

@@ -504,6 +504,28 @@ return [
         $t->same([0, null], array_column($negativeDecoded, 'sourceIndex'));
         $t->same([0, null], array_column($negativeDecoded, 'nameIndex'));
     },
+    'source map applies upstream negative column-offset boundaries on duplicate vlq columns' => static function (TestRunner $t): void {
+        $map = SourceMap::fromJson(
+            '{"version":3,"mappings":"AAAAA,EACAC,AACAC,GACAC","sources":["compiled.css"],"sourcesContent":[".compiled{}"],"names":["first","start-a","start-b","boundary"]}'
+        );
+
+        $t->same([0, 2, 2, 5], array_column($map->getMappings(), 'generatedColumn'));
+        $t->same([0, 1, 2, 3], array_column($map->getMappings(), 'nameIndex'));
+
+        $map->offsetColumns(0, 5, -3);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $closest = $map->findClosestMapping(0, 2);
+        $data = $map->toArray(null, false);
+
+        $t->same('AAAAA,EACAC,AAEAE', $map->writeVlq());
+        $t->same([0, 2, 2], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 1, 3], array_column($decoded, 'originalLine'));
+        $t->same([0, 1, 3], array_column($decoded, 'nameIndex'));
+        $t->same(3, $closest['originalLine'] ?? null);
+        $t->same(3, $closest['nameIndex'] ?? null);
+        $t->same(['first', 'start-a', 'start-b', 'boundary'], $data['names']);
+        $t->same(['.compiled{}'], $data['sourcesContent']);
+    },
     'source map sorts out-of-order raw vlq generated columns before offsets' => static function (TestRunner $t): void {
         $raw = new SourceMap();
         $raw->addVlqMap(

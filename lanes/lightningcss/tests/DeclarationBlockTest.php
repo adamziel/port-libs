@@ -1582,6 +1582,42 @@ return [
             $block->setProperty('margin: 5px; margin-inline-start: 8px', 'margin-left', '10px')
         );
     },
+    'declaration block parses upstream cssom set values before top level delimiters' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+
+        $t->same(
+            'color: green',
+            $block->setProperty('color: red', 'color', 'green; background: blue')
+        );
+        $t->same(
+            'color: green',
+            $block->setProperty('color: red', 'color', 'green !important')
+        );
+        $t->same(
+            'color: green !important',
+            $block->setProperty('color: red', 'color', 'green !important', true)
+        );
+        $t->same(
+            'background: url("hero;wide.jpg"); color: green',
+            $block->setProperty('background: url("hero;wide.jpg")', 'color', 'green; --wp--bad: nope')
+        );
+        $t->same(
+            '--Block-Accent: blue',
+            $block->setProperty('--Block-Accent: red', '--Block-Accent', 'blue; color: red !important')
+        );
+        $t->same(
+            '--Theme-Rule: { color: red; background: url("/wp-content/uploads/a;b.svg") }',
+            $block->setProperty('--Theme-Rule: old', '--Theme-Rule', '{ color: red; background: url("/wp-content/uploads/a;b.svg") }; color: blue')
+        );
+        $t->same(
+            '--Escaped: token\\; still\\! kept',
+            $block->setProperty('--Escaped: old', '--Escaped', 'token\\; still\\! kept; color: red')
+        );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => $block->setProperty('color: red', 'color', '!important')
+        );
+    },
     'declaration block writes upstream cssom priority buckets' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

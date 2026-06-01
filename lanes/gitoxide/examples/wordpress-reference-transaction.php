@@ -274,6 +274,37 @@ $preparedDisabledDeleteHadLock = is_file($preparedDisabledDeletePath . '.lock');
 $preparedDisabledDeleteEdits = $preparedDisabledDelete->commit();
 $preparedDisabledDeleteCleanedLock = !is_file($preparedDisabledDeletePath . '.lock');
 
+$preparedPhasedDeleteDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-phased-delete-' . bin2hex(random_bytes(4));
+$preparedPhasedDeleteStore = new ReferenceStore($preparedPhasedDeleteDir, null, $fixture['namespace']);
+$preparedPhasedDeletePrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedPhasedDeleteCommitter = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+foreach ($fixture['preparedPhasedDeleteRefs'] as $ref) {
+    $preparedPhasedDeleteStore->looseStore()->writeDirect($preparedPhasedDeletePrefix . $ref, $fixture['reviewCommit']);
+    $preparedPhasedDeleteStore->appendReflog(
+        $ref,
+        ReferenceTarget::object($fixture['reviewCommit']),
+        ReferenceTarget::object($fixture['productionCommit']),
+        $preparedPhasedDeleteCommitter,
+        'tenant review audit before pruning',
+        true,
+    );
+}
+$preparedPhasedDelete = $preparedPhasedDeleteStore->prepareLooseDeleteTransaction(
+    $fixture['preparedPhasedDeleteRefs'],
+    ReferenceStore::PREVIOUS_MUST_EXIST,
+);
+$preparedPhasedDeleteFirstPath = $preparedPhasedDeleteDir . '/' . $preparedPhasedDeletePrefix . $fixture['preparedPhasedDeleteRefs'][0];
+$preparedPhasedDeleteSecondPath = $preparedPhasedDeleteDir . '/' . $preparedPhasedDeletePrefix . $fixture['preparedPhasedDeleteRefs'][1];
+$preparedPhasedDeleteSecondLogPath = $preparedPhasedDeleteDir . '/logs/' . $preparedPhasedDeletePrefix . $fixture['preparedPhasedDeleteRefs'][1];
+unlink($preparedPhasedDeleteSecondLogPath);
+mkdir($preparedPhasedDeleteSecondLogPath, 0777, true);
+$preparedPhasedDeleteError = null;
+try {
+    $preparedPhasedDelete->commit();
+} catch (RuntimeException $exception) {
+    $preparedPhasedDeleteError = $exception->getMessage();
+}
+
 return [
     'namespace' => $fixture['namespace'],
     'productionCommit' => $production->targetObjectId(),
@@ -355,5 +386,12 @@ return [
     'preparedDisabledDeleteHeadContents' => file_get_contents($preparedDisabledDeletePath),
     'preparedDisabledDeleteReflogExists' => $preparedDisabledDeleteStore->reflogExists($fixture['preparedDisabledDeleteHeadRef']),
     'preparedDisabledDeleteReferentReflogExists' => $preparedDisabledDeleteStore->reflogExists($fixture['preparedDisabledDeleteTargetRef']),
+    'preparedPhasedDeleteError' => $preparedPhasedDeleteError,
+    'preparedPhasedDeleteFirstRefStillExists' => $preparedPhasedDeleteStore->tryFind($fixture['preparedPhasedDeleteRefs'][0]) !== null,
+    'preparedPhasedDeleteSecondRefStillExists' => $preparedPhasedDeleteStore->tryFind($fixture['preparedPhasedDeleteRefs'][1]) !== null,
+    'preparedPhasedDeleteFirstReflogExists' => $preparedPhasedDeleteStore->reflogExists($fixture['preparedPhasedDeleteRefs'][0]),
+    'preparedPhasedDeleteSecondReflogBlocked' => is_dir($preparedPhasedDeleteSecondLogPath),
+    'preparedPhasedDeleteLocksPreserved' => is_file($preparedPhasedDeleteFirstPath . '.lock')
+        && is_file($preparedPhasedDeleteSecondPath . '.lock'),
     'wordpressUse' => $fixture['wordpressUse'],
 ];

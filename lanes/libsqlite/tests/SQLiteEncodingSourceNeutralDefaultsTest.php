@@ -22,14 +22,17 @@ $encodingSourceFiles = static function () use ($sourceRoot): array {
         $sourceRoot . '/SQLiteMalformedLikeGlobSourceNextPlan.php',
         $sourceRoot . '/SQLiteNocaseGlobAffinityCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteNocaseLikeRtrimCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteNocaseRtrimLikeCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteRtrimNocaseGlobCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteTriggerForeignKeyDynamicPlan.php',
         $sourceRoot . '/SQLiteUpsertReturningDynamicCorpusPlan.php',
         $sourceRoot . '/SQLiteUtf16CastGlobCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16LikeGlobAffinityCurrentSourceCursor.php',
         $sourceRoot . '/SQLiteUtf16LikeGlobCurrentNextCursor.php',
+        $sourceRoot . '/SQLiteUtf16LikeRtrimCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16NocaseLikeCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteUtf16RtrimLikeCurrentSourceNextPlan.php',
     ];
 };
 

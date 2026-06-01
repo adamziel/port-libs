@@ -103,6 +103,45 @@ $refreshDisabledPrefixAfterExternalHydration = $refreshDisabledDatabase->lookupP
 $refreshDisabledAfterExternalHydration = $refreshDisabledDatabase->objectState($templateOid);
 $refreshDisabledPromisorPacksAfterExternalHydration = $refreshDisabledDatabase->promisorPackNames();
 
+$refreshNeverReturnedBlob = new GitObject('blob', 'Refresh-never resolver returned WordPress template bytes');
+$refreshNeverReturnedOid = $refreshNeverReturnedBlob->oid();
+$refreshNeverReturnedResolver = new class($refreshNeverReturnedBlob, $gitDir) implements PromisorObjectResolver {
+    public array $requests = [];
+    public ?string $packName = null;
+
+    public function __construct(
+        private readonly GitObject $object,
+        private readonly string $gitDir,
+    ) {
+    }
+
+    public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+    {
+        $this->requests[] = $oid;
+        $pack = PackBuilder::build([$this->object]);
+        $packDir = $this->gitDir . '/objects/pack';
+        $basename = 'pack-' . $pack->packChecksum();
+        $this->packName = $basename . '.promisor';
+
+        file_put_contents($packDir . '/' . $basename . '.pack', $pack->packBytes());
+        file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
+        file_put_contents($packDir . '/' . $basename . '.promisor', "WordPress refresh-never returned-object hydration\n");
+
+        return $this->object;
+    }
+};
+$refreshNeverReturnedDatabase = (new ObjectDatabase($gitDir))
+    ->withPromisorResolver($refreshNeverReturnedResolver)
+    ->withObjectStorageRefreshDisabled();
+$refreshNeverReturnedBefore = $refreshNeverReturnedDatabase->objectState($refreshNeverReturnedOid);
+$refreshNeverReturned = $refreshNeverReturnedDatabase->read($refreshNeverReturnedOid);
+$refreshNeverReturnedAfter = $refreshNeverReturnedDatabase->objectState($refreshNeverReturnedOid);
+$refreshNeverReturnedHeader = $refreshNeverReturnedDatabase->readHeader($refreshNeverReturnedOid);
+$refreshNeverReturnedPromisorPacksAfter = $refreshNeverReturnedDatabase->promisorPackNames();
+$refreshNeverReturnedFreshDatabase = new ObjectDatabase($gitDir);
+$refreshNeverReturnedFreshState = $refreshNeverReturnedFreshDatabase->objectState($refreshNeverReturnedOid);
+$refreshNeverReturnedFreshHeader = $refreshNeverReturnedFreshDatabase->readHeader($refreshNeverReturnedOid);
+
 $thinPack = PackBuilder::buildWithRefDeltas([$thinTargetBlob], [$thinBaseBlob]);
 $thinPackBase = 'pack-' . $thinPack->packChecksum();
 file_put_contents($packDir . '/' . $thinPackBase . '.pack', $thinPack->packBytes());
@@ -170,6 +209,16 @@ return [
     'refreshDisabledPrefixAfterExternalHydration' => $refreshDisabledPrefixAfterExternalHydration,
     'refreshDisabledAfterExternalHydration' => $refreshDisabledAfterExternalHydration,
     'refreshDisabledPromisorPacksAfterExternalHydration' => $refreshDisabledPromisorPacksAfterExternalHydration,
+    'refreshNeverReturnedObject' => $refreshNeverReturnedOid,
+    'refreshNeverReturnedBefore' => $refreshNeverReturnedBefore,
+    'refreshNeverReturnedRequests' => $refreshNeverReturnedResolver->requests,
+    'refreshNeverReturnedPack' => $refreshNeverReturnedResolver->packName,
+    'refreshNeverReturnedResolvedSize' => strlen($refreshNeverReturned->body),
+    'refreshNeverReturnedAfter' => $refreshNeverReturnedAfter,
+    'refreshNeverReturnedHeader' => $refreshNeverReturnedHeader,
+    'refreshNeverReturnedPromisorPacksAfter' => $refreshNeverReturnedPromisorPacksAfter,
+    'refreshNeverReturnedFreshState' => $refreshNeverReturnedFreshState,
+    'refreshNeverReturnedFreshHeader' => $refreshNeverReturnedFreshHeader,
     'promisorPacksAfterExternalHydration' => $database->promisorPackNames(),
     'thinPromisorPack' => $thinPackBase . '.promisor',
     'thinPromisorPackIsThin' => $thinPack->isThin(),

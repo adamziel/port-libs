@@ -1434,6 +1434,41 @@ return [
         $t->same(true, is_dir($dir . '/logs/refs/heads/review/plugin-a'));
         $t->same($old, $store->find('refs/heads/review/plugin-a')->targetObjectId());
     },
+    'prepared reference transaction deletes all reflogs before deleting any refs like upstream' => static function (TestRunner $t) use ($old, $new): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-delete-reflog-phase-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        foreach (['refs/heads/review/plugin-a', 'refs/heads/review/plugin-b'] as $name) {
+            $store->looseStore()->writeDirect($name, $old);
+            $store->appendReflog(
+                $name,
+                ReferenceTarget::object($old),
+                ReferenceTarget::object($new),
+                $committer,
+                'audit before pruning',
+                true,
+            );
+        }
+
+        $transaction = $store->prepareLooseDeleteTransaction(
+            ['refs/heads/review/plugin-a', 'refs/heads/review/plugin-b'],
+            ReferenceStore::PREVIOUS_MUST_EXIST,
+        );
+        unlink($dir . '/logs/refs/heads/review/plugin-b');
+        mkdir($dir . '/logs/refs/heads/review/plugin-b', 0777, true);
+
+        $t->throws(RuntimeException::class, static fn () => $transaction->commit());
+
+        $t->same(false, $transaction->isOpen());
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/review/plugin-a'));
+        $t->same("{$old}\n", file_get_contents($dir . '/refs/heads/review/plugin-b'));
+        $t->same(false, $store->reflogExists('refs/heads/review/plugin-a'), 'earlier reflogs may be removed before the later reflog failure');
+        $t->same(true, is_dir($dir . '/logs/refs/heads/review/plugin-b'));
+        $t->same(true, is_file($dir . '/refs/heads/review/plugin-a.lock'));
+        $t->same(true, is_file($dir . '/refs/heads/review/plugin-b.lock'));
+        $t->same($old, $store->find('refs/heads/review/plugin-a')->targetObjectId());
+        $t->same($old, $store->find('refs/heads/review/plugin-b')->targetObjectId());
+    },
     'prepared reference transaction deletes broken loose refs after staging locks' => static function (TestRunner $t): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-delete-broken-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -1728,6 +1763,15 @@ return [
         $t->same($fixture['expectedPreparedDisabledDeleteHeadContents'], $summary['preparedDisabledDeleteHeadContents']);
         $t->same($fixture['expectedPreparedDisabledDeleteReflogExists'], $summary['preparedDisabledDeleteReflogExists']);
         $t->same($fixture['expectedPreparedDisabledDeleteReferentReflogExists'], $summary['preparedDisabledDeleteReferentReflogExists']);
+        $t->same(
+            $fixture['expectedPreparedPhasedDeleteErrorPrefix'],
+            substr((string) $summary['preparedPhasedDeleteError'], 0, strlen($fixture['expectedPreparedPhasedDeleteErrorPrefix'])),
+        );
+        $t->same($fixture['expectedPreparedPhasedDeleteFirstRefStillExists'], $summary['preparedPhasedDeleteFirstRefStillExists']);
+        $t->same($fixture['expectedPreparedPhasedDeleteSecondRefStillExists'], $summary['preparedPhasedDeleteSecondRefStillExists']);
+        $t->same($fixture['expectedPreparedPhasedDeleteFirstReflogExists'], $summary['preparedPhasedDeleteFirstReflogExists']);
+        $t->same($fixture['expectedPreparedPhasedDeleteSecondReflogBlocked'], $summary['preparedPhasedDeleteSecondReflogBlocked']);
+        $t->same($fixture['expectedPreparedPhasedDeleteLocksPreserved'], $summary['preparedPhasedDeleteLocksPreserved']);
         $t->contains('idempotent prepared writes', $summary['wordpressUse']);
         $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
         $t->contains('clone-style symbolic review pointer', $summary['wordpressUse']);
@@ -1735,6 +1779,7 @@ return [
         $t->contains('direct production referent publish', $summary['wordpressUse']);
         $t->contains('quiet publish previews', $summary['wordpressUse']);
         $t->contains('disabled write-mode audit cleanup', $summary['wordpressUse']);
+        $t->contains('later prepared reflog deletion fails', $summary['wordpressUse']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {
         $fixture = require dirname(__DIR__) . '/fixtures/wordpress-deref-reference-transaction.php';

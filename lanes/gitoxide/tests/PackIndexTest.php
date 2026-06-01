@@ -250,6 +250,23 @@ return [
         $t->same($entries[2]['oid'], $last['entry']->oid);
         $t->same(['start' => 2, 'end' => 3], $last['candidateRange']);
     },
+    'returns full pack index prefix after every shorter prefix remains ambiguous like gix-odb' => static function (TestRunner $t) use ($buildIndex, $packChecksum): void {
+        $sharedThirtyNine = str_repeat('a', 39);
+        $first = $sharedThirtyNine . '1';
+        $second = $sharedThirtyNine . '2';
+        $missingCandidate = $sharedThirtyNine . '3';
+        $index = PackIndex::fromBytes($buildIndex([
+            ['oid' => $second, 'offset' => 24, 'crc32' => 2],
+            ['oid' => $first, 'offset' => 12, 'crc32' => 1],
+        ], $packChecksum));
+
+        $ambiguous = $index->lookupPrefix(substr($missingCandidate, 0, 39));
+        $t->same('ambiguous', $ambiguous['status']);
+        $t->same(['start' => 0, 'end' => 2], $ambiguous['candidateRange']);
+        $t->same($missingCandidate, $index->disambiguatePrefix(strtoupper($missingCandidate), 4));
+        $t->same(null, $index->disambiguatePrefix($missingCandidate, 40));
+        $t->same('missing', $index->lookupPrefix($missingCandidate)['status']);
+    },
     'rejects corrupt pack index headers fanout sizes and checksums' => static function (TestRunner $t) use ($buildIndex, $entries, $packChecksum): void {
         $valid = $buildIndex($entries, $packChecksum);
         $t->throws(InvalidArgumentException::class, static fn () => PackIndex::fromBytes('not an index'));

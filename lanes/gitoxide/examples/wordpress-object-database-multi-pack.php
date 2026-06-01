@@ -30,6 +30,17 @@ $contentPrefixCandidates = $database->lookupPrefix(substr($fixture['objectsByRol
 $contentShortestPrefix = $database->disambiguatePrefix($fixture['objectsByRole']['content']['oid'], 4);
 $contentFullPrefix = $database->lookupPrefix($fixture['objectsByRole']['content']['oid'], true);
 
+// Prefix disambiguation only needs the loose-object inventory, not object body reads.
+$syntheticSharedPrefix = str_repeat('c', 39);
+foreach ([$syntheticSharedPrefix . '1', $syntheticSharedPrefix . '2'] as $syntheticOid) {
+    $path = $gitDir . '/objects/' . substr($syntheticOid, 0, 2) . '/' . substr($syntheticOid, 2);
+    if (!is_dir(dirname($path)) && !mkdir(dirname($path), 0777, true) && !is_dir(dirname($path))) {
+        throw new RuntimeException("Unable to create synthetic loose object path: " . dirname($path));
+    }
+    file_put_contents($path, 'prefix-index-only-candidate');
+}
+$syntheticMissingCandidate = $syntheticSharedPrefix . '3';
+
 return [
     'packedObjects' => $database->packedObjectCount(),
     'rawPackIndexObjects' => array_sum(array_map(static fn (array $pack): int => count($pack['objects']), $fixture['packs'])),
@@ -46,5 +57,7 @@ return [
     'contentShortestPrefixAfterLooseCandidate' => $contentShortestPrefix,
     'contentFullPrefixStatus' => $contentFullPrefix['status'],
     'contentFullPrefixCandidates' => $contentFullPrefix['candidates'],
+    'missingAmbiguousFullPrefix' => $database->disambiguatePrefix($syntheticMissingCandidate, 4),
+    'missingAmbiguousFullPrefixExists' => $database->contains($syntheticMissingCandidate),
     'packOffsetOrder' => $database->objectIds(ObjectDatabase::ORDER_PACK_OFFSET_THEN_LOOSE_LEXICOGRAPHICAL),
 ];

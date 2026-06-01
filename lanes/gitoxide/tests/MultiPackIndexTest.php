@@ -285,6 +285,23 @@ return [
         $t->same($sha256Second, $sha256Full['entry']->oid);
         $t->same(['start' => 1, 'end' => 2], $sha256Full['candidateRange']);
     },
+    'returns full multi-pack-index prefix after every shorter prefix remains ambiguous like gix-odb' => static function (TestRunner $t) use ($buildMultiIndex, $indexNames): void {
+        $sharedThirtyNine = str_repeat('b', 39);
+        $first = $sharedThirtyNine . '1';
+        $second = $sharedThirtyNine . '2';
+        $missingCandidate = $sharedThirtyNine . '3';
+        $index = MultiPackIndex::fromBytes($buildMultiIndex([
+            ['oid' => $second, 'packIndex' => 1, 'offset' => 24],
+            ['oid' => $first, 'packIndex' => 0, 'offset' => 12],
+        ], $indexNames));
+
+        $ambiguous = $index->lookupPrefix(substr($missingCandidate, 0, 39));
+        $t->same('ambiguous', $ambiguous['status']);
+        $t->same(['start' => 0, 'end' => 2], $ambiguous['candidateRange']);
+        $t->same($missingCandidate, $index->disambiguatePrefix(strtoupper($missingCandidate), 4));
+        $t->same(null, $index->disambiguatePrefix($missingCandidate, 40));
+        $t->same('missing', $index->lookupPrefix($missingCandidate)['status']);
+    },
     'supports raw high-bit offsets when no large-offset chunk is present' => static function (TestRunner $t) use ($buildMultiIndex, $indexNames): void {
         $index = MultiPackIndex::fromBytes($buildMultiIndex([
             ['oid' => '0034111111111111111111111111111111111111', 'packIndex' => 0, 'offset' => 0x80000005],

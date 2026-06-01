@@ -511,6 +511,19 @@ if ($lateLayerBundle !== '@layer theme.blocks{.wp-block-card{color:green}@layer 
 
 echo 'late-layer-import-order: preserved' . PHP_EOL;
 
+$duplicateLayerBundle = (new CssBundler())->bundle('/duplicate-layer-entry.css', [
+    '/duplicate-layer-entry.css' => '@import "blocks/shared.css"; @import "blocks/shared.css" layer(theme.blocks); @import "blocks/card.css" layer(theme.blocks); .wp-site-blocks { color: red }',
+    '/blocks/shared.css' => '.wp-block-buttons { color: blue }',
+    '/blocks/card.css' => '.wp-block-card { color: green }',
+]);
+
+if ($duplicateLayerBundle !== '@layer theme.blocks{.wp-block-buttons{color:#00f}.wp-block-card{color:green}}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected duplicate block imports to preserve named layer state\n");
+    exit(1);
+}
+
+echo 'duplicate-layer-imports: merged' . PHP_EOL;
+
 $escapedLayerBundle = (new CssBundler())->bundle('/escaped-layer-entry.css', [
     '/escaped-layer-entry.css' => '@import "blocks/card.css" layer(plugin\2e cards); .wp-site-blocks { color: red }',
     '/blocks/card.css' => '@import "../tokens.css" layer(palette\2c dark); .wp-block-card { color: green }',

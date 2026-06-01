@@ -9505,6 +9505,7 @@ final class DeclarationBlock
     {
         $property = $this->normalizeProperty($property);
         $value = trim($this->replaceCssCommentsWithWhitespace($value));
+        $value = $this->cssomSetValueBeforeTopLevelDelimiter($value);
         if ($value === '') {
             throw new \InvalidArgumentException('CSS declaration value cannot be empty');
         }
@@ -9523,6 +9524,55 @@ final class DeclarationBlock
         }
 
         return $this->serializeEntries(array_merge($normalEntries, $importantEntries));
+    }
+
+    private function cssomSetValueBeforeTopLevelDelimiter(string $value): string
+    {
+        $quote = null;
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $braceDepth = 0;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($quote !== null) {
+                if ($char === '\\' && $i + 1 < $length) {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '\\') {
+                $escape = $this->readCssEscape($value, $i, $length);
+                if ($escape !== null) {
+                    $i = $escape['end'] - 1;
+                    continue;
+                }
+            } elseif ($char === '"' || $char === "'") {
+                $quote = $char;
+            } elseif ($char === '(') {
+                $parenDepth++;
+            } elseif ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
+            } elseif ($char === '[') {
+                $bracketDepth++;
+            } elseif ($char === ']') {
+                $bracketDepth = max(0, $bracketDepth - 1);
+            } elseif ($char === '{') {
+                $braceDepth++;
+            } elseif ($char === '}') {
+                $braceDepth = max(0, $braceDepth - 1);
+            } elseif (($char === ';' || $char === '!') && $parenDepth === 0 && $bracketDepth === 0 && $braceDepth === 0) {
+                return rtrim(substr($value, 0, $i));
+            }
+        }
+
+        return $value;
     }
 
     /**

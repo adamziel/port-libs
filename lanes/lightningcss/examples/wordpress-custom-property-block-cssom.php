@@ -17,6 +17,11 @@ $actual = [
         '--wp--custom--button-hover',
         '{ color: var(--wp--preset--color--contrast); background: url("/wp-content/uploads/cta.svg") }'
     ),
+    'delimiterParsedHoverRule' => $block->setProperty(
+        '--wp--custom--button-hover: old',
+        '--wp--custom--button-hover',
+        '{ color: var(--wp--preset--color--contrast); background: url("/wp-content/uploads/a;b.svg") }; color: red !important'
+    ),
     'removedHoverRule' => $block->removeProperty($declarations, '--wp--custom--button-hover'),
 ];
 
@@ -37,6 +42,7 @@ $expected = [
         'important' => true,
     ],
     'updatedHoverRule' => '--wp--custom--button-hover: { color: var(--wp--preset--color--contrast); background: url("/wp-content/uploads/cta.svg") }; color: var(--wp--preset--color--contrast); --wp--custom--editor-list: [--focus: 1; --hover: 2] !important',
+    'delimiterParsedHoverRule' => '--wp--custom--button-hover: { color: var(--wp--preset--color--contrast); background: url("/wp-content/uploads/a;b.svg") }',
     'removedHoverRule' => 'color: var(--wp--preset--color--contrast); --wp--custom--editor-list: [--focus: 1; --hover: 2] !important',
     'invalidColorBlockRejected' => true,
 ];

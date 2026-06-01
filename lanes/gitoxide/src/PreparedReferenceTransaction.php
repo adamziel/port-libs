@@ -144,13 +144,18 @@ final class PreparedReferenceTransaction
         try {
             foreach ($this->locks as $lock) {
                 $action = $lock['action'] ?? self::ACTION_UPDATE;
-                if ($action === self::ACTION_NOOP) {
-                    continue;
-                }
-                if ($action === self::ACTION_DELETE) {
-                    $this->commitDelete($lock);
-                } else {
+                if ($action === self::ACTION_UPDATE) {
                     $this->commitUpdate($lock);
+                }
+            }
+            foreach ($this->locks as $lock) {
+                if (($lock['action'] ?? self::ACTION_UPDATE) === self::ACTION_DELETE) {
+                    $this->commitDeleteReflog($lock);
+                }
+            }
+            foreach ($this->locks as $lock) {
+                if (($lock['action'] ?? self::ACTION_UPDATE) === self::ACTION_DELETE) {
+                    $this->commitDeleteReference($lock);
                 }
             }
         } finally {
@@ -214,7 +219,18 @@ final class PreparedReferenceTransaction
     /**
      * @param array{lockPath:string,edit:ReferenceTransactionEdit,delete:array{physicalName:string,deleteReference:bool,deleteReflog:bool}} $lock
      */
-    private function commitDelete(array $lock): void
+    private function commitDeleteReflog(array $lock): void
+    {
+        $delete = $lock['delete'];
+        if ($delete['deleteReflog']) {
+            $this->deletePreparedReflog($delete['physicalName']);
+        }
+    }
+
+    /**
+     * @param array{lockPath:string,edit:ReferenceTransactionEdit,delete:array{physicalName:string,deleteReference:bool,deleteReflog:bool}} $lock
+     */
+    private function commitDeleteReference(array $lock): void
     {
         $lockPath = $lock['lockPath'];
         if (!is_file($lockPath)) {
@@ -222,10 +238,6 @@ final class PreparedReferenceTransaction
         }
 
         $delete = $lock['delete'];
-        if ($delete['deleteReflog']) {
-            $this->deletePreparedReflog($delete['physicalName']);
-        }
-
         if ($delete['deleteReference']) {
             $targetPath = $this->targetPathForLock($lockPath);
             if (is_file($targetPath) && !unlink($targetPath)) {

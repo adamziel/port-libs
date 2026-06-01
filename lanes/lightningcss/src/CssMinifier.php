@@ -14786,11 +14786,17 @@ final class CssMinifier
             return 1.0;
         }
 
-        if (strcasecmp(trim($alpha), 'none') === 0) {
+        $alpha = trim($alpha);
+        if (strcasecmp($alpha, 'none') === 0) {
             return null;
         }
 
-        return $this->parseAlphaComponent($alpha) ?? false;
+        $number = $this->parseColorNumberToken($alpha);
+        if ($number === null) {
+            return false;
+        }
+
+        return $number['isPercentage'] ? $number['value'] / 100 : $number['value'];
     }
 
     private function parseColorFunctionColorMixComponent(string $token): float|false|null
@@ -14813,6 +14819,9 @@ final class CssMinifier
      */
     private function resolveRectangularColorMixAlphas(?float $left, ?float $right, float $leftWeight, float $rightWeight): array
     {
+        $left = $left === null ? null : max(0.0, min(1.0, $left));
+        $right = $right === null ? null : max(0.0, min(1.0, $right));
+
         if ($left === null && $right === null) {
             return [1.0, 1.0, null];
         }
@@ -14986,11 +14995,12 @@ final class CssMinifier
             return '/none';
         }
 
+        $alpha = max(0.0, min(1.0, $alpha));
         if (abs($alpha - 1.0) < 0.0000001) {
             return '';
         }
 
-        return '/' . $this->minifyColorNumber(max(0.0, min(1.0, $alpha)), 4);
+        return '/' . $this->minifyColorNumber($alpha, 4);
     }
 
     private function colorMixRgbByteRoundingBias(?float $leftAlpha, ?float $rightAlpha, float $leftWeight, float $rightWeight): float

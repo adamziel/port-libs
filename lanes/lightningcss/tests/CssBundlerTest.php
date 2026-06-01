@@ -1274,6 +1274,49 @@ CSS,
             ], '/entry.css')
         );
     },
+    'css bundler preserves named layer state when repeated imports merge' => static function (TestRunner $t) use ($bundle): void {
+        $t->same(
+            '@layer foo{.b{color:green}}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(foo); @import "b.css" layer(foo);',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@layer foo{.b{color:green}}',
+            $bundle([
+                '/a.css' => '@import "b.css"; @import "b.css" layer(foo);',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $t->same(
+            '@layer foo{.b{color:green}}',
+            $bundle([
+                '/a.css' => '@import "b.css" layer(foo); @import "b.css";',
+                '/b.css' => '.b { color: green }',
+            ], '/a.css')
+        );
+
+        $reads = [];
+        $readerFiles = [
+            '/entry.css' => '@import "shared.css" layer(theme); @import "shared.css"; .entry { color: red }',
+            '/shared.css' => '.shared { color: green }',
+        ];
+
+        $readerBundle = (new CssBundler())->bundleWithReader(
+            '/entry.css',
+            static function (string $file) use (&$reads, $readerFiles): string {
+                $reads[] = $file;
+
+                return $readerFiles[$file] ?? throw new RuntimeException("Missing test CSS file {$file}");
+            }
+        );
+
+        $t->same('@layer theme{.shared{color:green}}.entry{color:red}', $readerBundle);
+        $t->same(['/entry.css', '/shared.css'], $reads);
+    },
     'css bundler maps anonymous layer imports and unsupported layer combinations' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@layer{.b{color:green}}.a{color:red}',

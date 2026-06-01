@@ -777,6 +777,28 @@ return [
         ], $full);
         $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix('0000000', true));
     },
+    'object database returns full prefix after every shorter loose candidate prefix remains ambiguous like gix-odb' => static function (TestRunner $t) use ($looseObjectPath): void {
+        $gitDir = sys_get_temp_dir() . '/port-libs-git-odb-prefix-full-fallthrough-' . bin2hex(random_bytes(4)) . '/.git';
+        $sharedThirtyNine = str_repeat('c', 39);
+        $first = $sharedThirtyNine . '1';
+        $second = $sharedThirtyNine . '2';
+        $missingCandidate = $sharedThirtyNine . '3';
+        foreach ([$first, $second] as $oid) {
+            $path = $looseObjectPath($gitDir, $oid);
+            if (!is_dir(dirname($path)) && !mkdir(dirname($path), 0777, true) && !is_dir(dirname($path))) {
+                throw new RuntimeException("Unable to create loose object fixture directory: " . dirname($path));
+            }
+            file_put_contents($path, 'prefix-index-only-candidate');
+        }
+
+        $database = new ObjectDatabase($gitDir);
+        $ambiguous = $database->lookupPrefix(substr($missingCandidate, 0, 39), true);
+        $t->same('ambiguous', $ambiguous['status']);
+        $t->same([$first, $second], $ambiguous['candidates']);
+        $t->same($missingCandidate, $database->disambiguatePrefix(strtoupper($missingCandidate), 4));
+        $t->same(null, $database->disambiguatePrefix($missingCandidate, 40));
+        $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix($missingCandidate, true));
+    },
     'object database rejects multi-pack-index entries that reference missing packs' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
         [$gitDir] = $writeWordPressMultiPackFixture(true);
         $database = new ObjectDatabase($gitDir);
@@ -849,6 +871,8 @@ return [
             substr($summary['contentOid'], 0, strlen($summary['contentShortestPrefixAfterLooseCandidate'])),
             $summary['contentShortestPrefixAfterLooseCandidate']
         );
+        $t->same(str_repeat('c', 39) . '3', $summary['missingAmbiguousFullPrefix']);
+        $t->same(false, $summary['missingAmbiguousFullPrefixExists']);
         $t->same(3, $summary['packedObjects']);
         $t->same(4, $summary['rawPackIndexObjects']);
     },

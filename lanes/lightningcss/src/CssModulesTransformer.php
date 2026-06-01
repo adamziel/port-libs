@@ -1643,7 +1643,8 @@ final class CssModulesTransformer
             return;
         }
 
-        foreach ($locals as $local) {
+        foreach ($locals as $localName) {
+            $local = (string) $localName;
             $this->ensureExport($local);
             foreach ($composes as $compose) {
                 if (
@@ -1803,7 +1804,8 @@ final class CssModulesTransformer
         foreach ($this->splitTopLevel($selectorList, ',') as $selector) {
             $selectorLocals = [];
             $rewritten[] = $this->rewriteSelectorFragment($selector, 'local', $selectorLocals);
-            foreach (array_keys($selectorLocals) as $local) {
+            foreach (array_keys($selectorLocals) as $localKey) {
+                $local = (string) $localKey;
                 if (!in_array($local, $locals, true)) {
                     $locals[] = $local;
                 }

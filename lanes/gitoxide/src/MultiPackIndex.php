@@ -320,7 +320,7 @@ final class MultiPackIndex
             }
         }
 
-        return $this->lookup($oid) === null ? null : $oid;
+        return $oid;
     }
 
     /**

@@ -637,22 +637,27 @@ final class MediaQueryParser
             return true;
         }
 
+        $number = $this->cssNumberPattern();
+
         return match ($type) {
             'integer' => preg_match('/^[+-]?\d+$/', $value) === 1,
-            'number' => preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+))$/', $value) === 1,
-            'resolution' => preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:dpcm|dpi|dppx|x))$/i', $value) === 1,
-            'ratio' => preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+))(?:\s*\/\s*(?:0|[+-]?(?:\d+|\d*\.\d+)))?$/', $value) === 1,
+            'number' => preg_match('/^' . $number . '$/', $value) === 1,
+            'resolution' => preg_match('/^' . $number . '(?:dpcm|dpi|dppx|x)$/i', $value) === 1,
+            'ratio' => preg_match('/^' . $number . '(?:\s*\/\s*' . $number . ')?$/', $value) === 1,
             'unknown' => $this->isValidUnknownRangeValue($value),
-            default => preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:[a-zA-Z%]+))$/', $value) === 1,
+            default => $this->isZeroNumber($value)
+                || preg_match('/^' . $number . '(?:[a-zA-Z%]+)$/', $value) === 1,
         };
     }
 
     private function isValidUnknownRangeValue(string $value): bool
     {
-        return preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+))$/', $value) === 1
-            || preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+))(?:\s*\/\s*(?:0|[+-]?(?:\d+|\d*\.\d+)))$/', $value) === 1
-            || preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:[a-zA-Z%]+))$/', $value) === 1
-            || preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:dpcm|dpi|dppx|x))$/i', $value) === 1
+        $number = $this->cssNumberPattern();
+
+        return preg_match('/^' . $number . '$/', $value) === 1
+            || preg_match('/^' . $number . '(?:\s*\/\s*' . $number . ')$/', $value) === 1
+            || preg_match('/^' . $number . '(?:[a-zA-Z%]+)$/', $value) === 1
+            || preg_match('/^' . $number . '(?:dpcm|dpi|dppx|x)$/i', $value) === 1
             || preg_match('/^' . $this->cssIdentifierPattern() . '$/', $value) === 1
             || preg_match('/^[-_a-zA-Z][-_a-zA-Z0-9]*$/', $value) === 1;
     }
@@ -717,7 +722,7 @@ final class MediaQueryParser
 
     private function minifyNumericValue(string $value): string
     {
-        $number = '[+-]?(?:\d+|\d*\.\d+)';
+        $number = $this->cssNumberPattern();
         if (preg_match('/^(' . $number . ')([a-zA-Z%]+)$/', $value, $matches) === 1) {
             $numeric = $this->trimNumber($matches[1]);
             $unit = strtolower($matches[2]);
@@ -801,9 +806,9 @@ final class MediaQueryParser
 
     private function convertDppxResolutionUnits(string $queryList): string
     {
-        $number = '([+-]?(?:\d+|\d*\.\d+))';
+        $number = $this->cssNumberPattern();
         $queryList = preg_replace_callback(
-            '/(\b(?:min-|max-)?resolution\s*(?::|[<>]=?|=)\s*)' . $number . 'dppx\b/i',
+            '/(\b(?:min-|max-)?resolution\s*(?::|[<>]=?|=)\s*)(' . $number . ')dppx\b/i',
             fn (array $matches): string => $matches[1] . $this->trimNumber($matches[2]) . 'x',
             $queryList
         ) ?? $queryList;
@@ -817,9 +822,9 @@ final class MediaQueryParser
 
     private function convertXResolutionUnits(string $queryList): string
     {
-        $number = '([+-]?(?:\d+|\d*\.\d+))';
+        $number = $this->cssNumberPattern();
         $queryList = preg_replace_callback(
-            '/(\b(?:min-|max-)?resolution\s*(?::|[<>]=?|=)\s*)' . $number . 'x\b/i',
+            '/(\b(?:min-|max-)?resolution\s*(?::|[<>]=?|=)\s*)(' . $number . ')x\b/i',
             fn (array $matches): string => $matches[1] . $this->trimNumber($matches[2]) . 'dppx',
             $queryList
         ) ?? $queryList;
@@ -838,7 +843,8 @@ final class MediaQueryParser
             return $unitless;
         }
 
-        if (preg_match('/^calc\(\s*([+-]?[0-9]+(?:\.[0-9]+)?)([a-zA-Z%]+)\s*([+-])\s*([0-9]+(?:\.[0-9]+)?)\2\s*\)$/', $value, $matches) !== 1) {
+        $number = $this->cssNumberPattern();
+        if (preg_match('/^calc\(\s*(' . $number . ')([a-zA-Z%]+)\s*([+-])\s*(' . $number . ')\2\s*\)$/', $value, $matches) !== 1) {
             return preg_replace_callback(
                 '/^calc\(\s*(.+)\s*\)$/',
                 fn (array $m): string => 'calc(' . $this->normalizeCalcOperatorSpacing(trim($m[1])) . ')',
@@ -855,7 +861,7 @@ final class MediaQueryParser
 
     private function foldSimpleUnitlessCalc(string $value): ?string
     {
-        $number = '[+-]?(?:\d+|\d*\.\d+)';
+        $number = $this->cssNumberPattern();
         if (preg_match('/^calc\(\s*(' . $number . ')\s*([+\-*\/])\s*(' . $number . ')\s*\)$/', $value, $matches) !== 1) {
             return null;
         }
@@ -1028,6 +1034,16 @@ final class MediaQueryParser
         $continue = '(?:[-_a-zA-Z0-9]|' . $escape . ')';
 
         return '(?:(?:--)|-?' . $start . ')' . $continue . '*';
+    }
+
+    private function cssNumberPattern(): string
+    {
+        return '[+-]?(?:(?:\d+\.\d*|\d*\.\d+|\d+)(?:[eE][+-]?\d+)?)';
+    }
+
+    private function isZeroNumber(string $value): bool
+    {
+        return preg_match('/^' . $this->cssNumberPattern() . '$/', $value) === 1 && (float) $value === 0.0;
     }
 
     private function canonicalMediaIdentifier(string $identifier): string
@@ -1528,6 +1544,15 @@ final class MediaQueryParser
             return $number;
         }
 
+        if (stripos($number, 'e') !== false) {
+            $float = (float) $number;
+            if ($float !== 0.0 && abs($float) < 0.000001) {
+                return $this->normalizeScientificNumber($number);
+            }
+
+            $number = $this->formatFloatNumber($float);
+        }
+
         $sign = '';
         if ($number[0] === '+' || $number[0] === '-') {
             $sign = $number[0];
@@ -1553,6 +1578,39 @@ final class MediaQueryParser
         $number = ($integer === '' ? '' : $integer) . '.' . $fraction;
 
         return ($sign === '-' ? '-' : '') . $number;
+    }
+
+    private function formatFloatNumber(float $number): string
+    {
+        if (!is_finite($number)) {
+            return (string) $number;
+        }
+
+        $formatted = rtrim(rtrim(sprintf('%.12F', $number), '0'), '.');
+        if ($formatted === '' || $formatted === '-0') {
+            return '0';
+        }
+
+        return $formatted;
+    }
+
+    private function normalizeScientificNumber(string $number): string
+    {
+        if (preg_match('/^([+-]?)(\d+\.\d*|\d*\.\d+|\d+)[eE]([+-]?\d+)$/', $number, $matches) !== 1) {
+            return strtolower($number);
+        }
+
+        $mantissa = $this->trimNumber($matches[2]);
+        if ($mantissa === '0') {
+            return '0';
+        }
+
+        $exponent = (int) $matches[3];
+        if ($exponent === 0) {
+            return ($matches[1] === '-' ? '-' : '') . $mantissa;
+        }
+
+        return ($matches[1] === '-' ? '-' : '') . $mantissa . 'e' . $exponent;
     }
 
     private function lowerRangeSyntaxQuery(string $query, bool $lowerSimpleRanges, bool $lowerIntervalRanges): string

@@ -485,6 +485,56 @@ return [
         $t->same('promisor-present', $refreshedDatabase->objectState($sideEffectOid)['status']);
         $t->same(true, in_array($resolver->packName, $refreshedDatabase->promisorPackNames(), true));
     },
+    'object database refresh-disabled handle persists resolver-returned objects without consuming side-effect packs' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $returnedBlob = new GitObject('blob', 'Resolver returned bytes while writing a hidden refresh-never promisor pack');
+        $returnedOid = $returnedBlob->oid();
+        $resolver = new class($returnedBlob, $gitDir) implements PromisorObjectResolver {
+            public array $requests = [];
+            public ?string $packName = null;
+
+            public function __construct(
+                private readonly GitObject $object,
+                private readonly string $gitDir,
+            ) {
+            }
+
+            public function resolvePromisedObject(string $oid, ObjectDatabase $database): ?GitObject
+            {
+                $this->requests[] = $oid;
+                $pack = PackBuilder::build([$this->object]);
+                $packDir = $this->gitDir . '/objects/pack';
+                $basename = 'pack-' . $pack->packChecksum();
+                $this->packName = $basename . '.promisor';
+
+                file_put_contents($packDir . '/' . $basename . '.pack', $pack->packBytes());
+                file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
+                file_put_contents($packDir . '/' . $basename . '.promisor', "refresh-never returned-object side effect\n");
+
+                return $this->object;
+            }
+        };
+        $staleDatabase = (new ObjectDatabase($gitDir))
+            ->withPromisorResolver($resolver)
+            ->withObjectStorageRefreshDisabled();
+
+        $t->same(false, $staleDatabase->objectStorageRefreshesOnMiss());
+        $t->same('promised-missing', $staleDatabase->objectState($returnedOid)['status']);
+        $t->same(1, count($staleDatabase->promisorPackNames()));
+
+        $resolved = $staleDatabase->read($returnedOid);
+
+        $t->same($returnedBlob->body, $resolved->body);
+        $t->same([$returnedOid], $resolver->requests);
+        $t->same('present', $staleDatabase->objectState($returnedOid)['status']);
+        $t->same('loose', $staleDatabase->readHeader($returnedOid)['source']);
+        $t->same(false, in_array($resolver->packName, $staleDatabase->promisorPackNames(), true));
+
+        $freshDatabase = new ObjectDatabase($gitDir);
+        $t->same('promisor-present', $freshDatabase->objectState($returnedOid)['status']);
+        $t->same('pack', $freshDatabase->readHeader($returnedOid)['source']);
+        $t->same(true, in_array($resolver->packName, $freshDatabase->promisorPackNames(), true));
+    },
     'object database resolves promisor thin pack deltas from loose base objects' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackResult, $buildThinPromisorBlobs): void {
         [$gitDir] = $writePromisorPackFixture();
         [$baseBlob, $targetBlob] = $buildThinPromisorBlobs('loose-base');
@@ -652,5 +702,12 @@ return [
         $t->same(true, in_array($summary['directInventoryPack'], $summary['directInventoryPackNames'], true));
         $t->same(true, in_array($summary['directInventoryObject'], $summary['directInventoryObjectIds'], true));
         $t->same(true, $summary['directInventoryIsPromisor']);
+        $t->same('promised-missing', $summary['refreshNeverReturnedBefore']['status']);
+        $t->same([$summary['refreshNeverReturnedObject']], $summary['refreshNeverReturnedRequests']);
+        $t->same('present', $summary['refreshNeverReturnedAfter']['status']);
+        $t->same('loose', $summary['refreshNeverReturnedHeader']['source']);
+        $t->same(false, in_array($summary['refreshNeverReturnedPack'], $summary['refreshNeverReturnedPromisorPacksAfter'], true));
+        $t->same('promisor-present', $summary['refreshNeverReturnedFreshState']['status']);
+        $t->same('pack', $summary['refreshNeverReturnedFreshHeader']['source']);
     },
 ];

@@ -436,6 +436,12 @@ $duplicateColumnNegativeMap->addVlqMap(
 );
 $duplicateColumnNegativeMap->offsetColumns(0, 5, -5);
 
+$duplicateBoundaryNegativeMap = SourceMap::fromJson(
+    '{"version":3,"mappings":"AAAAA,EACAC,AACAC,GACAC","sources":["wp-content/themes/example/source-map-duplicate-boundary.css"],"sourcesContent":[".wp-block-duplicate-boundary{}"],"names":["first-boundary-rule","start-boundary-a","start-boundary-b","shifted-boundary-rule"]}'
+);
+$duplicateBoundaryNegativeMap->offsetColumns(0, 5, -3);
+$duplicateBoundaryNegativeClosest = $duplicateBoundaryNegativeMap->findClosestMapping(0, 2);
+
 $unsortedRawVlqMap = new SourceMap();
 $unsortedRawVlqMap->addVlqMap(
     'UAAAA,RACAC',
@@ -712,6 +718,8 @@ $actual = [
     'streamingRawVlqMap' => $streamingRawVlqMap->toJson(null, false),
     'duplicateColumnPositiveMap' => $duplicateColumnPositiveMap->toJson(null, false),
     'duplicateColumnNegativeMap' => $duplicateColumnNegativeMap->toJson(null, false),
+    'duplicateBoundaryNegativeMap' => $duplicateBoundaryNegativeMap->toJson(null, false),
+    'duplicateBoundaryNegativeClosest' => $duplicateBoundaryNegativeClosest,
     'unsortedRawVlqMap' => $unsortedRawVlqMap->toJson(null, false),
     'unsortedRawVlqPositiveOffsetMap' => $unsortedRawVlqPositiveOffsetMap->toJson(null, false),
     'unsortedRawVlqNegativeOffsetMap' => $unsortedRawVlqNegativeOffsetMap->toJson(null, false),
@@ -790,6 +798,8 @@ if (($argv[1] ?? null) === '--self-test') {
         'streamingRawVlqMap' => '{"version":3,"mappings":";;IAAAA,A;K","sources":["wp-content/themes/example/source-map-stream.css"],"sourcesContent":[".wp-block-source-map-stream{}"],"names":["stream-rule"]}',
         'duplicateColumnPositiveMap' => '{"version":3,"mappings":"AAAAA,K,C","sources":["wp-content/themes/example/source-map-duplicate-column.css"],"sourcesContent":[".wp-block-duplicate-column{}"],"names":["duplicate-column-rule"]}',
         'duplicateColumnNegativeMap' => '{"version":3,"mappings":"AAAAA,A","sources":["wp-content/themes/example/source-map-duplicate-column.css"],"sourcesContent":[".wp-block-duplicate-column{}"],"names":["duplicate-column-rule"]}',
+        'duplicateBoundaryNegativeMap' => '{"version":3,"mappings":"AAAAA,EACAC,AAEAE","sources":["wp-content/themes/example/source-map-duplicate-boundary.css"],"sourcesContent":[".wp-block-duplicate-boundary{}"],"names":["first-boundary-rule","start-boundary-a","start-boundary-b","shifted-boundary-rule"]}',
+        'duplicateBoundaryNegativeClosest' => ['generatedLine' => 0, 'generatedColumn' => 2, 'sourceIndex' => 0, 'originalLine' => 3, 'originalColumn' => 0, 'nameIndex' => 3],
         'unsortedRawVlqMap' => '{"version":3,"mappings":"EACAC,QADAD","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',
         'unsortedRawVlqPositiveOffsetMap' => '{"version":3,"mappings":"EACAC,WADAD","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',
         'unsortedRawVlqNegativeOffsetMap' => '{"version":3,"mappings":"EAAAA","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',

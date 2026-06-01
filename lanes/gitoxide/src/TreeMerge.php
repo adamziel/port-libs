@@ -1163,6 +1163,16 @@ final class TreeMerge
                         continue;
                     }
 
+                    $relocations = $directoryFileRelocations['byDirectory'][$path] ?? [];
+                    $ancestorEntriesByAddedLeaf = self::droppedSourceAncestorEntriesByAddedLeaf(
+                        $pathPrefix,
+                        $baseEntries,
+                        $ourEntries,
+                        $theirEntries,
+                        $baseEntry,
+                        $theirEntry,
+                        $readObject,
+                    );
                     $renameModifyMerge = self::tryMergeDirectoryRenameModify(
                         $pathPrefix,
                         $ourRename['path'],
@@ -1170,7 +1180,7 @@ final class TreeMerge
                         $ourRename['entry'],
                         self::applyDirectoryFileRelocations(
                             $theirEntry,
-                            $directoryFileRelocations['byDirectory'][$path] ?? [],
+                            $relocations,
                             $readObject,
                             $writeObject,
                         ),
@@ -1178,12 +1188,13 @@ final class TreeMerge
                         $writeObject,
                         $conflictStyle,
                         $bigFileThreshold,
+                        $ancestorEntriesByAddedLeaf,
                     );
                     if ($renameModifyMerge !== null) {
                         if ($renameModifyMerge['entry'] !== null) {
                             $merged[] = $renameModifyMerge['entry'];
                         }
-                        array_push($conflicts, ...self::relocationConflicts($directoryFileRelocations['byDirectory'][$path] ?? []));
+                        array_push($conflicts, ...self::relocationConflicts($relocations));
                         array_push($conflicts, ...$renameModifyMerge['conflicts']);
                         $consumed[$path] = true;
                         $consumed[$ourRename['path']] = true;
@@ -1295,13 +1306,23 @@ final class TreeMerge
                         continue;
                     }
 
+                    $relocations = $directoryFileRelocations['byDirectory'][$path] ?? [];
+                    $ancestorEntriesByAddedLeaf = self::droppedSourceAncestorEntriesByAddedLeaf(
+                        $pathPrefix,
+                        $baseEntries,
+                        $theirEntries,
+                        $ourEntries,
+                        $baseEntry,
+                        $ourEntry,
+                        $readObject,
+                    );
                     $renameModifyMerge = self::tryMergeDirectoryRenameModify(
                         $pathPrefix,
                         $theirRename['path'],
                         $baseEntry,
                         self::applyDirectoryFileRelocations(
                             $ourEntry,
-                            $directoryFileRelocations['byDirectory'][$path] ?? [],
+                            $relocations,
                             $readObject,
                             $writeObject,
                         ),
@@ -1310,12 +1331,13 @@ final class TreeMerge
                         $writeObject,
                         $conflictStyle,
                         $bigFileThreshold,
+                        $ancestorEntriesByAddedLeaf,
                     );
                     if ($renameModifyMerge !== null) {
                         if ($renameModifyMerge['entry'] !== null) {
                             $merged[] = $renameModifyMerge['entry'];
                         }
-                        array_push($conflicts, ...self::relocationConflicts($directoryFileRelocations['byDirectory'][$path] ?? []));
+                        array_push($conflicts, ...self::relocationConflicts($relocations));
                         array_push($conflicts, ...$renameModifyMerge['conflicts']);
                         $consumed[$path] = true;
                         $consumed[$theirRename['path']] = true;
@@ -2163,6 +2185,7 @@ final class TreeMerge
     /**
      * @param null|callable(string): GitObject $readObject
      * @param null|callable(GitObject): string $writeObject
+     * @param array<string, array<string, TreeEntry>> $ancestorEntriesByAddedLeaf
      * @return null|array{entry:?TreeEntry,conflicts:list<TreeMergeConflict>}
      */
     private static function tryMergeDirectoryRenameModify(
@@ -2175,6 +2198,7 @@ final class TreeMerge
         ?callable $writeObject,
         string $conflictStyle,
         ?int $bigFileThreshold = null,
+        array $ancestorEntriesByAddedLeaf = [],
     ): ?array {
         if ($ourEntry === null || $theirEntry === null || $readObject === null || $writeObject === null) {
             return null;
@@ -2211,6 +2235,13 @@ final class TreeMerge
         if ($merge === null || $merge['entry'] === null) {
             return $merge;
         }
+        if ($ancestorEntriesByAddedLeaf !== []) {
+            $merge['conflicts'] = self::attachDroppedSourceAncestorEntries(
+                $merge['conflicts'],
+                self::joinPath($pathPrefix, $targetPath),
+                $ancestorEntriesByAddedLeaf,
+            );
+        }
 
         $sameTargetNested = self::sameTargetNestedRenameConflicts(
             $pathPrefix,
@@ -2239,6 +2270,132 @@ final class TreeMerge
             'entry' => $nested['entry'],
             'conflicts' => [...$merge['conflicts'], ...$sameTargetNested['conflicts'], ...$nested['conflicts']],
         ];
+    }
+
+    /**
+     * @param array<string, TreeEntry> $baseEntries
+     * @param array<string, TreeEntry> $renamedSideEntries
+     * @param array<string, TreeEntry> $otherSideEntries
+     * @param callable(string): GitObject $readObject
+     * @return array<string, array<string, TreeEntry>>
+     */
+    private static function droppedSourceAncestorEntriesByAddedLeaf(
+        string $pathPrefix,
+        array $baseEntries,
+        array $renamedSideEntries,
+        array $otherSideEntries,
+        TreeEntry $baseDirectory,
+        ?TreeEntry $otherDirectory,
+        ?callable $readObject,
+    ): array {
+        if ($readObject === null || $otherDirectory === null || !$baseDirectory->isTree() || !$otherDirectory->isTree()) {
+            return [];
+        }
+
+        $baseCount = 0;
+        $otherCount = 0;
+        $baseLeaves = self::flattenTreeLeaves(Tree::fromObject(self::readTypedObject($readObject, $baseDirectory->oid, 'tree')), $readObject, '', 0, $baseCount);
+        $otherLeaves = self::flattenTreeLeaves(Tree::fromObject(self::readTypedObject($readObject, $otherDirectory->oid, 'tree')), $readObject, '', 0, $otherCount);
+        if ($baseLeaves === null || $otherLeaves === null) {
+            return [];
+        }
+
+        $addedLeaves = array_diff_key($otherLeaves, $baseLeaves);
+        if ($addedLeaves === []) {
+            return [];
+        }
+
+        $candidatesByBasePath = [];
+        foreach ($baseEntries as $sourcePath => $sourceEntry) {
+            if (
+                isset($renamedSideEntries[$sourcePath])
+                || isset($otherSideEntries[$sourcePath])
+                || !$sourceEntry->isBlob()
+            ) {
+                continue;
+            }
+
+            foreach ($addedLeaves as $relativePath => $addedLeaf) {
+                if (!$addedLeaf->isBlob() || $sourceEntry->mode !== $addedLeaf->mode) {
+                    continue;
+                }
+                $score = self::blobSimilarity($sourceEntry, $addedLeaf, $readObject);
+                if ($score < 60) {
+                    continue;
+                }
+                $candidatesByBasePath[$sourcePath][$relativePath] = ['score' => $score, 'entry' => $addedLeaf];
+            }
+        }
+
+        $byRelativePath = [];
+        foreach (self::strictBestRelocationCandidates($candidatesByBasePath) as $sourcePath => $candidate) {
+            $fullSourcePath = self::joinPath($pathPrefix, $sourcePath);
+            $byRelativePath[$candidate['path']][$fullSourcePath] = new TreeEntry(
+                $candidate['entry']->mode,
+                basename($sourcePath),
+                $candidate['entry']->oid,
+            );
+        }
+
+        return $byRelativePath;
+    }
+
+    /**
+     * @param list<TreeMergeConflict> $conflicts
+     * @param array<string, array<string, TreeEntry>> $ancestorEntriesByAddedLeaf
+     * @return list<TreeMergeConflict>
+     */
+    private static function attachDroppedSourceAncestorEntries(array $conflicts, string $targetPrefix, array $ancestorEntriesByAddedLeaf): array
+    {
+        $updated = [];
+        foreach ($conflicts as $conflict) {
+            if ($conflict->reason !== 'directory-file') {
+                $updated[] = $conflict;
+                continue;
+            }
+
+            $relativePath = self::relativeDirectoryFileConflictPath($conflict->path, $targetPrefix);
+            $ancestorEntries = $relativePath === null ? null : ($ancestorEntriesByAddedLeaf[$relativePath] ?? null);
+            if ($ancestorEntries === null || $ancestorEntries === []) {
+                $updated[] = $conflict;
+                continue;
+            }
+
+            $existing = $conflict->context['ancestorEntries'] ?? [];
+            if (!is_array($existing)) {
+                $existing = [];
+            }
+            $context = $conflict->context;
+            $context['ancestorEntries'] = $existing + $ancestorEntries;
+
+            $updated[] = new TreeMergeConflict(
+                $conflict->path,
+                $conflict->reason,
+                $conflict->base,
+                $conflict->ours,
+                $conflict->theirs,
+                $context,
+            );
+        }
+
+        return $updated;
+    }
+
+    private static function relativeDirectoryFileConflictPath(string $conflictPath, string $targetPrefix): ?string
+    {
+        $prefix = $targetPrefix === '' ? '' : $targetPrefix . '/';
+        if ($prefix !== '' && !str_starts_with($conflictPath, $prefix)) {
+            return null;
+        }
+
+        $relativePath = substr($conflictPath, strlen($prefix));
+        foreach (['~A', '~B'] as $suffix) {
+            if (str_ends_with($relativePath, $suffix)) {
+                return substr($relativePath, 0, -strlen($suffix));
+            }
+        }
+
+        return null;
     }
 
     /**

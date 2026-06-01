@@ -125,15 +125,15 @@ final class TreeMergeResult
                 $tree = $subtreeReplacement;
                 continue;
             }
-            if ($isContentConflict && $resolutionForConflict === self::RESOLVE_ANCESTOR) {
-                $ancestorContentResolution = self::resolveContentConflictAncestorEntries(
+            if ($resolutionForConflict === self::RESOLVE_ANCESTOR) {
+                $ancestorEntriesResolution = self::resolveConflictAncestorEntries(
                     $tree,
                     $conflict,
                     $readObject,
                     $writeObject,
                 );
-                if ($ancestorContentResolution !== null) {
-                    $tree = $ancestorContentResolution;
+                if ($ancestorEntriesResolution !== null) {
+                    $tree = $ancestorEntriesResolution;
                     continue;
                 }
             }
@@ -407,7 +407,7 @@ final class TreeMergeResult
      * @param callable(string): GitObject $readObject
      * @param callable(GitObject): string $writeObject
      */
-    private static function resolveContentConflictAncestorEntries(
+    private static function resolveConflictAncestorEntries(
         Tree $tree,
         TreeMergeConflict $conflict,
         callable $readObject,

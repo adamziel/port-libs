@@ -1505,3 +1505,27 @@ Merge-base graph reuse hydration slice prepared on 2026-06-01:
   `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace runner was
   not executed.
 - Expected mapped denominator movement: `1697 / 2886` to `1698 / 2886`.
+
+Tree-merge super-2 resolve-tree parity slice prepared on 2026-06-01:
+
+- Pending worker slice `gitoxide-tree-merge-conflict-fixture-parity-20260601T022247Z`
+  on accepted base `28ec15ab9aa5188bc23d7c22caf22b5083cf6e4e` maps the
+  upstream `gix-merge` `tree-baseline.sh` `super-2` resolve-tree fixture.
+- Source truth: upstream Gitoxide
+  `gix-merge/tests/fixtures/tree-baseline.sh` at commit
+  `87433ed33eee9ba974111d20b854f6acb07cd4a6`, specifically the
+  `make_resolve_tree ancestor A B`, `ancestor B A`, `ours A B`, and
+  `ours B A` expectations after the directory rename/file conflict.
+- Native PHP delta: `TreeMerge` now tags directory-rename/add-leaf
+  directory-file conflicts with the dropped source path when the added leaf is
+  the strict best match for a source blob deleted by both sides, and
+  `TreeMergeResult` applies those ancestor entries for tree-conflict ancestor
+  resolution. This restores the changed `foo` blob for ancestor resolution
+  while preserving the existing side-choice results.
+- Verification: red-first focused `TreeMergeTest.php` failed with the missing
+  resolved `foo` ancestor path; after implementation, focused
+  `TreeMergeTest.php` passed `1 file / 668 assertions / 0 failures`, full
+  Gitoxide lane passed `40 files / 6861 assertions / 0 failures`, PHP lint on
+  changed Gitoxide PHP files passed, and `git diff --check -- lanes/gitoxide`
+  passed. Full Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1703 / 2886` to `1704 / 2886`.

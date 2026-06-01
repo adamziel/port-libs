@@ -313,7 +313,7 @@ final class PackIndex
             }
         }
 
-        return $this->lookup($oid) === null ? null : $oid;
+        return $oid;
     }
 
     /**

@@ -7,17 +7,17 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 use PortLibs\LibSqlite\SQLiteUtf16RtrimLikeCurrentSourceNextPlan;
 
-$row = static function (int $id, string $name, string $encoding, string $autoload = 'yes'): array {
+$row = static function (int $id, string $name, string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
             default => throw new InvalidArgumentException('bad encoding'),
         },
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
@@ -35,14 +35,14 @@ $next = [
     $row(5, 'plugin_cache_new', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16RtrimLikeCurrentSourceNextPlan::optionRowNamePlan(
+$plan = SQLiteUtf16RtrimLikeCurrentSourceNextPlan::keyValueRowKeyPlan(
     $current,
     $next,
     'plugin_cache%',
     null,
     true,
-    'main.wp_options@120',
-    'main.wp_options@121',
+    'main.app_settings@120',
+    'main.app_settings@121',
 );
 
 $summary = [
@@ -55,7 +55,7 @@ $summary = [
     'exitedRowids' => $plan['exitedRowids'],
     'changedEncodingRowids' => $plan['changedEncodingRowids'],
     'likeDoesNotTrimTrailingSpaces' => $plan['likeDoesNotTrimTrailingSpaces'],
-    'applicationUse' => 'Copied wp_options option_name scans can fall back from an unusable RTRIM LIKE index range to a UTF-16 residual scan while preserving SQLite LIKE trailing-space semantics before import/copy diffing.',
+    'applicationUse' => 'Copied app_settings key_name scans can fall back from an unusable RTRIM LIKE index range to a UTF-16 residual scan while preserving SQLite LIKE trailing-space semantics before import/copy diffing.',
 ];
 
 if (($argv[1] ?? '') === '--self-test') {

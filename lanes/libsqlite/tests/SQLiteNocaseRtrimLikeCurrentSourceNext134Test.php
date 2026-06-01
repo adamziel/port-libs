@@ -9,8 +9,8 @@ $tests = [];
 
 $row134 = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -21,8 +21,8 @@ $row134 = static function (int $id, string $name, string $encoding): array {
 };
 
 $bad134 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -186,7 +186,7 @@ $tests['nocase rtrim like current source next134 escaped underscore changes rang
 };
 
 $tests['nocase rtrim like current source next134 non ascii nocase prefix disables range'] = static function (TestRunner $t) use ($row134, $plan134): void {
-    $rows = [$row134(1, 'éclair_option', 'UTF-16LE'), $row134(2, 'Éclair_option', 'UTF-16LE')];
+    $rows = [$row134(1, 'éclair_setting', 'UTF-16LE'), $row134(2, 'Éclair_setting', 'UTF-16LE')];
     $plan = $plan134('éclair_%', 'éclair_%', 'NOCASE', 'NOCASE', $rows, $rows, null, null, false, 'stable', 'stable');
     $t->same(false, $plan['currentIndexUsable']);
     $t->same('nocase_like_prefix_must_be_ascii_for_range', $plan['currentRejectedReason']);
@@ -207,12 +207,12 @@ $tests['nocase rtrim like current source next134 rejects unsupported current col
     $t->throws(InvalidArgumentException::class, static fn () => $plan134('plugin_%', 'plugin_%', 'BINARY', 'NOCASE'));
 };
 
-$tests['nocase rtrim like current source next134 rejects non integer option id'] = static function (TestRunner $t) use ($next134): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimLikeCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $next134, 'plugin_%', 'plugin_%'));
+$tests['nocase rtrim like current source next134 rejects non integer setting id'] = static function (TestRunner $t) use ($next134): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimLikeCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => '1', 'key_name_bytes' => 'x', 'text_encoding' => 1]], $next134, 'plugin_%', 'plugin_%'));
 };
 
 $tests['nocase rtrim like current source next134 rejects missing bytes'] = static function (TestRunner $t) use ($next134): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimLikeCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'text_encoding' => 1]], $next134, 'plugin_%', 'plugin_%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteNocaseRtrimLikeCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'text_encoding' => 1]], $next134, 'plugin_%', 'plugin_%'));
 };
 
 return $tests;

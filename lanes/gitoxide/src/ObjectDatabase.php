@@ -276,7 +276,7 @@ final class ObjectDatabase
             }
         }
 
-        return $this->contains($oid) ? $oid : null;
+        return $oid;
     }
 
     /**
@@ -696,7 +696,9 @@ final class ObjectDatabase
         }
 
         $this->primaryLooseStore()->write($object);
-        $this->refreshObjectStorage();
+        if ($this->refreshObjectStorageOnMiss) {
+            $this->refreshObjectStorage();
+        }
 
         return $object;
     }

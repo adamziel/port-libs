@@ -29,6 +29,11 @@ return [
         $t->same('(width>=0)', $parser->minifyList('(width >= 0px)'));
         $t->same('(aspect-ratio>=.5)', $parser->minifyList('(aspect-ratio >= 0.5/1.0)'));
         $t->same('(theme-breakpoint>=.5rem)', $parser->minifyList('(theme-breakpoint >= +0.5rem)'));
+        $t->same('(width>=1000px)', $parser->minifyList('(width >= 1e3px)'));
+        $t->same('(100px<=width<=200px)', $parser->minifyList('(1e2px <= width <= 2e2px)'));
+        $t->same('(width>=.125rem)', $parser->minifyList('(width >= 1.25e-1rem)'));
+        $t->same('(width>=1e-7px)', $parser->minifyList('(width >= 1e-7px)'));
+        $t->same('(width>=1000px)', $parser->minifyList('(width >= +1E3px)'));
     },
     'media query parser maps upstream negated simple range normalization' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
@@ -72,7 +77,10 @@ return [
         $t->same('(horizontal-viewport-segments>=2)', $parser->minifyList('(horizontal-viewport-segments >= 2)'));
         $t->same('(vertical-viewport-segments<3)', $parser->minifyList('(3 > vertical-viewport-segments)'));
         $t->same('(resolution>=2x)', $parser->minifyList('(resolution >= 2x)'));
+        $t->same('(resolution>=2dppx)', $parser->minifyList('(resolution >= 2e0dppx)'));
+        $t->same('(aspect-ratio>=16/9)', $parser->minifyList('(aspect-ratio >= 16e0 / 9e0)'));
         $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= 2)'));
+        $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-device-pixel-ratio >= 2e0)'));
         $t->same('(-moz-device-pixel-ratio<1.5)', $parser->minifyList('(-moz-device-pixel-ratio < 1.5)'));
         $t->same('(-webkit-device-pixel-ratio>=2)', $parser->minifyList('(-webkit-min-device-pixel-ratio: 2)'));
         $t->same('(-webkit-device-pixel-ratio<=1.5)', $parser->minifyList('(-webkit-max-device-pixel-ratio: 1.5)'));
@@ -87,6 +95,8 @@ return [
         $parser = new MediaQueryParser();
 
         $t->same('(theme-breakpoint>=2)', $parser->minifyList('(theme-breakpoint >= 2)'));
+        $t->same('(theme-breakpoint>=100px)', $parser->minifyList('(theme-breakpoint >= 1e2px)'));
+        $t->same('(1.5<theme-ratio<3)', $parser->minifyList('(1.5e0 / 1 < theme-ratio < 3e0 / 1)'));
         $t->same('(2<theme-ratio<3)', $parser->minifyList('(2 / 1 < theme-ratio < 3 / 1)'));
         $t->same('(theme-density>=1.5dppx)', $parser->minifyList('(theme-density >= 1.5dppx)'));
         $t->same('(theme-state=expanded)', $parser->minifyList('(theme-state = expanded)'));
@@ -223,6 +233,8 @@ return [
             '(grid: true)',
             '(prefers-color-scheme = dark)',
             '(color >= calc(1 + 1))',
+            '(color >= 1e0)',
+            '(color-index >= 1e0)',
             '(resolution >= calc(1 + 1dppx))',
             '(width >= var(--theme-breakpoint))',
             '(--theme-breakpoint >= var(--theme-breakpoint))',
@@ -374,6 +386,13 @@ return [
         $t->same('(min-width:0)', $parser->lowerRangeSyntaxList('(width >= 0px)'));
         $t->same('(min-aspect-ratio:.5)', $parser->lowerRangeSyntaxList('(aspect-ratio >= 0.5/1.0)'));
         $t->same('(min-theme-breakpoint:.5rem)', $parser->lowerRangeSyntaxList('(theme-breakpoint >= +0.5rem)'));
+        $t->same('(min-width:1000px)', $parser->lowerRangeSyntaxList('(width >= 1e3px)'));
+        $t->same('(min-width:100px) and (max-width:200px)', $parser->lowerRangeSyntaxList('(1e2px <= width <= 2e2px)'));
+        $t->same('(min-width:1e-7px)', $parser->lowerRangeSyntaxList('(width >= 1e-7px)'));
+        $t->same('(min-aspect-ratio:16/9)', $parser->lowerRangeSyntaxList('(aspect-ratio >= 16e0 / 9e0)'));
+        $t->same('(min-resolution:2dppx)', $parser->lowerRangeSyntaxList('(resolution >= 2e0dppx)'));
+        $t->same('(min-theme-breakpoint:100px)', $parser->lowerRangeSyntaxList('(theme-breakpoint >= 1e2px)'));
+        $t->same('(-webkit-min-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= 2e0)'));
         $t->same('not screen and not (min-width:240px)', $parser->lowerRangeSyntaxList('not screen and (width < 240px)'));
         $t->same('only screen and (min-width:240px)', $parser->lowerRangeSyntaxList('only screen and (width >= 240px)'));
         $t->same('(min-width:240px)', $parser->lowerRangeSyntaxList('all and (width >= 240px)'));
@@ -397,6 +416,8 @@ return [
             '(prefers-color-scheme = dark)',
             '(aspect-ratio >= 2px)',
             '(color-index >= 1.5)',
+            '(color-index >= 1e0)',
+            '(color >= 1e0)',
             '(device-width >= 2/1)',
             '(horizontal-viewport-segments >= 2px)',
             '(100px < width > 200px)',

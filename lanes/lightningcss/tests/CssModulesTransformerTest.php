@@ -492,6 +492,32 @@ CSS;
             $t->throws(InvalidArgumentException::class, static fn () => (new CssModulesTransformer())->transform($css));
         }
     },
+    'css modules preserves escaped numeric local selectors while applying composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.\31 23, .alpha {
+  composes: \31 23-base;
+  color: red;
+}
+
+:global(.\31 23) .alpha {
+  border-color: yellow;
+}
+
+.\31 23-base {
+  color: blue;
+}
+CSS);
+
+        $t->same('.EgL3uq_123,.EgL3uq_alpha{color:red}.\31 23 .EgL3uq_alpha{border-color:#ff0}.EgL3uq_123-base{color:#00f}', $result['code']);
+        $t->same([
+            123 => $export('EgL3uq_123', [$local('EgL3uq_123-base')]),
+            'alpha' => $export('EgL3uq_alpha', [$local('EgL3uq_123-base')]),
+            '123-base' => $export('EgL3uq_123-base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_123 EgL3uq_123-base', CssModulesTransformer::exportClassList($result['exports'], '123'));
+        $t->same('EgL3uq_alpha EgL3uq_123-base', CssModulesTransformer::exportClassList($result['exports'], 'alpha'));
+    },
     'css modules serializes upstream attribute selectors inside local global and composed selectors' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card[data-state="wide/layout"] {

@@ -2368,6 +2368,79 @@ return [
         ));
         $t->same([], $result->worktreeConflictFiles($read));
     },
+    'maps upstream gix-merge tree-baseline super-2 resolve-tree fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $changedFoo = "1\n2\n3\n4\n5\n6\n";
+        $base = new Tree([
+            $blobEntry('foo', "1\n2\n3\n4\n5\n"),
+            $treeEntry('olddir', new Tree([
+                $blobEntry('a', "a\n"),
+                $blobEntry('b', "b\n"),
+                $blobEntry('c', "c\n"),
+            ])),
+        ]);
+        $ours = new Tree([
+            $treeEntry('newdir', new Tree([
+                $blobEntry('a', "a\n"),
+                $blobEntry('b', "b\n"),
+                $treeEntry('bar', new Tree([
+                    $blobEntry('file', ''),
+                ])),
+                $blobEntry('c', "c\n"),
+            ])),
+        ]);
+        $theirs = new Tree([
+            $treeEntry('olddir', new Tree([
+                $blobEntry('a', "a\n"),
+                $blobEntry('bar', $changedFoo),
+                $blobEntry('b', "b\n"),
+                $blobEntry('c', "c\n"),
+            ])),
+        ]);
+        $bodyAt = static function (Tree $tree, string $path) use ($read): ?string {
+            $entry = $tree->entryNamed($path);
+
+            return $entry === null ? null : $read($entry->oid)->body;
+        };
+        $newdirIn = static function (Tree $tree) use ($read): Tree {
+            return Tree::fromObject($read($tree->entryNamed('newdir', true)?->oid ?? ''));
+        };
+
+        $result = TreeMerge::mergeRecursive($base, $ours, $theirs, $read, $write);
+        $ancestorResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+        $oursResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+        $reverse = TreeMerge::mergeRecursive($base, $theirs, $ours, $read, $write);
+        $reverseAncestorResolved = $reverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+        $reverseOursResolved = $reverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+
+        foreach ([$ancestorResolved, $reverseAncestorResolved] as $resolved) {
+            $newdir = $newdirIn($resolved->tree);
+            $bar = Tree::fromObject($read($newdir->entryNamed('bar', true)?->oid ?? ''));
+
+            $t->true($resolved->isClean());
+            $t->same(['foo', 'newdir'], $names($resolved->tree));
+            $t->same($changedFoo, $bodyAt($resolved->tree, 'foo'));
+            $t->same(['a', 'b', 'bar', 'c'], $names($newdir));
+            $t->same(['file'], $names($bar));
+            $t->same([], $resolved->indexEntries());
+        }
+
+        $oursNewdir = $newdirIn($oursResolved->tree);
+        $oursBar = Tree::fromObject($read($oursNewdir->entryNamed('bar', true)?->oid ?? ''));
+        $reverseOursNewdir = $newdirIn($reverseOursResolved->tree);
+
+        $t->true($oursResolved->isClean());
+        $t->same(['newdir'], $names($oursResolved->tree));
+        $t->same(['a', 'b', 'bar', 'c'], $names($oursNewdir));
+        $t->same(['file'], $names($oursBar));
+        $t->same([], $oursResolved->indexEntries());
+        $t->true($reverseOursResolved->isClean());
+        $t->same(['newdir'], $names($reverseOursResolved->tree));
+        $t->same(['a', 'b', 'bar', 'c'], $names($reverseOursNewdir));
+        $t->same('blob', $reverseOursNewdir->entryNamed('bar')?->kind());
+        $t->same($changedFoo, $bodyAt($reverseOursNewdir, 'bar'));
+        $t->same([], $reverseOursResolved->indexEntries());
+    },
     'maps upstream gix-merge tree-baseline rename-within-rename fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $baseContent = "original\n1\n2\n3\n4\n5\n";

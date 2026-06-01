@@ -176,6 +176,42 @@ CSS,
 CSS,
         ['include' => ['MediaRangeSyntax', 'MediaIntervalSyntax']]
     ),
+    'scientificRangeFallbacks' => $prefixer->prefixForTargets(
+        <<<'CSS'
+@layer theme.blocks {
+  @media (width >= 1e3px) {
+    .wp-block-query.is-scientific-wide {
+      color: yellow;
+    }
+  }
+
+  @media (1e2px <= width <= 2e2px) {
+    .wp-block-query.is-scientific-window {
+      color: yellow;
+    }
+  }
+
+  @media (aspect-ratio >= 16e0 / 9e0) {
+    .wp-block-query.is-scientific-ratio {
+      color: yellow;
+    }
+  }
+
+  @media (min-resolution: 2e0dppx) {
+    .wp-block-query.is-scientific-density {
+      color: yellow;
+    }
+  }
+
+  @media (theme-breakpoint >= 1e2px) {
+    .wp-block-query.is-scientific-token {
+      color: yellow;
+    }
+  }
+}
+CSS,
+        ['safari' => 15, 'firefox' => 10]
+    ),
 ];
 
 try {
@@ -266,6 +302,7 @@ $expected = [
     'negatedRangeGroup' => '@layer theme.blocks{@media not (((min-width:100px) and (max-width:200px)) or (hover)){.wp-block-query.is-not-compact-hover{color:#ff0}}}',
     'negatedIntervalWithHover' => '@layer theme.blocks{@media (hover) and (not ((min-width:200px) and (not (min-width:500px)))){.wp-block-query.is-not-middle-hover{color:#ff0}}}',
     'upstreamIntervalPrefixFallbacks' => '@layer theme.blocks{@media not ((min-width:100px) and (max-width:200px)){.wp-block-query.is-not-compact-range{color:#ff0}}@media (hover) and (min-width:100px) and (max-width:200px){.wp-block-query.is-hover-compact-range{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:200px)){.wp-block-query.is-open-range{color:#ff0}}@media not ((not (max-width:100px)) and (not (min-width:200px))){.wp-block-query.is-not-open-range{color:#ff0}}@media (max-width:200px) and (min-width:100px){.wp-block-query.is-descending-range{color:#ff0}}@media not (max-color:2){.wp-block-query.is-rich-color{color:#ff0}}@media not (min-color:2){.wp-block-query.is-low-color{color:#ff0}}}',
+    'scientificRangeFallbacks' => '@layer theme.blocks{@media (min-width:1000px){.wp-block-query.is-scientific-wide{color:#ff0}}@media (min-width:100px) and (max-width:200px){.wp-block-query.is-scientific-window{color:#ff0}}@media (min-aspect-ratio:16/9){.wp-block-query.is-scientific-ratio{color:#ff0}}@media (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query.is-scientific-density{color:#ff0}}@media (min-theme-breakpoint:100px){.wp-block-query.is-scientific-token{color:#ff0}}}',
     'invalidRangeGuard' => 'invalid-media-query',
     'invalidIntervalGuard' => 'invalid-media-query',
     'invalidFunctionGuard' => 'invalid-media-query',

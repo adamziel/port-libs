@@ -12,8 +12,8 @@ require_once __DIR__ . '/../src/SQLiteUtf16LikeRtrimCurrentSourceNextPlan.php';
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -37,14 +37,14 @@ $next = [
     $row(5, 'plugin_cache_new', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16LikeRtrimCurrentSourceNextPlan::optionRowNamePlan(
+$plan = SQLiteUtf16LikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan(
     $current,
     $next,
     'plugin_cache',
     null,
     true,
-    'main.wp_options@current',
-    'main.wp_options@next',
+    'main.app_settings@current',
+    'main.app_settings@next',
 );
 
 if (($argv[1] ?? '') === '--self-test') {
@@ -60,7 +60,7 @@ if (($argv[1] ?? '') === '--self-test') {
 
 echo json_encode([
     'scenario' => 'application-utf16-like-rtrim-current-source-next137',
-    'applicationUse' => 'Copied wp_options option-name scans can retain SQLite LIKE residual semantics over UTF-16 text while RTRIM comparison keys sort candidate rows and current/next invalidation tracks endian and trailing-space repairs.',
+    'applicationUse' => 'Copied app_settings key-name scans can retain SQLite LIKE residual semantics over UTF-16 text while RTRIM comparison keys sort candidate rows and current/next invalidation tracks endian and trailing-space repairs.',
     'pattern' => $plan['pattern'],
     'indexUsable' => $plan['indexUsable'],
     'candidateSource' => $plan['candidateSource'],

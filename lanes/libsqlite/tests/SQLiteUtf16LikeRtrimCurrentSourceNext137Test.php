@@ -7,25 +7,25 @@ use PortLibs\LibSqlite\SQLiteUtf16LikeRtrimCurrentSourceNextPlan;
 
 $tests = [];
 
-$row137 = static function (int $id, string $name, string $encoding, string $autoload = 'yes'): array {
+$row137 = static function (int $id, string $name, string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
             default => throw new InvalidArgumentException('bad encoding'),
         },
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
 $bad137 = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
-    'autoload' => 'yes',
+    'load_policy' => 'yes',
 ];
 
 $current137 = [
@@ -199,16 +199,16 @@ $tests['utf16 like rtrim current source nextOneThreeSeven rejects invalid escape
     $t->throws(InvalidArgumentException::class, static fn () => $plan137('plugin%', '!!'));
 };
 
-$tests['utf16 like rtrim current source nextOneThreeSeven rejects non integer option id'] = static function (TestRunner $t) use ($nextOneThreeSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextOneThreeSeven, 'plugin%'));
+$tests['utf16 like rtrim current source nextOneThreeSeven rejects non integer setting id'] = static function (TestRunner $t) use ($nextOneThreeSeven): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => '1', 'key_name_bytes' => 'x', 'text_encoding' => 1]], $nextOneThreeSeven, 'plugin%'));
 };
 
 $tests['utf16 like rtrim current source nextOneThreeSeven rejects missing bytes'] = static function (TestRunner $t) use ($nextOneThreeSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'text_encoding' => 1]], $nextOneThreeSeven, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'text_encoding' => 1]], $nextOneThreeSeven, 'plugin%'));
 };
 
 $tests['utf16 like rtrim current source nextOneThreeSeven rejects missing encoding'] = static function (TestRunner $t) use ($nextOneThreeSeven): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name_bytes' => 'x']], $nextOneThreeSeven, 'plugin%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16LikeRtrimCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'key_name_bytes' => 'x']], $nextOneThreeSeven, 'plugin%'));
 };
 
 return $tests;
