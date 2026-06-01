@@ -1,11 +1,11 @@
 {
-    "generated": "2026-06-01 09:44:19 UTC",
-    "sourceCommit": "5bccafbbc481bec60793bc62fb0fa0728a0d9355",
-    "sourceCommitShort": "5bccafbbc481",
+    "generated": "2026-06-01 09:50:44 UTC",
+    "sourceCommit": "5eb0dde1d20d62c61dd9e7d3a9120aaa9f87b852",
+    "sourceCommitShort": "5eb0dde1d20d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "9495523910adeabd01c9bc2c77431af9d8027200",
-    "dashboardCommitShort": "9495523910ad",
-    "averageProgressPercent": "88.6",
+    "dashboardCommit": "5eb0dde1d20d62c61dd9e7d3a9120aaa9f87b852",
+    "dashboardCommitShort": "5eb0dde1d20d",
+    "averageProgressPercent": "88.7",
     "lanes": [
         {
             "lane": "libsqlite",
@@ -19,12 +19,12 @@
             "mapped": "1589",
             "coverage": "1,589 / 1,589",
             "php": "5,792,118 pass / 7 fail",
-            "phase": "upsert1-500 UPSERT RETURNING literal SELECT coverage accepted; broad...",
-            "audit": "2026-06-01 supervisor batch: accepted source 5bccafbbc481 with upstre...",
-            "currentWork": "Upstream upsert1-500 UPSERT RETURNING literal SELECT coverage...",
+            "phase": "source-neutral JSONB generated cascade cleanup accepted; broad full-l...",
+            "audit": "2026-06-01 supervisor batch: accepted source 5eb0dde1d20d with source...",
+            "currentWork": "Source-neutral JSONB generated cascade cleanup integrated on...",
             "nextTarget": "Continue broad release/all parity blockers, source-neutral cl...",
             "remainingGate": "Broad release/all still has 7 known failures",
-            "commit": "5bccafb"
+            "commit": "5eb0dde"
         },
         {
             "lane": "lightningcss",
@@ -37,32 +37,32 @@
             "denominator": "3532",
             "mapped": "2365",
             "coverage": "2,365 / 3,532",
-            "php": "7,207 pass / 0 fail",
+            "php": "7,247 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: accepted source 5bccafbbc481 with CSSOM...",
-            "currentWork": "CSSOM text-decoration-skip-ink and text-emphasis-position rea...",
+            "audit": "2026-06-01 supervisor batch: accepted source 5eb0dde1d20d with custom...",
+            "currentWork": "Custom at-rule number preludes, media ratio/math range loweri...",
             "nextTarget": "Keep LightningCSS workers on current-base source maps, CSS Mo...",
             "remainingGate": "Rust/Node/WASM upstream runners not run",
-            "commit": "5bccafb"
+            "commit": "5eb0dde"
         },
         {
             "lane": "gitoxide",
             "library": "gitoxide",
             "queue": "Active",
             "state": "High coverage",
-            "progressPercent": "96.2",
+            "progressPercent": "96.6",
             "suite": "current-base Gitoxide protocol-v2 fetch exchange followup batch",
             "benchmark": "current-base Gitoxide protocol-v2 fetch exchange followup batch",
             "denominator": "2886",
             "mapped": "1778",
             "coverage": "1,778 / 2,886",
-            "php": "8,524 pass / 0 fail",
+            "php": "8,635 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 supervisor batch: accepted source 93ca7494c896 with refere...",
-            "currentWork": "Reference transaction Windows device-name guard parity integr...",
+            "audit": "2026-06-01 supervisor batch: accepted source 5eb0dde1d20d with pack-i...",
+            "currentWork": "Pack-index/MIDX generated-prefix scans, partial-clone promiso...",
             "nextTarget": "Keep Gitoxide workers on current-base non-overlapping sparse-...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "93ca749"
+            "commit": "5eb0dde"
         },
         {
             "lane": "readability",
