@@ -533,6 +533,60 @@ return [
         $t->same("0\n1\n2\n3\n4\n5\n6\n", $read($diff3->tree->entryNamed('numbers')?->oid ?? '')->body);
         $t->same("bar\n", $read($diff3->tree->entryNamed('whatever~A')?->oid ?? '')->body);
     },
+    'maps upstream gix-merge tree-baseline simple directory-file resolve-tree fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $base = new Tree([
+            $blobEntry('numbers', "1\n2\n3\n4\n5\n"),
+            $blobEntry('greeting', "hello\n"),
+            $blobEntry('whatever', "foo\n"),
+        ]);
+        $side1 = new Tree([
+            $blobEntry('numbers', "1\n2\n3\n4\n5\n6\n"),
+            $blobEntry('greeting', "hi\n"),
+            $blobEntry('whatever', "bar\n"),
+        ]);
+        $side2 = new Tree([
+            $blobEntry('numbers', "0\n1\n2\n3\n4\n5\n"),
+            $blobEntry('greeting', "yo\n"),
+            $treeEntry('whatever', new Tree([$blobEntry('empty', '')])),
+        ]);
+
+        $result = TreeMerge::mergeRecursive($base, $side1, $side2, $read, $write);
+        $ancestorResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+        $oursResolved = $result->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+        $reverse = TreeMerge::mergeRecursive($base, $side2, $side1, $read, $write);
+        $reverseAncestorResolved = $reverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_ANCESTOR);
+        $reverseTheirsResolved = $reverse->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_THEIRS);
+
+        $t->same(['greeting', 'numbers', 'whatever'], $names($ancestorResolved->tree));
+        $t->same('blob', $ancestorResolved->tree->entryNamed('whatever')?->kind());
+        $t->same("foo\n", $read($ancestorResolved->tree->entryNamed('whatever')?->oid ?? '')->body);
+        $t->same(['greeting'], array_map(static fn ($conflict): string => $conflict->path, $ancestorResolved->conflicts));
+        $t->contains('<<<<<<< ours/greeting', $read($ancestorResolved->tree->entryNamed('greeting')?->oid ?? '')->body);
+        $t->same([
+            ['stage' => MergeIndexEntry::STAGE_ANCESTOR, 'side' => 'ancestor', 'path' => 'greeting'],
+            ['stage' => MergeIndexEntry::STAGE_OURS, 'side' => 'ours', 'path' => 'greeting'],
+            ['stage' => MergeIndexEntry::STAGE_THEIRS, 'side' => 'theirs', 'path' => 'greeting'],
+        ], array_map(
+            static fn (MergeIndexEntry $entry): array => ['stage' => $entry->stage, 'side' => $entry->side(), 'path' => $entry->path],
+            $ancestorResolved->indexEntries(),
+        ));
+
+        $t->same(['greeting', 'numbers', 'whatever'], $names($oursResolved->tree));
+        $t->same('blob', $oursResolved->tree->entryNamed('whatever')?->kind());
+        $t->same("bar\n", $read($oursResolved->tree->entryNamed('whatever')?->oid ?? '')->body);
+        $t->same(['greeting'], array_map(static fn ($conflict): string => $conflict->path, $oursResolved->conflicts));
+
+        $reverseDirectory = Tree::fromObject($read($reverse->tree->entryNamed('whatever', true)?->oid ?? ''));
+        $t->same(['empty'], $names($reverseDirectory));
+        $t->same(['greeting', 'numbers', 'whatever'], $names($reverseAncestorResolved->tree));
+        $t->same('blob', $reverseAncestorResolved->tree->entryNamed('whatever')?->kind());
+        $t->same("foo\n", $read($reverseAncestorResolved->tree->entryNamed('whatever')?->oid ?? '')->body);
+        $t->same(['greeting', 'numbers', 'whatever'], $names($reverseTheirsResolved->tree));
+        $t->same('blob', $reverseTheirsResolved->tree->entryNamed('whatever')?->kind());
+        $t->same("bar\n", $read($reverseTheirsResolved->tree->entryNamed('whatever')?->oid ?? '')->body);
+        $t->same(['greeting'], array_map(static fn ($conflict): string => $conflict->path, $reverseTheirsResolved->conflicts));
+    },
     'maps upstream gix-merge tree-baseline simple tweak1-side2 fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry, $treeEntry] = $objectStore();
         $renamedNumbers = 'Αυτά μου φαίνονται κινέζικα';

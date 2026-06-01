@@ -121,6 +121,12 @@ final class CustomAtRuleTransformer
     private $urlVisitor = null;
 
     /** @var callable|null */
+    private $imageVisitor = null;
+
+    /** @var callable|null */
+    private $imageExitVisitor = null;
+
+    /** @var callable|null */
     private $colorVisitor = null;
 
     /** @var callable|null */
@@ -747,6 +753,42 @@ final class CustomAtRuleTransformer
 
                 return $changed ? $value : null;
             },
+            'Image' => static function (array $image, self $transformer) use ($visitors): mixed {
+                $value = $image;
+                $changed = false;
+                foreach ($visitors as $visitor) {
+                    $callback = self::imageVisitorCallback($visitor);
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($value, $transformer);
+                    if ($replacement !== null) {
+                        $value = $transformer->normalizeImageVisitorValue($replacement, $value);
+                        $changed = true;
+                    }
+                }
+
+                return $changed ? $value : null;
+            },
+            'ImageExit' => static function (array $image, self $transformer) use ($visitors): mixed {
+                $value = $image;
+                $changed = false;
+                foreach ($visitors as $visitor) {
+                    $callback = self::imageExitVisitorCallback($visitor);
+                    if ($callback === null) {
+                        continue;
+                    }
+
+                    $replacement = $callback($value, $transformer);
+                    if ($replacement !== null) {
+                        $value = $transformer->normalizeImageVisitorValue($replacement, $value);
+                        $changed = true;
+                    }
+                }
+
+                return $changed ? $value : null;
+            },
             'DashedIdent' => static function (string $ident, self $transformer) use ($visitors): mixed {
                 $value = $ident;
                 $changed = false;
@@ -1135,6 +1177,8 @@ final class CustomAtRuleTransformer
         $this->lengthVisitor = is_callable($visitor['Length'] ?? null) ? $visitor['Length'] : null;
         $this->colorVisitor = is_callable($visitor['Color'] ?? null) ? $visitor['Color'] : null;
         $this->urlVisitor = is_callable($visitor['Url'] ?? null) ? $visitor['Url'] : null;
+        $this->imageVisitor = is_callable($visitor['Image'] ?? null) ? $visitor['Image'] : null;
+        $this->imageExitVisitor = is_callable($visitor['ImageExit'] ?? null) ? $visitor['ImageExit'] : null;
         $this->dashedIdentVisitor = is_callable($visitor['DashedIdent'] ?? null) ? $visitor['DashedIdent'] : null;
         $this->customIdentVisitor = is_callable($visitor['CustomIdent'] ?? null) ? $visitor['CustomIdent'] : null;
 
@@ -2186,6 +2230,13 @@ final class CustomAtRuleTransformer
         $preludeGrammar = $definition['prelude'] ?? null;
         $preludeValue = $this->parseCustomPreludeValue($name, $prelude, is_string($preludeGrammar) ? $preludeGrammar : null);
         $preludeAst = $this->customPreludeAst($preludeValue, is_string($preludeGrammar) ? $preludeGrammar : null);
+        if ($preludeAst !== null) {
+            $visitedPrelude = $this->visitCustomPreludeValue($preludeAst);
+            if ($visitedPrelude['changed']) {
+                $preludeAst = $visitedPrelude['value'];
+                $preludeValue = $this->serializeVisitorValue($preludeAst);
+            }
+        }
         $declarations = [];
         $bodyRules = [];
         if ($body !== null && $bodyType === 'declaration-list') {
@@ -4474,6 +4525,26 @@ final class CustomAtRuleTransformer
     /**
      * @param array<string, mixed> $visitor
      */
+    private static function imageVisitorCallback(array $visitor): ?callable
+    {
+        $imageConfig = $visitor['Image'] ?? null;
+
+        return is_callable($imageConfig) ? $imageConfig : null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function imageExitVisitorCallback(array $visitor): ?callable
+    {
+        $imageConfig = $visitor['ImageExit'] ?? null;
+
+        return is_callable($imageConfig) ? $imageConfig : null;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
     private static function dashedIdentVisitorCallback(array $visitor): ?callable
     {
         $dashedIdentConfig = $visitor['DashedIdent'] ?? null;
@@ -5831,10 +5902,116 @@ final class CustomAtRuleTransformer
         return $visitor($variable, $this);
     }
 
+    /**
+     * @return array{value:mixed,changed:bool}
+     */
+    private function visitCustomPreludeValue(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return ['value' => $value, 'changed' => false];
+        }
+
+        $type = $value['type'] ?? null;
+        if ($type === 'repeated' && isset($value['value']) && is_array($value['value'])) {
+            $components = $value['value']['components'] ?? [];
+            if (!is_array($components)) {
+                return ['value' => $value, 'changed' => false];
+            }
+
+            $changed = false;
+            foreach ($components as $index => $component) {
+                $visited = $this->visitCustomPreludeValue($component);
+                if ($visited['changed']) {
+                    $components[$index] = $visited['value'];
+                    $changed = true;
+                }
+            }
+
+            if (!$changed) {
+                return ['value' => $value, 'changed' => false];
+            }
+
+            $value['value']['components'] = $components;
+
+            return ['value' => $value, 'changed' => true];
+        }
+
+        if ($type === 'image' && isset($value['value']) && is_array($value['value'])) {
+            $visited = $this->visitImageValue($value['value']);
+            if ($visited['changed']) {
+                $value['value'] = $visited['value'];
+
+                return ['value' => $value, 'changed' => true];
+            }
+
+            return ['value' => $value, 'changed' => false];
+        }
+
+        if ($type === 'url' && isset($value['value']) && is_array($value['value']) && $this->urlVisitor !== null) {
+            $replacement = ($this->urlVisitor)($value['value'], $this);
+            if ($replacement !== null) {
+                $value['value'] = $this->normalizeUrlVisitorValue($replacement, $value['value']);
+
+                return ['value' => $value, 'changed' => true];
+            }
+        }
+
+        $visited = $this->applyValueVisitors($value);
+        if ($visited !== $value) {
+            return ['value' => $visited, 'changed' => true];
+        }
+
+        return ['value' => $value, 'changed' => false];
+    }
+
+    /**
+     * @param array<string, mixed> $image
+     * @return array{value:array<string, mixed>,changed:bool}
+     */
+    private function visitImageValue(array $image): array
+    {
+        $changed = false;
+        if ($this->imageVisitor !== null) {
+            $replacement = ($this->imageVisitor)($image, $this);
+            if ($replacement !== null) {
+                $image = $this->normalizeImageVisitorValue($replacement, $image);
+                $changed = true;
+            }
+        }
+
+        if (($image['type'] ?? null) === 'url' && isset($image['value']) && is_array($image['value']) && $this->urlVisitor !== null) {
+            $replacement = ($this->urlVisitor)($image['value'], $this);
+            if ($replacement !== null) {
+                $image['value'] = $this->normalizeUrlVisitorValue($replacement, $image['value']);
+                $changed = true;
+            }
+        }
+
+        if ($this->imageExitVisitor !== null) {
+            $replacement = ($this->imageExitVisitor)($image, $this);
+            if ($replacement !== null) {
+                $image = $this->normalizeImageVisitorValue($replacement, $image);
+                $changed = true;
+            }
+        }
+
+        return ['value' => $image, 'changed' => $changed];
+    }
+
     private function applyValueVisitors(mixed $value): mixed
     {
         if (!is_array($value)) {
             return $value;
+        }
+
+        if (($value['type'] ?? null) === 'image' && isset($value['value']) && is_array($value['value'])) {
+            $visited = $this->visitImageValue($value['value']);
+            if ($visited['changed']) {
+                return [
+                    'type' => 'image',
+                    'value' => $visited['value'],
+                ];
+            }
         }
 
         if (($value['type'] ?? null) === 'length') {
@@ -6700,6 +6877,54 @@ final class CustomAtRuleTransformer
 
         $normalized = array_replace($fallback, $replacement);
         $normalized['url'] = $url;
+
+        return $normalized;
+    }
+
+    /**
+     * @param array<string, mixed> $fallback
+     * @return array<string, mixed>
+     */
+    private function normalizeImageVisitorValue(mixed $replacement, array $fallback): array
+    {
+        if (is_string($replacement)) {
+            $parsed = $this->tryCustomImagePreludeAst($replacement);
+            if (!$parsed['matched'] || !is_array($parsed['value'] ?? null) || !is_array($parsed['value']['value'] ?? null)) {
+                throw new \InvalidArgumentException('Image visitor string replacement must parse as <image>');
+            }
+
+            return $parsed['value']['value'];
+        }
+
+        if (!is_array($replacement)) {
+            throw new \InvalidArgumentException('Image visitor must return an image array, image string, or null');
+        }
+
+        if (($replacement['type'] ?? null) === 'image' && is_array($replacement['value'] ?? null)) {
+            $replacement = $replacement['value'];
+        }
+
+        $type = $replacement['type'] ?? $fallback['type'] ?? null;
+        if (!is_string($type)) {
+            throw new \InvalidArgumentException('Image visitor replacement must contain a string type');
+        }
+
+        $normalized = array_replace($fallback, $replacement);
+        $normalized['type'] = strtolower($type);
+
+        if ($normalized['type'] === 'none') {
+            unset($normalized['value']);
+
+            return $normalized;
+        }
+
+        if ($normalized['type'] === 'url') {
+            if (!is_array($normalized['value'] ?? null)) {
+                throw new \InvalidArgumentException('Image visitor URL replacement must contain a URL value');
+            }
+
+            $normalized['value'] = $this->normalizeUrlVisitorValue($normalized['value'], is_array($fallback['value'] ?? null) ? $fallback['value'] : []);
+        }
 
         return $normalized;
     }

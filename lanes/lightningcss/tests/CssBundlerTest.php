@@ -1813,6 +1813,89 @@ CSS,
             ]),
         ], $result['exports']);
     },
+    'css bundler maps upstream css module imported local collisions and recursive composes' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal): void {
+        $collision = $bundleModules([
+            '/a.css' => <<<'CSS'
+@import "b.css";
+.a { color: red }
+CSS,
+            '/b.css' => '.a { color: green }',
+        ], '/a.css', null, [
+            'hashes' => [
+                '/a.css' => 'entry',
+                '/b.css' => 'dep',
+            ],
+        ]);
+
+        $t->same('.dep_a{color:green}.entry_a{color:red}', $collision['code']);
+        $t->same([
+            'a' => $moduleExport('entry_a'),
+        ], $collision['exports']);
+
+        $recursive = $bundleModules([
+            '/a.css' => <<<'CSS'
+.a {
+  composes: x from "./b.css";
+  color: red;
+}
+
+.b { color: yellow }
+CSS,
+            '/b.css' => <<<'CSS'
+.x {
+  composes: y;
+  background: green;
+}
+
+.y { font: Helvetica }
+CSS,
+        ], '/a.css', null, [
+            'hashes' => [
+                '/a.css' => 'entry',
+                '/b.css' => 'dep',
+            ],
+        ]);
+
+        $t->same('.dep_x{background:green}.dep_y{font:Helvetica}.entry_a{color:red}.entry_b{color:#ff0}', $recursive['code']);
+        $t->same([
+            'a' => $moduleExport('entry_a', [
+                $moduleLocal('dep_x'),
+                $moduleLocal('dep_y'),
+            ]),
+            'b' => $moduleExport('entry_b'),
+        ], $recursive['exports']);
+        $t->same(['dep_x', 'dep_y'], array_column($recursive['exports']['a']['composes'], 'name'));
+        $t->same(['local', 'local'], array_column($recursive['exports']['a']['composes'], 'type'));
+
+        $firstInstance = $bundleModules([
+            '/entry.css' => <<<'CSS'
+@import "./theme.css";
+.entry {
+  composes: token from "./tokens.css";
+  color: red;
+}
+CSS,
+            '/theme.css' => <<<'CSS'
+@import "./tokens.css";
+.theme { color: blue }
+CSS,
+            '/tokens.css' => '.token { color: green }',
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/theme.css' => 'theme',
+                '/tokens.css' => 'tok',
+            ],
+        ]);
+
+        $t->same('.tok_token{color:green}.theme_theme{color:#00f}.entry_entry{color:red}', $firstInstance['code']);
+        $t->same([
+            'entry' => $moduleExport('entry_entry', [
+                $moduleLocal('tok_token'),
+            ]),
+        ], $firstInstance['exports']);
+        $t->same(['tok_token'], array_column($firstInstance['exports']['entry']['composes'], 'name'));
+    },
     'css bundler preserves upstream repeated source-index css module composes' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal, $moduleGlobal): void {
         $result = $bundleModules([
             '/entry.css' => <<<'CSS'

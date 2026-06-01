@@ -384,24 +384,55 @@ final class PackIndex
         $lower = $firstByte === 0 ? 0 : $this->fanout[$firstByte - 1];
         $upper = $this->fanout[$firstByte];
 
-        $matches = [];
-        for ($i = $lower; $i < $upper; $i++) {
-            if (str_starts_with($this->oids[$i], $prefix)) {
-                $matches[] = $i;
+        $found = null;
+        while ($lower < $upper) {
+            $middle = intdiv($lower + $upper, 2);
+            $comparison = self::comparePrefix($prefix, $this->oids[$middle]);
+            if ($comparison === 0) {
+                $found = $middle;
+                break;
+            }
+            if ($comparison < 0) {
+                $upper = $middle;
+            } else {
+                $lower = $middle + 1;
             }
         }
 
-        if ($matches === []) {
+        if ($found === null) {
             return ['matches' => [], 'candidateRange' => ['start' => 0, 'end' => 0]];
         }
 
+        $start = $found;
+        while ($start > 0 && self::comparePrefix($prefix, $this->oids[$start - 1]) === 0) {
+            $start--;
+        }
+        $end = $found + 1;
+        $count = $this->count();
+        while ($end < $count && self::comparePrefix($prefix, $this->oids[$end]) === 0) {
+            $end++;
+        }
+
         return [
-            'matches' => $matches,
+            'matches' => range($start, $end - 1),
             'candidateRange' => [
-                'start' => $matches[0],
-                'end' => $matches[count($matches) - 1] + 1,
+                'start' => $start,
+                'end' => $end,
             ],
         ];
+    }
+
+    private static function comparePrefix(string $prefix, string $oid): int
+    {
+        $comparison = strncmp($prefix, $oid, strlen($prefix));
+        if ($comparison < 0) {
+            return -1;
+        }
+        if ($comparison > 0) {
+            return 1;
+        }
+
+        return 0;
     }
 
     private static function readUInt32(string $bytes, int &$offset): int

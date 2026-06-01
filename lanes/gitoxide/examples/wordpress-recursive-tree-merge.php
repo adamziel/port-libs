@@ -329,6 +329,27 @@ $targetAddOursResolved = $targetAddResult->resolveTreeConflicts($read, $write, T
 $targetAddAncestorMuPlugins = $treeAtPathOrEmpty($targetAddAncestorResolved->tree, 'wp-content/mu-plugins');
 $targetAddOursMuPlugins = $treeAtPathOrEmpty($targetAddOursResolved->tree, 'wp-content/mu-plugins');
 $targetAddOursEntry = $targetAddOursMuPlugins->entryNamed('active-loader.php');
+$directoryFileBase = new Tree([
+    $tree('wp-content', new Tree([
+        $blob('cache', "legacy cache marker\n"),
+    ])),
+]);
+$directoryFileOurs = new Tree([
+    $tree('wp-content', new Tree([
+        $blob('cache', "drop-in cache marker\n"),
+    ])),
+]);
+$directoryFileTheirs = new Tree([
+    $tree('wp-content', new Tree([
+        $tree('cache', new Tree([
+            $blob('index.php', "<?php\n// Silence is golden.\n"),
+        ])),
+    ])),
+]);
+$directoryFileResult = TreeMerge::mergeRecursive($directoryFileBase, $directoryFileOurs, $directoryFileTheirs, $read, $write);
+$directoryFileOursResolved = $directoryFileResult->resolveTreeConflicts($read, $write, TreeMergeResult::RESOLVE_OURS);
+$directoryFileResolvedContent = $treeAtPath($directoryFileOursResolved->tree, 'wp-content');
+$directoryFileResolvedEntry = $directoryFileResolvedContent->entryNamed('cache');
 $directoryRenameConflictBase = new Tree([
     $tree('wp-content', new Tree([
         $tree('plugins', new Tree([
@@ -537,6 +558,18 @@ echo json_encode([
         'oursActiveTarget' => $targetAddOursEntry === null ? null : $read($targetAddOursEntry->oid)->body,
         'indexStagesAfterAncestorResolution' => count($targetAddAncestorResolved->indexEntries()),
         'indexStagesAfterOursResolution' => count($targetAddOursResolved->indexEntries()),
+    ],
+    'directoryFileResolution' => [
+        'cleanBeforeResolution' => $directoryFileResult->isClean(),
+        'conflicts' => array_map(
+            static fn ($conflict): array => ['path' => $conflict->path, 'reason' => $conflict->reason],
+            $directoryFileResult->conflicts,
+        ),
+        'oursResolvedClean' => $directoryFileOursResolved->isClean(),
+        'contentEntries' => array_map(static fn (TreeEntry $entry): string => $entry->filename, $directoryFileResolvedContent->entries),
+        'resolvedCacheKind' => $directoryFileResolvedEntry?->kind(),
+        'resolvedCacheBody' => $directoryFileResolvedEntry === null ? null : $read($directoryFileResolvedEntry->oid)->body,
+        'indexStagesAfterResolution' => count($directoryFileOursResolved->indexEntries()),
     ],
     'directoryRenameConflictResolution' => [
         'cleanBeforeResolution' => $directoryRenameConflictResult->isClean(),

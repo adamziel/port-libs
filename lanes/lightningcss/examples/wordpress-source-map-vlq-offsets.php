@@ -384,6 +384,37 @@ $unsortedRawVlqNegativeOffsetMap->addVlqMap(
 );
 $unsortedRawVlqNegativeOffsetMap->offsetColumns(0, 10, -8);
 
+$unsortedRawVlqSortSideEffectMap = new SourceMap();
+$unsortedRawVlqSortSideEffectMap->addVlqMap(
+    'UAAAA,RACAC',
+    ['wp-content/themes/example/source-map-unsorted-columns.css'],
+    ['.wp-block-unsorted-columns{}'],
+    ['later-rule', 'earlier-rule']
+);
+$unsortedRawVlqReadOrderBeforeWrite = array_column($unsortedRawVlqSortSideEffectMap->getMappings(), 'generatedColumn');
+$unsortedRawVlqSortSideEffectMap->writeVlq();
+$unsortedRawVlqReadOrderAfterWrite = array_column($unsortedRawVlqSortSideEffectMap->getMappings(), 'generatedColumn');
+
+$unsortedRawVlqZeroOffsetMap = new SourceMap();
+$unsortedRawVlqZeroOffsetMap->addVlqMap(
+    'UAAAA,RACAC',
+    ['wp-content/themes/example/source-map-unsorted-columns.css'],
+    ['.wp-block-unsorted-columns{}'],
+    ['later-rule', 'earlier-rule']
+);
+$unsortedRawVlqZeroOffsetMap->offsetColumns(0, 0, 0);
+$unsortedRawVlqZeroOffsetOrder = array_column($unsortedRawVlqZeroOffsetMap->getMappings(), 'generatedColumn');
+
+$unsortedRawVlqLookupMap = new SourceMap();
+$unsortedRawVlqLookupMap->addVlqMap(
+    'UAAAA,RACAC',
+    ['wp-content/themes/example/source-map-unsorted-columns.css'],
+    ['.wp-block-unsorted-columns{}'],
+    ['later-rule', 'earlier-rule']
+);
+$unsortedRawVlqLookupClosest = $unsortedRawVlqLookupMap->findClosestMapping(0, 8);
+$unsortedRawVlqLookupOrder = array_column($unsortedRawVlqLookupMap->getMappings(), 'generatedColumn');
+
 $duplicateLookupInputMap = SourceMap::fromJson(
     '{"version":3,"mappings":"AAAAAA","sources":["wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{}"],"names":["duplicate-lookup-rule"]}'
 );
@@ -561,6 +592,11 @@ $actual = [
     'unsortedRawVlqMap' => $unsortedRawVlqMap->toJson(null, false),
     'unsortedRawVlqPositiveOffsetMap' => $unsortedRawVlqPositiveOffsetMap->toJson(null, false),
     'unsortedRawVlqNegativeOffsetMap' => $unsortedRawVlqNegativeOffsetMap->toJson(null, false),
+    'unsortedRawVlqReadOrderBeforeWrite' => $unsortedRawVlqReadOrderBeforeWrite,
+    'unsortedRawVlqReadOrderAfterWrite' => $unsortedRawVlqReadOrderAfterWrite,
+    'unsortedRawVlqZeroOffsetOrder' => $unsortedRawVlqZeroOffsetOrder,
+    'unsortedRawVlqLookupClosest' => $unsortedRawVlqLookupClosest,
+    'unsortedRawVlqLookupOrder' => $unsortedRawVlqLookupOrder,
     'duplicateLookupExact' => $duplicateLookupExact,
     'duplicateLookupAfterLast' => $duplicateLookupAfterLast,
     'duplicateLookupExtendedMap' => $duplicateLookupExtendedMap->toJson(null, false),
@@ -618,6 +654,11 @@ if (($argv[1] ?? null) === '--self-test') {
         'unsortedRawVlqMap' => '{"version":3,"mappings":"EACAC,QADAD","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',
         'unsortedRawVlqPositiveOffsetMap' => '{"version":3,"mappings":"EACAC,WADAD","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',
         'unsortedRawVlqNegativeOffsetMap' => '{"version":3,"mappings":"EAAAA","sources":["wp-content/themes/example/source-map-unsorted-columns.css"],"sourcesContent":[".wp-block-unsorted-columns{}"],"names":["later-rule","earlier-rule"]}',
+        'unsortedRawVlqReadOrderBeforeWrite' => [10, 2],
+        'unsortedRawVlqReadOrderAfterWrite' => [2, 10],
+        'unsortedRawVlqZeroOffsetOrder' => [2, 10],
+        'unsortedRawVlqLookupClosest' => ['generatedLine' => 0, 'generatedColumn' => 2, 'sourceIndex' => 0, 'originalLine' => 1, 'originalColumn' => 0, 'nameIndex' => 1],
+        'unsortedRawVlqLookupOrder' => [2, 10],
         'duplicateLookupExact' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => null, 'originalLine' => null, 'originalColumn' => null, 'nameIndex' => null],
         'duplicateLookupAfterLast' => ['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0],
         'duplicateLookupExtendedMap' => '{"version":3,"mappings":"A","sources":["wp-content/cache/duplicate-lookup.css","wp-content/themes/example/source-map-duplicate-lookup.scss"],"sourcesContent":[".wp-block-duplicate-lookup{color:red}",".wp-block-duplicate-lookup{}"],"names":["compiled-duplicate-lookup","duplicate-lookup-rule"]}',

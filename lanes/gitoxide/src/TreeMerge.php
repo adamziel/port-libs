@@ -403,6 +403,7 @@ final class TreeMerge
                 null,
                 $fileIsOurs ? $fileRelocated : null,
                 $fileIsOurs ? null : $fileRelocated,
+                ['resolvedPath' => $fullPath],
             ),
         ];
     }
@@ -566,6 +567,7 @@ final class TreeMerge
                     $baseRelocated,
                     $fileIsOurs ? $fileRelocated : null,
                     $fileIsOurs ? null : $fileRelocated,
+                    ['resolvedPath' => $fullPath],
                 ),
             ],
         ];
@@ -713,6 +715,7 @@ final class TreeMerge
                     null,
                     $fileIsOurs ? $fileRelocated : null,
                     $fileIsOurs ? null : $fileRelocated,
+                    ['resolvedPath' => $fullPath],
                 ),
             ],
         ];

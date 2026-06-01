@@ -353,6 +353,7 @@ return [
         $t->same('not (min--moz-device-pixel-ratio:1.5)', $parser->lowerRangeSyntaxList('(-moz-device-pixel-ratio < 1.5)'));
         $t->same('(-webkit-min-device-pixel-ratio:2) and (-webkit-max-device-pixel-ratio:3)', $parser->lowerRangeSyntaxList('(2 <= -webkit-device-pixel-ratio <= 3)'));
         $t->same('(not (-webkit-max-device-pixel-ratio:2)) and (not (-webkit-min-device-pixel-ratio:3))', $parser->lowerRangeSyntaxList('(2 < -webkit-device-pixel-ratio < 3)'));
+        $t->same('(resolution:2dppx)', $parser->useDppxResolutionUnitList($parser->lowerRangeSyntaxList('(resolution = 2x)')));
         $t->same('(min-resolution:2dppx)', $parser->useDppxResolutionUnitList($parser->lowerRangeSyntaxList('(resolution >= 2x)')));
         $t->same('(min-resolution:.5dppx) and (max-resolution:1.5dppx)', $parser->useDppxResolutionUnitList($parser->lowerRangeSyntaxList('(.5x <= resolution <= 1.5x)')));
         $t->same('(min-width:.5px)', $parser->lowerRangeSyntaxList('(width >= 0.5px)'));

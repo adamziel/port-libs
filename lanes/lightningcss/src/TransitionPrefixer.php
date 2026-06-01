@@ -250,7 +250,8 @@ final class TransitionPrefixer
         $supportRules = [];
         $displayFlexChanged = $this->rewriteDisplayFlexPrefixEntries($entries, $targetOptions);
         $flexChanged = $this->rewriteFlexPrefixEntries($entries, $targetOptions);
-        $animationChanged = $this->rewriteAnimationPrefixEntries($entries, $targetOptions);
+        $animationTimelineChanged = $this->rewriteAnimationTimelineShorthandEntries($entries, $targetOptions);
+        $animationChanged = $this->rewriteAnimationPrefixEntries($entries, $targetOptions) || $animationTimelineChanged;
         $colorSchemeChanged = $this->rewriteColorSchemeFallbackEntries($entries, $selectors, $supportRules, $targetOptions);
         $printColorAdjustChanged = $this->rewritePrintColorAdjustPrefixEntries($entries, $targetOptions);
         $columnsChanged = $this->rewriteColumnsPrefixEntries($entries, $targetOptions);
@@ -358,6 +359,9 @@ final class TransitionPrefixer
         }
 
         $parser = new MediaQueryParser();
+        if ($needsResolutionPrefixes) {
+            $condition = $this->prefixResolutionEqualityRangeQueries($condition, $targetOptions);
+        }
         $condition = $parser->lowerRangeSyntaxList($condition, $lowerSimpleRanges, $lowerIntervalRanges);
         if ($usesDppxResolutionUnit) {
             $condition = $parser->useDppxResolutionUnitList($condition);
@@ -370,6 +374,33 @@ final class TransitionPrefixer
         }
 
         return '@media ' . $condition;
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     */
+    private function prefixResolutionEqualityRangeQueries(string $queryList, array $targetOptions): string
+    {
+        $needsWebkit = $targetOptions['mediaResolutionNeedsWebkitPrefix'] ?? false;
+        $needsMoz = $targetOptions['mediaResolutionNeedsMozPrefix'] ?? false;
+        if (!$needsWebkit && !$needsMoz) {
+            return $queryList;
+        }
+
+        $queries = [];
+        $seen = [];
+        foreach ($this->splitTopLevel($queryList, ',') as $query) {
+            foreach ($this->resolutionEqualityRangeQueryVariants($query, $needsWebkit, $needsMoz) as $variant) {
+                if (isset($seen[$variant])) {
+                    continue;
+                }
+
+                $seen[$variant] = true;
+                $queries[] = $variant;
+            }
+        }
+
+        return implode(',', $queries);
     }
 
     /**
@@ -397,6 +428,34 @@ final class TransitionPrefixer
         }
 
         return implode(',', $queries);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function resolutionEqualityRangeQueryVariants(string $query, bool $needsWebkit, bool $needsMoz): array
+    {
+        $matches = $this->matchResolutionEqualityRangeConditions($query);
+        if ($matches === []) {
+            return [$query];
+        }
+
+        $variants = [];
+        if ($needsWebkit) {
+            $variant = $this->replaceResolutionMediaQueryConditions($query, $matches, 'webkit');
+            if ($variant !== null) {
+                $variants[] = $variant;
+            }
+        }
+        if ($needsMoz) {
+            $variant = $this->replaceResolutionMediaQueryConditions($query, $matches, 'moz');
+            if ($variant !== null) {
+                $variants[] = $variant;
+            }
+        }
+        $variants[] = $query;
+
+        return $variants;
     }
 
     /**
@@ -430,17 +489,42 @@ final class TransitionPrefixer
     /**
      * @return list<array{offset:int,length:int,bound:string,value:string,negated:bool}>
      */
-    private function matchResolutionConditions(string $query): array
+    private function matchResolutionEqualityRangeConditions(string $query): array
     {
-        if (preg_match_all('/not\s+\((min|max)-resolution:([^)]+)\)|\((min|max)-resolution:([^)]+)\)/i', $query, $all, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) !== false) {
+        $resolution = '[+-]?(?:\d+|\d*\.\d+)(?:dppx|x|dpi|dpcm)';
+        if (preg_match_all('/(?:(not)\s+)?\(\s*(?:resolution\s*=\s*(' . $resolution . ')|(' . $resolution . ')\s*=\s*resolution)\s*\)/i', $query, $all, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) !== false) {
             $matches = [];
             foreach ($all as $match) {
                 $negated = ($match[1][1] ?? -1) >= 0 && $match[1][0] !== '';
                 $matches[] = [
                     'offset' => $match[0][1],
                     'length' => strlen($match[0][0]),
-                    'bound' => strtolower($negated ? $match[1][0] : $match[3][0]),
-                    'value' => trim($negated ? $match[2][0] : $match[4][0]),
+                    'bound' => '',
+                    'value' => trim($match[2][0] !== '' ? $match[2][0] : $match[3][0]),
+                    'negated' => $negated,
+                ];
+            }
+
+            return $matches;
+        }
+
+        return [];
+    }
+
+    /**
+     * @return list<array{offset:int,length:int,bound:string,value:string,negated:bool}>
+     */
+    private function matchResolutionConditions(string $query): array
+    {
+        if (preg_match_all('/(?:(not)\s+)?\((min|max)-resolution:([^)]+)\)/i', $query, $all, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) !== false) {
+            $matches = [];
+            foreach ($all as $match) {
+                $negated = ($match[1][1] ?? -1) >= 0 && $match[1][0] !== '';
+                $matches[] = [
+                    'offset' => $match[0][1],
+                    'length' => strlen($match[0][0]),
+                    'bound' => strtolower($match[2][0]),
+                    'value' => trim($match[3][0]),
                     'negated' => $negated,
                 ];
             }
@@ -477,11 +561,19 @@ final class TransitionPrefixer
 
     private function resolutionPrefixCondition(string $bound, string $ratio, string $vendor, bool $negated): string
     {
-        $feature = match ($vendor) {
-            'webkit' => $bound === 'min' ? '-webkit-min-device-pixel-ratio' : '-webkit-max-device-pixel-ratio',
-            'moz' => $bound === 'min' ? 'min--moz-device-pixel-ratio' : 'max--moz-device-pixel-ratio',
-            default => $bound . '-resolution',
-        };
+        if ($bound === '') {
+            $feature = match ($vendor) {
+                'webkit' => '-webkit-device-pixel-ratio',
+                'moz' => '-moz-device-pixel-ratio',
+                default => 'resolution',
+            };
+        } else {
+            $feature = match ($vendor) {
+                'webkit' => $bound === 'min' ? '-webkit-min-device-pixel-ratio' : '-webkit-max-device-pixel-ratio',
+                'moz' => $bound === 'min' ? 'min--moz-device-pixel-ratio' : 'max--moz-device-pixel-ratio',
+                default => $bound . '-resolution',
+            };
+        }
         $condition = '(' . $feature . ':' . $ratio . ')';
 
         return $negated ? 'not ' . $condition : $condition;
@@ -1342,6 +1434,13 @@ final class TransitionPrefixer
                 'opera' => [46],
                 'safari' => [11, 1],
                 'samsung' => [8],
+            ]),
+            'animationTimelineShorthandNeedsFallback' => $this->targetsNeedFeatureFallback($normalized, [
+                'android' => [115],
+                'chrome' => [115],
+                'edge' => [115],
+                'opera' => [77],
+                'samsung' => [23],
             ]),
             'lengthMinMaxFunctionSupported' => $this->targetsAllAtLeast($normalized, [
                 'android' => [79],
@@ -4423,6 +4522,83 @@ final class TransitionPrefixer
             '-moz-' => $targetOptions['appearanceNeedsMoz'] ?? false,
             '-ms-' => $targetOptions['appearanceNeedsMs'] ?? false,
         ]) || $changed;
+    }
+
+    /**
+     * @param list<array{property:string,name:string,value:string,important:bool}> $entries
+     * @param array<string, bool> $targetOptions
+     */
+    private function rewriteAnimationTimelineShorthandEntries(array &$entries, array $targetOptions): bool
+    {
+        if (!($targetOptions['animationTimelineShorthandNeedsFallback'] ?? false)) {
+            return false;
+        }
+
+        $rewritten = [];
+        $changed = false;
+        foreach ($entries as $entry) {
+            if ($entry['property'] !== 'animation') {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            [$animationValue, $timelineValue] = $this->splitAnimationTimelineShorthandValue($entry['value']);
+            if ($timelineValue === null) {
+                $rewritten[] = $entry;
+                continue;
+            }
+
+            $rewritten[] = $this->entryWithValue($entry, $animationValue);
+            $rewritten[] = $this->declarationEntry('animation-timeline', $timelineValue, $entry['important']);
+            $changed = true;
+        }
+
+        if (!$changed) {
+            return false;
+        }
+
+        $entries = $rewritten;
+
+        return true;
+    }
+
+    /**
+     * @return array{0:string,1:string|null}
+     */
+    private function splitAnimationTimelineShorthandValue(string $value): array
+    {
+        $animationLayers = [];
+        $timelineLayers = [];
+        $changed = false;
+
+        foreach ($this->splitTopLevel($value, ',') as $layer) {
+            $tokens = $this->splitWhitespaceTopLevel($layer);
+            $animationTokens = [];
+            $timelineTokens = [];
+            foreach ($tokens as $token) {
+                if ($this->isAnimationTimelineShorthandToken($token)) {
+                    $timelineTokens[] = $token;
+                    $changed = true;
+                    continue;
+                }
+
+                $animationTokens[] = $token;
+            }
+
+            $animationLayers[] = implode(' ', $animationTokens);
+            $timelineLayers[] = $timelineTokens === [] ? 'auto' : implode(' ', $timelineTokens);
+        }
+
+        if (!$changed) {
+            return [$value, null];
+        }
+
+        return [implode(',', $animationLayers), implode(',', $timelineLayers)];
+    }
+
+    private function isAnimationTimelineShorthandToken(string $token): bool
+    {
+        return preg_match('/^(?:scroll|view)\(/i', trim($token)) === 1;
     }
 
     /**

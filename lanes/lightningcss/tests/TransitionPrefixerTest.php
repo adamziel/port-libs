@@ -2726,6 +2726,26 @@ CSS;
             $prefixer->prefixForTargets('.foo { animation: .2s ease-in-out bar; }', ['ios_saf' => $encoded(8, 2)])
         );
     },
+    'transition prefixer maps upstream animation timeline shorthand target boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '.foo { animation: .2s ease-in-out bar scroll(); }';
+        $fallback = '.foo{animation:.2s ease-in-out bar;animation-timeline:scroll()}';
+        $modern = '.foo{animation:.2s ease-in-out bar scroll()}';
+
+        $t->same($fallback, $prefixer->prefixForTargets($css, ['safari' => 16]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['chrome' => 120]));
+        $t->same(
+            '.foo{-webkit-animation:.2s ease-in-out bar;animation:.2s ease-in-out bar;animation-timeline:scroll()}',
+            $prefixer->prefixForTargets($css, ['safari' => 6])
+        );
+        $t->same($fallback, $prefixer->prefixForTargets($css, ['chrome' => 114]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['chrome' => 115]));
+        $t->same($fallback, $prefixer->prefixForTargets($css, ['opera' => 76]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['opera' => 77]));
+        $t->same($fallback, $prefixer->prefixForTargets($css, ['samsung' => 22]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['samsung' => 23]));
+        $t->same($fallback, $prefixer->prefixForTargets($css, ['firefox' => 120]));
+    },
     'transition prefixer maps upstream encoded browser target prefix boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
         $encoded = static fn (int $major, int $minor = 0, int $patch = 0): int => ($major << 16) | ($minor << 8) | $patch;
@@ -3100,6 +3120,18 @@ CSS;
         $t->same(
             '@media (-webkit-min-device-pixel-ratio:3.125),(min-resolution:300dpi){.foo{color:#ff0}}',
             $prefixer->prefixForTargets('@media (resolution >= 300dpi) { .foo { color: yellow; } }', ['safari' => 15])
+        );
+        $t->same(
+            '@layer blocks{@media (-webkit-device-pixel-ratio:2),(-moz-device-pixel-ratio:2),(resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (resolution = 2dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@layer blocks{@media (resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@media only screen and (-webkit-device-pixel-ratio:1.3),only screen and (-moz-device-pixel-ratio:1.3),only screen and (resolution:124.8dpi){.foo{color:#ff0}}',
+            $prefixer->prefixForTargets('@media only screen and (resolution = 124.8dpi) { .foo { color: yellow; } }', ['safari' => 15, 'firefox' => 10])
         );
         $t->same(
             '@media (-webkit-min-device-pixel-ratio:2.99985),(min--moz-device-pixel-ratio:2.99985),(min-resolution:113.38dpcm){.foo{color:#ff0}}',

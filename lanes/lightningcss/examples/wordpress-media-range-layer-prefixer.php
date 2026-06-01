@@ -90,6 +90,10 @@ $actual = [
         '@layer theme.blocks { @media (min-resolution: 2x) { .wp-block-query.is-density-aware { color: yellow; } } }',
         ['safari' => 15, 'firefox' => 10]
     ),
+    'resolutionEqualityPrefixFallback' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (resolution = 2dppx) { .wp-block-query.is-density-exact { color: yellow; } } }',
+        ['safari' => 15, 'firefox' => 10]
+    ),
     'xResolutionIntervalPrefixFallback' => $prefixer->prefixForTargets(
         '@layer theme.blocks { @media (0.5x <= resolution <= 1.5x) { .wp-block-query.is-low-density-window { color: yellow; } } }',
         ['safari' => 15, 'firefox' => 10]
@@ -213,6 +217,7 @@ $expected = [
     'fractionalResolutionRange' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query.is-low-density-window{color:#ff0}}}',
     'xResolutionLegacyUnit' => '@layer theme.blocks{@media (resolution:1dppx){.wp-block-query.is-density-aware{background:red}}}',
     'xResolutionPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query.is-density-aware{color:#ff0}}}',
+    'resolutionEqualityPrefixFallback' => '@layer theme.blocks{@media (-webkit-device-pixel-ratio:2),(-moz-device-pixel-ratio:2),(resolution:2dppx){.wp-block-query.is-density-exact{color:#ff0}}}',
     'xResolutionIntervalPrefixFallback' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query.is-low-density-window{color:#ff0}}}',
     'negatedRangeGroup' => '@layer theme.blocks{@media not (((min-width:100px) and (max-width:200px)) or (hover)){.wp-block-query.is-not-compact-hover{color:#ff0}}}',
     'negatedIntervalWithHover' => '@layer theme.blocks{@media (hover) and (not ((min-width:200px) and (not (min-width:500px)))){.wp-block-query.is-not-middle-hover{color:#ff0}}}',

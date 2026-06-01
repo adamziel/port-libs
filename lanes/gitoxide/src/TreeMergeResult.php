@@ -503,6 +503,11 @@ final class TreeMergeResult
 
     private static function resolvedEntryPath(TreeMergeConflict $conflict, TreeEntry $entry): string
     {
+        $resolvedPath = $conflict->context['resolvedPath'] ?? null;
+        if (is_string($resolvedPath) && $resolvedPath !== '') {
+            return $resolvedPath;
+        }
+
         $baseName = basename($conflict->path);
         if ($entry->filename === $baseName) {
             return $conflict->path;

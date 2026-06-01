@@ -440,6 +440,57 @@ return [
         $t->same(['later', 'earlier'], $negativeData['names']);
         $t->same(['.compiled{}'], $negativeData['sourcesContent']);
     },
+    'source map applies upstream mapping-line sort side effects' => static function (TestRunner $t): void {
+        $raw = new SourceMap();
+        $raw->addVlqMap(
+            'UAAAA,RACAC',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['later', 'earlier']
+        );
+
+        $t->same([10, 2], array_column($raw->getMappings(), 'generatedColumn'));
+        $t->same([0, 1], array_column($raw->getMappings(), 'originalLine'));
+        $t->same([0, 1], array_column($raw->getMappings(), 'nameIndex'));
+        $t->same('EACAC,QADAD', $raw->writeVlq());
+        $t->same([2, 10], array_column($raw->getMappings(), 'generatedColumn'));
+        $t->same([1, 0], array_column($raw->getMappings(), 'nameIndex'));
+
+        $zeroOffset = new SourceMap();
+        $zeroOffset->addVlqMap(
+            'UAAAA,RACAC',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['later', 'earlier']
+        );
+        $zeroOffset->offsetColumns(0, 0, 0);
+        $t->same([2, 10], array_column($zeroOffset->getMappings(), 'generatedColumn'));
+
+        $lookup = new SourceMap();
+        $lookup->addVlqMap(
+            'UAAAA,RACAC',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['later', 'earlier']
+        );
+        $closest = $lookup->findClosestMapping(0, 8);
+        $t->same(2, $closest['generatedColumn'] ?? null);
+        $t->same(1, $closest['originalLine'] ?? null);
+        $t->same(1, $closest['nameIndex'] ?? null);
+        $t->same([2, 10], array_column($lookup->getMappings(), 'generatedColumn'));
+
+        $offset = new SourceMap();
+        $offset->addVlqMap(
+            'UAAAA,RACAC',
+            ['compiled.css'],
+            ['.compiled{}'],
+            ['later', 'earlier']
+        );
+        $offset->offsetColumns(0, 5, 3);
+        $t->same([2, 13], array_column($offset->getMappings(), 'generatedColumn'));
+        $t->same([1, 0], array_column($offset->getMappings(), 'nameIndex'));
+        $t->same('EACAC,WADAD', $offset->writeVlq());
+    },
     'source map closest lookup follows upstream duplicate generated-column search' => static function (TestRunner $t): void {
         $inputMap = SourceMap::fromJson(
             '{"version":3,"mappings":"AAAAAA","sources":["compiled.css"],"sourcesContent":[".compiled{}"],"names":["rule"]}'

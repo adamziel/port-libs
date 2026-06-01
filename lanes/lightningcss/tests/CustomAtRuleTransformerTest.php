@@ -435,6 +435,116 @@ CSS;
             ],
         ]));
     },
+    'custom at-rules visit upstream SyntaxString image preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $events = [];
+        $rules = [];
+        $css = <<<'CSS'
+@hero url(block-card.png);
+@placeholder none;
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'hero' => ['prelude' => '<image>'],
+            'placeholder' => ['prelude' => '<image>'],
+        ], [
+            'Image' => static function (array $image) use (&$events): array {
+                $events[] = 'enter:' . $image['type'] . ':' . (($image['value']['url'] ?? '') ?: 'none');
+                if (($image['type'] ?? null) === 'url') {
+                    $image['value']['url'] = 'theme/' . $image['value']['url'];
+                }
+
+                return $image;
+            },
+            'Url' => static function (array $url) use (&$events): array {
+                $events[] = 'url:' . $url['url'];
+                $url['url'] = 'assets/' . $url['url'];
+
+                return $url;
+            },
+            'ImageExit' => static function (array $image) use (&$events): ?array {
+                $events[] = 'exit:' . $image['type'] . ':' . (($image['value']['url'] ?? '') ?: 'none');
+                if (($image['type'] ?? null) === 'none') {
+                    return [
+                        'type' => 'url',
+                        'value' => [
+                            'url' => 'fallback.svg',
+                            'raw' => 'url(fallback.svg)',
+                            'loc' => ['line' => 1, 'column' => 1],
+                        ],
+                    ];
+                }
+
+                return $image;
+            },
+            'Rule' => [
+                'custom' => static function (array $rule) use (&$rules, &$events): array {
+                    $events[] = 'rule:' . $rule['name'] . ':' . $rule['prelude'];
+                    $rules[$rule['name']] = [
+                        'prelude' => $rule['prelude'],
+                        'preludeAst' => $rule['preludeAst'],
+                    ];
+
+                    return [];
+                },
+            ],
+        ]);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            'enter:url:block-card.png',
+            'url:theme/block-card.png',
+            'exit:url:assets/theme/block-card.png',
+            'rule:hero:url(assets/theme/block-card.png)',
+            'enter:none:none',
+            'exit:none:none',
+            'rule:placeholder:url(fallback.svg)',
+        ], $events);
+        $t->same('url(assets/theme/block-card.png)', $rules['hero']['prelude']);
+        $t->same('url', $rules['hero']['preludeAst']['value']['type']);
+        $t->same('assets/theme/block-card.png', $rules['hero']['preludeAst']['value']['value']['url']);
+        $t->same('url(fallback.svg)', $rules['placeholder']['prelude']);
+        $t->same('url', $rules['placeholder']['preludeAst']['value']['type']);
+        $t->same('fallback.svg', $rules['placeholder']['preludeAst']['value']['value']['url']);
+
+        $composedRules = [];
+        $composedVisitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Image' => static function (array $image): array {
+                    if (($image['type'] ?? null) === 'url') {
+                        $image['value']['url'] = 'cdn/' . $image['value']['url'];
+                    }
+
+                    return $image;
+                },
+            ],
+            [
+                'ImageExit' => static function (array $image): array {
+                    if (($image['type'] ?? null) === 'url') {
+                        $image['value']['url'] .= '?v=1';
+                    }
+
+                    return $image;
+                },
+                'Rule' => [
+                    'custom' => static function (array $rule) use (&$composedRules): array {
+                        $composedRules[$rule['name']] = $rule['prelude'];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $composedResult = (new CustomAtRuleTransformer())->transform('@hero url(card.png);', [
+            'hero' => ['prelude' => '<image>'],
+        ], $composedVisitor);
+        $t->same('', $composedResult);
+        $t->same('url(cdn/card.png?v=1)', $composedRules['hero']);
+    },
     'custom at-rules map upstream bundler mixin visitor after import resolution' => static function (TestRunner $t) use ($customDefinitions, $mixinVisitor): void {
         $mixins = [];
         $result = (new CustomAtRuleTransformer())->bundle('/apply.css', [

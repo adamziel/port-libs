@@ -143,6 +143,29 @@ return [
         $t->same('ambiguous', $prefix['status']);
         $t->same([0, 1], $prefix['matches']);
     },
+    'expands pack index prefix candidates around the binary-search midpoint like gix-pack' => static function (TestRunner $t) use ($buildIndex, $packChecksum): void {
+        $first = '4abc011111111111111111111111111111111111';
+        $middle = '4abc122222222222222222222222222222222222';
+        $last = '4abc233333333333333333333333333333333333';
+        $outside = '4abd344444444444444444444444444444444444';
+        $index = PackIndex::fromBytes($buildIndex([
+            ['oid' => $outside, 'offset' => 48, 'crc32' => 4],
+            ['oid' => $last, 'offset' => 36, 'crc32' => 3],
+            ['oid' => $first, 'offset' => 12, 'crc32' => 1],
+            ['oid' => $middle, 'offset' => 24, 'crc32' => 2],
+        ], $packChecksum));
+
+        $ambiguous = $index->lookupPrefix('4ABC');
+        $t->same('ambiguous', $ambiguous['status']);
+        $t->same([0, 1, 2], $ambiguous['matches']);
+        $t->same(['start' => 0, 'end' => 3], $ambiguous['candidateRange']);
+
+        $found = $index->lookupPrefix('4abc1');
+        $t->same('found', $found['status']);
+        $t->same($middle, $found['entry']->oid);
+        $t->same(['start' => 1, 'end' => 2], $found['candidateRange']);
+        $t->same('4abc0', $index->disambiguatePrefix($first, 4));
+    },
     'reports upstream-style pack index prefix candidate ranges and disambiguates by nibble' => static function (TestRunner $t) use ($buildIndex, $packChecksum): void {
         $first = '3b18a11111111111111111111111111111111111';
         $second = '3b18b22222222222222222222222222222222222';

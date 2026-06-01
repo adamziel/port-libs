@@ -422,9 +422,12 @@ final class SourceMap
         $this->assertNonNegative($generatedColumn, 'generated column');
 
         if ($generatedColumnOffset === 0) {
+            $this->sortGeneratedLineMappingsInPlace($generatedLine);
+
             return;
         }
 
+        $this->sortGeneratedLineMappingsInPlace($generatedLine);
         $lineMappings = $this->sortedLineMappingIndexes($generatedLine);
         if ($lineMappings === []) {
             if ($generatedLine < $this->generatedLineCount && $generatedColumnOffset > 0) {
@@ -737,6 +740,7 @@ final class SourceMap
         $this->assertNonNegative($generatedLine, 'generated line');
         $this->assertNonNegative($generatedColumn, 'generated column');
 
+        $this->sortGeneratedLineMappingsInPlace($generatedLine);
         $lineMappings = $this->sortedLineMappingIndexes($generatedLine);
         if ($lineMappings === []) {
             return null;
@@ -762,8 +766,8 @@ final class SourceMap
         $mappings = $this->mappings;
         usort(
             $mappings,
-            static fn (array $a, array $b): int => [$a['generatedLine'], $a['generatedColumn'], $a['order']]
-                <=> [$b['generatedLine'], $b['generatedColumn'], $b['order']]
+            static fn (array $a, array $b): int => [$a['generatedLine'], $a['order']]
+                <=> [$b['generatedLine'], $b['order']]
         );
 
         return array_map(fn (array $mapping): array => $this->mappingForRead($mapping), $mappings);
@@ -775,11 +779,12 @@ final class SourceMap
             return '';
         }
 
+        $this->sortAllGeneratedLineMappingsInPlace();
         $mappings = $this->mappings;
         usort(
             $mappings,
-            static fn (array $a, array $b): int => [$a['generatedLine'], $a['generatedColumn'], $a['order']]
-                <=> [$b['generatedLine'], $b['generatedColumn'], $b['order']]
+            static fn (array $a, array $b): int => [$a['generatedLine'], $a['order']]
+                <=> [$b['generatedLine'], $b['order']]
         );
 
         $byLine = [];
@@ -1204,6 +1209,72 @@ final class SourceMap
             $parts,
             static fn (string $part): bool => $part !== '' && $part !== '.'
         ));
+    }
+
+    private function sortGeneratedLineMappingsInPlace(int $generatedLine): void
+    {
+        $lineMappings = [];
+        foreach ($this->mappings as $index => $mapping) {
+            if ($mapping['generatedLine'] !== $generatedLine) {
+                continue;
+            }
+
+            $lineMappings[] = [
+                'index' => $index,
+                'position' => count($lineMappings),
+                'mapping' => $mapping,
+            ];
+        }
+
+        if (count($lineMappings) < 2) {
+            return;
+        }
+
+        $sorted = $lineMappings;
+        usort(
+            $sorted,
+            static fn (array $a, array $b): int => [$a['mapping']['generatedColumn'], $a['position']]
+                <=> [$b['mapping']['generatedColumn'], $b['position']]
+        );
+
+        $changed = false;
+        foreach ($lineMappings as $offset => $lineMapping) {
+            if ($lineMapping['index'] !== $sorted[$offset]['index']) {
+                $changed = true;
+                break;
+            }
+        }
+
+        if (!$changed) {
+            return;
+        }
+
+        $cursor = 0;
+        $updated = [];
+        foreach ($this->mappings as $mapping) {
+            if ($mapping['generatedLine'] === $generatedLine) {
+                $updated[] = $sorted[$cursor]['mapping'];
+                $cursor++;
+                continue;
+            }
+
+            $updated[] = $mapping;
+        }
+
+        $this->mappings = $this->renumberMappings($updated);
+    }
+
+    private function sortAllGeneratedLineMappingsInPlace(): void
+    {
+        $lines = [];
+        foreach ($this->mappings as $mapping) {
+            $lines[$mapping['generatedLine']] = true;
+        }
+
+        ksort($lines);
+        foreach (array_keys($lines) as $generatedLine) {
+            $this->sortGeneratedLineMappingsInPlace($generatedLine);
+        }
     }
 
     /**

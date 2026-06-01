@@ -1165,3 +1165,34 @@ if (
 }
 
 echo 'css-modules-project-root: stable' . PHP_EOL;
+
+$cssModuleFirstInstance = (new CssBundler())->bundleCssModules('/blocks/card.css', [
+    '/blocks/card.css' => <<<'CSS'
+@import "../theme.css";
+.wp-block-card {
+  composes: token from "../tokens.css";
+  color: red;
+}
+CSS,
+    '/theme.css' => <<<'CSS'
+@import "tokens.css";
+.wp-block-card { color: blue; }
+CSS,
+    '/tokens.css' => '.token { color: green; }',
+], null, [
+    'hashes' => [
+        '/blocks/card.css' => 'card',
+        '/theme.css' => 'theme',
+        '/tokens.css' => 'tok',
+    ],
+]);
+
+if (
+    $cssModuleFirstInstance['code'] !== '.tok_token{color:green}.theme_wp-block-card{color:#00f}.card_wp-block-card{color:red}'
+    || ($cssModuleFirstInstance['exports']['wp-block-card']['composes'][0]['name'] ?? null) !== 'tok_token'
+) {
+    fwrite(STDERR, "Unexpected CSS Modules first-instance dependency graph output\n");
+    exit(1);
+}
+
+echo 'css-modules-first-instance: stable' . PHP_EOL;

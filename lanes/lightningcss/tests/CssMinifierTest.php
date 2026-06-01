@@ -957,6 +957,26 @@ CSS
             $minifier->minify('.foo { color: color-mix(in xyz, transparent, green 65%); }')
         );
     },
+    'css minifier maps upstream non-srgb named color-mix normalization' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+        $cases = [
+            '.foo { color: color-mix(in lab, purple 50%, plum 50%); }' => '.foo{color:lab(51.5117% 43.3777 -29.0443)}',
+            '.foo { color: color-mix(in lch, peru 40%, palegoldenrod); }' => '.foo{color:lch(79.7255% 40.4542 84.7634)}',
+            '.foo { color: color-mix(in lch, teal 65%, olive); }' => '.foo{color:lch(49.4431% 40.4806 162.546)}',
+            '.foo { color: color-mix(in lch, white, black); }' => '.foo{color:lch(50% 0 none)}',
+            '.foo { color: color-mix(in xyz, rgb(82.02% 30.21% 35.02%) 75.23%, rgb(5.64% 55.94% 85.31%)); }' => '.foo{color:color(xyz .287458 .208776 .260566)}',
+            '.foo { color: color-mix(in lch, white, blue); }' => '.foo{color:lch(64.7842% 65.6007 301.364)}',
+            '.foo { color: color-mix(in oklch, white, blue); }' => '.foo{color:oklch(72.6007% .156607 264.052)}',
+            '.foo { color: color-mix(in lch, blue, white); }' => '.foo{color:lch(64.7842% 65.6007 301.364)}',
+            '.foo { color: color-mix(in oklch, blue, white); }' => '.foo{color:oklch(72.6007% .156607 264.052)}',
+            '.foo { color: color-mix(in lch, color(display-p3 0 1 none), color(display-p3 0 0 1)); }' => '.foo{color:lch(58.8143% 141.732 218.684)}',
+            '.foo { --color: color-mix(in lch, teal 65%, olive); }' => '.foo{--color:lch(49.4431% 40.4806 162.546)}',
+        ];
+
+        foreach ($cases as $css => $expected) {
+            $t->same($expected, $minifier->minify($css));
+        }
+    },
     'css minifier maps upstream color-scheme value ordering' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 

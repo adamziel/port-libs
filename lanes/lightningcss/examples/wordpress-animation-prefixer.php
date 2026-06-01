@@ -12,7 +12,7 @@ $css = <<<'CSS'
 .wp-block-cover.is-style-reveal {
   -webkit-animation: 200ms var(--wp--custom--ease) wp-cover-reveal;
   -moz-animation: 200ms var(--wp--custom--ease) wp-cover-reveal;
-  animation: 200ms var(--wp--custom--ease) wp-cover-reveal;
+  animation: 200ms var(--wp--custom--ease) wp-cover-reveal scroll();
 }
 
 .wp-block-query .wp-block-post {
@@ -28,9 +28,9 @@ $actual = [
 ];
 
 $expected = [
-    'legacy_editor' => '.wp-block-cover.is-style-reveal{-webkit-animation:.2s var(--wp--custom--ease) wp-cover-reveal;-moz-animation:.2s var(--wp--custom--ease) wp-cover-reveal;animation:.2s var(--wp--custom--ease) wp-cover-reveal}.wp-block-query .wp-block-post{-webkit-animation-name:wp-post-enter;-moz-animation-name:wp-post-enter;animation-name:wp-post-enter;-webkit-animation-duration:.2s;-moz-animation-duration:.2s;animation-duration:.2s}',
-    'opera_12' => '.wp-block-cover.is-style-reveal{-o-animation:.2s var(--wp--custom--ease) wp-cover-reveal;animation:.2s var(--wp--custom--ease) wp-cover-reveal}.wp-block-query .wp-block-post{-o-animation-name:wp-post-enter;animation-name:wp-post-enter;-o-animation-duration:.2s;animation-duration:.2s}',
-    'modern_frontend' => '.wp-block-cover.is-style-reveal{animation:.2s var(--wp--custom--ease) wp-cover-reveal}.wp-block-query .wp-block-post{animation-name:wp-post-enter;animation-duration:.2s}',
+    'legacy_editor' => '.wp-block-cover.is-style-reveal{-webkit-animation:.2s var(--wp--custom--ease) wp-cover-reveal;-moz-animation:.2s var(--wp--custom--ease) wp-cover-reveal;animation:.2s var(--wp--custom--ease) wp-cover-reveal;animation-timeline:scroll()}.wp-block-query .wp-block-post{-webkit-animation-name:wp-post-enter;-moz-animation-name:wp-post-enter;animation-name:wp-post-enter;-webkit-animation-duration:.2s;-moz-animation-duration:.2s;animation-duration:.2s}',
+    'opera_12' => '.wp-block-cover.is-style-reveal{-o-animation:.2s var(--wp--custom--ease) wp-cover-reveal;animation:.2s var(--wp--custom--ease) wp-cover-reveal;animation-timeline:scroll()}.wp-block-query .wp-block-post{-o-animation-name:wp-post-enter;animation-name:wp-post-enter;-o-animation-duration:.2s;animation-duration:.2s}',
+    'modern_frontend' => '.wp-block-cover.is-style-reveal{animation:.2s var(--wp--custom--ease) wp-cover-reveal;animation-timeline:scroll()}.wp-block-query .wp-block-post{animation-name:wp-post-enter;animation-duration:.2s}',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {

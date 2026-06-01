@@ -194,6 +194,29 @@ return [
         $t->same('ambiguous', $ambiguous['status']);
         $t->same([1, 2], $ambiguous['matches']);
     },
+    'expands multi-pack-index prefix candidates around the binary-search midpoint like gix-pack' => static function (TestRunner $t) use ($buildMultiIndex, $indexNames): void {
+        $first = '5abc011111111111111111111111111111111111';
+        $middle = '5abc122222222222222222222222222222222222';
+        $last = '5abc233333333333333333333333333333333333';
+        $outside = '5abd344444444444444444444444444444444444';
+        $index = MultiPackIndex::fromBytes($buildMultiIndex([
+            ['oid' => $outside, 'packIndex' => 1, 'offset' => 48],
+            ['oid' => $last, 'packIndex' => 1, 'offset' => 36],
+            ['oid' => $first, 'packIndex' => 0, 'offset' => 12],
+            ['oid' => $middle, 'packIndex' => 0, 'offset' => 24],
+        ], $indexNames));
+
+        $ambiguous = $index->lookupPrefix('5ABC');
+        $t->same('ambiguous', $ambiguous['status']);
+        $t->same([0, 1, 2], $ambiguous['matches']);
+        $t->same(['start' => 0, 'end' => 3], $ambiguous['candidateRange']);
+
+        $found = $index->lookupPrefix('5abc1');
+        $t->same('found', $found['status']);
+        $t->same($middle, $found['entry']->oid);
+        $t->same(['start' => 1, 'end' => 2], $found['candidateRange']);
+        $t->same('5abc0', $index->disambiguatePrefix($first, 4));
+    },
     'reports upstream-style multi-pack-index prefix candidate ranges and disambiguates by hash kind' => static function (TestRunner $t) use ($buildMultiIndex, $entries, $indexNames): void {
         $index = MultiPackIndex::fromBytes($buildMultiIndex($entries, $indexNames));
 
