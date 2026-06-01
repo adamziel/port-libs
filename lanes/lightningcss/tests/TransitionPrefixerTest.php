@@ -246,6 +246,18 @@ return [
         $t->same('input::-ms-browse{color:red}input::file-selector-button{color:red}', $prefixer->prefixForTargets('input::file-selector-button { color: red; }', ['edge' => 18]));
         $t->same('input:-webkit-autofill{color:red}input:autofill{color:red}', $prefixer->prefixForTargets('input:autofill { color: red; }', ['chrome' => 109]));
         $t->same('input:autofill{color:red}', $prefixer->prefixForTargets('input:autofill { color: red; }', ['chrome' => 110]));
+        $t->same(
+            ':-webkit-any(.foo:placeholder-shown .bar,.foo:-webkit-autofill .baz){color:red}:is(.foo:placeholder-shown .bar,.foo:autofill .baz){color:red}',
+            $prefixer->prefixForTargets('.foo:placeholder-shown .bar, .foo:autofill .baz { color: red; }', ['chrome' => 109])
+        );
+        $t->same(
+            '.foo:placeholder-shown .bar,.foo:autofill .baz{color:red}',
+            $prefixer->prefixForTargets('.foo:placeholder-shown .bar, .foo:autofill .baz { color: red; }', ['chrome' => 110])
+        );
+        $t->same(
+            '.foo:placeholder-shown .bar{color:red}.foo:-webkit-autofill .baz{color:red}.foo:autofill .baz{color:red}',
+            $prefixer->prefixForTargets('.foo:placeholder-shown .bar, .foo:autofill .baz { color: red; }', ['chrome' => 64])
+        );
         $t->same('input:-webkit-autofill{color:red}input:autofill{color:red}', $prefixer->prefixForTargets('input:autofill { color: red; }', ['safari' => '14.1']));
         $t->same('input:autofill{color:red}', $prefixer->prefixForTargets('input:autofill { color: red; }', ['safari' => '14.2']));
         $t->same('input:-moz-read-only{color:red}input:read-only{color:red}', $prefixer->prefixForTargets('input:read-only { color: red; }', ['firefox' => 77]));
@@ -3989,6 +4001,10 @@ CSS;
         $t->same(
             '@layer blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (0.5dppx <= resolution <= 1.5dppx) { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@layer blocks{@media (.5x<=resolution<=1.5x){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (0.5dppx <= resolution <= 1.5dppx) { .wp-block-query { color: yellow; } } }', ['firefox' => 102])
         );
         $t->same(
             '@layer blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query{color:#ff0}}}',

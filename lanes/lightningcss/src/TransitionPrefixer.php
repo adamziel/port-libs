@@ -2679,10 +2679,63 @@ final class TransitionPrefixer
      */
     private function selectorPrefixVariants(string $selectors, array $targetOptions): ?array
     {
-        if (count($this->splitTopLevel($selectors, ',')) !== 1) {
+        $selectorList = $this->splitTopLevel($selectors, ',');
+        if (count($selectorList) !== 1) {
+            $grouped = $this->selectorListAutofillGroupVariants($selectorList, $targetOptions);
+            if ($grouped !== null) {
+                return $grouped;
+            }
+
+            $variants = [];
+            foreach ($selectorList as $selector) {
+                array_push($variants, ...($this->singleSelectorPrefixVariants($selector, $targetOptions) ?? [$selector]));
+            }
+            $variants = array_values(array_unique($variants));
+
+            return $variants === $selectorList ? null : $variants;
+        }
+
+        return $this->singleSelectorPrefixVariants($selectors, $targetOptions);
+    }
+
+    /**
+     * @param list<string> $selectorList
+     * @param array<string, bool> $targetOptions
+     * @return list<string>|null
+     */
+    private function selectorListAutofillGroupVariants(array $selectorList, array $targetOptions): ?array
+    {
+        if (
+            !($targetOptions['autofillNeedsWebkit'] ?? false)
+            || ($targetOptions['selectorListNotNeedsFallback'] ?? false)
+        ) {
             return null;
         }
 
+        $prefixed = [];
+        $changed = false;
+        foreach ($selectorList as $selector) {
+            $rewritten = preg_replace($this->pseudoClassPattern('autofill'), ':-webkit-autofill', $selector) ?? $selector;
+            $prefixed[] = $rewritten;
+            $changed = $changed || $rewritten !== $selector;
+        }
+
+        if (!$changed) {
+            return null;
+        }
+
+        return [
+            ':-webkit-any(' . implode(',', $prefixed) . ')',
+            ':is(' . implode(',', $selectorList) . ')',
+        ];
+    }
+
+    /**
+     * @param array<string, bool> $targetOptions
+     * @return list<string>|null
+     */
+    private function singleSelectorPrefixVariants(string $selectors, array $targetOptions): ?array
+    {
         $variants = [$selectors];
         $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewriteIsSelectorVariants($selector, $targetOptions));
         $variants = $this->expandSelectorVariants($variants, fn (string $selector): array => $this->rewriteLangSelectorVariants($selector, $targetOptions));

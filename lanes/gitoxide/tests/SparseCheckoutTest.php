@@ -81,6 +81,35 @@ return [
         $t->same(false, $spec->includesPath("  \t", false));
         $t->same(false, $spec->includesPath('wp-admin/admin.php', false));
     },
+    'non cone sparse checkout preserves extra leading and trailing slash bytes' => static function (TestRunner $t) use ($entryNames): void {
+        $spec = SparseCheckoutSpec::fromNonConePatternFile(
+            "//wp-content/cache/**\n"
+            . "wp-content/generated///\n"
+            . "/wp-content/plugins/\n"
+        );
+
+        $t->same(false, $spec->includesPath('wp-content/cache/page.html', false));
+        $t->same(true, $spec->skipWorktree('wp-content/cache/page.html', false));
+        $t->same(false, $spec->includesPath('wp-content/generated', true));
+        $t->same(false, $spec->includesPath('wp-content/generated/page.html', false));
+        $t->same(true, $spec->includesPath('wp-content/plugins/gutenberg/block.json', false));
+
+        $directory = SparseCheckoutSpec::fromNonConePatternFile("wp-content/uploads/\n");
+        $t->same(true, $directory->includesPath('wp-content/uploads', true));
+        $t->same(true, $directory->includesPath('wp-content/uploads/2026/hero.jpg', false));
+
+        $blob = str_repeat('1', 40);
+        $tree = str_repeat('2', 40);
+        $wpContent = new Tree([
+            new TreeEntry('040000', 'cache', $tree),
+            new TreeEntry('040000', 'generated', $tree),
+            new TreeEntry('040000', 'plugins', $tree),
+            new TreeEntry('040000', 'uploads', $tree),
+            new TreeEntry('100644', 'index.php', $blob),
+        ]);
+
+        $t->same(['plugins'], $entryNames($spec->includedTreeEntries($wpContent, 'wp-content')));
+    },
     'sparse checkout filters wordpress tree entries for traversal' => static function (TestRunner $t) use ($entryNames): void {
         $spec = SparseCheckoutSpec::cone(['wp-content/plugins/gutenberg']);
         $blob = str_repeat('1', 40);

@@ -418,6 +418,11 @@ return [
         $t->same('(resolution:2dppx)', $parser->useDppxResolutionUnitList($parser->lowerRangeSyntaxList('(resolution = 2x)')));
         $t->same('(min-resolution:2dppx)', $parser->useDppxResolutionUnitList($parser->lowerRangeSyntaxList('(resolution >= 2x)')));
         $t->same('(min-resolution:.5dppx) and (max-resolution:1.5dppx)', $parser->useDppxResolutionUnitList($parser->lowerRangeSyntaxList('(.5x <= resolution <= 1.5x)')));
+        $t->same('(.5x<=resolution<=1.5x)', $parser->useXResolutionUnitList($parser->minifyList('(.5dppx <= resolution <= 1.5dppx)')));
+        $t->same('(.5dppx<=resolution<=1.5dppx)', $parser->useDppxResolutionUnitList($parser->minifyList('(.5x <= resolution <= 1.5x)')));
+        $t->same('(resolution>=2x)', $parser->useXResolutionUnitList($parser->minifyList('(2dppx <= resolution)')));
+        $t->same('(2x<=resolution)', $parser->useXResolutionUnitList('(2dppx<=resolution)'));
+        $t->same('(2dppx<=resolution)', $parser->useDppxResolutionUnitList('(2x<=resolution)'));
         $t->same('(min-width:.5px)', $parser->lowerRangeSyntaxList('(width >= 0.5px)'));
         $t->same('(min-width:.5px) and (max-width:1.5px)', $parser->lowerRangeSyntaxList('(0.5px <= width <= 1.50px)'));
         $t->same('(min-width:-.5px)', $parser->lowerRangeSyntaxList('(width >= -0.5px)'));

@@ -17,6 +17,7 @@ final class SQLiteRealExpressionAffinityCorpusPlan
         foreach ($rows as $row) {
             $next = [];
             foreach ($row as $column => $value) {
+                $value = self::normalizeInsertedValue($value);
                 $affinity = self::normalizeAffinity($affinities[$column] ?? 'NONE');
                 $next[$column] = match ($affinity) {
                     'INTEGER' => self::applyIntegerColumnAffinity($value),
@@ -30,6 +31,11 @@ final class SQLiteRealExpressionAffinityCorpusPlan
         }
 
         return $out;
+    }
+
+    private static function normalizeInsertedValue(mixed $value): mixed
+    {
+        return is_float($value) && is_nan($value) ? null : $value;
     }
 
     /**
@@ -686,6 +692,9 @@ final class SQLiteRealExpressionAffinityCorpusPlan
 
     private static function formatReal(float $value): string
     {
+        if (is_infinite($value)) {
+            return $value > 0 ? '9.0e+999' : '-9.0e+999';
+        }
         if (floor($value) === $value && abs($value) < 1.0e16) {
             return sprintf('%.1F', $value);
         }

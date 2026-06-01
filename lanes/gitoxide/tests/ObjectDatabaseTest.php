@@ -657,6 +657,36 @@ return [
             $t->contains('Loose object inflated size mismatch', $exception->getMessage());
         }
     },
+    'object database loose integrity ignores late same-stream overrun in primary and alternate stores' => static function (TestRunner $t) use ($writeCompressedLooseBytes): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-late-overrun-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateGitDir = $root . '/shared-cache/.git';
+        $alternateObjectsDir = $alternateGitDir . '/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+
+        $primaryBody = str_repeat('P', 96);
+        $primaryObject = new GitObject('blob', $primaryBody);
+        $primaryOid = $primaryObject->oid();
+        $writeCompressedLooseBytes($gitDir, $primaryOid, $primaryObject->storageBytes() . 'late-primary-overrun');
+
+        $alternateBody = str_repeat('A', 128);
+        $alternateObject = new GitObject('blob', $alternateBody);
+        $alternateOid = $alternateObject->oid();
+        $writeCompressedLooseBytes($alternateGitDir, $alternateOid, $alternateObject->storageBytes() . 'late-alternate-overrun');
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $database = new ObjectDatabase($gitDir);
+        $t->same($primaryBody, $database->read($primaryOid)->body);
+        $t->same($alternateBody, $database->read($alternateOid)->body);
+        $t->same(['type' => 'blob', 'size' => strlen($primaryBody), 'source' => 'loose'], $database->readHeader($primaryOid));
+        $t->same(['type' => 'blob', 'size' => strlen($alternateBody), 'source' => 'loose'], $database->readHeader($alternateOid));
+        $integrity = $database->verifyLooseIntegrity();
+        $t->same([$objectsDir, realpath($alternateObjectsDir)], array_column($integrity, 'path'));
+        $t->same([[$primaryOid], [$alternateOid]], array_map(static fn (array $row): array => $row['statistics']['verifiedObjectIds'], $integrity));
+    },
     'object database loose integrity counts duplicate case-normalized candidates in primary and alternates' => static function (TestRunner $t): void {
         $root = sys_get_temp_dir() . '/port-libs-git-odb-case-duplicate-' . bin2hex(random_bytes(4));
         $gitDir = $root . '/site/.git';

@@ -111,11 +111,11 @@ final class SparseCheckoutSpec
 
             $directoryOnly = str_ends_with($line, '/');
             if ($directoryOnly) {
-                $line = rtrim($line, '/');
+                $line = substr($line, 0, -1);
             }
             $anchored = str_starts_with($line, '/');
             if ($anchored) {
-                $line = ltrim($line, '/');
+                $line = substr($line, 1);
             }
 
             if ($line === '') {

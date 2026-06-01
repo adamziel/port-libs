@@ -291,6 +291,45 @@ return [
         $writeLooseCompressed($objectsDirectory, $overrunOid, $overrunStream);
         $t->throws(RuntimeException::class, static fn () => $store->read($overrunOid));
     },
+    'loose object integrity ignores late same-stream overrun after gix fixed header window' => static function (TestRunner $t) use ($writeLooseCompressed): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-late-overrun-loose-stream-' . bin2hex(random_bytes(4)) . '/objects';
+        $body = str_repeat('A', 96);
+        $object = new GitObject('blob', $body);
+        $oid = $object->oid();
+        $compressed = gzcompress($object->storageBytes() . 'late-overrun');
+        if ($compressed === false) {
+            throw new RuntimeException('Unable to compress late-overrun loose-object stream fixture');
+        }
+        $writeLooseCompressed($objectsDirectory, $oid, $compressed);
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+
+        $t->same($body, $store->read($oid)->body);
+        $t->same([
+            'type' => 'blob',
+            'size' => strlen($body),
+            'headerLength' => strlen('blob ' . strlen($body) . "\0"),
+        ], $store->readHeader($oid));
+        $t->same([
+            'numObjects' => 1,
+            'verifiedObjectIds' => [$oid],
+        ], $store->verifyIntegrity());
+
+        $smallOverrunObject = new GitObject('blob', 'abc');
+        $smallOverrun = $smallOverrunObject->storageBytes() . 'def';
+        $smallOverrunCompressed = gzcompress($smallOverrun);
+        if ($smallOverrunCompressed === false) {
+            throw new RuntimeException('Unable to compress small overrun loose-object stream fixture');
+        }
+        $writeLooseCompressed($objectsDirectory, $smallOverrunObject->oid(), $smallOverrunCompressed);
+        try {
+            $store->read($smallOverrunObject->oid());
+            throw new RuntimeException('Expected first-window loose object overrun to stay rejected');
+        } catch (RuntimeException $exception) {
+            $t->contains('Loose object inflated size mismatch', $exception->getMessage());
+            $t->contains('expected 10', $exception->getMessage());
+            $t->contains('got 13', $exception->getMessage());
+        }
+    },
     'loose object store rejects empty object files before zlib header decoding' => static function (TestRunner $t) use ($looseObjectPath): void {
         $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-empty-loose-' . bin2hex(random_bytes(4)) . '/objects';
         $emptyOid = str_repeat('6', 40);
@@ -675,6 +714,9 @@ return [
         $t->same($fixture['allocationLimitMessage'], $summary['allocationLimitMessage']);
         $t->same(true, $summary['trailingStreamIgnored']);
         $t->same(true, $summary['trailingStreamIntegrityVerified']);
+        $t->same(true, $summary['lateSameStreamOverrunIgnored']);
+        $t->same(true, $summary['lateSameStreamIntegrityVerified']);
+        $t->same($fixture['lateSameStreamOid'], (new GitObject('blob', $fixture['lateSameStreamBody']))->oid());
         $t->same(true, $summary['finalizedReadOnly']);
         $t->same(true, $summary['finalizedExistingObjectPreserved']);
         $t->same(true, $summary['integrityInterruptHandled']);

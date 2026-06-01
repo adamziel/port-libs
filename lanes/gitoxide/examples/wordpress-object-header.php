@@ -21,6 +21,8 @@ $allocationLimitRejected = false;
 $allocationLimitMessage = null;
 $trailingStreamIgnored = false;
 $trailingStreamIntegrityVerified = false;
+$lateSameStreamOverrunIgnored = false;
+$lateSameStreamIntegrityVerified = false;
 $finalizedReadOnly = false;
 $finalizedExistingObjectPreserved = false;
 $integrityInterruptHandled = false;
@@ -49,6 +51,23 @@ $trailingStreamIgnored = $trailingStore->read($object->oid())->body === $fixture
 $trailingIntegrity = $trailingStore->verifyIntegrity();
 $trailingStreamIntegrityVerified = $trailingIntegrity['numObjects'] === 1
     && $trailingIntegrity['verifiedObjectIds'] === [$object->oid()];
+
+$lateSameStreamObject = new GitObject('blob', $fixture['lateSameStreamBody']);
+$lateSameStreamDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-late-overrun-' . bin2hex(random_bytes(4)) . '/objects';
+$lateSameStreamPath = $lateSameStreamDirectory . '/' . substr($lateSameStreamObject->oid(), 0, 2) . '/' . substr($lateSameStreamObject->oid(), 2);
+if (!is_dir(dirname($lateSameStreamPath)) && !mkdir(dirname($lateSameStreamPath), 0777, true) && !is_dir(dirname($lateSameStreamPath))) {
+    throw new RuntimeException('Unable to create object-header late-overrun fixture directory');
+}
+$lateSameStreamCompressed = gzcompress($lateSameStreamObject->storageBytes() . 'ignored late same-stream overrun');
+if ($lateSameStreamCompressed === false) {
+    throw new RuntimeException('Unable to compress object-header late-overrun fixture');
+}
+file_put_contents($lateSameStreamPath, $lateSameStreamCompressed);
+$lateSameStreamStore = LooseObjectStore::fromObjectsDirectory($lateSameStreamDirectory);
+$lateSameStreamOverrunIgnored = $lateSameStreamStore->read($lateSameStreamObject->oid())->body === $fixture['lateSameStreamBody'];
+$lateSameStreamIntegrity = $lateSameStreamStore->verifyIntegrity();
+$lateSameStreamIntegrityVerified = $lateSameStreamIntegrity['numObjects'] === 1
+    && $lateSameStreamIntegrity['verifiedObjectIds'] === [$lateSameStreamObject->oid()];
 
 $finalizedObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-finalized-' . bin2hex(random_bytes(4)) . '/objects';
 $finalizedStore = LooseObjectStore::fromObjectsDirectory($finalizedObjectsDirectory);
@@ -116,6 +135,8 @@ return [
     'allocationLimitMessage' => $allocationLimitMessage,
     'trailingStreamIgnored' => $trailingStreamIgnored,
     'trailingStreamIntegrityVerified' => $trailingStreamIntegrityVerified,
+    'lateSameStreamOverrunIgnored' => $lateSameStreamOverrunIgnored,
+    'lateSameStreamIntegrityVerified' => $lateSameStreamIntegrityVerified,
     'finalizedReadOnly' => $finalizedReadOnly,
     'finalizedExistingObjectPreserved' => $finalizedExistingObjectPreserved,
     'integrityInterruptHandled' => $integrityInterruptHandled,

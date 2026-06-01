@@ -1368,6 +1368,22 @@ CSS,
                 '/c.css' => '@import "a.css"; .c { color: green }',
             ], '/a.css')
         );
+
+        $t->same(
+            '@layer theme.cycle;.card{color:green}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "card.css"; .entry { color: red }',
+                '/card.css' => '@import "entry.css" layer(theme.cycle); .card { color: green }',
+            ], '/entry.css')
+        );
+
+        $t->same(
+            '@layer theme.blocks.cycle;@media screen{@layer theme.blocks{.card{color:green}}}.entry{color:red}',
+            $bundle([
+                '/entry.css' => '@import "card.css" layer(theme.blocks) screen; .entry { color: red }',
+                '/card.css' => '@import "entry.css" layer(cycle) print; .card { color: green }',
+            ], '/entry.css')
+        );
     },
     'css bundler preserves repeated import position around external siblings like upstream' => static function (TestRunner $t) use ($bundle): void {
         $resolved = [];

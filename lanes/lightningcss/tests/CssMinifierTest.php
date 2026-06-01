@@ -2882,6 +2882,10 @@ CSS;
             $minifier->minify('@container style(--responsive: true) and style(color: yellow) { .foo { color: red; } }')
         );
         $t->same(
+            '@container style(color:yellow){.foo{color:red}}',
+            $minifier->minify('@container style(color: yellow !important) { .foo { color: red; } }')
+        );
+        $t->same(
             '@container style(not ((width:30px) and (--bar:url(x)))){.foo{color:red}}',
             $minifier->minify('@container style(not ((width: calc(10px + 20px)) and ((--bar: url(x))))) { .foo { color: red; } }')
         );

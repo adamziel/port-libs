@@ -475,6 +475,7 @@ final class LooseObjectStore
 
         $inflated = '';
         $expectedLength = null;
+        $strictUntilStreamEnd = false;
         $offset = 0;
         $length = strlen($compressed);
         while ($offset < $length) {
@@ -502,10 +503,15 @@ final class LooseObjectStore
 
                 $header = GitObject::decodeLooseHeader(substr($inflated, 0, $nul + 1));
                 $expectedLength = $header['headerLength'] + $header['size'];
+                $strictUntilStreamEnd = $expectedLength < self::HEADER_MAX_SIZE;
             }
 
-            if ($expectedLength !== null && strlen($inflated) > $expectedLength) {
+            if ($expectedLength !== null && $strictUntilStreamEnd && strlen($inflated) > $expectedLength) {
                 throw new \RuntimeException("Loose object inflated size mismatch: expected {$expectedLength}, got " . strlen($inflated));
+            }
+
+            if ($expectedLength !== null && !$strictUntilStreamEnd && strlen($inflated) >= $expectedLength) {
+                return substr($inflated, 0, $expectedLength);
             }
 
             if ($expectedLength !== null && inflate_get_status($context) === ZLIB_STREAM_END) {

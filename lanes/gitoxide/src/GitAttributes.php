@@ -343,7 +343,7 @@ final class GitAttributes
             return null;
         }
 
-        if (trim($pattern) === '') {
+        if (self::isAsciiWhitespaceOnly($pattern)) {
             return null;
         }
 
@@ -473,6 +473,22 @@ final class GitAttributes
     private static function validAttributeName(string $name): bool
     {
         return $name !== '' && $name[0] !== '-' && preg_match('/^[A-Za-z0-9_.-]+$/', $name) === 1;
+    }
+
+    private static function isAsciiWhitespaceOnly(string $value): bool
+    {
+        if ($value === '') {
+            return true;
+        }
+
+        $length = strlen($value);
+        for ($i = 0; $i < $length; $i++) {
+            if (!str_contains(" \t\n\r\f\v", $value[$i])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

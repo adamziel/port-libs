@@ -62,6 +62,13 @@ $asciiWhitespaceAttributes = GitAttributes::fromString(
     . "wp-content/uploads/** binary\fdiff=image\vreview\n",
     withBuiltInMacros: false,
 );
+$asciiWhitespaceOnlyAttributes = GitAttributes::fromString(
+    "\f formfeed-only\n"
+    . "\"\\f\" quoted-formfeed-only\n"
+    . "\" \\f \" quoted-spaced-formfeed-only\n"
+    . "\"wp-content/uploads/slot\\fhero.jpg\" embedded-formfeed\n",
+    withBuiltInMacros: false,
+);
 $recursiveMacroAttributes = GitAttributes::fromString(
     "[attr]my-text text\n"
     . "[attr]my-binary binary\n"
@@ -112,6 +119,9 @@ $nestedDeploymentSearch = PathspecSearch::fromSpecs([
 ]);
 $quotedSpacePath = 'wp-content/uploads/slot hero.jpg';
 $quotedFormFeedPath = "wp-content/uploads/form\x0chero.jpg";
+$formFeedOnlyPath = "\f";
+$spacedFormFeedOnlyPath = " \f ";
+$embeddedFormFeedPath = "wp-content/uploads/slot\fhero.jpg";
 $quotedSpaceSearch = PathspecSearch::fromSpecs([':(attr:quoted-space)wp-content/uploads/**']);
 $quotedFormFeedSearch = PathspecSearch::fromSpecs([':(attr:formfeed-upload)wp-content/uploads/**']);
 $valueTabRequirementRejected = false;
@@ -353,6 +363,34 @@ return [
     'mixedAsciiWhitespacePathspecMatches' => PathspecSearch::fromSpecs([
         ":(attr:binary\freview\vdiff=image)wp-content/uploads/**",
     ])->isIncluded('wp-content/uploads/banner.png', false, $asciiWhitespaceAttributes),
+    'formFeedOnlyAttributeSkipped' => $asciiWhitespaceOnlyAttributes->attributesForPath(
+        $formFeedOnlyPath,
+        ['formfeed-only'],
+    ),
+    'quotedFormFeedOnlyAttributeSkipped' => $asciiWhitespaceOnlyAttributes->attributesForPath(
+        $formFeedOnlyPath,
+        ['quoted-formfeed-only'],
+    ),
+    'quotedSpacedFormFeedOnlyAttributeSkipped' => $asciiWhitespaceOnlyAttributes->attributesForPath(
+        $spacedFormFeedOnlyPath,
+        ['quoted-spaced-formfeed-only'],
+    ),
+    'formFeedOnlyPathspecSkipped' => !PathspecMatcher::matchesOne(
+        ":(attr:formfeed-only)\f",
+        $formFeedOnlyPath,
+        false,
+        $asciiWhitespaceOnlyAttributes,
+    ),
+    'quotedSpacedFormFeedPathspecSkipped' => !PathspecSearch::fromSpecs([
+        ":(attr:quoted-spaced-formfeed-only) \f ",
+    ])->isIncluded($spacedFormFeedOnlyPath, false, $asciiWhitespaceOnlyAttributes),
+    'embeddedFormFeedAttributeMatches' => $asciiWhitespaceOnlyAttributes->attributesForPath(
+        $embeddedFormFeedPath,
+        ['embedded-formfeed'],
+    ),
+    'embeddedFormFeedPathspecMatches' => PathspecSearch::fromSpecs([
+        ':(attr:embedded-formfeed)wp-content/uploads/**',
+    ])->isIncluded($embeddedFormFeedPath, false, $asciiWhitespaceOnlyAttributes),
     'valueTabRequirementRejected' => $valueTabRequirementRejected,
     'verticalValueRequirementRejected' => $verticalValueRequirementRejected,
     'emptyLongMagicComponentRejected' => $emptyLongMagicComponentRejected,

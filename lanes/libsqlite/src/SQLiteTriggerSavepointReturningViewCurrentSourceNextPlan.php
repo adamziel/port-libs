@@ -29,9 +29,9 @@ final class SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan
         array $returning,
         array $options = [],
     ): array {
-        $key = self::viewReturningIdentifier((string) ($options['key'] ?? 'option_name'), 'key column');
-        $savepoint = self::viewReturningToken((string) ($options['savepoint'] ?? 'wp_view_import'), 'savepoint');
-        $trigger = self::viewReturningIdentifier((string) ($options['trigger'] ?? 'wp_options_view_io_update'), 'trigger');
+        $key = self::viewReturningIdentifier((string) ($options['key'] ?? 'key_name'), 'key column');
+        $savepoint = self::viewReturningToken((string) ($options['savepoint'] ?? 'app_view_import'), 'savepoint');
+        $trigger = self::viewReturningIdentifier((string) ($options['trigger'] ?? 'app_settings_view_io_update'), 'trigger');
         if ($returning === []) {
             throw new InvalidArgumentException('SQLite trigger savepoint view RETURNING projection cannot be empty');
         }
@@ -492,8 +492,8 @@ final class SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan
             throw new InvalidArgumentException('SQLite trigger savepoint RETURNING view projection cannot be empty');
         }
 
-        $savepoint = self::mappedViewIdentifier((string) ($options['savepoint'] ?? 'wp_view_returning'), 'savepoint');
-        $view = self::mappedViewIdentifier((string) ($options['view'] ?? 'wp_option_import_view'), 'view');
+        $savepoint = self::mappedViewIdentifier((string) ($options['savepoint'] ?? 'app_view_returning'), 'savepoint');
+        $view = self::mappedViewIdentifier((string) ($options['view'] ?? 'app_setting_import_view'), 'view');
         $currentSource = self::mappedViewSourceToken((string) ($options['current_source'] ?? 'current-view-returning'));
         $nextSource = self::mappedViewSourceToken((string) ($options['next_source'] ?? 'next-view-returning'));
         $rollbackCurrent = (bool) ($options['rollback_current'] ?? false);

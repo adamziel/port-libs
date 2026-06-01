@@ -1056,6 +1056,28 @@ if ($repeatedImportBundle !== '@import "https://cdn.example/editor-reset.css";.w
 
 echo 'repeated-import-position: preserved' . PHP_EOL;
 
+$cycleLayerBundle = (new CssBundler())->bundle('/cycle-layer-entry.css', [
+    '/cycle-layer-entry.css' => <<<'CSS'
+@import "blocks/card.css" layer(theme.blocks) screen;
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/blocks/card.css' => <<<'CSS'
+@import "../cycle-layer-entry.css" layer(cycle) print;
+.wp-block-card {
+  color: green;
+}
+CSS,
+]);
+
+if ($cycleLayerBundle !== '@layer theme.blocks.cycle;@media screen{@layer theme.blocks{.wp-block-card{color:green}}}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected recursive block import layer to emit an empty layer statement without wrapping the entry CSS\n");
+    exit(1);
+}
+
+echo 'cycle-layer-import: preserved' . PHP_EOL;
+
 $readerFiles = [
     '/reader-theme.css' => <<<'CSS'
 @import "pkg:tokens.css";

@@ -78,7 +78,7 @@ final class SQLiteMultiColumnRangePlan
                 'orderBySatisfied' => false,
                 'blockSortRequired' => $orderBy !== [],
                 'rangeOrderMode' => $orderBy === [] ? 'unordered' : 'no-current-source',
-                'detail' => $orderBy === [] ? 'SCAN wp_options' : 'SCAN wp_options USE TEMP B-TREE FOR ORDER BY',
+                'detail' => self::fallbackScanDetail($indexDefinitions, $orderBy !== []),
                 'dependency_closure' => 'no new support component needed; current-next92 composes native multicolumn planner STAT4 samples and ORDER BY diagnostics only',
             ];
         }
@@ -1264,6 +1264,36 @@ final class SQLiteMultiColumnRangePlan
         }
 
         return $detail;
+    }
+
+    /**
+     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int,distinctValues?:array<string,int>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>}> $indexDefinitions
+     */
+    private static function fallbackScanDetail(array $indexDefinitions, bool $orderBy): string
+    {
+        $detail = 'SCAN ' . self::fallbackTableName($indexDefinitions);
+
+        return $orderBy ? $detail . ' USE TEMP B-TREE FOR ORDER BY' : $detail;
+    }
+
+    /**
+     * @param list<array{sql:string,name?:string,rootPage?:int,estimatedRows?:int,distinctValues?:array<string,int>,stat4Samples?:list<array{neq:int|list<int>|string,nlt:int|list<int>|string,ndlt?:int|list<int>|string,sample:list<mixed>}>>}> $indexDefinitions
+     */
+    private static function fallbackTableName(array $indexDefinitions): string
+    {
+        foreach ($indexDefinitions as $indexDefinition) {
+            $sql = $indexDefinition['sql'] ?? null;
+            if (!is_string($sql) || $sql === '') {
+                continue;
+            }
+
+            $tableName = SQLiteCreateIndex::tableName($sql);
+            if ($tableName !== null && $tableName !== '') {
+                return $tableName;
+            }
+        }
+
+        return 'app_settings';
     }
 
     /**

@@ -2577,9 +2577,11 @@ final class CssMinifier
 
     private function minifyContainerStyleFeature(string $feature): string
     {
+        $hadImportant = preg_match('/\s*!\s*important\b/i', $feature) === 1;
         $feature = preg_replace('/\s*!\s*important\b/i', '', $feature) ?? $feature;
+        $feature = $this->minifyContainerFeature($feature);
 
-        return $this->minifyColorKeywords($this->minifyContainerFeature($feature));
+        return $hadImportant ? $feature : $this->minifyColorKeywords($feature);
     }
 
     private function minifyContainerFeature(string $feature): string

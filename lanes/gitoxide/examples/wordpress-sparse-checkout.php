@@ -26,6 +26,11 @@ $nonConePatternFilePathspec = SparseCheckoutSpec::fromNonConePatternFile(
     . "wp-content/uploads/hero\\  \n"
     . "  \t  \n"
 );
+$nonConeExtraSlashPathspec = SparseCheckoutSpec::fromNonConePatternFile(
+    "//wp-content/cache/**\n"
+    . "wp-content/generated///\n"
+    . "/wp-content/plugins/\n"
+);
 $wildmatchPathspec = SparseCheckoutSpec::fromPathspecs([
     ':(glob)wp-content/plugins/[ag]*/block.[jt]son',
     ':(exclude,glob)wp-content/cache/**',
@@ -217,6 +222,10 @@ return [
     'nonConePatternFileEscapedBangLiteralIncluded' => $nonConePatternFilePathspec->includesPath('!literal-plugin.php', false),
     'nonConePatternFileEscapedTrailingSpaceIncluded' => $nonConePatternFilePathspec->includesPath('wp-content/uploads/hero ', false),
     'nonConePatternFileUnescapedTrailingSpaceSkipped' => $nonConePatternFilePathspec->skipWorktree('wp-content/uploads/hero', false),
+    'nonConeExtraLeadingSlashCacheSkipped' => $nonConeExtraSlashPathspec->skipWorktree('wp-content/cache/page.html', false),
+    'nonConeExtraTrailingSlashGeneratedSkipped' => $nonConeExtraSlashPathspec->skipWorktree('wp-content/generated/page.html', false),
+    'nonConeSingleLeadingSlashPluginIncluded' => $nonConeExtraSlashPathspec->includesPath('wp-content/plugins/gutenberg/block.json', false),
+    'nonConeExtraSlashEntriesToMaterialize' => $entryNames($nonConeExtraSlashPathspec->includedTreeEntries($wpContent, 'wp-content')),
     'pathspecBracketPluginBlockIncluded' => $wildmatchPathspec->includesPath('wp-content/plugins/akismet/block.json', false),
     'pathspecCacheExcludeAuthoritative' => $wildmatchPathspec->skipWorktree('wp-content/cache/page.html', false),
     'pathspecRecursiveEscapedThemeIncluded' => $wildmatchPathspec->includesPath('wp-content/themes/site/theme.?son', false),

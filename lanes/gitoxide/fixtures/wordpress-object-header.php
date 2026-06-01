@@ -10,6 +10,7 @@ $positiveSizeLooseHeader = 'blob +' . strlen($blockBlobBody) . "\0";
 $emptyBlobBody = '';
 $negativeZeroSizeLooseHeader = "blob -0\0";
 $canonicalEmptyBlobHeader = "blob 0\0";
+$lateSameStreamBody = str_repeat('WordPress late-overrun block body ', 4);
 $allocationLimitBytes = 128;
 $oversizedLooseHeader = "blob 4096\0";
 
@@ -22,11 +23,13 @@ return [
     'negativeZeroSizeLooseHeader' => $negativeZeroSizeLooseHeader,
     'negativeZeroSizeLooseHeaderOid' => hash('sha1', $negativeZeroSizeLooseHeader . $emptyBlobBody),
     'emptyBlobOid' => hash('sha1', $canonicalEmptyBlobHeader . $emptyBlobBody),
+    'lateSameStreamBody' => $lateSameStreamBody,
+    'lateSameStreamOid' => hash('sha1', 'blob ' . strlen($lateSameStreamBody) . "\0" . $lateSameStreamBody),
     'expectedBlobOid' => hash('sha1', $looseHeader . $blockBlobBody),
     'expectedBlobSha256' => hash('sha256', $looseHeader . $blockBlobBody),
     'allocationLimitBytes' => $allocationLimitBytes,
     'oversizedLooseHeader' => $oversizedLooseHeader,
     'oversizedLooseObjectOid' => str_repeat('a', 40),
     'allocationLimitMessage' => "Loose object declared size 4096 exceeds allocation limit {$allocationLimitBytes} bytes",
-    'wordpressUse' => 'A WordPress import or deployment tool can decode canonical and upstream-accepted signed-size loose object headers for block-content blobs, reject oversized loose-object declarations before allocating them, and ignore trailing compressed bytes after the declared object stream without invoking git cat-file.',
+    'wordpressUse' => 'A WordPress import or deployment tool can decode canonical and upstream-accepted signed-size loose object headers for block-content blobs, reject oversized loose-object declarations before allocating them, and ignore trailing compressed bytes or late same-stream overrun bytes after the declared object body without invoking git cat-file.',
 ];

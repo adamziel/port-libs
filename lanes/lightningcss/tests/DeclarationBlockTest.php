@@ -268,6 +268,60 @@ return [
             $block->removeProperty($declarations, 'color-scheme')
         );
     },
+    'declaration block canonicalizes upstream display layout cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'display: Inline Flow-Root; visibility: Collapse; position: Sticky; box-sizing: Border-Box; text-overflow: Ellipsis; vertical-align: SUPER; transform-style: Preserve-3D; transform-box: Fill-Box; backface-visibility: Hidden; mix-blend-mode: Multiply; perspective: 0px; z-index: AUTO; --Display: Inline Flow-Root';
+
+        $t->same(
+            [
+                'display' => 'inline-block',
+                'visibility' => 'collapse',
+                'position' => 'sticky',
+                'box-sizing' => 'border-box',
+                'text-overflow' => 'ellipsis',
+                'vertical-align' => 'super',
+                'transform-style' => 'preserve-3d',
+                'transform-box' => 'fill-box',
+                'backface-visibility' => 'hidden',
+                'mix-blend-mode' => 'multiply',
+                'perspective' => '0',
+                'z-index' => 'auto',
+                '--Display' => 'Inline Flow-Root',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'inline-block', 'important' => false], $block->getProperty($declarations, 'display'));
+        $t->same(['value' => 'collapse', 'important' => false], $block->getProperty($declarations, 'visibility'));
+        $t->same(['value' => 'super', 'important' => false], $block->getProperty($declarations, 'vertical-align'));
+        $t->same(['value' => '0', 'important' => false], $block->getProperty($declarations, 'perspective'));
+        $t->same(['value' => 'Inline Flow-Root', 'important' => false], $block->getProperty($declarations, '--Display'));
+        $t->same(['value' => 'block', 'important' => false], $block->getProperty('display: block flow', 'display'));
+        $t->same(['value' => 'inline', 'important' => false], $block->getProperty('display: inline flow', 'display'));
+        $t->same(['value' => 'flow-root list-item', 'important' => false], $block->getProperty('display: flow-root list-item', 'display'));
+        $t->same(['value' => 'ruby', 'important' => false], $block->getProperty('display: ruby', 'display'));
+        $t->same(['value' => 'inline-grid', 'important' => false], $block->getProperty('display: inline grid', 'display'));
+        $t->same(['value' => 'inline-block', 'important' => false], $block->getProperty('display: Inline-Block', 'display'));
+        $t->same(
+            'display: inline-flex; visibility: collapse; position: sticky; box-sizing: border-box; text-overflow: ellipsis; vertical-align: super; transform-style: preserve-3d; transform-box: fill-box; backface-visibility: hidden; mix-blend-mode: multiply; perspective: 0; z-index: auto; --Display: Inline Flow-Root',
+            $block->setProperty($declarations, 'display', 'inline flex')
+        );
+        $t->same(
+            'display: inline-block; visibility: collapse; position: sticky; box-sizing: border-box; text-overflow: ellipsis; vertical-align: 12px; transform-style: preserve-3d; transform-box: fill-box; backface-visibility: hidden; mix-blend-mode: multiply; perspective: 0; z-index: auto; --Display: Inline Flow-Root',
+            $block->setProperty($declarations, 'vertical-align', '12PX')
+        );
+        $t->same(
+            'display: inline-block; visibility: collapse; position: sticky; box-sizing: border-box; text-overflow: ellipsis; vertical-align: super; transform-style: preserve-3d; transform-box: fill-box; backface-visibility: hidden; mix-blend-mode: multiply; perspective: .5px; z-index: auto; --Display: Inline Flow-Root',
+            $block->setProperty($declarations, 'perspective', '.5000PX')
+        );
+        $t->same(
+            'display: inline-block; position: sticky; box-sizing: border-box; text-overflow: ellipsis; vertical-align: super; transform-style: preserve-3d; transform-box: fill-box; backface-visibility: hidden; mix-blend-mode: multiply; perspective: 0; z-index: auto; --Display: Inline Flow-Root; visibility: hidden !important',
+            $block->setProperty($declarations, 'visibility', 'Hidden', true)
+        );
+        $t->same(
+            'visibility: collapse; position: sticky; box-sizing: border-box; text-overflow: ellipsis; vertical-align: super; transform-style: preserve-3d; transform-box: fill-box; backface-visibility: hidden; mix-blend-mode: multiply; perspective: 0; z-index: auto; --Display: Inline Flow-Root',
+            $block->removeProperty($declarations, 'display')
+        );
+    },
     'declaration block canonicalizes upstream ui direct enum cssom declarations' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'resize: Horizontal; user-select: Text; -webkit-user-select: NONE; appearance: SearchField; -moz-appearance: Menulist-Button; -ms-appearance: Button-Bevel; --Editor-Appearance: SearchField';

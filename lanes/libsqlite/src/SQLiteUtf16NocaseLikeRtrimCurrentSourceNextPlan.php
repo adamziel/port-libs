@@ -7150,7 +7150,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nexttwoZeroTwo',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE (SELECT option_value FROM wp_options WHERE option_name = ?)',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE (SELECT key_value FROM app_settings WHERE key_name = ?)',
             'escape' => $escape,
             'collation' => 'NOCASE',
             'currentSource' => $currentSource,

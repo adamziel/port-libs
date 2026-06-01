@@ -21,6 +21,26 @@ final class SQLiteCreateIndex
         return self::parseColumns($sql, null);
     }
 
+    public static function tableName(string $sql): ?string
+    {
+        $onOffset = self::findTopLevelKeyword($sql, 'ON');
+        if ($onOffset === null) {
+            return null;
+        }
+
+        $table = self::readPossiblyQualifiedIdentifier($sql, $onOffset + 2);
+        if ($table === null) {
+            return null;
+        }
+
+        $offset = self::skipWhitespace($sql, $table[1]);
+        if (!isset($sql[$offset]) || $sql[$offset] !== '(') {
+            return null;
+        }
+
+        return $table[0];
+    }
+
     /**
      * @return list<SQLiteIndexColumn>
      */

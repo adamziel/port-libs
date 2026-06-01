@@ -88,7 +88,7 @@ $valueAt202 = static function (array $value, string $path): mixed {
 $cases202 = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nexttwoZeroTwo'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE (SELECT option_value FROM wp_options WHERE option_name = ?)'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE (SELECT key_value FROM app_settings WHERE key_name = ?)'],
     'escape' => ['escape', '!'],
     'collation' => ['collation', 'NOCASE'],
     'current source' => ['currentSource', 'main.app_settings@201'],

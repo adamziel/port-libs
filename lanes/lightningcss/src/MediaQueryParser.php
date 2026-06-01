@@ -910,7 +910,7 @@ final class MediaQueryParser
         ) ?? $queryList;
 
         return preg_replace_callback(
-            '/' . $number . 'dppx(\s*(?:[<>]=?|=)\s*resolution\b)/i',
+            '/(' . $number . ')dppx(\s*(?:[<>]=?|=)\s*resolution\b)/i',
             fn (array $matches): string => $this->trimNumber($matches[1]) . 'x' . $matches[2],
             $queryList
         ) ?? $queryList;
@@ -926,7 +926,7 @@ final class MediaQueryParser
         ) ?? $queryList;
 
         return preg_replace_callback(
-            '/' . $number . 'x(\s*(?:[<>]=?|=)\s*resolution\b)/i',
+            '/(' . $number . ')x(\s*(?:[<>]=?|=)\s*resolution\b)/i',
             fn (array $matches): string => $this->trimNumber($matches[1]) . 'dppx' . $matches[2],
             $queryList
         ) ?? $queryList;

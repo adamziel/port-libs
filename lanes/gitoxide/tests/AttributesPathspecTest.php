@@ -409,6 +409,48 @@ return [
             ":(attr:deploy=plugin\freview=yes)wp-content/plugins/**",
         ]));
     },
+    'attribute pathspec filters skip all ascii whitespace patterns like gix glob parse' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString(
+            "\f formfeed-only\n"
+            . "\"\\f\" quoted-formfeed-only\n"
+            . "\" \\f \" quoted-spaced-formfeed-only\n"
+            . "\"\\v\" quoted-vertical-only\n"
+            . "\"wp-content/uploads/slot\\fhero.jpg\" embedded-formfeed\n",
+            withBuiltInMacros: false,
+        );
+        $formFeedPath = "\f";
+        $spacedFormFeedPath = " \f ";
+        $verticalPath = "\v";
+        $embeddedFormFeedPath = "wp-content/uploads/slot\fhero.jpg";
+
+        $t->same(['formfeed-only' => null], $attributes->attributesForPath($formFeedPath, ['formfeed-only']));
+        $t->same(['quoted-formfeed-only' => null], $attributes->attributesForPath($formFeedPath, ['quoted-formfeed-only']));
+        $t->same(['quoted-spaced-formfeed-only' => null], $attributes->attributesForPath($spacedFormFeedPath, ['quoted-spaced-formfeed-only']));
+        $t->same(['quoted-vertical-only' => null], $attributes->attributesForPath($verticalPath, ['quoted-vertical-only']));
+        $t->same(['embedded-formfeed' => true], $attributes->attributesForPath($embeddedFormFeedPath, ['embedded-formfeed']));
+
+        $t->same(false, PathspecMatcher::matchesOne(
+            ":(attr:formfeed-only)\f",
+            $formFeedPath,
+            false,
+            $attributes,
+        ));
+        $t->same(false, PathspecSearch::fromSpecs([
+            ":(attr:quoted-spaced-formfeed-only) \f ",
+        ])->isIncluded($spacedFormFeedPath, false, $attributes));
+        $t->same(false, PathspecSearch::fromSpecs([
+            ":(attr:quoted-vertical-only)\v",
+        ])->isIncluded($verticalPath, false, $attributes));
+        $t->same(true, PathspecMatcher::matchesOne(
+            ':(attr:embedded-formfeed)wp-content/uploads/**',
+            $embeddedFormFeedPath,
+            false,
+            $attributes,
+        ));
+        $t->same(true, PathspecSearch::fromSpecs([
+            ':(attr:embedded-formfeed)wp-content/uploads/**',
+        ])->isIncluded($embeddedFormFeedPath, false, $attributes));
+    },
     'attribute and pathspec state adjustments ignore value suffixes like gix attributes' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString("wp-content/mu-plugins/** deploy=mustuse -diff=legacy !review=stale\n"
             . "wp-content/mu-plugins/private/** !deploy=old -merge=ours\n");
@@ -682,6 +724,13 @@ return [
         $t->same(true, $example['verticalSeparatedStatePathspecMatches']);
         $t->same(true, $example['formFeedSeparatedStatePathspecMatches']);
         $t->same(true, $example['mixedAsciiWhitespacePathspecMatches']);
+        $t->same(['formfeed-only' => null], $example['formFeedOnlyAttributeSkipped']);
+        $t->same(['quoted-formfeed-only' => null], $example['quotedFormFeedOnlyAttributeSkipped']);
+        $t->same(['quoted-spaced-formfeed-only' => null], $example['quotedSpacedFormFeedOnlyAttributeSkipped']);
+        $t->same(true, $example['formFeedOnlyPathspecSkipped']);
+        $t->same(true, $example['quotedSpacedFormFeedPathspecSkipped']);
+        $t->same(['embedded-formfeed' => true], $example['embeddedFormFeedAttributeMatches']);
+        $t->same(true, $example['embeddedFormFeedPathspecMatches']);
         $t->same(true, $example['valueTabRequirementRejected']);
         $t->same(true, $example['verticalValueRequirementRejected']);
         $t->same(true, $example['emptyLongMagicComponentRejected']);

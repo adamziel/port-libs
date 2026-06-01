@@ -51,6 +51,9 @@ final class CssBundler
      */
     private array $stylesheets = [];
 
+    /** @var array<int, true> */
+    private array $cycleConsumedLayers = [];
+
     /**
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
@@ -234,6 +237,7 @@ final class CssBundler
         $this->sourceMap = $sourceMapProjectRoot === null ? null : new SourceMap($sourceMapProjectRoot);
         $this->sourceMapProjectRoot = $sourceMapProjectRoot ?? '/';
         $this->stylesheets = [];
+        $this->cycleConsumedLayers = [];
         $this->cssModules = $cssModules;
         $this->cssModuleOptions = $cssModuleOptions;
 
@@ -752,7 +756,7 @@ final class CssBundler
     private function inline(int $sourceIndex, array $stack): string
     {
         if (isset($stack[$sourceIndex])) {
-            return '';
+            return $this->inlineCyclePlaceholder($sourceIndex);
         }
 
         $stack[$sourceIndex] = true;
@@ -828,9 +832,27 @@ final class CssBundler
             }
         }
 
-        $output .= $this->wrapRules($body, $stylesheet['layer'], $stylesheet['media'], $stylesheet['supports']);
+        $layer = isset($this->cycleConsumedLayers[$sourceIndex]) ? null : $stylesheet['layer'];
+        $output .= $this->wrapRules($body, $layer, $stylesheet['media'], $stylesheet['supports']);
 
         return $output;
+    }
+
+    private function inlineCyclePlaceholder(int $sourceIndex): string
+    {
+        $stylesheet = $this->stylesheets[$sourceIndex] ?? null;
+        if ($stylesheet === null || isset($this->cycleConsumedLayers[$sourceIndex])) {
+            return '';
+        }
+
+        $layer = $stylesheet['layer'];
+        if ($layer === null) {
+            return '';
+        }
+
+        $this->cycleConsumedLayers[$sourceIndex] = true;
+
+        return $layer === '' ? '@layer{}' : '@layer ' . $layer . ';';
     }
 
     /**
