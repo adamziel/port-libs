@@ -30,12 +30,25 @@ $sourceFiles = $phpFiles($sourceRoot);
 $libsqlitePhpFiles = $phpFiles($libsqliteRoot);
 $keyValueSourceFiles = [
     $sourceRoot . '/SQLiteDatabase.php',
+    $sourceRoot . '/SQLiteCurrentSmokePlan.php',
+    $sourceRoot . '/SQLiteImportTransactionErrorYieldPlan.php',
     $sourceRoot . '/SQLiteKeyValueRow.php',
     $sourceRoot . '/SQLiteKeyValueRowInsertOrReplacePlan.php',
     $sourceRoot . '/SQLiteKeyValueRowReplacementPlan.php',
     $sourceRoot . '/SQLiteKeyValueRowsWalImportPlan.php',
     $sourceRoot . '/SQLiteKeyValueRowWritePlan.php',
+    $sourceRoot . '/SQLiteTenantImportSavepointPlan.php',
     $sourceRoot . '/SQLiteTenantKeyValueWalPlan.php',
+];
+$keyValueFixtureFiles = [
+    $libsqliteRoot . '/examples/application-current-smoke-key-value-import.php',
+    $libsqliteRoot . '/examples/application-savepoint-key-value-import-diagnostics.php',
+    $libsqliteRoot . '/examples/application-settings-import-wal-current-next.php',
+    $libsqliteRoot . '/examples/application-tenant-keyvalue-import-savepoint-current-next37.php',
+    $libsqliteRoot . '/tests/SQLiteApplicationCurrentSmokePlanTest.php',
+    $libsqliteRoot . '/tests/SQLiteApplicationSettingsImportWalCurrentNext34Test.php',
+    $libsqliteRoot . '/tests/SQLiteApplicationSettingsTenantWalCurrentNext42Test.php',
+    $libsqliteRoot . '/tests/SQLiteTenantKeyValueImportSavepointCurrentNext37Test.php',
 ];
 $forbiddenNamePattern = 'WordPress|wordpress|WP|Wp|wp_|wpError|wp_error|OptionRow|optionRow|optionImport|optionsWalRows|upsertRecursiveViewSourceOption|Multisite|Network|Autoload|autoload|BlogId|blogId|OptionsTable|optionsTable|(?<!Compile)OptionName|(?<!compile)optionName|(?<!Compile)OptionValue|(?<!compile)optionValue|(?<!Compile)OptionId|(?<!compile)optionId';
 
@@ -91,9 +104,29 @@ $domainSpecificDeclarationMatches = static function () use ($libsqlitePhpFiles, 
 
 $keyValueSourceTermMatches = static function () use ($keyValueSourceFiles, $relativePath): array {
     $matches = [];
-    $pattern = '/wp_|wp_options|wp_sitemeta|blog_id|blogId|BlogId|option_id|option_name|option_value|OptionRow|optionRow|optionName|optionValue|optionId|Autoload|autoload|\$option\b/';
+    $pattern = '/wp_|wp_options|wp_sitemeta|blog_id|blogId|BlogId|option_id|option_name|option_value|OptionRow|optionRow|optionName|optionValue|optionId|Autoload|autoload|continue_on_site_error|\$option\b|\$sites\b|\$site\b|sitePlans|sitePlan/';
 
     foreach ($keyValueSourceFiles as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+
+        if (preg_match_all($pattern, $contents, $fileMatches) > 0) {
+            foreach ($fileMatches[0] as $match) {
+                $matches[] = $relativePath($file) . ': ' . $match;
+            }
+        }
+    }
+
+    return $matches;
+};
+
+$keyValueFixtureTermMatches = static function () use ($keyValueFixtureFiles, $relativePath): array {
+    $matches = [];
+    $pattern = '/wp_|wp_options|wp_sitemeta|blog_id|blogId|BlogId|option_id|option_name|option_value|OptionRow|optionRow|optionName|optionValue|optionId|Autoload|autoload|continue_on_site_error|siteurl|blogname|blogdescription|blog_public|site_name|site_admins|network_meta|rewrite_rules|stylesheet|active_plugins|active_sitewide_plugins|plugin|Plugin|\bhome\b/';
+
+    foreach ($keyValueFixtureFiles as $file) {
         $contents = file_get_contents($file);
         if ($contents === false) {
             throw new RuntimeException("Unable to read {$file}");
@@ -114,4 +147,5 @@ return [
     'libsqlite filenames have no WordPress-specific names' => static fn (TestRunner $t) => $t->same([], $filenameMatches()),
     'libsqlite php declarations have no WordPress-specific class or method names' => static fn (TestRunner $t) => $t->same([], $domainSpecificDeclarationMatches()),
     'libsqlite key-value source API uses neutral setting names' => static fn (TestRunner $t) => $t->same([], $keyValueSourceTermMatches()),
+    'libsqlite key-value tests and examples use neutral fixtures' => static fn (TestRunner $t) => $t->same([], $keyValueFixtureTermMatches()),
 ];

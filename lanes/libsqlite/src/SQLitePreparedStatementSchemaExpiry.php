@@ -107,6 +107,24 @@ final class SQLitePreparedStatementSchemaExpiry
         $autoReprepared = $statement['expired'] || $statement['generation'] !== $this->generation;
         $reason = $statement['expiry_reason'];
         if ($autoReprepared) {
+            if ($statement['legacy']) {
+                $statement['steps']++;
+                $statement['terminal_code'] = 'SQLITE_SCHEMA';
+                $statement['active'] = false;
+                $this->statements[$statement['id']] = $statement;
+
+                return [
+                    'status' => 'ok',
+                    'id' => $statement['id'],
+                    'code' => 'SQLITE_ERROR',
+                    'auto_reprepared' => false,
+                    'generation_before' => $generationBefore,
+                    'generation_after' => $this->generation,
+                    'expiry_reason' => $reason,
+                    'result_rows' => 0,
+                    'target_exists' => $this->targetExists($statement),
+                ];
+            }
             $statement['generation'] = $this->generation;
             $statement['expired'] = false;
             $statement['expiry_reason'] = null;

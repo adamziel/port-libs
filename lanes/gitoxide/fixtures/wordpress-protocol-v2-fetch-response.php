@@ -117,6 +117,10 @@ return [
         . $packet("\x03remote: deployment warning before pack\n")
         . $packet("\x01" . $packData)
         . '0002',
+    'delimiterPackResponse' => $packet("packfile\n")
+        . $packet("\x02Counting objects: 100% (1/1)\n")
+        . $packet("\x01" . $packData)
+        . $delimiter,
     'smartHttpUploadPackResponse' => "HTTP/1.1 200 OK\r\n"
         . "Content-Type: application/x-git-upload-pack-result\r\n"
         . 'Content-Length: ' . strlen($smartHttpUploadPackBody) . "\r\n"
@@ -144,6 +148,7 @@ return [
     'overflowProgressUse' => 'Remote progress percentages larger than Gitoxide u32 progress bounds are ignored while step and maximum counters are retained for WordPress deployment diagnostics.',
     'progressCancelUse' => 'A WordPress deployment fetch can abort while reading sideband progress, matching Gitoxide sideband reader interruption behavior before pack bytes are imported.',
     'responseEndUse' => 'Stateless protocol v2 fetch responses can end with a response-end packet after acknowledgements or sidebanded pack bytes, so WordPress deployment tooling does not require a flush-only terminator.',
+    'delimiterPackUse' => 'Protocol v2 sideband readers preserve delimiter stop-packet state after pack bytes, so WordPress deployment tooling can distinguish a section boundary from a flush-only response end.',
     'suffixlessAckUse' => 'Suffixless protocol v2 ACK lines are treated as common acknowledgements before the packfile, matching Gitoxide fetch.response fixture behavior for deployment fetch negotiation.',
     'refInWantUse' => 'A WordPress deployment fetch using ref-in-want can parse the wanted-refs section and still hand the following sideband pack bytes to object import without requiring a separate ls-refs advertisement.',
     'cloneExchangeUse' => 'A WordPress deployment fetch can parse a persistent protocol v2 upload-pack exchange from capability advertisement through ls-refs and the following sidebanded fetch response before importing pack bytes.',

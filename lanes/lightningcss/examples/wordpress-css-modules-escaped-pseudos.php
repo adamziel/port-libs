@@ -26,6 +26,25 @@ $result = (new CssModulesTransformer())->transform($css, [
     'hash' => 'BlockA',
 ]);
 
+$invalidEscapedNewlineRejected = false;
+try {
+    (new CssModulesTransformer())->transform(<<<'CSS'
+.button {
+  composes: card;
+  color: red;
+}
+
+:global(.wp-block-button\
+legacy) .button {
+  color: blue;
+}
+CSS, [
+        'hash' => 'BlockA',
+    ]);
+} catch (InvalidArgumentException $exception) {
+    $invalidEscapedNewlineRejected = $exception->getMessage() === 'Invalid CSS escape in selector';
+}
+
 $expected = [
     'code' => '.BlockA_card{color:#ff0}.wp-block-button .legacy-button .BlockA_card{color:red}.BlockA_button{background:#00f}',
     'exports' => [
@@ -50,12 +69,14 @@ $expected = [
         ],
     ],
     'classList' => 'BlockA_button BlockA_card wp-block-button',
+    'invalidEscapedNewlineRejected' => true,
 ];
 
 $actual = [
     'code' => $result['code'],
     'exports' => $result['exports'],
     'classList' => CssModulesTransformer::exportClassList($result['exports'], 'button'),
+    'invalidEscapedNewlineRejected' => $invalidEscapedNewlineRejected,
 ];
 
 if (($argv[1] ?? '') === '--self-test') {

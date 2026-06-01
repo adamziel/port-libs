@@ -7694,7 +7694,9 @@ final class CustomAtRuleTransformer
                 $statement = trim(substr($css, $cursor, $nextStatement - $cursor));
                 if ($statement !== '' && str_starts_with($statement, '@')) {
                     [$name, $prelude] = $this->parseAtPrelude($statement);
-                    $rules[] = ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $prelude, null, $parentSelectors)];
+                    $rules[] = $this->isCustomAtRule($name)
+                        ? ['type' => 'custom', 'value' => $this->buildCustomRule($name, $prelude, null, $parentSelectors)]
+                        : ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $prelude, null, $parentSelectors)];
                 }
                 $cursor = $nextStatement + 1;
                 continue;
@@ -7719,6 +7721,8 @@ final class CustomAtRuleTransformer
                             'rules' => $this->parseReturnedRuleList($body, $parentSelectors),
                         ],
                     ];
+                } elseif ($this->isCustomAtRule($name)) {
+                    $rules[] = ['type' => 'custom', 'value' => $this->buildCustomRule($name, $atPrelude, $body, $parentSelectors)];
                 } else {
                     $rules[] = ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $atPrelude, $body, $parentSelectors)];
                 }

@@ -179,6 +179,7 @@ CSS
         $t->same('.foo{color:#5f0c}', $minifier->minify('.foo { color: hsl(100 100% 50% / .8) }'));
         $t->same('.foo{color:#5f0c}', $minifier->minify('.foo { color: hsla(100, 100%, 50%, .8) }'));
         $t->same('.foo{color:#5f0c}', $minifier->minify('.foo { color: hsla(100 100% 50% / .8) }'));
+        $t->same('.foo{color:#19334dcc}', $minifier->minify('.foo { color: hsl(210 50% 20% / 80%) }'));
         $t->same('.foo{color:#0000}', $minifier->minify('.foo { color: transparent }'));
         $t->same('.foo{color:currentColor}', $minifier->minify('.foo { color: currentColor }'));
         $t->same('.foo{color:buttonborder}', $minifier->minify('.foo { color: ButtonBorder }'));
@@ -336,8 +337,10 @@ CSS
             'hsl(from rebeccapurple 25 s l / alpha)' => '#995e33',
             'hsl(from rebeccapurple 25deg s l / alpha)' => '#995e33',
             'hsl(from rebeccapurple h 20% l / alpha)' => '#66527a',
+            'hsl(from rebeccapurple h s 20% / alpha)' => '#33194d',
             'hsl(from rebeccapurple h s l / .25)' => '#66339940',
             'hsl(from rgb(20%, 40%, 60%, 80%) h 20% l / alpha)' => '#52667acc',
+            'hsl(from rgb(20%, 40%, 60%, 80%) h s 20% / alpha)' => '#19334dcc',
             'hsl(from rebeccapurple h l s)' => '#804db3',
             'hsl(from rebeccapurple h calc(alpha * 100) l / calc(s / 100))' => '#6600cc80',
             'hsl(from rebeccapurple h l l / calc(l / 100))' => '#663d8f66',

@@ -148,6 +148,61 @@ $cidrNoProxySession = $cidrNoProxyClient->handshake();
 $cidrNoProxySession->createOrUpdate('refs/heads/main', $cidrNoProxyBlob->oid());
 $cidrNoProxyResponse = $cidrNoProxyClient->send($cidrNoProxySession->buildRequest([$cidrNoProxyBlob]));
 
+$ipv6LiteralNoProxyRequests = [];
+$ipv6LiteralNoProxyHelperCalls = 0;
+$ipv6LiteralNoProxyBlob = new GitObject('blob', 'WordPress IPv6 literal no-proxy payload');
+$ipv6LiteralNoProxyResponseBytes = $packet("\x01" . $packet("unpack ok\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $flush)
+    . $flush;
+$ipv6LiteralNoProxyClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'https://[2001:db8::10]/wp-content.git',
+        static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$ipv6LiteralNoProxyRequests, $packet, $flush, $advertisementBytes, $ipv6LiteralNoProxyResponseBytes): array {
+            $ipv6LiteralNoProxyRequests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'httpOptions' => $httpOptions,
+            ];
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => [
+                        'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                        'Set-Cookie' => 'wp_session=ipv6-literal; Path=/; Secure',
+                    ],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $ipv6LiteralNoProxyResponseBytes,
+            ];
+        },
+        [],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+        [
+            'proxy' => 'http://wp-proxy.example.test:8080',
+            'noProxy' => '[2001:db8::10]',
+            'proxyCredentialHelper' => static function () use (&$ipv6LiteralNoProxyHelperCalls): array {
+                $ipv6LiteralNoProxyHelperCalls++;
+
+                return ['username' => 'ipv6-literal-user', 'password' => 'ipv6-literal-pass'];
+            },
+        ],
+    ),
+    'port-libs/wordpress',
+);
+$ipv6LiteralNoProxySession = $ipv6LiteralNoProxyClient->handshake();
+$ipv6LiteralNoProxySession->createOrUpdate('refs/heads/main', $ipv6LiteralNoProxyBlob->oid());
+$ipv6LiteralNoProxyResponse = $ipv6LiteralNoProxyClient->send($ipv6LiteralNoProxySession->buildRequest([$ipv6LiteralNoProxyBlob]));
+
 $wildcardLiteralNoProxyRequests = [];
 $wildcardLiteralNoProxyHelperCalls = 0;
 $wildcardLiteralNoProxyTransport = new SmartHttpReceivePackTransport(
@@ -659,6 +714,11 @@ return [
         && ($cidrNoProxyRequests[1]['httpOptions'] ?? null) === [],
     'cidrNoProxyHelperCalls' => $cidrNoProxyHelperCalls,
     'cidrNoProxyPostCookieHeader' => $cidrNoProxyRequests[1]['headers']['Cookie'] ?? null,
+    'ipv6LiteralNoProxyBypassedProxy' => $ipv6LiteralNoProxyResponse->isSuccessful()
+        && ($ipv6LiteralNoProxyRequests[0]['httpOptions'] ?? null) === []
+        && ($ipv6LiteralNoProxyRequests[1]['httpOptions'] ?? null) === [],
+    'ipv6LiteralNoProxyHelperCalls' => $ipv6LiteralNoProxyHelperCalls,
+    'ipv6LiteralNoProxyPostCookieHeader' => $ipv6LiteralNoProxyRequests[1]['headers']['Cookie'] ?? null,
     'wildcardLiteralNoProxyAdvertisementBytes' => $wildcardLiteralNoProxyAdvertisement,
     'wildcardLiteralNoProxyHelperCalls' => $wildcardLiteralNoProxyHelperCalls,
     'wildcardLiteralNoProxyUsedProxy' => isset($wildcardLiteralNoProxyRequests[0]['httpOptions']['proxy']),
@@ -713,5 +773,5 @@ return [
     'notModifiedProxyPostCookieHeader' => $notModifiedProxyRequests[1]['headers']['Cookie'] ?? null,
     'proxyAuthorizationSent' => $requests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'originProxyHeaderLeaked' => isset($requests[0]['headers']['Proxy-Authorization']),
-    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, preserve proxy use for curl-style port-qualified noProxy literal tokens, use HTTPS-specific proxy fallbacks with receive-pack cookies intact, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
+    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, preserve proxy use for curl-style port-qualified noProxy literal tokens, use HTTPS-specific proxy fallbacks with receive-pack cookies intact, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
 ];

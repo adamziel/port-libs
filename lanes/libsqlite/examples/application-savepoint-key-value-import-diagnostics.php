@@ -13,7 +13,7 @@ $savepoints->beginTransaction('app_setting_import');
 $savepoints->recordPageWrite(1);
 $savepoints->recordPageWrite(2);
 
-$savepoints->savepoint('plugin_settings');
+$savepoints->savepoint('module_settings');
 $savepoints->recordPageWrite(5);
 $savepoints->recordPageWrite(8);
 
@@ -21,15 +21,15 @@ $savepoints->savepoint('single_setting_row');
 $savepoints->recordPageWrite(9);
 
 $beforeRollback = $savepoints->toArray();
-$rollbackPlan = $savepoints->rollbackToPlan('plugin_settings');
-$rollbackPreview = $savepoints->rollbackToPageNumbers('plugin_settings');
+$rollbackPlan = $savepoints->rollbackToPlan('module_settings');
+$rollbackPreview = $savepoints->rollbackToPageNumbers('module_settings');
 $singleSettingRollbackPreview = $savepoints->rollbackToPageNumbers('single_setting_row');
-$rollbackWithPlan = $savepoints->rollbackToWithPlan('plugin_settings');
+$rollbackWithPlan = $savepoints->rollbackToWithPlan('module_settings');
 $afterRollback = $savepoints->toArray();
 
 $savepoints->recordPageWrite(6);
-$releasePlan = $savepoints->releasePlan('plugin_settings');
-$releaseWithPlan = $savepoints->releaseWithPlan('plugin_settings');
+$releasePlan = $savepoints->releasePlan('module_settings');
+$releaseWithPlan = $savepoints->releaseWithPlan('module_settings');
 $afterRelease = $savepoints->toArray();
 $outerReleasePlan = $savepoints->releasePlan('app_setting_import');
 $outerReleaseWithPlan = $savepoints->releaseWithPlan('app_setting_import');
@@ -37,7 +37,7 @@ $outerReleaseWithPlan = $savepoints->releaseWithPlan('app_setting_import');
 $commitPreview = new SQLiteSavepointStack();
 $commitPreview->beginTransaction('app_setting_import_commit');
 $commitPreview->recordPageWrite(1);
-$commitPreview->savepoint('plugin_settings_commit');
+$commitPreview->savepoint('module_settings_commit');
 $commitPreview->recordPageWrite(5);
 $commitPreview->savepoint('single_setting_row_commit');
 $commitPreview->recordPageWrite(7);
@@ -48,7 +48,7 @@ $fullRollbackStack = new SQLiteSavepointStack();
 $fullRollbackStack->beginTransaction('app_setting_import_rollback');
 $fullRollbackStack->recordPageWrite(1);
 $fullRollbackStack->recordPageWrite(2);
-$fullRollbackStack->savepoint('plugin_settings_rollback');
+$fullRollbackStack->savepoint('module_settings_rollback');
 $fullRollbackStack->recordPageWrite(5);
 $fullRollbackStack->savepoint('single_setting_row_rollback');
 $fullRollbackStack->recordPageWrite(9);
@@ -59,18 +59,18 @@ $walSavepoints = new SQLiteSavepointStack();
 $walSavepoints->beginTransaction('app_setting_wal_import');
 $walSavepoints->recordWalFrameWrite(1, 1);
 $walSavepoints->recordWalFrameWrite(2, 2, true);
-$walSavepoints->savepoint('plugin_settings_wal');
+$walSavepoints->savepoint('module_settings_wal');
 $walSavepoints->recordWalFrameWrite(3, 2);
 $walSavepoints->recordWalFrameWrite(4, 5);
 $walSavepoints->savepoint('single_setting_row_wal');
 $walSavepoints->recordWalFrameWrite(5, 5);
 $walSavepoints->recordWalFrameWrite(6, 8, true);
-$walRollbackPlan = $walSavepoints->walRollbackToPlan('plugin_settings_wal');
-$walRollbackWithPlan = $walSavepoints->walRollbackToWithPlan('plugin_settings_wal');
+$walRollbackPlan = $walSavepoints->walRollbackToPlan('module_settings_wal');
+$walRollbackWithPlan = $walSavepoints->walRollbackToWithPlan('module_settings_wal');
 $walAfterRollback = $walSavepoints->walFrameState();
 $walSavepoints->recordWalFrameWrite(3, 6, true);
-$walReleasePlan = $walSavepoints->releasePlan('plugin_settings_wal');
-$walReleaseWithPlan = $walSavepoints->releaseWithPlan('plugin_settings_wal');
+$walReleasePlan = $walSavepoints->releasePlan('module_settings_wal');
+$walReleaseWithPlan = $walSavepoints->releaseWithPlan('module_settings_wal');
 $walAfterRelease = $walSavepoints->walFrameState();
 
 $walPageSize = 512;
@@ -85,9 +85,9 @@ $appendWalFrame = static function (string $bytes, array &$seed, int $pageNumber,
 
     return $bytes . $framePrefix . pack('N*', $seed[0], $seed[1]) . $pageImage;
 };
-$walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 1, 0, str_pad('app-settings-root-before-plugin', $walPageSize, "\0"));
-$walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 2, 2, str_pad('load-policy-index-before-plugin', $walPageSize, "\0"));
-$walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 5, 0, str_pad('plugin-settings-draft-frame', $walPageSize, "\0"));
+$walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 1, 0, str_pad('app-settings-root-before-module', $walPageSize, "\0"));
+$walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 2, 2, str_pad('load-policy-index-before-module', $walPageSize, "\0"));
+$walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 5, 0, str_pad('module-settings-draft-frame', $walPageSize, "\0"));
 $walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 8, 0, str_pad('single-setting-draft-frame', $walPageSize, "\0"));
 $walBytes = $appendWalFrame($walBytes, $walChecksumSeed, 8, 8, str_pad('single-setting-commit-frame', $walPageSize, "\0"));
 $parsedWal = SQLiteWal::parse($walBytes, null, true);
@@ -95,47 +95,47 @@ $walByteSavepoints = new SQLiteSavepointStack();
 $walByteSavepoints->beginTransaction('app_setting_wal_import');
 $walByteSavepoints->recordWalFrameWrite(1, 1);
 $walByteSavepoints->recordWalFrameWrite(2, 2, true);
-$walByteSavepoints->savepoint('plugin_settings_wal');
+$walByteSavepoints->savepoint('module_settings_wal');
 $walByteSavepoints->recordWalFrameWrite(3, 5);
 $walByteSavepoints->savepoint('single_setting_row_wal');
 $walByteSavepoints->recordWalFrameWrite(4, 8);
 $walByteSavepoints->recordWalFrameWrite(5, 8, true);
-$walTruncationPlan = $walByteSavepoints->walRollbackToByteTruncationPlan('plugin_settings_wal', $parsedWal, $walBytes);
-$truncatedWalBytes = $walByteSavepoints->walRollbackToWalBytes('plugin_settings_wal', $parsedWal, $walBytes);
+$walTruncationPlan = $walByteSavepoints->walRollbackToByteTruncationPlan('module_settings_wal', $parsedWal, $walBytes);
+$truncatedWalBytes = $walByteSavepoints->walRollbackToWalBytes('module_settings_wal', $parsedWal, $walBytes);
 
 $pageSize = 512;
 $pageOneBefore = str_pad('app-settings-before-import', $pageSize, "\0");
 $pageTwoBefore = str_pad('load-policy-index-before-import', $pageSize, "\0");
-$settingsBeforePlugin = str_pad('plugin-settings-before-batch', $pageSize, "\0");
+$settingsBeforeModule = str_pad('module-settings-before-batch', $pageSize, "\0");
 $singleSettingBeforeRow = str_pad('single-setting-before-row', $pageSize, "\0");
 $dirtyDatabase = str_pad('app-settings-dirty-root', $pageSize, "\0")
     . str_pad('load-policy-index-dirty', $pageSize, "\0")
-    . str_pad('plugin-settings-dirty', $pageSize, "\0")
+    . str_pad('module-settings-dirty', $pageSize, "\0")
     . str_pad('single-setting-dirty', $pageSize, "\0");
 
 $imageSavepoints = new SQLiteSavepointStack();
 $imageSavepoints->beginTransaction('app_setting_image_import');
 $imageSavepoints->recordPageImageWrite(1, $pageOneBefore);
 $imageSavepoints->recordPageImageWrite(2, $pageTwoBefore);
-$imageSavepoints->savepoint('plugin_settings_image');
-$imageSavepoints->recordPageImageWrite(3, $settingsBeforePlugin);
+$imageSavepoints->savepoint('module_settings_image');
+$imageSavepoints->recordPageImageWrite(3, $settingsBeforeModule);
 $imageSavepoints->savepoint('single_setting_image');
 $imageSavepoints->recordPageImageWrite(4, $singleSettingBeforeRow);
-$imageRollbackPlan = $imageSavepoints->rollbackToImagePlan('plugin_settings_image', $pageSize);
-$imageRollbackPreview = $imageSavepoints->rollbackToDatabaseImage('plugin_settings_image', $dirtyDatabase, $pageSize);
+$imageRollbackPlan = $imageSavepoints->rollbackToImagePlan('module_settings_image', $pageSize);
+$imageRollbackPreview = $imageSavepoints->rollbackToDatabaseImage('module_settings_image', $dirtyDatabase, $pageSize);
 $fullImageRollbackPlan = $imageSavepoints->rollbackImagePlan($pageSize);
 $fullImageRollbackPreview = $imageSavepoints->rollbackDatabaseImage($dirtyDatabase, $pageSize);
 
 echo json_encode([
-    'beforeRollbackToPluginSettings' => $beforeRollback,
-    'rollbackToPluginSettingsPlan' => $rollbackPlan,
-    'rollbackToPluginSettingsPageNumbers' => $rollbackPreview,
+    'beforeRollbackToModuleSettings' => $beforeRollback,
+    'rollbackToModuleSettingsPlan' => $rollbackPlan,
+    'rollbackToModuleSettingsPageNumbers' => $rollbackPreview,
     'rollbackToSingleSettingRowPageNumbers' => $singleSettingRollbackPreview,
-    'rollbackToPluginSettingsWithPlan' => $rollbackWithPlan,
-    'afterRollbackToPluginSettings' => $afterRollback,
-    'releasePluginSettingsPlan' => $releasePlan,
-    'releasePluginSettingsWithPlan' => $releaseWithPlan,
-    'afterReleasePluginSettings' => $afterRelease,
+    'rollbackToModuleSettingsWithPlan' => $rollbackWithPlan,
+    'afterRollbackToModuleSettings' => $afterRollback,
+    'releaseModuleSettingsPlan' => $releasePlan,
+    'releaseModuleSettingsWithPlan' => $releaseWithPlan,
+    'afterReleaseModuleSettings' => $afterRelease,
     'releaseOuterTransactionPlan' => $outerReleasePlan,
     'releaseOuterTransactionWithPlan' => $outerReleaseWithPlan,
     'commitPlan' => $commitPlan,
@@ -152,7 +152,7 @@ echo json_encode([
             'wal_frame_indexes' => [1, 2],
         ],
         [
-            'name' => 'plugin_settings_wal',
+            'name' => 'module_settings_wal',
             'transaction' => false,
             'wal_start_frame' => 2,
             'wal_frame_indexes' => [3, 4],
@@ -164,21 +164,21 @@ echo json_encode([
             'wal_frame_indexes' => [5, 6],
         ],
     ],
-    'walRollbackToPluginSettingsPlan' => $walRollbackPlan,
-    'walRollbackToPluginSettingsWithPlan' => $walRollbackWithPlan,
+    'walRollbackToModuleSettingsPlan' => $walRollbackPlan,
+    'walRollbackToModuleSettingsWithPlan' => $walRollbackWithPlan,
     'walFrameStateAfterRollback' => $walAfterRollback,
-    'walReleasePluginSettingsPlan' => $walReleasePlan,
-    'walReleasePluginSettingsWithPlan' => $walReleaseWithPlan,
+    'walReleaseModuleSettingsPlan' => $walReleasePlan,
+    'walReleaseModuleSettingsWithPlan' => $walReleaseWithPlan,
     'walFrameStateAfterRelease' => $walAfterRelease,
-    'walRollbackToPluginSettingsByteTruncationPlan' => $walTruncationPlan,
-    'walRollbackToPluginSettingsTruncatedBytes' => [
+    'walRollbackToModuleSettingsByteTruncationPlan' => $walTruncationPlan,
+    'walRollbackToModuleSettingsTruncatedBytes' => [
         'bytes' => strlen($truncatedWalBytes),
         'frameCount' => SQLiteWal::parse($truncatedWalBytes, null, true)->frameCount(),
-        'containsPluginDraftFrame' => str_contains($truncatedWalBytes, 'plugin-settings-draft-frame'),
+        'containsModuleDraftFrame' => str_contains($truncatedWalBytes, 'module-settings-draft-frame'),
         'containsSingleSettingDraftFrame' => str_contains($truncatedWalBytes, 'single-setting-draft-frame'),
         'containsSingleSettingCommitFrame' => str_contains($truncatedWalBytes, 'single-setting-commit-frame'),
     ],
-    'pageImageRollbackToPluginSettingsPlan' => $imageRollbackPlan,
+    'pageImageRollbackToModuleSettingsPlan' => $imageRollbackPlan,
     'pageImageRollbackPreview' => [
         'page1Prefix' => rtrim(substr($imageRollbackPreview, 0, 64), "\0"),
         'page2Prefix' => rtrim(substr($imageRollbackPreview, $pageSize, 64), "\0"),

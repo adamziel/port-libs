@@ -716,6 +716,51 @@ return [
         $t->same((string) strlen($request->requestBytes()), $requests[1]['headers']['Content-Length']);
         $t->same($request->requestBytes(), $requests[1]['body']);
     },
+    'smart http receive-pack accepts any matching content type header value' => static function (TestRunner $t) use ($packet, $flush): void {
+        $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
+        $blob = new GitObject('blob', 'WordPress duplicate content-type receive-pack payload');
+        $advertisement = $packet("{$old} refs/heads/main\0report-status side-band-64k object-format=sha1\n") . $flush;
+        $responseBytes = $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ok refs/heads/main\n"))
+            . $packet("\x01" . $flush)
+            . $flush;
+        $requests = [];
+        $client = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$requests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $requests[] = ['method' => $method, 'url' => $url, 'body' => $body];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => ['application/x-git-receive-pack-advertisement', 'text/plain']],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => ['text/plain', 'application/x-git-receive-pack-result; charset=utf-8']],
+                        'body' => $responseBytes,
+                    ];
+                },
+            ),
+            'port-libs/0.1'
+        );
+        $session = $client->handshake();
+        $session->createOrUpdate('refs/heads/main', $blob->oid());
+        $request = $session->buildRequest([$blob]);
+
+        $response = $client->send($request);
+
+        $t->same(true, $response->isSuccessful());
+        $t->same(['GET', 'POST'], array_column($requests, 'method'));
+        $t->same('https://git.example.test/wp-content.git/info/refs?service=git-receive-pack', $requests[0]['url']);
+        $t->same('https://git.example.test/wp-content.git/git-receive-pack', $requests[1]['url']);
+        $t->same(null, $requests[0]['body']);
+        $t->same($request->requestBytes(), $requests[1]['body']);
+    },
     'smart http receive-pack urls headers and response validation follow git http protocol' => static function (TestRunner $t) use ($packet, $flush): void {
         $t->same(
             'https://example.test/repo.git/info/refs?service=git-receive-pack',
@@ -2154,6 +2199,65 @@ return [
         $t->same(0, $ipv6CidrBypassHelperCalls);
         $t->same([], $ipv6CidrBypassRequests[0]['httpOptions']);
         $t->same('https://[2001:db8::10]/wp-content.git/info/refs?service=git-receive-pack', $ipv6CidrBypassRequests[0]['url']);
+
+        $ipv6LiteralBypassRequests = [];
+        $ipv6LiteralBypassHelperCalls = 0;
+        $ipv6LiteralBypassBlob = new GitObject('blob', 'WordPress IPv6 literal no-proxy payload');
+        $ipv6LiteralBypassClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://[2001:db8::10]/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$ipv6LiteralBypassRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $ipv6LiteralBypassRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => [
+                                'Content-Type' => 'application/x-git-receive-pack-advertisement',
+                                'Set-Cookie' => 'wp_session=ipv6-literal; Path=/; Secure',
+                            ],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'proxy' => 'http://proxy.example.test:8080',
+                    'noProxy' => '[2001:db8::10]',
+                    'proxyCredentialHelper' => static function () use (&$ipv6LiteralBypassHelperCalls): array {
+                        $ipv6LiteralBypassHelperCalls++;
+
+                        return ['username' => 'ipv6-literal-user', 'password' => 'ipv6-literal-pass'];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $ipv6LiteralBypassSession = $ipv6LiteralBypassClient->handshake();
+        $ipv6LiteralBypassSession->createOrUpdate('refs/heads/main', $ipv6LiteralBypassBlob->oid());
+        $ipv6LiteralBypassRequest = $ipv6LiteralBypassSession->buildRequest([$ipv6LiteralBypassBlob]);
+
+        $ipv6LiteralBypassResponse = $ipv6LiteralBypassClient->send($ipv6LiteralBypassRequest);
+
+        $t->same(true, $ipv6LiteralBypassResponse->isSuccessful());
+        $t->same(0, $ipv6LiteralBypassHelperCalls);
+        $t->same([[], []], array_column($ipv6LiteralBypassRequests, 'httpOptions'));
+        $t->same('wp_session=ipv6-literal', $ipv6LiteralBypassRequests[1]['headers']['Cookie']);
+        $t->same($ipv6LiteralBypassRequest->requestBytes(), $ipv6LiteralBypassRequests[1]['body']);
 
         $trailingDotBypassRequests = [];
         $trailingDotBypassHelperCalls = 0;
@@ -3651,6 +3755,7 @@ return [
         $t->same(true, $fixture['unsafeSmartHttpRawUrlControlByteRejected']);
         $t->same(true, $fixture['unsafeSmartHttpRawProxyControlByteRejected']);
         $t->same(true, $fixture['smartHttpAdvertisementWithoutServiceHeaderAccepted']);
+        $t->same(true, $fixture['smartHttpDuplicateContentTypeAccepted']);
         $t->same(true, $fixture['advertisementErrorReported']);
         $t->same(true, $fixture['oversizeAdvertisementRejected']);
         $t->same(true, $fixture['unsafeSshHostDelimiterRejected']);
@@ -3736,6 +3841,12 @@ return [
         $t->same('wp_session=cidr', $fixture['cidrNoProxyPostCookieHeader']);
         $t->same($fixture['cidrNoProxyBypassedProxy'], $summary['cidrNoProxyBypassedProxy']);
         $t->same($fixture['cidrNoProxyPostCookieHeader'], $summary['cidrNoProxyPostCookieHeader']);
+        $t->same(true, $fixture['ipv6LiteralNoProxyBypassedProxy']);
+        $t->same(0, $fixture['ipv6LiteralNoProxyHelperCalls']);
+        $t->same('wp_session=ipv6-literal', $fixture['ipv6LiteralNoProxyPostCookieHeader']);
+        $t->same($fixture['ipv6LiteralNoProxyBypassedProxy'], $summary['ipv6LiteralNoProxyBypassedProxy']);
+        $t->same($fixture['ipv6LiteralNoProxyHelperCalls'], $summary['ipv6LiteralNoProxyHelperCalls']);
+        $t->same($fixture['ipv6LiteralNoProxyPostCookieHeader'], $summary['ipv6LiteralNoProxyPostCookieHeader']);
         $t->same(true, $fixture['wildcardLiteralNoProxyUsedProxy']);
         $t->same(1, $fixture['wildcardLiteralNoProxyHelperCalls']);
         $t->same('Basic ' . base64_encode('literal-wildcard-proxy-user:literal-wildcard-proxy-pass'), $fixture['wildcardLiteralNoProxyAuthorizationSent']);

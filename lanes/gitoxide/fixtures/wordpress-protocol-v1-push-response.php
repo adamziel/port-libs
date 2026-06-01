@@ -77,6 +77,13 @@ return [
     'emptyRejectionResponse' => $packet("unpack ok\n")
         . $packet("ng refs/heads/wp-preview \n")
         . $flush,
+    'emptyUnpackStatusRef' => [
+        'requested' => 'refs/heads/wp-preview',
+        'message' => 'index-pack died before hook output',
+    ],
+    'emptyUnpackStatusResponse' => $packet("unpack \n")
+        . $packet("ng refs/heads/wp-preview index-pack died before hook output\n")
+        . $flush,
     'valuelessOptionRef' => [
         'requested' => 'refs/for/wp-release',
         'message' => 'accepted without rewrite details',

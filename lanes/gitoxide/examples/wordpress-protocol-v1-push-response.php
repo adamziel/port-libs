@@ -13,6 +13,7 @@ $rewrittenResponse = PushResponse::fromReportStatusPacketLines($fixture['rewritt
 $fallThroughResponse = PushResponse::fromReportStatusPacketLines($fixture['fallThroughResponse']);
 $compatibilityResponse = PushResponse::fromReportStatusPacketLines($fixture['compatibilityResponse']);
 $emptyRejectionResponse = PushResponse::fromReportStatusPacketLines($fixture['emptyRejectionResponse']);
+$emptyUnpackStatusResponse = PushResponse::fromReportStatusPacketLines($fixture['emptyUnpackStatusResponse']);
 $valuelessOptionResponse = PushResponse::fromReportStatusPacketLines($fixture['valuelessOptionResponse'])
     ->forExpectedRefNames([$fixture['valuelessOptionRef']['requested']]);
 $expectedFilteredResponse = PushResponse::fromReportStatusPacketLines($fixture['expectedFilterResponse'])
@@ -185,6 +186,9 @@ return [
         && $compatibilityResponse->refStatuses()[0]->newObject === $fixture['compatibilityRef']['newObject'],
     'compatibilityBareRejectionDefaulted' => $compatibilityResponse->refStatuses()[1]->message === 'failed',
     'emptyRejectionMessagePreserved' => $emptyRejectionResponse->rejectedRefs()[0]->message === '',
+    'emptyUnpackStatusRejected' => !$emptyUnpackStatusResponse->unpackOk()
+        && $emptyUnpackStatusResponse->unpackStatus() === ''
+        && $emptyUnpackStatusResponse->rejectedRefs()[0]->message === $fixture['emptyUnpackStatusRef']['message'],
     'valuelessReportStatusOptionsAccepted' => $valuelessOptionResponse->isSuccessful()
         && $valuelessOptionResponse->refStatuses()[0]->effectiveRefName() === $fixture['valuelessOptionRef']['requested']
         && $valuelessOptionResponse->refStatuses()[0]->oldObject === null

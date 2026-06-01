@@ -1388,6 +1388,46 @@ CSS;
             $prefixer->prefixForTargets('.foo { text-overflow: ellipsis; }', ['opera' => 13])
         );
         $t->same(
+            '.foo{-ms-touch-action:manipulation;touch-action:manipulation}',
+            $prefixer->prefixForTargets('.foo { touch-action: manipulation; }', ['ie' => 10])
+        );
+        $t->same(
+            '.foo{touch-action:manipulation}',
+            $prefixer->prefixForTargets('.foo { touch-action: manipulation; }', ['ie' => 11])
+        );
+        $t->same(
+            '.foo{touch-action:manipulation}',
+            $prefixer->prefixForTargets('.foo { touch-action: manipulation; }', ['edge' => 18])
+        );
+        $t->same(
+            '.foo{touch-action:manipulation}',
+            $prefixer->prefixForTargets('.foo { -ms-touch-action: manipulation; touch-action: manipulation; }', ['ie' => 11])
+        );
+        $t->same(
+            '.foo{text-orientation:upright}',
+            $prefixer->prefixForTargets('.foo { text-orientation: upright; }', ['safari' => 10])
+        );
+        $t->same(
+            '.foo{-webkit-text-orientation:upright;text-orientation:upright}',
+            $prefixer->prefixForTargets('.foo { text-orientation: upright; }', ['safari' => '10.1'])
+        );
+        $t->same(
+            '.foo{-webkit-text-orientation:upright;text-orientation:upright}',
+            $prefixer->prefixForTargets('.foo { text-orientation: upright; }', ['safari' => '13.1'])
+        );
+        $t->same(
+            '.foo{text-orientation:upright}',
+            $prefixer->prefixForTargets('.foo { text-orientation: upright; }', ['safari' => '13.2'])
+        );
+        $t->same(
+            '.foo{text-orientation:upright}',
+            $prefixer->prefixForTargets('.foo { text-orientation: upright; }', ['ios_saf' => '13.1'])
+        );
+        $t->same(
+            '.foo{text-orientation:upright}',
+            $prefixer->prefixForTargets('.foo { -webkit-text-orientation: upright; text-orientation: upright; }', ['safari' => '13.2'])
+        );
+        $t->same(
             '.foo{text-decoration-skip-ink:all}',
             $prefixer->prefixForTargets('.foo { text-decoration-skip-ink: all; }', ['safari' => 7])
         );

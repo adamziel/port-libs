@@ -115,7 +115,7 @@ $cases = [
     'next wal page four image' => [static fn (): mixed => str_contains($nextWal()->readerSnapshotPageImage($databaseBytes, 4, 7)['image'], 'new.example'), true],
     'next wal page six load_policy image' => [static fn (): mixed => str_contains($nextWal()->readerSnapshotPageImage($databaseBytes, 6, 7)['image'], 'app_settings_load_policy'), true],
     'current snapshot remains at frame two' => [static fn (): mixed => $baseWal()->readerSnapshot($databaseBytes, 2)['database_page_count'], 4],
-    'current snapshot cannot see plugin settings page' => [static function () use ($baseWal, $databaseBytes): mixed {
+    'current snapshot cannot see module settings page' => [static function () use ($baseWal, $databaseBytes): mixed {
         try {
             $baseWal()->readerSnapshotPageImage($databaseBytes, 5, 2);
         } catch (OutOfBoundsException) {

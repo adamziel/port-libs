@@ -23,6 +23,7 @@ final class FetchResponse
         private readonly string $packData = '',
         private readonly array $progressMessages = [],
         private readonly array $errorMessages = [],
+        private readonly ?string $terminator = null,
     ) {
     }
 
@@ -44,7 +45,7 @@ final class FetchResponse
                 throw new \RuntimeException('fetch response: could not read message headline');
             }
             if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
-                return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages);
+                return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $packet['kind']);
             }
             if ($packet['kind'] === 'delimiter') {
                 continue;
@@ -55,20 +56,23 @@ final class FetchResponse
 
             $header = rtrim($packet['payload'], "\r\n");
             if ($header === 'acknowledgments') {
-                if (self::parseV2Section($bytes, $offset, $acknowledgements, FetchAcknowledgement::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $progressHandler)) {
-                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages);
+                $terminator = self::parseV2Section($bytes, $offset, $acknowledgements, FetchAcknowledgement::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $progressHandler);
+                if ($terminator !== null) {
+                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator);
                 }
                 continue;
             }
             if ($header === 'shallow-info') {
-                if (self::parseV2Section($bytes, $offset, $shallowUpdates, FetchShallowUpdate::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $progressHandler)) {
-                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages);
+                $terminator = self::parseV2Section($bytes, $offset, $shallowUpdates, FetchShallowUpdate::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $progressHandler);
+                if ($terminator !== null) {
+                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator);
                 }
                 continue;
             }
             if ($header === 'wanted-refs') {
-                if (self::parseV2Section($bytes, $offset, $wantedRefs, FetchWantedRef::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $progressHandler)) {
-                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages);
+                $terminator = self::parseV2Section($bytes, $offset, $wantedRefs, FetchWantedRef::fromLine(...), $sidebandAll, $progressMessages, $errorMessages, $progressHandler);
+                if ($terminator !== null) {
+                    return new self($acknowledgements, $shallowUpdates, $wantedRefs, false, '', $progressMessages, $errorMessages, $terminator);
                 }
                 continue;
             }
@@ -82,7 +86,8 @@ final class FetchResponse
                     true,
                     $sidebands['packData'],
                     $progressMessages,
-                    $errorMessages
+                    $errorMessages,
+                    $sidebands['terminator']
                 );
             }
 
@@ -155,7 +160,8 @@ final class FetchResponse
             $this->hasPack,
             $this->packData,
             $this->progressMessages,
-            $this->errorMessages
+            $this->errorMessages,
+            $this->terminator
         );
     }
 
@@ -226,6 +232,14 @@ final class FetchResponse
     }
 
     /**
+     * @return null|'flush'|'delimiter'|'response-end'
+     */
+    public function terminator(): ?string
+    {
+        return $this->terminator;
+    }
+
+    /**
      * @param list<mixed> $out
      * @param callable(string):mixed $parse
      */
@@ -238,17 +252,17 @@ final class FetchResponse
         array &$progressMessages,
         array &$errorMessages,
         ?callable $progressHandler
-    ): bool {
+    ): ?string {
         while (true) {
             $packet = self::readV2Packet($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages, $progressHandler);
             if ($packet === null) {
                 throw new \RuntimeException('fetch response: missing section terminator');
             }
             if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
-                return true;
+                return $packet['kind'];
             }
             if ($packet['kind'] === 'delimiter') {
-                return false;
+                return null;
             }
             if (self::isUploadPackErrorPacket($packet['payload'])) {
                 self::throwUploadPackError($packet['payload']);
@@ -258,7 +272,7 @@ final class FetchResponse
     }
 
     /**
-     * @return array{packData:string,progressMessages:list<string>,errorMessages:list<string>}
+     * @return array{packData:string,progressMessages:list<string>,errorMessages:list<string>,terminator:string}
      */
     private static function decodeSidebandPacketLines(
         string $bytes,
@@ -269,6 +283,7 @@ final class FetchResponse
         ?callable $progressHandler
     ): array {
         $packData = '';
+        $terminator = null;
 
         while (true) {
             $packet = self::readV2Packet($bytes, $offset, $sidebandAll, $progressMessages, $errorMessages, $progressHandler);
@@ -276,9 +291,11 @@ final class FetchResponse
                 throw new \RuntimeException('fetch response: missing sideband flush packet');
             }
             if ($packet['kind'] === 'flush' || $packet['kind'] === 'response-end') {
+                $terminator = $packet['kind'];
                 break;
             }
             if ($packet['kind'] === 'delimiter') {
+                $terminator = $packet['kind'];
                 break;
             }
             if (!$sidebandAll && self::isUploadPackErrorPacket($packet['payload'])) {
@@ -303,6 +320,7 @@ final class FetchResponse
             'packData' => $packData,
             'progressMessages' => $progressMessages,
             'errorMessages' => $errorMessages,
+            'terminator' => $terminator ?? 'flush',
         ];
     }
 

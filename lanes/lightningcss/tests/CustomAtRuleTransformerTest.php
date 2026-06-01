@@ -277,6 +277,81 @@ CSS;
         $t->same('rule-list', $seen['breakpointBodyType']);
         $t->same('style', $seen['breakpointRuleType']);
     },
+    'custom at-rules preserve nested custom rules in returned parser bodies' => static function (TestRunner $t): void {
+        $definitions = [];
+        $seen = [];
+        $css = <<<'CSS'
+@group {
+  @tokens spacing {
+    --gap: 16px;
+    --accent: yellow;
+  }
+
+  .card {
+    color: token('spacing.--accent');
+    padding: token('spacing.--gap');
+  }
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'custom' => [
+                        'group' => static function (array $rule) use (&$seen): array {
+                            $seen['groupBodyType'] = $rule['bodyAst']['type'];
+                            $seen['groupBodyRuleTypes'] = array_map(
+                                static fn (array $bodyRule): string => $bodyRule['type'] ?? '',
+                                $rule['bodyAst']['value']
+                            );
+                            $seen['nestedTokensPreludeAst'] = $rule['bodyAst']['value'][0]['value']['preludeAst'] ?? null;
+
+                            return $rule['bodyAst']['value'];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'tokens' => static function (array $rule) use (&$definitions, &$seen): array {
+                            $seen['tokensBodyType'] = $rule['bodyAst']['type'];
+                            foreach ($rule['declarations'] as $declaration) {
+                                $definitions[$rule['prelude'] . '.' . $declaration['property']] = $declaration['value'];
+                            }
+
+                            return [];
+                        },
+                    ],
+                ],
+                'Function' => [
+                    'token' => static function (array $arguments) use (&$definitions): ?string {
+                        return $definitions[$arguments[0] ?? ''] ?? null;
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'group' => [
+                'body' => 'rule-list',
+            ],
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+                'body' => 'declaration-list',
+            ],
+        ], $visitor);
+
+        $t->same('.card{color:#ff0;padding:16px}', $result);
+        $t->same('rule-list', $seen['groupBodyType']);
+        $t->same(['custom', 'style'], $seen['groupBodyRuleTypes']);
+        $t->same(['type' => 'custom-ident', 'value' => 'spacing'], $seen['nestedTokensPreludeAst']);
+        $t->same('declaration-list', $seen['tokensBodyType']);
+        $t->same([
+            'spacing.--gap' => '16px',
+            'spacing.--accent' => 'yellow',
+        ], $definitions);
+    },
     'custom at-rules parse upstream repeated and alternative prelude syntax strings' => static function (TestRunner $t): void {
         $seen = [];
         $css = <<<'CSS'

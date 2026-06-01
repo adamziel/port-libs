@@ -7,16 +7,16 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteCurrentSmokePlan;
 
 $currentRows = [
-    ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://old.example', 'load_policy' => 'yes'],
-    ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'https://old.example', 'load_policy' => 'yes'],
-    ['setting_id' => 3, 'key_name' => 'rewrite_rules', 'key_value' => 'a:0:{}', 'load_policy' => 'no'],
+    ['setting_id' => 1, 'key_name' => 'primary_url', 'key_value' => 'https://old.example', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'dashboard_url', 'key_value' => 'https://old.example/dashboard', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'route_map', 'key_value' => '{"routes":[]}', 'load_policy' => 'no'],
 ];
 
 $stagedRows = [
-    ['key_name' => 'siteurl', 'key_value' => 'https://current.example', 'load_policy' => 'yes'],
+    ['key_name' => 'primary_url', 'key_value' => 'https://current.example', 'load_policy' => 'yes'],
     ['key_name' => 'tenant_public', 'key_value' => '1', 'load_policy' => 'yes'],
-    ['key_name' => 'home', 'key_value' => 'https://duplicate.example', 'load_policy' => 'yes', 'setting_id' => 8],
-    ['key_name' => 'stylesheet', 'key_value' => 'twentytwentyfive', 'load_policy' => 'yes'],
+    ['key_name' => 'dashboard_url', 'key_value' => 'https://duplicate.example/dashboard', 'load_policy' => 'yes', 'setting_id' => 8],
+    ['key_name' => 'visual_skin', 'key_value' => 'default', 'load_policy' => 'yes'],
 ];
 
 $smoke = SQLiteCurrentSmokePlan::keyValueImport($currentRows, $stagedRows, [

@@ -17,6 +17,7 @@ $sha256Response = FetchResponse::fromV2PacketLines($fixture['sha256Response']);
 $cloneExchange = ProtocolV2FetchExchange::fromPacketLines($fixture['cloneExchangeResponse']);
 $responseEndNoPackResponse = FetchResponse::fromV2PacketLines($fixture['responseEndNoPackResponse']);
 $responseEndPackResponse = FetchResponse::fromV2PacketLines($fixture['responseEndPackResponse']);
+$delimiterPackResponse = FetchResponse::fromV2PacketLines($fixture['delimiterPackResponse']);
 $sidebandAllResponseEndMessages = [];
 $sidebandAllResponseEndResponse = FetchResponse::fromV2PacketLines(
     $fixture['sidebandAllResponseEndResponse'],
@@ -138,14 +139,22 @@ return [
     'cloneExchangePackTrailer' => bin2hex(substr($cloneExchange->fetchResponse()->packData(), -20)),
     'responseEndNoPackParsed' => $responseEndNoPackResponse->hasPack() === false
         && count($responseEndNoPackResponse->acknowledgements()) === 1
-        && $responseEndNoPackResponse->acknowledgements()[0]->kind === 'nak',
+        && $responseEndNoPackResponse->acknowledgements()[0]->kind === 'nak'
+        && $responseEndNoPackResponse->terminator() === 'response-end',
     'responseEndPackParsed' => $responseEndPackResponse->hasPack()
         && $responseEndPackResponse->packData() === $fixture['packData']
-        && $responseEndPackResponse->progressMessages() === ['Counting objects: 100% (1/1)'],
+        && $responseEndPackResponse->progressMessages() === ['Counting objects: 100% (1/1)']
+        && $responseEndPackResponse->terminator() === 'response-end',
     'responseEndPackTrailer' => bin2hex(substr($responseEndPackResponse->packData(), -20)),
+    'delimiterPackParsed' => $delimiterPackResponse->hasPack()
+        && $delimiterPackResponse->packData() === $fixture['packData']
+        && $delimiterPackResponse->progressMessages() === ['Counting objects: 100% (1/1)']
+        && $delimiterPackResponse->terminator() === 'delimiter',
+    'delimiterPackTrailer' => bin2hex(substr($delimiterPackResponse->packData(), -20)),
     'sidebandAllResponseEndParsed' => $sidebandAllResponseEndResponse->hasPack()
         && $sidebandAllResponseEndResponse->packData() === $fixture['packData']
-        && $sidebandAllResponseEndResponse->errorMessages() === ['remote: deployment warning before pack'],
+        && $sidebandAllResponseEndResponse->errorMessages() === ['remote: deployment warning before pack']
+        && $sidebandAllResponseEndResponse->terminator() === 'response-end',
     'sidebandAllResponseEndMessages' => $sidebandAllResponseEndMessages,
     'smartHttpUploadPackParsed' => $smartHttpUploadPackResponse->packData() === $fixture['packData']
         && count($smartHttpUploadPackResponse->acknowledgements()) === 3

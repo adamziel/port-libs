@@ -59,6 +59,31 @@ return [
         $t->same(false, $unpackFailed->unpackOk());
         $t->same('index-pack failed', $unpackFailed->unpackError());
     },
+    'preserves empty unpack failure status like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
+        $direct = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack \n")
+            . $packet("ng refs/heads/main index-pack died\n")
+            . $flush
+        );
+        $sideband = PushResponse::fromSidebandPacketLines(
+            $packet("\x02remote: unpack failed without status text\n")
+            . $packet("\x01" . $packet("unpack \n"))
+            . $packet("\x01" . $packet("ng refs/heads/main index-pack died\n"))
+            . $packet("\x01" . $flush)
+            . $flush
+        );
+
+        $t->same('', $direct->unpackStatus());
+        $t->same(false, $direct->unpackOk());
+        $t->same('', $direct->unpackError());
+        $t->same(false, $direct->isSuccessful());
+        $t->same('refs/heads/main', $direct->rejectedRefs()[0]->refName);
+        $t->same('index-pack died', $direct->rejectedRefs()[0]->message);
+        $t->same('', $sideband->unpackStatus());
+        $t->same(false, $sideband->unpackOk());
+        $t->same(['remote: unpack failed without status text'], $sideband->progressMessages());
+        $t->same('index-pack died', $sideband->rejectedRefs()[0]->message);
+    },
     'parses report-status-v2 rewritten ref options' => static function (TestRunner $t) use ($packet, $flush): void {
         $old = '58F4F2BE1F149A49F7234F4BBD3B1B8C92A6D61A';
         $new = '7B333369DE1221F9BFBBE03A3A13E9A09BC1C907';
@@ -575,6 +600,7 @@ return [
         $valuelessOption = PushResponse::fromReportStatusPacketLines($fixture['valuelessOptionResponse'])
             ->forExpectedRefNames([$fixture['valuelessOptionRef']['requested']])
             ->refStatuses()[0];
+        $emptyUnpackStatus = PushResponse::fromReportStatusPacketLines($fixture['emptyUnpackStatusResponse']);
 
         $t->same(true, $response->isSuccessful());
         $t->same('ok', $response->unpackStatus());
@@ -608,6 +634,9 @@ return [
         $t->same(null, $valuelessOption->oldObject);
         $t->same(null, $valuelessOption->newObject);
         $t->same(true, $valuelessOption->hasReportOption());
+        $t->same('', $emptyUnpackStatus->unpackStatus());
+        $t->same(false, $emptyUnpackStatus->unpackOk());
+        $t->same($fixture['emptyUnpackStatusRef']['message'], $emptyUnpackStatus->rejectedRefs()[0]->message);
 
         $summary = require dirname(__DIR__) . '/examples/wordpress-protocol-v1-push-response.php';
         $t->same($fixture['expectedFilteredRefs'], array_map(
@@ -650,5 +679,6 @@ return [
         $t->same(true, $summary['responseEndTerminatedAccepted']);
         $t->same(true, $summary['delimiterTerminatedAccepted']);
         $t->same(true, $summary['valuelessReportStatusOptionsAccepted']);
+        $t->same(true, $summary['emptyUnpackStatusRejected']);
     },
 ];

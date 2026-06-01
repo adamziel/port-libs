@@ -1253,6 +1253,8 @@ final class TransitionPrefixer
             'tabSizeNeedsO' => $this->targetInRange($normalized, 'opera', [10, 6], [12, 1]),
             'textAlignLastNeedsMoz' => $this->targetInRange($normalized, 'firefox', [12], [48]),
             'textOverflowNeedsO' => $this->targetInRange($normalized, 'opera', [9], [12]),
+            'textOrientationNeedsWebkit' => $this->targetInRange($normalized, 'safari', [10, 1], [13, 1]),
+            'touchActionNeedsMs' => $this->targetInRange($normalized, 'ie', [10], [10]),
             'textDecorationSkipInkNeedsWebkit' => $this->targetAtLeast($normalized, 'ios_saf', [8])
                 || $this->targetInRange($normalized, 'safari', [7, 1], [12]),
             'boxDecorationBreakNeedsWebkit' => $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
@@ -5101,6 +5103,12 @@ final class TransitionPrefixer
         ]) || $changed;
         $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'text-overflow', [
             '-o-' => $targetOptions['textOverflowNeedsO'] ?? false,
+        ]) || $changed;
+        $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'text-orientation', [
+            '-webkit-' => $targetOptions['textOrientationNeedsWebkit'] ?? false,
+        ]) || $changed;
+        $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'touch-action', [
+            '-ms-' => $targetOptions['touchActionNeedsMs'] ?? false,
         ]) || $changed;
         $changed = $this->rewriteVendorPrefixedDeclarationGroup($entries, 'text-decoration-skip-ink', [
             '-webkit-' => $targetOptions['textDecorationSkipInkNeedsWebkit'] ?? false,

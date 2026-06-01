@@ -74,6 +74,7 @@ return [
     'unsafeSmartHttpRawUrlControlByteRejected' => $fixture['unsafeSmartHttpRawUrlControlByteRejected'],
     'unsafeSmartHttpRawProxyControlByteRejected' => $fixture['unsafeSmartHttpRawProxyControlByteRejected'],
     'smartHttpAdvertisementWithoutServiceHeaderAccepted' => $fixture['smartHttpAdvertisementWithoutServiceHeaderAccepted'],
+    'smartHttpDuplicateContentTypeAccepted' => $fixture['smartHttpDuplicateContentTypeAccepted'],
     'streamWatchdogTimeoutReported' => $fixture['streamWatchdogTimeoutReported'],
     'advertisementErrorReported' => $fixture['advertisementErrorReported'],
     'oversizeAdvertisementRejected' => $fixture['oversizeAdvertisementRejected'],

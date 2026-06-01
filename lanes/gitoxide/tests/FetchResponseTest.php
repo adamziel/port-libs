@@ -89,6 +89,7 @@ return [
         $response = FetchResponse::fromV2PacketLines($bytes);
 
         $t->same(true, $response->hasPack());
+        $t->same('flush', $response->terminator());
         $t->same(FetchAcknowledgement::COMMON, $response->acknowledgements()[0]->kind);
         $t->same(FetchAcknowledgement::READY, $response->acknowledgements()[1]->kind);
         $t->same(FetchShallowUpdate::UNSHALLOW, $response->shallowUpdates()[0]->kind);
@@ -102,6 +103,7 @@ return [
         $response = FetchResponse::fromV2PacketLines($bytes);
 
         $t->same(false, $response->hasPack());
+        $t->same('flush', $response->terminator());
         $t->same(FetchAcknowledgement::NAK, $response->acknowledgements()[0]->kind);
         $t->same('', $response->packData());
     },
@@ -291,6 +293,7 @@ return [
         );
 
         $t->same(false, $noPack->hasPack());
+        $t->same('response-end', $noPack->terminator());
         $t->same(FetchAcknowledgement::NAK, $noPack->acknowledgements()[0]->kind);
         $t->same('', $noPack->packData());
         $t->same([], $noPack->progressMessages());
@@ -306,6 +309,7 @@ return [
         );
 
         $t->same(true, $withPack->hasPack());
+        $t->same('response-end', $withPack->terminator());
         $t->same(FetchAcknowledgement::COMMON, $withPack->acknowledgements()[0]->kind);
         $t->same($pack, $withPack->packData());
         $t->same(['Counting objects: 100% (1/1)'], $withPack->progressMessages());
@@ -327,12 +331,56 @@ return [
         );
 
         $t->same(true, $sidebandAll->hasPack());
+        $t->same('response-end', $sidebandAll->terminator());
         $t->same($pack, $sidebandAll->packData());
         $t->same(['remote: response-end aware negotiation'], $sidebandAll->progressMessages());
         $t->same(['remote: deployment warning before pack'], $sidebandAll->errorMessages());
         $t->same([
             [false, 'remote: response-end aware negotiation'],
             [true, 'remote: deployment warning before pack'],
+        ], $sidebandAllCalls);
+    },
+    'preserves protocol v2 delimiter sideband terminators like gix packetline stopped-at state' => static function (TestRunner $t) use ($packet, $delimiter): void {
+        $pack = 'PACK' . pack('N', 2) . pack('N', 1) . 'delimiter-pack';
+
+        $withPack = FetchResponse::fromV2PacketLines(
+            $packet("packfile\n")
+            . $packet("\x02Counting objects: 100% (1/1)\n")
+            . $packet("\x01" . $pack)
+            . $delimiter
+        );
+
+        $t->same(true, $withPack->hasPack());
+        $t->same('delimiter', $withPack->terminator());
+        $t->same($pack, $withPack->packData());
+        $t->same(['Counting objects: 100% (1/1)'], $withPack->progressMessages());
+        $t->same([], $withPack->errorMessages());
+
+        $sidebandAllCalls = [];
+        $sidebandAll = FetchResponse::fromV2PacketLines(
+            $packet("\x02remote: delimiter-aware negotiation\n")
+            . $packet("\x01packfile\n")
+            . $packet("\x01")
+            . $packet("\x01" . substr($pack, 0, 8))
+            . $packet("\x03remote: delimiter warning\n")
+            . $packet("\x01" . substr($pack, 8))
+            . $delimiter,
+            true,
+            static function (bool $isError, string $text) use (&$sidebandAllCalls): bool {
+                $sidebandAllCalls[] = [$isError, $text];
+
+                return true;
+            }
+        );
+
+        $t->same(true, $sidebandAll->hasPack());
+        $t->same('delimiter', $sidebandAll->terminator());
+        $t->same($pack, $sidebandAll->packData());
+        $t->same(['remote: delimiter-aware negotiation'], $sidebandAll->progressMessages());
+        $t->same(['remote: delimiter warning'], $sidebandAll->errorMessages());
+        $t->same([
+            [false, 'remote: delimiter-aware negotiation'],
+            [true, 'remote: delimiter warning'],
         ], $sidebandAllCalls);
     },
     'surfaces raw upload-pack ERR packets before sideband decoding' => static function (TestRunner $t) use ($packet, $flush, $runtimeMessage): void {
@@ -730,6 +778,8 @@ return [
         $t->same(true, $summary['responseEndPackParsed']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['responseEndPackTrailer']);
         $t->same(true, $summary['sidebandAllResponseEndParsed']);
+        $t->same(true, $summary['delimiterPackParsed']);
+        $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['delimiterPackTrailer']);
         $t->same([
             ['isError' => false, 'text' => 'remote: response-end aware negotiation'],
             ['isError' => true, 'text' => 'remote: deployment warning before pack'],

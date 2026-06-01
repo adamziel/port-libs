@@ -15,10 +15,10 @@ $salt2 = 0x20260527;
 $databasePath = 'app-data/database/tenant.sqlite';
 $page = static fn (string $label): string => str_pad($label, $pageSize, "\0");
 $databaseBytes = $page('sqlite header tenant before import')
-    . $page('app_settings current siteurl before import')
-    . $page('app_tenant_2_settings current siteurl before import')
-    . $page('app_tenant_3_settings current home before import')
-    . $page('app_tenant_settings current site_name before import');
+    . $page('app_settings current primary_url before import')
+    . $page('app_tenant_2_settings current primary_url before import')
+    . $page('app_tenant_3_settings current dashboard_url before import')
+    . $page('app_tenant_settings current display_name before import');
 
 $walHeaderBytes = static function () use ($pageSize, $salt1, $salt2): string {
     $prefix = pack('N*', SQLiteWalHeader::MAGIC_BIG_ENDIAN, 3007000, $pageSize, 42, $salt1, $salt2);
@@ -37,25 +37,25 @@ $appendFrame = static function (string $bytes, array &$seed, int $pageNumber, in
 $baseWalBytes = static function () use ($walHeaderBytes, $appendFrame, $page): string {
     $bytes = $walHeaderBytes();
     $seed = SQLiteWal::checksumPair(substr($bytes, 0, 24), false);
-    $bytes = $appendFrame($bytes, $seed, 2, 0, $page('draft tenant siteurl before import'));
-    $bytes = $appendFrame($bytes, $seed, 3, 5, $page('committed tenant 2 siteurl before import'));
+    $bytes = $appendFrame($bytes, $seed, 2, 0, $page('draft tenant primary_url before import'));
+    $bytes = $appendFrame($bytes, $seed, 3, 5, $page('committed tenant 2 primary_url before import'));
 
     return $bytes;
 };
 
 $baseWal = static fn (): SQLiteWal => SQLiteWal::parse($baseWalBytes(), $pageSize, true);
 $currentRows = static fn (): array => [
-    ['scope' => 'global', 'setting_id' => 1, 'key_name' => 'site_name', 'key_value' => 'Old Network', 'load_policy' => 'yes'],
-    ['scope' => 'global', 'setting_id' => 2, 'key_name' => 'active_sitewide_plugins', 'key_value' => 'a:0:{}', 'load_policy' => 'yes'],
-    ['scope' => 'tenant', 'tenant_id' => 2, 'setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://old.example/site-two', 'load_policy' => 'yes'],
+    ['scope' => 'global', 'setting_id' => 1, 'key_name' => 'display_name', 'key_value' => 'Old Tenant Registry', 'load_policy' => 'yes'],
+    ['scope' => 'global', 'setting_id' => 2, 'key_name' => 'enabled_modules', 'key_value' => '[]', 'load_policy' => 'yes'],
+    ['scope' => 'tenant', 'tenant_id' => 2, 'setting_id' => 1, 'key_name' => 'primary_url', 'key_value' => 'https://old.example/tenant-two', 'load_policy' => 'yes'],
     ['scope' => 'tenant', 'tenant_id' => 2, 'setting_id' => 2, 'key_name' => 'tenant_public', 'key_value' => '1', 'load_policy' => 'no'],
-    ['scope' => 'tenant', 'tenant_id' => 3, 'setting_id' => 1, 'key_name' => 'home', 'key_value' => 'https://old.example/site-three', 'load_policy' => 'yes'],
+    ['scope' => 'tenant', 'tenant_id' => 3, 'setting_id' => 1, 'key_name' => 'dashboard_url', 'key_value' => 'https://old.example/tenant-three/dashboard', 'load_policy' => 'yes'],
 ];
 $importRows = static fn (): array => [
-    ['scope' => 'global', 'key_name' => 'active_sitewide_plugins', 'key_value' => 'a:1:{s:19:"akismet/akismet.php";b:1;}', 'load_policy' => 'yes'],
-    ['scope' => 'tenant', 'tenant_id' => 2, 'key_name' => 'siteurl', 'key_value' => 'https://new.example/site-two', 'load_policy' => 'yes'],
-    ['scope' => 'tenant', 'tenant_id' => 2, 'key_name' => 'rewrite_rules', 'key_value' => 'a:1:{s:4:"post";s:12:"index.php?p=";}', 'load_policy' => 'no'],
-    ['scope' => 'tenant', 'tenant_id' => 3, 'key_name' => 'siteurl', 'key_value' => 'https://new.example/site-three', 'load_policy' => 'yes'],
+    ['scope' => 'global', 'key_name' => 'enabled_modules', 'key_value' => '["search","cache"]', 'load_policy' => 'yes'],
+    ['scope' => 'tenant', 'tenant_id' => 2, 'key_name' => 'primary_url', 'key_value' => 'https://new.example/tenant-two', 'load_policy' => 'yes'],
+    ['scope' => 'tenant', 'tenant_id' => 2, 'key_name' => 'route_map', 'key_value' => '{"entry":"index.php?id="}', 'load_policy' => 'no'],
+    ['scope' => 'tenant', 'tenant_id' => 3, 'key_name' => 'primary_url', 'key_value' => 'https://new.example/tenant-three', 'load_policy' => 'yes'],
     ['scope' => 'global', 'key_name' => 'registration', 'key_value' => 'none', 'load_policy' => 'no'],
 ];
 $plan = static fn (): array => SQLiteTenantKeyValueWalPlan::currentNext(
@@ -76,12 +76,12 @@ $cases = [
     'current row count' => [static fn (): mixed => count($plan()['current_rows']), 5],
     'next row count' => [static fn (): mixed => count($plan()['next_rows']), 8],
     'tables ordered' => [static fn (): mixed => $plan()['tables'], ['app_tenant_2_settings', 'app_tenant_3_settings', 'app_tenant_settings']],
-    'inserted keys ordered' => [static fn (): mixed => $plan()['inserted_keys'], ['app_tenant_2_settings:rewrite_rules', 'app_tenant_3_settings:siteurl', 'app_tenant_settings:registration']],
-    'updated keys ordered' => [static fn (): mixed => $plan()['updated_keys'], ['app_tenant_2_settings:siteurl', 'app_tenant_settings:active_sitewide_plugins']],
-    'tenant two siteurl keeps option id' => [static fn (): mixed => $plan()['next_rows'][1]['setting_id'], 1],
-    'tenant two rewrite gets next table id' => [static fn (): mixed => $plan()['next_rows'][0]['setting_id'], 3],
-    'tenant three siteurl gets next table id' => [static fn (): mixed => $plan()['next_rows'][4]['setting_id'], 2],
-    'tenant registration gets next table id' => [static fn (): mixed => $plan()['next_rows'][6]['setting_id'], 3],
+    'inserted keys ordered' => [static fn (): mixed => $plan()['inserted_keys'], ['app_tenant_2_settings:route_map', 'app_tenant_3_settings:primary_url', 'app_tenant_settings:registration']],
+    'updated keys ordered' => [static fn (): mixed => $plan()['updated_keys'], ['app_tenant_2_settings:primary_url', 'app_tenant_settings:enabled_modules']],
+    'tenant two primary url keeps setting id' => [static fn (): mixed => $plan()['next_rows'][0]['setting_id'], 1],
+    'tenant two route map gets next table id' => [static fn (): mixed => $plan()['next_rows'][1]['setting_id'], 3],
+    'tenant three primary url gets next table id' => [static fn (): mixed => $plan()['next_rows'][4]['setting_id'], 2],
+    'tenant registration gets next table id' => [static fn (): mixed => $plan()['next_rows'][7]['setting_id'], 3],
     'tenant two page list' => [static fn (): mixed => $plan()['table_page_numbers']['app_tenant_2_settings'], [2, 3, 4]],
     'tenant three page list' => [static fn (): mixed => $plan()['table_page_numbers']['app_tenant_3_settings'], [5, 6]],
     'tenant page list' => [static fn (): mixed => $plan()['table_page_numbers']['app_tenant_settings'], [7, 8, 9]],
@@ -89,9 +89,9 @@ $cases = [
     'tenant three load_policy index page' => [static fn (): mixed => $plan()['load_policy_index_page_numbers']['app_tenant_3_settings'], 11],
     'tenant load_policy index page' => [static fn (): mixed => $plan()['load_policy_index_page_numbers']['app_tenant_settings'], 12],
     'database page count' => [static fn (): mixed => $plan()['database_page_count'], 12],
-    'tenant two load_policy names' => [static fn (): mixed => $plan()['load_policy_yes_by_table']['app_tenant_2_settings'], ['siteurl']],
-    'tenant three load_policy names' => [static fn (): mixed => $plan()['load_policy_yes_by_table']['app_tenant_3_settings'], ['home', 'siteurl']],
-    'tenant load_policy names' => [static fn (): mixed => $plan()['load_policy_yes_by_table']['app_tenant_settings'], ['active_sitewide_plugins', 'site_name']],
+    'tenant two load_policy names' => [static fn (): mixed => $plan()['load_policy_yes_by_table']['app_tenant_2_settings'], ['primary_url']],
+    'tenant three load_policy names' => [static fn (): mixed => $plan()['load_policy_yes_by_table']['app_tenant_3_settings'], ['dashboard_url', 'primary_url']],
+    'tenant load_policy names' => [static fn (): mixed => $plan()['load_policy_yes_by_table']['app_tenant_settings'], ['display_name', 'enabled_modules']],
     'append start frame' => [static fn (): mixed => $plan()['append']['start_frame'], 3],
     'append end frame' => [static fn (): mixed => $plan()['append']['end_frame'], 13],
     'append frame count' => [static fn (): mixed => $plan()['append']['appended_frame_count'], 11],
@@ -113,17 +113,17 @@ $cases = [
     'current frame indexes' => [static fn (): mixed => array_slice($plan()['current_reader_frame_indexes'], 0, 4), [1, 2, null, null]],
     'next frame indexes first four' => [static fn (): mixed => array_slice($plan()['next_reader_frame_indexes'], 0, 4), [3, 4, 5, 6]],
     'next frame indexes last committed page' => [static fn (): mixed => $plan()['next_reader_frame_indexes'][10], 13],
-    'tenant two rewrite page contains table' => [static fn (): mixed => str_contains($plan()['next_reader'][0]['image'], '"table":"app_tenant_2_settings"'), true],
-    'tenant two rewrite page inserted name' => [static fn (): mixed => str_contains($plan()['next_reader'][0]['image'], '"rewrite_rules"'), true],
-    'tenant two siteurl updated' => [static fn (): mixed => str_contains($plan()['next_reader'][1]['image'], 'https://new.example/site-two'), true],
+    'tenant two primary url page contains table' => [static fn (): mixed => str_contains($plan()['next_reader'][0]['image'], '"table":"app_tenant_2_settings"'), true],
+    'tenant two route map page inserted name' => [static fn (): mixed => str_contains($plan()['next_reader'][1]['image'], '"route_map"'), true],
+    'tenant two primary url updated' => [static fn (): mixed => str_contains($plan()['next_reader'][0]['image'], 'https://new.example/tenant-two'), true],
     'tenant two tenant public retained' => [static fn (): mixed => str_contains($plan()['next_reader'][2]['image'], '"tenant_public"'), true],
-    'tenant three home retained' => [static fn (): mixed => str_contains($plan()['next_reader'][3]['image'], 'site-three'), true],
-    'tenant three siteurl inserted' => [static fn (): mixed => str_contains($plan()['next_reader'][4]['image'], '"siteurl"'), true],
-    'tenant active plugins updated' => [static fn (): mixed => str_contains($plan()['next_reader'][5]['image'], 'active_sitewide_plugins'), true],
-    'tenant registration inserted' => [static fn (): mixed => str_contains($plan()['next_reader'][6]['image'], '"registration"'), true],
-    'tenant site name retained' => [static fn (): mixed => str_contains($plan()['next_reader'][7]['image'], 'Old Network'), true],
-    'tenant two load_policy index excludes rewrite' => [static fn (): mixed => !str_contains($plan()['next_reader'][8]['image'], 'rewrite_rules'), true],
-    'tenant three load_policy index includes siteurl' => [static fn (): mixed => str_contains($plan()['next_reader'][9]['image'], '"siteurl"'), true],
+    'tenant three dashboard retained' => [static fn (): mixed => str_contains($plan()['next_reader'][3]['image'], 'tenant-three'), true],
+    'tenant three primary url inserted' => [static fn (): mixed => str_contains($plan()['next_reader'][4]['image'], '"primary_url"'), true],
+    'tenant display name retained' => [static fn (): mixed => str_contains($plan()['next_reader'][5]['image'], 'Old Tenant Registry'), true],
+    'tenant enabled modules updated' => [static fn (): mixed => str_contains($plan()['next_reader'][6]['image'], 'enabled_modules'), true],
+    'tenant registration inserted' => [static fn (): mixed => str_contains($plan()['next_reader'][7]['image'], '"registration"'), true],
+    'tenant two load_policy index excludes route map' => [static fn (): mixed => !str_contains($plan()['next_reader'][8]['image'], 'route_map'), true],
+    'tenant three load_policy index includes primary url' => [static fn (): mixed => str_contains($plan()['next_reader'][9]['image'], '"primary_url"'), true],
     'tenant load_policy index excludes registration' => [static fn (): mixed => !str_contains($plan()['next_reader'][10]['image'], 'registration'), true],
     'dependency marker' => [static fn (): mixed => in_array('application-tenant-settings-wal-current-next42', $plan()['dependencies'], true), true],
     'dependency includes wal append' => [static fn (): mixed => in_array('sqlite-wal-append-transaction', $plan()['dependencies'], true), true],
@@ -175,7 +175,7 @@ $tests['application settings tenant wal current next42 applies append through vf
     $t->same('applied', $applied['status']);
     $t->same(11, $applied['append']['appended_frame_count']);
     $t->same(13, $afterWal->lastCommitFrame()?->index);
-    $t->same(true, str_contains($afterWal->readerSnapshotPageImage($databaseBytes, 3, 13)['image'], 'https://new.example/site-two'));
+    $t->same(true, str_contains($afterWal->readerSnapshotPageImage($databaseBytes, 2, 13)['image'], 'https://new.example/tenant-two'));
     $t->same(true, str_contains($afterWal->readerSnapshotPageImage($databaseBytes, 12, 13)['image'], 'app_tenant_settings_load_policy'));
 };
 

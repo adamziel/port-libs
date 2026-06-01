@@ -1234,11 +1234,16 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
      */
     private static function assertContentType(array $response, string $expected, string $label): void
     {
-        $actual = self::headerValue($response['headers'], 'content-type');
-        $actualType = strtolower(trim(explode(';', $actual ?? '', 2)[0]));
-        if ($actualType !== $expected) {
-            throw new \RuntimeException("{$label} returned unexpected content type " . ($actual ?? 'missing'));
+        $actualValues = self::headerValues($response['headers'], 'content-type');
+        foreach ($actualValues as $actual) {
+            $actualType = strtolower(trim(explode(';', $actual, 2)[0]));
+            if ($actualType === $expected) {
+                return;
+            }
         }
+
+        $actual = $actualValues === [] ? null : $actualValues[count($actualValues) - 1];
+        throw new \RuntimeException("{$label} returned unexpected content type " . ($actual ?? 'missing'));
     }
 
     /**

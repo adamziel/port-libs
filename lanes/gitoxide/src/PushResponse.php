@@ -19,9 +19,6 @@ final class PushResponse
         private readonly array $progressMessages = [],
         private readonly array $errorMessages = [],
     ) {
-        if ($unpackStatus === '') {
-            throw new \InvalidArgumentException('push response: unpack status cannot be empty');
-        }
     }
 
     public static function fromReportStatusPacketLines(string $bytes): self
@@ -234,9 +231,6 @@ final class PushResponse
                     throw new \InvalidArgumentException('push response: first report-status line must be unpack status');
                 }
                 $unpackStatus = substr($line, strlen('unpack '));
-                if ($unpackStatus === '') {
-                    throw new \InvalidArgumentException('push response: unpack status cannot be empty');
-                }
                 continue;
             }
 

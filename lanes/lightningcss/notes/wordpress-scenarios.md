@@ -106,6 +106,8 @@ This isolated CSS Modules run adds `examples/wordpress-css-modules-attribute-sel
 
 This isolated target-prefixing run tightens `examples/wordpress-text-decoration-prefixer.php` for block link underline styles. Safari 12 still receives `-webkit-text-decoration-line/style/color` longhands, Safari 12.1 and Safari 16 keep only modern longhands, Safari 16 still receives the broader `-webkit-text-decoration` shorthand, and Safari 27 keeps only modern declarations. No new support component is needed; it reuses `TransitionPrefixer` target-version routing, declaration scanning, text-decoration normalization, and stale-prefix cleanup.
 
+This isolated custom at-rule parser/visitor run adds `examples/wordpress-custom-at-rule-nested-body.php` for build-free block CSS wrapped in a custom `@wp-theme-bundle` rule. Native PHP now preserves nested registered `@tokens` rules as custom rules inside the returned outer parser body, so a later composed visitor can consume token declarations and resolve `token(...)` calls in emitted block styles without Node/WASM. No new support component is needed; it reuses `CustomAtRuleTransformer`, declaration-list body parsing, function visitors, and composed visitor dispatch.
+
 ## Next Task
 
 Continue current-base LightningCSS handoffs for remaining CSSOM shorthand splitting/removal parity, custom at-rule parser/visitor parity, target-prefix browser boundaries, media-query range/layer handling, non-overlapping property-value color/font/grid coverage, and source-map/bundler integration. Reject status-only markers and avoid repeating accepted CSSOM priority-bucket, background CSSOM read/write, linear/radial/conic gradient minifier, or bundle supports-condition grouping slices.

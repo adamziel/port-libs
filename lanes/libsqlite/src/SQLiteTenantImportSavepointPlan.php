@@ -7,13 +7,13 @@ namespace PortLibs\LibSqlite;
 final class SQLiteTenantImportSavepointPlan
 {
     /**
-     * @param list<array{tenant_id:int,current_rows:list<array<string,mixed>>,batches:list<array{name?:string,rows:list<array<string,mixed>>,on_conflict?:string,release?:bool>>}> $sites
-     * @param array{database_path?:string,page_size?:int,journal_mode?:string,sync_mode?:string,replace_conflicts?:bool,continue_on_site_error?:bool,global_batches?:list<array{name?:string,rows:list<array<string,mixed>>,on_conflict?:string,release?:bool>>} $options
+     * @param list<array{tenant_id:int,current_rows:list<array<string,mixed>>,batches:list<array{name?:string,rows:list<array<string,mixed>>,on_conflict?:string,release?:bool>>}> $tenantImports
+     * @param array{database_path?:string,page_size?:int,journal_mode?:string,sync_mode?:string,replace_conflicts?:bool,continue_on_tenant_error?:bool,global_batches?:list<array{name?:string,rows:list<array<string,mixed>>,on_conflict?:string,release?:bool>>} $options
      * @return array<string,mixed>
      */
-    public static function plan(array $sites, array $options = []): array
+    public static function plan(array $tenantImports, array $options = []): array
     {
-        if ($sites === []) {
+        if ($tenantImports === []) {
             throw new \InvalidArgumentException('SQLite application tenant import savepoint plan requires at least one tenant');
         }
 
@@ -31,13 +31,13 @@ final class SQLiteTenantImportSavepointPlan
             throw new \InvalidArgumentException('SQLite application tenant import sync mode is unsupported');
         }
         $replaceConflicts = (bool) ($options['replace_conflicts'] ?? false);
-        $continueOnSiteError = (bool) ($options['continue_on_site_error'] ?? true);
+        $continueOnTenantError = (bool) ($options['continue_on_tenant_error'] ?? true);
         $globalBatches = $options['global_batches'] ?? [];
         if (!is_array($globalBatches)) {
             throw new \InvalidArgumentException('SQLite application tenant global batches must be a list');
         }
 
-        $sitePlans = [];
+        $tenantPlans = [];
         $tableNames = [];
         $releasedTenants = [];
         $rolledBackTenants = [];
@@ -45,15 +45,15 @@ final class SQLiteTenantImportSavepointPlan
         $finalRowsByTable = [];
         $releasedRowsByTable = [];
 
-        foreach (array_values($sites) as $siteIndex => $site) {
-            $tenantId = self::tenantId($site);
-            if (isset($sitePlans[$tenantId])) {
+        foreach (array_values($tenantImports) as $tenantImport) {
+            $tenantId = self::tenantId($tenantImport);
+            if (isset($tenantPlans[$tenantId])) {
                 throw new \InvalidArgumentException("Duplicate application tenant_id {$tenantId}");
             }
 
             $tableName = self::keyValueTableName($tenantId);
             $tableNames[] = $tableName;
-            $batches = $site['batches'] ?? null;
+            $batches = $tenantImport['batches'] ?? null;
             if (!is_array($batches)) {
                 throw new \InvalidArgumentException('SQLite application tenant batches must be a list');
             }
@@ -64,19 +64,19 @@ final class SQLiteTenantImportSavepointPlan
             }
 
             try {
-                $sitePlan = self::keyValueSavepointPlan($site['current_rows'], $prefixedBatches, $replaceConflicts, $pageSize);
-                $status = $sitePlan['rolled_back_batches'] === [] ? 'released' : 'partial';
+                $tenantPlan = self::keyValueSavepointPlan($tenantImport['current_rows'], $prefixedBatches, $replaceConflicts, $pageSize);
+                $status = $tenantPlan['rolled_back_batches'] === [] ? 'released' : 'partial';
                 if ($status === 'released') {
                     $releasedTenants[] = $tenantId;
                 } else {
                     $rolledBackTenants[] = $tenantId;
                 }
             } catch (\Throwable $exception) {
-                if (!$continueOnSiteError) {
+                if (!$continueOnTenantError) {
                     throw $exception;
                 }
 
-                $sitePlan = [
+                $tenantPlan = [
                     'status' => 'rolled_back',
                     'batch_count' => count($prefixedBatches),
                     'released_batches' => [],
@@ -86,10 +86,10 @@ final class SQLiteTenantImportSavepointPlan
                         array_keys($prefixedBatches)
                     ),
                     'batches' => [],
-                    'final_rows' => $site['current_rows'],
-                    'released_rows' => $site['current_rows'],
-                    'final_key_names' => array_column($site['current_rows'], 'key_name'),
-                    'released_key_names' => array_column($site['current_rows'], 'key_name'),
+                    'final_rows' => $tenantImport['current_rows'],
+                    'released_rows' => $tenantImport['current_rows'],
+                    'final_key_names' => array_column($tenantImport['current_rows'], 'key_name'),
+                    'released_key_names' => array_column($tenantImport['current_rows'], 'key_name'),
                     'dirty_pages' => [],
                     'journal_bytes' => 0,
                     'error' => $exception->getMessage(),
@@ -98,18 +98,18 @@ final class SQLiteTenantImportSavepointPlan
                 $status = 'rolled_back';
             }
 
-            foreach (($sitePlan['dirty_pages'] ?? []) as $pageNumber) {
+            foreach (($tenantPlan['dirty_pages'] ?? []) as $pageNumber) {
                 $dirtyPages[self::tenantPageNumber($tenantId, (int) $pageNumber)] = true;
             }
 
-            $finalRowsByTable[$tableName] = $sitePlan['final_rows'];
-            $releasedRowsByTable[$tableName] = $sitePlan['released_rows'];
-            $sitePlans[$tenantId] = [
+            $finalRowsByTable[$tableName] = $tenantPlan['final_rows'];
+            $releasedRowsByTable[$tableName] = $tenantPlan['released_rows'];
+            $tenantPlans[$tenantId] = [
                 'tenant_id' => $tenantId,
                 'table' => $tableName,
                 'status' => $status,
                 'savepoint_prefix' => "tenant{$tenantId}",
-                'plan' => $sitePlan,
+                'plan' => $tenantPlan,
             ];
         }
 
@@ -129,7 +129,7 @@ final class SQLiteTenantImportSavepointPlan
         }
 
         ksort($dirtyPages);
-        ksort($sitePlans);
+        ksort($tenantPlans);
         sort($tableNames);
 
         return [
@@ -138,11 +138,11 @@ final class SQLiteTenantImportSavepointPlan
             'page_size' => $pageSize,
             'journal_mode' => $journalMode,
             'sync_mode' => $syncMode,
-            'tenant_count' => count($sitePlans),
+            'tenant_count' => count($tenantPlans),
             'table_names' => $tableNames,
             'released_tenants' => $releasedTenants,
             'rolled_back_tenants' => $rolledBackTenants,
-            'tenants' => array_values($sitePlans),
+            'tenants' => array_values($tenantPlans),
             'global_plan' => $globalPlan,
             'final_rows_by_table' => $finalRowsByTable,
             'released_rows_by_table' => $releasedRowsByTable,
@@ -157,11 +157,11 @@ final class SQLiteTenantImportSavepointPlan
     }
 
     /**
-     * @param array<string,mixed> $site
+     * @param array<string,mixed> $tenantImport
      */
-    private static function tenantId(array $site): int
+    private static function tenantId(array $tenantImport): int
     {
-        $tenantId = $site['tenant_id'] ?? null;
+        $tenantId = $tenantImport['tenant_id'] ?? null;
         if (!is_int($tenantId) && !(is_string($tenantId) && ctype_digit($tenantId))) {
             throw new \InvalidArgumentException('SQLite application tenant_id must be a positive integer');
         }
@@ -169,7 +169,7 @@ final class SQLiteTenantImportSavepointPlan
         if ($tenantId <= 0) {
             throw new \InvalidArgumentException('SQLite application tenant_id must be positive');
         }
-        if (!isset($site['current_rows']) || !is_array($site['current_rows'])) {
+        if (!isset($tenantImport['current_rows']) || !is_array($tenantImport['current_rows'])) {
             throw new \InvalidArgumentException('SQLite application tenant current rows must be a list');
         }
 

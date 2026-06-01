@@ -17398,26 +17398,46 @@ final class CssMinifier
     /**
      * @return array{0:int,1:int,2:int}
      */
-    private function hslToRgbBytes(float $hue, float $saturation, float $lightness, float $roundingBias = 0.000000001): array
+    private function hslToRgbBytes(float $hue, float $saturation, float $lightness, float $roundingBias = 0.0): array
     {
-        $chroma = (1 - abs(2 * $lightness - 1)) * $saturation;
-        $x = $chroma * (1 - abs(fmod($hue / 60, 2) - 1));
-        $m = $lightness - $chroma / 2;
+        $hue = $this->normalizeMixedHue($hue) / 360;
+        $m2 = $lightness <= 0.5
+            ? $lightness * ($saturation + 1)
+            : $lightness + $saturation - $lightness * $saturation;
+        $m1 = $lightness * 2 - $m2;
+        $hueTimesThree = $hue * 3;
 
-        [$red, $green, $blue] = match (true) {
-            $hue < 60 => [$chroma, $x, 0.0],
-            $hue < 120 => [$x, $chroma, 0.0],
-            $hue < 180 => [0.0, $chroma, $x],
-            $hue < 240 => [0.0, $x, $chroma],
-            $hue < 300 => [$x, 0.0, $chroma],
-            default => [$chroma, 0.0, $x],
-        };
+        $red = $this->hslHueToRgb($m1, $m2, $hueTimesThree + 1);
+        $green = $this->hslHueToRgb($m1, $m2, $hueTimesThree);
+        $blue = $this->hslHueToRgb($m1, $m2, $hueTimesThree - 1);
 
         return [
-            (int) round(($red + $m) * 255 + $roundingBias),
-            (int) round(($green + $m) * 255 + $roundingBias),
-            (int) round(($blue + $m) * 255 + $roundingBias),
+            (int) round($red * 255 + $roundingBias),
+            (int) round($green * 255 + $roundingBias),
+            (int) round($blue * 255 + $roundingBias),
         ];
+    }
+
+    private function hslHueToRgb(float $m1, float $m2, float $hueTimesThree): float
+    {
+        if ($hueTimesThree < 0) {
+            $hueTimesThree += 3;
+        }
+        if ($hueTimesThree > 3) {
+            $hueTimesThree -= 3;
+        }
+
+        if ($hueTimesThree * 2 < 1) {
+            return $m1 + ($m2 - $m1) * $hueTimesThree * 2;
+        }
+        if ($hueTimesThree * 2 < 3) {
+            return $m2;
+        }
+        if ($hueTimesThree < 2) {
+            return $m1 + ($m2 - $m1) * (2 - $hueTimesThree) * 2;
+        }
+
+        return $m1;
     }
 
     /**

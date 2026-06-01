@@ -162,6 +162,25 @@ CSS);
             ]));
         }
     },
+    'css modules rejects upstream invalid escaped newlines in local global selectors before composing exports' => static function (TestRunner $t): void {
+        $transformer = new CssModulesTransformer();
+
+        foreach ([
+            ":local(.card\\\nTitle) { color: red }",
+            ":global(.wp-block\\\nbutton) .card { color: red }",
+            ".card { composes: base; color: red } :global(.legacy\\\r\nbutton) .card { color: blue } .base { color: yellow }",
+            "@scope (:global(.wp-block\\\fbutton)) { .card { color: red } }",
+        ] as $css) {
+            try {
+                $transformer->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same('Invalid CSS escape in selector', $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected invalid CSS selector escape exception');
+        }
+    },
     'css modules enforces upstream pseudo-element boundaries around local global selectors' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 :host(:global(.wp-block)) .card,

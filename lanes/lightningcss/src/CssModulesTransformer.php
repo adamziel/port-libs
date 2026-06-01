@@ -1806,6 +1806,7 @@ final class CssModulesTransformer
      */
     private function rewriteSelectorList(string $selectorList): array
     {
+        $this->assertNoInvalidEscapesInSelectorList($selectorList);
         $this->assertSelectorPseudoElementBoundaries($selectorList);
 
         $rewritten = [];
@@ -1823,6 +1824,46 @@ final class CssModulesTransformer
         }
 
         return [implode(', ', $rewritten), $locals];
+    }
+
+    private function assertNoInvalidEscapesInSelectorList(string $selectorList): void
+    {
+        $quote = null;
+        $length = strlen($selectorList);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $selectorList[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\' && $i + 1 < $length) {
+                    $i++;
+                    continue;
+                }
+
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char !== '\\') {
+                continue;
+            }
+
+            $next = $selectorList[$i + 1] ?? '';
+            if ($next === "\n" || $next === "\r" || $next === "\f") {
+                throw new \InvalidArgumentException('Invalid CSS escape in selector');
+            }
+
+            if ($next !== '') {
+                $i++;
+            }
+        }
     }
 
     private function assertSelectorPseudoElementBoundaries(string $selectorList): void

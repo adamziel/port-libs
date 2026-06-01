@@ -10,26 +10,26 @@ $plan = SQLiteTenantImportSavepointPlan::plan([
     [
         'tenant_id' => 1,
         'current_rows' => [
-            ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://main.old', 'load_policy' => 'yes'],
-            ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'https://main.old', 'load_policy' => 'yes'],
+            ['setting_id' => 1, 'key_name' => 'primary_url', 'key_value' => 'https://main.old', 'load_policy' => 'yes'],
+            ['setting_id' => 2, 'key_name' => 'dashboard_url', 'key_value' => 'https://main.old/dashboard', 'load_policy' => 'yes'],
         ],
         'batches' => [
-            ['name' => 'urls', 'rows' => [
-                ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://main.new', 'load_policy' => 'yes'],
-                ['key_name' => 'blogname', 'key_value' => 'Main Import', 'load_policy' => 'yes'],
+            ['name' => 'endpoints', 'rows' => [
+                ['setting_id' => 1, 'key_name' => 'primary_url', 'key_value' => 'https://main.new', 'load_policy' => 'yes'],
+                ['key_name' => 'display_name', 'key_value' => 'Main Import', 'load_policy' => 'yes'],
             ]],
         ],
     ],
     [
         'tenant_id' => 2,
         'current_rows' => [
-            ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://child.old', 'load_policy' => 'yes'],
-            ['setting_id' => 2, 'key_name' => 'home', 'key_value' => 'https://child.old', 'load_policy' => 'yes'],
+            ['setting_id' => 1, 'key_name' => 'primary_url', 'key_value' => 'https://child.old', 'load_policy' => 'yes'],
+            ['setting_id' => 2, 'key_name' => 'dashboard_url', 'key_value' => 'https://child.old/dashboard', 'load_policy' => 'yes'],
         ],
         'batches' => [
-            ['name' => 'urls', 'rows' => [
-                ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://child.new', 'load_policy' => 'yes'],
-                ['key_name' => 'blogdescription', 'key_value' => 'Child imported', 'load_policy' => 'no'],
+            ['name' => 'endpoints', 'rows' => [
+                ['setting_id' => 1, 'key_name' => 'primary_url', 'key_value' => 'https://child.new', 'load_policy' => 'yes'],
+                ['key_name' => 'summary_text', 'key_value' => 'Child imported', 'load_policy' => 'no'],
             ]],
         ],
     ],
@@ -37,8 +37,8 @@ $plan = SQLiteTenantImportSavepointPlan::plan([
     'database_path' => '/tmp/app-tenant-import.sqlite',
     'page_size' => 1024,
     'global_batches' => [
-        ['name' => 'network_meta', 'rows' => [
-            ['key_name' => 'site_admins', 'key_value' => 'a:1:{i:0;s:5:"admin";}', 'load_policy' => 'no'],
+        ['name' => 'shared_catalog', 'rows' => [
+            ['key_name' => 'admin_users', 'key_value' => '["admin"]', 'load_policy' => 'no'],
         ]],
     ],
 ]);
