@@ -910,6 +910,101 @@ final class SQLiteRealPagerBoundaryPlan
         return $rows;
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function hotJournalChecksumStopRows(int $count = 1000): array
+    {
+        if ($count < 1) {
+            throw new \InvalidArgumentException('SQLite pager hot-journal checksum corpus row count must be positive');
+        }
+
+        $pageSizes = [512, 1024, 2048, 4096];
+        $sectorSizes = [512, 1024, 4096];
+        $scenarios = [
+            [
+                'section' => 'pager1.4.5.3',
+                'phase' => 'valid-hot-journal-full-rollback',
+                'corrupt_record' => null,
+                'readonly' => false,
+                'reason' => 'hot_journal_recovered',
+                'applied_pages' => [1, 2],
+                'expected_rows' => ['t1' => ['I', 'II'], 't2' => ['III', 'IV']],
+                'error' => null,
+            ],
+            [
+                'section' => 'pager1.4.5.4',
+                'phase' => 'first-record-checksum-fails-no-rollback',
+                'corrupt_record' => 1,
+                'readonly' => false,
+                'reason' => 'checksum_mismatch_before_first_page',
+                'applied_pages' => [],
+                'expected_rows' => ['t1' => ['I', 'II', '1', '2'], 't2' => ['III', 'IV', '3', '4']],
+                'error' => null,
+            ],
+            [
+                'section' => 'pager1.4.5.5',
+                'phase' => 'second-record-checksum-fails-prefix-rollback',
+                'corrupt_record' => 2,
+                'readonly' => false,
+                'reason' => 'checksum_mismatch_after_prefix_recovery',
+                'applied_pages' => [1],
+                'expected_rows' => ['t1' => ['I', 'II'], 't2' => ['III', 'IV', '3', '4']],
+                'error' => null,
+            ],
+            [
+                'section' => 'pager1.4.5.6',
+                'phase' => 'readonly-hot-journal-cannot-rollback',
+                'corrupt_record' => null,
+                'readonly' => true,
+                'reason' => 'readonly_hot_journal_requires_write',
+                'applied_pages' => [],
+                'expected_rows' => ['t1' => ['I', 'II', '1', '2'], 't2' => ['III', 'IV', '3', '4']],
+                'error' => 'attempt to write a readonly database',
+            ],
+        ];
+        $rows = [];
+
+        for ($case = 1; $case <= $count; $case++) {
+            $scenario = $scenarios[($case - 1) % count($scenarios)];
+            $pageSize = $pageSizes[intdiv($case - 1, count($scenarios)) % count($pageSizes)];
+            $sectorSize = $sectorSizes[intdiv($case - 1, count($scenarios) * count($pageSizes)) % count($sectorSizes)];
+            $nonce = (0x14500000 + ($case * 40503)) & 0xffffffff;
+
+            $rows[] = [
+                'case' => $case,
+                'script' => 'pager1.test',
+                'section' => $scenario['section'],
+                'upstream' => sprintf('pager1.test %s hot-journal checksum stop dynamic case %04d', $scenario['section'], $case),
+                'phase' => $scenario['phase'],
+                'page_size' => $pageSize,
+                'sector_size' => $sectorSize,
+                'checksum_nonce' => $nonce,
+                'initial_database_page_count' => 2,
+                'journal_page_count' => 2,
+                'journal_mode' => 'delete',
+                'corrupt_record' => $scenario['corrupt_record'],
+                'read_only_connection' => $scenario['readonly'],
+                'expected_reason' => $scenario['reason'],
+                'expected_applied_pages' => $scenario['applied_pages'],
+                'expected_applied_page_count' => count($scenario['applied_pages']),
+                'expected_first_checksum_mismatch_index' => $scenario['corrupt_record'],
+                'expected_rows' => $scenario['expected_rows'],
+                'expected_error' => $scenario['error'],
+                'journal_deleted_after_recovery' => !$scenario['readonly'],
+                'source' => 'pager1.test pager1.4.5.3 through pager1.4.5.6 hot-journal checksum recovery stops at the first bad record and read-only handles cannot roll back hot journals',
+                'dependencies' => [
+                    'real-upstream-corpus-pager1',
+                    'sqlite-rollback-journal-checksum-prefix-recovery',
+                    'sqlite-pager-hot-journal-readonly-write-required',
+                    'sqlite-pager-hot-journal-corrupt-record-boundary',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
     private static function align(int $value, int $boundary): int
     {
         return intdiv($value + $boundary - 1, $boundary) * $boundary;

@@ -273,6 +273,121 @@ final class SQLiteRollbackJournal
     }
 
     /**
+     * @return array{hot_journal:array{hot:bool,reason:string,journal_bytes:int,header_valid:bool,page_count:int|null,initial_database_page_count:int|null,requires_super_journal:bool,super_journal_exists:bool|null,database_reserved_lock:bool},recovered:bool,reason:string,error:string|null,database_bytes:string,final_database_bytes:int,journal_action:string,applied_page_count:int,checksum_valid_page_count:int,first_checksum_mismatch_index:int|null,recovery_plan:array{initial_database_page_count:int,final_database_bytes:int,pages:list<array{index:int,page_number:int,database_offset:int,checksum_valid:bool,applied:bool,reason:string}>}|null}
+     */
+    public function hotJournalChecksumRecoveryResult(
+        string $databaseBytes,
+        string $journalBytes,
+        bool $readOnlyConnection = false,
+        bool $databaseReservedLock = false,
+        bool $requiresSuperJournal = false,
+        ?bool $superJournalExists = null,
+    ): array {
+        $hotJournal = self::hotJournalCandidate($journalBytes, $databaseReservedLock, $requiresSuperJournal, $superJournalExists);
+        if (!$hotJournal['hot'] && $hotJournal['reason'] === 'invalid_journal_header') {
+            $hotJournal = $this->hotJournalCandidateWithDatabasePageSize(
+                $journalBytes,
+                $databaseReservedLock,
+                $requiresSuperJournal,
+                $superJournalExists
+            );
+        }
+        if (!$hotJournal['hot']) {
+            return [
+                'hot_journal' => $hotJournal,
+                'recovered' => false,
+                'reason' => $hotJournal['reason'],
+                'error' => null,
+                'database_bytes' => $databaseBytes,
+                'final_database_bytes' => strlen($databaseBytes),
+                'journal_action' => 'preserve_journal',
+                'applied_page_count' => 0,
+                'checksum_valid_page_count' => 0,
+                'first_checksum_mismatch_index' => null,
+                'recovery_plan' => null,
+            ];
+        }
+        if ($readOnlyConnection) {
+            return [
+                'hot_journal' => $hotJournal,
+                'recovered' => false,
+                'reason' => 'readonly_hot_journal_requires_write',
+                'error' => 'attempt to write a readonly database',
+                'database_bytes' => $databaseBytes,
+                'final_database_bytes' => strlen($databaseBytes),
+                'journal_action' => 'preserve_journal',
+                'applied_page_count' => 0,
+                'checksum_valid_page_count' => 0,
+                'first_checksum_mismatch_index' => null,
+                'recovery_plan' => null,
+            ];
+        }
+
+        $pageSize = $this->header->pageSize;
+        if (strlen($databaseBytes) % $pageSize !== 0) {
+            throw new \InvalidArgumentException('SQLite rollback journal checksum recovery requires a database image aligned to the page size');
+        }
+
+        $recoveredBytes = substr(
+            $databaseBytes . str_repeat("\0", max(0, ($this->header->initialDatabasePageCount * $pageSize) - strlen($databaseBytes))),
+            0,
+            $this->header->initialDatabasePageCount * $pageSize
+        );
+        $pages = [];
+        $checksumValid = 0;
+        $applied = 0;
+        $firstMismatch = null;
+
+        foreach ($this->pages as $page) {
+            $valid = self::pageChecksum($page->pageImage, $this->header->checksumNonce) === $page->checksum;
+            $applies = $valid && $firstMismatch === null && $page->pageNumber <= $this->header->initialDatabasePageCount;
+            if (!$valid && $firstMismatch === null) {
+                $firstMismatch = $page->index;
+            }
+            if ($valid && $firstMismatch === null) {
+                $checksumValid++;
+            }
+            if ($applies) {
+                $recoveredBytes = substr_replace($recoveredBytes, $page->pageImage, ($page->pageNumber - 1) * $pageSize, $pageSize);
+                $applied++;
+            }
+
+            $pages[] = [
+                'index' => $page->index,
+                'page_number' => $page->pageNumber,
+                'database_offset' => ($page->pageNumber - 1) * $pageSize,
+                'checksum_valid' => $valid,
+                'applied' => $applies,
+                'reason' => $applies
+                    ? 'restored_from_journal'
+                    : ($valid ? 'after_checksum_mismatch_or_beyond_initial_size' : 'checksum_mismatch_stops_recovery'),
+            ];
+        }
+
+        $reason = $firstMismatch === null
+            ? 'hot_journal_recovered'
+            : ($firstMismatch === 1 ? 'checksum_mismatch_before_first_page' : 'checksum_mismatch_after_prefix_recovery');
+
+        return [
+            'hot_journal' => $hotJournal,
+            'recovered' => true,
+            'reason' => $reason,
+            'error' => null,
+            'database_bytes' => $recoveredBytes,
+            'final_database_bytes' => strlen($recoveredBytes),
+            'journal_action' => 'delete_journal_after_recovery',
+            'applied_page_count' => $applied,
+            'checksum_valid_page_count' => $checksumValid,
+            'first_checksum_mismatch_index' => $firstMismatch,
+            'recovery_plan' => [
+                'initial_database_page_count' => $this->header->initialDatabasePageCount,
+                'final_database_bytes' => $this->header->initialDatabasePageCount * $pageSize,
+                'pages' => $pages,
+            ],
+        ];
+    }
+
+    /**
      * @return array{hot:bool,reason:string,journal_bytes:int,header_valid:bool,page_count:int|null,initial_database_page_count:int|null,requires_super_journal:bool,super_journal_exists:bool|null,database_reserved_lock:bool}
      */
     private function hotJournalCandidateWithDatabasePageSize(
