@@ -53,7 +53,7 @@ final class SQLiteJsonEach
             return [];
         }
 
-        $located = SQLiteJsonInspection::locatePath($value, $path);
+        $located = SQLiteJsonInspection::locatePathForJsonEncoding($value, $path);
         if (!$located['found']) {
             return [];
         }
@@ -144,7 +144,7 @@ final class SQLiteJsonEach
             return $value;
         }
 
-        return new SQLiteJsonSubtypeValue(SQLiteJsonCanonical::encodeDecodedJson($value));
+        return SQLiteJsonCanonical::encodeDecodedJson($value);
     }
 
     private static function atomValue(mixed $value): mixed

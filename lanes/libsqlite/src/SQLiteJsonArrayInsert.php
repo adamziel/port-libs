@@ -63,7 +63,7 @@ final class SQLiteJsonArrayInsert
             return new SQLiteBlobValue($mutated);
         }
 
-        return SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decode($mutated));
+        return SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decodeForJsonEncoding($mutated));
     }
 
     private static function jsonbBytes(string|SQLiteBlobValue $value): string

@@ -57,7 +57,7 @@ final class SQLiteJsonMutation
             return new SQLiteBlobValue($mutated);
         }
 
-        return SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decode($mutated));
+        return SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decodeForJsonEncoding($mutated));
     }
 
     /**
@@ -85,7 +85,7 @@ final class SQLiteJsonMutation
                 return new SQLiteBlobValue($jsonb);
             }
 
-            return SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decode($jsonb));
+            return SQLiteJsonCanonical::encodeDecodedJson(SQLiteJsonB::decodeForJsonEncoding($jsonb));
         }
 
         $path = array_shift($arguments);

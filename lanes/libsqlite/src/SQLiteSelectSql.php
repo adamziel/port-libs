@@ -2844,6 +2844,7 @@ final class SQLiteSelectSql
      */
     private static function qualifiedJsonRows(array $rows, string $prefix): array
     {
+        $rows = self::jsonRowsWithSqlSubtypes($rows);
         $qualified = self::qualifiedRows($rows, $prefix);
         foreach ($rows as $index => $row) {
             if (!array_key_exists('id', $row)) {
@@ -2873,6 +2874,7 @@ final class SQLiteSelectSql
      */
     private static function unqualifiedJsonRows(array $rows): array
     {
+        $rows = self::jsonRowsWithSqlSubtypes($rows);
         foreach ($rows as $index => $row) {
             if (!array_key_exists('id', $row)) {
                 continue;
@@ -2886,6 +2888,22 @@ final class SQLiteSelectSql
             ));
             if ($hiddenColumns !== []) {
                 $rows[$index][self::HIDDEN_WILDCARD_METADATA_PREFIX] = $hiddenColumns;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array<string,mixed>> $rows
+     * @return list<array<string,mixed>>
+     */
+    private static function jsonRowsWithSqlSubtypes(array $rows): array
+    {
+        foreach ($rows as $index => $row) {
+            $type = $row['type'] ?? null;
+            if (($type === 'object' || $type === 'array') && isset($row['value']) && is_string($row['value'])) {
+                $rows[$index]['value'] = new SQLiteJsonSubtypeValue($row['value']);
             }
         }
 
