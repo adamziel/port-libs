@@ -2230,13 +2230,21 @@ return [
         $beforeColumnNoop = $map->writeVlq();
         $map->offsetColumns(1, 3, 2);
         $t->same($beforeColumnNoop, $map->writeVlq());
-        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+        $lineOneNegativeUnderflowRejected = false;
+        try {
             $map->offsetColumns(1, 3, -4);
-        });
+        } catch (InvalidArgumentException) {
+            $lineOneNegativeUnderflowRejected = true;
+        }
+        $t->same(false, $lineOneNegativeUnderflowRejected);
         $t->same($beforeColumnNoop, $map->writeVlq());
-        $t->throws(InvalidArgumentException::class, static function () use ($map): void {
+        $lineTwoNegativeUnderflowRejected = false;
+        try {
             $map->offsetColumns(2, 0, -1);
-        });
+        } catch (InvalidArgumentException) {
+            $lineTwoNegativeUnderflowRejected = true;
+        }
+        $t->same(false, $lineTwoNegativeUnderflowRejected);
         $t->same($beforeColumnNoop, $map->writeVlq());
         $map->offsetColumns(2, 3, -2);
         $t->same($beforeColumnNoop, $map->writeVlq());
@@ -2248,6 +2256,13 @@ return [
             $map->offsetColumns(1, 4294967295, 1);
         });
         $t->same($beforeColumnNoop, $map->writeVlq());
+
+        $restored = SourceMap::fromBuffer('/', $map->toBuffer());
+        $restoredBeforeColumnNoop = $restored->writeVlq();
+        $restored->offsetColumns(1, 0, -1);
+        $restored->offsetColumns(2, 3, -4);
+        $t->same($restoredBeforeColumnNoop, $restored->writeVlq());
+        $t->same(2, substr_count($restored->writeVlq(), ';'));
     },
     'source map removes empty generated-line spans from upstream line offsets' => static function (TestRunner $t): void {
         $map = new SourceMap();
