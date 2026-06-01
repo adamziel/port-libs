@@ -169,7 +169,7 @@
         }
     },
     "benchmarkDenominator": {
-        "status": "current-base libsqlite JSON SELECT and source-neutral row-id batch",
+        "status": "current-base libsqlite window trigger STAT4 row-value parity batch",
         "total": 1589,
         "mapped": 1589,
         "latestMappedAddition": "Accepted source commit 3ec6eca adds row-value UPDATE/DELETE LIMIT cast-affinity dynamic and application WAL rollback JSON final recovery-checkpoint follow-up evidence; mapped coverage remains complete 1589 / 1589. Focused PHP evidence is 2 files / 960 assertions / 0 failures; broad release/all still has 7 known failures.",
@@ -2452,7 +2452,8 @@
         "latestFocusedCorpusBatch20260601T0253Z": "Focused libsqlite replay accepted source-neutral key-value WAL import cleanup plus real upstream trustschema1.test PRAGMA trusted_schema schema-function safety coverage. Focused gate passed 4 files / 21664 assertions / 0 failures; denominator remains 1589 / 1589.",
         "latestFocusedCorpusBatch20260601T0258Z": "Accepted source commit 87e4caa03f6b adds real upstream skipscan2.test sections 1.3 through 3.3eqp as dynamic B-tree/index corpus evidence and source-neutral trigger/upsert/view defaults cleanup. Focused gate passed 5 files / 27237 assertions / 0 failures; mapped denominator remains 1589 / 1589.",
         "latestFocusedCorpusBatch20260601T0306Z": "Accepted source commit d7e69cc2b695 neutralizes encoding LIKE/GLOB default source names without changing mapped denominator or phpPass counters. Focused gate passed 3 files / 126 assertions / 0 failures.",
-        "latestFocusedSlice": "2026-06-01 supervisor followup: triggerC recursive insert depth-cutoff corpus and source-neutral row-value savepoint cleanup. Focused libsqlite gate passed 8 files / 47501 assertions / 0 failures; mapped denominator remains 1589 / 1589."
+        "latestFocusedSlice": "2026-06-01 supervisor followup: triggerC recursive insert depth-cutoff corpus and source-neutral row-value savepoint cleanup. Focused libsqlite gate passed 8 files / 47501 assertions / 0 failures; mapped denominator remains 1589 / 1589.",
+        "currentSliceSource": "2026-06-01 supervisor parity batch adds current-base libsqlite window3 value/navigation dynamic coverage, e_fkey deferrable-clause matrix coverage, source-neutral STAT4 payload handoff keys, and row-value peer defaults. Focused libsqlite PHP evidence is 140 files / 103702 assertions / 0 failures; broad release/all still has 7 known failures and the full-lane memory blocker remains."
     },
     "nativeImplementation": {
         "language": "PHP",
@@ -3430,10 +3431,10 @@
             "focusedUpstreamVeryquickShardCurrentSourceNext431": "The 2026-05-28 isolated current-source next431 suite veryquick-shard runner slice maps one additional runner-countability blocker row for launcher Base accepted HEAD fca16e3d, current integration source 8a447f44, lane-local zero-error guarded runner artifact rows, duplicate-runner gates, exact 96 focused PASS-line admission, focused current-source veryquick shard scope, and no release/all parity claim."
         }
     },
-    "latestFocusedSlice": "2026-06-01 supervisor PDO follow-up: optional SQLitePDO exec parameter arrays, first file-backed persistence/reopen support, and unknown-column rollback parity. SQLitePdoPolyfillTest plus no-domain guard passed 2 files / 138 assertions / 0 failures; phpPass moves to 5889994 with broad release/all still at 7 known failures; mapped coverage remains 1589 / 1589.",
+    "latestFocusedSlice": "2026-06-01 supervisor parity batch at source 23c0a23f219b: window3 value/navigation dynamic coverage (+1002 tests), e_fkey deferrable-clause matrix coverage (+1005 tests), source-neutral STAT4 payload handoff keys (+4 tests), and row-value peer defaults (+1 test). Mapped coverage remains 1589 / 1589.",
     "latestNativePhpVerification": "2026-06-01 current-base integration: changed PHP lint passed; git diff --cached --check passed; focused trigger/rowvalue/no-domain gate passed 8 files / 47501 assertions / 0 failures.",
     "runnerStatus": "Focused libsqlite B-tree/no-domain gate passed 3 files / 84898 assertions / 0 failures. Broad release/all still has 7 known failures.",
-    "latestCommit": "3ec6eca5d768da593338507a6f68979d67b734cf",
+    "latestCommit": "23c0a23f219b4dafa33ebcd8faf8b5041ba1f821",
     "latestFocusedCorpusBatch20260531T2250Z": {
         "sourceCommit": "48a678f72e367c869dc62452fbad34f36daa273b",
         "selectedPassIncrease": 2411,
