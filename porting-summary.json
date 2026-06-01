@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 17:09:42 UTC",
-    "sourceCommit": "0c5064192a99d79542a87215b85bea5af9b0cd55",
-    "sourceCommitShort": "0c5064192a99",
+    "generated": "2026-06-01 17:17:59 UTC",
+    "sourceCommit": "fda1cd3d5dbdd3d6917df87baa4dec19998fdab2",
+    "sourceCommitShort": "fda1cd3d5dbd",
     "sourceBranch": "main",
-    "dashboardCommit": "548207c9579764e7159e46aaa015007bc5f0d9ed",
-    "dashboardCommitShort": "548207c95797",
+    "dashboardCommit": "fda1cd3d5dbdd3d6917df87baa4dec19998fdab2",
+    "dashboardCommitShort": "fda1cd3d5dbd",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -24,11 +24,11 @@
             "unmapped": "0",
             "php": "6,151,056 pass / 16 fail",
             "phase": "current-base source integration accepted; broad full-lane/release par...",
-            "audit": "2026-06-01 17:07 UTC supervisor integration: source commit 0c5064192a...",
-            "currentWork": "SQLite WAL/JSON dynamic memory-unblock cleanup, SQLite VFS pcache2 pagecache-pool res...",
+            "audit": "2026-06-01 17:15 UTC supervisor integration: source commit fda1cd3d5d...",
+            "currentWork": "Source-neutral row-value/window default cleanup, SQLite WAL/JSON dynamic memory-unblo...",
             "nextTarget": "Prioritize broad full-lane memory exhaustion and the 16 obser...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "0c50641"
+            "commit": "fda1cd3"
         },
         {
             "lane": "lightningcss",
