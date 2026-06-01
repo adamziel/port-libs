@@ -371,6 +371,7 @@ MD;
 
 file_put_contents($root . '/progress.md', $progressMd);
 file_put_contents($root . '/porting.html', $html);
+file_put_contents($root . '/index.html', $html);
 file_put_contents($root . '/porting-summary.json', json_encode([
     'generated' => $generated,
     'sourceCommit' => $sourceCommit,
@@ -386,4 +387,4 @@ file_put_contents($root . '/porting-summary.json', json_encode([
     }, $rows),
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n");
 
-fwrite(STDOUT, 'Generated table-only progress.md, porting.html, and porting-summary.json with ' . count($rows) . " lanes\n");
+fwrite(STDOUT, 'Generated table-only progress.md, porting.html, index.html, and porting-summary.json with ' . count($rows) . " lanes\n");
