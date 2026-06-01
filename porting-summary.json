@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 19:14:18 UTC",
-    "sourceCommit": "1aa392ceefd412e0ef46b4197c2ed4862e90884b",
-    "sourceCommitShort": "1aa392ceefd4",
+    "generated": "2026-06-01 19:16:48 UTC",
+    "sourceCommit": "1e3c6222315d6be19800761fc800a493b5459ba6",
+    "sourceCommitShort": "1e3c6222315d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "1aa392ceefd412e0ef46b4197c2ed4862e90884b",
-    "dashboardCommitShort": "1aa392ceefd4",
+    "dashboardCommit": "1e3c6222315d6be19800761fc800a493b5459ba6",
+    "dashboardCommitShort": "1e3c6222315d",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -68,13 +68,13 @@
             "coverage": "1,817 / 2,886 (63.0%)",
             "mapPercent": "63.0%",
             "unmapped": "1,069",
-            "php": "10,597 pass / 0 fail",
+            "php": "10,693 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 19:02 UTC supervisor integration: source commit a17095bd9f...",
-            "currentWork": "Loose-object overlong first-window header decode parity, config includeIf recursion g...",
+            "audit": "2026-06-01 19:24 UTC supervisor integration: source commit 1e3c622231...",
+            "currentWork": "URL/refspec generated diagnostic authority normalization parity, loose-object header...",
             "nextTarget": "Keep Gitoxide workers on current-base sparse checkout, loose...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "a17095b"
+            "commit": "1e3c622"
         },
         {
             "lane": "readability",
