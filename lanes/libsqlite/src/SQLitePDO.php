@@ -66,9 +66,14 @@ final class SQLitePDO extends \PDO
             throw new \PDOException("SQLitePDO cannot create SQLite file: {$path}");
         }
 
-        $this->filePath = $path;
-        clearstatcache(true, $path);
-        $size = filesize($path);
+        $resolvedPath = realpath($path);
+        if ($resolvedPath === false) {
+            throw new \PDOException("SQLitePDO cannot resolve SQLite file: {$path}");
+        }
+
+        $this->filePath = $resolvedPath;
+        clearstatcache(true, $resolvedPath);
+        $size = filesize($resolvedPath);
         if ($size === false) {
             throw new \PDOException("SQLitePDO cannot inspect SQLite file: {$path}");
         }
@@ -77,7 +82,7 @@ final class SQLitePDO extends \PDO
         }
 
         try {
-            $state = SQLitePdoFileImage::decode($path);
+            $state = SQLitePdoFileImage::decode($resolvedPath);
         } catch (\Throwable $exception) {
             throw new \PDOException("SQLitePDO cannot open SQLite file image {$path}: {$exception->getMessage()}", 0, $exception);
         }
