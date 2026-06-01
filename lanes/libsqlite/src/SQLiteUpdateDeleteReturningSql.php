@@ -1176,8 +1176,15 @@ final class SQLiteUpdateDeleteReturningSql
                 $result = self::compareLimitScalarValues($value, $lower, $collation) >= 0
                     && self::compareLimitScalarValues($value, $upper, $collation) <= 0;
             }
+            $result = $between['not'] ? self::negateNullable($result) : $result;
+            if ($between['tail'] !== null) {
+                $left = $result === null ? 'NULL' : ($result ? '1' : '0');
+                $tailValue = self::limitExpressionValue($left . ' ' . $between['tail']);
 
-            return ['matched' => true, 'value' => $between['not'] ? self::negateNullable($result) : $result];
+                return ['matched' => true, 'value' => self::sqliteTruthValue($tailValue)];
+            }
+
+            return ['matched' => true, 'value' => $result];
         }
 
         $in = self::splitLimitInPredicate($expression);
@@ -2420,7 +2427,7 @@ final class SQLiteUpdateDeleteReturningSql
     }
 
     /**
-     * @return array{value:string,lower:string,upper:string,not:bool}|null
+     * @return array{value:string,lower:string,upper:string,not:bool,tail:?string}|null
      */
     private static function splitLimitBetween(string $sql): ?array
     {
@@ -2442,12 +2449,112 @@ final class SQLiteUpdateDeleteReturningSql
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT BETWEEN needs lower and upper operands');
         }
         $lower = trim(substr($tail, 0, $and));
-        $upper = trim(substr($tail, $and + strlen('AND')));
+        $upperTail = trim(substr($tail, $and + strlen('AND')));
+        $upperAndTail = self::splitLimitBetweenUpperAndTail($upperTail);
+        $upper = $upperAndTail['upper'];
         if ($lower === '' || $upper === '') {
             throw new \InvalidArgumentException('SQLite UPDATE/DELETE LIMIT BETWEEN needs lower and upper operands');
         }
 
-        return ['value' => $value, 'lower' => $lower, 'upper' => $upper, 'not' => $not];
+        return ['value' => $value, 'lower' => $lower, 'upper' => $upper, 'not' => $not, 'tail' => $upperAndTail['tail']];
+    }
+
+    /**
+     * @return array{upper:string,tail:?string}
+     */
+    private static function splitLimitBetweenUpperAndTail(string $sql): array
+    {
+        $position = self::limitBetweenSamePrecedenceTailPosition($sql);
+        if ($position === null) {
+            return ['upper' => trim($sql), 'tail' => null];
+        }
+
+        return [
+            'upper' => trim(substr($sql, 0, $position)),
+            'tail' => trim(substr($sql, $position)),
+        ];
+    }
+
+    private static function limitBetweenSamePrecedenceTailPosition(string $sql): ?int
+    {
+        $keywords = [
+            'IS NOT DISTINCT FROM',
+            'IS DISTINCT FROM',
+            'IS NOT TRUE',
+            'IS NOT FALSE',
+            'IS NOT',
+            'IS TRUE',
+            'IS FALSE',
+            'IS',
+            'NOT BETWEEN',
+            'BETWEEN',
+            'NOT LIKE',
+            'NOT GLOB',
+            'NOT IN',
+            'LIKE',
+            'GLOB',
+            'IN',
+            'ISNULL',
+            'NOTNULL',
+            'NOT NULL',
+        ];
+        $length = strlen($sql);
+        $inString = false;
+        $depth = 0;
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $sql[$i];
+            if ($char === "'") {
+                if ($inString && ($sql[$i + 1] ?? null) === "'") {
+                    $i++;
+                    continue;
+                }
+                $inString = !$inString;
+                continue;
+            }
+            if (!$inString && $char === '(') {
+                $depth++;
+                continue;
+            }
+            if (!$inString && $char === ')') {
+                $depth--;
+                continue;
+            }
+            if ($inString || $depth !== 0) {
+                continue;
+            }
+            foreach ($keywords as $keyword) {
+                if (self::keywordAt($sql, $i, $keyword)) {
+                    $left = trim(substr($sql, 0, $i));
+                    if ($left === '' || preg_match('/\bNOT$/i', $left) === 1) {
+                        continue;
+                    }
+
+                    return $i;
+                }
+            }
+            foreach (['==', '!=', '<>', '='] as $operator) {
+                $operatorLength = strlen($operator);
+                if (substr($sql, $i, $operatorLength) !== $operator) {
+                    continue;
+                }
+                $previous = $i === 0 ? '' : $sql[$i - 1];
+                $next = $sql[$i + $operatorLength] ?? '';
+                if ($operator === '=' && in_array($previous, ['<', '>', '!', '='], true)) {
+                    continue;
+                }
+                if ($operator === '=' && $next === '=') {
+                    continue;
+                }
+                if (trim(substr($sql, 0, $i)) === '') {
+                    continue;
+                }
+
+                return $i;
+            }
+        }
+
+        return null;
     }
 
     /**
