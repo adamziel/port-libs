@@ -772,7 +772,7 @@ Current PHP mapping:
 - `SendPackSessionTest.php` maps receive-pack advertisement parsing, advertised-old-object create/update/delete planning, no-op update elision, generated pack request construction, delete-only request behavior, thin REF_DELTA request building from remote bases, session response parsing, a WordPress branch/tag send-pack fixture from advertised refs through status response, and a WordPress thin REF_DELTA send-pack fixture.
 - `ReceivePackTransportTest.php` maps stream-backed receive-pack advertisement/request/response I/O, git-daemon receive-pack service request bytes and URL/input validation, smart HTTP receive-pack discovery/result requests, service advertisement stripping, URL expansion, content-type/status guards, Basic auth header derivation, caller-supplied auth headers, Git-Protocol extra parameters on discovery and POST, Set-Cookie session propagation, safe initial same-authority/http-to-https redirect handling with effective-base reuse for POST, `http.followRedirects` initial/all/none boundaries including safe POST redirects and missing-Location POST redirect refusal, HTTP proxy/no-proxy/basic proxy credential-helper options, proxy credential store/erase callbacks, native default-requester SOCKS5h username/password and SOCKS4a remote-host handshakes through local WordPress receive-pack advertisement servers, HTTPS receive-pack discovery through SOCKS5h with a configured CA file and peer verification, managed header validation, SSH receive-pack URL parsing, remote command quoting, ambiguous SSH username/host/path rejection before connector handoff, injected stream handoff without shelling out to `ssh`, sideband and direct report-status response selection from negotiated features, request write ordering guards, truncated packet stream errors, no-report-status refusal, a WordPress receive-pack transport fixture over native PHP streams, and WordPress smart HTTP proxy credential, follow-redirects, plus SOCKS/TLS fixtures that keep proxy credentials outside origin headers.
 - `MergeBaseTest.php` maps simple commit ancestry merge-base discovery, independent criss-cross merge bases, upstream-shaped multi-head/octopus merge bases for sequential, parallel, forked, and criss-cross heads, unrelated histories, ObjectDatabase commit-object validation, and a WordPress release-baseline fixture for plugin/theme/content review branches.
-- `TreeMergeTest.php` maps flat tree three-way decisions for independent WordPress tree changes, modify/modify conflicts, delete/delete removals, delete/modify conflicts, exact same-object rename/delete and rename/rename conflicts, bounded similar-blob rename/delete and rename/modify conflicts, same-target similar-rename content merges at the renamed path, bounded directory rename/modify merges at the renamed directory path including renamed internal plugin entry file heuristics, directory-rename file-location conflicts where a sibling file rename is replayed under the renamed directory, strict-best similar rename candidate selection for forked plugin directories, ambiguous exact/similar-rename guards, add/add resolution/conflicts, directory-file conflict classification, deterministic path ordering, duplicate-entry guards, recursive tree traversal over nested tree objects, clean nested blob content merges, full-path recursive content conflicts with marker blobs, nested exact rename/delete conflicts, merge-index stage entries, worktree conflict file views, and focused upstream `gix-merge/tests/fixtures/tree-baseline.sh` mappings for `non-tree-to-tree`, `non-tree-to-tree-with-rename`, `tree-to-non-tree`, `tree-to-non-tree-with-rename`, `rename-delete`, `rename-add`, `rename-add-exe-bit-conflict`, `remove-executable-mode`, `same-rename-different-mode`, `added-file-changed-content-and-mode`, `renamed-symlink-with-conflict`, `rename-add-symlink`, `rename-add-same-symlink`, `symlink-modification`, `symlink-addition`, `type-change-to-symlink`, `type-change-and-renamed` including renamed-side resolve-tree cleanup, `rename-and-modification`, `rename-within-rename-2`, `no-merge-base`, `change-and-delete`, `submodule-both-modify`, `both-modify-binary`, `rename-rename-plus-content`, `rename-add-delete`, and `rename-rename-delete-delete`.
+- `TreeMergeTest.php` maps flat tree three-way decisions for independent WordPress tree changes, modify/modify conflicts, delete/delete removals, delete/modify conflicts, exact same-object rename/delete and rename/rename conflicts, bounded similar-blob rename/delete and rename/modify conflicts, same-target similar-rename content merges at the renamed path, bounded directory rename/modify merges at the renamed directory path including renamed internal plugin entry file heuristics, directory-rename file-location conflicts where a sibling file rename is replayed under the renamed directory, strict-best similar rename candidate selection for forked plugin directories, ambiguous exact/similar-rename guards, add/add resolution/conflicts, directory-file conflict classification, deterministic path ordering, duplicate-entry guards, recursive tree traversal over nested tree objects, clean nested blob content merges, full-path recursive content conflicts with marker blobs, nested exact rename/delete conflicts, merge-index stage entries, worktree conflict file views, and focused upstream `gix-merge/tests/fixtures/tree-baseline.sh` mappings for `non-tree-to-tree`, `non-tree-to-tree-with-rename`, `tree-to-non-tree`, `tree-to-non-tree-with-rename`, `rename-delete` including `A-similar`/`B-similar` same-side generated shapes, `rename-add`, `rename-add-exe-bit-conflict`, `remove-executable-mode`, `same-rename-different-mode`, `added-file-changed-content-and-mode`, `renamed-symlink-with-conflict`, `rename-add-symlink`, `rename-add-same-symlink`, `symlink-modification`, `symlink-addition`, `type-change-to-symlink`, `type-change-and-renamed` including renamed-side resolve-tree cleanup, `rename-and-modification`, `rename-within-rename-2`, `no-merge-base`, `change-and-delete`, `submodule-both-modify`, `both-modify-binary`, `rename-rename-plus-content`, `rename-add-delete`, and `rename-rename-delete-delete`.
 - `MergeWorktreeWriterTest.php` maps the bounded checkout side of recursive content conflicts: unmerged blob stages are written to a real Git index v2 `DIRC` file with stage bits and checksum, directory/file tree stages are expanded into file-level index entries, merged WordPress worktree files are written from tree objects, stale paths are removed while `.git` metadata is preserved, file/directory blockers are replaced, marker blobs are materialized for conflicted `theme.json`, unsafe checkout paths are rejected, and raw tree stages are explicitly refused unless callers use the result-aware expansion path.
 - `BlobMergeTest.php` maps text same-change and one-sided clean merges, independent line edits, merge-style and diff3 conflict markers, unlabeled upstream marker output, marker-size byte bounds, upstream `zdiff3` conflict-style literal normalization, zealous-diff3 and merge/union common-edge hunk contraction, the upstream blank-line false-conflict regression, marker-newline text-baseline behavior, partial-match conflict-region hunk aggregation, `ResolveWithOurs`/`ResolveWithTheirs`/`ResolveWithUnion` complete-auto-resolved conflicts including newline-separated union output, binary unresolved default picks, binary auto-resolved side picks, and a WordPress metadata/theme/deployment-policy/block-notes/zealous-theme/configured-zdiff3/block-spacing/mixed-line-ending/shared-block-refactor/anonymous-preview merge fixture.
 - `BuiltinDriverTest.php` maps `gix-merge` built-in driver names, case-sensitive lookup, merge attribute state selection (`merge`, `-merge`, `!merge`, value), configured default-driver fallback, non-zero-u8 `conflict-marker-size` parsing, native dispatch to text/union/binary blob merge semantics, and a WordPress `.gitattributes` merge-driver fixture for block notes, media, theme JSON, and unknown custom-driver fallback.
@@ -1555,6 +1555,31 @@ Tree-merge same-rename different-mode reversed fixture parity slice prepared on 
   workspace runner was not executed.
 - Expected mapped denominator movement: `1799 / 2886` to `1800 / 2886`.
 
+Tree-merge rename-delete same-side fixture parity slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-tree-merge-conflict-fixture-parity-20260601T182130Z`
+  on accepted base `46132b002aae86d77139b7f5e361edf24e0035ba` maps the
+  upstream `gix-merge` `tree-baseline.sh` `rename-delete` `A-similar` and
+  `B-similar` generated same-side fixture shapes.
+- Source truth: upstream Gitoxide
+  `gix-merge/tests/fixtures/tree-baseline.sh` and generated
+  `gix-merge/tests/fixtures/generated-archives/tree-baseline.tar` at commit
+  `87433ed33eee9ba974111d20b854f6acb07cd4a6`, specifically the
+  `rename-delete` shell setup plus `rename-delete/A-similar.merge-info` and
+  `rename-delete/B-similar.merge-info` no-conflict merge results.
+- Native PHP delta: `TreeMergeTest.php` now proves same-side merge recursion
+  stays clean for both similar rename/delete generated shapes: the A side keeps
+  modified `foo` with renamed `newdir/{a,b,c}`, while the B side keeps
+  `olddir/{a,bar,b,c}` with no conflict/index/worktree conflict entries. The
+  WordPress tree-merge fixture/example adds the same plugin-directory
+  deployment smoke.
+- Verification: focused `TreeMergeTest.php` passed `1 file / 907 assertions /
+  0 failures`, full Gitoxide lane passed `40 files / 10454 assertions / 0
+  failures`, changed PHP lint passed, `wordpress-tree-merge.php` example smoke
+  passed, and `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace
+  runner was not executed.
+- Expected mapped denominator movement: `1810 / 2886` to `1811 / 2886`.
+
 URL/refspec credential mutation parity slice prepared on 2026-06-01:
 
 - Worker slice `gitoxide-url-refspec-parse-normalize-parity-20260601T025320Z`
@@ -1760,3 +1785,27 @@ Merge-base stable shallow intersection slice prepared on 2026-06-01:
 - Expected mapped denominator movement: conservative mapped coverage remains
   `1773 / 2886`; this deepens the already represented merge-base shallow graph
   walk cluster.
+
+Partial-clone promisor index-resume keep-sidecar slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-partial-clone-promisor-hydration-parity-20260601T182619Z`
+  on accepted base `95f3bf329230b45b13b590174fa3414e2f5a9eab` maps the
+  upstream keep-sidecar boundary for interrupted promisor pack-bundle resumes.
+- Source truth: upstream Gitoxide
+  `gix-pack/src/bundle/write/mod.rs::inner_write()` writes a `.keep` sidecar
+  only when the final `pack-<hash>.pack` data path is not already present, and
+  then separately persists a missing `pack-<hash>.idx`. Upstream
+  `gix/src/remote/connection/fetch/receive_pack.rs` documents keep sidecars as
+  fetch protection for newly written packs during ref updates.
+- Native PHP delta: `ObjectDatabase::writePromisorPackBundle()` now creates
+  and returns a `.keep` only when pack data is newly materialized. Existing
+  pack data with a missing index/promisor sidecar resumes by rebuilding those
+  sidecars without creating or reporting a stale keep file. The WordPress lazy
+  promisor example now reports `resumedPromisorKeep` as null for that resume.
+- Verification: focused `PartialCloneTest.php` passed `1 test files, 448
+  assertions, 0 failures`; focused `ObjectDatabaseTest.php` passed `1 test
+  files, 396 assertions, 0 failures`; full Gitoxide lane passed `40 test
+  files, 10435 assertions, 0 failures`; changed PHP lint, changed example
+  smoke, lane-status/manifest JSON parse, and `git diff --check --
+  lanes/gitoxide` passed. Full Cargo workspace runner was not executed.
+- Expected mapped denominator movement: `1810 / 2886` to `1811 / 2886`.

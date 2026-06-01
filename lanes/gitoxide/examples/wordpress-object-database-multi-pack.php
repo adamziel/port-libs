@@ -138,6 +138,16 @@ $contentNewlinePrefixRejected = $rejectsInvalidArgument(
 $contentNewlineObjectIdRejected = $rejectsInvalidArgument(
     static fn (): bool => $database->contains($fixture['objectsByRole']['content']['oid'] . "\n")
 );
+$contentControlPrefixRejected = $rejectsInvalidArgument(
+    static fn (): array => $database->lookupPrefix(substr($fixture['objectsByRole']['content']['oid'], 0, 4) . "\0")
+);
+$contentInvalidHexObjectIdRejected = $rejectsInvalidArgument(
+    static fn (): bool => $database->contains(
+        substr($fixture['objectsByRole']['content']['oid'], 0, 7)
+        . 'g'
+        . substr($fixture['objectsByRole']['content']['oid'], 8)
+    )
+);
 
 return [
     'packedObjects' => $database->packedObjectCount(),
@@ -164,6 +174,8 @@ return [
     'contentFullPrefixCandidates' => $contentFullPrefix['candidates'],
     'contentNewlinePrefixRejected' => $contentNewlinePrefixRejected,
     'contentNewlineObjectIdRejected' => $contentNewlineObjectIdRejected,
+    'contentControlPrefixRejected' => $contentControlPrefixRejected,
+    'contentInvalidHexObjectIdRejected' => $contentInvalidHexObjectIdRejected,
     'contentDirectoryCandidateOid' => $contentDirectoryCandidateOid,
     'contentDirectoryCandidateExists' => $database->contains($contentDirectoryCandidateOid),
     'contentDirectoryPrefixStatus' => $contentDirectoryPrefixCandidates['status'],

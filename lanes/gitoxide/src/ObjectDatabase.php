@@ -646,8 +646,9 @@ final class ObjectDatabase
         $packAlreadyExists = is_file($packPath);
         $indexAlreadyExists = is_file($indexPath);
         $needsPackBundleMaterialization = !$packAlreadyExists || !$indexAlreadyExists;
+        $needsKeepSidecar = !$packAlreadyExists && $keep;
 
-        if ($needsPackBundleMaterialization && $keep) {
+        if ($needsKeepSidecar) {
             self::writeBytes($keepPath, '');
         }
         if (!$packAlreadyExists) {
@@ -666,7 +667,7 @@ final class ObjectDatabase
             'packName' => $packName,
             'indexName' => $indexName,
             'promisorName' => $promisorName,
-            'keepName' => $needsPackBundleMaterialization && $keep ? $keepName : null,
+            'keepName' => $needsKeepSidecar ? $keepName : null,
             'packChecksum' => $pack->packChecksum(),
             'indexChecksum' => $pack->indexChecksum(),
             'objectIds' => $objectIds,

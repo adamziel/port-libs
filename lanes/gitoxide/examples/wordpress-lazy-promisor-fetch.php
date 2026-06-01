@@ -373,7 +373,7 @@ $directInventoryPackNames = $database->promisorPackNames();
 $directInventoryObjectIds = $database->promisorObjectIds();
 $directInventoryIsPromisor = $database->isPromisorObject($inventoryBlob->oid());
 
-$resumedAssetBlob = new GitObject('blob', 'Interrupted WordPress filtered pack resumes under keep protection');
+$resumedAssetBlob = new GitObject('blob', 'Interrupted WordPress filtered pack resumes by rebuilding a missing index');
 $resumedPack = PackBuilder::build([$resumedAssetBlob]);
 $resumedPackBase = 'pack-' . $resumedPack->packChecksum();
 file_put_contents($packDir . '/' . $resumedPackBase . '.pack', $resumedPack->packBytes());

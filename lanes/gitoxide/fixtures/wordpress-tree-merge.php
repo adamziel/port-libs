@@ -77,6 +77,43 @@ return [
         ]),
         'theirs' => new Tree([$blob('review-widget.php', "Plugin: Legacy Widget\nStable tag: trunk\nRequires PHP: 8.1\nVersion: 1.2\n")]),
     ],
+    'renameDeleteSameSide' => [
+        'read' => $read,
+        'write' => $write,
+        'base' => new Tree([
+            $tree('wp-content', new Tree([
+                $tree('plugins', new Tree([
+                    $blob('acme.php', "Plugin: Acme\nVersion: 1.0\n"),
+                    $tree('acme-tools', new Tree([
+                        $blob('admin.php', "<?php\n// Admin screen.\n"),
+                        $blob('readme.txt', "Acme tools\n"),
+                    ])),
+                ])),
+            ])),
+        ]),
+        'sideA' => new Tree([
+            $tree('wp-content', new Tree([
+                $tree('plugins', new Tree([
+                    $blob('acme.php', "Plugin: Acme\nVersion: 1.1\n"),
+                    $tree('acme-suite', new Tree([
+                        $blob('admin.php', "<?php\n// Admin screen.\n"),
+                        $blob('readme.txt', "Acme tools\n"),
+                    ])),
+                ])),
+            ])),
+        ]),
+        'sideB' => new Tree([
+            $tree('wp-content', new Tree([
+                $tree('plugins', new Tree([
+                    $tree('acme-tools', new Tree([
+                        $blob('admin.php', "<?php\n// Admin screen.\n"),
+                        $blob('bootstrap.php', "Plugin: Acme\nVersion: 1.0 custom\n"),
+                        $blob('readme.txt', "Acme tools\n"),
+                    ])),
+                ])),
+            ])),
+        ]),
+    ],
     'sameRenameMode' => [
         'read' => $read,
         'write' => $write,

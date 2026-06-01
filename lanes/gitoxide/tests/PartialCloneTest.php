@@ -692,7 +692,7 @@ return [
         $t->same($beforeObjectIds, $database->promisorObjectIds());
         $t->same($beforePackedObjectCount, $database->packedObjectCount());
     },
-    'object database keeps interrupted promisor pack resume protected while writing a missing index' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
+    'object database resumes missing promisor index without a keep sidecar when pack data already exists' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
         [$gitDir] = $writePromisorPackFixture();
         $database = new ObjectDatabase($gitDir);
         $resumedAssetBlob = new GitObject('blob', 'Interrupted filtered pack resumes for a WordPress asset');
@@ -712,11 +712,11 @@ return [
         $t->same($basename . '.pack', $write['packName']);
         $t->same($basename . '.idx', $write['indexName']);
         $t->same($basename . '.promisor', $write['promisorName']);
-        $t->same($basename . '.keep', $write['keepName']);
+        $t->same(null, $write['keepName']);
         $t->same(true, is_file($packDir . '/' . $write['packName']));
         $t->same(true, is_file($packDir . '/' . $write['indexName']));
         $t->same(true, is_file($packDir . '/' . $write['promisorName']));
-        $t->same(true, is_file($packDir . '/' . $write['keepName']));
+        $t->same(false, is_file($packDir . '/' . $basename . '.keep'));
         $t->same([$resumedAssetBlob->oid()], $write['objectIds']);
         $t->same('promisor-present', $database->objectState($resumedAssetBlob->oid())['status']);
         $t->same('pack', $database->readHeader($resumedAssetBlob->oid())['source']);
@@ -725,6 +725,7 @@ return [
         $duplicate = $database->writePromisorPackBundle($pack, "resumed pack duplicate marker\n");
         $t->same(true, $duplicate['alreadyPresent']);
         $t->same(null, $duplicate['keepName']);
+        $t->same(false, is_file($packDir . '/' . $basename . '.keep'));
     },
     'object database ignores orphan promisor indexes while hydrating later packs' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackForObject, $writeOrphanPromisorIndex): void {
         [$gitDir] = $writePromisorPackFixture();
@@ -1359,7 +1360,7 @@ return [
         $t->same(true, str_ends_with($summary['resumedPromisorPack'], '.pack'));
         $t->same(true, str_ends_with($summary['resumedPromisorIndex'], '.idx'));
         $t->same(true, str_ends_with($summary['resumedPromisorMarker'], '.promisor'));
-        $t->same(true, str_ends_with($summary['resumedPromisorKeep'], '.keep'));
+        $t->same(null, $summary['resumedPromisorKeep']);
         $t->same('promisor-present', $summary['resumedPromisorState']['status']);
         $t->same($summary['resumedPromisorObject'], $summary['resumedPromisorState']['oid']);
         $t->same('pack', $summary['resumedPromisorHeader']['source']);

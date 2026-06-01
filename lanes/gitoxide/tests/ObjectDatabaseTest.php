@@ -1221,15 +1221,22 @@ return [
         ], $uniqueContentCandidates);
         $t->same(['status' => 'missing', 'candidates' => []], $database->lookupPrefix('ffff', true));
     },
-    'object database rejects newline-tailed MIDX prefixes and object ids like gix hash parsing' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
+    'object database rejects invalid-byte MIDX prefixes and object ids like gix hash parsing' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
         [$gitDir, $fixture] = $writeWordPressMultiPackFixture();
         $database = new ObjectDatabase($gitDir);
         $contentOid = $fixture['objectsByRole']['content']['oid'];
+        $invalidOid = substr($contentOid, 0, 7) . 'g' . substr($contentOid, 8);
 
         $t->throws(InvalidArgumentException::class, static fn () => $database->lookupPrefix(substr($contentOid, 0, 8) . "\n"));
         $t->throws(InvalidArgumentException::class, static fn () => $database->lookupPrefix(substr($contentOid, 0, 8) . "\n", true));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->lookupPrefix(substr($contentOid, 0, 4) . "\0"));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->lookupPrefix(substr($contentOid, 0, 4) . 'g', true));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->lookupPrefix(substr($contentOid, 0, 3)));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->lookupPrefix($contentOid . '0', true));
         $t->throws(InvalidArgumentException::class, static fn () => $database->contains($contentOid . "\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->contains($invalidOid));
         $t->throws(InvalidArgumentException::class, static fn () => $database->disambiguatePrefix($contentOid . "\n", 4));
+        $t->throws(InvalidArgumentException::class, static fn () => $database->disambiguatePrefix($invalidOid, 4));
     },
     'object database disambiguates multi-pack-index prefixes after collecting loose candidates' => static function (TestRunner $t) use ($writeWordPressMultiPackFixture): void {
         [$gitDir, $fixture] = $writeWordPressMultiPackFixture();
@@ -1558,6 +1565,8 @@ return [
         $t->same([$summary['contentOid']], $summary['contentFullPrefixCandidates']);
         $t->same(true, $summary['contentNewlinePrefixRejected']);
         $t->same(true, $summary['contentNewlineObjectIdRejected']);
+        $t->same(true, $summary['contentControlPrefixRejected']);
+        $t->same(true, $summary['contentInvalidHexObjectIdRejected']);
         $expectedDirectoryCandidates = [
             $summary['contentOid'],
             $summary['loosePrefixCandidateOid'],

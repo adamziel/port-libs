@@ -194,13 +194,20 @@ return [
         $t->same('ambiguous', $ambiguous['status']);
         $t->same([1, 2], $ambiguous['matches']);
     },
-    'rejects newline-tailed multi-pack-index prefixes and object ids like gix hash parsing' => static function (TestRunner $t) use ($buildMultiIndex, $entries, $indexNames): void {
+    'rejects invalid-byte multi-pack-index prefixes and object ids like gix hash parsing' => static function (TestRunner $t) use ($buildMultiIndex, $entries, $indexNames): void {
         $index = MultiPackIndex::fromBytes($buildMultiIndex($entries, $indexNames));
         $oid = $entries[1]['oid'];
+        $invalidOid = substr($oid, 0, 7) . 'g' . substr($oid, 8);
 
         $t->throws(InvalidArgumentException::class, static fn () => $index->lookup($oid . "\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => $index->lookup($invalidOid));
         $t->throws(InvalidArgumentException::class, static fn () => $index->lookupPrefix(substr($oid, 0, 8) . "\n"));
+        $t->throws(InvalidArgumentException::class, static fn () => $index->lookupPrefix(substr($oid, 0, 4) . "\0"));
+        $t->throws(InvalidArgumentException::class, static fn () => $index->lookupPrefix(substr($oid, 0, 4) . 'g'));
+        $t->throws(InvalidArgumentException::class, static fn () => $index->lookupPrefix(substr($oid, 0, 3)));
+        $t->throws(InvalidArgumentException::class, static fn () => $index->lookupPrefix($oid . '0'));
         $t->throws(InvalidArgumentException::class, static fn () => $index->disambiguatePrefix($oid . "\n", 4));
+        $t->throws(InvalidArgumentException::class, static fn () => $index->disambiguatePrefix($invalidOid, 4));
     },
     'expands multi-pack-index prefix candidates around the binary-search midpoint like gix-pack' => static function (TestRunner $t) use ($buildMultiIndex, $indexNames): void {
         $first = '5abc011111111111111111111111111111111111';

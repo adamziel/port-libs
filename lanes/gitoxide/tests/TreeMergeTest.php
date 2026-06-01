@@ -1432,6 +1432,60 @@ return [
         ));
         $t->same(['newdir/bar'], array_map(static fn ($file): string => $file->path, $result->worktreeConflictFiles($read)));
     },
+    'maps upstream gix-merge tree-baseline rename-delete same-side similar fixture shapes' => static function (TestRunner $t) use ($objectStore, $names): void {
+        [$read, $write, $blobEntry, $treeEntry] = $objectStore();
+        $base = new Tree([
+            $blobEntry('foo', "1\n2\n3\n4\n5\n"),
+            $treeEntry('olddir', new Tree([
+                $blobEntry('a', "a\n"),
+                $blobEntry('b', "b\n"),
+                $blobEntry('c', "c\n"),
+            ])),
+        ]);
+        $sideA = new Tree([
+            $blobEntry('foo', "1\n2\n3\n4\n5\n6\n"),
+            $treeEntry('newdir', new Tree([
+                $blobEntry('a', "a\n"),
+                $blobEntry('b', "b\n"),
+                $blobEntry('c', "c\n"),
+            ])),
+        ]);
+        $sideB = new Tree([
+            $treeEntry('olddir', new Tree([
+                $blobEntry('a', "a\n"),
+                $blobEntry('bar', "1\n2\n3\n4\n5 six\n"),
+                $blobEntry('b', "b\n"),
+                $blobEntry('c', "c\n"),
+            ])),
+        ]);
+
+        $sideAResult = TreeMerge::mergeRecursive($base, $sideA, $sideA, $read, $write);
+        $sideBResult = TreeMerge::mergeRecursive($base, $sideB, $sideB, $read, $write);
+        $sideANewdir = Tree::fromObject($read($sideAResult->tree->entryNamed('newdir', true)?->oid ?? ''));
+        $sideBOlddir = Tree::fromObject($read($sideBResult->tree->entryNamed('olddir', true)?->oid ?? ''));
+
+        $t->true($sideAResult->isClean());
+        $t->same(['foo', 'newdir'], $names($sideAResult->tree));
+        $t->same("1\n2\n3\n4\n5\n6\n", $read($sideAResult->tree->entryNamed('foo')?->oid ?? '')->body);
+        $t->same(['a', 'b', 'c'], $names($sideANewdir));
+        $t->same("a\n", $read($sideANewdir->entryNamed('a')?->oid ?? '')->body);
+        $t->same("b\n", $read($sideANewdir->entryNamed('b')?->oid ?? '')->body);
+        $t->same("c\n", $read($sideANewdir->entryNamed('c')?->oid ?? '')->body);
+        $t->same([], $sideAResult->conflicts);
+        $t->same([], $sideAResult->indexEntries());
+        $t->same([], $sideAResult->worktreeConflictFiles($read));
+
+        $t->true($sideBResult->isClean());
+        $t->same(['olddir'], $names($sideBResult->tree));
+        $t->same(['a', 'bar', 'b', 'c'], $names($sideBOlddir));
+        $t->same("1\n2\n3\n4\n5 six\n", $read($sideBOlddir->entryNamed('bar')?->oid ?? '')->body);
+        $t->same("a\n", $read($sideBOlddir->entryNamed('a')?->oid ?? '')->body);
+        $t->same("b\n", $read($sideBOlddir->entryNamed('b')?->oid ?? '')->body);
+        $t->same("c\n", $read($sideBOlddir->entryNamed('c')?->oid ?? '')->body);
+        $t->same([], $sideBResult->conflicts);
+        $t->same([], $sideBResult->indexEntries());
+        $t->same([], $sideBResult->worktreeConflictFiles($read));
+    },
     'maps upstream gix-merge tree-baseline rename-add fixture shape' => static function (TestRunner $t) use ($objectStore, $names): void {
         [$read, $write, $blobEntry] = $objectStore();
         $base = new Tree([$blobEntry('foo', "original\n1\n2\n3\n4\n5\n")]);
