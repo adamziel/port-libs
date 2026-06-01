@@ -8,31 +8,31 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 $tests = [];
 
 $currentRows234 = [
-    ['setting_id' => 1, 'key_name' => 'service_text', 'key_value' => 'plugin:cache', 'load_policy' => 'yes'],
-    ['setting_id' => 2, 'key_name' => 'module_blob', 'key_value' => new SQLiteBlobValue('plugin:cache'), 'load_policy' => 'yes'],
-    ['setting_id' => 3, 'key_name' => 'module_blob_upper', 'key_value' => new SQLiteBlobValue('PLUGIN:CACHE'), 'load_policy' => 'yes'],
-    ['setting_id' => 4, 'key_name' => 'module_spaces', 'key_value' => 'plugin:cache  ', 'load_policy' => 'yes'],
-    ['setting_id' => 5, 'key_name' => 'module_tab', 'key_value' => "Plugin:Cache\t", 'load_policy' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'service_text', 'key_value' => 'module:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'module_blob', 'key_value' => new SQLiteBlobValue('module:cache'), 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'module_blob_upper', 'key_value' => new SQLiteBlobValue('MODULE:CACHE'), 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'module_spaces', 'key_value' => 'module:cache  ', 'load_policy' => 'yes'],
+    ['setting_id' => 5, 'key_name' => 'module_tab', 'key_value' => "Module:Cache\t", 'load_policy' => 'yes'],
     ['setting_id' => 6, 'key_name' => 'module_number', 'key_value' => 42, 'load_policy' => 'no'],
     ['setting_id' => 7, 'key_name' => 'module_null', 'key_value' => null, 'load_policy' => 'no'],
-    ['setting_id' => 8, 'key_name' => 'module_bad_text', 'key_value' => "\xffplugin", 'load_policy' => 'no'],
-    ['setting_id' => 9, 'key_name' => 'module_bad_blob', 'key_value' => new SQLiteBlobValue("\xffplugin"), 'load_policy' => 'no'],
-    ['setting_id' => 10, 'key_name' => 'profile_text', 'key_value' => 'theme:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 8, 'key_name' => 'module_bad_text', 'key_value' => "\xffmodule", 'load_policy' => 'no'],
+    ['setting_id' => 9, 'key_name' => 'module_bad_blob', 'key_value' => new SQLiteBlobValue("\xffmodule"), 'load_policy' => 'no'],
+    ['setting_id' => 10, 'key_name' => 'profile_text', 'key_value' => 'profile:cache', 'load_policy' => 'yes'],
 ];
 
 $nextRows234 = [
-    ['setting_id' => 1, 'key_name' => 'service_text', 'key_value' => 'plugin:cache', 'load_policy' => 'yes'],
-    ['setting_id' => 2, 'key_name' => 'module_blob', 'key_value' => 'plugin:cache', 'load_policy' => 'yes'],
-    ['setting_id' => 3, 'key_name' => 'module_blob_upper', 'key_value' => new SQLiteBlobValue('plugin:cache-extra'), 'load_policy' => 'yes'],
-    ['setting_id' => 4, 'key_name' => 'module_spaces', 'key_value' => 'plugin:cache', 'load_policy' => 'yes'],
-    ['setting_id' => 5, 'key_name' => 'module_tab', 'key_value' => "Plugin:Cache\t", 'load_policy' => 'yes'],
+    ['setting_id' => 1, 'key_name' => 'service_text', 'key_value' => 'module:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 2, 'key_name' => 'module_blob', 'key_value' => 'module:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 3, 'key_name' => 'module_blob_upper', 'key_value' => new SQLiteBlobValue('module:cache-extra'), 'load_policy' => 'yes'],
+    ['setting_id' => 4, 'key_name' => 'module_spaces', 'key_value' => 'module:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 5, 'key_name' => 'module_tab', 'key_value' => "Module:Cache\t", 'load_policy' => 'yes'],
     ['setting_id' => 6, 'key_name' => 'module_number', 'key_value' => 43, 'load_policy' => 'no'],
     ['setting_id' => 7, 'key_name' => 'module_null', 'key_value' => null, 'load_policy' => 'no'],
-    ['setting_id' => 8, 'key_name' => 'module_bad_text', 'key_value' => "\xffplugin", 'load_policy' => 'no'],
-    ['setting_id' => 9, 'key_name' => 'module_bad_blob', 'key_value' => new SQLiteBlobValue("\xffplugin"), 'load_policy' => 'no'],
-    ['setting_id' => 10, 'key_name' => 'profile_text', 'key_value' => 'theme:cache', 'load_policy' => 'yes'],
-    ['setting_id' => 11, 'key_name' => 'module_added_text', 'key_value' => 'plugin:added', 'load_policy' => 'yes'],
-    ['setting_id' => 12, 'key_name' => 'module_added_blob', 'key_value' => new SQLiteBlobValue('plugin:blob'), 'load_policy' => 'yes'],
+    ['setting_id' => 8, 'key_name' => 'module_bad_text', 'key_value' => "\xffmodule", 'load_policy' => 'no'],
+    ['setting_id' => 9, 'key_name' => 'module_bad_blob', 'key_value' => new SQLiteBlobValue("\xffmodule"), 'load_policy' => 'no'],
+    ['setting_id' => 10, 'key_name' => 'profile_text', 'key_value' => 'profile:cache', 'load_policy' => 'yes'],
+    ['setting_id' => 11, 'key_name' => 'module_added_text', 'key_value' => 'module:added', 'load_policy' => 'yes'],
+    ['setting_id' => 12, 'key_name' => 'module_added_blob', 'key_value' => new SQLiteBlobValue('module:blob'), 'load_policy' => 'yes'],
 ];
 
 $valueAt234 = static function (array $value, string $path): mixed {
@@ -59,7 +59,7 @@ $rowById234 = static function (array $trace, int $rowid): array {
 $implicitLike234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows234,
     $nextRows234,
-    'plugin:%',
+    'module:%',
     'LIKE',
     'RTRIM',
     null,
@@ -70,7 +70,7 @@ $implicitLike234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourc
 $castLike234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows234,
     $nextRows234,
-    'plugin:%',
+    'module:%',
     'LIKE',
     'NOCASE',
     null,
@@ -81,7 +81,7 @@ $castLike234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNex
 $implicitGlob234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows234,
     $nextRows234,
-    'plugin:*',
+    'module:*',
     'GLOB',
     'BINARY',
     null,
@@ -92,7 +92,7 @@ $implicitGlob234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourc
 $castGlob234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan(
     $currentRows234,
     $nextRows234,
-    'plugin:*',
+    'module:*',
     'GLOB',
     'BINARY',
     null,
@@ -103,7 +103,7 @@ $castGlob234 = static fn (): array => SQLiteBlobLikeGlobAffinityCurrentSourceNex
 $implicitCases234 = [
     'status' => ['status', 'blob-like-glob-affinity-current-source-next234'],
     'operator' => ['operator', 'LIKE'],
-    'pattern' => ['pattern', 'plugin:%'],
+    'pattern' => ['pattern', 'module:%'],
     'collation' => ['collation', 'RTRIM'],
     'explicit cast flag' => ['explicitCastToText', false],
     'like blob compile option' => ['likeDoesNotMatchBlobs', true],
@@ -152,8 +152,8 @@ $traceCases234 = [
     'blob row skipped flag' => [$implicitLike234, 'currentTrace', 2, 'blobLikeSkipped', true],
     'blob row skipped does not match' => [$implicitLike234, 'currentTrace', 2, 'matched', false],
     'text row matches' => [$implicitLike234, 'currentTrace', 1, 'matched', true],
-    'rtrim collation trims spaces' => [$implicitLike234, 'currentTrace', 4, 'collationKey', 'plugin:cache'],
-    'rtrim collation keeps tab' => [$implicitLike234, 'currentTrace', 5, 'collationKey', "Plugin:Cache\t"],
+    'rtrim collation trims spaces' => [$implicitLike234, 'currentTrace', 4, 'collationKey', 'module:cache'],
+    'rtrim collation keeps tab' => [$implicitLike234, 'currentTrace', 5, 'collationKey', "Module:Cache\t"],
     'integer value text' => [$implicitLike234, 'currentTrace', 6, 'likeText', '42'],
     'null value text' => [$implicitLike234, 'currentTrace', 7, 'likeText', ''],
     'malformed text error' => [$implicitLike234, 'currentErrors', 8, null, 'SQLite BLOB LIKE/GLOB affinity next234 text value is malformed UTF-8'],
@@ -192,11 +192,11 @@ foreach ($castCases234 as $name => [$path, $expected]) {
 }
 
 $castTraceCases234 = [
-    'cast current blob text' => [$castLike234, 'currentTrace', 2, 'likeText', 'plugin:cache'],
+    'cast current blob text' => [$castLike234, 'currentTrace', 2, 'likeText', 'module:cache'],
     'cast current blob uppercase matches like nocase' => [$castLike234, 'currentTrace', 3, 'matched', true],
-    'cast current blob uppercase collation key' => [$castLike234, 'currentTrace', 3, 'collationKey', 'plugin:cache'],
-    'cast current blob bytes hex' => [$castLike234, 'currentTrace', 2, 'bytesHex', '706C7567696E3A6361636865'],
-    'cast next added blob text' => [$castLike234, 'nextTrace', 12, 'likeText', 'plugin:blob'],
+    'cast current blob uppercase collation key' => [$castLike234, 'currentTrace', 3, 'collationKey', 'module:cache'],
+    'cast current blob bytes hex' => [$castLike234, 'currentTrace', 2, 'bytesHex', '6D6F64756C653A6361636865'],
+    'cast next added blob text' => [$castLike234, 'nextTrace', 12, 'likeText', 'module:blob'],
     'cast next added blob matches' => [$castLike234, 'nextTrace', 12, 'matched', true],
     'cast bad blob error' => [$castLike234, 'currentErrors', 9, null, 'SQLite BLOB LIKE/GLOB affinity next234 explicit CAST blob bytes are malformed UTF-8'],
 ];
@@ -228,10 +228,10 @@ foreach ($globCases234 as $name => [$planFactory, $path, $expected]) {
 
 $tests['blob like glob affinity current source next234 stable implicit scan is reusable'] = static function (TestRunner $t): void {
     $rows = [
-        ['setting_id' => 1, 'key_value' => 'plugin:cache'],
-        ['setting_id' => 2, 'key_value' => new SQLiteBlobValue('plugin:cache')],
+        ['setting_id' => 1, 'key_value' => 'module:cache'],
+        ['setting_id' => 2, 'key_value' => new SQLiteBlobValue('module:cache')],
     ];
-    $plan = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'plugin:%', 'LIKE', 'BINARY', null, false, false, 'stable', 'stable', 7, 7);
+    $plan = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'module:%', 'LIKE', 'BINARY', null, false, false, 'stable', 'stable', 7, 7);
     $t->same(true, $plan['cursorReusable']);
     $t->same([1], $plan['currentRowids']);
     $t->same([2], $plan['currentBlobSkippedRowids']);
@@ -239,10 +239,10 @@ $tests['blob like glob affinity current source next234 stable implicit scan is r
 
 $tests['blob like glob affinity current source next234 stable cast scan admits blob'] = static function (TestRunner $t): void {
     $rows = [
-        ['setting_id' => 1, 'key_value' => 'plugin:cache'],
-        ['setting_id' => 2, 'key_value' => new SQLiteBlobValue('plugin:cache')],
+        ['setting_id' => 1, 'key_value' => 'module:cache'],
+        ['setting_id' => 2, 'key_value' => new SQLiteBlobValue('module:cache')],
     ];
-    $plan = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'plugin:%', 'LIKE', 'BINARY', null, false, true, 'stable', 'stable', 7, 7);
+    $plan = SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($rows, $rows, 'module:%', 'LIKE', 'BINARY', null, false, true, 'stable', 'stable', 7, 7);
     $t->same(true, $plan['cursorReusable']);
     $t->same([1, 2], $plan['currentRowids']);
     $t->same([], $plan['currentBlobSkippedRowids']);
@@ -261,7 +261,7 @@ $tests['blob like glob affinity current source next234 rejects bad collation'] =
 };
 
 $tests['blob like glob affinity current source next234 rejects missing rowid'] = static function (TestRunner $t): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan([['key_value' => 'plugin']], [], '%'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan([['key_value' => 'module']], [], '%'));
 };
 
 $tests['blob like glob affinity current source next234 rejects missing value'] = static function (TestRunner $t): void {

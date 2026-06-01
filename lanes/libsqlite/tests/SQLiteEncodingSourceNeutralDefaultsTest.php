@@ -3,7 +3,11 @@
 declare(strict_types=1);
 
 use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
+use PortLibs\LibSqlite\SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan;
 
 $libsqliteRoot = dirname(__DIR__);
 $sourceRoot = $libsqliteRoot . '/src';
@@ -15,8 +19,10 @@ $encodingSourceFiles = static function () use ($sourceRoot): array {
         $sourceRoot . '/SQLiteCastNocaseCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteCastRtrimGlobRangeCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteCastRtrimLikeCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteDynamicTriggerForeignKeyPlan.php',
         $sourceRoot . '/SQLiteEncodingAffinityLikeCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteEncodingCollationIndexLikeGlobCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteEncodingCollationAffinityLikeCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteEncodingNumericAffinityCurrentSourceNextPlan.php',
@@ -41,10 +47,12 @@ $encodingSourceFiles = static function () use ($sourceRoot): array {
         $sourceRoot . '/SQLiteUtf16LikeEscapeCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16LikeGlobAffinityCurrentSourceCursor.php',
         $sourceRoot . '/SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16LikeGlobCurrentNextCursor.php',
         $sourceRoot . '/SQLiteUtf16LikeRtrimCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16CollationAffinityPatternCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16NoCaseLikeRtrimCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16NocaseLikeCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16NocaseLikeRtrimEscapeCurrentSourceNextPlan.php',
@@ -66,6 +74,10 @@ $encodingSourceFiles = static function () use ($sourceRoot): array {
 $encodingFixtureFiles = static function () use ($libsqliteRoot): array {
     return [
         $libsqliteRoot . '/tests/SQLiteEncodingCollationSourceCursorNext82Test.php',
+        $libsqliteRoot . '/tests/SQLiteBlobLikeGlobAffinityCurrentSourceNext234Test.php',
+        $libsqliteRoot . '/tests/SQLiteEncodingCollationAffinityGlobCurrentSourceNext239Test.php',
+        $libsqliteRoot . '/tests/SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNext124Test.php',
+        $libsqliteRoot . '/tests/SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextTest.php',
     ];
 };
 
@@ -95,6 +107,12 @@ $legacyEncodingDefaultSourceMatches = static function () use ($encodingSourceFil
         'plug' . 'in',
         'Plug' . 'in',
         'PLUG' . 'IN',
+        'theme',
+        'Theme',
+        'THEME',
+        'site' . 'url',
+        'blog' . '_public',
+        'active' . '_plugins',
     ];
     $legacyPattern = '/\b(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $legacyTerms)) . ')\b/';
 
@@ -129,6 +147,15 @@ $legacyEncodingFixtureMatches = static function () use ($encodingFixtureFiles, $
         'auto' . 'load',
         'blog' . '_id',
         'WP' . '_LOCALE',
+        'plug' . 'in',
+        'Plug' . 'in',
+        'PLUG' . 'IN',
+        'theme',
+        'Theme',
+        'THEME',
+        'site' . 'url',
+        'blog' . '_public',
+        'active' . '_plugins',
     ];
     $legacyPattern = '/\b(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $legacyTerms)) . ')\b/';
 
@@ -152,6 +179,30 @@ $legacyEncodingFixtureMatches = static function () use ($encodingFixtureFiles, $
 return [
     'encoding source defaults use generic application setting sources' => static fn (TestRunner $t) => $t->same([], $legacyEncodingDefaultSourceMatches()),
     'encoding cursor direct fixtures use generic application setting keys' => static fn (TestRunner $t) => $t->same([], $legacyEncodingFixtureMatches()),
+    'encoding default source helpers use generic application settings sources' => static function (TestRunner $t): void {
+        $encode = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
+        $currentRows = [
+            ['setting_id' => 1, 'key_name' => 'module_alpha', 'key_value' => 'module_alpha', 'key_name_bytes' => $encode('module_alpha', 'UTF-8'), 'text_encoding' => 1],
+        ];
+        $nextRows = [
+            ['setting_id' => 1, 'key_name' => 'module_alpha', 'key_value' => 'module_alpha', 'key_name_bytes' => $encode('module_alpha', 'UTF-8'), 'text_encoding' => 1],
+            ['setting_id' => 2, 'key_name' => 'module_beta', 'key_value' => 'module_beta', 'key_name_bytes' => $encode('module_beta', 'UTF-16LE'), 'text_encoding' => 2],
+        ];
+
+        $plans = [
+            SQLiteBlobLikeGlobAffinityCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $nextRows, 'module%', 'LIKE'),
+            SQLiteEncodingCollationAffinityGlobCurrentSourceNextPlan::keyValueRowValueMalformedGlobPlan($currentRows, $nextRows, 'module*'),
+            SQLiteUtf16LikeGlobAffinityRangeCurrentSourceNextPlan::keyValueRowValuePlan($currentRows, $nextRows, 'key_value', $encode('module%', 'UTF-16LE'), 'UTF-16LE'),
+            SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::keyValueRowKeyPatternPlan($currentRows, $nextRows, 'module%', 1, 'module%', 1),
+        ];
+
+        foreach ($plans as $plan) {
+            $t->true(str_starts_with($plan['currentSource'], 'main.app_settings'));
+            $t->true(str_starts_with($plan['nextSource'], 'main.app_settings'));
+            $t->same(false, str_contains($plan['currentSource'], 'wp' . '_'));
+            $t->same(false, str_contains($plan['nextSource'], 'wp' . '_'));
+        }
+    },
     'encoding collation affinity LIKE default patterns are source neutral' => static function (TestRunner $t): void {
         $encode = static fn (string $text, int|string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
         $code = static fn (int|string $encoding): int => match ($encoding) {

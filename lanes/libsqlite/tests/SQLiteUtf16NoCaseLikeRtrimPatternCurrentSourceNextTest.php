@@ -10,8 +10,8 @@ $tests = [];
 $enc = static fn (string $text, string $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static function (int $id, string $name, string $encoding) use ($enc): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => $enc($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => $enc($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -20,34 +20,34 @@ $row = static function (int $id, string $name, string $encoding) use ($enc): arr
     ];
 };
 $bad = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
 $currentRows = [
-    $row(1, 'Plugin_Cache', 'UTF-16LE'),
-    $row(2, 'plugin_cache  ', 'UTF-16BE'),
-    $row(3, 'plugin_cache_extra', 'UTF-16LE'),
-    $row(4, 'plugin-cache', 'UTF-8'),
-    $row(5, 'plugin_Éclair', 'UTF-16BE'),
+    $row(1, 'Module_Cache', 'UTF-16LE'),
+    $row(2, 'module_cache  ', 'UTF-16BE'),
+    $row(3, 'module_cache_extra', 'UTF-16LE'),
+    $row(4, 'module-cache', 'UTF-8'),
+    $row(5, 'module_Éclair', 'UTF-16BE'),
     $bad(6, "p\0l", 2),
 ];
 $nextRows = [
-    $row(1, 'Plugin_Cache', 'UTF-16BE'),
-    $row(2, 'plugin_cache', 'UTF-16BE'),
-    $row(3, 'plugin_cache_extra', 'UTF-16LE'),
-    $row(4, 'plugin-cache', 'UTF-8'),
-    $row(7, 'PLUGIN_CACHE', 'UTF-16LE'),
+    $row(1, 'Module_Cache', 'UTF-16BE'),
+    $row(2, 'module_cache', 'UTF-16BE'),
+    $row(3, 'module_cache_extra', 'UTF-16LE'),
+    $row(4, 'module-cache', 'UTF-8'),
+    $row(7, 'MODULE_CACHE', 'UTF-16LE'),
     $bad(8, "\xd8\x00", 3),
 ];
 
 $plan = static fn (
     ?array $current = null,
     ?array $next = null,
-    string $currentPattern = 'plugin\\_cache',
+    string $currentPattern = 'module\\_cache',
     string $currentPatternEncoding = 'UTF-16LE',
-    string $nextPattern = 'plugin\\_cache%',
+    string $nextPattern = 'module\\_cache%',
     string $nextPatternEncoding = 'UTF-16BE',
     ?string $currentEscape = '\\',
     string $currentEscapeEncoding = 'UTF-16LE',
@@ -96,20 +96,20 @@ $cases = [
     'index collation' => ['indexCollation', 'RTRIM'],
     'residual collation' => ['residualCollation', 'NOCASE'],
     'case insensitive' => ['caseSensitiveLike', false],
-    'current pattern' => ['currentPattern', 'plugin\\_cache'],
-    'next pattern' => ['nextPattern', 'plugin\\_cache%'],
+    'current pattern' => ['currentPattern', 'module\\_cache'],
+    'next pattern' => ['nextPattern', 'module\\_cache%'],
     'current pattern encoding' => ['currentPatternEncoding', 'UTF-16LE'],
     'next pattern encoding' => ['nextPatternEncoding', 'UTF-16BE'],
-    'current pattern bytes' => ['currentPatternBytesHex', '70006c007500670069006e005c005f0063006100630068006500'],
-    'next pattern bytes' => ['nextPatternBytesHex', '0070006c007500670069006e005c005f006300610063006800650025'],
+    'current pattern bytes' => ['currentPatternBytesHex', '6d006f00640075006c0065005c005f0063006100630068006500'],
+    'next pattern bytes' => ['nextPatternBytesHex', '006d006f00640075006c0065005c005f006300610063006800650025'],
     'current escape' => ['currentEscape', '\\'],
     'next escape' => ['nextEscape', '\\'],
     'current escape bytes' => ['currentEscapeBytesHex', '5c00'],
     'next escape bytes' => ['nextEscapeBytesHex', '005c'],
-    'current prefix' => ['currentPrefix', 'plugin_cache'],
-    'next prefix' => ['nextPrefix', 'plugin_cache'],
-    'current range lower' => ['currentRtrimRange.lowerInclusive', 'plugin_cache'],
-    'next range upper' => ['nextRtrimRange.upperBound', 'plugin_cachf'],
+    'current prefix' => ['currentPrefix', 'module_cache'],
+    'next prefix' => ['nextPrefix', 'module_cache'],
+    'current range lower' => ['currentRtrimRange.lowerInclusive', 'module_cache'],
+    'next range upper' => ['nextRtrimRange.upperBound', 'module_cachf'],
     'current index usable' => ['currentIndexUsable', true],
     'next index usable' => ['nextIndexUsable', true],
     'current candidates' => ['currentCandidateRowids', [1, 2, 3]],
@@ -147,15 +147,15 @@ foreach ($cases as $name => [$path, $expected]) {
 
 $tests['utf16 nocase like rtrim pattern current source nextOneSixZero stable pattern bytes reusable'] = static function (TestRunner $t) use ($row, $enc): void {
     $rows = [
-        $row(1, 'Plugin_Cache', 'UTF-16LE'),
-        $row(2, 'plugin_cache  ', 'UTF-16BE'),
+        $row(1, 'Module_Cache', 'UTF-16LE'),
+        $row(2, 'module_cache  ', 'UTF-16BE'),
     ];
     $result = SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::keyValueRowKeyPatternPlan(
         $rows,
         $rows,
-        $enc('plugin\\_cache%', 'UTF-16LE'),
+        $enc('module\\_cache%', 'UTF-16LE'),
         2,
-        $enc('plugin\\_cache%', 'UTF-16LE'),
+        $enc('module\\_cache%', 'UTF-16LE'),
         2,
         $enc('\\', 'UTF-16LE'),
         2,
@@ -173,14 +173,14 @@ $tests['utf16 nocase like rtrim pattern current source nextOneSixZero stable pat
 };
 
 $tests['utf16 nocase like rtrim pattern current source nextOneSixZero ascii nocase does not fold unicode'] = static function (TestRunner $t) use ($plan): void {
-    $result = $plan(null, null, 'plugin\\_éclair', 'UTF-16LE', 'plugin\\_éclair', 'UTF-16BE');
+    $result = $plan(null, null, 'module\\_éclair', 'UTF-16LE', 'module\\_éclair', 'UTF-16BE');
     $t->same([], $result['currentMatchedRowids']);
     $t->same([], $result['nextMatchedRowids']);
-    $t->same('plugin_éclair', $result['currentRtrimRange']['lowerInclusive']);
+    $t->same('module_éclair', $result['currentRtrimRange']['lowerInclusive']);
 };
 
 $tests['utf16 nocase like rtrim pattern current source nextOneSixZero null escape disables escape bytes'] = static function (TestRunner $t) use ($plan): void {
-    $result = $plan(null, null, 'plugin_cache%', 'UTF-8', 'plugin_cache%', 'UTF-8', null, 'UTF-8', null, 'UTF-8');
+    $result = $plan(null, null, 'module_cache%', 'UTF-8', 'module_cache%', 'UTF-8', null, 'UTF-8', null, 'UTF-8');
     $t->same(null, $result['currentEscape']);
     $t->same(null, $result['currentEscapeBytesHex']);
     $t->same([1, 4, 2, 3], $result['currentMatchedRowids']);
@@ -194,9 +194,9 @@ $tests['utf16 nocase like rtrim pattern current source nextOneSixZero rejects mu
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NoCaseLikeRtrimPatternCurrentSourceNextPlan::keyValueRowKeyPatternPlan(
         $currentRows,
         $nextRows,
-        $enc('plugin%', 'UTF-8'),
+        $enc('module%', 'UTF-8'),
         1,
-        $enc('plugin%', 'UTF-8'),
+        $enc('module%', 'UTF-8'),
         1,
         $enc('xx', 'UTF-8'),
         1,

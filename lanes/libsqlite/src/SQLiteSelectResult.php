@@ -72,14 +72,16 @@ final class SQLiteSelectResult
     /**
      * @param list<array<string,mixed>> $rows
      * @param list<array{column:string,direction?:string,collation?:string,nulls?:string}> $terms
+     * @param array<string, callable(string, string): int> $customCollations
      * @return list<array<string,mixed>>
      */
-    public static function orderBy(array $rows, array $terms): array
+    public static function orderBy(array $rows, array $terms, array $customCollations = []): array
     {
         if ($terms === []) {
             return $rows;
         }
 
+        $customCollations = self::normalizeCustomCollations($customCollations);
         foreach ($terms as $term) {
             if (($term['column'] ?? '') === '') {
                 throw new \InvalidArgumentException('SQLite ORDER BY term needs a column');
@@ -89,7 +91,7 @@ final class SQLiteSelectResult
                 throw new \InvalidArgumentException('SQLite ORDER BY direction must be ASC or DESC');
             }
             $collation = strtoupper($term['collation'] ?? 'BINARY');
-            if (!in_array($collation, ['BINARY', 'NOCASE', 'RTRIM', 'REVERSE'], true)) {
+            if (!isset($customCollations[$collation]) && !in_array($collation, ['BINARY', 'NOCASE', 'RTRIM', 'REVERSE'], true)) {
                 throw new \InvalidArgumentException("Unsupported SQLite ORDER BY collation: {$term['collation']}");
             }
             $nulls = strtoupper($term['nulls'] ?? '');
@@ -109,7 +111,7 @@ final class SQLiteSelectResult
             $ordered[] = [$row, $index];
         }
 
-        usort($ordered, static function (array $left, array $right) use ($terms): int {
+        usort($ordered, static function (array $left, array $right) use ($terms, $customCollations): int {
             foreach ($terms as $term) {
                 $direction = strtoupper($term['direction'] ?? 'ASC');
                 $nullComparison = self::compareNullPlacement(
@@ -124,6 +126,7 @@ final class SQLiteSelectResult
                     $left[0][$term['column']],
                     $right[0][$term['column']],
                     strtoupper($term['collation'] ?? 'BINARY'),
+                    $customCollations,
                 );
                 if ($comparison !== 0) {
                     return $direction === 'DESC' ? -$comparison : $comparison;
@@ -370,7 +373,10 @@ final class SQLiteSelectResult
         throw new \InvalidArgumentException('SQLite SELECT result values must be scalar, BLOB, or NULL');
     }
 
-    private static function compareSqlValues(mixed $left, mixed $right, string $collation = 'BINARY'): int
+    /**
+     * @param array<string, callable(string, string): int> $customCollations
+     */
+    private static function compareSqlValues(mixed $left, mixed $right, string $collation = 'BINARY', array $customCollations = []): int
     {
         $leftRank = self::sortRank($left);
         $rightRank = self::sortRank($right);
@@ -382,6 +388,15 @@ final class SQLiteSelectResult
         }
         if ($left === null || $right === null) {
             return $left === null ? -1 : 1;
+        }
+
+        if (is_string($left) && is_string($right) && isset($customCollations[$collation])) {
+            $comparison = $customCollations[$collation]($left, $right);
+            if (!is_int($comparison)) {
+                throw new \InvalidArgumentException("SQLite custom ORDER BY collation {$collation} must return an integer");
+            }
+
+            return $comparison <=> 0;
         }
 
         $comparison = SQLiteAffinityComparison::compare($left, $right, 'NONE', 'NONE', $collation);
@@ -416,6 +431,26 @@ final class SQLiteSelectResult
             $value instanceof SQLiteBlobValue => 3,
             default => throw new \InvalidArgumentException('SQLite ORDER BY values must be scalar, BLOB, or NULL'),
         };
+    }
+
+    /**
+     * @param array<string, callable(string, string): int> $customCollations
+     * @return array<string, callable(string, string): int>
+     */
+    private static function normalizeCustomCollations(array $customCollations): array
+    {
+        $normalized = [];
+        foreach ($customCollations as $name => $compare) {
+            if (!is_string($name) || $name === '') {
+                throw new \InvalidArgumentException('SQLite custom ORDER BY collation names must be non-empty strings');
+            }
+            if (!is_callable($compare)) {
+                throw new \InvalidArgumentException("SQLite custom ORDER BY collation {$name} must be callable");
+            }
+            $normalized[strtoupper($name)] = $compare;
+        }
+
+        return $normalized;
     }
 
     /**

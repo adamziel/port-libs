@@ -6964,6 +6964,71 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @param list<array{op:string,value?:bool,token?:string,scenario?:string}> $actions
+     * @return array<string,mixed>
+     */
+    public static function triggerCRecursiveTriggersPragmaStatePlan(array $actions, bool $initial = true): array
+    {
+        if ($actions === []) {
+            throw new \InvalidArgumentException('SQLite triggerC recursive_triggers pragma action list is empty');
+        }
+
+        $enabled = $initial;
+        $history = [];
+        $readValues = [];
+        $toggleValues = [];
+
+        foreach ($actions as $index => $action) {
+            $op = strtolower(trim((string) ($action['op'] ?? '')));
+            if ($op === 'pragma') {
+                if (!array_key_exists('value', $action)) {
+                    throw new \InvalidArgumentException('SQLite triggerC recursive_triggers pragma value is required');
+                }
+                if (!is_bool($action['value'])) {
+                    throw new \InvalidArgumentException('SQLite triggerC recursive_triggers pragma value must be boolean');
+                }
+
+                $enabled = $action['value'];
+                $toggleValues[] = $enabled ? 1 : 0;
+            } elseif ($op === 'read') {
+                $readValues[] = $enabled ? 1 : 0;
+            } else {
+                throw new \InvalidArgumentException('SQLite triggerC recursive_triggers pragma action is unsupported');
+            }
+
+            $history[] = [
+                'index' => $index,
+                'op' => $op,
+                'scenario' => (string) ($action['scenario'] ?? ($op === 'read' ? 'triggerC-6.1' : ($enabled ? 'triggerC-6.3' : 'triggerC-6.2'))),
+                'requested' => $action['value'] ?? null,
+                'token' => $action['token'] ?? null,
+                'recursive_triggers' => $enabled ? 1 : 0,
+                'rows' => $op === 'read' ? [['recursive_triggers' => $enabled ? 1 : 0]] : [],
+            ];
+        }
+
+        return [
+            'source' => 'triggerC.test triggerC-6.1..6.3',
+            'operation' => 'recursive-triggers-pragma-state',
+            'status' => 'commit-ok',
+            'initial_recursive_triggers' => $initial ? 1 : 0,
+            'final_recursive_triggers' => $enabled ? 1 : 0,
+            'read_count' => count($readValues),
+            'toggle_count' => count($toggleValues),
+            'history_count' => count($history),
+            'read_values' => $readValues,
+            'toggle_values' => $toggleValues,
+            'history' => $history,
+            'scenarios' => ['triggerC-6.1', 'triggerC-6.2', 'triggerC-6.3'],
+            'dependencies' => [
+                'sqlite-triggerC-recursive-triggers-pragma-reports-current-state',
+                'sqlite-triggerC-recursive-triggers-pragma-off-updates-connection-state',
+                'sqlite-triggerC-recursive-triggers-pragma-on-restores-connection-state',
+            ],
+        ];
+    }
+
+    /**
      * @param list<string> $updatedColumns
      * @return array<string,mixed>
      */
