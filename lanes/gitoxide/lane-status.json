@@ -1,17 +1,17 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-    "estimatedProgress": 97.4,
-    "suiteProgress": "Supervisor-integrated Gitoxide tree/pathspec negative-wildcard directory traversal parity. Verification passed changed PHP lint, git diff --cached --check, touched example smoke, and full Gitoxide lane 40 files / 9054 assertions / 0 failures.",
-    "phpPass": 9054,
+    "estimatedProgress": 97.5,
+    "suiteProgress": "Supervisor-integrated Gitoxide protocol-v2 fetch empty-error sideband handler parity, URL/refspec fetch match-lhs parity, and merge-base stable hydration ancestor-cache parity. Verification passed changed PHP lint, git diff --cached --check, touched example smokes, and full Gitoxide lane 40 files / 9101 assertions / 0 failures.",
+    "phpPass": 9101,
     "phpFail": 0,
-    "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering boundaries, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing including multi-report no-refname receive-status parity, protocol-v2 ref-in-want fetch exchange sideband parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base graph behavior, URL/refspec canonical writing, tree-merge behavior, and pack building without shelling out to git.",
+    "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering boundaries, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing including multi-report no-refname receive-status parity, protocol-v2 ref-in-want fetch exchange sideband parsing plus empty-error sideband handler cancellation, smart HTTP proxy/TLS/SOCKS boundaries, merge-base graph behavior including stable hydration after shallow/promisor parent discovery, URL/refspec canonical writing and fetch match-lhs mapping, tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 supervisor batch: full Gitoxide PHP lane passed 40 files / 8895 assertions / 0 failures after reference-transaction deref duplicate preprocessing and tree-merge rename-add-delete resolve-tree slices; Cargo workspace not run.",
-    "currentWork": "Tree/pathspec negative-wildcard directory traversal parity integrated on current base.",
+    "audit": "2026-06-01 supervisor batch: full Gitoxide PHP lane passed 40 files / 9101 assertions / 0 failures after protocol-v2 fetch empty-error sideband handler, URL/refspec fetch lhs matching, and merge-base stable hydration slices; Cargo workspace not run.",
+    "currentWork": "Protocol-v2 fetch empty-error sideband handler parity, URL/refspec fetch lhs match parity, and merge-base stable hydration ancestor-cache parity integrated on current base.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "3ec6eca5d768da593338507a6f68979d67b734cf",
+    "latestCommit": "70f1c288ffa0545c9af21d4ba6efc5d7fbe8dc5b",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping sparse-checkout/pathspec, object database, loose object integrity, smart-HTTP/SSH receive-pack, reference transaction, tree-merge, merge-base, URL/refspec, partial-clone, pack/index, and protocol parity slices.",
-    "commit": "3ec6eca5d768da593338507a6f68979d67b734cf",
-    "latestFocusedSlice": "2026-06-01 supervisor batch three: tree/pathspec negative-wildcard directory traversal parity. Full Gitoxide lane passed 40 files / 9054 assertions / 0 failures; conservative mapped coverage moves to 1788 / 2886; full upstream Cargo workspace was not executed."
+    "commit": "70f1c288ffa0545c9af21d4ba6efc5d7fbe8dc5b",
+    "latestFocusedSlice": "2026-06-01 supervisor batch five: protocol-v2 fetch empty-error sideband handler parity, URL/refspec fetch lhs matching, and merge-base stable hydration ancestor-cache parity. Full Gitoxide lane passed 40 files / 9101 assertions / 0 failures; conservative mapped coverage remains 1788 / 2886; full upstream Cargo workspace was not executed."
 }
