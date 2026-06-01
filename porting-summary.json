@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 21:58:56 UTC",
-    "sourceCommit": "6bb3d0a06cd78ae5e9b83e17a8b8a3d1c3c90276",
-    "sourceCommitShort": "6bb3d0a06cd7",
+    "generated": "2026-06-01 22:04:00 UTC",
+    "sourceCommit": "b1238ddbfcaf3eba7a59472487d5fb29dba8ce09",
+    "sourceCommitShort": "b1238ddbfcaf",
     "sourceBranch": "unknown",
-    "dashboardCommit": "6bb3d0a06cd78ae5e9b83e17a8b8a3d1c3c90276",
-    "dashboardCommitShort": "6bb3d0a06cd7",
+    "dashboardCommit": "b1238ddbfcaf3eba7a59472487d5fb29dba8ce09",
+    "dashboardCommitShort": "b1238ddbfcaf",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,278,617 pass / 16 fail",
+            "php": "6,280,622 pass / 16 fail",
             "phase": "current-base source integration accepted by supervisor with focused i...",
             "audit": "2026-06-01 21:15 UTC supervisor integration: source commit c3bf2f17bb...",
-            "currentWork": "Real upstream select4 compound-column inheritance is integrated on top of the accepte...",
+            "currentWork": "Real upstream colmeta table-column metadata parity, wherelfault UPDATE/DELETE LIMIT r...",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "f540928"
+            "commit": "a39d22c"
         },
         {
             "lane": "lightningcss",
