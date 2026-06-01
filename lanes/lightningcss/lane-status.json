@@ -2,15 +2,15 @@
     "schemaVersion": 1,
     "library": "LightningCSS",
     "estimatedProgress": 99.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS bundle source-map pruning, escaped CSS Modules custom idents, SVG rendering CSSOM, grid auto-flow shorthand, and trailing empty source-map offset coverage. Verification passed PHP lint, git diff --check, changed example smokes, and full LightningCSS lane 13 files / 6984 assertions / 0 failures.",
-    "phpPass": 6984,
+    "suiteProgress": "Supervisor-integrated LightningCSS unicode-bidi target prefix browser-boundary parity. Verification passed focused PHP lint on changed files, git diff --check, changed example smoke, and full LightningCSS lane 13 files / 6998 assertions / 0 failures.",
+    "phpPass": 6998,
     "phpFail": 0,
-    "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics and source-map pruning, CSS Modules exports with escaped custom idents, custom at-rule selector visitors, media range fallbacks, source-map import/remap offsets, CSSOM declaration manipulation including SVG rendering keywords, grid property-value minification, nesting, and selector/logical target prefixing for block/theme styles without Node/WASM at runtime.",
+    "wordpressScenarios": "WordPress and Playground CSS delivery now covers native bundling/import graph diagnostics and source-map pruning, CSS Modules exports with escaped custom idents, custom at-rule selector visitors, media range fallbacks, source-map import/remap offsets, CSSOM declaration manipulation including SVG rendering keywords, grid property-value minification, nesting, unicode-bidi target prefix browser boundaries, and selector/logical target prefixing for block/theme styles without Node/WASM at runtime.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 supervisor batch: accepted source 003a6cf12f2f with bundle/source-map, CSS Modules escaped custom-ident, CSSOM SVG rendering, grid property-value, and source-map offset followups. Full LightningCSS lane passed 13 files / 6984 assertions / 0 failures; full upstream Rust/Node/WASM runners were not executed.",
-    "currentWork": "Bundle/source-map pruning, CSS Modules escaped custom-ident scoping, SVG rendering CSSOM, grid auto-flow shorthand, and trailing empty source-map offset parity integrated on current base.",
+    "audit": "2026-06-01 supervisor batch: accepted source 9b57a0640eb0 with unicode-bidi target prefix browser-boundary parity. Full LightningCSS lane passed 13 files / 6998 assertions / 0 failures; full upstream Rust/Node/WASM runners were not executed.",
+    "currentWork": "Unicode-bidi target prefix browser-boundary parity integrated on current base.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "003a6cf12f2f391f74550d547f03de1f43af9ba7",
+    "latestCommit": "9b57a0640eb0ba8cc624599153e1de7e6cd0bee7",
     "nextTask": "Keep LightningCSS workers on current-base source maps, CSS Modules, bundle/import graph, media query, property value, CSSOM, custom-at-rule, and target-prefix slices; rebase stale trigger/media handoffs before retry.",
-    "commit": "003a6cf12f2f391f74550d547f03de1f43af9ba7"
+    "commit": "9b57a0640eb0ba8cc624599153e1de7e6cd0bee7"
 }

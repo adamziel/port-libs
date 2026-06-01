@@ -2,15 +2,15 @@
     "schemaVersion": 1,
     "library": "gitoxide",
     "estimatedProgress": 96.2,
-    "suiteProgress": "Supervisor-integrated Gitoxide credential-context constructor String/BString parity. Verification passed PHP lint, git diff --check, changed example smokes, and full Gitoxide lane 40 files / 8311 assertions / 0 failures.",
-    "phpPass": 8311,
+    "suiteProgress": "Supervisor-integrated Gitoxide attributes/pathspec dangling-backslash parity. Verification passed focused PHP lint on changed files, git diff --check, changed example smoke, and full Gitoxide lane 40 files / 8324 assertions / 0 failures.",
+    "phpPass": 8324,
     "phpFail": 0,
-    "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions including caller-supplied environment-style key/value pairs, attributes/pathspec filtering including NUL-field boundaries, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
+    "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions including caller-supplied environment-style key/value pairs, attributes/pathspec filtering including NUL-field boundaries and dangling-backslash boundaries, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 supervisor batch: accepted source 003a6cf12f2f with credential-context constructor UTF-8 string validation and byte-preserving URL/path fields. Full Gitoxide lane passed 40 files / 8311 assertions / 0 failures; full Cargo workspace was not executed.",
-    "currentWork": "Credential-context constructor String/BString parity integrated on current base; config include and partial-clone followups remain in the accepted baseline.",
+    "audit": "2026-06-01 supervisor batch: accepted source 9b57a0640eb0 with attributes/pathspec dangling-backslash parity. Full Gitoxide lane passed 40 files / 8324 assertions / 0 failures; full Cargo workspace was not executed.",
+    "currentWork": "Attributes/pathspec dangling-backslash parity integrated on current base.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "003a6cf12f2f391f74550d547f03de1f43af9ba7",
+    "latestCommit": "9b57a0640eb0ba8cc624599153e1de7e6cd0bee7",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping sparse-checkout, attributes/pathspec, credential, config, partial-clone, transport/protocol, pack/index, reference, tree-merge, and object-database parity slices; integrate only full-lane-green batches.",
-    "commit": "003a6cf12f2f391f74550d547f03de1f43af9ba7"
+    "commit": "9b57a0640eb0ba8cc624599153e1de7e6cd0bee7"
 }
