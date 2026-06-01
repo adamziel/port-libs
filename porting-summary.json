@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 22:12:43 UTC",
-    "sourceCommit": "273b4233603f25116f5ea7676d58336a73464f0d",
-    "sourceCommitShort": "273b4233603f",
+    "generated": "2026-06-01 22:20:13 UTC",
+    "sourceCommit": "4bc880b2cff872404bf49905f07114f7445549ae",
+    "sourceCommitShort": "4bc880b2cff8",
     "sourceBranch": "unknown",
-    "dashboardCommit": "273b4233603f25116f5ea7676d58336a73464f0d",
-    "dashboardCommitShort": "273b4233603f",
+    "dashboardCommit": "4bc880b2cff872404bf49905f07114f7445549ae",
+    "dashboardCommitShort": "4bc880b2cff8",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,280,622 pass / 16 fail",
-            "phase": "current-base source integration accepted by supervisor with focused i...",
+            "php": "6,283,634 pass / 16 fail",
+            "phase": "current-base source integration accepted by supervisor with focused t...",
             "audit": "2026-06-01 21:15 UTC supervisor integration: source commit c3bf2f17bb...",
-            "currentWork": "Source-neutral STAT4 key-field hardening is integrated on top of real upstream colmet...",
-            "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
+            "currentWork": "TriggerC recursive_triggers PRAGMA, window6 custom collation ORDER BY/index, and sour...",
+            "nextTarget": "Keep the PDO invalid-DML audit worker running; then integrate...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "4021fde"
+            "commit": "91a0a00"
         },
         {
             "lane": "lightningcss",
