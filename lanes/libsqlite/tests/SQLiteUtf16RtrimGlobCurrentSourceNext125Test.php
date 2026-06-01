@@ -7,25 +7,25 @@ use PortLibs\LibSqlite\SQLiteUtf16RtrimGlobCurrentSourceNextPlan;
 
 $tests = [];
 
-$row = static function (int $id, string $name, string $encoding, string $autoload = 'yes'): array {
+$row = static function (int $id, string $name, string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
             default => throw new InvalidArgumentException('bad encoding'),
         },
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
 $bad = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
-    'autoload' => 'yes',
+    'load_policy' => 'yes',
 ];
 
 $currentRows = [
@@ -170,16 +170,16 @@ $tests['utf16 rtrim glob current source nextOneTwoFive stable leading class has 
     $t->same(['no-prefix-range'], $plan['invalidationReasons']);
 };
 
-$tests['utf16 rtrim glob current source nextOneTwoFive rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p*'));
+$tests['utf16 rtrim glob current source nextOneTwoFive rejects missing setting id'] = static function (TestRunner $t) use ($nextRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['key_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p*'));
 };
 
 $tests['utf16 rtrim glob current source nextOneTwoFive rejects missing bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'text_encoding' => 1]], $nextRows, 'p*'));
 };
 
 $tests['utf16 rtrim glob current source nextOneTwoFive rejects missing encoding'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['option_id' => 1, 'option_name_bytes' => 'p']], $nextRows, 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobCurrentSourceNextPlan::keyValueRowKeyPlan([['setting_id' => 1, 'key_name_bytes' => 'p']], $nextRows, 'p*'));
 };
 
 return $tests;

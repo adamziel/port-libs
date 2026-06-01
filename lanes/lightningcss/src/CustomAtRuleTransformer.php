@@ -158,6 +158,8 @@ final class CustomAtRuleTransformer
     /** @var list<array<string, mixed>> */
     private array $dependencies = [];
 
+    private bool $functionReplacementAppliedColorVisitor = false;
+
     private DeclarationBlock $declarationBlock;
 
     private CssMinifier $minifier;
@@ -5832,8 +5834,9 @@ final class CustomAtRuleTransformer
 
     private function rewriteDeclarationValue(string $value, ?string $property = null): string
     {
+        $this->functionReplacementAppliedColorVisitor = false;
         $rewritten = $this->rewriteValueTokens($this->rewriteValueFunctions($this->rewriteStandaloneLengths($value)));
-        if ($property !== null) {
+        if ($property !== null && !$this->functionReplacementAppliedColorVisitor) {
             $rewritten = $this->rewriteColorDeclarationValue($rewritten, $property);
         }
 
@@ -7137,7 +7140,13 @@ final class CustomAtRuleTransformer
                 return $this->rewriteRawVisitorFunctions($normalized['value']);
             }
 
-            return $this->serializeVisitorValue($normalized);
+            $appliesColorVisitor = $this->colorVisitor !== null && $this->colorComponents($normalized) !== null;
+            $visited = $this->applyValueVisitors($normalized);
+            if ($appliesColorVisitor) {
+                $this->functionReplacementAppliedColorVisitor = true;
+            }
+
+            return $this->serializeVisitorValue($visited);
         }
 
         return (string) $replacement;

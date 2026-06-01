@@ -13,6 +13,8 @@ $blankTab = "\t";
 $blankVerticalTab = "\x0B";
 $trailingBackslashUrl = 'https://git.example.test/wp-content/trailing\\';
 $escapedTrailingBackslashUrl = str_replace('\\', '\\\\', $trailingBackslashUrl);
+$escapedRepoCondition = str_replace('\\', '\\\\', $repo);
+$escapedGitDirCondition = str_replace('\\', '\\\\', $gitDir);
 mkdir($gitDir, 0777, true);
 
 $write = static function (string $path, string $contents): void {
@@ -152,6 +154,36 @@ $write($repo . '/optional-prefix.config', <<<CFG
 optionalPrefix = matched
 CFG);
 
+$write($repo . '/tilde-alone-gitdir.config', <<<CFG
+[wordpress]
+tildeAloneGitdir = should-not-load
+CFG);
+
+$write($repo . '/double-slash-gitdir.config', <<<CFG
+[wordpress]
+doubleSlashGitdir = should-not-load
+CFG);
+
+$write($repo . '/dotdot-gitdir.config', <<<CFG
+[wordpress]
+dotDotGitdir = should-not-load
+CFG);
+
+$write($repo . '/absolute-worktree.config', <<<CFG
+[wordpress]
+absoluteWorktree = should-not-load
+CFG);
+
+$write($repo . '/absolute-gitdir.config', <<<CFG
+[wordpress]
+absoluteGitdir = matched
+CFG);
+
+$write($repo . '/absolute-worktree-glob.config', <<<CFG
+[wordpress]
+absoluteWorktreeGlob = matched
+CFG);
+
 $write($repo . '/symlink-realpath.config', <<<CFG
 [wordpress]
 symlinkRealpath = matched
@@ -273,6 +305,18 @@ path = ../unclosed-bracket.config
 path = ../trailing-backslash-url.config
 [includeIf "gitdir::(optional)wp-content.git/"]
 path = :(optional)../optional-prefix.config
+[includeIf "gitdir:~"]
+path = ../tilde-alone-gitdir.config
+[includeIf "gitdir://wp-content.git"]
+path = ../double-slash-gitdir.config
+[includeIf "gitdir:../"]
+path = ../dotdot-gitdir.config
+[includeIf "gitdir:{$escapedRepoCondition}"]
+path = ../absolute-worktree.config
+[includeIf "gitdir:{$escapedGitDirCondition}"]
+path = ../absolute-gitdir.config
+[includeIf "gitdir:{$escapedRepoCondition}/**"]
+path = ../absolute-worktree-glob.config
 CFG);
 
 $config = GitConfig::fromFile($gitDir . '/config', [
@@ -336,6 +380,12 @@ return [
     'unclosedBracketPolicy' => $config->value('wordpress', null, 'unclosedBracket'),
     'trailingBackslashUrlPolicy' => $config->value('wordpress', null, 'trailingBackslashUrl'),
     'optionalPrefixPolicy' => $config->value('wordpress', null, 'optionalPrefix'),
+    'tildeAloneGitdirPolicy' => $config->value('wordpress', null, 'tildeAloneGitdir'),
+    'doubleSlashGitdirPolicy' => $config->value('wordpress', null, 'doubleSlashGitdir'),
+    'dotDotGitdirPolicy' => $config->value('wordpress', null, 'dotDotGitdir'),
+    'absoluteWorktreePolicy' => $config->value('wordpress', null, 'absoluteWorktree'),
+    'absoluteGitdirPolicy' => $config->value('wordpress', null, 'absoluteGitdir'),
+    'absoluteWorktreeGlobPolicy' => $config->value('wordpress', null, 'absoluteWorktreeGlob'),
     'backslashGitdirSlashPolicy' => $backslashConfig->value('wordpress', null, 'backslashGitdirSlash'),
     'backslashGitdirWildcardPolicy' => $backslashConfig->value('wordpress', null, 'backslashGitdirWildcard'),
     'symlinkGitdirSupported' => $symlinkGitdirSupported,

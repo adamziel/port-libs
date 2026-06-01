@@ -4,8 +4,61 @@ declare(strict_types=1);
 
 use PortLibs\Gitoxide\CredentialContext;
 use PortLibs\Gitoxide\CredentialHelperExchange;
+use PortLibs\Gitoxide\CredentialHelperInvocation;
 
 return [
+    'credential helper invocation keeps raw next action context for store and erase' => static function (TestRunner $t): void {
+        $calls = [];
+        $outcome = CredentialHelperInvocation::get(
+            new CredentialContext(url: 'https://github.com/byron/gitoxide'),
+            static function (string $action, string $payload) use (&$calls): string {
+                $calls[] = [$action, $payload];
+
+                return "username=user\npassword=pass\nquit=1\n";
+            },
+        );
+
+        $t->same('user', $outcome->username);
+        $t->same('pass', $outcome->password);
+        $t->same(true, $outcome->quit);
+        $t->same(['username' => 'user', 'password' => 'pass', 'oauthRefreshToken' => null], $outcome->identity());
+        $t->same("username=user\npassword=pass\nquit=1\n", $outcome->nextActionBytes());
+        $t->same(true, $outcome->nextActionContext()->quit);
+        $t->contains("url=https://github.com/byron/gitoxide\n", $calls[0][1]);
+
+        CredentialHelperInvocation::store(
+            $outcome,
+            static function (string $action, string $payload) use (&$calls): string {
+                $calls[] = [$action, $payload];
+
+                return "ignored=store\n";
+            },
+        );
+        CredentialHelperInvocation::erase(
+            $outcome,
+            static function (string $action, string $payload) use (&$calls): string {
+                $calls[] = [$action, $payload];
+
+                return "ignored=erase\n";
+            },
+        );
+
+        $t->same('store', $calls[1][0]);
+        $t->same("username=user\npassword=pass\nquit=1\n\n", $calls[1][1]);
+        $t->same('erase', $calls[2][0]);
+        $t->same("username=user\npassword=pass\nquit=1\n\n", $calls[2][1]);
+    },
+    'credential helper invocation exposes partial helper stdout without completing identity' => static function (TestRunner $t): void {
+        $outcome = CredentialHelperInvocation::get(
+            new CredentialContext(protocol: 'https', host: 'github.com'),
+            static fn (): string => "username=user\n",
+        );
+
+        $t->same('user', $outcome->username);
+        $t->same(null, $outcome->password);
+        $t->same(null, $outcome->identity());
+        $t->same("username=user\n", $outcome->nextActionBytes());
+    },
     'credential helper exchange accepts protocol and host without auto populating url' => static function (TestRunner $t): void {
         $called = false;
         $observed = null;

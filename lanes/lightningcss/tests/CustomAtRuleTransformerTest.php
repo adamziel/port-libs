@@ -2185,6 +2185,73 @@ CSS;
         $t->same(['px', 'rem', 'rem'], $seenLengthUnits);
         $t->same(['f2' => 'rem', 'f3' => 'rem'], $genericArgumentUnits);
     },
+    'custom at-rules compose upstream Function replacements through value visitors' => static function (TestRunner $t): void {
+        $seenFunctions = [];
+        $seenLengths = [];
+        $seenColors = [];
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Function' => [
+                    'theme' => static function (array $arguments, string $raw, string $name) use (&$seenFunctions): ?array {
+                        $seenFunctions[] = [$name, $arguments[0] ?? null, $raw];
+
+                        return match ($arguments[0] ?? null) {
+                            'space' => [
+                                'type' => 'length',
+                                'unit' => 'px',
+                                'value' => 32,
+                            ],
+                            'accent' => [
+                                'type' => 'color',
+                                'value' => [
+                                    'type' => 'rgb',
+                                    'r' => 255,
+                                    'g' => 0,
+                                    'b' => 0,
+                                    'alpha' => 1,
+                                ],
+                            ],
+                            default => null,
+                        };
+                    },
+                ],
+            ],
+            [
+                'Length' => static function (array $length) use (&$seenLengths): ?array {
+                    $seenLengths[] = $length;
+
+                    return $length['unit'] === 'px'
+                        ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                        : null;
+                },
+                'Color' => static function (array $color) use (&$seenColors): ?array {
+                    $seenColors[] = $color;
+                    if (($color['type'] ?? null) !== 'rgb') {
+                        return null;
+                    }
+
+                    return [
+                        'type' => 'rgb',
+                        'r' => $color['g'],
+                        'g' => $color['r'],
+                        'b' => $color['b'],
+                        'alpha' => $color['alpha'],
+                    ];
+                },
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('.wp-block-card { width: theme("space"); color: theme("accent"); }', [], $visitor);
+
+        $t->same('.wp-block-card{width:2rem;color:#0f0}', $result);
+        $t->same([
+            ['theme', 'space', 'theme("space")'],
+            ['theme', 'accent', 'theme("accent")'],
+        ], $seenFunctions);
+        $t->same([['unit' => 'px', 'value' => 32]], $seenLengths);
+        $t->same([['type' => 'rgb', 'r' => 255, 'g' => 0, 'b' => 0, 'alpha' => 1]], $seenColors);
+    },
     'custom at-rules compose upstream Color and Length value visitors' => static function (TestRunner $t): void {
         $seenColors = [];
         $seenLengths = [];

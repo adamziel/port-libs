@@ -11,11 +11,11 @@ use PortLibs\LibSqlite\SQLiteUtf16GlobRangeCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUtf16LikeGlobCurrentNextCursor;
 
 $enc = static fn (string $text): string => SQLiteUtf16LikeGlobCurrentNextCursor::encodeUtf16($text, 'UTF-16LE');
-$row = static fn (int $id, string $name, string $autoload = 'yes'): array => [
-    'option_id' => $id,
-    'option_name' => $name,
-    'option_name_utf16' => $enc($name),
-    'autoload' => $autoload,
+$row = static fn (int $id, string $name, string $load_policy = 'yes'): array => [
+    'setting_id' => $id,
+    'key_name' => $name,
+    'key_name_utf16' => $enc($name),
+    'load_policy' => $load_policy,
 ];
 
 $current = [
@@ -33,15 +33,15 @@ $next = [
     $row(5, 'plugin_enabled'),
 ];
 
-$plan = SQLiteUtf16GlobRangeCurrentSourceNextPlan::optionRowNameGlobRange(
+$plan = SQLiteUtf16GlobRangeCurrentSourceNextPlan::keyValueRowKeyGlobRange(
     $current,
     $next,
     'plugin_*',
     'BINARY',
     'UTF-16LE',
     'UTF-16LE',
-    'main.wp_options@cookie102',
-    'main.wp_options@cookie103',
+    'main.app_settings@cookie102',
+    'main.app_settings@cookie103',
     102,
     103,
 );

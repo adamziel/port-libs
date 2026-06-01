@@ -23,6 +23,11 @@ return [
     'helperProgramMissingCredential' => $fixture['helperProgramMissingCredential'],
     'helperProgramUrlOnly' => $fixture['helperProgramUrlOnly'],
     'helperProgramOutput' => $fixture['helperProgramOutput'],
+    'helperInvocationIdentity' => $fixture['helperInvocationIdentity'],
+    'helperInvocationQuit' => $fixture['helperInvocationQuit'],
+    'helperInvocationNextQuit' => $fixture['helperInvocationNextQuit'],
+    'helperInvocationStorePayloadBytes' => strlen($fixture['helperInvocationStorePayload']),
+    'helperInvocationErasePayloadBytes' => strlen($fixture['helperInvocationErasePayload']),
     'redactedBytes' => $fixture['redactedBytes'],
     'secretsInCleartextLog' => str_contains($fixture['redactedBytes'], 'wp-deploy-token')
         || str_contains($fixture['redactedBytes'], 'wp-refresh-token'),

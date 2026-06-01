@@ -189,6 +189,21 @@ $columnPrefixDrainMap->addMapping(2, 0, $columnPrefixDrainSource, 0, 0, 'prefix-
 $columnPrefixDrainMap->addMapping(2, 10, $columnPrefixDrainSource, 1, 0, 'prefix-b-rule');
 $columnPrefixDrainMap->offsetColumns(2, 5, -5);
 
+$mergedColumnDrainedChildParent = new SourceMap();
+$mergedColumnDrainedParentSource = $mergedColumnDrainedChildParent->addSource('wp-content/themes/example/source-map-merge-parent.css');
+foreach ([0, 1, 2, 3] as $line) {
+    $mergedColumnDrainedChildParent->addMapping($line, 0, $mergedColumnDrainedParentSource, $line, 0, 'merged-parent-' . $line);
+}
+$mergedColumnDrainedChild = new SourceMap();
+$mergedColumnDrainedChildSource = $mergedColumnDrainedChild->addSource('wp-content/themes/example/column-drained-child.css');
+$mergedColumnDrainedChild->setSourceContent($mergedColumnDrainedChildSource, ".wp-block-column-drained-child{}\n");
+$mergedColumnDrainedChild->addMapping(2, 0, $mergedColumnDrainedChildSource, 2, 0, 'merged-column-drain-child-rule');
+$mergedColumnDrainedChild->offsetColumns(2, 1, -1);
+$mergedColumnDrainedChildBeforeMerge = $mergedColumnDrainedChild->toJson(null, false);
+$mergedColumnDrainedChildParent->addSourceMap($mergedColumnDrainedChild, 1);
+$mergedColumnDrainedChildConsumed = $mergedColumnDrainedChild->toJson(null, false);
+$mergedColumnDrainedChildClosest = $mergedColumnDrainedChildParent->findClosestMapping(2, 0);
+
 $rawLeadingSemicolonOffsetMap = new SourceMap();
 $rawLeadingSemicolonOffsetMap->addVlqMap(
     ';;AACA',
@@ -771,6 +786,10 @@ $actual = [
     'columnDrainedEmptySpanRoundTrip' => $columnDrainedEmptySpanRoundTrip->toJson(null, false),
     'columnDrainedEmptySpanClosest' => $columnDrainedEmptySpanClosest,
     'columnPrefixDrainMap' => $columnPrefixDrainMap->toJson(null, false),
+    'mergedColumnDrainedChildBeforeMerge' => $mergedColumnDrainedChildBeforeMerge,
+    'mergedColumnDrainedChildParentMap' => $mergedColumnDrainedChildParent->toJson(null, false),
+    'mergedColumnDrainedChildConsumed' => $mergedColumnDrainedChildConsumed,
+    'mergedColumnDrainedChildClosest' => $mergedColumnDrainedChildClosest,
     'rawLeadingSemicolonOffsetMap' => $rawLeadingSemicolonOffsetMap->toJson(null, false),
     'negativeChildLineOffsetMap' => $negativeChildLineOffsetParent->toJson(null, false),
     'negativeChildLineOffsetChildConsumed' => $negativeChildLineOffsetChildConsumed,
@@ -861,6 +880,10 @@ if (($argv[1] ?? null) === '--self-test') {
         'columnDrainedEmptySpanRoundTrip' => '{"version":3,"mappings":";;","sources":["wp-content/themes/example/column-drained-empty-span.css"],"sourcesContent":[".wp-block-column-drained{}\n"],"names":["column-drained-rule"]}',
         'columnDrainedEmptySpanClosest' => null,
         'columnPrefixDrainMap' => '{"version":3,"mappings":";;KACAC","sources":["wp-content/themes/example/column-prefix-drain.css"],"sourcesContent":[".wp-block-prefix-a{}\n.wp-block-prefix-b{}\n"],"names":["prefix-a-rule","prefix-b-rule"]}',
+        'mergedColumnDrainedChildBeforeMerge' => '{"version":3,"mappings":";;","sources":["wp-content/themes/example/column-drained-child.css"],"sourcesContent":[".wp-block-column-drained-child{}\n"],"names":["merged-column-drain-child-rule"]}',
+        'mergedColumnDrainedChildParentMap' => '{"version":3,"mappings":"AAAAA;;;","sources":["wp-content/themes/example/source-map-merge-parent.css","wp-content/themes/example/column-drained-child.css"],"sourcesContent":["",".wp-block-column-drained-child{}\n"],"names":["merged-parent-0","merged-parent-1","merged-parent-2","merged-parent-3","merged-column-drain-child-rule"]}',
+        'mergedColumnDrainedChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
+        'mergedColumnDrainedChildClosest' => null,
         'rawLeadingSemicolonOffsetMap' => '{"version":3,"mappings":";;;;GACA","sources":["wp-content/themes/example/source-map-leading-semicolon.css"],"sourcesContent":[".wp-block-leading-semicolon{}"],"names":[]}',
         'negativeChildLineOffsetMap' => '{"version":3,"mappings":";;AAEAE;AACAC","sources":["wp-content/themes/example/negative-child-parent.css","wp-content/themes/example/negative-child.css"],"sourcesContent":[],"names":["negative-child-parent-0","negative-child-parent-1","negative-child-parent-2","negative-child-parent-3","negative-child-rule"]}',
         'negativeChildLineOffsetChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',

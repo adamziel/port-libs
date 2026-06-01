@@ -119,16 +119,16 @@ final class SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan
         $matched = [];
         $malformed = [];
         foreach ($rows as $row) {
-            if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 LIKE/GLOB affinity rows require integer option_id');
+            if (!isset($row['setting_id']) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 LIKE/GLOB affinity rows require integer setting_id');
             }
-            if (!array_key_exists('option_value_bytes', $row) && !array_key_exists('option_value', $row)) {
-                throw new \InvalidArgumentException('SQLite UTF-16 LIKE/GLOB affinity rows require option_value or option_value_bytes');
+            if (!array_key_exists('key_value_bytes', $row) && !array_key_exists('key_value', $row)) {
+                throw new \InvalidArgumentException('SQLite UTF-16 LIKE/GLOB affinity rows require key_value or key_value_bytes');
             }
             try {
                 $decoded = self::decodeKeyValue($row);
             } catch (\InvalidArgumentException) {
-                $malformed[] = $row['option_id'];
+                $malformed[] = $row['setting_id'];
                 continue;
             }
 
@@ -141,7 +141,7 @@ final class SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan
             }
 
             $matched[] = [
-                'rowid' => $row['option_id'],
+                'rowid' => $row['setting_id'],
                 'value' => $decoded['value'],
                 'textValue' => $text,
                 'storage' => SQLiteAffinityComparison::storageClass($decoded['value']),
@@ -160,28 +160,28 @@ final class SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan
      */
     private static function decodeKeyValue(array $row): array
     {
-        if (array_key_exists('option_value_bytes', $row)) {
-            if (!is_string($row['option_value_bytes'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 LIKE/GLOB affinity rows require string option_value_bytes');
+        if (array_key_exists('key_value_bytes', $row)) {
+            if (!is_string($row['key_value_bytes'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 LIKE/GLOB affinity rows require string key_value_bytes');
             }
             if (!isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
                 throw new \InvalidArgumentException('SQLite UTF-16 LIKE/GLOB affinity rows require integer text_encoding');
             }
             return [
-                'value' => SQLiteEncodingCollationSourceCursor::decodeText($row['option_value_bytes'], $row['text_encoding']),
+                'value' => SQLiteEncodingCollationSourceCursor::decodeText($row['key_value_bytes'], $row['text_encoding']),
                 'textEncodingName' => self::encodingName($row['text_encoding']),
-                'bytesHex' => bin2hex($row['option_value_bytes']),
+                'bytesHex' => bin2hex($row['key_value_bytes']),
             ];
         }
 
-        if (!array_key_exists('option_value', $row)) {
-            throw new \InvalidArgumentException('SQLite UTF-16 LIKE/GLOB affinity rows require option_value or option_value_bytes');
+        if (!array_key_exists('key_value', $row)) {
+            throw new \InvalidArgumentException('SQLite UTF-16 LIKE/GLOB affinity rows require key_value or key_value_bytes');
         }
 
         return [
-            'value' => $row['option_value'],
+            'value' => $row['key_value'],
             'textEncodingName' => null,
-            'bytesHex' => is_string($row['option_value']) ? bin2hex($row['option_value']) : null,
+            'bytesHex' => is_string($row['key_value']) ? bin2hex($row['key_value']) : null,
         ];
     }
 
@@ -209,7 +209,7 @@ final class SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan
             return $value;
         }
 
-        throw new \InvalidArgumentException('SQLite UTF-16 LIKE/GLOB affinity rows require scalar option values');
+        throw new \InvalidArgumentException('SQLite UTF-16 LIKE/GLOB affinity rows require scalar setting values');
     }
 
     /**

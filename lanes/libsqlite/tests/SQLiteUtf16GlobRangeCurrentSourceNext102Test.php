@@ -8,12 +8,12 @@ use PortLibs\LibSqlite\SQLiteUtf16LikeGlobCurrentNextCursor;
 $tests = [];
 
 $enc = static fn (string $text, string $encoding = 'UTF-16LE'): string => SQLiteUtf16LikeGlobCurrentNextCursor::encodeUtf16($text, $encoding);
-$row = static fn (int $id, string $name, string $encoding = 'UTF-16LE', string $autoload = 'yes'): array => [
-    'option_id' => $id,
-    'option_name' => $name,
-    'option_name_utf16' => $enc($name, $encoding),
+$row = static fn (int $id, string $name, string $encoding = 'UTF-16LE', string $load_policy = 'yes'): array => [
+    'setting_id' => $id,
+    'key_name' => $name,
+    'key_name_utf16' => $enc($name, $encoding),
     'encoding' => $encoding,
-    'autoload' => $autoload,
+    'load_policy' => $load_policy,
 ];
 
 $currentRows = [
@@ -175,15 +175,15 @@ $tests['utf16 glob range current source nextOneZeroTwo rejects unsupported next 
 };
 
 $tests['utf16 glob range current source nextOneZeroTwo rejects missing current rowid'] = static function (TestRunner $t) use ($plan, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin_*', 'BINARY', 'UTF-16LE', 'UTF-16LE', 'stable', 'stable', 1, 1, [['option_name_utf16' => 'p']], $nextRows));
+    $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin_*', 'BINARY', 'UTF-16LE', 'UTF-16LE', 'stable', 'stable', 1, 1, [['key_name_utf16' => 'p']], $nextRows));
 };
 
 $tests['utf16 glob range current source nextOneZeroTwo rejects missing next utf16 bytes'] = static function (TestRunner $t) use ($plan, $currentRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin_*', 'BINARY', 'UTF-16LE', 'UTF-16LE', 'stable', 'stable', 1, 1, $currentRows, [['option_id' => 1]]));
+    $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin_*', 'BINARY', 'UTF-16LE', 'UTF-16LE', 'stable', 'stable', 1, 1, $currentRows, [['setting_id' => 1]]));
 };
 
 $tests['utf16 glob range current source nextOneZeroTwo rejects malformed next utf16 bytes'] = static function (TestRunner $t) use ($plan, $currentRows): void {
-    $bad = [['option_id' => 1, 'option_name_utf16' => "\x3d\xd8"]];
+    $bad = [['setting_id' => 1, 'key_name_utf16' => "\x3d\xd8"]];
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin_*', 'BINARY', 'UTF-16LE', 'UTF-16LE', 'stable', 'stable', 1, 1, $currentRows, $bad));
 };
 

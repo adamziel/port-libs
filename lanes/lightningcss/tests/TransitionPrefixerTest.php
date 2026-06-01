@@ -1324,12 +1324,28 @@ CSS;
             $prefixer->prefixForTargets('.foo { hyphens: manual; }', ['safari' => 17])
         );
         $t->same(
+            '.foo{hyphens:manual}',
+            $prefixer->prefixForTargets('.foo { hyphens: manual; }', ['ios_saf' => '4.1'])
+        );
+        $t->same(
+            '.foo{-webkit-hyphens:manual;hyphens:manual}',
+            $prefixer->prefixForTargets('.foo { hyphens: manual; }', ['ios_saf' => '4.2'])
+        );
+        $t->same(
             '.foo{-moz-tab-size:4;tab-size:4}',
             $prefixer->prefixForTargets('.foo { tab-size: 4; }', ['firefox' => 90])
         );
         $t->same(
             '.foo{tab-size:4}',
             $prefixer->prefixForTargets('.foo { tab-size: 4; }', ['firefox' => 91])
+        );
+        $t->same(
+            '.foo{tab-size:4}',
+            $prefixer->prefixForTargets('.foo { tab-size: 4; }', ['opera' => '10.5'])
+        );
+        $t->same(
+            '.foo{-o-tab-size:4;tab-size:4}',
+            $prefixer->prefixForTargets('.foo { tab-size: 4; }', ['opera' => '10.6'])
         );
         $t->same(
             '.foo{-moz-text-align-last:left;text-align-last:left}',

@@ -9,8 +9,8 @@ $tests = [];
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -21,8 +21,8 @@ $row = static function (int $id, string $name, string $encoding): array {
 };
 
 $bad = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
@@ -172,8 +172,8 @@ $tests['utf16 rtrim nocase current source nextOneThreeTwo unchanged retained sou
     $t->same(false, $result['reprepareRequired']);
 };
 
-$tests['utf16 rtrim nocase current source nextOneThreeTwo rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::keyValueRowKeyCurrentNext([['option_id' => '1', 'option_name_bytes' => 'x', 'text_encoding' => 1]], $nextRows, 'plugin_cache'));
+$tests['utf16 rtrim nocase current source nextOneThreeTwo rejects non integer setting id'] = static function (TestRunner $t) use ($nextRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::keyValueRowKeyCurrentNext([['setting_id' => '1', 'key_name_bytes' => 'x', 'text_encoding' => 1]], $nextRows, 'plugin_cache'));
 };
 
 return $tests;

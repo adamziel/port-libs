@@ -6,18 +6,18 @@ use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions186 = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'score' => 101],
-    ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'score' => 84],
-    ['option_id' => 3, 'option_name' => 'rewrite_rules', 'autoload' => 'yes', 'score' => 67],
-    ['option_id' => 4, 'option_name' => 'cache_seed', 'autoload' => 'no', 'score' => 20],
+    ['setting_id' => 1, 'key_name' => 'siteurl', 'load_policy' => 'yes', 'score' => 101],
+    ['setting_id' => 2, 'key_name' => 'home', 'load_policy' => 'yes', 'score' => 84],
+    ['setting_id' => 3, 'key_name' => 'rewrite_rules', 'load_policy' => 'yes', 'score' => 67],
+    ['setting_id' => 4, 'key_name' => 'cache_seed', 'load_policy' => 'no', 'score' => 20],
 ];
 $nextOptions186 = [
     ...$currentOptions186,
-    ['option_id' => 5, 'option_name' => 'plugin_ranked', 'autoload' => 'yes', 'score' => 96],
-    ['option_id' => 6, 'option_name' => 'theme_mods_next', 'autoload' => 'yes', 'score' => 73],
+    ['setting_id' => 5, 'key_name' => 'plugin_ranked', 'load_policy' => 'yes', 'score' => 96],
+    ['setting_id' => 6, 'key_name' => 'theme_mods_next', 'load_policy' => 'yes', 'score' => 73],
 ];
-$currentTables186 = ['wp_options' => $currentOptions186];
-$nextTables186 = ['wp_options' => $nextOptions186];
+$currentTables186 = ['app_settings' => $currentOptions186];
+$nextTables186 = ['app_settings' => $nextOptions186];
 
 $sql186 = <<<'SQL'
 WITH RECURSIVE q(id, label, score) AS (
@@ -33,27 +33,27 @@ SELECT id,
        lag(score, 1, score) OVER (ORDER BY id) AS metric
   FROM q
 UNION ALL
-SELECT option_id AS id,
-       option_name AS label,
-       lead(score, 1, score) OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric
-  FROM wp_options
- WHERE autoload = 'yes'
+SELECT setting_id AS id,
+       key_name AS label,
+       lead(score, 1, score) OVER (PARTITION BY load_policy ORDER BY score DESC, setting_id) AS metric
+  FROM app_settings
+ WHERE load_policy = 'yes'
 UNION ALL
 SELECT id,
        label,
        rank() OVER (ORDER BY score DESC, id) AS metric
   FROM q
 UNION ALL
-SELECT option_id AS id,
-       option_name AS label,
-       dense_rank() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric
-  FROM wp_options
- WHERE autoload = 'yes'
+SELECT setting_id AS id,
+       key_name AS label,
+       dense_rank() OVER (PARTITION BY load_policy ORDER BY score DESC, setting_id) AS metric
+  FROM app_settings
+ WHERE load_policy = 'yes'
 UNION
-SELECT option_id AS id,
-       option_name AS label,
+SELECT setting_id AS id,
+       key_name AS label,
        score AS metric
-  FROM wp_options
+  FROM app_settings
  WHERE score >= 67
  ORDER BY metric DESC, id
  LIMIT 3, 6
@@ -107,7 +107,7 @@ $tests['compound select window recursive limit next186 source boundary diagnosti
     $t->same(['seed:2:3', 'seed:2:3:4', 'siteurl'], $boundary['nextSkippedLabels']);
     $t->true(count($boundary['addedAdmittedLabels']) > 0);
     $t->true(count($boundary['removedAdmittedLabels']) > 0);
-    $t->same(['siteurl', 'rewrite_rules', 'siteurl', 'plugin_ranked', 'home'], array_slice($boundary['nextAutoloadWindowLabels'], 0, 5));
+    $t->same(['siteurl', 'rewrite_rules', 'siteurl', 'plugin_ranked', 'home'], array_slice($boundary['nextLoadPolicyWindowLabels'], 0, 5));
     $t->true(in_array('seed:2:3:4:5:6:7:8:9', $boundary['nextRecursiveLabels'], true));
 };
 
@@ -116,12 +116,12 @@ $tests['compound select window recursive limit next186 replan reasons'] = static
     $t->true(in_array('compound-tail-comma-limit-current-source-next186', $reasons, true));
     $t->true(in_array('window-rank-dense-rank-before-distinct-union-next186', $reasons, true));
     $t->true(in_array('recursive-offset-source-boundary-next186', $reasons, true));
-    $t->true(in_array('application-autoload-option-rank-replans-limit-window-next186', $reasons, true));
+    $t->true(in_array('application-load-policy-setting-rank-replans-limit-window-next186', $reasons, true));
 };
 
 $tests['compound select window recursive limit next186 rejects offset limit syntax'] = static function (TestRunner $t) use ($currentTables186): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCommaLimitRecursiveWindowBoundary(
-        "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 118) UNION ALL SELECT id + 1, label, score - 8 FROM q WHERE id < 9 LIMIT 7 OFFSET 2) SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id, option_name, dense_rank() OVER (ORDER BY score DESC) FROM wp_options UNION SELECT option_id, option_name, score FROM wp_options ORDER BY metric DESC, id LIMIT 6 OFFSET 3",
+        "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 118) UNION ALL SELECT id + 1, label, score - 8 FROM q WHERE id < 9 LIMIT 7 OFFSET 2) SELECT id, label, rank() OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT setting_id, key_name, dense_rank() OVER (ORDER BY score DESC) FROM app_settings UNION SELECT setting_id, key_name, score FROM app_settings ORDER BY metric DESC, id LIMIT 6 OFFSET 3",
         $currentTables186,
         $currentTables186,
     ));
@@ -129,7 +129,7 @@ $tests['compound select window recursive limit next186 rejects offset limit synt
 
 $tests['compound select window recursive limit next186 rejects missing rank windows'] = static function (TestRunner $t) use ($currentTables186): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareCommaLimitRecursiveWindowBoundary(
-        "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 118) UNION ALL SELECT id + 1, label, score - 8 FROM q WHERE id < 9 LIMIT 7 OFFSET 2) SELECT id, label, lag(score, 1, score) OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT option_id, option_name, lead(score, 1, score) OVER (ORDER BY score DESC) FROM wp_options UNION SELECT option_id, option_name, score FROM wp_options ORDER BY metric DESC, id LIMIT 3, 6",
+        "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 118) UNION ALL SELECT id + 1, label, score - 8 FROM q WHERE id < 9 LIMIT 7 OFFSET 2) SELECT id, label, lag(score, 1, score) OVER (ORDER BY score DESC) AS metric FROM q UNION ALL SELECT setting_id, key_name, lead(score, 1, score) OVER (ORDER BY score DESC) FROM app_settings UNION SELECT setting_id, key_name, score FROM app_settings ORDER BY metric DESC, id LIMIT 3, 6",
         $currentTables186,
         $currentTables186,
     ));
@@ -141,15 +141,15 @@ foreach (range(1, 64) as $case) {
         $finalLimit = 4 + ($case % 4);
         $scoreFloor = 61 + ($case % 13);
         $tables = [
-            'wp_options' => [
-                ['option_id' => 1, 'option_name' => 'siteurl_' . $case, 'autoload' => 'yes', 'score' => 106 + $case],
-                ['option_id' => 2, 'option_name' => 'plugin_' . $case, 'autoload' => 'yes', 'score' => 92 + $case],
-                ['option_id' => 3, 'option_name' => 'home_' . $case, 'autoload' => 'yes', 'score' => 82 + $case],
-                ['option_id' => 4, 'option_name' => 'rewrite_' . $case, 'autoload' => 'yes', 'score' => 66 + $case],
-                ['option_id' => 5, 'option_name' => 'transient_' . $case, 'autoload' => 'no', 'score' => 18 + $case],
+            'app_settings' => [
+                ['setting_id' => 1, 'key_name' => 'siteurl_' . $case, 'load_policy' => 'yes', 'score' => 106 + $case],
+                ['setting_id' => 2, 'key_name' => 'plugin_' . $case, 'load_policy' => 'yes', 'score' => 92 + $case],
+                ['setting_id' => 3, 'key_name' => 'home_' . $case, 'load_policy' => 'yes', 'score' => 82 + $case],
+                ['setting_id' => 4, 'key_name' => 'rewrite_' . $case, 'load_policy' => 'yes', 'score' => 66 + $case],
+                ['setting_id' => 5, 'key_name' => 'transient_' . $case, 'load_policy' => 'no', 'score' => 18 + $case],
             ],
         ];
-        $generatedSql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (120 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 8 FROM q WHERE id < 10 LIMIT {$recursiveLimit} OFFSET 2) SELECT id, label, lag(score, 1, score) OVER (ORDER BY id) AS metric FROM q UNION ALL SELECT option_id AS id, option_name AS label, lead(score, 1, score) OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric FROM wp_options WHERE autoload = 'yes' UNION SELECT option_id AS id, option_name AS label, score AS metric FROM wp_options WHERE score >= {$scoreFloor} ORDER BY metric DESC, id LIMIT 3, {$finalLimit}";
+        $generatedSql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (120 + $case) . ") UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 8 FROM q WHERE id < 10 LIMIT {$recursiveLimit} OFFSET 2) SELECT id, label, lag(score, 1, score) OVER (ORDER BY id) AS metric FROM q UNION ALL SELECT setting_id AS id, key_name AS label, lead(score, 1, score) OVER (PARTITION BY load_policy ORDER BY score DESC, setting_id) AS metric FROM app_settings WHERE load_policy = 'yes' UNION SELECT setting_id AS id, key_name AS label, score AS metric FROM app_settings WHERE score >= {$scoreFloor} ORDER BY metric DESC, id LIMIT 3, {$finalLimit}";
         $rows = SQLiteSelectSql::execute($generatedSql, $tables);
 
         $t->same($finalLimit, count($rows));

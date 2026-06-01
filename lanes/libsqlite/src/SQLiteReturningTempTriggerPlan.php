@@ -102,6 +102,52 @@ final class SQLiteReturningTempTriggerPlan
     }
 
     /**
+     * @param array{a:mixed,b:mixed} $insertRow
+     * @return array{
+     *   source:string,
+     *   scenario:string,
+     *   delete_returning:list<array{a:mixed,b:mixed}>,
+     *   delete_returning_columns:list<string>,
+     *   delete_changes:int,
+     *   rows_after_delete:list<array{a:mixed,b:mixed}>,
+     *   trigger_catalog_before:list<string>,
+     *   trigger_catalog_after_drop:list<string>,
+     *   insert_row:array{a:mixed,b:mixed},
+     *   rows_after_insert:list<array{a:mixed,b:mixed}>,
+     *   insert_trigger_fired:bool,
+     *   dependencies:list<string>
+     * }
+     */
+    public static function emptyDeleteReturningAfterTriggerDrop(array $insertRow, string $triggerName = 'r1'): array
+    {
+        $row = self::row($insertRow, ['a', 'b'], 'post empty-delete insert row');
+        $triggerName = trim($triggerName);
+        if ($triggerName === '') {
+            throw new \InvalidArgumentException('SQLite temp trigger name must not be empty');
+        }
+
+        return [
+            'source' => 'returning1.test-11.11/11.12',
+            'scenario' => 'DELETE FROM empty TEMP table RETURNING * followed by DROP TRIGGER and INSERT',
+            'delete_returning' => [],
+            'delete_returning_columns' => ['a', 'b'],
+            'delete_changes' => 0,
+            'rows_after_delete' => [],
+            'trigger_catalog_before' => [$triggerName],
+            'trigger_catalog_after_drop' => [],
+            'insert_row' => $row,
+            'rows_after_insert' => [$row],
+            'insert_trigger_fired' => false,
+            'dependencies' => [
+                'returning1.test-11.11',
+                'returning1.test-11.12',
+                'sqlite-returning-empty-temp-delete',
+                'sqlite-temp-trigger-drop-before-next-insert',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $rows
      * @param list<string> $columns
      * @return list<array<string,mixed>>

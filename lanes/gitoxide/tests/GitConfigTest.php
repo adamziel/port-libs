@@ -145,6 +145,66 @@ return [
         $t->same('double-star-override', $config->value('section', null, 'value'));
     },
 
+    'gitdir includeIf conditions preserve upstream path sentinels and absolute boundaries' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        $root = $tmpDir();
+        $gitDir = $root . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($root . '/tilde-alone.config', "[section]\ntildeAlone = should-not-load\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:~"]
+        path = ../tilde-alone.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('base', $config->value('section', null, 'value'));
+        $t->same(null, $config->value('section', null, 'tildeAlone'));
+
+        $root = $tmpDir();
+        $worktree = $root . '/worktree';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/double-slash.config', "[section]\ndoubleSlash = should-not-load\n");
+        $write($worktree . '/absolute-worktree.config', "[section]\nabsoluteWorktree = should-not-load\n");
+        $write($worktree . '/absolute-gitdir.config', "[section]\nabsoluteGitdir = matched\n");
+        $write($worktree . '/absolute-worktree-glob.config', "[section]\nabsoluteWorktreeGlob = matched\n");
+        $write($worktree . '/dotdot.config', "[section]\ndotdot = should-not-load\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir://worktree"]
+        path = ../double-slash.config
+        [includeIf "gitdir:{$worktree}"]
+        path = ../absolute-worktree.config
+        [includeIf "gitdir:{$gitDir}"]
+        path = ../absolute-gitdir.config
+        [includeIf "gitdir:{$worktree}/**"]
+        path = ../absolute-worktree-glob.config
+        [includeIf "gitdir:../"]
+        path = ../dotdot.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same(null, $config->value('section', null, 'doubleSlash'));
+        $t->same(null, $config->value('section', null, 'absoluteWorktree'));
+        $t->same('matched', $config->value('section', null, 'absoluteGitdir'));
+        $t->same('matched', $config->value('section', null, 'absoluteWorktreeGlob'));
+        $t->same(null, $config->value('section', null, 'dotdot'));
+
+        $root = $tmpDir();
+        $worktree = $root . '/.hidden';
+        $gitDir = $worktree . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($worktree . '/include.config', "[section]\nhidden = matched\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:.hidden/"]
+        path = ../include.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('matched', $config->value('section', null, 'hidden'));
+    },
+
     'conditional include quoted subsections and globs use upstream backslash escape rules' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
         $t->same('override-value', $loadConditionalValue('gitdir:work\\tree/', []));
         $t->same('override-value', $loadConditionalValue('gitdir:\\\\work\\\\tree\\\\/', []));
@@ -1046,6 +1106,12 @@ return [
         $t->same(null, $fixture['unclosedBracketPolicy']);
         $t->same(null, $fixture['trailingBackslashUrlPolicy']);
         $t->same('matched', $fixture['optionalPrefixPolicy']);
+        $t->same(null, $fixture['tildeAloneGitdirPolicy']);
+        $t->same(null, $fixture['doubleSlashGitdirPolicy']);
+        $t->same(null, $fixture['dotDotGitdirPolicy']);
+        $t->same(null, $fixture['absoluteWorktreePolicy']);
+        $t->same('matched', $fixture['absoluteGitdirPolicy']);
+        $t->same('matched', $fixture['absoluteWorktreeGlobPolicy']);
         $t->same(null, $fixture['backslashGitdirSlashPolicy']);
         $t->same('matched', $fixture['backslashGitdirWildcardPolicy']);
         $t->same(true, $fixture['symlinkGitdirSupported']);
@@ -1077,6 +1143,12 @@ return [
         $t->same($fixture['unclosedBracketPolicy'], $summary['unclosedBracketPolicy']);
         $t->same($fixture['trailingBackslashUrlPolicy'], $summary['trailingBackslashUrlPolicy']);
         $t->same($fixture['optionalPrefixPolicy'], $summary['optionalPrefixPolicy']);
+        $t->same($fixture['tildeAloneGitdirPolicy'], $summary['tildeAloneGitdirPolicy']);
+        $t->same($fixture['doubleSlashGitdirPolicy'], $summary['doubleSlashGitdirPolicy']);
+        $t->same($fixture['dotDotGitdirPolicy'], $summary['dotDotGitdirPolicy']);
+        $t->same($fixture['absoluteWorktreePolicy'], $summary['absoluteWorktreePolicy']);
+        $t->same($fixture['absoluteGitdirPolicy'], $summary['absoluteGitdirPolicy']);
+        $t->same($fixture['absoluteWorktreeGlobPolicy'], $summary['absoluteWorktreeGlobPolicy']);
         $t->same($fixture['backslashGitdirSlashPolicy'], $summary['backslashGitdirSlashPolicy']);
         $t->same($fixture['backslashGitdirWildcardPolicy'], $summary['backslashGitdirWildcardPolicy']);
         $t->same($fixture['symlinkGitdirSupported'], $summary['symlinkGitdirSupported']);

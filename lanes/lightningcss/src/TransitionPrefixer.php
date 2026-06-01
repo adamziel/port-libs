@@ -1244,13 +1244,13 @@ final class TransitionPrefixer
             'textSizeAdjustNeedsMoz' => isset($normalized['firefox']),
             'textSizeAdjustNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
                 || $this->targetAtLeast($normalized, 'ie', [10]),
-            'hyphensNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [4, 1], [16, 5])
+            'hyphensNeedsWebkit' => $this->targetInRange($normalized, 'ios_saf', [4, 2], [16, 5])
                 || $this->targetInRange($normalized, 'safari', [5, 1], [16, 5]),
             'hyphensNeedsMoz' => $this->targetInRange($normalized, 'firefox', [6], [42]),
             'hyphensNeedsMs' => $this->targetInRange($normalized, 'edge', [12], [18])
                 || $this->targetAtLeast($normalized, 'ie', [10]),
             'tabSizeNeedsMoz' => $this->targetInRange($normalized, 'firefox', [4], [90]),
-            'tabSizeNeedsO' => $this->targetInRange($normalized, 'opera', [10], [12, 1]),
+            'tabSizeNeedsO' => $this->targetInRange($normalized, 'opera', [10, 6], [12, 1]),
             'textAlignLastNeedsMoz' => $this->targetInRange($normalized, 'firefox', [12], [48]),
             'textOverflowNeedsO' => $this->targetInRange($normalized, 'opera', [9], [12]),
             'textDecorationSkipInkNeedsWebkit' => $this->targetAtLeast($normalized, 'ios_saf', [8])

@@ -85,7 +85,7 @@ final class SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan
 
         return [
             'operator' => 'GLOB',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE GLOB ? AND option_value BETWEEN ? AND ?',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE GLOB ? AND key_value BETWEEN ? AND ?',
             'pattern' => $pattern,
             'nameCollation' => 'RTRIM+NOCASE',
             'residualCollation' => 'BINARY',
@@ -168,22 +168,22 @@ final class SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan
         foreach ($rows as $row) {
             self::validateRow($row);
             try {
-                $nameText = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['name_text_encoding']);
-                $valueText = SQLiteEncodingCollationSourceCursor::decodeText($row['option_value_bytes'], $row['value_text_encoding']);
+                $nameText = SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['name_text_encoding']);
+                $valueText = SQLiteEncodingCollationSourceCursor::decodeText($row['key_value_bytes'], $row['value_text_encoding']);
                 $numericValue = self::numericAffinity($valueText);
                 $valid[] = [
-                    'rowid' => $row['option_id'],
+                    'rowid' => $row['setting_id'],
                     'nameText' => $nameText,
                     'valueText' => $valueText,
                     'numericValue' => $numericValue,
                     'comparisonKey' => self::comparisonKey($nameText),
                     'nameEncoding' => self::encodingName($row['name_text_encoding']),
                     'valueEncoding' => self::encodingName($row['value_text_encoding']),
-                    'nameBytesHex' => bin2hex($row['option_name_bytes']),
-                    'valueBytesHex' => bin2hex($row['option_value_bytes']),
+                    'nameBytesHex' => bin2hex($row['key_name_bytes']),
+                    'valueBytesHex' => bin2hex($row['key_value_bytes']),
                 ];
             } catch (\InvalidArgumentException $exception) {
-                $errors[$row['option_id']] = $exception->getMessage();
+                $errors[$row['setting_id']] = $exception->getMessage();
             }
         }
 
@@ -229,12 +229,12 @@ final class SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan
      */
     private static function validateRow(array $row): void
     {
-        foreach (['option_id', 'name_text_encoding', 'value_text_encoding'] as $key) {
+        foreach (['setting_id', 'name_text_encoding', 'value_text_encoding'] as $key) {
             if (!isset($row[$key]) || !is_int($row[$key])) {
                 throw new \InvalidArgumentException("SQLite UTF-16 RTRIM GLOB affinity current-source nextOneFourFive rows require integer {$key}");
             }
         }
-        foreach (['option_name_bytes', 'option_value_bytes'] as $key) {
+        foreach (['key_name_bytes', 'key_value_bytes'] as $key) {
             if (!array_key_exists($key, $row) || !is_string($row[$key])) {
                 throw new \InvalidArgumentException("SQLite UTF-16 RTRIM GLOB affinity current-source nextOneFourFive rows require {$key}");
             }

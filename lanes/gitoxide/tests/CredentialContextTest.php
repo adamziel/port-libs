@@ -243,12 +243,20 @@ return [
             'host' => null,
         ], $fixture['helperProgramUrlOnly']);
         $t->same("username=deploy-bot\npassword=wp-deploy-token\n", $fixture['helperProgramOutput']);
+        $t->same(['username' => 'deploy-bot', 'password' => 'wp-deploy-token', 'oauthRefreshToken' => null], $fixture['helperInvocationIdentity']);
+        $t->same(true, $fixture['helperInvocationQuit']);
+        $t->same(true, $fixture['helperInvocationNextQuit']);
+        $t->same("username=deploy-bot\npassword=wp-deploy-token\nquit=1\n\n", $fixture['helperInvocationStorePayload']);
+        $t->same($fixture['helperInvocationStorePayload'], $fixture['helperInvocationErasePayload']);
         $t->same($fixture['credentialUrl'], $summary['credentialUrl']);
         $t->same($fixture['encodedContext']['path'], $summary['encodedPath']);
         $t->same(true, $summary['fileUrlClearedHost']);
         $t->same(true, $summary['rootHttpPathCleared']);
         $t->same($fixture['helperProgramProtocolHost'], $summary['helperProgramProtocolHost']);
         $t->same($fixture['helperProgramUrlOnly'], $summary['helperProgramUrlOnly']);
+        $t->same($fixture['helperInvocationIdentity'], $summary['helperInvocationIdentity']);
+        $t->same(true, $summary['helperInvocationQuit']);
+        $t->same(true, $summary['helperInvocationNextQuit']);
         $t->same(false, $summary['emptyQuitFalse']);
         $t->same(true, $summary['overflowExpiryIgnored']);
         $t->same(true, $summary['overflowQuitIgnored']);

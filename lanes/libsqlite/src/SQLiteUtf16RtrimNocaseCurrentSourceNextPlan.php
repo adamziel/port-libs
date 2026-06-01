@@ -78,11 +78,11 @@ final class SQLiteUtf16RtrimNocaseCurrentSourceNextPlan
         $valid = [];
         $errors = [];
         foreach ($rows as $row) {
-            if (!isset($row['option_id']) || !is_int($row['option_id'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 RTRIM NOCASE current/next rows require integer option_id');
+            if (!isset($row['setting_id']) || !is_int($row['setting_id'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 RTRIM NOCASE current/next rows require integer setting_id');
             }
-            if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-                throw new \InvalidArgumentException('SQLite UTF-16 RTRIM NOCASE current/next rows require option_name_bytes');
+            if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+                throw new \InvalidArgumentException('SQLite UTF-16 RTRIM NOCASE current/next rows require key_name_bytes');
             }
             if (!isset($row['text_encoding']) || !is_int($row['text_encoding'])) {
                 throw new \InvalidArgumentException('SQLite UTF-16 RTRIM NOCASE current/next rows require integer text_encoding');
@@ -90,17 +90,17 @@ final class SQLiteUtf16RtrimNocaseCurrentSourceNextPlan
 
             try {
                 $encoding = self::encodingName($row['text_encoding']);
-                $text = self::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $text = self::decodeText($row['key_name_bytes'], $row['text_encoding']);
                 $valid[] = [
-                    'rowid' => $row['option_id'],
+                    'rowid' => $row['setting_id'],
                     'text' => $text,
                     'key' => self::rtrimNocaseKey($text),
-                    'bytes' => $row['option_name_bytes'],
+                    'bytes' => $row['key_name_bytes'],
                     'encoding' => $encoding,
                     'payload' => $row,
                 ];
             } catch (\InvalidArgumentException $exception) {
-                $errors[$row['option_id']] = $exception->getMessage();
+                $errors[$row['setting_id']] = $exception->getMessage();
             }
         }
 

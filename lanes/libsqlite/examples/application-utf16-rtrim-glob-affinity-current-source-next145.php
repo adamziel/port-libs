@@ -15,9 +15,9 @@ $code = static fn (string $encoding): int => match ($encoding) {
 
 $row = static function (int $id, string $name, string $value, string $nameEncoding, string $valueEncoding) use ($code): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $nameEncoding),
-        'option_value_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($value, $valueEncoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $nameEncoding),
+        'key_value_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($value, $valueEncoding),
         'name_text_encoding' => $code($nameEncoding),
         'value_text_encoding' => $code($valueEncoding),
     ];
@@ -38,14 +38,14 @@ $next = [
     $row(5, 'plugin_cache_new', '12', 'UTF-16LE', 'UTF-8'),
 ];
 
-$plan = SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::optionRowNameValuePlan(
+$plan = SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan(
     $current,
     $next,
     'plugin_*',
     '9.5',
     '14',
-    'main.wp_options@144',
-    'main.wp_options@145',
+    'main.app_settings@144',
+    'main.app_settings@145',
     31,
     32,
     8,
@@ -65,7 +65,7 @@ if (($argv[1] ?? null) === '--self-test') {
 
 echo json_encode([
     'scenario' => 'application-utf16-rtrim-glob-affinity-current-source-next145',
-    'applicationUse' => 'Copied wp_options plugin settings can scan a UTF-16 rtrim(option_name) COLLATE NOCASE GLOB range while applying byte-sensitive GLOB residuals and NUMERIC affinity to option_value before reusing or invalidating a current-source cursor.',
+    'applicationUse' => 'Copied app_settings plugin settings can scan a UTF-16 rtrim(key_name) COLLATE NOCASE GLOB range while applying byte-sensitive GLOB residuals and NUMERIC affinity to key_value before reusing or invalidating a current-source cursor.',
     'pattern' => $plan['pattern'],
     'numericRange' => $plan['numericRange'],
     'currentMatchedRowids' => $plan['currentMatchedRowids'],

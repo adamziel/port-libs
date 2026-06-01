@@ -9,8 +9,8 @@ use PortLibs\LibSqlite\SQLiteUtf16RtrimNocaseCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteUtf16CollationAffinityCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteUtf16CollationAffinityCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -32,12 +32,12 @@ $next = [
     $row(3, 'plugin_cache' . "\t", 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::optionRowNameCurrentNext(
+$plan = SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::keyValueRowKeyCurrentNext(
     $current,
     $next,
     'plugin_cache',
-    'main.wp_options@cookie102',
-    'main.wp_options@cookie103',
+    'main.app_settings@cookie102',
+    'main.app_settings@cookie103',
 );
 
 if (($argv[1] ?? null) === '--self-test') {

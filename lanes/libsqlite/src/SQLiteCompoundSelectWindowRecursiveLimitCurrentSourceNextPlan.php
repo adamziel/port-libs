@@ -5123,7 +5123,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 [
                     'compound-tail-window-limit-current-source-tail-window-limit-boundary',
                     'recursive-offset-window-arm-before-union-distinct-tail-window-limit-boundary',
-                    'application-option-boundary-replans-final-limit-tail-window-limit-boundary',
+                    'application-setting-boundary-replans-final-limit-tail-window-limit-boundary',
                 ],
             )));
             $base['dependency_closure'] = 'no new support component needed; tail-window-limit-boundary reuses native SELECT SQL recursive CTE LIMIT/OFFSET, window lag/lead, compound UNION ALL/UNION, ORDER BY, and final LIMIT/OFFSET execution';
@@ -5790,7 +5790,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 'nextTruncatedLabels' => self::labelsForCommaLimitBoundary(array_slice($nextPreLimit, self::offsetForCommaLimitBoundary($base) + self::limitForCommaLimitBoundary($base))),
                 'addedAdmittedLabels' => self::changedLabelsForCommaLimitBoundary($currentRows, $nextRows, true),
                 'removedAdmittedLabels' => self::changedLabelsForCommaLimitBoundary($currentRows, $nextRows, false),
-                'nextAutoloadWindowLabels' => self::loadPolicyLabelsForCommaLimitBoundary($nextPreLimit),
+                'nextLoadPolicyWindowLabels' => self::loadPolicyLabelsForCommaLimitBoundary($nextPreLimit),
                 'nextRecursiveLabels' => self::recursiveLabelsForCommaLimitBoundary($nextPreLimit),
             ];
             $base['replanReasons'] = array_values(array_unique(array_merge(
@@ -5799,7 +5799,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-tail-comma-limit-current-source-next186',
                     'window-rank-dense-rank-before-distinct-union-next186',
                     'recursive-offset-source-boundary-next186',
-                    'application-autoload-option-rank-replans-limit-window-next186',
+                    'application-load-policy-setting-rank-replans-limit-window-next186',
                 ],
             )));
             $base['dependencies'] = [
@@ -6769,7 +6769,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-window-recursive-limit-current-source-source-token-fence',
                     'recursive-limit-current-source-token-source-token-fence',
                     'window-before-compound-limit-source-boundary-source-token-fence',
-                    'application-option-preview-stale-cursor-fence-source-token-fence',
+                    'application-setting-preview-stale-cursor-fence-source-token-fence',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-compound-window-recursive-limit-source-token-fence',
@@ -7062,7 +7062,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'recursive-limit-expression-current-source-expression-limit-boundary',
                     'compound-tail-limit-expression-current-source-expression-limit-boundary',
                     'window-values-before-compound-limit-expression-expression-limit-boundary',
-                    'application-option-source-boundary-shifts-expression-limit-expression-limit-boundary',
+                    'application-setting-source-boundary-shifts-expression-limit-expression-limit-boundary',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-limit-expression-expression-limit-boundary',
@@ -7835,7 +7835,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-window-distribution-current-source-recursiveCurrentGap',
                     'recursive-queue-order-limit-current-source-recursiveCurrentGap',
                     'percent-rank-cume-dist-before-compound-limit-recursiveCurrentGap',
-                    'application-option-preview-stale-cursor-fence-recursiveCurrentGap',
+                    'application-setting-preview-stale-cursor-fence-recursiveCurrentGap',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-recursiveCurrentGap',
@@ -8266,7 +8266,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-intersect-except-window-recursive-limit-recursiveCursorGate',
                     'window-values-before-compound-membership-recursiveCursorGate',
                     'recursive-limit-current-source-token-recursiveCursorGate',
-                    'application-option-preview-stale-membership-fence-recursiveCursorGate',
+                    'application-setting-preview-stale-membership-fence-recursiveCursorGate',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-compound-intersect-except-recursiveCursorGate',
@@ -8872,7 +8872,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-ntile-first-value-current-source-ntileFirstValueUnionDistinct',
                     'recursive-order-limit-offset-before-frame-windows-ntileFirstValueUnionDistinct',
                     'union-distinct-after-window-frame-ntileFirstValueUnionDistinct',
-                    'application-option-preview-stale-cursor-fence-ntileFirstValueUnionDistinct',
+                    'application-setting-preview-stale-cursor-fence-ntileFirstValueUnionDistinct',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-ntileFirstValueUnionDistinct',
@@ -8880,7 +8880,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-current-source-token-fence-ntileFirstValueUnionDistinct',
                 ],
                 'dependency_closure' => 'no new support component needed; ntileFirstValueUnionDistinct reuses native SELECT SQL compound, recursive queue ORDER BY/LIMIT/OFFSET, ntile/first_value window frames, UNION distinct, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted recursiveCurrentGap percent_rank/cume_dist distribution windows, ordered-value-offset-boundary nth_value/ntile/lead value-offset tape, expression-limit-boundary expression LIMIT windows, and JSON/WAL/B-tree/VFS clusters; this slice fences ntile plus first_value frame output before a final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted recursiveCurrentGap percent_rank/cume_dist distribution windows, ordered-value-offset-boundary nth_value/ntile/lead value-offset tape, expression-limit-boundary expression LIMIT windows, and JSON/WAL/B-tree/VFS clusters; this slice fences ntile plus first_value frame output before a final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -9252,7 +9252,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-union-distinct-except-window-recursive-limit-rankLastValueUnionExcept',
                     'recursive-order-limit-offset-before-window-rankLastValueUnionExcept',
                     'rank-last-value-before-compound-distinct-rankLastValueUnionExcept',
-                    'application-option-preview-distinct-except-boundary-rankLastValueUnionExcept',
+                    'application-setting-preview-distinct-except-boundary-rankLastValueUnionExcept',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-order-limit-offset-rankLastValueUnionExcept',
@@ -9570,7 +9570,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-ntile-first-value-current-source-ntileFirstValueCursorReplay',
                     'recursive-order-limit-offset-before-frame-windows-ntileFirstValueCursorReplay',
                     'union-distinct-after-window-frame-ntileFirstValueCursorReplay',
-                    'application-option-preview-stale-cursor-fence-ntileFirstValueCursorReplay',
+                    'application-setting-preview-stale-cursor-fence-ntileFirstValueCursorReplay',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-ntileFirstValueCursorReplay',
@@ -9966,7 +9966,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-lag-last-value-current-source-lagLastValueExcept',
                     'recursive-order-limit-offset-before-offset-windows-lagLastValueExcept',
                     'except-after-window-output-lagLastValueExcept',
-                    'application-option-preview-stale-cursor-fence-lagLastValueExcept',
+                    'application-setting-preview-stale-cursor-fence-lagLastValueExcept',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-lagLastValueExcept',
@@ -9974,7 +9974,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-current-source-token-fence-lagLastValueExcept',
                 ],
                 'dependency_closure' => 'no new support component needed; lagLastValueExcept reuses native SELECT SQL compound, recursive queue ORDER BY/LIMIT/OFFSET, lag/last_value window output, EXCEPT membership, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted ntileFirstValueUnionDistinct ntile/first_value UNION distinct, windowOffsetBoundary INTERSECT/EXCEPT row_number membership, recursiveCurrentGap percent_rank/cume_dist distribution windows, ordered-value-offset-boundary nth_value/ntile/lead value-offset tape, and JSON/WAL/B-tree/VFS clusters; this slice fences lag defaults plus last_value frame output through an EXCEPT tail before the final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted ntileFirstValueUnionDistinct ntile/first_value UNION distinct, windowOffsetBoundary INTERSECT/EXCEPT row_number membership, recursiveCurrentGap percent_rank/cume_dist distribution windows, ordered-value-offset-boundary nth_value/ntile/lead value-offset tape, and JSON/WAL/B-tree/VFS clusters; this slice fences lag defaults plus last_value frame output through an EXCEPT tail before the final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -10349,7 +10349,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-rank-dense-rank-current-source-rankDenseRankIntersect',
                     'recursive-order-limit-offset-before-ranking-windows-rankDenseRankIntersect',
                     'intersect-after-window-output-rankDenseRankIntersect',
-                    'application-option-preview-stale-cursor-fence-rankDenseRankIntersect',
+                    'application-setting-preview-stale-cursor-fence-rankDenseRankIntersect',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-rankDenseRankIntersect',
@@ -10357,7 +10357,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-current-source-token-fence-rankDenseRankIntersect',
                 ],
                 'dependency_closure' => 'no new support component needed; rankDenseRankIntersect reuses native SELECT SQL compound, recursive queue ORDER BY/LIMIT/OFFSET, rank/dense_rank window output, INTERSECT membership, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted lagLastValueExcept lag/last_value EXCEPT membership, ntileFirstValueUnionDistinct ntile/first_value UNION distinct, windowOffsetBoundary INTERSECT/EXCEPT row_number membership, recursiveCurrentGap percent_rank/cume_dist distribution windows, and JSON/WAL/B-tree/VFS clusters; this slice fences rank peer groups plus dense_rank partition output through an INTERSECT tail before the final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted lagLastValueExcept lag/last_value EXCEPT membership, ntileFirstValueUnionDistinct ntile/first_value UNION distinct, windowOffsetBoundary INTERSECT/EXCEPT row_number membership, recursiveCurrentGap percent_rank/cume_dist distribution windows, and JSON/WAL/B-tree/VFS clusters; this slice fences rank peer groups plus dense_rank partition output through an INTERSECT tail before the final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -10735,7 +10735,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-lead-nth-value-current-source-lead-nth-value-intersect-limit',
                     'recursive-ordered-limit-before-intersect-windows-lead-nth-value-intersect-limit',
                     'intersect-after-window-output-lead-nth-value-intersect-limit',
-                    'application-option-preview-stale-cursor-fence-lead-nth-value-intersect-limit',
+                    'application-setting-preview-stale-cursor-fence-lead-nth-value-intersect-limit',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-lead-nth-value-intersect-limit',
@@ -10743,7 +10743,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-intersect-current-source-token-fence-lead-nth-value-intersect-limit',
                 ],
                 'dependency_closure' => 'no new support component needed; lead-nth-value-intersect-limit reuses native SELECT SQL compound, recursive queue ORDER BY/LIMIT/OFFSET, lead default handling, nth_value frame output, INTERSECT membership, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted lag-last-value-except lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueUnionDistinct ntile/first_value UNION distinct, windowOffsetBoundary INTERSECT/EXCEPT row_number membership, recursiveCurrentGap percent_rank/cume_dist distribution windows, ordered-value-offset-boundary nth_value/ntile/lead value-offset tape, and JSON/WAL/B-tree/VFS clusters; this slice fences lead defaults plus nth_value frame output through an INTERSECT tail before the final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted lag-last-value-except lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueUnionDistinct ntile/first_value UNION distinct, windowOffsetBoundary INTERSECT/EXCEPT row_number membership, recursiveCurrentGap percent_rank/cume_dist distribution windows, ordered-value-offset-boundary nth_value/ntile/lead value-offset tape, and JSON/WAL/B-tree/VFS clusters; this slice fences lead defaults plus nth_value frame output through an INTERSECT tail before the final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -11137,7 +11137,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-except-before-intersect-current-source-next207',
                     'recursive-ordered-limit-except-fence-next207',
                     'window-output-membership-after-except-next207',
-                    'application-option-preview-stale-cursor-fence-next207',
+                    'application-setting-preview-stale-cursor-fence-next207',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next207',
@@ -11145,7 +11145,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-except-intersect-current-source-token-fence-next207',
                 ],
                 'dependency_closure' => 'no new support component needed; next207 reuses native SELECT SQL compound, recursive queue ORDER BY/LIMIT/OFFSET, lead default handling, nth_value frame output, EXCEPT row removal, INTERSECT membership, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted lead-nth-value-intersect-limit lead/nth_value INTERSECT-only fencing, lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueUnionDistinct ntile/first_value UNION distinct, windowOffsetBoundary INTERSECT/EXCEPT row_number membership, recursiveCurrentGap percent_rank/cume_dist distribution windows, and JSON/WAL/B-tree/VFS clusters; this slice removes the first recursive lead() row through an EXCEPT fence before INTERSECT membership and final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted lead-nth-value-intersect-limit lead/nth_value INTERSECT-only fencing, lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueUnionDistinct ntile/first_value UNION distinct, windowOffsetBoundary INTERSECT/EXCEPT row_number membership, recursiveCurrentGap percent_rank/cume_dist distribution windows, and JSON/WAL/B-tree/VFS clusters; this slice removes the first recursive lead() row through an EXCEPT fence before INTERSECT membership and final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -11538,7 +11538,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-rank-dense-rank-current-source-next208',
                     'recursive-ordered-limit-before-ranking-windows-next208',
                     'except-after-ranking-window-output-next208',
-                    'application-option-preview-stale-cursor-fence-next208',
+                    'application-setting-preview-stale-cursor-fence-next208',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next208',
@@ -11546,7 +11546,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-except-current-source-token-fence-next208',
                 ],
                 'dependency_closure' => 'no new support component needed; next208 reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, rank and dense_rank window dispatch, EXCEPT membership, current-source tokens, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted lead-nth-value-intersect-limit lead/nth_value INTERSECT fencing, lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueCursorReplay ntile/first_value UNION distinct, ntileFirstValueUnionDistinct and adjacent compound window variants, and unrelated JSON/WAL/B-tree/VFS clusters; this slice fences rank plus dense_rank output through an EXCEPT tail before the final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted lead-nth-value-intersect-limit lead/nth_value INTERSECT fencing, lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueCursorReplay ntile/first_value UNION distinct, ntileFirstValueUnionDistinct and adjacent compound window variants, and unrelated JSON/WAL/B-tree/VFS clusters; this slice fences rank plus dense_rank output through an EXCEPT tail before the final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -11899,7 +11899,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'functions' => $functions,
                     'aggregateFunctions' => array_values(array_intersect($functions, ['sum', 'count'])),
                     'sumFrameMetrics' => self::metricsForSourceSumCountExceptUnionLimit($currentPreLimitRows, 'seed'),
-                    'countFrameMetrics' => self::metricsForSourceSumCountExceptUnionLimit($currentPreLimitRows, 'wp'),
+                    'countFrameMetrics' => self::metricsForSourceSumCountExceptUnionLimit($currentPreLimitRows, 'table'),
                 ],
                 'sourceWindow' => [
                     'currentToken' => $currentToken,
@@ -11928,7 +11928,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-sum-count-window-current-source-next209',
                     'recursive-ordered-limit-before-aggregate-windows-next209',
                     'except-and-union-after-window-output-next209',
-                    'application-option-preview-stale-cursor-fence-next209',
+                    'application-setting-preview-stale-cursor-fence-next209',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next209',
@@ -11936,7 +11936,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-except-union-current-source-token-fence-next209',
                 ],
                 'dependency_closure' => 'no new support component needed; next209 reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, aggregate window frames, EXCEPT/UNION membership, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted lead-nth-value-intersect-limit lead/nth_value INTERSECT fencing, lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueUnionDistinct ntile/first_value UNION distinct, recursiveCurrentGap percent_rank/cume_dist distribution windows, and JSON/WAL/B-tree/VFS clusters; this slice fences sum/count aggregate window output through EXCEPT plus UNION before the final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted lead-nth-value-intersect-limit lead/nth_value INTERSECT fencing, lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueUnionDistinct ntile/first_value UNION distinct, recursiveCurrentGap percent_rank/cume_dist distribution windows, and JSON/WAL/B-tree/VFS clusters; this slice fences sum/count aggregate window output through EXCEPT plus UNION before the final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -12094,7 +12094,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 static fn (array $row): int => (int) ($row['metric'] ?? 0),
                 array_values(array_filter($rows, static function (array $row) use ($source): bool {
                     $label = (string) ($row['label'] ?? '');
-                    if ($source === 'wp') {
+                    if ($source === 'table') {
                         return !str_starts_with($label, 'seed');
                     }
 
@@ -12297,7 +12297,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-row-number-last-value-current-source-next210',
                     'recursive-ordered-limit-before-value-windows-next210',
                     'intersect-before-except-window-output-next210',
-                    'application-option-preview-stale-cursor-fence-next210',
+                    'application-setting-preview-stale-cursor-fence-next210',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next210',
@@ -12305,7 +12305,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-intersect-except-current-source-token-fence-next210',
                 ],
                 'dependency_closure' => 'no new support component needed; next210 reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, row_number window dispatch, last_value frame dispatch, INTERSECT/EXCEPT membership, current-source tokens, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted next209 sum/count aggregate windows, next208 rank/dense_rank EXCEPT fencing, lead-nth-value-intersect-limit lead/nth_value INTERSECT fencing, lagLastValueExcept lag/last_value EXCEPT-only fencing, and unrelated JSON/WAL/B-tree/VFS clusters; this slice fences row_number plus last_value frame output through an INTERSECT stage followed by EXCEPT before the final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted next209 sum/count aggregate windows, next208 rank/dense_rank EXCEPT fencing, lead-nth-value-intersect-limit lead/nth_value INTERSECT fencing, lagLastValueExcept lag/last_value EXCEPT-only fencing, and unrelated JSON/WAL/B-tree/VFS clusters; this slice fences row_number plus last_value frame output through an INTERSECT stage followed by EXCEPT before the final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -12687,7 +12687,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'recursive-limit-offset-before-filter-window-next211',
                     'except-removes-filtered-window-row-next211',
                     'union-distinct-after-filter-window-next211',
-                    'application-option-preview-stale-filter-cursor-next211',
+                    'application-setting-preview-stale-filter-cursor-next211',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-window-filter-next211',
@@ -12695,7 +12695,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-except-union-filter-current-source-next211',
                 ],
                 'dependency_closure' => 'no new support component needed; next211 reuses native SELECT SQL compound execution, recursive LIMIT/OFFSET tracing, FILTERed aggregate window frames, EXCEPT/UNION membership, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted next209 unfiltered sum/count aggregate windows, lead-nth-value-intersect-limit lead/nth_value INTERSECT fencing, lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueUnionDistinct ntile/first_value UNION distinct, JSON/WAL/B-tree/VFS clusters, and current next115/next116 pool work; this slice only fences FILTERed aggregate window output through EXCEPT plus UNION before final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted next209 unfiltered sum/count aggregate windows, lead-nth-value-intersect-limit lead/nth_value INTERSECT fencing, lagLastValueExcept lag/last_value EXCEPT fencing, ntileFirstValueUnionDistinct ntile/first_value UNION distinct, JSON/WAL/B-tree/VFS clusters, and current next115/next116 pool work; this slice only fences FILTERed aggregate window output through EXCEPT plus UNION before final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -13090,7 +13090,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-group-concat-row-number-current-source-next212',
                     'recursive-ordered-limit-before-string-window-next212',
                     'except-after-window-output-next212',
-                    'application-option-preview-stale-cursor-fence-next212',
+                    'application-setting-preview-stale-cursor-fence-next212',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next212',
@@ -13098,7 +13098,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-except-current-source-token-fence-next212',
                 ],
                 'dependency_closure' => 'no new support component needed; next212 reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, group_concat and row_number window output, EXCEPT membership, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted next209 sum/count aggregate window EXCEPT+UNION fencing, lead-nth-value-intersect-limit lead/nth_value INTERSECT fencing, lagLastValueExcept lag/last_value EXCEPT fencing, and JSON/WAL/B-tree/VFS clusters; this slice fences string window output plus row_number before EXCEPT and final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted next209 sum/count aggregate window EXCEPT+UNION fencing, lead-nth-value-intersect-limit lead/nth_value INTERSECT fencing, lagLastValueExcept lag/last_value EXCEPT fencing, and JSON/WAL/B-tree/VFS clusters; this slice fences string window output plus row_number before EXCEPT and final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -13311,7 +13311,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     continue;
                 }
                 $row = is_array($entry['current'] ?? null) ? $entry['current'] : [];
-                $labels[] = (string) ($row['label'] ?? $row['option_name'] ?? '');
+                $labels[] = (string) ($row['label'] ?? $row['key_name'] ?? '');
             }
 
             return $labels;
@@ -13458,7 +13458,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-min-max-window-current-source-next213',
                     'recursive-ordered-limit-before-extrema-window-next213',
                     'intersect-after-window-output-next213',
-                    'application-option-preview-stale-cursor-fence-next213',
+                    'application-setting-preview-stale-cursor-fence-next213',
                 ],
                 'dependencies' => [
                     'sqlite-window-min-max-frame-values-next213',
@@ -13466,7 +13466,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-intersect-current-source-token-fence-next213',
                 ],
                 'dependency_closure' => 'no new support component needed; next213 reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, min/max window frame execution, INTERSECT membership, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted next212 group_concat/row_number EXCEPT fencing, next209 sum/count EXCEPT+UNION fencing, next208 rank/dense_rank EXCEPT fencing, JSON/WAL/B-tree/VFS clusters, and grouped/JOIN/subquery/ORDER SQL text work; next213 covers min/max aggregate windows before INTERSECT and final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted next212 group_concat/row_number EXCEPT fencing, next209 sum/count EXCEPT+UNION fencing, next208 rank/dense_rank EXCEPT fencing, JSON/WAL/B-tree/VFS clusters, and grouped/JOIN/subquery/ORDER SQL text work; next213 covers min/max aggregate windows before INTERSECT and final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -13642,7 +13642,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     continue;
                 }
                 $row = is_array($entry['current'] ?? null) ? $entry['current'] : (is_array($entry['row'] ?? null) ? $entry['row'] : []);
-                $labels[] = (string) ($row['label'] ?? $row['option_name'] ?? '');
+                $labels[] = (string) ($row['label'] ?? $row['key_name'] ?? '');
             }
 
             return $labels;
@@ -13791,7 +13791,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-rank-dense-rank-current-source-next217',
                     'recursive-queue-exhausted-before-intersect-next217',
                     'intersect-window-membership-before-final-limit-next217',
-                    'application-option-preview-stale-cursor-fence-next217',
+                    'application-setting-preview-stale-cursor-fence-next217',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next217',
@@ -13799,7 +13799,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-intersect-current-source-token-fence-next217',
                 ],
                 'dependency_closure' => 'no new support component needed; next217 reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, rank and dense_rank window dispatch, INTERSECT membership, current-source tokens, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted group_concat/row_number EXCEPT fencing, row_number/last_value INTERSECT+EXCEPT fencing, sum/count aggregate windows, and lead/nth_value INTERSECT fencing, and JSON/WAL/B-tree/VFS clusters; this slice fences rank/dense_rank window output through INTERSECT before final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted group_concat/row_number EXCEPT fencing, row_number/last_value INTERSECT+EXCEPT fencing, sum/count aggregate windows, and lead/nth_value INTERSECT fencing, and JSON/WAL/B-tree/VFS clusters; this slice fences rank/dense_rank window output through INTERSECT before final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -14012,7 +14012,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     continue;
                 }
                 $row = is_array($entry['current'] ?? null) ? $entry['current'] : [];
-                $labels[] = (string) ($row['label'] ?? $row['option_name'] ?? '');
+                $labels[] = (string) ($row['label'] ?? $row['key_name'] ?? '');
             }
 
             return $labels;
@@ -14156,7 +14156,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-union-all-intersect-window-current-source-next218',
                     'recursive-limit-offset-before-intersect-window-next218',
                     'window-rank-shift-changes-final-limit-page-next218',
-                    'application-option-preview-stale-cursor-fence-next218',
+                    'application-setting-preview-stale-cursor-fence-next218',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-limit-offset-next218',
@@ -14164,7 +14164,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-current-source-token-fence-next218',
                 ],
                 'dependency_closure' => 'no new support component needed; next218 reuses native SELECT SQL compound execution, recursive queue LIMIT/OFFSET tracing, row_number window output, INTERSECT membership, and final LIMIT helpers',
-                'non_overlap' => 'next218 covers UNION ALL then INTERSECT over row_number-ranked wp_options rows whose next-source insert shifts the final LIMIT page after a bounded recursive queue; avoids accepted next212 string-window EXCEPT fencing, next211 compound window/recursive LIMIT behavior, accepted SELECT subqueries, expression ORDER BY, JSON/WAL/B-tree/VFS clusters',
+                'non_overlap' => 'next218 covers UNION ALL then INTERSECT over row_number-ranked app_settings rows whose next-source insert shifts the final LIMIT page after a bounded recursive queue; avoids accepted next212 string-window EXCEPT fencing, next211 compound window/recursive LIMIT behavior, accepted SELECT subqueries, expression ORDER BY, JSON/WAL/B-tree/VFS clusters',
             ];
         }
 
@@ -14318,7 +14318,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         private static function labelsUnionAllIntersectWindowLimit(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
+            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''), $rows));
         }
 
         /**
@@ -14508,7 +14508,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-percent-rank-cume-dist-current-source-next219',
                     'recursive-ordered-limit-before-percent-window-next219',
                     'except-after-window-output-next219',
-                    'application-option-preview-stale-cursor-fence-next219',
+                    'application-setting-preview-stale-cursor-fence-next219',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next219',
@@ -14516,7 +14516,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-except-current-source-token-fence-next219',
                 ],
                 'dependency_closure' => 'no new support component needed; next219 reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, percent_rank and cume_dist window dispatch, EXCEPT membership, current-source tokens, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted next217 rank/dense_rank INTERSECT fencing, next213 min/max INTERSECT fencing, next212 group_concat/row_number EXCEPT fencing, next210 row_number/last_value INTERSECT+EXCEPT fencing, accepted JSON/WAL/B-tree/VFS clusters, and grouped/JOIN/subquery/ORDER SQL text work; next219 fences percent_rank/cume_dist window output through EXCEPT before final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted next217 rank/dense_rank INTERSECT fencing, next213 min/max INTERSECT fencing, next212 group_concat/row_number EXCEPT fencing, next210 row_number/last_value INTERSECT+EXCEPT fencing, accepted JSON/WAL/B-tree/VFS clusters, and grouped/JOIN/subquery/ORDER SQL text work; next219 fences percent_rank/cume_dist window output through EXCEPT before final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -14853,7 +14853,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-max-sum-current-source-max-sum-intersect-limit',
                     'recursive-queue-exhausted-before-intersect-max-sum-intersect-limit',
                     'intersect-window-membership-before-final-limit-max-sum-intersect-limit',
-                    'application-option-preview-stale-cursor-fence-max-sum-intersect-limit',
+                    'application-setting-preview-stale-cursor-fence-max-sum-intersect-limit',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-max-sum-intersect-limit',
@@ -14861,7 +14861,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-intersect-current-source-token-fence-max-sum-intersect-limit',
                 ],
                 'dependency_closure' => 'no new support component needed; max-sum-intersect-limit reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, max and sum window dispatch, INTERSECT membership, current-source tokens, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted group_concat/row_number EXCEPT fencing, row_number/last_value INTERSECT+EXCEPT fencing, sum/count aggregate windows, and lead/nth_value INTERSECT fencing, and JSON/WAL/B-tree/VFS clusters; this slice fences max/sum window output through INTERSECT before final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted group_concat/row_number EXCEPT fencing, row_number/last_value INTERSECT+EXCEPT fencing, sum/count aggregate windows, and lead/nth_value INTERSECT fencing, and JSON/WAL/B-tree/VFS clusters; this slice fences max/sum window output through INTERSECT before final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -15074,7 +15074,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     continue;
                 }
                 $row = is_array($entry['current'] ?? null) ? $entry['current'] : [];
-                $labels[] = (string) ($row['label'] ?? $row['option_name'] ?? '');
+                $labels[] = (string) ($row['label'] ?? $row['key_name'] ?? '');
             }
 
             return $labels;
@@ -15218,7 +15218,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-union-all-intersect-except-window-current-source-next224',
                     'recursive-limit-offset-before-intersect-except-window-next224',
                     'window-rank-shift-changes-except-final-limit-page-next224',
-                    'application-option-preview-stale-cursor-fence-next224',
+                    'application-setting-preview-stale-cursor-fence-next224',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-limit-offset-next224',
@@ -15226,7 +15226,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-current-source-token-fence-next224',
                 ],
                 'dependency_closure' => 'no new support component needed; next224 reuses native SELECT SQL compound execution, recursive queue LIMIT/OFFSET tracing, row_number window output, INTERSECT/EXCEPT membership, and final LIMIT helpers',
-                'non_overlap' => 'next224 extends the accepted compound/window/recursive LIMIT family with a mixed UNION ALL -> INTERSECT -> EXCEPT chain where a next-source wp_options row shifts the window rank and final LIMIT page after EXCEPT; it does not repeat next218 UNION ALL/INTERSECT-only rank shift, expression-limit-boundary expression LIMIT, or accepted window/JSON/WAL/B-tree/VFS clusters',
+                'non_overlap' => 'next224 extends the accepted compound/window/recursive LIMIT family with a mixed UNION ALL -> INTERSECT -> EXCEPT chain where a next-source app_settings row shifts the window rank and final LIMIT page after EXCEPT; it does not repeat next218 UNION ALL/INTERSECT-only rank shift, expression-limit-boundary expression LIMIT, or accepted window/JSON/WAL/B-tree/VFS clusters',
             ];
         }
 
@@ -15350,7 +15350,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         private static function labelsMixedCompoundRankFence(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
+            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''), $rows));
         }
 
         /**
@@ -15557,7 +15557,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-lag-last-value-current-source-next225',
                     'recursive-ordered-limit-before-value-windows-next225',
                     'intersect-before-except-window-output-next225',
-                    'application-option-preview-stale-cursor-fence-next225',
+                    'application-setting-preview-stale-cursor-fence-next225',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next225',
@@ -15565,7 +15565,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-intersect-except-current-source-token-fence-next225',
                 ],
                 'dependency_closure' => 'no new support component needed; next225 reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, lag default window dispatch, last_value frame dispatch, INTERSECT/EXCEPT membership, current-source tokens, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted next219 percent_rank/cume_dist EXCEPT fencing, next212 group_concat/row_number EXCEPT fencing, next210 row_number/last_value INTERSECT+EXCEPT fencing, lead-nth-value-intersect-limit lead/nth_value INTERSECT fencing, lagLastValueExcept lag/last_value EXCEPT-only fencing, and unrelated JSON/WAL/B-tree/VFS clusters; this slice fences lag default plus last_value frame output through an INTERSECT stage followed by EXCEPT before the final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted next219 percent_rank/cume_dist EXCEPT fencing, next212 group_concat/row_number EXCEPT fencing, next210 row_number/last_value INTERSECT+EXCEPT fencing, lead-nth-value-intersect-limit lead/nth_value INTERSECT fencing, lagLastValueExcept lag/last_value EXCEPT-only fencing, and unrelated JSON/WAL/B-tree/VFS clusters; this slice fences lag default plus last_value frame output through an INTERSECT stage followed by EXCEPT before the final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -15944,7 +15944,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-sum-count-intersect-current-source-next226',
                     'recursive-ordered-limit-before-aggregate-window-next226',
                     'except-intersect-after-window-output-next226',
-                    'application-option-preview-stale-cursor-fence-next226',
+                    'application-setting-preview-stale-cursor-fence-next226',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-next226',
@@ -15952,7 +15952,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-except-intersect-current-source-token-fence-next226',
                 ],
                 'dependency_closure' => 'no new support component needed; next226 reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, aggregate sum/count window dispatch, EXCEPT plus INTERSECT membership, current-source tokens, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted next219 percent_rank/cume_dist EXCEPT fencing, next217 rank/dense_rank INTERSECT fencing, next213 min/max INTERSECT fencing, next212 group_concat/row_number EXCEPT fencing, next210 row_number/last_value INTERSECT+EXCEPT fencing, accepted JSON/WAL/B-tree/VFS clusters, and grouped/JOIN/subquery/ORDER SQL text work; next226 fences aggregate sum/count window output through EXCEPT and INTERSECT before final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted next219 percent_rank/cume_dist EXCEPT fencing, next217 rank/dense_rank INTERSECT fencing, next213 min/max INTERSECT fencing, next212 group_concat/row_number EXCEPT fencing, next210 row_number/last_value INTERSECT+EXCEPT fencing, accepted JSON/WAL/B-tree/VFS clusters, and grouped/JOIN/subquery/ORDER SQL text work; next226 fences aggregate sum/count window output through EXCEPT and INTERSECT before final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -16332,7 +16332,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         private static function labelsCurrentPageDrain(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
+            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''), $rows));
         }
 
         /**
@@ -16457,7 +16457,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-union-distinct-except-dense-rank-current-source-union-except-dense-rank-limit',
                     'recursive-limit-offset-before-union-except-window-union-except-dense-rank-limit',
                     'dense-rank-shift-changes-except-final-limit-page-union-except-dense-rank-limit',
-                    'application-option-preview-stale-cursor-fence-union-except-dense-rank-limit',
+                    'application-setting-preview-stale-cursor-fence-union-except-dense-rank-limit',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-limit-offset-union-except-dense-rank-limit',
@@ -16465,7 +16465,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-current-source-token-fence-union-except-dense-rank-limit',
                 ],
                 'dependency_closure' => 'no new support component needed; union-except-dense-rank-limit reuses native SELECT SQL compound execution, recursive queue LIMIT/OFFSET tracing, dense_rank window output, UNION DISTINCT/EXCEPT membership, and final LIMIT helpers',
-                'non_overlap' => 'union-except-dense-rank-limit extends the accepted compound/window/recursive LIMIT family with a UNION DISTINCT -> EXCEPT chain where a next-source wp_options row shifts dense_rank output and the final LIMIT page after EXCEPT; it does not repeat next224 UNION ALL/INTERSECT/EXCEPT row_number rank shift, next218 UNION ALL/INTERSECT-only rank shift, expression-limit-boundary expression LIMIT, or accepted window/JSON/WAL/B-tree/VFS clusters',
+                'non_overlap' => 'union-except-dense-rank-limit extends the accepted compound/window/recursive LIMIT family with a UNION DISTINCT -> EXCEPT chain where a next-source app_settings row shifts dense_rank output and the final LIMIT page after EXCEPT; it does not repeat next224 UNION ALL/INTERSECT/EXCEPT row_number rank shift, next218 UNION ALL/INTERSECT-only rank shift, expression-limit-boundary expression LIMIT, or accepted window/JSON/WAL/B-tree/VFS clusters',
             ];
         }
 
@@ -16589,7 +16589,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         private static function labelsUnionExceptDenseRankLimit(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
+            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''), $rows));
         }
 
         /**
@@ -16791,7 +16791,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-avg-first-value-union-distinct-current-source-union-intersect-except-window-limit',
                     'recursive-ordered-limit-before-avg-window-union-intersect-except-window-limit',
                     'intersect-except-after-window-output-union-intersect-except-window-limit',
-                    'application-option-preview-stale-cursor-fence-union-intersect-except-window-limit',
+                    'application-setting-preview-stale-cursor-fence-union-intersect-except-window-limit',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-order-limit-union-intersect-except-window-limit',
@@ -16799,7 +16799,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-union-intersect-except-current-source-token-fence-union-intersect-except-window-limit',
                 ],
                 'dependency_closure' => 'no new support component needed; union-intersect-except-window-limit reuses native SELECT SQL compound execution, recursive queue ORDER BY/LIMIT/OFFSET, avg window dispatch, first_value frame dispatch, UNION distinct plus INTERSECT/EXCEPT membership, current-source tokens, and final LIMIT helpers',
-                'non_overlap' => 'avoids accepted next226 sum/count EXCEPT+INTERSECT fencing, next225 lag/last_value INTERSECT+EXCEPT fencing, next219 percent_rank/cume_dist EXCEPT fencing, next217 rank/dense_rank INTERSECT fencing, next213 min/max INTERSECT fencing, next212 group_concat/row_number EXCEPT fencing, accepted JSON/WAL/B-tree/VFS clusters, and grouped/JOIN/subquery/ORDER SQL text work; union-intersect-except-window-limit fences avg window output and first_value frame output through UNION distinct, INTERSECT, and EXCEPT before final compound LIMIT over current and next wp_options sources',
+                'non_overlap' => 'avoids accepted next226 sum/count EXCEPT+INTERSECT fencing, next225 lag/last_value INTERSECT+EXCEPT fencing, next219 percent_rank/cume_dist EXCEPT fencing, next217 rank/dense_rank INTERSECT fencing, next213 min/max INTERSECT fencing, next212 group_concat/row_number EXCEPT fencing, accepted JSON/WAL/B-tree/VFS clusters, and grouped/JOIN/subquery/ORDER SQL text work; union-intersect-except-window-limit fences avg window output and first_value frame output through UNION distinct, INTERSECT, and EXCEPT before final compound LIMIT over current and next app_settings sources',
             ];
         }
 
@@ -17191,7 +17191,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         private static function labelsCurrentPageHandoff(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
+            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''), $rows));
         }
 
         /**
@@ -17360,7 +17360,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         private static function orderedLabelsFinalOrderResume(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
+            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''), $rows));
         }
 
         /**
@@ -17489,9 +17489,9 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 ],
                 'replanReasons' => [
                     'compound-multi-anchor-recursive-row-number-first-value-final-page-window-limit',
-                    'recursive-anchor-wp-options-limit-before-window-final-page-window-limit',
+                    'recursive-anchor-application-table-limit-before-window-final-page-window-limit',
                     'intersect-except-after-anchor-shift-window-output-final-page-window-limit',
-                    'application-option-preview-stale-cursor-fence-final-page-window-limit',
+                    'application-setting-preview-stale-cursor-fence-final-page-window-limit',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-multi-anchor-queue-limit-final-page-window-limit',
@@ -17499,7 +17499,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'sqlite-compound-union-intersect-except-current-source-token-fence-final-page-window-limit',
                 ],
                 'dependency_closure' => 'no new support component needed; final-page-window-limit reuses native SELECT SQL compound execution, recursive CTE compound-anchor queue LIMIT/OFFSET tracing, row_number and first_value window dispatch, UNION distinct plus INTERSECT/EXCEPT membership, current-source tokens, and final LIMIT helpers',
-                'non_overlap' => 'final-page-window-limit covers a compound recursive CTE whose anchor is partly sourced from wp_options before recursive expansion, then fences row_number and first_value window outputs through UNION distinct, INTERSECT, and EXCEPT before the final compound LIMIT; it avoids accepted union-intersect-except-window-limit avg/first_value recursive-body-only queue work, union-except-dense-rank-limit dense_rank UNION/EXCEPT, current-page-drain row_number INTERSECT/EXCEPT drain, next224 compound rank shift, and accepted JSON/WAL/B-tree/VFS clusters',
+                'non_overlap' => 'final-page-window-limit covers a compound recursive CTE whose anchor is partly sourced from an application settings table before recursive expansion, then fences row_number and first_value window outputs through UNION distinct, INTERSECT, and EXCEPT before the final compound LIMIT; it avoids accepted union-intersect-except-window-limit avg/first_value recursive-body-only queue work, union-except-dense-rank-limit dense_rank UNION/EXCEPT, current-page-drain row_number INTERSECT/EXCEPT drain, next224 compound rank shift, and accepted JSON/WAL/B-tree/VFS clusters',
             ];
         }
 
@@ -17520,8 +17520,19 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit needs final LIMIT/OFFSET');
             }
             $recursiveBody = self::recursiveBodyFinalPageWindowLimit($sql);
-            if (preg_match('/\bUNION\s+ALL\s+SELECT\b.*?\bFROM\s+wp_options\b/is', $recursiveBody) !== 1) {
-                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit needs a wp_options recursive CTE anchor arm');
+            $recursiveName = strtolower(self::recursiveNameFinalPageWindowLimit($sql));
+            $anchorTables = [];
+            preg_match_all('/\bUNION\s+ALL\s+SELECT\b.*?\bFROM\s+((?:"[^"]+"|`[^`]+`|\[[^\]]+\]|[A-Za-z_][A-Za-z0-9_]*))/is', $recursiveBody, $anchorTables);
+            $hasSourceAnchor = false;
+            foreach ((array) ($anchorTables[1] ?? []) as $anchorTable) {
+                $normalized = strtolower(trim((string) $anchorTable, "\"`[]"));
+                if ($normalized !== '' && $normalized !== $recursiveName) {
+                    $hasSourceAnchor = true;
+                    break;
+                }
+            }
+            if (!$hasSourceAnchor) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit needs an application table recursive CTE anchor arm');
             }
             if (preg_match('/\bORDER\s+BY\b.*?\bLIMIT\s+\d+\s+OFFSET\s+\d+/is', $recursiveBody) !== 1) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit needs ordered recursive LIMIT/OFFSET');
@@ -17539,6 +17550,16 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $trimmed = rtrim(trim($sql), ';');
             if (preg_match('/^WITH\s+RECURSIVE\s+[A-Za-z_][A-Za-z0-9_]*\s*\([^)]*\)\s+AS\s*\((.*)\)\s*SELECT\s+/is', $trimmed, $match) !== 1) {
                 throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit cannot isolate recursive CTE body');
+            }
+
+            return $match[1];
+        }
+
+        private static function recursiveNameFinalPageWindowLimit(string $sql): string
+        {
+            $trimmed = rtrim(trim($sql), ';');
+            if (preg_match('/^WITH\s+RECURSIVE\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/i', $trimmed, $match) !== 1) {
+                throw new \InvalidArgumentException('SQLite compound SELECT window recursive LIMIT final-page-window-limit cannot isolate recursive CTE name');
             }
 
             return $match[1];
@@ -18086,7 +18107,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         {
             $metrics = [];
             foreach ($rows as $index => $row) {
-                $label = (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? '');
+                $label = (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? '');
                 $metric = $row['metric'] ?? $row['rn'] ?? $row['rank'] ?? $row['window_value'] ?? null;
                 $signature = hash('sha256', json_encode([
                     'ordinal' => $index + 1,
@@ -18257,7 +18278,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     'compound-union-all-intersect-except-rank-current-source-dequeue',
                     'recursive-limit-offset-dequeue-before-window-compound-current-source',
                     'next-source-row-number-shift-held-by-current-dequeue-acks',
-                    'application-option-preview-stale-dequeue-cursor-fence',
+                    'application-setting-preview-stale-dequeue-cursor-fence',
                 ],
                 'dependencies' => [
                     'sqlite-select-sql-recursive-queue-limit-offset-current-source-dequeue',
@@ -18457,7 +18478,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
          */
         private static function labelsCurrentSourceDequeue(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
+            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''), $rows));
         }
 
         /**
@@ -18935,7 +18956,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         {
             $labels = [];
             foreach ($rows as $row) {
-                $labels[] = (string) ($row['label'] ?? $row['option_name'] ?? $row['name'] ?? reset($row));
+                $labels[] = (string) ($row['label'] ?? $row['key_name'] ?? $row['name'] ?? reset($row));
             }
 
             return $labels;
@@ -19129,7 +19150,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         {
             $labels = [];
             foreach ($rows as $row) {
-                $labels[] = (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? '');
+                $labels[] = (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? '');
             }
 
             return $labels;
@@ -19340,7 +19361,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         {
             $labels = [];
             foreach ($rows as $row) {
-                $labels[] = (string) ($row['label'] ?? $row['option_name'] ?? $row['name'] ?? json_encode($row, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+                $labels[] = (string) ($row['label'] ?? $row['key_name'] ?? $row['name'] ?? json_encode($row, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
             }
 
             return $labels;
@@ -19682,7 +19703,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             foreach ($currentRows as $index => $row) {
                 $rowFrames[] = [
                     'ordinal' => $index + 1,
-                    'id' => $row['id'] ?? $row['option_id'] ?? null,
+                    'id' => $row['id'] ?? $row['setting_id'] ?? null,
                     'label' => self::labelWindowReplayFence($row),
                     'metric' => $row['metric'] ?? $row['rn'] ?? $row['rank'] ?? null,
                 ];
@@ -19789,7 +19810,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /** @param array<string,mixed> $row */
         private static function labelWindowReplayFence(array $row): string
         {
-            return (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? '');
+            return (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? '');
         }
 
         /** @param mixed $value @return list<string> */
@@ -19986,7 +20007,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /** @param list<array<string,mixed>> $rows @return list<string> */
         private static function recursiveLimitLabels(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['option_name'] ?? $row['name'] ?? json_encode($row, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)), $rows));
+            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['key_name'] ?? $row['name'] ?? json_encode($row, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)), $rows));
         }
 
         /** @param mixed $value @return list<string> */
@@ -20028,7 +20049,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             $base['replanReasons'][] = 'compound-window-recursive-next-source-promotion-snapshot';
             $base['replanReasons'][] = 'next-source-held-until-current-replay-and-delta-snapshot';
             $base['dependencies'][] = 'sqlite-compound-window-recursive-next-source-promotion-snapshot';
-            $base['dependency_closure'] = 'no new support component needed; next-source-promotion reuses accepted compound SELECT recursive LIMIT/OFFSET, window replay tickets, and final-page spillover fences, then adds a next-source promotion snapshot for changed Application option rows';
+            $base['dependency_closure'] = 'no new support component needed; next-source-promotion reuses accepted compound SELECT recursive LIMIT/OFFSET, window replay tickets, and final-page spillover fences, then adds a next-source promotion snapshot for changed application setting rows';
             $base['non_overlap'] = 'next-source-promotion extends accepted next243 replay-ticket behavior by binding the next-source row delta to a promotion snapshot after current replay is acknowledged; it avoids accepted next242 commit fences, next243 replay tickets alone, batch212 next242/next243 behavior, JSON table, WAL/VFS, B-tree, planner, PRAGMA, trigger, row-value, encoding, and suite evidence clusters';
 
             return $base;
@@ -20193,7 +20214,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             foreach ($rows as $index => $row) {
                 $frames[] = [
                     'ordinal' => $index + 1,
-                    'id' => $row['id'] ?? $row['option_id'] ?? null,
+                    'id' => $row['id'] ?? $row['setting_id'] ?? null,
                     'label' => self::promotionLabel($row),
                     'metric' => $row['metric'] ?? $row['rn'] ?? $row['rank'] ?? null,
                 ];
@@ -20205,7 +20226,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /** @param array<string,mixed> $row */
         private static function promotionLabel(array $row): string
         {
-            return (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? '');
+            return (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? '');
         }
 
         /** @param mixed $value @return list<string> */
@@ -20591,7 +20612,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /** @param list<array<string,mixed>> $rows @return list<string> */
         private static function labelsRecursiveOffsetYieldSeal(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['option_name'] ?? $row['name'] ?? json_encode($row, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)), $rows));
+            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['key_name'] ?? $row['name'] ?? json_encode($row, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)), $rows));
         }
 
         /** @param list<array<string,mixed>> $rows @return list<mixed> */
@@ -20799,7 +20820,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /** @param list<array<string,mixed>> $rows @return list<string> */
         private static function labelsNextSourcePromotionFence(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
+            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''), $rows));
         }
 
         /** @param list<array<string,mixed>> $rows @return list<array<string,mixed>> */
@@ -20809,8 +20830,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             foreach ($rows as $index => $row) {
                 $frames[] = [
                     'ordinal' => $index + 1,
-                    'id' => $row['id'] ?? $row['option_id'] ?? null,
-                    'label' => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''),
+                    'id' => $row['id'] ?? $row['setting_id'] ?? null,
+                    'label' => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''),
                     'metric' => $row['metric'] ?? $row['rn'] ?? $row['rank'] ?? null,
                 ];
             }
@@ -21009,7 +21030,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /** @param list<array<string,mixed>> $rows @return list<string> */
         private static function labelsRecursiveWindowPromotionEpoch(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
+            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''), $rows));
         }
 
         /** @param list<array<string,mixed>> $rows @return list<int|string|null> */
@@ -21220,8 +21241,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             foreach ($rows as $index => $row) {
                 $frame[] = [
                     'ordinal' => $index + 1,
-                    'id' => $row['id'] ?? $row['option_id'] ?? null,
-                    'label' => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''),
+                    'id' => $row['id'] ?? $row['setting_id'] ?? null,
+                    'label' => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''),
                     'metric' => $row['metric'] ?? $row['rank'] ?? $row['bucket'] ?? null,
                 ];
             }
@@ -21445,8 +21466,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
                     $page[] = [
                         'source' => $source,
                         'ordinal' => $index + 1,
-                        'id' => $row['id'] ?? $row['option_id'] ?? null,
-                        'label' => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''),
+                        'id' => $row['id'] ?? $row['setting_id'] ?? null,
+                        'label' => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''),
                         'metric' => $row['metric'] ?? $row['rn'] ?? $row['rank'] ?? null,
                     ];
                 }
@@ -21646,8 +21667,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             foreach ($rows as $index => $row) {
                 $page[] = [
                     'ordinal' => $index + 1,
-                    'id' => $row['id'] ?? $row['option_id'] ?? null,
-                    'label' => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''),
+                    'id' => $row['id'] ?? $row['setting_id'] ?? null,
+                    'label' => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''),
                     'metric' => $row['metric'] ?? $row['rn'] ?? $row['rank'] ?? null,
                 ];
             }
@@ -21841,7 +21862,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /** @param list<array<string,mixed>> $rows @return list<string> */
         private static function labelsCurrentSourceAdmission(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
+            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''), $rows));
         }
 
         /** @param list<array<string,mixed>> $rows @return list<int|string|null> */
@@ -21857,8 +21878,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             foreach ($rows as $index => $row) {
                 $frames[] = [
                     'ordinal' => $index + 1,
-                    'id' => $row['id'] ?? $row['option_id'] ?? null,
-                    'label' => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''),
+                    'id' => $row['id'] ?? $row['setting_id'] ?? null,
+                    'label' => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''),
                     'metric' => $row['metric'] ?? $row['rn'] ?? $row['rank'] ?? null,
                 ];
             }
@@ -22284,7 +22305,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /** @param list<array<string,mixed>> $rows @return list<string> */
         private static function labelsContinuationResume(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
+            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''), $rows));
         }
 
         /** @param list<array<string,mixed>> $rows @return list<int|string|null> */
@@ -22499,7 +22520,7 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
         /** @param list<array<string,mixed>> $rows @return list<string> */
         private static function labelsCurrentLimitResumeFence(array $rows): array
         {
-            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''), $rows));
+            return array_values(array_map(static fn (array $row): string => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''), $rows));
         }
 
         /** @param list<array<string,mixed>> $rows @return list<array<string,mixed>> */
@@ -22509,8 +22530,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             foreach ($rows as $index => $row) {
                 $frames[] = [
                     'ordinal' => $index + 1,
-                    'id' => $row['id'] ?? $row['option_id'] ?? null,
-                    'label' => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''),
+                    'id' => $row['id'] ?? $row['setting_id'] ?? null,
+                    'label' => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''),
                     'metric' => $row['metric'] ?? $row['rn'] ?? $row['rank'] ?? $row['bucket'] ?? null,
                 ];
             }
@@ -22726,8 +22747,8 @@ final class SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan
             foreach ($rows as $index => $row) {
                 $ordered[] = [
                     'ordinal' => $index + 1,
-                    'id' => $row['id'] ?? $row['option_id'] ?? null,
-                    'label' => (string) ($row['label'] ?? $row['name'] ?? $row['option_name'] ?? ''),
+                    'id' => $row['id'] ?? $row['setting_id'] ?? null,
+                    'label' => (string) ($row['label'] ?? $row['name'] ?? $row['key_name'] ?? ''),
                     'metric' => $row['metric'] ?? $row['rn'] ?? $row['rank'] ?? null,
                 ];
             }

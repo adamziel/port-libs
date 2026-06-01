@@ -28,12 +28,17 @@ $encodingSourceFiles = static function () use ($sourceRoot): array {
         $sourceRoot . '/SQLiteTriggerForeignKeyDynamicPlan.php',
         $sourceRoot . '/SQLiteUpsertReturningDynamicCorpusPlan.php',
         $sourceRoot . '/SQLiteUtf16CastGlobCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteUtf16GlobRangeCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16LikeGlobAffinityCurrentSourceCursor.php',
+        $sourceRoot . '/SQLiteUtf16LikeGlobAffinityCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16LikeGlobCurrentNextCursor.php',
         $sourceRoot . '/SQLiteUtf16LikeRtrimCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16NocaseLikeCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16NocaseLikeRtrimNulCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteUtf16RtrimGlobCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteUtf16RtrimLikeCurrentSourceNextPlan.php',
+        $sourceRoot . '/SQLiteUtf16RtrimNocaseCurrentSourceNextPlan.php',
     ];
 };
 

@@ -126,7 +126,7 @@ $tests['compound select window recursive limit recursiveCursorGate replan reason
     $t->true(in_array('compound-intersect-except-window-recursive-limit-recursiveCursorGate', $reasons, true));
     $t->true(in_array('window-values-before-compound-membership-recursiveCursorGate', $reasons, true));
     $t->true(in_array('recursive-limit-current-source-token-recursiveCursorGate', $reasons, true));
-    $t->true(in_array('application-option-preview-stale-membership-fence-recursiveCursorGate', $reasons, true));
+    $t->true(in_array('application-setting-preview-stale-membership-fence-recursiveCursorGate', $reasons, true));
 };
 
 $tests['compound select window recursive limit recursiveCursorGate dependency closure and non overlap'] = static function (TestRunner $t) use ($summary194): void {

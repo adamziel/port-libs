@@ -1443,6 +1443,41 @@ return [
         $t->same([1], array_column($prefixDecoded, 'nameIndex'));
         $t->same(['prefix-a', 'prefix-b'], $prefixDrain->getNames());
     },
+    'source map merges column-drained empty child spans over parent lines' => static function (TestRunner $t): void {
+        $parent = new SourceMap();
+        $parentSource = $parent->addSource('parent.css');
+        foreach ([0, 1, 2, 3] as $line) {
+            $parent->addMapping($line, 0, $parentSource, $line, 0, 'parent' . $line);
+        }
+
+        $child = new SourceMap();
+        $childSource = $child->addSource('column-drained-child.css');
+        $child->setSourceContent($childSource, ".column-drained-child{}\n");
+        $child->addMapping(2, 0, $childSource, 2, 0, 'column-drained-child-rule');
+        $child->offsetColumns(2, 1, -1);
+
+        $t->same(';;', $child->writeVlq());
+
+        $parent->addSourceMap($child, 1);
+        $decoded = SourceMap::decodeVlq($parent->writeVlq());
+        $data = $parent->toArray(null, false);
+        $roundTrip = SourceMap::fromBuffer('/', $parent->toBuffer());
+
+        $t->same('AAAAA;;;', $parent->writeVlq());
+        $t->same([0], array_column($decoded, 'generatedLine'));
+        $t->same([0], array_column($decoded, 'generatedColumn'));
+        $t->same([0], array_column($decoded, 'sourceIndex'));
+        $t->same([0], array_column($decoded, 'originalLine'));
+        $t->same([0], array_column($decoded, 'nameIndex'));
+        $t->same(['parent.css', 'column-drained-child.css'], $data['sources']);
+        $t->same(['', ".column-drained-child{}\n"], $data['sourcesContent']);
+        $t->same(['parent0', 'parent1', 'parent2', 'parent3', 'column-drained-child-rule'], $data['names']);
+        $t->same(null, $parent->findClosestMapping(2, 0));
+        $t->same('AAAAA;;;', $roundTrip->writeVlq());
+        $t->same([], $child->getSources());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map replaces parent mappings with empty child lines from nested maps' => static function (TestRunner $t): void {
         $parent = new SourceMap();
         $entry = $parent->addSource('entry.css');

@@ -7,18 +7,18 @@ require_once dirname(__DIR__, 3) . '/tools/bootstrap.php';
 use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan;
 
 $currentTables = [
-    'wp_options' => [
-        ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'score' => 101],
-        ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'score' => 84],
-        ['option_id' => 3, 'option_name' => 'rewrite_rules', 'autoload' => 'yes', 'score' => 67],
-        ['option_id' => 4, 'option_name' => 'cache_seed', 'autoload' => 'no', 'score' => 20],
+    'app_settings' => [
+        ['setting_id' => 1, 'key_name' => 'siteurl', 'load_policy' => 'yes', 'score' => 101],
+        ['setting_id' => 2, 'key_name' => 'home', 'load_policy' => 'yes', 'score' => 84],
+        ['setting_id' => 3, 'key_name' => 'rewrite_rules', 'load_policy' => 'yes', 'score' => 67],
+        ['setting_id' => 4, 'key_name' => 'cache_seed', 'load_policy' => 'no', 'score' => 20],
     ],
 ];
 $nextTables = [
-    'wp_options' => [
-        ...$currentTables['wp_options'],
-        ['option_id' => 5, 'option_name' => 'plugin_ranked', 'autoload' => 'yes', 'score' => 96],
-        ['option_id' => 6, 'option_name' => 'theme_mods_next', 'autoload' => 'yes', 'score' => 73],
+    'app_settings' => [
+        ...$currentTables['app_settings'],
+        ['setting_id' => 5, 'key_name' => 'plugin_ranked', 'load_policy' => 'yes', 'score' => 96],
+        ['setting_id' => 6, 'key_name' => 'theme_mods_next', 'load_policy' => 'yes', 'score' => 73],
     ],
 ];
 
@@ -36,27 +36,27 @@ SELECT id,
        lag(score, 1, score) OVER (ORDER BY id) AS metric
   FROM q
 UNION ALL
-SELECT option_id AS id,
-       option_name AS label,
-       lead(score, 1, score) OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric
-  FROM wp_options
- WHERE autoload = 'yes'
+SELECT setting_id AS id,
+       key_name AS label,
+       lead(score, 1, score) OVER (PARTITION BY load_policy ORDER BY score DESC, setting_id) AS metric
+  FROM app_settings
+ WHERE load_policy = 'yes'
 UNION ALL
 SELECT id,
        label,
        rank() OVER (ORDER BY score DESC, id) AS metric
   FROM q
 UNION ALL
-SELECT option_id AS id,
-       option_name AS label,
-       dense_rank() OVER (PARTITION BY autoload ORDER BY score DESC, option_id) AS metric
-  FROM wp_options
- WHERE autoload = 'yes'
+SELECT setting_id AS id,
+       key_name AS label,
+       dense_rank() OVER (PARTITION BY load_policy ORDER BY score DESC, setting_id) AS metric
+  FROM app_settings
+ WHERE load_policy = 'yes'
 UNION
-SELECT option_id AS id,
-       option_name AS label,
+SELECT setting_id AS id,
+       key_name AS label,
        score AS metric
-  FROM wp_options
+  FROM app_settings
  WHERE score >= 67
  ORDER BY metric DESC, id
  LIMIT 3, 6

@@ -134,7 +134,7 @@ $tests['compound select window recursive limit rankLastValueUnionExcept replan r
     $t->true(in_array('compound-union-distinct-except-window-recursive-limit-rankLastValueUnionExcept', $reasons, true));
     $t->true(in_array('recursive-order-limit-offset-before-window-rankLastValueUnionExcept', $reasons, true));
     $t->true(in_array('rank-last-value-before-compound-distinct-rankLastValueUnionExcept', $reasons, true));
-    $t->true(in_array('application-option-preview-distinct-except-boundary-rankLastValueUnionExcept', $reasons, true));
+    $t->true(in_array('application-setting-preview-distinct-except-boundary-rankLastValueUnionExcept', $reasons, true));
 };
 
 $tests['compound select window recursive limit rankLastValueUnionExcept dependency closure and non overlap'] = static function (TestRunner $t) use ($summary200): void {

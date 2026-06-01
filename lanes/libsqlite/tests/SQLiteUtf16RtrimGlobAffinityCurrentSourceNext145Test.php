@@ -21,18 +21,18 @@ $row = static function (
     string $valueEncoding,
 ) use ($encodingCode): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $nameEncoding),
-        'option_value_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($value, $valueEncoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $nameEncoding),
+        'key_value_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($value, $valueEncoding),
         'name_text_encoding' => $encodingCode($nameEncoding),
         'value_text_encoding' => $encodingCode($valueEncoding),
     ];
 };
 
 $bad = static fn (int $id, string $nameBytes, int $nameEncoding, string $valueBytes, int $valueEncoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $nameBytes,
-    'option_value_bytes' => $valueBytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $nameBytes,
+    'key_value_bytes' => $valueBytes,
     'name_text_encoding' => $nameEncoding,
     'value_text_encoding' => $valueEncoding,
 ];
@@ -104,7 +104,7 @@ $valueAt = static function (array $value, string $path): mixed {
 
 $cases = [
     'operator' => ['operator', 'GLOB'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE GLOB ? AND option_value BETWEEN ? AND ?'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE GLOB ? AND key_value BETWEEN ? AND ?'],
     'name collation' => ['nameCollation', 'RTRIM+NOCASE'],
     'residual collation' => ['residualCollation', 'BINARY'],
     'value affinity' => ['valueAffinity', 'NUMERIC'],
@@ -227,16 +227,16 @@ $tests['utf16 rtrim glob affinity current source nextOneFourFive rejects non num
     $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin_*', null, null, 'fast', 10));
 };
 
-$tests['utf16 rtrim glob affinity current source nextOneFourFive rejects non integer option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
+$tests['utf16 rtrim glob affinity current source nextOneFourFive rejects non integer setting id'] = static function (TestRunner $t) use ($nextRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan([['setting_id' => '1', 'key_name_bytes' => 'x', 'key_value_bytes' => '1', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
 };
 
 $tests['utf16 rtrim glob affinity current source nextOneFourFive rejects missing value bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan([['option_id' => 1, 'option_name_bytes' => 'x', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan([['setting_id' => 1, 'key_name_bytes' => 'x', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
 };
 
 $tests['utf16 rtrim glob affinity current source nextOneFourFive rejects missing value encoding'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan([['option_id' => 1, 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimGlobAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan([['setting_id' => 1, 'key_name_bytes' => 'x', 'key_value_bytes' => '1', 'name_text_encoding' => 1]], $nextRows, 'plugin_*', 1, 2));
 };
 
 return $tests;

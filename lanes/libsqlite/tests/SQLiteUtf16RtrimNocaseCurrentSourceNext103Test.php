@@ -7,25 +7,25 @@ use PortLibs\LibSqlite\SQLiteUtf16RtrimNocaseCurrentSourceNextPlan;
 
 $tests = [];
 
-$row = static function (int $id, string $name, string $encoding, string $autoload = 'yes'): array {
+$row = static function (int $id, string $name, string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteUtf16CollationAffinityCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteUtf16CollationAffinityCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
             default => throw new InvalidArgumentException('bad encoding'),
         },
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
 $bad = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
-    'autoload' => 'yes',
+    'load_policy' => 'yes',
 ];
 
 $currentRows = [
@@ -135,12 +135,12 @@ $tests['utf16 rtrim nocase current source nextOneZeroThree stable source only ro
 $tests['utf16 rtrim nocase current source nextOneZeroThree stable unchanged eclair source has no reprepare'] = static function (TestRunner $t) use ($plan): void {
     $stable = SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::keyValueRowKeyCurrentNext(
         [
-            ['option_id' => 6, 'option_name_bytes' => SQLiteUtf16CollationAffinityCursor::encodeText('plugin_éclair ', 'UTF-16LE'), 'text_encoding' => 2],
-            ['option_id' => 7, 'option_name_bytes' => SQLiteUtf16CollationAffinityCursor::encodeText('PLUGIN_ÉCLAIR ', 'UTF-16BE'), 'text_encoding' => 3],
+            ['setting_id' => 6, 'key_name_bytes' => SQLiteUtf16CollationAffinityCursor::encodeText('plugin_éclair ', 'UTF-16LE'), 'text_encoding' => 2],
+            ['setting_id' => 7, 'key_name_bytes' => SQLiteUtf16CollationAffinityCursor::encodeText('PLUGIN_ÉCLAIR ', 'UTF-16BE'), 'text_encoding' => 3],
         ],
         [
-            ['option_id' => 6, 'option_name_bytes' => SQLiteUtf16CollationAffinityCursor::encodeText('plugin_éclair ', 'UTF-16LE'), 'text_encoding' => 2],
-            ['option_id' => 7, 'option_name_bytes' => SQLiteUtf16CollationAffinityCursor::encodeText('PLUGIN_ÉCLAIR ', 'UTF-16BE'), 'text_encoding' => 3],
+            ['setting_id' => 6, 'key_name_bytes' => SQLiteUtf16CollationAffinityCursor::encodeText('plugin_éclair ', 'UTF-16LE'), 'text_encoding' => 2],
+            ['setting_id' => 7, 'key_name_bytes' => SQLiteUtf16CollationAffinityCursor::encodeText('PLUGIN_ÉCLAIR ', 'UTF-16BE'), 'text_encoding' => 3],
         ],
         'plugin_éclair',
         'stable',
@@ -151,15 +151,15 @@ $tests['utf16 rtrim nocase current source nextOneZeroThree stable unchanged ecla
 };
 
 $tests['utf16 rtrim nocase current source nextOneZeroThree rejects missing bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::keyValueRowKeyCurrentNext([['option_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin_cache'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::keyValueRowKeyCurrentNext([['setting_id' => 1, 'text_encoding' => 2]], $nextRows, 'plugin_cache'));
 };
 
 $tests['utf16 rtrim nocase current source nextOneZeroThree rejects missing encoding'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::keyValueRowKeyCurrentNext([['option_id' => 1, 'option_name_bytes' => 'x']], $nextRows, 'plugin_cache'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::keyValueRowKeyCurrentNext([['setting_id' => 1, 'key_name_bytes' => 'x']], $nextRows, 'plugin_cache'));
 };
 
 $tests['utf16 rtrim nocase current source nextOneZeroThree records unsupported encoding as malformed row'] = static function (TestRunner $t) use ($nextRows): void {
-    $plan = SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::keyValueRowKeyCurrentNext([['option_id' => 1, 'option_name_bytes' => 'x', 'text_encoding' => 4]], $nextRows, 'plugin_cache');
+    $plan = SQLiteUtf16RtrimNocaseCurrentSourceNextPlan::keyValueRowKeyCurrentNext([['setting_id' => 1, 'key_name_bytes' => 'x', 'text_encoding' => 4]], $nextRows, 'plugin_cache');
     $t->same('SQLite UTF-16 RTRIM NOCASE text encoding must be UTF-8, UTF-16LE, or UTF-16BE', $plan['currentErrors'][1]);
 };
 

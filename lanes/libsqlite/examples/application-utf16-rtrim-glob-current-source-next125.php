@@ -9,8 +9,8 @@ use PortLibs\LibSqlite\SQLiteUtf16RtrimGlobCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -34,12 +34,12 @@ $next = [
     $row(4, 'Plugin_Cache', 'UTF-8'),
 ];
 
-$plan = SQLiteUtf16RtrimGlobCurrentSourceNextPlan::optionRowNamePlan(
+$plan = SQLiteUtf16RtrimGlobCurrentSourceNextPlan::keyValueRowKeyPlan(
     $current,
     $next,
     'plugin_cache',
-    'main.wp_options@cookie124',
-    'main.wp_options@cookie125',
+    'main.app_settings@cookie124',
+    'main.app_settings@cookie125',
 );
 
 if (($argv[1] ?? null) === '--self-test') {

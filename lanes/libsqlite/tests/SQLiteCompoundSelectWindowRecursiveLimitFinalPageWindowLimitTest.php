@@ -6,26 +6,26 @@ use PortLibs\LibSqlite\SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNext
 use PortLibs\LibSqlite\SQLiteSelectSql;
 
 $currentOptions234 = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'autoload' => 'yes', 'score' => 130],
-    ['option_id' => 2, 'option_name' => 'home', 'autoload' => 'yes', 'score' => 112],
-    ['option_id' => 3, 'option_name' => 'plugin_old', 'autoload' => 'yes', 'score' => 94],
-    ['option_id' => 4, 'option_name' => 'cache_seed', 'autoload' => 'no', 'score' => 40],
+    ['setting_id' => 1, 'key_name' => 'siteurl', 'load_policy' => 'yes', 'score' => 130],
+    ['setting_id' => 2, 'key_name' => 'home', 'load_policy' => 'yes', 'score' => 112],
+    ['setting_id' => 3, 'key_name' => 'plugin_old', 'load_policy' => 'yes', 'score' => 94],
+    ['setting_id' => 4, 'key_name' => 'cache_seed', 'load_policy' => 'no', 'score' => 40],
 ];
 $nextOptions234 = [
     ...$currentOptions234,
-    ['option_id' => 5, 'option_name' => 'plugin_prime', 'autoload' => 'yes', 'score' => 124],
-    ['option_id' => 6, 'option_name' => 'theme_mods_next', 'autoload' => 'yes', 'score' => 105],
+    ['setting_id' => 5, 'key_name' => 'plugin_prime', 'load_policy' => 'yes', 'score' => 124],
+    ['setting_id' => 6, 'key_name' => 'theme_mods_next', 'load_policy' => 'yes', 'score' => 105],
 ];
-$currentTables234 = ['wp_options' => $currentOptions234];
-$nextTables234 = ['wp_options' => $nextOptions234];
+$currentTables234 = ['app_settings' => $currentOptions234];
+$nextTables234 = ['app_settings' => $nextOptions234];
 
 $sql234 = <<<'SQL'
 WITH RECURSIVE q(id, label, score) AS (
     VALUES (1, 'seed', 144)
     UNION ALL
-    SELECT option_id, option_name, score
-      FROM wp_options
-     WHERE autoload = 'yes'
+    SELECT setting_id, key_name, score
+      FROM app_settings
+     WHERE load_policy = 'yes'
        AND score >= 100
     UNION ALL
     SELECT id + 1, label || ':' || (id + 1), score - 8
@@ -41,15 +41,15 @@ SELECT id,
        ) AS metric
   FROM q
 UNION
-SELECT option_id AS id,
-       option_name AS label,
+SELECT setting_id AS id,
+       key_name AS label,
        first_value(score) OVER (
-           PARTITION BY autoload
-           ORDER BY score DESC, option_id
+           PARTITION BY load_policy
+           ORDER BY score DESC, setting_id
            ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING
        ) AS metric
-  FROM wp_options
- WHERE autoload = 'yes'
+  FROM app_settings
+ WHERE load_policy = 'yes'
 INTERSECT
 SELECT id,
        label,
@@ -62,15 +62,15 @@ SELECT id,
               ) AS metric
          FROM q
        UNION
-       SELECT option_id AS id,
-              option_name AS label,
+       SELECT setting_id AS id,
+              key_name AS label,
               first_value(score) OVER (
-                  PARTITION BY autoload
-                  ORDER BY score DESC, option_id
+                  PARTITION BY load_policy
+                  ORDER BY score DESC, setting_id
                   ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING
               ) AS metric
-         FROM wp_options
-        WHERE autoload = 'yes'
+         FROM app_settings
+        WHERE load_policy = 'yes'
   )
 EXCEPT
 SELECT id,
@@ -85,15 +85,15 @@ SELECT id,
          FROM q
         WHERE id = 4
        UNION
-       SELECT option_id AS id,
-              option_name AS label,
+       SELECT setting_id AS id,
+              key_name AS label,
               first_value(score) OVER (
-                  PARTITION BY autoload
-                  ORDER BY score DESC, option_id
+                  PARTITION BY load_policy
+                  ORDER BY score DESC, setting_id
                   ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING
               ) AS metric
-         FROM wp_options
-        WHERE option_name = 'plugin_old'
+         FROM app_settings
+        WHERE key_name = 'plugin_old'
   )
  ORDER BY metric DESC, id
  LIMIT 6 OFFSET 1
@@ -185,7 +185,7 @@ $tests['compound select window recursive limit current source final-page-window-
     $plan = $summary234();
     $t->contains('avoids accepted union-intersect-except-window-limit', $plan['non_overlap']);
     $t->true(in_array('compound-multi-anchor-recursive-row-number-first-value-final-page-window-limit', $plan['replanReasons'], true));
-    $t->true(in_array('recursive-anchor-wp-options-limit-before-window-final-page-window-limit', $plan['replanReasons'], true));
+    $t->true(in_array('recursive-anchor-application-table-limit-before-window-final-page-window-limit', $plan['replanReasons'], true));
     $t->true(in_array('intersect-except-after-anchor-shift-window-output-final-page-window-limit', $plan['replanReasons'], true));
 };
 
@@ -195,7 +195,7 @@ $tests['compound select window recursive limit current source final-page-window-
 
 $tests['compound select window recursive limit current source final-page-window-limit rejects missing anchor'] = static function (TestRunner $t) use ($currentTables234): void {
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareFinalPageWindowLimit(
-        "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 144) UNION ALL SELECT id + 1, label, score - 8 FROM q WHERE id < 8 ORDER BY score DESC LIMIT 7 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY score DESC) AS metric FROM q UNION SELECT option_id, option_name, first_value(score) OVER (ORDER BY score DESC ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM wp_options INTERSECT SELECT id, label, metric FROM (SELECT id, label, row_number() OVER (ORDER BY score DESC) AS metric FROM q) EXCEPT SELECT id, label, metric FROM (SELECT id, label, score AS metric FROM q WHERE id = 4) ORDER BY metric DESC, id LIMIT 6 OFFSET 1",
+        "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed', 144) UNION ALL SELECT id + 1, label, score - 8 FROM q WHERE id < 8 ORDER BY score DESC LIMIT 7 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY score DESC) AS metric FROM q UNION SELECT setting_id, key_name, first_value(score) OVER (ORDER BY score DESC ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) FROM app_settings INTERSECT SELECT id, label, metric FROM (SELECT id, label, row_number() OVER (ORDER BY score DESC) AS metric FROM q) EXCEPT SELECT id, label, metric FROM (SELECT id, label, score AS metric FROM q WHERE id = 4) ORDER BY metric DESC, id LIMIT 6 OFFSET 1",
         $currentTables234,
         $currentTables234,
     ));
@@ -205,15 +205,15 @@ foreach (range(1, 50) as $case) {
     $tests['compound select window recursive limit current source final-page-window-limit generated avg first value boundary ' . $case] = static function (TestRunner $t) use ($case): void {
         $finalLimit = 4 + ($case % 3);
         $tables = [
-            'wp_options' => [
-                ['option_id' => 1, 'option_name' => 'siteurl_' . $case, 'autoload' => 'yes', 'score' => 130 + $case],
-                ['option_id' => 2, 'option_name' => 'home_' . $case, 'autoload' => 'yes', 'score' => 112 + $case],
-                ['option_id' => 3, 'option_name' => 'plugin_old_' . $case, 'autoload' => 'yes', 'score' => 94 + $case],
+            'app_settings' => [
+                ['setting_id' => 1, 'key_name' => 'siteurl_' . $case, 'load_policy' => 'yes', 'score' => 130 + $case],
+                ['setting_id' => 2, 'key_name' => 'home_' . $case, 'load_policy' => 'yes', 'score' => 112 + $case],
+                ['setting_id' => 3, 'key_name' => 'plugin_old_' . $case, 'load_policy' => 'yes', 'score' => 94 + $case],
             ],
         ];
         $nextTables = $tables;
-        $nextTables['wp_options'][] = ['option_id' => 4, 'option_name' => 'plugin_prime_' . $case, 'autoload' => 'yes', 'score' => 124 + $case];
-        $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (144 + $case) . ") UNION ALL SELECT option_id, option_name, score FROM wp_options WHERE autoload = 'yes' AND score >= " . (100 + $case) . " UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 8 FROM q WHERE id < 8 ORDER BY score DESC LIMIT 7 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY score DESC) AS metric FROM q UNION SELECT option_id AS id, option_name AS label, first_value(score) OVER (PARTITION BY autoload ORDER BY score DESC, option_id ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING) AS metric FROM wp_options WHERE autoload = 'yes' INTERSECT SELECT id, label, metric FROM (SELECT id, label, row_number() OVER (ORDER BY score DESC) AS metric FROM q UNION SELECT option_id AS id, option_name AS label, first_value(score) OVER (PARTITION BY autoload ORDER BY score DESC, option_id ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING) AS metric FROM wp_options WHERE autoload = 'yes') EXCEPT SELECT id, label, metric FROM (SELECT id, label, row_number() OVER (ORDER BY score DESC) AS metric FROM q WHERE id = 4 UNION SELECT option_id AS id, option_name AS label, first_value(score) OVER (PARTITION BY autoload ORDER BY score DESC, option_id ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING) AS metric FROM wp_options WHERE option_name = 'plugin_old_{$case}') ORDER BY metric DESC, id LIMIT {$finalLimit} OFFSET 1";
+        $nextTables['app_settings'][] = ['setting_id' => 4, 'key_name' => 'plugin_prime_' . $case, 'load_policy' => 'yes', 'score' => 124 + $case];
+        $sql = "WITH RECURSIVE q(id, label, score) AS (VALUES (1, 'seed_{$case}', " . (144 + $case) . ") UNION ALL SELECT setting_id, key_name, score FROM app_settings WHERE load_policy = 'yes' AND score >= " . (100 + $case) . " UNION ALL SELECT id + 1, label || ':' || (id + 1), score - 8 FROM q WHERE id < 8 ORDER BY score DESC LIMIT 7 OFFSET 1) SELECT id, label, row_number() OVER (ORDER BY score DESC) AS metric FROM q UNION SELECT setting_id AS id, key_name AS label, first_value(score) OVER (PARTITION BY load_policy ORDER BY score DESC, setting_id ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING) AS metric FROM app_settings WHERE load_policy = 'yes' INTERSECT SELECT id, label, metric FROM (SELECT id, label, row_number() OVER (ORDER BY score DESC) AS metric FROM q UNION SELECT setting_id AS id, key_name AS label, first_value(score) OVER (PARTITION BY load_policy ORDER BY score DESC, setting_id ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING) AS metric FROM app_settings WHERE load_policy = 'yes') EXCEPT SELECT id, label, metric FROM (SELECT id, label, row_number() OVER (ORDER BY score DESC) AS metric FROM q WHERE id = 4 UNION SELECT setting_id AS id, key_name AS label, first_value(score) OVER (PARTITION BY load_policy ORDER BY score DESC, setting_id ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING) AS metric FROM app_settings WHERE key_name = 'plugin_old_{$case}') ORDER BY metric DESC, id LIMIT {$finalLimit} OFFSET 1";
         $plan = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareFinalPageWindowLimit($sql, $tables, $nextTables);
         $again = SQLiteCompoundSelectWindowRecursiveLimitCurrentSourceNextPlan::compareFinalPageWindowLimit($sql, $tables, $nextTables, $plan['cursor']);
         $rows = SQLiteSelectSql::execute($sql, $tables);

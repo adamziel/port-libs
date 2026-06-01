@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Gitoxide\CredentialContext;
 use PortLibs\Gitoxide\CredentialHelperExchange;
+use PortLibs\Gitoxide\CredentialHelperInvocation;
 
 $request = new CredentialContext(
     protocol: 'https',
@@ -81,6 +82,31 @@ $helperProgramOutput = CredentialHelperExchange::invoke(
         return new CredentialContext(username: 'deploy-bot', password: 'wp-deploy-token');
     },
 );
+$helperInvocationCalls = [];
+$helperInvocationOutcome = CredentialHelperInvocation::get(
+    new CredentialContext(url: 'https://git.example.test/wp-content.git'),
+    static function (string $action, string $payload) use (&$helperInvocationCalls): string {
+        $helperInvocationCalls[] = [$action, $payload];
+
+        return "username=deploy-bot\npassword=wp-deploy-token\nquit=1\n";
+    },
+);
+CredentialHelperInvocation::store(
+    $helperInvocationOutcome,
+    static function (string $action, string $payload) use (&$helperInvocationCalls): string {
+        $helperInvocationCalls[] = [$action, $payload];
+
+        return '';
+    },
+);
+CredentialHelperInvocation::erase(
+    $helperInvocationOutcome,
+    static function (string $action, string $payload) use (&$helperInvocationCalls): string {
+        $helperInvocationCalls[] = [$action, $payload];
+
+        return '';
+    },
+);
 
 return [
     'requestBytes' => $request->storageBytes(),
@@ -104,6 +130,11 @@ return [
     'helperProgramMissingCredential' => $helperProgramMissingCredential,
     'helperProgramUrlOnly' => $helperProgramUrlOnly,
     'helperProgramOutput' => $helperProgramOutput,
+    'helperInvocationIdentity' => $helperInvocationOutcome->identity(),
+    'helperInvocationQuit' => $helperInvocationOutcome->quit,
+    'helperInvocationNextQuit' => $helperInvocationOutcome->nextActionContext()->quit,
+    'helperInvocationStorePayload' => $helperInvocationCalls[1][1],
+    'helperInvocationErasePayload' => $helperInvocationCalls[2][1],
     'redactedBytes' => $redacted->storageBytes(),
     'clearedPassword' => $cleared->password,
     'clearedOauthRefreshToken' => $cleared->oauthRefreshToken,
