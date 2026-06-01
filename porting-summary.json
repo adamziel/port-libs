@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 20:59:04 UTC",
-    "sourceCommit": "3be11e252a02f2f2cc25ded3073c0edd14844621",
-    "sourceCommitShort": "3be11e252a02",
+    "generated": "2026-06-01 21:02:51 UTC",
+    "sourceCommit": "3648b9eb117ce2475c29b58b2b17d4376a5e6b02",
+    "sourceCommitShort": "3648b9eb117c",
     "sourceBranch": "unknown",
-    "dashboardCommit": "3be11e252a02f2f2cc25ded3073c0edd14844621",
-    "dashboardCommitShort": "3be11e252a02",
+    "dashboardCommit": "3648b9eb117ce2475c29b58b2b17d4376a5e6b02",
+    "dashboardCommitShort": "3648b9eb117c",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,256,080 pass / 16 fail",
+            "php": "6,269,881 pass / 16 fail",
             "phase": "current-base source integration accepted by supervisor with focused i...",
-            "audit": "2026-06-01 21:00 UTC supervisor integration: source commit 3be11e252a...",
-            "currentWork": "SQLitePDO invalid GROUP BY native parity and source-neutral encoding, row-value, trig...",
+            "audit": "2026-06-01 21:05 UTC supervisor integration: source commit 3648b9eb11...",
+            "currentWork": "Real upstream fkey1 catalog/deferred-status, without_rowid3 runtime FK, wherefault OR...",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "3be11e2"
+            "commit": "3648b9e"
         },
         {
             "lane": "lightningcss",
