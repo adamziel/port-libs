@@ -102,6 +102,10 @@ $conflictingFetchRefs = RefSpec::validatedFetchRemoteRefs(
     $fixture['conflictingFetchRefspecs'],
     $fixture['validatedRemoteAdvertisedRefs']
 );
+$reverseMatchedFetchRefs = RefSpec::matchFetchLocalRefs(
+    $fixture['reverseFetchRefspecs'],
+    $fixture['localTrackingRefs']
+);
 $oversizedRemoteRejected = false;
 try {
     GitUrl::parse($fixture['oversizedRemoteUrl']);
@@ -174,6 +178,7 @@ $summary = [
     'slashLiteralMatchedFetchRefs' => $slashLiteralMatchedFetchRefs,
     'validatedFetchRefs' => $validatedFetchRefs,
     'conflictingFetchRefs' => $conflictingFetchRefs,
+    'reverseMatchedFetchRefs' => $reverseMatchedFetchRefs,
     'pushInstructionIdentityUniqueCount' => count(array_unique($pushInstructionIdentityKeys)),
     'sameNamedPushEquivalent' => $pushInstructionIdentitySpecs[0]->equivalentTo($pushInstructionIdentitySpecs[1]),
     'deleteForceEquivalent' => $pushInstructionIdentitySpecs[2]->equivalentTo($pushInstructionIdentitySpecs[3]),
@@ -390,6 +395,12 @@ if (PHP_SAPI === 'cli' && in_array('--self-test', $argv, true)) {
     }
     if (($summary['conflictingFetchRefs']['issues'][0]['sources'] ?? null) !== $fixture['expectedConflictingFetchIssueSources']) {
         throw new RuntimeException('Unexpected conflicting fetch sources');
+    }
+    if (array_column($summary['reverseMatchedFetchRefs'], 'remote') !== $fixture['expectedReverseMatchedFetchRemotes']) {
+        throw new RuntimeException('Unexpected reverse-matched fetch remote refs');
+    }
+    if (array_column($summary['reverseMatchedFetchRefs'], 'local') !== $fixture['expectedReverseMatchedFetchLocals']) {
+        throw new RuntimeException('Unexpected reverse-matched fetch local refs');
     }
     if (array_column($summary['push'], 'instruction') !== $fixture['expectedPushInstructions']) {
         throw new RuntimeException('Unexpected push refspec instructions');

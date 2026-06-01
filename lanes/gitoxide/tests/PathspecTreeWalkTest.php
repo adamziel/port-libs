@@ -1114,6 +1114,10 @@ return [
             InvalidArgumentException::class,
             static fn () => PathspecSearch::fromSpecs([$worktreeRoot . '/wp-config.php'], root: 'relative/root'),
         );
+        $t->throws(
+            InvalidArgumentException::class,
+            static fn () => PathspecSearch::fromSpecs(['/wp-content/plugins/gutenberg/block.json']),
+        );
     },
     'tree pathspec matching preserves raw candidate path components' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
         $objects = [];
@@ -1513,6 +1517,7 @@ return [
         $t->same('wp-content/plugins/gutenberg', $example['absoluteRootPluginPrefix']);
         $t->same(true, $example['absoluteRootOutsideRejected']);
         $t->same(true, $example['absoluteRootRelativeRejected']);
+        $t->same(true, $example['rootlessAbsolutePathspecRejected']);
         $t->same(true, $example['rootEscapingPathspecRejected']);
         $t->same([
             'wp-content/plugins/gutenberg/block.json',

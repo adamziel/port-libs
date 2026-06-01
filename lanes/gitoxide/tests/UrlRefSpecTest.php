@@ -1189,6 +1189,56 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchFetchRemoteRefs([RefSpec::parsePush('refs/heads/main')], $remoteRefs));
         $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchFetchRemoteRefs([123], $remoteRefs));
     },
+    'refspec match group maps fetch rhs local refs back to remote refs like gix-refspec' => static function (TestRunner $t): void {
+        $localRefs = [
+            ['name' => 'refs/remotes/origin/main', 'target' => str_repeat('1', 40)],
+            ['name' => 'refs/remotes/origin/feature/topic', 'target' => str_repeat('2', 40)],
+            ['name' => 'refs/remotes/upstream/main', 'target' => str_repeat('3', 40)],
+            ['name' => 'refs/tags/v1.0', 'target' => str_repeat('4', 40)],
+            ['name' => 'refs/heads/f1', 'target' => str_repeat('5', 40)],
+        ];
+
+        $reverse = RefSpec::matchFetchLocalRefs([
+            'refs/heads/*:refs/remotes/origin/*',
+            'refs/tags/*:refs/tags/*',
+            'f1:f1',
+            'main',
+            '^refs/heads/private',
+        ], $localRefs);
+
+        $t->same([
+            'refs/heads/main',
+            'refs/heads/feature/topic',
+            'refs/tags/v1.0',
+            'refs/heads/f1',
+        ], array_column($reverse, 'remote'));
+        $t->same([
+            'refs/remotes/origin/main',
+            'refs/remotes/origin/feature/topic',
+            'refs/tags/v1.0',
+            'refs/heads/f1',
+        ], array_column($reverse, 'local'));
+        $t->same([0, 1, 3, 4], array_column($reverse, 'itemIndex'));
+        $t->same([0, 0, 1, 2], array_column($reverse, 'specIndex'));
+
+        $objectDestination = RefSpec::matchFetchLocalRefs([
+            'wp-content:' . str_repeat('A', 40),
+            'wp-theme:' . str_repeat('C', 40),
+        ], [
+            ['name' => 'refs/remotes/origin/object-target', 'target' => str_repeat('a', 40)],
+            ['name' => 'refs/remotes/origin/peeled-target', 'target' => str_repeat('b', 40), 'object' => str_repeat('c', 40)],
+            ['name' => 'refs/heads/' . str_repeat('a', 40), 'target' => str_repeat('d', 40)],
+        ]);
+
+        $t->same(['refs/heads/wp-content', 'refs/heads/wp-theme'], array_column($objectDestination, 'remote'));
+        $t->same(['refs/remotes/origin/object-target', 'refs/remotes/origin/peeled-target'], array_column($objectDestination, 'local'));
+        $t->same([0, 1], array_column($objectDestination, 'itemIndex'));
+
+        $t->same([], RefSpec::matchFetchLocalRefs(['main'], $localRefs), 'source-only fetch specs have no rhs to reverse-map');
+        $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchFetchLocalRefs(['refs/heads/main'], [['target' => str_repeat('9', 40)]]));
+        $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchFetchLocalRefs([RefSpec::parsePush('refs/heads/main')], $localRefs));
+        $t->throws(InvalidArgumentException::class, static fn () => RefSpec::matchFetchLocalRefs(['refs/heads/main:refs/remotes/origin/main'], [['name' => 'refs/remotes/origin/main', 'target' => 'not-an-object']]));
+    },
     'refspec validated fetch outcome reports conflicts and partial-destination fixes like gix-refspec' => static function (TestRunner $t): void {
         $remoteRefs = [
             ['name' => 'refs/heads/f1', 'target' => str_repeat('1', 40)],
@@ -1334,6 +1384,8 @@ return [
         $t->same($fixture['expectedConflictingFetchOk'], $summary['conflictingFetchRefs']['ok']);
         $t->same($fixture['expectedConflictingFetchIssueDestination'], $summary['conflictingFetchRefs']['issues'][0]['destination']);
         $t->same($fixture['expectedConflictingFetchIssueSources'], $summary['conflictingFetchRefs']['issues'][0]['sources']);
+        $t->same($fixture['expectedReverseMatchedFetchRemotes'], array_column($summary['reverseMatchedFetchRefs'], 'remote'));
+        $t->same($fixture['expectedReverseMatchedFetchLocals'], array_column($summary['reverseMatchedFetchRefs'], 'local'));
         $t->same($fixture['expectedPushInstructionIdentityUniqueCount'], $summary['pushInstructionIdentityUniqueCount']);
         $t->same($fixture['expectedSameNamedPushEquivalent'], $summary['sameNamedPushEquivalent']);
         $t->same($fixture['expectedDeleteForceEquivalent'], $summary['deleteForceEquivalent']);

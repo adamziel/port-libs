@@ -8,7 +8,7 @@ final class SQLiteRollbackJournalCommitPlan
 {
     /**
      * @param array<int, string> $databasePages 1-indexed page numbers to page images.
-     * @return array{database_path:string,journal_path:string,page_size:int,sync_mode:string,journal_mode:string,read_only:bool,immutable:bool,database_pages:list<int>,database_bytes:int,journal_bytes:int,operations:list<array{op:string,path:string,offset?:int,bytes?:int,durable?:bool,reason:string}>,dependencies:list<string>}
+     * @return array{database_path:string,journal_path:string,page_size:int,sync_mode:string,journal_mode:string,read_only:bool,immutable:bool,database_pages:list<int>,database_bytes:int,journal_bytes:int,operations:list<array{op:string,path:string,offset?:int,bytes?:int,durable?:bool,reason:string,require_exists?:bool}>,dependencies:list<string>}
      */
     public static function commit(
         string $databasePath,
@@ -19,6 +19,7 @@ final class SQLiteRollbackJournalCommitPlan
         string $journalMode = 'delete',
         bool $readOnly = false,
         bool $immutable = false,
+        bool $deleteMustExist = false,
     ): array {
         if ($databasePath === '') {
             throw new \InvalidArgumentException('SQLite rollback-journal commit requires a database path');
@@ -99,12 +100,16 @@ final class SQLiteRollbackJournalCommitPlan
         }
 
         if ($journalMode === 'delete') {
-            $operations[] = [
+            $deleteOperation = [
                 'op' => 'delete',
                 'path' => $journalPath,
                 'durable' => false,
                 'reason' => 'delete_rollback_journal_after_commit',
             ];
+            if ($deleteMustExist) {
+                $deleteOperation['require_exists'] = true;
+            }
+            $operations[] = $deleteOperation;
         } elseif ($journalMode === 'truncate') {
             $operations[] = [
                 'op' => 'truncate',

@@ -1677,6 +1677,7 @@ final class SQLiteVfsFileWriter
         int $pageSize,
         string $syncMode = 'full',
         string $journalMode = 'delete',
+        bool $deleteMustExist = false,
     ): array {
         $plan = SQLiteRollbackJournalCommitPlan::commit(
             $databasePath,
@@ -1686,7 +1687,8 @@ final class SQLiteVfsFileWriter
             $syncMode,
             $journalMode,
             $this->readOnly,
-            $this->immutable
+            $this->immutable,
+            $deleteMustExist
         );
 
         $payloads = [$plan['journal_path'] => $journalBytes];
@@ -1697,7 +1699,9 @@ final class SQLiteVfsFileWriter
             $payloads[$plan['journal_path'] . '#persist-header'] = str_repeat("\0", min(28, strlen($journalBytes)));
         }
 
-        $applied = $this->applyOperations($plan['operations'], $payloads, $plan['dependencies']);
+        $applied = $deleteMustExist
+            ? $this->applyAtomicOperations($plan['operations'], $payloads, $plan['dependencies'])
+            : $this->applyOperations($plan['operations'], $payloads, $plan['dependencies']);
         $applied['commit'] = $plan;
 
         return $applied;
@@ -2954,7 +2958,12 @@ final class SQLiteVfsFileWriter
                 $bytesTruncated += $size;
                 $applied[] = $this->applied($index, $operation, $localPath, $size);
             } elseif ($op === 'delete') {
-                if (is_file($localPath) && !unlink($localPath)) {
+                $requireExists = (bool) ($operation['require_exists'] ?? false);
+                if (!is_file($localPath)) {
+                    if ($requireExists) {
+                        throw new \RuntimeException("SQLite VFS delete target does not exist: {$path}");
+                    }
+                } elseif (!unlink($localPath)) {
                     throw new \RuntimeException("SQLite VFS could not delete file: {$path}");
                 }
                 $filesDeleted++;

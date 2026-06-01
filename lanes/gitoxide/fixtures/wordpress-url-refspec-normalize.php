@@ -183,6 +183,30 @@ return [
         'refs/heads/wp-content',
         'refs/heads/wp-theme',
     ],
+    'reverseFetchRefspecs' => [
+        '+refs/heads/*:refs/remotes/deploy/*',
+        'refs/tags/*:refs/tags/*',
+        'wp-content:wp-content',
+    ],
+    'localTrackingRefs' => [
+        ['name' => 'refs/remotes/deploy/wp-content', 'target' => str_repeat('1', 40)],
+        ['name' => 'refs/remotes/deploy/wp-theme', 'target' => str_repeat('2', 40)],
+        ['name' => 'refs/remotes/upstream/wp-content', 'target' => str_repeat('3', 40)],
+        ['name' => 'refs/tags/v6.0', 'target' => str_repeat('4', 40)],
+        ['name' => 'refs/heads/wp-content', 'target' => str_repeat('5', 40)],
+    ],
+    'expectedReverseMatchedFetchRemotes' => [
+        'refs/heads/wp-content',
+        'refs/heads/wp-theme',
+        'refs/tags/v6.0',
+        'refs/heads/wp-content',
+    ],
+    'expectedReverseMatchedFetchLocals' => [
+        'refs/remotes/deploy/wp-content',
+        'refs/remotes/deploy/wp-theme',
+        'refs/tags/v6.0',
+        'refs/heads/wp-content',
+    ],
     'pushRefspecs' => [
         '+refs/heads/release:refs/heads/wp-release',
         '+:refs/heads/stale-preview',

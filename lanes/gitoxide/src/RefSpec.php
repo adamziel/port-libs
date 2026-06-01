@@ -401,6 +401,62 @@ final class RefSpec
     }
 
     /**
+     * Reverse-map local tracking refs through fetch refspec right-hand sides.
+     *
+     * This mirrors the bounded behavior of gix-refspec MatchGroup::match_rhs:
+     * positive fetch specs with destinations map local destination refs back to
+     * the remote source they correspond to. Source-only fetch specs do not
+     * participate in reverse matching.
+     *
+     * @param list<string|self> $fetchRefspecs
+     * @param list<string|array{name: string, target?: ?string, object?: ?string}> $localRefs
+     * @return list<array{remote: string, local: ?string, specIndex: int, itemIndex: ?int}>
+     */
+    public static function matchFetchLocalRefs(array $fetchRefspecs, array $localRefs): array
+    {
+        $specs = [];
+        foreach ($fetchRefspecs as $index => $candidate) {
+            $specs[] = self::fetchSpecForMatch($candidate, $index);
+        }
+
+        $items = [];
+        foreach ($localRefs as $index => $item) {
+            $items[] = self::localRefItemForMatch($item, $index);
+        }
+
+        $out = [];
+        $seen = [];
+        foreach ($specs as $specIndex => $spec) {
+            if ($spec->mode === self::MODE_NEGATIVE || $spec->destination === null) {
+                continue;
+            }
+
+            foreach ($items as $itemIndex => $item) {
+                $match = self::matchFetchDestination($spec->destination, $item);
+                if ($match === null) {
+                    continue;
+                }
+
+                $remote = self::fetchSourceToRemote($spec->source, $match['capture']);
+                if ($remote === null) {
+                    continue;
+                }
+
+                self::pushUniqueFetchMapping(
+                    $out,
+                    $seen,
+                    $remote,
+                    $item['name'],
+                    $specIndex,
+                    $itemIndex
+                );
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * Validate fetch match output like `gix_refspec::match_lhs().validated()`.
      *
      * Conflicting full local destinations are reported as terminal issues.
@@ -501,19 +557,57 @@ final class RefSpec
     }
 
     /**
-     * @return array{name: string}
+     * @return array{name: string, target: ?string, object: ?string}
      */
     private static function remoteRefItemForMatch(mixed $item, int $index): array
     {
         if (is_string($item) && $item !== '') {
-            return ['name' => $item];
+            return ['name' => $item, 'target' => null, 'object' => null];
         }
-
         if (!is_array($item) || !isset($item['name']) || !is_string($item['name']) || $item['name'] === '') {
             throw new \InvalidArgumentException("Remote ref item at index {$index} must provide a non-empty name");
         }
 
-        return ['name' => $item['name']];
+        return ['name' => $item['name'], 'target' => null, 'object' => null];
+    }
+
+    /**
+     * @return array{name: string, target: ?string, object: ?string}
+     */
+    private static function localRefItemForMatch(mixed $item, int $index): array
+    {
+        return self::refItemForMatch($item, $index, 'Local');
+    }
+
+    /**
+     * @return array{name: string, target: ?string, object: ?string}
+     */
+    private static function refItemForMatch(mixed $item, int $index, string $label): array
+    {
+        if (is_string($item) && $item !== '') {
+            return ['name' => $item, 'target' => null, 'object' => null];
+        }
+        if (!is_array($item) || !isset($item['name']) || !is_string($item['name']) || $item['name'] === '') {
+            throw new \InvalidArgumentException("{$label} ref item at index {$index} must provide a non-empty name");
+        }
+
+        return [
+            'name' => $item['name'],
+            'target' => self::normalizedObjectHashOrNull($item['target'] ?? null, "{$label} ref target", $index),
+            'object' => self::normalizedObjectHashOrNull($item['object'] ?? null, "{$label} ref object", $index),
+        ];
+    }
+
+    private static function normalizedObjectHashOrNull(mixed $value, string $field, int $index): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_string($value) || !self::looksLikeFullObjectHash($value)) {
+            throw new \InvalidArgumentException("{$field} at index {$index} must be a full object id");
+        }
+
+        return strtolower($value);
     }
 
     /**
@@ -547,6 +641,37 @@ final class RefSpec
         return null;
     }
 
+    /**
+     * @param array{name: string, target: ?string, object: ?string} $item
+     * @return array{capture: ?string}|null
+     */
+    private static function matchFetchDestination(string $destination, array $item): ?array
+    {
+        if (str_contains($destination, '*')) {
+            $capture = self::simpleGlobCapture($destination, $item['name']);
+            return $capture === null ? null : ['capture' => $capture];
+        }
+
+        if (str_starts_with($destination, 'refs/')) {
+            return $destination === $item['name'] ? ['capture' => null] : null;
+        }
+
+        if (self::looksLikeFullObjectHash($destination)) {
+            $object = strtolower($destination);
+            return $item['target'] === $object || $item['object'] === $object
+                ? ['capture' => null]
+                : null;
+        }
+
+        foreach (self::expandPartialRefName($destination) as $expanded) {
+            if ($expanded === $item['name']) {
+                return ['capture' => null];
+            }
+        }
+
+        return null;
+    }
+
     private static function simpleGlobCapture(string $pattern, string $value): ?string
     {
         $star = strpos($pattern, '*');
@@ -566,6 +691,37 @@ final class RefSpec
         }
 
         return substr($value, strlen($prefix), $end - strlen($prefix));
+    }
+
+    private static function fetchSourceToRemote(?string $source, ?string $capture): ?string
+    {
+        if ($source === null) {
+            return null;
+        }
+
+        if (str_contains($source, '*')) {
+            if ($capture === null) {
+                throw new \InvalidArgumentException('Glob fetch source requires a destination glob capture');
+            }
+
+            $star = strpos($source, '*');
+            return substr($source, 0, $star) . $capture . substr($source, $star + 1);
+        }
+
+        if (str_starts_with($source, 'refs/')) {
+            return $source;
+        }
+
+        if (self::looksLikeFullObjectHash($source)) {
+            return 'refs/heads/' . strtolower($source);
+        }
+
+        $base = 'refs/';
+        if (!str_starts_with($source, 'tags/') && !str_starts_with($source, 'remotes/')) {
+            $base .= 'heads/';
+        }
+
+        return $base . $source;
     }
 
     private static function fetchDestinationToLocal(?string $destination, ?string $capture): ?string

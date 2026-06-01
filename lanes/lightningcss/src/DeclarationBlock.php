@@ -194,6 +194,8 @@ final class DeclarationBlock
         'image-rendering' => ['auto', 'optimizespeed', 'optimizequality'],
     ];
     private const PRINT_COLOR_ADJUST_PROPERTIES = ['print-color-adjust', '-webkit-print-color-adjust', '-moz-print-color-adjust'];
+    private const OBJECT_FIT_PROPERTIES = ['object-fit', '-o-object-fit'];
+    private const OBJECT_POSITION_PROPERTIES = ['object-position', '-o-object-position'];
     private const DIRECT_KEYWORD_PROPERTIES = [
         'visibility' => ['visible', 'hidden', 'collapse'],
         'box-sizing' => ['content-box', 'border-box'],
@@ -14400,6 +14402,14 @@ final class DeclarationBlock
             return $this->normalizeKeywordDeclarationValue($value, ['economy', 'exact']);
         }
 
+        if (in_array($property, self::OBJECT_FIT_PROPERTIES, true)) {
+            return $this->normalizeKeywordDeclarationValue($value, ['fill', 'contain', 'cover', 'none', 'scale-down']);
+        }
+
+        if (in_array($property, self::OBJECT_POSITION_PROPERTIES, true)) {
+            return $this->normalizeObjectPositionDeclarationValue($value);
+        }
+
         if (isset(self::DIRECT_KEYWORD_PROPERTIES[$property])) {
             return $this->normalizeKeywordDeclarationValue($value, self::DIRECT_KEYWORD_PROPERTIES[$property]);
         }
@@ -14973,6 +14983,27 @@ final class DeclarationBlock
                 $parts
             )
         );
+    }
+
+    private function normalizeObjectPositionDeclarationValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel(trim($value));
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        $normalized = [];
+        foreach ($tokens as $token) {
+            $keyword = strtolower($token);
+            if (in_array($keyword, ['left', 'right', 'top', 'bottom', 'center'], true)) {
+                $normalized[] = $keyword;
+                continue;
+            }
+
+            $normalized[] = $this->normalizeLengthPercentageDeclarationToken($token) ?? trim($token);
+        }
+
+        return implode(' ', $normalized);
     }
 
     private function normalizeZIndexDeclarationValue(string $value): string

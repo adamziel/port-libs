@@ -1050,6 +1050,50 @@ return [
             $block->removeProperty('transform: translate(10px); translate: 12px 0; rotate: 0; scale: 105%; color: red', 'transform')
         );
     },
+    'declaration block canonicalizes upstream object fit cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'object-fit: Cover; object-position: CENTER TOP; -o-object-fit: CONTAIN; -o-object-position: LEFT 10PX TOP 20PX; --Object-Fit: Cover';
+
+        $t->same(
+            [
+                'object-fit' => 'cover',
+                'object-position' => 'center top',
+                '-o-object-fit' => 'contain',
+                '-o-object-position' => 'left 10px top 20px',
+                '--Object-Fit' => 'Cover',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'cover', 'important' => false], $block->getProperty($declarations, 'object-fit'));
+        $t->same(['value' => 'center top', 'important' => false], $block->getProperty($declarations, 'object-position'));
+        $t->same(['value' => 'contain', 'important' => false], $block->getProperty($declarations, '-o-object-fit'));
+        $t->same(['value' => 'left 10px top 20px', 'important' => false], $block->getProperty($declarations, '-o-object-position'));
+        $t->same(['value' => 'Cover', 'important' => false], $block->getProperty($declarations, '--Object-Fit'));
+        $t->same(
+            'object-position: center top; -o-object-fit: contain; -o-object-position: left 10px top 20px; --Object-Fit: Cover; object-fit: scale-down !important',
+            $block->setProperty($declarations, 'object-fit', 'Scale-Down', true)
+        );
+        $t->same(
+            'object-fit: cover; object-position: 0 50%; -o-object-fit: contain; -o-object-position: left 10px top 20px; --Object-Fit: Cover',
+            $block->setProperty($declarations, 'object-position', '0PX 50.000%')
+        );
+        $t->same(
+            'object-fit: cover; object-position: center top; -o-object-fit: none; -o-object-position: left 10px top 20px; --Object-Fit: Cover',
+            $block->setProperty($declarations, '-o-object-fit', 'NONE')
+        );
+        $t->same(
+            'object-fit: cover; object-position: center top; -o-object-fit: contain; --Object-Fit: Cover; -o-object-position: right bottom !important',
+            $block->setProperty($declarations, '-o-object-position', 'RIGHT BOTTOM', true)
+        );
+        $t->same(
+            'object-position: center top; -o-object-fit: contain; -o-object-position: left 10px top 20px; --Object-Fit: Cover',
+            $block->removeProperty($declarations, 'object-fit')
+        );
+        $t->same(
+            'object-fit: cover; object-position: center top; -o-object-fit: contain; --Object-Fit: Cover',
+            $block->removeProperty($declarations, '-o-object-position')
+        );
+    },
     'declaration block canonicalizes upstream transform origin cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'transform-origin: LEFT top; -webkit-transform-origin: right bottom !important; -moz-transform-origin: center 0px; --Transform-Origin: LEFT top';

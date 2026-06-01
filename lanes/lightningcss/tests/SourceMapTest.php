@@ -539,6 +539,51 @@ return [
             $map->addVlqMap('A', [], [], [], 0, -1);
         });
     },
+    'source map preserves prior raw vlq rows before negative column reset underflow' => static function (TestRunner $t): void {
+        $sourceBacked = new SourceMap();
+        $t->throws(InvalidArgumentException::class, static function () use ($sourceBacked): void {
+            $sourceBacked->addVlqMap(
+                'KAAAA;A',
+                ['blocks/card.scss'],
+                [".card { color: \$brand; }\n"],
+                ['cardRule'],
+                0,
+                -3
+            );
+        });
+        $sourceBackedDecoded = SourceMap::decodeVlq($sourceBacked->writeVlq());
+        $sourceBackedRoundTrip = SourceMap::fromBuffer('/', $sourceBacked->toBuffer());
+
+        $t->same('EAAAA', $sourceBacked->writeVlq());
+        $t->same([0], array_column($sourceBackedDecoded, 'generatedLine'));
+        $t->same([2], array_column($sourceBackedDecoded, 'generatedColumn'));
+        $t->same([0], array_column($sourceBackedDecoded, 'sourceIndex'));
+        $t->same([0], array_column($sourceBackedDecoded, 'nameIndex'));
+        $t->same(['blocks/card.scss'], $sourceBacked->getSources());
+        $t->same([".card { color: \$brand; }\n"], $sourceBacked->getSourcesContent());
+        $t->same(['cardRule'], $sourceBacked->getNames());
+        $t->same('EAAAA', $sourceBackedRoundTrip->writeVlq());
+
+        $generatedOnly = new SourceMap();
+        $t->throws(InvalidArgumentException::class, static function () use ($generatedOnly): void {
+            $generatedOnly->addVlqMap(
+                'K;A',
+                ['blocks/unused.scss'],
+                ['.unused { color: red; }'],
+                ['unusedRule'],
+                0,
+                -3
+            );
+        });
+        $generatedOnlyDecoded = SourceMap::decodeVlq($generatedOnly->writeVlq());
+
+        $t->same('E', $generatedOnly->writeVlq());
+        $t->same([2], array_column($generatedOnlyDecoded, 'generatedColumn'));
+        $t->same([null], array_column($generatedOnlyDecoded, 'sourceIndex'));
+        $t->same(['blocks/unused.scss'], $generatedOnly->getSources());
+        $t->same(['.unused { color: red; }'], $generatedOnly->getSourcesContent());
+        $t->same(['unusedRule'], $generatedOnly->getNames());
+    },
     'source map imports upstream raw vlq byte-stream mappings without comma separators' => static function (TestRunner $t): void {
         $map = SourceMap::fromJson(
             '{"version":3,"mappings":"AAAAAA","sources":["compiled.css"],"sourcesContent":[".compiled{}"],"names":["rule"]}'

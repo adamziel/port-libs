@@ -3254,6 +3254,64 @@ CSS);
             'negated' => $export('EgL3uq_negated'),
         ], $topLevel['exports']);
     },
+    'css modules scopes upstream container properties while preserving local global composes' => static function (TestRunner $t) use ($export, $local): void {
+        $css = <<<'CSS'
+.card {
+  color: red;
+  container-name: layout card;
+  container-type: inline-size;
+  composes: base;
+}
+
+.panel {
+  color: yellow;
+  container: sidebar widget / size;
+}
+
+@container layout (width > 1px) {
+  .card {
+    color: blue;
+  }
+}
+
+.base {
+  color: white;
+}
+CSS;
+
+        $result = (new CssModulesTransformer())->transform($css);
+
+        $t->same('.EgL3uq_card{color:red;container:EgL3uq_layout EgL3uq_card/inline-size}.EgL3uq_panel{color:#ff0;container:EgL3uq_sidebar EgL3uq_widget/size}@container EgL3uq_layout (width>1px){.EgL3uq_card{color:#00f}}.EgL3uq_base{color:#fff}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'layout' => $export('EgL3uq_layout'),
+            'panel' => $export('EgL3uq_panel'),
+            'sidebar' => $export('EgL3uq_sidebar'),
+            'widget' => $export('EgL3uq_widget'),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_card EgL3uq_base', CssModulesTransformer::exportClassList($result['exports'], 'card'));
+
+        foreach ([
+            'container' => ['container' => false],
+            'customIdents' => ['customIdents' => false],
+        ] as $optionName => $options) {
+            $disabled = (new CssModulesTransformer())->transform($css, $options);
+            $t->same('.EgL3uq_card{color:red;container:layout card/inline-size}.EgL3uq_panel{color:#ff0;container:sidebar widget/size}@container layout (width>1px){.EgL3uq_card{color:#00f}}.EgL3uq_base{color:#fff}', $disabled['code']);
+            $t->same([
+                'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+                'panel' => $export('EgL3uq_panel'),
+                'base' => $export('EgL3uq_base'),
+            ], $disabled['exports'], $optionName . ' keeps authored container custom idents public');
+        }
+
+        $none = (new CssModulesTransformer())->transform('.card { color: red; container-name: none }');
+        $t->same('.EgL3uq_card{color:red;container-name:none}', $none['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+        ], $none['exports']);
+    },
     'css modules scopes upstream scope rule preludes without nested composes exports' => static function (TestRunner $t) use ($export): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 @scope (.scopeRoot) to (:global(.legacy-stop), .scopeLimit) {

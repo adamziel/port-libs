@@ -206,6 +206,12 @@ try {
 } catch (InvalidArgumentException) {
     $absoluteRootRelativeRejected = true;
 }
+$rootlessAbsolutePathspecRejected = false;
+try {
+    PathspecSearch::fromSpecs(['/wp-content/plugins/safe.php']);
+} catch (InvalidArgumentException) {
+    $rootlessAbsolutePathspecRejected = true;
+}
 
 $records = TreePathspecWalk::breadthFirst(
     $root,
@@ -584,6 +590,7 @@ return [
     'absoluteRootPluginPrefix' => $absoluteRootPathspecs->patterns()[0]->prefixDirectory(),
     'absoluteRootOutsideRejected' => $absoluteRootOutsideRejected,
     'absoluteRootRelativeRejected' => $absoluteRootRelativeRejected,
+    'rootlessAbsolutePathspecRejected' => $rootlessAbsolutePathspecRejected,
     'pluginPruningHintDirectory' => $pluginPruningHintPathspecs->longestCommonDirectory(),
     'callerPrefixOnlyPruningHint' => $callerPrefixHintPathspecs->longestCommonDirectory(),
     'directoryOnlyPruningHint' => $directoryOnlyHintPathspecs->longestCommonDirectory(),

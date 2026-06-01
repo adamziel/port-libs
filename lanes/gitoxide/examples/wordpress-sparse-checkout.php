@@ -5,12 +5,33 @@ declare(strict_types=1);
 require __DIR__ . '/../../../tools/bootstrap.php';
 
 use PortLibs\Gitoxide\FetchFilterSpec;
+use PortLibs\Gitoxide\SparseCheckoutOptions;
 use PortLibs\Gitoxide\SparseCheckoutSpec;
 use PortLibs\Gitoxide\Tree;
 use PortLibs\Gitoxide\TreeEntry;
 
 $blob = str_repeat('1', 40);
 $tree = str_repeat('2', 40);
+$coneSparseIndexOptions = new SparseCheckoutOptions(
+    sparseCheckout: true,
+    directoryPatternsOnly: true,
+    writeSparseIndex: true,
+);
+$coneFullIndexOptions = new SparseCheckoutOptions(
+    sparseCheckout: true,
+    directoryPatternsOnly: true,
+    writeSparseIndex: false,
+);
+$nonConeSparseOptions = new SparseCheckoutOptions(
+    sparseCheckout: true,
+    directoryPatternsOnly: false,
+    writeSparseIndex: true,
+);
+$disabledSparseOptions = new SparseCheckoutOptions(
+    sparseCheckout: false,
+    directoryPatternsOnly: true,
+    writeSparseIndex: true,
+);
 $sparse = SparseCheckoutSpec::cone(['wp-content/plugins/gutenberg']);
 $pathspec = SparseCheckoutSpec::fromPathspecs([
     'wp-content/**',
@@ -259,6 +280,10 @@ $entryNames = static fn (array $entries): array => array_map(
 
 return [
     'fetchFilter' => (string) $filter,
+    'sparseIndexMode' => $coneSparseIndexOptions->sparseMode(),
+    'coneFullIndexMode' => $coneFullIndexOptions->sparseMode(),
+    'nonConeSparseMode' => $nonConeSparseOptions->sparseMode(),
+    'disabledSparseMode' => $disabledSparseOptions->sparseMode(),
     'sparseMode' => $sparse->mode,
     'recursiveDirectories' => $sparse->recursiveDirectories(),
     'parentDirectories' => $sparse->parentDirectories(),

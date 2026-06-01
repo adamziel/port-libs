@@ -270,7 +270,11 @@ final class PathspecSearch
             return $pattern;
         }
 
-        if ($root !== '' && str_starts_with($pattern->path, '/')) {
+        if (str_starts_with($pattern->path, '/')) {
+            if ($root === '') {
+                throw new \InvalidArgumentException("Absolute pathspec requires a pathspec root: {$pattern->path}");
+            }
+
             [$path, $prefixLength, $nil] = self::normalizeAbsolutePatternPath(
                 $pattern->path,
                 $root,

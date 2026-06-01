@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use PortLibs\Gitoxide\SparseCheckoutOptions;
 use PortLibs\Gitoxide\SparseCheckoutSpec;
 use PortLibs\Gitoxide\Tree;
 use PortLibs\Gitoxide\TreeEntry;
@@ -12,6 +13,27 @@ $entryNames = static fn (array $entries): array => array_map(
 );
 
 return [
+    'sparse checkout options derive gix index sparse modes' => static function (TestRunner $t): void {
+        $cases = [
+            [false, false, false, SparseCheckoutOptions::MODE_DISABLED],
+            [false, false, true, SparseCheckoutOptions::MODE_DISABLED],
+            [false, true, false, SparseCheckoutOptions::MODE_DISABLED],
+            [false, true, true, SparseCheckoutOptions::MODE_DISABLED],
+            [true, false, false, SparseCheckoutOptions::MODE_INCLUDE_BY_IGNORE_PATTERN_STORE_ALL_ENTRIES_SKIP_UNMATCHED],
+            [true, false, true, SparseCheckoutOptions::MODE_INCLUDE_BY_IGNORE_PATTERN_STORE_ALL_ENTRIES_SKIP_UNMATCHED],
+            [true, true, false, SparseCheckoutOptions::MODE_INCLUDE_DIRECTORIES_STORE_ALL_ENTRIES_SKIP_UNMATCHED],
+            [true, true, true, SparseCheckoutOptions::MODE_INCLUDE_DIRECTORIES_STORE_INCLUDED_ENTRIES_AND_EXCLUDED_DIRS],
+        ];
+
+        foreach ($cases as [$sparseCheckout, $directoryPatternsOnly, $writeSparseIndex, $expectedMode]) {
+            $options = new SparseCheckoutOptions(
+                sparseCheckout: $sparseCheckout,
+                directoryPatternsOnly: $directoryPatternsOnly,
+                writeSparseIndex: $writeSparseIndex,
+            );
+            $t->same($expectedMode, $options->sparseMode());
+        }
+    },
     'cone sparse checkout includes root and ancestor files plus selected directory contents' => static function (TestRunner $t): void {
         $spec = SparseCheckoutSpec::cone(['wp-content/plugins/gutenberg']);
 

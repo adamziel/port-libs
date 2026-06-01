@@ -920,10 +920,83 @@ final class CssModulesTransformer
             'view-transition-name' => $this->rewriteViewTransitionNameValue($value),
             'view-transition-class' => $this->rewriteViewTransitionIdentList($value, ['none']),
             'view-transition-group' => $this->rewriteViewTransitionNameValue($value, ['contain', 'nearest', 'normal']),
+            'container-name' => ($this->container && $this->customIdents) ? $this->rewriteContainerNameValue($value) : null,
+            'container' => ($this->container && $this->customIdents) ? $this->rewriteContainerShorthandValue($value) : null,
             'position-try-fallbacks' => $this->dashedIdents ? $this->rewritePositionTryFallbacksValue($value) : null,
             'font-palette' => $this->dashedIdents ? $this->rewriteFontPaletteValue($value) : null,
             default => null,
         };
+    }
+
+    private function rewriteContainerNameValue(string $value): ?string
+    {
+        $trimmed = trim($value);
+        if ($trimmed === '' || strcasecmp($trimmed, 'none') === 0 || $this->isCssWideKeyword($trimmed)) {
+            return null;
+        }
+
+        $tokens = $this->splitWhitespaceTopLevel($trimmed);
+        if ($tokens === []) {
+            return null;
+        }
+
+        $rewritten = [];
+        $changed = false;
+
+        foreach ($tokens as $token) {
+            $name = $this->rewriteContainerNameToken($token);
+            if ($name === null) {
+                return null;
+            }
+
+            $rewritten[] = $name;
+            $changed = $changed || $name !== $token;
+        }
+
+        return $changed ? implode(' ', $rewritten) : null;
+    }
+
+    private function rewriteContainerShorthandValue(string $value): ?string
+    {
+        $slash = $this->findNextTopLevel($value, '/', 0);
+        if ($slash === null) {
+            return $this->rewriteContainerNameValue($value);
+        }
+
+        if ($this->findNextTopLevel($value, '/', $slash + 1) !== null) {
+            return null;
+        }
+
+        $rewrittenName = $this->rewriteContainerNameValue(substr($value, 0, $slash));
+        if ($rewrittenName === null) {
+            return null;
+        }
+
+        $containerType = trim(substr($value, $slash + 1));
+        if ($containerType === '') {
+            return null;
+        }
+
+        return $rewrittenName . '/' . strtolower($containerType);
+    }
+
+    private function rewriteContainerNameToken(string $token): ?string
+    {
+        $parsed = $this->readCssIdentifierToken($token, 0);
+        if ($parsed === null || $parsed['end'] !== strlen($token)) {
+            return null;
+        }
+
+        $decoded = $parsed['decoded'];
+        if ($decoded === '' || $this->isCssWideKeyword($decoded)) {
+            return null;
+        }
+
+        if (in_array(strtolower($decoded), ['none', 'and', 'not', 'or'], true)) {
+            return null;
+        }
+
+        return $this->escapeCssIdentifier($this->scopeCustomIdent($decoded));
     }
 
     private function rewriteTransitionPropertyValue(string $value): ?string

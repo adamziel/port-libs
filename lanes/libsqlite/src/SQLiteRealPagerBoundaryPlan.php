@@ -739,6 +739,59 @@ final class SQLiteRealPagerBoundaryPlan
         return $rows;
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function deleteJournalMissingCommitRows(int $count = 1000): array
+    {
+        if ($count < 1) {
+            throw new \InvalidArgumentException('SQLite pager missing delete-journal corpus row count must be positive');
+        }
+
+        $pageSizes = [512, 1024, 2048, 4096];
+        $syncModes = ['full', 'normal', 'extra'];
+        $rows = [];
+
+        for ($case = 1; $case <= $count; $case++) {
+            $pageSize = $pageSizes[($case - 1) % count($pageSizes)];
+            $syncMode = $syncModes[intdiv($case - 1, count($pageSizes)) % count($syncModes)];
+            $payloadRepeat = 8 + (($case * 13) % 31);
+
+            $rows[] = [
+                'case' => $case,
+                'script' => 'pager1.test',
+                'section' => 'pager1-33.1..33.2',
+                'upstream' => sprintf('pager1.test pager1-33.1..33.2 missing DELETE journal unlink dynamic case %04d', $case),
+                'journal_mode' => 'delete',
+                'sync_mode' => $syncMode,
+                'page_size' => $pageSize,
+                'payload_repeat' => $payloadRepeat,
+                'journal_backup_name' => 'bak-journal',
+                'journal_renamed_before_commit' => true,
+                'delete_errno' => 'ENOENT',
+                'delete_operation_requires_existing_target' => true,
+                'commit_result_code' => 1,
+                'commit_error' => 'disk I/O error',
+                'initial_rows' => ['one', 'two'],
+                'pending_rows' => ['three', 'four'],
+                'dirty_rows_if_commit_succeeded' => ['one', 'two', 'three', 'four'],
+                'rows_after_restore' => ['one', 'two'],
+                'database_restored_after_atomic_failure' => true,
+                'journal_restored_before_read' => true,
+                'integrity_check_after_restore' => 'ok',
+                'source' => 'pager1.test pager1-33.1 through pager1-33.2 requires DELETE-mode COMMIT to fail if unlink(test.db-journal) returns ENOENT after the journal has been renamed away',
+                'dependencies' => [
+                    'real-upstream-corpus-pager1',
+                    'sqlite-rollback-journal-delete-enoent-commit-failure',
+                    'sqlite-pager-delete-mode-commit-error-boundary',
+                    'sqlite-vfs-atomic-rollback-on-delete-failure',
+                ],
+            ];
+        }
+
+        return $rows;
+    }
+
     private static function align(int $value, int $boundary): int
     {
         return intdiv($value + $boundary - 1, $boundary) * $boundary;
