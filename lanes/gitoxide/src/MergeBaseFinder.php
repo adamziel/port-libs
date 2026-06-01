@@ -241,6 +241,9 @@ final class MergeBaseFinder
         }
 
         sort($walkStart, SORT_STRING);
+        foreach ($walkStart as $commitId) {
+            $flagsByCommit[$commitId] = ($flagsByCommit[$commitId] ?? 0) & ~self::FLAG_STALE;
+        }
         $remaining = count($candidates);
         $minGeneration = $this->lowestLiveCandidateGeneration($candidates, $candidateGenerations, $flagsByCommit);
         while ($walkStart !== [] && $remaining > 1) {

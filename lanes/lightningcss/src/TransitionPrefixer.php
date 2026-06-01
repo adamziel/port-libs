@@ -1170,7 +1170,8 @@ final class TransitionPrefixer
         $needsWebkitBoxShadow = $this->targetInRange($normalized, 'android', [2, 1], [3, 0])
             || $this->targetInRange($normalized, 'chrome', [4], [9])
             || $this->targetInRange($normalized, 'safari', [3, 1], [5])
-            || $this->targetInRange($normalized, 'ios_saf', [3, 0], [4, 2]);
+            || $this->targetInRange($normalized, 'ios_saf', [3, 2], [4, 2]);
+        $needsMozBoxShadow = $this->targetInRange($normalized, 'firefox', [3, 5], [3, 6]);
         $supportsAdvancedColor = $this->targetAtLeast($normalized, 'chrome', [111])
             || $this->targetAtLeast($normalized, 'edge', [111])
             || $this->targetAtLeast($normalized, 'safari', [16]);
@@ -1283,7 +1284,8 @@ final class TransitionPrefixer
 
         return [
             'boxShadowNeedsWebkit' => $needsWebkitBoxShadow,
-            'boxShadowDropLegacyPrefixes' => !$needsWebkitBoxShadow && (
+            'boxShadowNeedsMoz' => $needsMozBoxShadow,
+            'boxShadowDropLegacyPrefixes' => !$needsWebkitBoxShadow && !$needsMozBoxShadow && (
                 $this->targetAtLeast($normalized, 'chrome', [95])
                 || $this->targetAtLeast($normalized, 'safari', [16])
             ),
@@ -6630,16 +6632,18 @@ final class TransitionPrefixer
     /**
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
      * @param list<string> $supportRules
-     * @param array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool,advancedColorNeedsSrgbFallback:bool,advancedColorUsesP3Fallback:bool} $targetOptions
+     * @param array{boxShadowNeedsWebkit:bool,boxShadowNeedsMoz:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool,advancedColorNeedsSrgbFallback:bool,advancedColorUsesP3Fallback:bool} $targetOptions
      */
     private function rewriteBoxShadowPrefixEntries(array &$entries, string $selectors, array &$supportRules, array $targetOptions): bool
     {
         $changed = false;
         $rewritten = [];
         $hasWebkitBoxShadow = false;
+        $hasMozBoxShadow = false;
 
         foreach ($entries as $entry) {
             $hasWebkitBoxShadow = $hasWebkitBoxShadow || $entry['property'] === '-webkit-box-shadow';
+            $hasMozBoxShadow = $hasMozBoxShadow || $entry['property'] === '-moz-box-shadow';
         }
 
         foreach ($entries as $entry) {
@@ -6648,7 +6652,9 @@ final class TransitionPrefixer
                 continue;
             }
 
-            if ($targetOptions['boxShadowDropLegacyPrefixes']
+            if (($targetOptions['boxShadowDropLegacyPrefixes']
+                    || ($entry['property'] === '-webkit-box-shadow' && !$targetOptions['boxShadowNeedsWebkit'])
+                    || ($entry['property'] === '-moz-box-shadow' && !$targetOptions['boxShadowNeedsMoz']))
                 && $this->isLegacyBoxShadowProperty($entry['property'])
                 && $this->hasMatchingUnprefixedBoxShadow($entries, $entry['value'])
             ) {
@@ -6685,16 +6691,25 @@ final class TransitionPrefixer
                         if ($targetOptions['boxShadowNeedsWebkit'] && !$hasWebkitBoxShadow) {
                             $rewritten[] = $this->declarationEntry('-webkit-box-shadow', $this->expandLegacyAlphaHexColors($fallback));
                         }
+                        if ($targetOptions['boxShadowNeedsMoz'] && !$hasMozBoxShadow) {
+                            $rewritten[] = $this->declarationEntry('-moz-box-shadow', $this->expandLegacyAlphaHexColors($fallback));
+                        }
                         $rewritten[] = $this->entryWithValue($entry, $fallback);
                     } else {
                         if ($targetOptions['boxShadowNeedsWebkit'] && !$hasWebkitBoxShadow) {
                             $rewritten[] = $this->declarationEntry('-webkit-box-shadow', $this->expandLegacyAlphaHexColors($p3Fallback));
+                        }
+                        if ($targetOptions['boxShadowNeedsMoz'] && !$hasMozBoxShadow) {
+                            $rewritten[] = $this->declarationEntry('-moz-box-shadow', $this->expandLegacyAlphaHexColors($p3Fallback));
                         }
                         $rewritten[] = $this->entryWithValue($entry, $p3Fallback);
                     }
                     if ($targetOptions['advancedColorNeedsSrgbFallback'] && $p3Fallback !== null && $p3Fallback !== $fallback) {
                         if ($targetOptions['boxShadowNeedsWebkit'] && !$hasWebkitBoxShadow) {
                             $rewritten[] = $this->declarationEntry('-webkit-box-shadow', $this->expandLegacyAlphaHexColors($p3Fallback));
+                        }
+                        if ($targetOptions['boxShadowNeedsMoz'] && !$hasMozBoxShadow) {
+                            $rewritten[] = $this->declarationEntry('-moz-box-shadow', $this->expandLegacyAlphaHexColors($p3Fallback));
                         }
                         $rewritten[] = $this->entryWithValue($entry, $p3Fallback);
                     }
@@ -6718,6 +6733,10 @@ final class TransitionPrefixer
                 $rewritten[] = $this->declarationEntry('-webkit-box-shadow', $this->expandLegacyAlphaHexColors($entry['value']));
                 $changed = true;
             }
+            if ($targetOptions['boxShadowNeedsMoz'] && !$hasMozBoxShadow) {
+                $rewritten[] = $this->declarationEntry('-moz-box-shadow', $this->expandLegacyAlphaHexColors($entry['value']));
+                $changed = true;
+            }
 
             $rewritten[] = $entry;
         }
@@ -6730,7 +6749,7 @@ final class TransitionPrefixer
     /**
      * @param list<array{property:string,name:string,value:string,important:bool}> $entries
      * @param list<string> $supportRules
-     * @param array{boxShadowNeedsWebkit:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool,advancedColorNeedsSrgbFallback:bool,advancedColorUsesP3Fallback:bool} $targetOptions
+     * @param array{boxShadowNeedsWebkit:bool,boxShadowNeedsMoz:bool,boxShadowDropLegacyPrefixes:bool,boxShadowSupportsAdvancedColor:bool,boxShadowDropOverriddenFallbacks:bool,advancedColorNeedsSrgbFallback:bool,advancedColorUsesP3Fallback:bool} $targetOptions
      */
     private function rewriteTextShadowFallbackEntries(array &$entries, string $selectors, array &$supportRules, array $targetOptions): bool
     {

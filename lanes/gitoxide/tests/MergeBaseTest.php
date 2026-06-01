@@ -169,8 +169,33 @@ return [
 
         $t->same([$first], $mergeBase->mergeBasesAgainst($first, []));
         $t->same($first, $mergeBase->mergeBaseAgainst($first, [$unrelated, $first]));
+        $t->same([$first], $mergeBase->mergeBasesAgainst($first, [$first, $unrelated]));
+        $t->same($first, $mergeBase->mergeBaseAgainst($first, [$first, $unrelated]));
         $t->same([], $reads);
         $t->throws(InvalidArgumentException::class, static fn () => $mergeBase->mergeBasesAgainst($first, [123]));
+    },
+    'maps upstream generated disjoint shortcut baseline without graph reads' => static function (TestRunner $t) use ($oid, $commit, $finder): void {
+        $disjointA = $oid('a');
+        $disjointB = $oid('b');
+        $reads = [];
+        $shortcutFinder = new MergeBaseFinder(static function (string $oid) use (&$reads): Commit {
+            $reads[] = $oid;
+            throw new RuntimeException('gix_revision::merge_base should shortcut before graph reads');
+        });
+
+        $t->same([$disjointA], $shortcutFinder->mergeBasesAgainst($disjointA, [$disjointA, $disjointB]));
+        $t->same($disjointA, $shortcutFinder->mergeBaseAgainst($disjointA, [$disjointB, $disjointA]));
+        $t->same([], $reads);
+
+        $mergeBase = $finder([
+            $disjointA => $commit(),
+            $disjointB => $commit(),
+        ]);
+
+        $t->same([], $mergeBase->mergeBasesAgainst($disjointA, [$disjointB]));
+        $t->same([], $mergeBase->mergeBases($disjointA, $disjointB));
+        $t->same([$disjointA], $mergeBase->mergeBasesAgainst($disjointA, [$disjointA, $disjointB]));
+        $t->same([$disjointB], $mergeBase->mergeBasesAgainst($disjointB, [$disjointB]));
     },
     'maps upstream graph walk stale-queue stop without reading deep shallow ancestors' => static function (TestRunner $t) use ($oid): void {
         $timedCommit = static fn (int $seconds, array $parents = []): Commit => new Commit(
@@ -991,6 +1016,8 @@ BASELINE;
         $t->same($fixture['releaseBaseline'], $finder->mergeBaseMany($fixture['heads']));
         $t->same([$fixture['releaseBaseline']], $finder->mergeBasesMany($fixture['deploymentHeads']));
         $t->same([$fixture['releaseBaseline']], $finder->mergeBasesAgainst($fixture['pluginReview'], $fixture['graphWalkOthers']));
+        $t->same([$fixture['pluginReview']], $example['disjointShortcutBases']);
+        $t->same(true, $example['disjointShortcutAvoidsGraphReads']);
         $t->same([], $finder->mergeBasesMany($fixture['graphWalkHeads']));
         $t->same($fixture['releaseBaseline'], $example['reviewBase']);
         $t->same([$fixture['releaseBaseline']], $example['reviewBases']);

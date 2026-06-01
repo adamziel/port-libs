@@ -2812,6 +2812,14 @@ CSS;
             $prefixer->prefixForTargets('.foo { box-shadow: 12px 12px lab(40% 56.6 39) }', ['chrome' => 4])
         );
         $t->same(
+            '.foo{-moz-box-shadow:12px 12px #b32323;box-shadow:12px 12px #b32323;box-shadow:12px 12px lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 12px 12px lab(40% 56.6 39) }', ['firefox' => (3 << 16) | (6 << 8)])
+        );
+        $t->same(
+            '.foo{-webkit-box-shadow:12px 12px #b32323;-moz-box-shadow:12px 12px #b32323;box-shadow:12px 12px #b32323;box-shadow:12px 12px lab(40% 56.6 39)}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 12px 12px lab(40% 56.6 39) }', ['chrome' => 4, 'firefox' => (3 << 16) | (6 << 8)])
+        );
+        $t->same(
             '.foo{-webkit-box-shadow:12px 12px #b32323,12px 12px #ff0;box-shadow:12px 12px #b32323,12px 12px #ff0;box-shadow:12px 12px lab(40% 56.6 39),12px 12px #ff0}',
             $prefixer->prefixForTargets('.foo { box-shadow: 12px 12px lab(40% 56.6 39), 12px 12px yellow }', ['chrome' => 4])
         );
@@ -2822,6 +2830,14 @@ CSS;
         $t->same(
             '.foo{box-shadow:12px 12px #0006}',
             $prefixer->prefixForTargets('.foo { -webkit-box-shadow: 12px 12px #0006; -moz-box-shadow: 12px 12px #0006; box-shadow: 12px 12px #0006; }', ['chrome' => 95])
+        );
+        $t->same(
+            '.foo{-moz-box-shadow:12px 12px #000;box-shadow:12px 12px #000}',
+            $prefixer->prefixForTargets('.foo { -webkit-box-shadow: 12px 12px #000; -moz-box-shadow: 12px 12px #000; box-shadow: 12px 12px #000; }', ['firefox' => (3 << 16) | (6 << 8)])
+        );
+        $t->same(
+            '.foo{-webkit-box-shadow:12px 12px #000;box-shadow:12px 12px #000}',
+            $prefixer->prefixForTargets('.foo { -webkit-box-shadow: 12px 12px #000; -moz-box-shadow: 12px 12px #000; box-shadow: 12px 12px #000; }', ['chrome' => 4])
         );
         $t->same(
             '.foo{box-shadow:var(--foo) 12px #b32323}@supports (color:lab(0% 0 0)){.foo{box-shadow:var(--foo) 12px lab(40% 56.6 39)}}',
@@ -3283,6 +3299,30 @@ CSS;
         $t->same(
             '.foo{box-shadow:1px 1px #000}',
             $prefixer->prefixForTargets('.foo { box-shadow: 1px 1px #000; }', ['safari' => $encoded(5, 1)])
+        );
+        $t->same(
+            '.foo{box-shadow:1px 1px #000}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 1px 1px #000; }', ['firefox' => $encoded(3, 4)])
+        );
+        $t->same(
+            '.foo{-moz-box-shadow:1px 1px #000;box-shadow:1px 1px #000}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 1px 1px #000; }', ['firefox' => $encoded(3, 5)])
+        );
+        $t->same(
+            '.foo{-moz-box-shadow:1px 1px #000;box-shadow:1px 1px #000}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 1px 1px #000; }', ['firefox' => $encoded(3, 6)])
+        );
+        $t->same(
+            '.foo{box-shadow:1px 1px #000}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 1px 1px #000; }', ['firefox' => $encoded(3, 7)])
+        );
+        $t->same(
+            '.foo{box-shadow:1px 1px #000}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 1px 1px #000; }', ['ios_saf' => $encoded(3, 1)])
+        );
+        $t->same(
+            '.foo{-webkit-box-shadow:1px 1px #000;box-shadow:1px 1px #000}',
+            $prefixer->prefixForTargets('.foo { box-shadow: 1px 1px #000; }', ['ios_saf' => $encoded(3, 2)])
         );
         $t->same(
             '.foo{background:-webkit-image-set(url("foo.png") 2x);background:image-set("foo.png" 2x)}',

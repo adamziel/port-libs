@@ -997,6 +997,39 @@ if ($nestedExternalBundle !== '@import "https://cdn.example/wp-card-reset.css" p
 
 echo 'nested-external-import: preserved' . PHP_EOL;
 
+$repeatedImportBundle = (new CssBundler())->bundle('/repeated-import-entry.css', [
+    '/repeated-import-entry.css' => <<<'CSS'
+@import "blocks/card.css";
+@import "cdn:editor-reset.css";
+@import "blocks/gallery.css";
+@import "blocks/card.css";
+.wp-site-blocks {
+  color: red;
+}
+CSS,
+    '/blocks/card.css' => <<<'CSS'
+@import "../tokens.css";
+.wp-block-card {
+  color: green;
+}
+CSS,
+    '/blocks/gallery.css' => '.wp-block-gallery { color: blue; }',
+    '/tokens.css' => ':root { --wp--preset--color--brand: purple; }',
+], static function (string $specifier, string $originatingFile): array|string {
+    if ($specifier === 'cdn:editor-reset.css') {
+        return ['external' => 'https://cdn.example/editor-reset.css'];
+    }
+
+    return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+});
+
+if ($repeatedImportBundle !== '@import "https://cdn.example/editor-reset.css";.wp-block-gallery{color:#00f}:root{--wp--preset--color--brand:purple}.wp-block-card{color:green}.wp-site-blocks{color:red}') {
+    fwrite(STDERR, "Expected repeated block import to move after external and sibling imports\n");
+    exit(1);
+}
+
+echo 'repeated-import-position: preserved' . PHP_EOL;
+
 $readerFiles = [
     '/reader-theme.css' => <<<'CSS'
 @import "pkg:tokens.css";

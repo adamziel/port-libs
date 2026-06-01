@@ -1369,6 +1369,37 @@ CSS,
             ], '/a.css')
         );
     },
+    'css bundler preserves repeated import position around external siblings like upstream' => static function (TestRunner $t) use ($bundle): void {
+        $resolved = [];
+        $code = $bundle([
+            '/entry.css' => '@import "card.css"; @import "cdn:reset.css"; @import "gallery.css"; @import "card.css"; .entry { color: red }',
+            '/card.css' => '@import "tokens.css"; .card { color: green }',
+            '/gallery.css' => '.gallery { color: blue }',
+            '/tokens.css' => ':root { --brand: purple }',
+        ], '/entry.css', static function (string $specifier, string $originatingFile) use (&$resolved): array|string {
+            $resolved[] = [$specifier, $originatingFile];
+
+            if ($specifier === 'cdn:reset.css') {
+                return ['external' => 'https://cdn.example/reset.css'];
+            }
+
+            return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+        });
+
+        $t->same(
+            '@import "https://cdn.example/reset.css";.gallery{color:#00f}:root{--brand:purple}.card{color:green}.entry{color:red}',
+            $code
+        );
+
+        usort($resolved, static fn (array $a, array $b): int => $a <=> $b);
+        $t->same([
+            ['card.css', '/entry.css'],
+            ['card.css', '/entry.css'],
+            ['cdn:reset.css', '/entry.css'],
+            ['gallery.css', '/entry.css'],
+            ['tokens.css', '/card.css'],
+        ], $resolved);
+    },
     'css bundler prefixes nested layer statements inside parent imports' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@layer bar,foo;@layer foo.qux,foo.baz;@layer foo.baz{div{background:#ff0}}@layer foo{@layer qux{div{background:green}}}@layer bar{div{background:red}}',

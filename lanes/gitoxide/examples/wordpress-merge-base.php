@@ -33,10 +33,19 @@ $missingGenerationFinder = new MergeBaseFinder(
     },
     commitGraphGeneration: static fn (string $oid): ?int => null,
 );
+$shortcutReads = [];
+$shortcutFinder = new MergeBaseFinder(static function (string $oid) use (&$shortcutReads): Commit {
+    $shortcutReads[] = $oid;
+    throw new RuntimeException('merge-base shortcut should not read WordPress review commits');
+});
 
 $reviewBase = $finder->mergeBaseMany($fixture['heads']);
 $deploymentBase = $finder->mergeBaseMany($fixture['deploymentHeads']);
 $graphWalkBase = $finder->mergeBaseAgainst($fixture['pluginReview'], $fixture['graphWalkOthers']);
+$disjointShortcutBases = $shortcutFinder->mergeBasesAgainst(
+    $fixture['pluginReview'],
+    [$fixture['pluginReview'], $fixture['archivedPluginReview']],
+);
 $archiveOctopusBases = $finder->mergeBasesMany($fixture['graphWalkHeads']);
 $sha256ReviewBase = $finder->mergeBase($fixture['sha256PluginReview'], $fixture['sha256ThemeReview']);
 $sha256GraphWalkBase = $finder->mergeBaseAgainst($fixture['sha256PluginReview'], $fixture['sha256GraphWalkOthers']);
@@ -147,6 +156,9 @@ return [
     'deploymentBase' => $deploymentBase,
     'graphWalkHeads' => $fixture['graphWalkHeads'],
     'graphWalkBase' => $graphWalkBase,
+    'disjointShortcutBases' => $disjointShortcutBases,
+    'disjointShortcutAvoidsGraphReads' => $disjointShortcutBases === [$fixture['pluginReview']]
+        && $shortcutReads === [],
     'archiveOctopusBases' => $archiveOctopusBases,
     'expectedReleaseBaseline' => $fixture['releaseBaseline'],
     'reviewBaseIsReleaseBaseline' => $reviewBase === $fixture['releaseBaseline'],

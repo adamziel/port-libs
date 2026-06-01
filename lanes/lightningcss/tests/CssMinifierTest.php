@@ -1514,6 +1514,51 @@ CSS
         $t->same('.foo{grid-area:a/b/c}', $minifier->minify('.foo { grid-area: a / b / c / b; }'));
         $t->same('.foo{grid-area:1/1/1/1}', $minifier->minify('.foo { grid-area: 1 / 1 / 1 / 1; }'));
     },
+    'css minifier maps upstream residual grid auto-flow and line values' => static function (TestRunner $t): void {
+        $minifier = new CssMinifier();
+
+        $t->same(
+            '.foo{grid-auto-columns:100px minmax(100px,auto) 10% .5fr fit-content(400px)}',
+            $minifier->minify('.foo { grid-auto-columns: 100px minmax(100px, auto) 10% 0.5fr fit-content(400px); }')
+        );
+        $t->same(
+            '.foo{grid-template-areas:"head head""nav main"".foot"}',
+            $minifier->minify('.foo { grid-template-areas: "head head" "nav  main" ".... foot"; }')
+        );
+        $t->same('.foo{grid-auto-flow:row}', $minifier->minify('.foo { grid-auto-flow: row }'));
+        $t->same('.foo{grid-auto-flow:column}', $minifier->minify('.foo { grid-auto-flow: column }'));
+        $t->same(
+            '.foo{grid:repeat(3,[line1 line2 line3]200px)/auto-flow 300px}',
+            $minifier->minify('.foo { grid: repeat(3, [line1 line2 line3] 200px) / auto-flow 300px }')
+        );
+        $t->same(
+            '.foo{grid:[line1]minmax(20em,max-content)/auto-flow dense 40%}',
+            $minifier->minify('.foo { grid: [line1] minmax(20em, max-content) / auto-flow dense 40% }')
+        );
+        $t->same('.foo{grid:auto-flow dense/30%}', $minifier->minify('.foo { grid: auto-flow dense / 30% }'));
+        $t->same('.foo{grid:auto-flow dense/30%}', $minifier->minify('.foo { grid: dense auto-flow / 30% }'));
+
+        $t->same('.foo{grid-row-start:auto}', $minifier->minify('.foo { grid-row-start: auto }'));
+        $t->same('.foo{grid-row-start:some-area}', $minifier->minify('.foo { grid-row-start: some-area }'));
+        $t->same('.foo{grid-row-start:2}', $minifier->minify('.foo { grid-row-start: 2 }'));
+        $t->same('.foo{grid-row-start:span 3}', $minifier->minify('.foo { grid-row-start: span 3 }'));
+        $t->same('.foo{grid-row-start:span some-line}', $minifier->minify('.foo { grid-row-start: span some-line }'));
+        $t->same('.foo{grid-row-start:span some-line}', $minifier->minify('.foo { grid-row-start: span 1 some-line }'));
+        $t->same('.foo{grid-row-start:span 5 some-line}', $minifier->minify('.foo { grid-row-start: span some-line 5 }'));
+        $t->same('.foo{grid-row-end:span some-line}', $minifier->minify('.foo { grid-row-end: span 1 some-line }'));
+        $t->same('.foo{grid-column-start:span some-line}', $minifier->minify('.foo { grid-column-start: span 1 some-line }'));
+        $t->same('.foo{grid-column-end:span some-line}', $minifier->minify('.foo { grid-column-end: span 1 some-line }'));
+
+        $t->same('.foo{grid-row:1/1}', $minifier->minify('.foo { grid-row: 1 / 1 }'));
+        $t->same('.foo{grid-row:1/3}', $minifier->minify('.foo { grid-row: 1 / 3 }'));
+        $t->same('.foo{grid-row:1/span 2}', $minifier->minify('.foo { grid-row: 1 / span 2 }'));
+        $t->same('.foo{grid-row:main-start/main-end}', $minifier->minify('.foo { grid-row: main-start / main-end }'));
+        $t->same('.foo{grid-area:a/b/c/d}', $minifier->minify('.foo { grid-area: a / b / c / d }'));
+        $t->same('.foo{grid-area:auto}', $minifier->minify('.foo { grid-area: auto / auto / auto / auto }'));
+        $t->same('.foo{grid-area:auto}', $minifier->minify('.foo { grid-area: auto }'));
+        $t->same('.foo{grid-area:1}', $minifier->minify('.foo { grid-area: 1 / auto }'));
+        $t->same('.foo{grid-area:1/2/3/4}', $minifier->minify('.foo { grid-area: 1 / 2 / 3 / 4 }'));
+    },
     'css minifier maps upstream explicit grid track list compaction' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
         $cases = [
