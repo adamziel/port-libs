@@ -779,6 +779,22 @@ CSS;
             $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['firefox' => 97])
         );
         $t->same(
+            '.foo{-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['safari' => '15.2'])
+        );
+        $t->same(
+            '.foo{print-color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['safari' => '15.3'])
+        );
+        $t->same(
+            '.foo{-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['samsung' => 28])
+        );
+        $t->same(
+            '.foo{print-color-adjust:exact}',
+            $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['samsung' => 29])
+        );
+        $t->same(
             '.foo{-webkit-print-color-adjust:exact;-moz-print-color-adjust:exact;print-color-adjust:exact}',
             $prefixer->prefixForTargets('.foo { print-color-adjust: exact; }', ['chrome' => 135, 'firefox' => 96])
         );
@@ -3110,6 +3126,14 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media (width >= 240px) { .wp-block-query { color: chartreuse; } } }', ['firefox' => 64])
         );
         $t->same(
+            '@layer blocks{@media (min-width:240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= 240px) { .wp-block-query { color: yellow; } } }', ['safari' => '16.3'])
+        );
+        $t->same(
+            '@layer blocks{@media (width>=240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= 240px) { .wp-block-query { color: yellow; } } }', ['safari' => '16.4'])
+        );
+        $t->same(
             '@layer blocks{@media (not (min-width:240px)) and (hover){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width < 240px) and (hover) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
@@ -3124,6 +3148,14 @@ CSS;
         $t->same(
             '@layer blocks{@media (hover) and (min-width:100px) and (max-width:200px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (hover) and (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:100px) and (max-width:200px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['ios_saf' => '16.3'])
+        );
+        $t->same(
+            '@layer blocks{@media (100px<=width<=200px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['ios_saf' => '16.4'])
         );
         $t->same(
             '@layer blocks{@media (not (max-width:100px)) and (not (min-width:200px)){.wp-block-query{color:#ff0}}}',
@@ -3439,6 +3471,38 @@ CSS;
         $t->same(
             '@layer blocks{@media (min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['firefox' => 10])
+        );
+        $t->same(
+            '@layer blocks{@media (-webkit-min-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['chrome' => 28])
+        );
+        $t->same(
+            '@layer blocks{@media (min-resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['chrome' => 29])
+        );
+        $t->same(
+            '@layer blocks{@media (-webkit-min-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['android' => '4.2'])
+        );
+        $t->same(
+            '@layer blocks{@media (min-resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['android' => '4.3'])
+        );
+        $t->same(
+            '@layer blocks{@media (min-resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['firefox' => '3.0'])
+        );
+        $t->same(
+            '@layer blocks{@media (min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['firefox' => '3.5'])
+        );
+        $t->same(
+            '@layer blocks{@media (-webkit-min-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['safari' => '15.6'])
+        );
+        $t->same(
+            '@layer blocks{@media (min-resolution:2dppx){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (min-resolution: 2dppx) { .wp-block-query { color: yellow; } } }', ['safari' => '15.7'])
         );
         $t->same(
             '@layer blocks{@media (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query{color:#ff0}}}',

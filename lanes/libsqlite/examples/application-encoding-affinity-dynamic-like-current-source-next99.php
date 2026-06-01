@@ -14,23 +14,23 @@ use PortLibs\LibSqlite\SQLiteBlobValue;
 use PortLibs\LibSqlite\SQLiteEncodingAffinityLikeCurrentSourceNextPlan;
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'plugin_percent', 'option_value' => 'plugin_100%_enabled', 'like_pattern' => 'plugin!_100!%%', 'like_escape' => '!'],
-    ['option_id' => 2, 'option_name' => 'retry_count', 'option_value' => 10, 'like_pattern' => '1%', 'like_escape' => null],
-    ['option_id' => 3, 'option_name' => 'plugin_blob', 'option_value' => new SQLiteBlobValue('plugin_blob'), 'like_pattern' => 'plugin%', 'like_escape' => null],
-    ['option_id' => 4, 'option_name' => 'theme_alpha', 'option_value' => 'theme_alpha', 'like_pattern' => 'theme%', 'like_escape' => null],
+    ['setting_id' => 1, 'key_name' => 'plugin_percent', 'key_value' => 'plugin_100%_enabled', 'like_pattern' => 'plugin!_100!%%', 'like_escape' => '!'],
+    ['setting_id' => 2, 'key_name' => 'retry_count', 'key_value' => 10, 'like_pattern' => '1%', 'like_escape' => null],
+    ['setting_id' => 3, 'key_name' => 'plugin_blob', 'key_value' => new SQLiteBlobValue('plugin_blob'), 'like_pattern' => 'plugin%', 'like_escape' => null],
+    ['setting_id' => 4, 'key_name' => 'theme_alpha', 'key_value' => 'theme_alpha', 'like_pattern' => 'theme%', 'like_escape' => null],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'plugin_percent', 'option_value' => 'plugin_100%_enabled', 'like_pattern' => 'plugin#_100#%%', 'like_escape' => '#'],
-    ['option_id' => 2, 'option_name' => 'retry_count', 'option_value' => '10', 'like_pattern' => '1%', 'like_escape' => null],
-    ['option_id' => 4, 'option_name' => 'theme_alpha', 'option_value' => 'theme_alpha', 'like_pattern' => 'theme%', 'like_escape' => null],
-    ['option_id' => 5, 'option_name' => 'plugin_new', 'option_value' => 'plugin_new', 'like_pattern' => 'plugin%', 'like_escape' => null],
+    ['setting_id' => 1, 'key_name' => 'plugin_percent', 'key_value' => 'plugin_100%_enabled', 'like_pattern' => 'plugin#_100#%%', 'like_escape' => '#'],
+    ['setting_id' => 2, 'key_name' => 'retry_count', 'key_value' => '10', 'like_pattern' => '1%', 'like_escape' => null],
+    ['setting_id' => 4, 'key_name' => 'theme_alpha', 'key_value' => 'theme_alpha', 'like_pattern' => 'theme%', 'like_escape' => null],
+    ['setting_id' => 5, 'key_name' => 'plugin_new', 'key_value' => 'plugin_new', 'like_pattern' => 'plugin%', 'like_escape' => null],
 ];
 
 $plan = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicPatternPlan(
     $currentRows,
     $nextRows,
-    'option_value',
+    'key_value',
     'like_pattern',
     'like_escape',
     false,

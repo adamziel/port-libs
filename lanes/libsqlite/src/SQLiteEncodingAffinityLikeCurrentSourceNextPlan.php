@@ -413,7 +413,7 @@ final class SQLiteEncodingAffinityLikeCurrentSourceNextPlan
                 continue;
             }
             $matched[] = [
-                'rowid' => is_int($row['option_id'] ?? null) ? $row['option_id'] : $index + 1,
+                'rowid' => is_int($row['setting_id'] ?? null) ? $row['setting_id'] : $index + 1,
                 'text' => $text,
                 'patternText' => $pattern,
                 'escapeText' => $escape,

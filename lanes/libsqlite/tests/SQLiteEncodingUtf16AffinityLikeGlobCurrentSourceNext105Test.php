@@ -8,38 +8,38 @@ use PortLibs\LibSqlite\SQLiteEncodingAffinityLikeCurrentSourceNextPlan;
 $tests = [];
 
 $currentRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'glob_pattern' => 'https://*'],
-    ['option_id' => 2, 'option_name' => 'retry_count', 'option_value' => 10, 'glob_pattern' => '1*'],
-    ['option_id' => 3, 'option_name' => 'float_threshold', 'option_value' => 10.5, 'glob_pattern' => '10.[0-4]'],
-    ['option_id' => 4, 'option_name' => 'plugin_alpha', 'option_value' => 'Plugin_Alpha', 'glob_pattern' => 'Plugin_*'],
-    ['option_id' => 5, 'option_name' => 'plugin_lower', 'option_value' => 'plugin_alpha', 'glob_pattern' => 'plugin_[a-z]*'],
-    ['option_id' => 6, 'option_name' => 'plugin_latin', 'option_value' => 'plugin_Éclair', 'glob_pattern' => 'plugin_[À-ÿ]*'],
-    ['option_id' => 7, 'option_name' => 'plugin_emoji', 'option_value' => 'plugin_😀_cache', 'glob_pattern' => 'plugin_😀*'],
-    ['option_id' => 8, 'option_name' => 'plugin_blob_value', 'option_value' => new SQLiteBlobValue('plugin_blob'), 'glob_pattern' => 'plugin_*'],
-    ['option_id' => 9, 'option_name' => 'plugin_blob_pattern', 'option_value' => 'plugin_blob', 'glob_pattern' => new SQLiteBlobValue('plugin_*')],
-    ['option_id' => 10, 'option_name' => 'null_value', 'option_value' => null, 'glob_pattern' => '*'],
-    ['option_id' => 11, 'option_name' => 'null_pattern', 'option_value' => 'plugin_null', 'glob_pattern' => null],
-    ['option_id' => 12, 'option_name' => 'bool_enabled', 'option_value' => true, 'glob_pattern' => '[01]'],
-    ['option_id' => 13, 'option_name' => 'old_plugin', 'option_value' => 'plugin_removed', 'glob_pattern' => 'plugin_*'],
-    ['option_id' => 14, 'option_name' => 'uppercase_skip', 'option_value' => 'plugin_upper', 'glob_pattern' => 'Plugin_*'],
+    ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://example.test', 'glob_pattern' => 'https://*'],
+    ['setting_id' => 2, 'key_name' => 'retry_count', 'key_value' => 10, 'glob_pattern' => '1*'],
+    ['setting_id' => 3, 'key_name' => 'float_threshold', 'key_value' => 10.5, 'glob_pattern' => '10.[0-4]'],
+    ['setting_id' => 4, 'key_name' => 'plugin_alpha', 'key_value' => 'Plugin_Alpha', 'glob_pattern' => 'Plugin_*'],
+    ['setting_id' => 5, 'key_name' => 'plugin_lower', 'key_value' => 'plugin_alpha', 'glob_pattern' => 'plugin_[a-z]*'],
+    ['setting_id' => 6, 'key_name' => 'plugin_latin', 'key_value' => 'plugin_Éclair', 'glob_pattern' => 'plugin_[À-ÿ]*'],
+    ['setting_id' => 7, 'key_name' => 'plugin_emoji', 'key_value' => 'plugin_😀_cache', 'glob_pattern' => 'plugin_😀*'],
+    ['setting_id' => 8, 'key_name' => 'plugin_blob_value', 'key_value' => new SQLiteBlobValue('plugin_blob'), 'glob_pattern' => 'plugin_*'],
+    ['setting_id' => 9, 'key_name' => 'plugin_blob_pattern', 'key_value' => 'plugin_blob', 'glob_pattern' => new SQLiteBlobValue('plugin_*')],
+    ['setting_id' => 10, 'key_name' => 'null_value', 'key_value' => null, 'glob_pattern' => '*'],
+    ['setting_id' => 11, 'key_name' => 'null_pattern', 'key_value' => 'plugin_null', 'glob_pattern' => null],
+    ['setting_id' => 12, 'key_name' => 'bool_enabled', 'key_value' => true, 'glob_pattern' => '[01]'],
+    ['setting_id' => 13, 'key_name' => 'old_plugin', 'key_value' => 'plugin_removed', 'glob_pattern' => 'plugin_*'],
+    ['setting_id' => 14, 'key_name' => 'uppercase_skip', 'key_value' => 'plugin_upper', 'glob_pattern' => 'Plugin_*'],
 ];
 
 $nextRows = [
-    ['option_id' => 1, 'option_name' => 'siteurl', 'option_value' => 'https://example.test', 'glob_pattern' => 'https://*'],
-    ['option_id' => 2, 'option_name' => 'retry_count', 'option_value' => '10', 'glob_pattern' => '1[0-9]'],
-    ['option_id' => 3, 'option_name' => 'float_threshold', 'option_value' => 10.5, 'glob_pattern' => '10.[0-9]'],
-    ['option_id' => 4, 'option_name' => 'plugin_alpha', 'option_value' => 'Plugin_Alpha', 'glob_pattern' => 'Plugin_[A-Z]*'],
-    ['option_id' => 5, 'option_name' => 'plugin_lower', 'option_value' => 'plugin_alpha_v2', 'glob_pattern' => 'plugin_[a-z]*'],
-    ['option_id' => 6, 'option_name' => 'plugin_latin', 'option_value' => 'plugin_Éclair', 'glob_pattern' => 'plugin_[À-ÿ]*'],
-    ['option_id' => 7, 'option_name' => 'plugin_emoji', 'option_value' => 'plugin_😀_cache_v2', 'glob_pattern' => 'plugin_😀*'],
-    ['option_id' => 8, 'option_name' => 'plugin_blob_value', 'option_value' => new SQLiteBlobValue('plugin_blob'), 'glob_pattern' => 'plugin_*'],
-    ['option_id' => 9, 'option_name' => 'plugin_blob_pattern', 'option_value' => 'plugin_blob', 'glob_pattern' => new SQLiteBlobValue('plugin_*')],
-    ['option_id' => 10, 'option_name' => 'null_value', 'option_value' => null, 'glob_pattern' => '*'],
-    ['option_id' => 11, 'option_name' => 'null_pattern', 'option_value' => 'plugin_null', 'glob_pattern' => null],
-    ['option_id' => 12, 'option_name' => 'bool_enabled', 'option_value' => false, 'glob_pattern' => '[01]'],
-    ['option_id' => 15, 'option_name' => 'new_plugin', 'option_value' => 'plugin_new', 'glob_pattern' => 'plugin_*'],
-    ['option_id' => 16, 'option_name' => 'numeric_new', 'option_value' => true, 'glob_pattern' => 1],
-    ['option_id' => 17, 'option_name' => 'latin_lower_new', 'option_value' => 'plugin_éclair', 'glob_pattern' => 'plugin_[À-ÿ]*'],
+    ['setting_id' => 1, 'key_name' => 'siteurl', 'key_value' => 'https://example.test', 'glob_pattern' => 'https://*'],
+    ['setting_id' => 2, 'key_name' => 'retry_count', 'key_value' => '10', 'glob_pattern' => '1[0-9]'],
+    ['setting_id' => 3, 'key_name' => 'float_threshold', 'key_value' => 10.5, 'glob_pattern' => '10.[0-9]'],
+    ['setting_id' => 4, 'key_name' => 'plugin_alpha', 'key_value' => 'Plugin_Alpha', 'glob_pattern' => 'Plugin_[A-Z]*'],
+    ['setting_id' => 5, 'key_name' => 'plugin_lower', 'key_value' => 'plugin_alpha_v2', 'glob_pattern' => 'plugin_[a-z]*'],
+    ['setting_id' => 6, 'key_name' => 'plugin_latin', 'key_value' => 'plugin_Éclair', 'glob_pattern' => 'plugin_[À-ÿ]*'],
+    ['setting_id' => 7, 'key_name' => 'plugin_emoji', 'key_value' => 'plugin_😀_cache_v2', 'glob_pattern' => 'plugin_😀*'],
+    ['setting_id' => 8, 'key_name' => 'plugin_blob_value', 'key_value' => new SQLiteBlobValue('plugin_blob'), 'glob_pattern' => 'plugin_*'],
+    ['setting_id' => 9, 'key_name' => 'plugin_blob_pattern', 'key_value' => 'plugin_blob', 'glob_pattern' => new SQLiteBlobValue('plugin_*')],
+    ['setting_id' => 10, 'key_name' => 'null_value', 'key_value' => null, 'glob_pattern' => '*'],
+    ['setting_id' => 11, 'key_name' => 'null_pattern', 'key_value' => 'plugin_null', 'glob_pattern' => null],
+    ['setting_id' => 12, 'key_name' => 'bool_enabled', 'key_value' => false, 'glob_pattern' => '[01]'],
+    ['setting_id' => 15, 'key_name' => 'new_plugin', 'key_value' => 'plugin_new', 'glob_pattern' => 'plugin_*'],
+    ['setting_id' => 16, 'key_name' => 'numeric_new', 'key_value' => true, 'glob_pattern' => 1],
+    ['setting_id' => 17, 'key_name' => 'latin_lower_new', 'key_value' => 'plugin_éclair', 'glob_pattern' => 'plugin_[À-ÿ]*'],
 ];
 
 $plan = static fn (
@@ -52,7 +52,7 @@ $plan = static fn (
 ): array => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicLikeGlobPlan(
     $currentRows,
     $nextRows,
-    'option_value',
+    'key_value',
     'glob_pattern',
     'GLOB',
     null,
@@ -76,7 +76,7 @@ $valueAt = static function (array $plan, string $path): mixed {
 
 $cases = [
     'records operator' => ['operator', 'GLOB'],
-    'records value column' => ['valueColumn', 'option_value'],
+    'records value column' => ['valueColumn', 'key_value'],
     'records pattern column' => ['patternColumn', 'glob_pattern'],
     'records no escape column' => ['escapeColumn', null],
     'records current source' => ['currentSource', 'main.app_settings@cookie104'],
@@ -157,7 +157,7 @@ $tests['encoding utf16 affinity like glob current source next105 stable cursor r
     $stable = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicLikeGlobPlan(
         $currentRows,
         $currentRows,
-        'option_value',
+        'key_value',
         'glob_pattern',
         'GLOB',
         null,
@@ -176,7 +176,7 @@ $tests['encoding utf16 affinity like glob current source next105 source switch i
     $switched = SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicLikeGlobPlan(
         $currentRows,
         $currentRows,
-        'option_value',
+        'key_value',
         'glob_pattern',
         'GLOB',
         null,
@@ -192,20 +192,20 @@ $tests['encoding utf16 affinity like glob current source next105 source switch i
 };
 
 $tests['encoding utf16 affinity like glob current source next105 rejects glob escape column'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicLikeGlobPlan($currentRows, $nextRows, 'option_value', 'glob_pattern', 'GLOB', 'glob_escape'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicLikeGlobPlan($currentRows, $nextRows, 'key_value', 'glob_pattern', 'GLOB', 'glob_escape'));
 };
 
 $tests['encoding utf16 affinity like glob current source next105 rejects missing pattern column'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicLikeGlobPlan([['option_id' => 1, 'option_value' => 'x']], $nextRows, 'option_value', 'glob_pattern', 'GLOB'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicLikeGlobPlan([['setting_id' => 1, 'key_value' => 'x']], $nextRows, 'key_value', 'glob_pattern', 'GLOB'));
 };
 
 $tests['encoding utf16 affinity like glob current source next105 rejects malformed pattern'] = static function (TestRunner $t) use ($nextRows): void {
-    $current = [['option_id' => 1, 'option_value' => 'plugin_alpha', 'glob_pattern' => "plugin_\xc3*"]];
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicLikeGlobPlan($current, $nextRows, 'option_value', 'glob_pattern', 'GLOB'));
+    $current = [['setting_id' => 1, 'key_value' => 'plugin_alpha', 'glob_pattern' => "plugin_\xc3*"]];
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicLikeGlobPlan($current, $nextRows, 'key_value', 'glob_pattern', 'GLOB'));
 };
 
 $tests['encoding utf16 affinity like glob current source next105 rejects unsupported operator'] = static function (TestRunner $t) use ($currentRows, $nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicLikeGlobPlan($currentRows, $nextRows, 'option_value', 'glob_pattern', 'REGEXP'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteEncodingAffinityLikeCurrentSourceNextPlan::keyValueRowValueDynamicLikeGlobPlan($currentRows, $nextRows, 'key_value', 'glob_pattern', 'REGEXP'));
 };
 
 return $tests;

@@ -71,6 +71,22 @@ $actual = [
     'firefox64' => $prefixer->prefixForTargets($css, ['firefox' => 64]),
     'firefox85' => $prefixer->prefixForTargets($css, ['firefox' => 85]),
     'chrome95' => $prefixer->prefixForTargets($css, ['chrome' => 95]),
+    'safari163RangeFallback' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (width >= 240px) { .wp-block-query.is-range-boundary { color: yellow; } } }',
+        ['safari' => '16.3']
+    ),
+    'safari164RangeModern' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (width >= 240px) { .wp-block-query.is-range-boundary { color: yellow; } } }',
+        ['safari' => '16.4']
+    ),
+    'chrome28ResolutionPrefixBoundary' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (min-resolution: 2dppx) { .wp-block-query.is-density-boundary { color: yellow; } } }',
+        ['chrome' => 28]
+    ),
+    'firefox30ResolutionNoPrefixBoundary' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media (min-resolution: 2dppx) { .wp-block-query.is-density-boundary { color: yellow; } } }',
+        ['firefox' => '3.0']
+    ),
     'forcedRangeFallback' => $prefixer->prefixForTargets($css, [
         'include' => ['MediaRangeSyntax', 'MediaIntervalSyntax'],
     ]),
@@ -290,6 +306,10 @@ $expected = [
     'firefox64' => '@layer theme.blocks{@media (width>=240px){.wp-block-query{color:#7fff00}}@media (width=320px){.wp-block-query.is-exact-width{color:#ff0}}@media not screen and (width<240px){.wp-block-query.is-print-narrow{color:#ff0}}@media screen and (width>max(10px,1rem)){.wp-block-query.is-fluid-breakpoint{color:#ff0}}@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query.is-style-featured{color:#ff0}}@media (color) and (resolution>=2x){.wp-block-query.is-density-aware{color:#ff0}}@media (aspect-ratio>=16/9) and (color-index>2){.wp-block-query.is-wide-color{color:#ff0}}@media (theme-breakpoint>=2){.wp-block-query.is-custom-breakpoint{color:#ff0}}@media (theme-state=expanded){.wp-block-query.is-expanded-state{color:#ff0}}}',
     'firefox85' => '@layer theme.blocks{@media (width>=240px){.wp-block-query{color:#7fff00}}@media (width=320px){.wp-block-query.is-exact-width{color:#ff0}}@media not screen and (width<240px){.wp-block-query.is-print-narrow{color:#ff0}}@media screen and (width>max(10px,1rem)){.wp-block-query.is-fluid-breakpoint{color:#ff0}}@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query.is-style-featured{color:#ff0}}@media (color) and (resolution>=2x){.wp-block-query.is-density-aware{color:#ff0}}@media (aspect-ratio>=16/9) and (color-index>2){.wp-block-query.is-wide-color{color:#ff0}}@media (theme-breakpoint>=2){.wp-block-query.is-custom-breakpoint{color:#ff0}}@media (theme-state=expanded){.wp-block-query.is-expanded-state{color:#ff0}}}',
     'chrome95' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query{color:#7fff00}}@media (width:320px){.wp-block-query.is-exact-width{color:#ff0}}@media not screen and not (min-width:240px){.wp-block-query.is-print-narrow{color:#ff0}}@media screen and not (max-width:max(10px,1rem)){.wp-block-query.is-fluid-breakpoint{color:#ff0}}@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query.is-style-featured{color:#ff0}}@media (color) and (min-resolution:2x){.wp-block-query.is-density-aware{color:#ff0}}@media (min-aspect-ratio:16/9) and (not (max-color-index:2)){.wp-block-query.is-wide-color{color:#ff0}}@media (min-theme-breakpoint:2){.wp-block-query.is-custom-breakpoint{color:#ff0}}@media (theme-state:expanded){.wp-block-query.is-expanded-state{color:#ff0}}}',
+    'safari163RangeFallback' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query.is-range-boundary{color:#ff0}}}',
+    'safari164RangeModern' => '@layer theme.blocks{@media (width>=240px){.wp-block-query.is-range-boundary{color:#ff0}}}',
+    'chrome28ResolutionPrefixBoundary' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query.is-density-boundary{color:#ff0}}}',
+    'firefox30ResolutionNoPrefixBoundary' => '@layer theme.blocks{@media (min-resolution:2dppx){.wp-block-query.is-density-boundary{color:#ff0}}}',
     'forcedRangeFallback' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query{color:#7fff00}}@media (width:320px){.wp-block-query.is-exact-width{color:#ff0}}@media not screen and not (min-width:240px){.wp-block-query.is-print-narrow{color:#ff0}}@media screen and not (max-width:max(10px,1rem)){.wp-block-query.is-fluid-breakpoint{color:#ff0}}@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query.is-style-featured{color:#ff0}}@media (color) and (min-resolution:2dppx){.wp-block-query.is-density-aware{color:#ff0}}@media (min-aspect-ratio:16/9) and (not (max-color-index:2)){.wp-block-query.is-wide-color{color:#ff0}}@media (min-theme-breakpoint:2){.wp-block-query.is-custom-breakpoint{color:#ff0}}@media (theme-state:expanded){.wp-block-query.is-expanded-state{color:#ff0}}}',
     'compoundResolutionRange' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:2) and (-webkit-max-device-pixel-ratio:3),(min--moz-device-pixel-ratio:2) and (max--moz-device-pixel-ratio:3),(min-resolution:2dppx) and (max-resolution:3dppx){.wp-block-query.is-density-window{color:#ff0}}}',
     'fractionalResolutionRange' => '@layer theme.blocks{@media (-webkit-min-device-pixel-ratio:.5) and (-webkit-max-device-pixel-ratio:1.5),(min--moz-device-pixel-ratio:.5) and (max--moz-device-pixel-ratio:1.5),(min-resolution:.5dppx) and (max-resolution:1.5dppx){.wp-block-query.is-low-density-window{color:#ff0}}}',

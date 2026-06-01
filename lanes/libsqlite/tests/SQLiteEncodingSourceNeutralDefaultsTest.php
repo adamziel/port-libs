@@ -13,6 +13,7 @@ $encodingSourceFiles = static function () use ($sourceRoot): array {
         $sourceRoot . '/SQLiteCastRtrimGlobRangeCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteCastRtrimLikeCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteDynamicTriggerForeignKeyPlan.php',
+        $sourceRoot . '/SQLiteEncodingAffinityLikeCurrentSourceNextPlan.php',
         $sourceRoot . '/SQLiteEncodingCollationSourceCursor.php',
         $sourceRoot . '/SQLiteEncodingLikeGlobSourceSwitchPlan.php',
         $sourceRoot . '/SQLiteEncodingLikeGlobRtrimCurrentSourceNextPlan.php',

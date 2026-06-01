@@ -57,6 +57,12 @@ final class DeclarationBlock
     private const CSS_WIDE_KEYWORDS = ['initial', 'inherit', 'unset', 'revert', 'revert-layer'];
 
     private const ALPHA_VALUE_PROPERTIES = ['opacity', 'fill-opacity', 'stroke-opacity'];
+    private const PRINT_COLOR_ADJUST_PROPERTIES = ['print-color-adjust', '-webkit-print-color-adjust', '-moz-print-color-adjust'];
+    private const VIEW_TRANSITION_KEYWORDS = [
+        'view-transition-name' => ['none', 'auto'],
+        'view-transition-class' => ['none'],
+        'view-transition-group' => ['normal', 'contain', 'nearest'],
+    ];
 
     private const BACKGROUND_LONGHANDS = [
         'background-color',
@@ -13494,6 +13500,18 @@ final class DeclarationBlock
             return $this->normalizeAlphaValue($value);
         }
 
+        if ($property === 'color-scheme') {
+            return $this->normalizeColorSchemeDeclarationValue($value);
+        }
+
+        if (in_array($property, self::PRINT_COLOR_ADJUST_PROPERTIES, true)) {
+            return $this->normalizeKeywordDeclarationValue($value, ['economy', 'exact']);
+        }
+
+        if (isset(self::VIEW_TRANSITION_KEYWORDS[$property])) {
+            return $this->normalizeKeywordDeclarationValue($value, self::VIEW_TRANSITION_KEYWORDS[$property]);
+        }
+
         if ($property === 'border-spacing') {
             return $this->normalizeBorderSpacingValue($value);
         }
@@ -13515,6 +13533,77 @@ final class DeclarationBlock
         }
 
         return $value;
+    }
+
+    private function normalizeColorSchemeDeclarationValue(string $value): string
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if ($tokens === []) {
+            return trim($value);
+        }
+
+        $tokens = array_map(static fn (string $token): string => strtolower($token), $tokens);
+        if (count($tokens) === 1 && $tokens[0] === 'normal') {
+            return 'normal';
+        }
+
+        $only = false;
+        $start = 0;
+        $end = count($tokens) - 1;
+        if ($tokens[$start] === 'only') {
+            $only = true;
+            $start++;
+        }
+        if ($start <= $end && $tokens[$end] === 'only') {
+            if ($only) {
+                return trim($value);
+            }
+            $only = true;
+            $end--;
+        }
+
+        $light = false;
+        $dark = false;
+        for ($index = $start; $index <= $end; $index++) {
+            if ($tokens[$index] === 'light') {
+                $light = true;
+                continue;
+            }
+            if ($tokens[$index] === 'dark') {
+                $dark = true;
+                continue;
+            }
+
+            return trim($value);
+        }
+
+        if (!$light && !$dark && !$only) {
+            return trim($value);
+        }
+
+        $parts = [];
+        if ($light) {
+            $parts[] = 'light';
+        }
+        if ($dark) {
+            $parts[] = 'dark';
+        }
+        if ($only) {
+            $parts[] = 'only';
+        }
+
+        return implode(' ', $parts);
+    }
+
+    /**
+     * @param list<string> $keywords
+     */
+    private function normalizeKeywordDeclarationValue(string $value, array $keywords): string
+    {
+        $trimmed = trim($value);
+        $keyword = strtolower($trimmed);
+
+        return in_array($keyword, $keywords, true) ? $keyword : $trimmed;
     }
 
     private function isTransformDeclarationProperty(string $property): bool

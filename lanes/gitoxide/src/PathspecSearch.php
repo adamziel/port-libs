@@ -348,7 +348,7 @@ final class PathspecSearch
             $pattern->searchMode === PathspecPattern::SEARCH_PATH_AWARE_GLOB,
             $pattern->ignoreCase,
         );
-        $modifiers = $pattern->ignoreCase ? 'i' : '';
+        $modifiers = 's' . ($pattern->ignoreCase ? 'i' : '');
 
         return preg_match('#^' . $regex . '$#' . $modifiers, $relativePath) === 1;
     }

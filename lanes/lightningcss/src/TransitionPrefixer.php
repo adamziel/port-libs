@@ -1169,9 +1169,10 @@ final class TransitionPrefixer
             'printColorAdjustNeedsWebkit' => $this->targetInRange($normalized, 'android', [4, 4], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [17], [135])
                 || $this->targetInRange($normalized, 'edge', [79], [135])
-                || $this->targetInRange($normalized, 'ios_saf', [6], [15])
+                || $this->targetInRange($normalized, 'ios_saf', [6], [15, 2])
                 || $this->targetAtLeast($normalized, 'opera', [15])
-                || $this->targetInRange($normalized, 'safari', [6], [15]),
+                || $this->targetInRange($normalized, 'safari', [6], [15, 2])
+                || $this->targetInRange($normalized, 'samsung', [4], [28]),
             'printColorAdjustNeedsMoz' => $this->targetInRange($normalized, 'firefox', [48], [96]),
             'columnsNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [49])
@@ -1503,8 +1504,8 @@ final class TransitionPrefixer
                 $this->targetInRange($normalized, 'chrome', [0], [103])
                 || $this->targetInRange($normalized, 'edge', [0], [103])
                 || $this->targetInRange($normalized, 'firefox', [0], [60])
-                || $this->targetInRange($normalized, 'safari', [0], [15, 3])
-                || $this->targetInRange($normalized, 'ios_saf', [0], [15, 3])
+                || $this->targetInRange($normalized, 'safari', [0], [16, 3, 255])
+                || $this->targetInRange($normalized, 'ios_saf', [0], [16, 3, 255])
                 || $this->targetInRange($normalized, 'android', [0], [103])
                 || $this->targetInRange($normalized, 'opera', [0], [89])
                 || $this->targetInRange($normalized, 'samsung', [0], [19])
@@ -1513,15 +1514,17 @@ final class TransitionPrefixer
                 $this->targetInRange($normalized, 'chrome', [0], [103])
                 || $this->targetInRange($normalized, 'edge', [0], [103])
                 || $this->targetInRange($normalized, 'firefox', [0], [85])
-                || $this->targetInRange($normalized, 'safari', [0], [15, 3])
-                || $this->targetInRange($normalized, 'ios_saf', [0], [15, 3])
+                || $this->targetInRange($normalized, 'safari', [0], [16, 3, 255])
+                || $this->targetInRange($normalized, 'ios_saf', [0], [16, 3, 255])
                 || $this->targetInRange($normalized, 'android', [0], [103])
                 || $this->targetInRange($normalized, 'opera', [0], [89])
                 || $this->targetInRange($normalized, 'samsung', [0], [19])
             )),
-            'mediaResolutionNeedsWebkitPrefix' => $this->targetInRange($normalized, 'safari', [0], [15])
-                || $this->targetInRange($normalized, 'ios_saf', [0], [15]),
-            'mediaResolutionNeedsMozPrefix' => $this->targetInRange($normalized, 'firefox', [0], [15]),
+            'mediaResolutionNeedsWebkitPrefix' => $this->targetInRange($normalized, 'android', [2, 3], [4, 2])
+                || $this->targetInRange($normalized, 'chrome', [4], [28])
+                || $this->targetInRange($normalized, 'safari', [4], [15, 6])
+                || $this->targetInRange($normalized, 'ios_saf', [4], [15, 6]),
+            'mediaResolutionNeedsMozPrefix' => $this->targetInRange($normalized, 'firefox', [3, 5], [15]),
             'mediaResolutionUsesXUnit' => $this->targetsSupportXResolutionUnit($normalized),
             'mediaResolutionUsesDppxUnit' => $normalized !== [] && !$this->targetsSupportXResolutionUnit($normalized),
             'fontCqwSupported' => $this->targetsAllAtLeast($normalized, [

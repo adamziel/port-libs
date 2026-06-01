@@ -282,6 +282,78 @@ return [
             'wp-content/uploads/2026/05/photo.jpg',
         ], $walkPaths($records));
     },
+    'matches gix byte wildmatch newline paths during tree walks' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
+        $shellNewline = PathspecSearch::fromSpecs(['wp-content/plugins/new?line/block.json']);
+        $shellStarNewline = PathspecSearch::fromSpecs(['wp-content/plugins/new*line/block.json']);
+        $pathAwareNewline = PathspecSearch::fromSpecs([':(glob)wp-content/plugins/new?line/block.json']);
+
+        $t->same(true, $shellNewline->isIncluded("wp-content/plugins/new\nline/block.json", false));
+        $t->same(true, $shellStarNewline->isIncluded("wp-content/plugins/new\nline/block.json", false));
+        $t->same(true, $pathAwareNewline->isIncluded("wp-content/plugins/new\nline/block.json", false));
+        $t->same(true, $shellNewline->isIncluded('wp-content/plugins/new/line/block.json', false));
+        $t->same(false, $pathAwareNewline->isIncluded('wp-content/plugins/new/line/block.json', false));
+
+        $objects = [];
+        $blob = static fn (string $name): TreeEntry => new TreeEntry('100644', $name, $blobOid);
+        $tree = static function (string $name, Tree $tree) use (&$objects): TreeEntry {
+            $object = $tree->toObject();
+            $objects[$object->oid()] = $object;
+
+            return new TreeEntry('040000', $name, $object->oid());
+        };
+        $root = new Tree([
+            $tree('wp-content', new Tree([
+                $tree('plugins', new Tree([
+                    $tree("new\nline", new Tree([$blob('block.json')])),
+                    $tree('new', new Tree([
+                        $tree('line', new Tree([$blob('block.json')])),
+                    ])),
+                ])),
+            ])),
+        ]);
+        $readPaths = [];
+        $records = TreePathspecWalk::breadthFirst(
+            $root,
+            $shellNewline,
+            static function (TreeEntry $entry, string $path) use (&$objects, &$readPaths): GitObject {
+                $readPaths[] = $path;
+                if (!isset($objects[$entry->oid])) {
+                    throw new RuntimeException("Missing tree object for {$path}");
+                }
+
+                return $objects[$entry->oid];
+            },
+            includeTrees: false,
+        );
+
+        $t->same([
+            "wp-content/plugins/new\nline/block.json",
+            'wp-content/plugins/new/line/block.json',
+        ], $walkPaths($records));
+        $t->same([
+            'wp-content',
+            'wp-content/plugins',
+            "wp-content/plugins/new\nline",
+            'wp-content/plugins/new',
+            'wp-content/plugins/new/line',
+        ], $readPaths);
+
+        $pathAwareRecords = TreePathspecWalk::breadthFirst(
+            $root,
+            $pathAwareNewline,
+            static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+                if (!isset($objects[$entry->oid])) {
+                    throw new RuntimeException("Missing tree object for {$path}");
+                }
+
+                return $objects[$entry->oid];
+            },
+            includeTrees: false,
+        );
+        $t->same([
+            "wp-content/plugins/new\nline/block.json",
+        ], $walkPaths($pathAwareRecords));
+    },
     'matches gix wildmatch POSIX blank and invalid class boundaries during tree walks' => static function (TestRunner $t) use ($blobOid, $walkPaths): void {
         $blankClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/slot[[:blank:]]/photo.jpg']);
         $spaceClass = PathspecSearch::fromSpecs([':(glob)wp-content/uploads/slot[[:space:]]/photo.jpg']);
@@ -940,5 +1012,9 @@ return [
         $t->same(['wp-content', 'wp-content/plugins'], $example['rawComponentGuardReadPaths']);
         $t->same(true, $example['rawParentComponentSkipped']);
         $t->same(true, $example['rawBackslashComponentSkipped']);
+        $t->same([
+            "wp-content/plugins/new\nline/block.json",
+        ], $example['shellGlobNewlineContentPaths']);
+        $t->same(true, $example['shellGlobNewlineIncluded']);
     },
 ];

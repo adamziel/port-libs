@@ -38,6 +38,7 @@ $root = new Tree([
                 $tree('build', new Tree([$blob('index.js')])),
                 $tree('src', new Tree([$blob('editor.js')])),
             ])),
+            $tree("new\nline", new Tree([$blob('block.json')])),
             $blob('safe.php'),
             $blob('weird\\name.php'),
             $tree('[literal]', new Tree([$blob('block.?son')])),
@@ -122,6 +123,9 @@ $rawComponentGuardPathspecs = PathspecSearch::fromSpecs([
     'wp-content/secret.php',
     'wp-content/plugins/safe.php',
     'wp-content/plugins/weird/name.php',
+]);
+$shellNewlinePathspecs = PathspecSearch::fromSpecs([
+    'wp-content/plugins/new?line/block.json',
 ]);
 $deploymentAttributes = GitAttributes::fromString(
     "wp-content/plugins/gutenberg/** deploy=plugin merge=union\n"
@@ -314,6 +318,18 @@ $rawComponentGuardRecords = TreePathspecWalk::breadthFirst(
     },
     includeTrees: false,
 );
+$shellNewlineRecords = TreePathspecWalk::breadthFirst(
+    $root,
+    $shellNewlinePathspecs,
+    static function (TreeEntry $entry, string $path) use (&$objects): GitObject {
+        if (!isset($objects[$entry->oid])) {
+            throw new RuntimeException("Missing tree object for {$path}");
+        }
+
+        return $objects[$entry->oid];
+    },
+    includeTrees: false,
+);
 
 return [
     'matchedContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $records),
@@ -352,6 +368,8 @@ return [
     'rawComponentGuardReadPaths' => $rawComponentReadPaths,
     'rawParentComponentSkipped' => $rawComponentGuardPathspecs->match('wp-content/plugins/../secret.php', false) === null,
     'rawBackslashComponentSkipped' => $rawComponentGuardPathspecs->match('wp-content/plugins/weird\\name.php', false) === null,
+    'shellGlobNewlineContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $shellNewlineRecords),
+    'shellGlobNewlineIncluded' => $shellNewlinePathspecs->isIncluded("wp-content/plugins/new\nline/block.json", false),
     'attrFilteredContentPaths' => array_map(static fn (TreeWalkEntry $entry): string => $entry->path, $attrFilteredRecords),
     'attrFilteredWithoutProviderEmpty' => $attrFilteredWithoutProviderRecords === [],
     'rootEscapingPathspecRejected' => $rootEscapingPathspecRejected,

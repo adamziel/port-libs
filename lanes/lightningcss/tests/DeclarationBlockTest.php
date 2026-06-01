@@ -213,6 +213,61 @@ return [
             $block->removeProperty('color: red; margin: ReVeRt-LaYeR !important', 'margin')
         );
     },
+    'declaration block canonicalizes upstream direct enum cssom declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'color-scheme: Dark Light Only; print-color-adjust: Exact; -webkit-print-color-adjust: Economy; view-transition-name: AUTO; view-transition-class: None; view-transition-group: NEAREST; --Block-State: AUTO';
+
+        $t->same(
+            [
+                'color-scheme' => 'light dark only',
+                'print-color-adjust' => 'exact',
+                '-webkit-print-color-adjust' => 'economy',
+                'view-transition-name' => 'auto',
+                'view-transition-class' => 'none',
+                'view-transition-group' => 'nearest',
+                '--Block-State' => 'AUTO',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'light dark only', 'important' => false], $block->getProperty($declarations, 'color-scheme'));
+        $t->same(['value' => 'exact', 'important' => false], $block->getProperty($declarations, 'print-color-adjust'));
+        $t->same(['value' => 'economy', 'important' => false], $block->getProperty($declarations, '-webkit-print-color-adjust'));
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty($declarations, 'view-transition-name'));
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty($declarations, 'view-transition-class'));
+        $t->same(['value' => 'nearest', 'important' => false], $block->getProperty($declarations, 'view-transition-group'));
+        $t->same(
+            'color-scheme: dark only; print-color-adjust: exact; -webkit-print-color-adjust: economy; view-transition-name: auto; view-transition-class: none; view-transition-group: nearest; --Block-State: AUTO',
+            $block->setProperty($declarations, 'color-scheme', 'ONLY DARK')
+        );
+        $t->same(
+            'color-scheme: light dark only; print-color-adjust: economy; -webkit-print-color-adjust: economy; view-transition-name: auto; view-transition-class: none; view-transition-group: nearest; --Block-State: AUTO',
+            $block->setProperty($declarations, 'print-color-adjust', 'Economy')
+        );
+        $t->same(
+            'color-scheme: light dark only; print-color-adjust: exact; -webkit-print-color-adjust: exact; view-transition-name: auto; view-transition-class: none; view-transition-group: nearest; --Block-State: AUTO',
+            $block->setProperty($declarations, '-webkit-print-color-adjust', 'Exact')
+        );
+        $t->same(
+            'color-scheme: light dark only; print-color-adjust: exact; -webkit-print-color-adjust: economy; view-transition-name: card-enter; view-transition-class: none; view-transition-group: nearest; --Block-State: AUTO',
+            $block->setProperty($declarations, 'view-transition-name', 'card-enter')
+        );
+        $t->same(
+            'color-scheme: light dark only; print-color-adjust: exact; -webkit-print-color-adjust: economy; view-transition-name: auto; view-transition-class: none; view-transition-group: contain; --Block-State: AUTO',
+            $block->setProperty($declarations, 'view-transition-group', 'CONTAIN')
+        );
+        $t->same(
+            'color: red; color-scheme: light dark only',
+            $block->setProperty('color: red', 'color-scheme', 'dark light only')
+        );
+        $t->same(
+            'color: red; -moz-print-color-adjust: exact',
+            $block->setProperty('color: red', '-moz-print-color-adjust', 'EXACT')
+        );
+        $t->same(
+            'print-color-adjust: exact; -webkit-print-color-adjust: economy; view-transition-name: auto; view-transition-class: none; view-transition-group: nearest; --Block-State: AUTO',
+            $block->removeProperty($declarations, 'color-scheme')
+        );
+    },
     'declaration block canonicalizes upstream border spacing cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
