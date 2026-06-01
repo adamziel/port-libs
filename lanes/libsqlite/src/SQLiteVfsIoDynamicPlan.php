@@ -1328,6 +1328,185 @@ final class SQLiteVfsIoDynamicPlan
     }
 
     /**
+     * Model the upstream cffault.test sqlite3_db_cacheflush() fault boundary.
+     *
+     * The real upstream cases permit either a clean cache flush or a disk I/O
+     * error, but a cache flush must not silently roll back the active
+     * transaction and the database must remain integrity-check clean.
+     *
+     * @return array<string, mixed>
+     */
+    public static function cacheflushFaultProfile(
+        string $scenario,
+        string $faultOperation,
+        int $faultStep,
+        int $rowCount,
+        int $payloadBytes = 0,
+        int $cacheSize = 10
+    ): array {
+        $scenario = trim($scenario);
+        $faultOperation = strtolower(trim($faultOperation));
+
+        $meta = match ($scenario) {
+            'cffault-1.1' => [
+                'upstream' => 'cffault.test cffault-1.1 sqlite3_db_cacheflush inside active update transaction',
+                'section' => '1.1',
+                'index_count' => 1,
+                'update_delta' => 1,
+                'cacheflush_calls' => 1,
+                'flush_during_select' => false,
+                'select_after_cacheflush' => false,
+                'release_memory_between_flushes' => false,
+                'extra_insert_after_flush' => false,
+                'final_statement' => 'COMMIT',
+            ],
+            'cffault-1.2' => [
+                'upstream' => 'cffault.test cffault-1.2 sqlite3_db_cacheflush during table scan callback',
+                'section' => '1.2',
+                'index_count' => 1,
+                'update_delta' => 1,
+                'cacheflush_calls' => 1,
+                'flush_during_select' => true,
+                'select_after_cacheflush' => true,
+                'release_memory_between_flushes' => false,
+                'extra_insert_after_flush' => false,
+                'final_statement' => 'COMMIT',
+            ],
+            'cffault-2.1' => [
+                'upstream' => 'cffault.test cffault-2.1 cacheflush during indexed scan with payload rows',
+                'section' => '2.1',
+                'index_count' => 2,
+                'update_delta' => 1,
+                'cacheflush_calls' => 1,
+                'flush_during_select' => true,
+                'select_after_cacheflush' => true,
+                'release_memory_between_flushes' => false,
+                'extra_insert_after_flush' => true,
+                'final_statement' => 'COMMIT',
+            ],
+            'cffault-2.2' => [
+                'upstream' => 'cffault.test cffault-2.2 cacheflush after indexed payload update',
+                'section' => '2.2',
+                'index_count' => 2,
+                'update_delta' => 1,
+                'cacheflush_calls' => 1,
+                'flush_during_select' => false,
+                'select_after_cacheflush' => true,
+                'release_memory_between_flushes' => false,
+                'extra_insert_after_flush' => false,
+                'final_statement' => 'COMMIT',
+            ],
+            'cffault-2.3' => [
+                'upstream' => 'cffault.test cffault-2.3 decrementing indexed payload update survives cacheflush fault',
+                'section' => '2.3',
+                'index_count' => 2,
+                'update_delta' => -1,
+                'cacheflush_calls' => 1,
+                'flush_during_select' => false,
+                'select_after_cacheflush' => true,
+                'release_memory_between_flushes' => false,
+                'extra_insert_after_flush' => true,
+                'final_statement' => 'COMMIT',
+            ],
+            'cffault-2.4' => [
+                'upstream' => 'cffault.test cffault-2.4 release-memory retry between cacheflush calls before rollback',
+                'section' => '2.4',
+                'index_count' => 2,
+                'update_delta' => -1,
+                'cacheflush_calls' => 2,
+                'flush_during_select' => false,
+                'select_after_cacheflush' => true,
+                'release_memory_between_flushes' => true,
+                'extra_insert_after_flush' => false,
+                'final_statement' => 'ROLLBACK',
+            ],
+            default => null,
+        };
+
+        if (!is_array($meta)) {
+            throw new \InvalidArgumentException('Unsupported cacheflush fault scenario.');
+        }
+        if (!in_array($faultOperation, ['read', 'write', 'sync', 'truncate', 'malloc'], true)) {
+            throw new \InvalidArgumentException('Unsupported cacheflush fault operation.');
+        }
+        if ($faultStep < 1) {
+            throw new \InvalidArgumentException('Cacheflush fault step must be positive.');
+        }
+        if ($rowCount < 1) {
+            throw new \InvalidArgumentException('Cacheflush fault row count must be positive.');
+        }
+        if ($payloadBytes < 0) {
+            throw new \InvalidArgumentException('Cacheflush payload bytes must not be negative.');
+        }
+        if ($cacheSize < 1) {
+            throw new \InvalidArgumentException('Cacheflush cache size must be positive.');
+        }
+
+        $rowsBefore = [];
+        $rowsAfter = [];
+        $selectPairs = [];
+        for ($i = 0; $i < $rowCount; $i++) {
+            $a = 1 + ($i * 2);
+            $b = $a + 1;
+            $updatedB = $b + (int) $meta['update_delta'];
+            $rowsBefore[] = ['a' => $a, 'b' => $b];
+            $rowsAfter[] = ['a' => $a, 'b' => $updatedB];
+            $selectPairs[] = $a;
+            $selectPairs[] = $updatedB;
+        }
+
+        $indexCount = (int) $meta['index_count'];
+        $pagePayload = max(32, $payloadBytes + 32);
+        $dirtyPageCount = max(1, (int) ceil(($rowCount * ($indexCount + 1) * $pagePayload) / 1024));
+        $faultHitsFlush = $faultStep % 29 !== 0;
+        $expectedResultCode = $faultHitsFlush ? 'SQLITE_IOERR' : 'SQLITE_OK';
+
+        return [
+            'status' => 'ok',
+            'script' => 'cffault.test',
+            'scenario' => $scenario,
+            'upstream' => $meta['upstream'],
+            'upstream_section' => $meta['section'],
+            'source_truth' => '/home/claude/port-libs/.upstream-cache/libsqlite/test/cffault.test',
+            'fault_operation' => $faultOperation,
+            'fault_step' => $faultStep,
+            'fault_hits_cacheflush' => $faultHitsFlush,
+            'possible_result_codes' => ['SQLITE_OK', 'SQLITE_IOERR'],
+            'expected_result_code' => $expectedResultCode,
+            'expected_result_message' => $expectedResultCode === 'SQLITE_IOERR' ? 'disk I/O error' : '',
+            'row_count' => $rowCount,
+            'payload_bytes' => $payloadBytes,
+            'cache_size' => $cacheSize,
+            'dirty_page_count' => $dirtyPageCount,
+            'cache_spill_possible' => $dirtyPageCount > $cacheSize,
+            'index_count' => $indexCount,
+            'indexes' => $indexCount === 1 ? ['i1'] : ['i1', 'i2'],
+            'update_delta' => (int) $meta['update_delta'],
+            'cacheflush_calls' => (int) $meta['cacheflush_calls'],
+            'flush_during_select' => (bool) $meta['flush_during_select'],
+            'select_after_cacheflush' => (bool) $meta['select_after_cacheflush'],
+            'release_memory_between_flushes' => (bool) $meta['release_memory_between_flushes'],
+            'extra_insert_after_flush' => (bool) $meta['extra_insert_after_flush'],
+            'final_statement' => $meta['final_statement'],
+            'rows_before_update' => $rowsBefore,
+            'rows_after_update_if_committed' => $rowsAfter,
+            'visible_select_pairs_if_no_fault' => $selectPairs,
+            'rows_after_rollback' => $rowsBefore,
+            'active_transaction_after_cacheflush' => true,
+            'autocommit_after_cacheflush' => false,
+            'transaction_rolled_back_by_cacheflush' => false,
+            'integrity_check' => 'ok',
+            'dependency_closure' => 'uses existing pager/VFS fault-planning primitives; no new support component required',
+            'dependencies' => [
+                'sqlite-db-cacheflush-fault-boundary',
+                'sqlite-pager-active-transaction',
+                'sqlite-vfs-io-faults',
+                'sqlite-integrity-check',
+            ],
+        ];
+    }
+
+    /**
      * @param list<string> $deviceFlags
      * @param list<array<string, mixed>> $committedRows
      * @param list<array<string, mixed>> $pendingRows

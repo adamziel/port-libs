@@ -208,4 +208,28 @@ return [
             $t->same(true, $polyfill['file_unchanged']);
         });
     },
+
+    'SQLitePDO misspelled INSERT column example throws and keeps table empty' => static function (TestRunner $t) use ($withScratchDir, $open): void {
+        $withScratchDir('sqlite-pdo-misspelled-insert-column', static function (string $dir) use ($t, $open): void {
+            $path = $dir . '/polyfill.sqlite';
+            $sqlite = $open(SQLitePDO::class, $path);
+            $sqlite->exec('CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)');
+
+            $exception = null;
+            try {
+                $sqlite->exec("INSERT INTO test (namedd) VALUES ('Janet')");
+            } catch (PDOException $caught) {
+                $exception = $caught;
+            }
+
+            $t->true($exception instanceof PDOException, 'Misspelled INSERT column should throw');
+            $t->contains('table test has no column named namedd', $exception->getMessage());
+            $t->same(['HY000', 1, 'table test has no column named namedd'], $exception->errorInfo ?? null);
+            $t->same(['HY000', 1, 'table test has no column named namedd'], $sqlite->errorInfo());
+            $t->same([], $sqlite->query('SELECT * FROM test')->fetchAll(PDO::FETCH_ASSOC));
+
+            $reopened = $open(SQLitePDO::class, $path);
+            $t->same([], $reopened->query('SELECT * FROM test')->fetchAll(PDO::FETCH_ASSOC));
+        });
+    },
 ];
