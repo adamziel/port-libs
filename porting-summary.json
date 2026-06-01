@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 22:51:14 UTC",
-    "sourceCommit": "0a0f9810ef453dc2d8243da815d2b3a93b52926e",
-    "sourceCommitShort": "0a0f9810ef45",
+    "generated": "2026-06-01 22:58:12 UTC",
+    "sourceCommit": "442baf3cf86b5922af7ab4945fddc497d8e2c6e9",
+    "sourceCommitShort": "442baf3cf86b",
     "sourceBranch": "unknown",
-    "dashboardCommit": "0a0f9810ef453dc2d8243da815d2b3a93b52926e",
-    "dashboardCommitShort": "0a0f9810ef45",
+    "dashboardCommit": "442baf3cf86b5922af7ab4945fddc497d8e2c6e9",
+    "dashboardCommitShort": "442baf3cf86b",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,286,898 pass / 16 fail",
-            "phase": "current-base source integration accepted by supervisor with source-ne...",
+            "php": "6,287,267 pass / 16 fail",
+            "phase": "current-base source integration accepted by supervisor with applicati...",
             "audit": "2026-06-01 21:15 UTC supervisor integration: source commit c3bf2f17bb...",
-            "currentWork": "Source-neutral cast/LIKE/GLOB cleanup is integrated on top of real upstream atof1.tes...",
+            "currentWork": "Application WAL rollback JSON final checkpoint-followup tail-failure parity is integr...",
             "nextTarget": "Continue reducing the 16 broad libsqlite failures and accept...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "0a0f981"
+            "commit": "442baf3"
         },
         {
             "lane": "lightningcss",
