@@ -205,6 +205,36 @@ return [
         $t->same('matched', $config->value('section', null, 'hidden'));
     },
 
+    'drive-looking paths remain relative on unix like gix-config' => static function (TestRunner $t) use ($tmpDir, $write): void {
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $t->same(true, true);
+            return;
+        }
+
+        $root = $tmpDir();
+        $write($root . '/C:/include.config', "[section]\ndriveInclude = matched\n");
+        $write($root . '/config', <<<CFG
+        [include]
+        path = C:/include.config
+        CFG);
+        $config = GitConfig::fromFile($root . '/config');
+        $t->same('matched', $config->value('section', null, 'driveInclude'));
+
+        $root = $tmpDir();
+        $repo = $root . '/C:/wp-content.git';
+        $gitDir = $repo . '/.git';
+        mkdir($gitDir, 0777, true);
+        $write($repo . '/drive-gitdir.config', "[section]\nvalue = drive-gitdir\n");
+        $write($gitDir . '/config', <<<CFG
+        [section]
+        value = base
+        [includeIf "gitdir:C:/wp-content.git/"]
+        path = ../drive-gitdir.config
+        CFG);
+        $config = GitConfig::fromFile($gitDir . '/config', ['gitDir' => $gitDir, 'homeDir' => $root]);
+        $t->same('drive-gitdir', $config->value('section', null, 'value'));
+    },
+
     'conditional include quoted subsections and globs use upstream backslash escape rules' => static function (TestRunner $t) use ($loadConditionalValue, $tmpDir, $write): void {
         $t->same('override-value', $loadConditionalValue('gitdir:work\\tree/', []));
         $t->same('override-value', $loadConditionalValue('gitdir:\\\\work\\\\tree\\\\/', []));
@@ -1114,6 +1144,8 @@ return [
         $t->same('matched', $fixture['absoluteWorktreeGlobPolicy']);
         $t->same(null, $fixture['backslashGitdirSlashPolicy']);
         $t->same('matched', $fixture['backslashGitdirWildcardPolicy']);
+        $t->same(DIRECTORY_SEPARATOR !== '\\', $fixture['drivePrefixSupported']);
+        $t->same(DIRECTORY_SEPARATOR === '\\' ? null : 'matched', $fixture['drivePrefixGitdirPolicy']);
         $t->same(true, $fixture['symlinkGitdirSupported']);
         $t->same('matched', $fixture['symlinkRealpathPolicy']);
         $t->same('matched', $fixture['symlinkLiteralPolicy']);
@@ -1151,6 +1183,8 @@ return [
         $t->same($fixture['absoluteWorktreeGlobPolicy'], $summary['absoluteWorktreeGlobPolicy']);
         $t->same($fixture['backslashGitdirSlashPolicy'], $summary['backslashGitdirSlashPolicy']);
         $t->same($fixture['backslashGitdirWildcardPolicy'], $summary['backslashGitdirWildcardPolicy']);
+        $t->same($fixture['drivePrefixSupported'], $summary['drivePrefixSupported']);
+        $t->same($fixture['drivePrefixGitdirPolicy'], $summary['drivePrefixGitdirPolicy']);
         $t->same($fixture['symlinkGitdirSupported'], $summary['symlinkGitdirSupported']);
         $t->same($fixture['symlinkRealpathPolicy'], $summary['symlinkRealpathPolicy']);
         $t->same($fixture['symlinkLiteralPolicy'], $summary['symlinkLiteralPolicy']);

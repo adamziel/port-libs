@@ -626,7 +626,11 @@ final class GitConfig
 
     private static function isAbsolutePath(string $path): bool
     {
-        return str_starts_with($path, '/') || preg_match('/^[A-Za-z]:\//', $path) === 1;
+        if (str_starts_with($path, '/')) {
+            return true;
+        }
+
+        return DIRECTORY_SEPARATOR === '\\' && preg_match('/^[A-Za-z]:\//', $path) === 1;
     }
 
     private static function wildmatch(string $pattern, string $text, bool $ignoreCase): bool

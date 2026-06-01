@@ -249,6 +249,7 @@ final class CssBundler
             ],
             !$this->preserveResolverPaths
         );
+        $this->assertNoConditionalCssModuleComposes();
         $this->order();
 
         $raw = $this->licenseCommentPrefix() . $this->inline(0, []);
@@ -290,6 +291,7 @@ final class CssBundler
             'cssModuleDependencySources' => [],
             'cssModuleExports' => [],
             'cssModuleReferences' => [],
+            'cssModuleHasComposes' => false,
             'layer' => $rule['layer'],
             'supports' => $rule['supports'],
             'media' => $rule['media'],
@@ -305,8 +307,10 @@ final class CssBundler
 
         $cssModuleResult = null;
         $cssModuleDependencyLocations = [];
+        $cssModuleHasComposes = false;
         if ($this->cssModules) {
             $cssModuleDependencyLocations = $this->cssModuleDependencyLocations($source);
+            $cssModuleHasComposes = $this->hasCssModuleComposesDeclaration($source);
             try {
                 $cssModuleResult = (new CssModulesTransformer())->transform($source, $this->cssModuleTransformOptions($file));
             } catch (\InvalidArgumentException $exception) {
@@ -402,8 +406,26 @@ final class CssBundler
         $this->stylesheets[$sourceIndex]['cssModuleDependencySources'] = $cssModuleDependencySources;
         $this->stylesheets[$sourceIndex]['cssModuleExports'] = $cssModuleExports;
         $this->stylesheets[$sourceIndex]['cssModuleReferences'] = $cssModuleReferences;
+        $this->stylesheets[$sourceIndex]['cssModuleHasComposes'] = $cssModuleHasComposes;
 
         return $sourceIndex;
+    }
+
+    private function assertNoConditionalCssModuleComposes(): void
+    {
+        if (!$this->cssModules) {
+            return;
+        }
+
+        foreach ($this->stylesheets as $stylesheet) {
+            if (!($stylesheet['cssModuleHasComposes'] ?? false)) {
+                continue;
+            }
+
+            if ($this->isConditionalCssModuleImportContext($stylesheet)) {
+                throw new \InvalidArgumentException('The `composes` property cannot be used within nested rules');
+            }
+        }
     }
 
     /**
@@ -437,6 +459,16 @@ final class CssBundler
                 ]
             );
         }
+    }
+
+    /**
+     * @param array{layer:?string,supports:?string,media:string} $rule
+     */
+    private function isConditionalCssModuleImportContext(array $rule): bool
+    {
+        return $rule['layer'] !== null
+            || $rule['supports'] !== null
+            || trim($rule['media']) !== '';
     }
 
     /**
@@ -2499,6 +2531,56 @@ final class CssBundler
         }
 
         return $locations;
+    }
+
+    private function hasCssModuleComposesDeclaration(string $source): bool
+    {
+        $offset = 0;
+        while (($property = $this->findNextCssIdentifierInSet($source, ['composes'], $offset)) !== null) {
+            $offset = $property['end'];
+            $colon = $this->skipWhitespaceAndComments($source, $property['end']);
+            if (($source[$colon] ?? null) !== ':') {
+                continue;
+            }
+
+            if (!$this->isCssModuleDeclarationBoundaryBefore($source, $property['start'])) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private function isCssModuleDeclarationBoundaryBefore(string $source, int $offset): bool
+    {
+        $previous = $this->previousNonTriviaChar($source, $offset);
+        return $previous === null || $previous === '{' || $previous === ';';
+    }
+
+    private function previousNonTriviaChar(string $source, int $offset): ?string
+    {
+        for ($index = $offset - 1; $index >= 0; $index--) {
+            $char = $source[$index];
+            if (ctype_space($char)) {
+                continue;
+            }
+
+            if ($char === '/' && ($source[$index - 1] ?? null) === '*') {
+                $commentStart = strrpos(substr($source, 0, max(0, $index - 1)), '/*');
+                if ($commentStart === false) {
+                    return $char;
+                }
+
+                $index = $commentStart;
+                continue;
+            }
+
+            return $char;
+        }
+
+        return null;
     }
 
     /**

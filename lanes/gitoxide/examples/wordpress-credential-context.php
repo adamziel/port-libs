@@ -19,6 +19,8 @@ return [
     'fileUrlPath' => $fixture['fileUrlPath'],
     'duplicateInvalidStringRejected' => $fixture['duplicateInvalidStringRejected'],
     'duplicateBytePath' => $fixture['duplicateBytePath'],
+    'bareCarriageReturnPathPreserved' => $fixture['bareCarriageReturnPathPreserved'],
+    'crlfPathTerminatorStripped' => $fixture['crlfPathTerminatorStripped'],
     'helperProgramProtocolHost' => $fixture['helperProgramProtocolHost'],
     'helperProgramMissingCredential' => $fixture['helperProgramMissingCredential'],
     'helperProgramUrlOnly' => $fixture['helperProgramUrlOnly'],

@@ -8,6 +8,7 @@ final class CssModulesTransformer
 {
     private const PURE_NO_CHECK_MARKER = '/*__lightningcss-cssmodules-pure-no-check__*/';
     private const PRESERVE_EMPTY_COMPOSES_DECLARATION = '--__lightningcss-cssmodules-preserve-empty-composes:0';
+    private const COMMENT_IDENTIFIER_BOUNDARY = "\x1f";
     private const HASH_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_-';
     private const U32_MASK = 0xffffffff;
     private const U32_BASE = 4294967296;
@@ -99,7 +100,7 @@ final class CssModulesTransformer
             $this->pruneUnusedReferences($code);
         }
 
-        $code = $this->prependLicenseComments($code, $licenseComments);
+        $code = $this->prependLicenseComments(str_replace(self::COMMENT_IDENTIFIER_BOUNDARY, '', $code), $licenseComments);
 
         return [
             'code' => $code,
@@ -1874,6 +1875,7 @@ final class CssModulesTransformer
      */
     private function rewriteSelectorList(string $selectorList): array
     {
+        $this->assertNoCommentIdentifierBoundariesInSelectorList($selectorList);
         $this->assertNoInvalidEscapesInSelectorList($selectorList);
         $this->assertSelectorPseudoElementBoundaries($selectorList);
 
@@ -1892,6 +1894,13 @@ final class CssModulesTransformer
         }
 
         return [implode(', ', $rewritten), $locals];
+    }
+
+    private function assertNoCommentIdentifierBoundariesInSelectorList(string $selectorList): void
+    {
+        if (str_contains($selectorList, self::COMMENT_IDENTIFIER_BOUNDARY)) {
+            throw new \InvalidArgumentException('CSS comments cannot split selector identifiers');
+        }
     }
 
     private function assertNoInvalidEscapesInSelectorList(string $selectorList): void
@@ -4608,6 +4617,11 @@ final class CssModulesTransformer
                     $output .= self::PURE_NO_CHECK_MARKER;
                 } elseif ($inComposesDeclarationValue) {
                     $output .= ' ';
+                } elseif (
+                    $this->commentBridgesCssIdentifierToken($css, $i, $end)
+                    && ($braceDepth === 0 || $this->commentIsInSelectorLikePrelude($declarationHead))
+                ) {
+                    $output .= self::COMMENT_IDENTIFIER_BOUNDARY;
                 } elseif ($braceDepth > 0 && !$inDeclarationValue && $parenDepth === 0 && $bracketDepth === 0) {
                     // Two spaces prevent a comment after a hex escape from becoming the escape terminator.
                     $output .= '  ';
@@ -4665,6 +4679,31 @@ final class CssModulesTransformer
         }
 
         return [$output, $licenseComments];
+    }
+
+    private function commentBridgesCssIdentifierToken(string $css, int $start, int $end): bool
+    {
+        $previous = $css[$start - 1] ?? '';
+        $next = $css[$end + 2] ?? '';
+
+        return $previous !== ''
+            && $next !== ''
+            && $this->isCssIdentifierCommentBoundaryChar($previous)
+            && $this->isCssIdentifierCommentBoundaryChar($next);
+    }
+
+    private function isCssIdentifierCommentBoundaryChar(string $char): bool
+    {
+        return $char === '\\' || $char === '-' || $this->isCssIdentifierChar($char);
+    }
+
+    private function commentIsInSelectorLikePrelude(string $prelude): bool
+    {
+        return str_contains($prelude, '.')
+            || str_contains($prelude, '#')
+            || str_contains($prelude, ':')
+            || str_contains($prelude, '[')
+            || str_contains($prelude, '&');
     }
 
     /**

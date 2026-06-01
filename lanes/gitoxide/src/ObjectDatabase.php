@@ -488,6 +488,59 @@ final class ObjectDatabase
     }
 
     /**
+     * @return array{packName:string,indexName:string,promisorName:string,keepName:?string,packChecksum:string,indexChecksum:string,objectIds:list<string>,objectCount:int,alreadyPresent:bool}
+     */
+    public function writePromisorPackBundle(PackBuildResult $pack, string $promisorNote = '', bool $keep = true): array
+    {
+        if ($this->objectHash !== 'sha1') {
+            throw new \RuntimeException('Promisor pack bundle writing currently supports SHA-1 pack build results');
+        }
+
+        $packDirectory = $this->primaryPackDirectory();
+        $basename = 'pack-' . $pack->packChecksum();
+        $packName = $basename . '.pack';
+        $indexName = $basename . '.idx';
+        $promisorName = $basename . '.promisor';
+        $keepName = $basename . '.keep';
+        $packPath = $packDirectory . '/' . $packName;
+        $indexPath = $packDirectory . '/' . $indexName;
+        $promisorPath = $packDirectory . '/' . $promisorName;
+        $keepPath = $packDirectory . '/' . $keepName;
+        $packAlreadyExists = is_file($packPath);
+        $indexAlreadyExists = is_file($indexPath);
+
+        if (!$packAlreadyExists && $keep) {
+            self::writeBytes($keepPath, '');
+        }
+        if (!$packAlreadyExists) {
+            self::writeBytes($packPath, $pack->packBytes());
+        }
+        if (!$indexAlreadyExists) {
+            self::writeBytes($indexPath, $pack->indexBytes());
+        }
+        self::writeBytes($promisorPath, $promisorNote);
+
+        if ($this->refreshObjectStorageOnMiss) {
+            $this->refreshObjectStorage();
+        }
+
+        return [
+            'packName' => $packName,
+            'indexName' => $indexName,
+            'promisorName' => $promisorName,
+            'keepName' => !$packAlreadyExists && $keep ? $keepName : null,
+            'packChecksum' => $pack->packChecksum(),
+            'indexChecksum' => $pack->indexChecksum(),
+            'objectIds' => array_values(array_map(
+                static fn (array $entry): string => $entry['oid'],
+                $pack->entries()
+            )),
+            'objectCount' => count($pack->entries()),
+            'alreadyPresent' => $packAlreadyExists && $indexAlreadyExists,
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public function promisorPackNames(): array
@@ -927,6 +980,23 @@ final class ObjectDatabase
             $this->objectHash,
             $this->looseObjectAllocationLimitBytes,
         );
+    }
+
+    private function primaryPackDirectory(): string
+    {
+        $directory = $this->objectDirectories()[0] . '/pack';
+        if (!is_dir($directory) && !mkdir($directory, 0777, true) && !is_dir($directory)) {
+            throw new \RuntimeException("Unable to create pack directory: {$directory}");
+        }
+
+        return $directory;
+    }
+
+    private static function writeBytes(string $path, string $bytes): void
+    {
+        if (file_put_contents($path, $bytes) === false) {
+            throw new \RuntimeException("Unable to write file: {$path}");
+        }
     }
 
     /**

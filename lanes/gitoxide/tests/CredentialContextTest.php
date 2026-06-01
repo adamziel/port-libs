@@ -93,6 +93,13 @@ return [
         $t->same("wp-content\xff.git", $context->path);
         $t->contains("url=https://git.example.test/wp-content\xff.git\n", $context->storageBytes());
         $t->contains("path=wp-content\xff.git\n", $context->storageBytes());
+
+        $bareCarriageReturn = CredentialContext::fromBytes("path=wp-content\r");
+        $t->same("wp-content\r", $bareCarriageReturn->path);
+        $t->contains("path=wp-content\r\n", $bareCarriageReturn->storageBytes());
+
+        $crlfTerminated = CredentialContext::fromBytes("path=wp-content\r\n");
+        $t->same('wp-content', $crlfTerminated->path);
     },
     'credential context url and prompt helpers match gix credentials context' => static function (TestRunner $t): void {
         $t->same(null, (new CredentialContext())->toUrl());
@@ -229,6 +236,8 @@ return [
         $t->same(true, $fixture['rootHttpPathCleared']);
         $t->same(true, $fixture['duplicateInvalidStringRejected']);
         $t->same('wp-content.git', $fixture['duplicateBytePath']);
+        $t->same(true, $fixture['bareCarriageReturnPathPreserved']);
+        $t->same(true, $fixture['crlfPathTerminatorStripped']);
         $t->same([
             'action' => 'get',
             'protocol' => 'https',
@@ -257,6 +266,8 @@ return [
         $t->same($fixture['helperInvocationIdentity'], $summary['helperInvocationIdentity']);
         $t->same(true, $summary['helperInvocationQuit']);
         $t->same(true, $summary['helperInvocationNextQuit']);
+        $t->same(true, $summary['bareCarriageReturnPathPreserved']);
+        $t->same(true, $summary['crlfPathTerminatorStripped']);
         $t->same(false, $summary['emptyQuitFalse']);
         $t->same(true, $summary['overflowExpiryIgnored']);
         $t->same(true, $summary['overflowQuitIgnored']);

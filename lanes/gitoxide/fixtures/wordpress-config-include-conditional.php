@@ -331,6 +331,30 @@ $backslashConfig = GitConfig::fromFile($backslashGitDir . '/config', [
     'homeDir' => $root,
 ]);
 
+$drivePrefixSupported = false;
+$drivePrefixGitdirPolicy = null;
+if (DIRECTORY_SEPARATOR !== '\\') {
+    $driveRepo = $root . '/C:/wp-content-drive.git';
+    $driveGitDir = $driveRepo . '/.git';
+    mkdir($driveGitDir, 0777, true);
+    $write($driveRepo . '/drive-prefix.config', <<<CFG
+    [wordpress]
+    drivePrefixGitdir = matched
+    CFG);
+    $write($driveGitDir . '/config', <<<CFG
+    [wordpress]
+    drivePrefixBase = base
+    [includeIf "gitdir:C:/wp-content-drive.git/"]
+    path = ../drive-prefix.config
+    CFG);
+    $driveConfig = GitConfig::fromFile($driveGitDir . '/config', [
+        'gitDir' => $driveGitDir,
+        'homeDir' => $root,
+    ]);
+    $drivePrefixSupported = true;
+    $drivePrefixGitdirPolicy = $driveConfig->value('wordpress', null, 'drivePrefixGitdir');
+}
+
 $symlinkGitdirSupported = false;
 $symlinkConfig = null;
 $linkedRepo = $root . '/linked-wp-content.git';
@@ -388,6 +412,8 @@ return [
     'absoluteWorktreeGlobPolicy' => $config->value('wordpress', null, 'absoluteWorktreeGlob'),
     'backslashGitdirSlashPolicy' => $backslashConfig->value('wordpress', null, 'backslashGitdirSlash'),
     'backslashGitdirWildcardPolicy' => $backslashConfig->value('wordpress', null, 'backslashGitdirWildcard'),
+    'drivePrefixSupported' => $drivePrefixSupported,
+    'drivePrefixGitdirPolicy' => $drivePrefixGitdirPolicy,
     'symlinkGitdirSupported' => $symlinkGitdirSupported,
     'symlinkRealpathPolicy' => $symlinkConfig?->value('wordpress', null, 'symlinkRealpath'),
     'symlinkLiteralPolicy' => $symlinkConfig?->value('wordpress', null, 'symlinkLiteral'),

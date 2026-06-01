@@ -2766,13 +2766,14 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         private static function expressionValueStat4CurrentRange(array $row, string $expression): mixed
         {
             $normalized = self::normalizeExpressionStat4CurrentRange($expression);
-            if ($normalized === 'lower(option_name)') {
-                $value = $row['option_name'] ?? null;
+            $lowerColumn = self::stat4LowerExpressionColumn($expression);
+            if ($lowerColumn !== null) {
+                $value = $row[$lowerColumn] ?? null;
                 return is_string($value) ? strtolower($value) : null;
             }
-            if ($normalized === 'json_extract(option_value,$.plugin)') {
-                $decoded = json_decode((string) ($row['option_value'] ?? ''), true);
-                return is_array($decoded) ? ($decoded['plugin'] ?? null) : null;
+            if (preg_match('/^json_extract\(([a-z_][a-z0-9_]*),\$\.(.+)\)$/', $normalized, $matches) === 1) {
+                $decoded = json_decode((string) ($row[$matches[1]] ?? ''), true);
+                return is_array($decoded) ? ($decoded[$matches[2]] ?? null) : null;
             }
 
             throw new \InvalidArgumentException('SQLite stat4-current-range unsupported expression ' . $expression);
@@ -5998,11 +5999,13 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             self::assertRangeRowsNeededColumns($neededColumns);
 
             $index = self::selectedRangeRowsExpressionIndex($currentSource);
-            $range = self::expressionRangeRowsRange($queryTerms);
+            $keyColumn = self::stat4KeyColumnForPartialKeyFields($index, 'stat4 current range rows');
+            $keyExpression = self::normalRangeRowsExpression((string) ($index['expression'] ?? ''));
+            $range = self::expressionRangeRowsRange($queryTerms, $keyExpression);
             $partialTerms = self::rangeRowsPartialTerms($index);
-            $currentRows = self::rangeRowsMatchingRows($currentSource, $partialTerms, $range, $neededColumns);
+            $currentRows = self::rangeRowsMatchingRows($currentSource, $partialTerms, $range, $neededColumns, $keyColumn);
             $currentSignature = self::rangeRowsSignature($currentRows);
-            $nextRows = $nextSource === null ? $currentRows : self::rangeRowsMatchingRows($nextSource, $partialTerms, $range, $neededColumns);
+            $nextRows = $nextSource === null ? $currentRows : self::rangeRowsMatchingRows($nextSource, $partialTerms, $range, $neededColumns, $keyColumn);
             $nextSignature = $nextSource === null ? $currentSignature : self::rangeRowsSignature($nextRows);
 
             $schemaChanged = (int) ($preparedSource['schemaCookie'] ?? 0) !== (int) ($currentSource['schemaCookie'] ?? 0);
@@ -6096,19 +6099,19 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!is_array($index)) {
                     throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source range rows indexes must be arrays');
                 }
-                if (self::normalRangeRowsExpression((string) ($index['expression'] ?? '')) === 'lower(option_name)' && self::rangeRowsPartialTerms($index) !== []) {
+                if (self::stat4LowerExpressionColumn((string) ($index['expression'] ?? '')) !== null && self::rangeRowsPartialTerms($index) !== []) {
                     return $index;
                 }
             }
 
-            throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source range rows needs lower(option_name) partial index');
+            throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source range rows needs lower() partial index');
         }
 
         /**
          * @param list<array<string,mixed>> $queryTerms
          * @return array{lower:string,upper:string,lowerInclusive:bool,upperInclusive:bool}
          */
-        private static function expressionRangeRowsRange(array $queryTerms): array
+        private static function expressionRangeRowsRange(array $queryTerms, string $keyExpression): array
         {
             $lower = null;
             $upper = null;
@@ -6116,7 +6119,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
             $upperInclusive = false;
             foreach ($queryTerms as $term) {
                 $left = $term['left'] ?? null;
-                if (!is_array($left) || self::normalRangeRowsExpression((string) ($left['expression'] ?? '')) !== 'lower(option_name)') {
+                if (!is_array($left) || self::normalRangeRowsExpression((string) ($left['expression'] ?? '')) !== $keyExpression) {
                     continue;
                 }
                 $operator = strtoupper((string) ($term['operator'] ?? ''));
@@ -6138,7 +6141,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
             }
             if ($lower === null || $upper === null) {
-                throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source range rows needs bounded lower(option_name) range');
+                throw new \InvalidArgumentException('SQLite STAT4 expression partial current-source range rows needs bounded key expression range');
             }
 
             return ['lower' => $lower, 'upper' => $upper, 'lowerInclusive' => $lowerInclusive, 'upperInclusive' => $upperInclusive];
@@ -6164,7 +6167,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return list<array<string,mixed>>
          */
-        private static function rangeRowsMatchingRows(array $source, array $partialTerms, array $range, array $neededColumns): array
+        private static function rangeRowsMatchingRows(array $source, array $partialTerms, array $range, array $neededColumns, string $keyColumn): array
         {
             $rows = $source['rows'] ?? null;
             if (!is_array($rows) || !array_is_list($rows)) {
@@ -6179,8 +6182,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 if (!self::rangeRowsRowMatchesTerms($row, $partialTerms)) {
                     continue;
                 }
-                $key = is_string($row['option_name'] ?? null) ? strtolower((string) $row['option_name']) : null;
-                if (!is_string($key) || !self::rangeRowsKeyInRange($key, $range)) {
+                $key = self::stat4ExpressionKeyFromRow($row, $keyColumn, 'stat4 current range rows');
+                if (!self::rangeRowsKeyInRange($key, $range)) {
                     continue;
                 }
                 $payload = [];
@@ -31489,6 +31492,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $currentRows = self::rowsByRowidForStat4ExpressionPartialPreparedBridge($currentSource);
+        $keyColumn = self::keyColumnForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
         $priorPrepared = self::intListForStat4ExpressionPartialPreparedBridge($prior["preparedSlices"] ?? null, "prior prepared slices");
@@ -31519,7 +31523,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "slice" => $slice,
                 "continuesSlice" => $priorSlice,
                 "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
+                "expressionKey" => self::expressionKeyForPreparedHandoff(is_array($row) ? $row : null, $keyColumn),
                 "projectedColumns" => $projected,
                 "priorProjectedColumns" => $priorProjected,
                 "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
@@ -33264,6 +33268,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
+        $keyColumn = self::keyColumnForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
         $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
@@ -33294,7 +33299,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "slice" => $slice,
                 "continuesSlice" => $priorSlice,
                 "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
+                "expressionKey" => self::expressionKeyForPreparedHandoff(is_array($row) ? $row : null, $keyColumn),
                 "projectedColumns" => $projected,
                 "priorProjectedColumns" => $priorProjected,
                 "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
@@ -33372,6 +33377,50 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         return $projected;
+    }
+
+    private static function keyColumnForPreparedHandoff(array $source): string
+    {
+        return self::stat4KeyColumnForPartialKeyFields(
+            self::indexForPreparedHandoffKeyFields($source),
+            "prepared handoff",
+        );
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function indexForPreparedHandoffKeyFields(array $source): array
+    {
+        $indexes = $source["indexes"] ?? null;
+        if (!is_array($indexes) || $indexes === []) {
+            throw new \InvalidArgumentException("SQLite prepared handoff needs index key fields");
+        }
+
+        foreach ($indexes as $index) {
+            if (!is_array($index)) {
+                throw new \InvalidArgumentException("SQLite prepared handoff index metadata must be arrays");
+            }
+            if (($index["selected"] ?? false) === true) {
+                return $index;
+            }
+        }
+
+        $first = reset($indexes);
+        if (!is_array($first)) {
+            throw new \InvalidArgumentException("SQLite prepared handoff index metadata must be arrays");
+        }
+
+        return $first;
+    }
+
+    private static function expressionKeyForPreparedHandoff(?array $row, string $keyColumn): ?string
+    {
+        if ($row === null) {
+            return null;
+        }
+
+        return self::stat4ExpressionKeyFromRow($row, $keyColumn, "prepared handoff");
     }
 
     private static function cursorProgramForPreparedHandoff(array $program, bool $ready, array $fence): array
@@ -34006,6 +34055,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         $currentRows = self::rowsByRowidForPreparedHandoff($currentSource);
+        $keyColumn = self::keyColumnForPreparedHandoff($currentSource);
         $windows = [];
         $blocked = [];
         $priorPrepared = self::intListForPreparedHandoff($prior["preparedSlices"] ?? null, "prior prepared slices");
@@ -34036,7 +34086,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "slice" => $slice,
                 "continuesSlice" => $priorSlice,
                 "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
+                "expressionKey" => self::expressionKeyForPreparedHandoff(is_array($row) ? $row : null, $keyColumn),
                 "projectedColumns" => $projected,
                 "priorProjectedColumns" => $priorProjected,
                 "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,

@@ -1657,3 +1657,48 @@ if (
 }
 
 echo 'css-modules-env-dependency: resolved' . PHP_EOL;
+
+$conditionalComposesFiles = [
+    '/modules/conditional-card.css' => '@import "blocks/card.css" layer(theme.blocks) screen; .wp-site-blocks { color: red }',
+    '/modules/blocks/card.css' => '.wp-block-card { composes: token from "tokens.css"; color: green }',
+    '/modules/blocks/tokens.css' => '.token { color: blue }',
+];
+$conditionalComposesReads = [];
+try {
+    (new CssBundler())->bundleCssModulesWithReader(
+        '/modules/conditional-card.css',
+        static function (string $file) use ($conditionalComposesFiles, &$conditionalComposesReads): string {
+            $conditionalComposesReads[] = $file;
+            if (!array_key_exists($file, $conditionalComposesFiles)) {
+                throw new RuntimeException("Missing conditional CSS Modules fixture {$file}");
+            }
+
+            return $conditionalComposesFiles[$file];
+        },
+        null,
+        [
+            'hashes' => [
+                '/modules/conditional-card.css' => 'entry',
+                '/modules/blocks/card.css' => 'card',
+                '/modules/blocks/tokens.css' => 'tok',
+            ],
+        ]
+    );
+
+    fwrite(STDERR, "Expected conditional CSS Modules composes import to be rejected\n");
+    exit(1);
+} catch (InvalidArgumentException $exception) {
+    if (
+        $exception->getMessage() !== 'The `composes` property cannot be used within nested rules'
+        || $conditionalComposesReads !== [
+            '/modules/conditional-card.css',
+            '/modules/blocks/card.css',
+            '/modules/blocks/tokens.css',
+        ]
+    ) {
+        fwrite(STDERR, 'Unexpected conditional CSS Modules composes diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+}
+
+echo 'css-modules-conditional-composes: rejected' . PHP_EOL;

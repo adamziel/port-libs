@@ -11221,6 +11221,349 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * Model the runtime foreign-key introduction cases from e_fkey.test:
+     * default disabled enforcement, PRAGMA state/toggle boundaries, NULL child
+     * keys, and the artist/track invariant examples.
+     *
+     * @return array<string,mixed>
+     */
+    public static function foreignKeyRuntimeIntroPlan(int $seed, int $operationCount = 24, bool $trackArtistNotNull = false): array
+    {
+        if ($seed < 1) {
+            throw new \InvalidArgumentException('SQLite e_fkey runtime intro seed must be positive');
+        }
+        if ($operationCount < 1) {
+            throw new \InvalidArgumentException('SQLite e_fkey runtime intro operation count must be positive');
+        }
+
+        $oldKey = 'hello_' . $seed;
+        $newKey = 'world_' . $seed;
+        $defaultDisabled = [
+            'foreign_keys' => false,
+            'parent_key_before_update' => $oldKey,
+            'parent_key_after_update' => $newKey,
+            'child_key_after_parent_update' => $oldKey,
+            'cascade_applied' => false,
+        ];
+        $enabledCascade = [
+            'foreign_keys' => true,
+            'parent_key_before_update' => $oldKey,
+            'parent_key_after_update' => $newKey,
+            'child_key_after_parent_update' => $newKey,
+            'cascade_applied' => true,
+        ];
+
+        $transactionToggle = [
+            'initial_state' => 1,
+            'first_transaction_toggle_attempt' => 'OFF',
+            'state_inside_first_transaction' => 1,
+            'first_delete_status' => 'constraint-failed',
+            'first_delete_error' => 'FOREIGN KEY constraint failed',
+            'state_after_first_commit' => 1,
+            'second_transaction_outer_state' => 0,
+            'second_transaction_toggle_attempt' => 'ON',
+            'state_inside_second_transaction' => 0,
+            'second_delete_status' => 'commit-ok',
+            'toggle_inside_transaction_effective' => false,
+        ];
+
+        $artists = [
+            ['artistid' => 1, 'artistname' => 'artist_' . $seed . '_1'],
+            ['artistid' => 2, 'artistname' => 'artist_' . $seed . '_2'],
+            ['artistid' => 3, 'artistname' => 'artist_' . $seed . '_3'],
+        ];
+        $tracks = [
+            ['trackid' => 1, 'trackname' => 'track_' . $seed . '_1', 'trackartist' => 1],
+            ['trackid' => 2, 'trackname' => 'track_' . $seed . '_2', 'trackartist' => 2],
+            ['trackid' => 3, 'trackname' => 'track_' . $seed . '_3', 'trackartist' => null],
+        ];
+
+        $sortArtists = static function (array $rows): array {
+            usort($rows, static fn (array $left, array $right): int => ((int) $left['artistid']) <=> ((int) $right['artistid']));
+
+            return array_values($rows);
+        };
+        $sortTracks = static function (array $rows): array {
+            usort($rows, static fn (array $left, array $right): int => ((int) $left['trackid']) <=> ((int) $right['trackid']));
+
+            return array_values($rows);
+        };
+        $artistKeys = static function (array $rows): array {
+            $keys = [];
+            foreach ($rows as $row) {
+                $keys[(int) $row['artistid']] = true;
+            }
+
+            return $keys;
+        };
+        $invariantViolations = static function (array $artistRows, array $trackRows) use ($artistKeys): array {
+            $keys = $artistKeys($artistRows);
+            $violations = [];
+            foreach (array_values($trackRows) as $index => $track) {
+                $trackArtist = $track['trackartist'];
+                if ($trackArtist === null || isset($keys[(int) $trackArtist])) {
+                    continue;
+                }
+                $violations[] = [
+                    'track_index' => $index,
+                    'trackid' => (int) $track['trackid'],
+                    'trackartist' => (int) $trackArtist,
+                ];
+            }
+
+            return $violations;
+        };
+        $findArtist = static function (array $rows, int $artistId): ?int {
+            foreach ($rows as $index => $row) {
+                if ((int) $row['artistid'] === $artistId) {
+                    return $index;
+                }
+            }
+
+            return null;
+        };
+        $findTrack = static function (array $rows, int $trackId): ?int {
+            foreach ($rows as $index => $row) {
+                if ((int) $row['trackid'] === $trackId) {
+                    return $index;
+                }
+            }
+
+            return null;
+        };
+        $trackReferenceCount = static function (array $rows, int $artistId): int {
+            $count = 0;
+            foreach ($rows as $row) {
+                if (($row['trackartist'] ?? null) === $artistId) {
+                    ++$count;
+                }
+            }
+
+            return $count;
+        };
+
+        $trace = [];
+        $failedInvariantAfterRollback = false;
+        $acceptedCount = 0;
+        $rejectedCount = 0;
+        for ($i = 0; $i < $operationCount; ++$i) {
+            $kindIndex = ($seed + ($i * 5)) % 6;
+            $artistId = (($seed + ($i * 3)) % 7) + 1;
+            $newArtistId = (($seed + ($i * 4) + 3) % 7) + 1;
+            $trackId = (($seed * 7) + ($i * 11)) % 50 + 1;
+            $snapshotArtists = $artists;
+            $snapshotTracks = $tracks;
+            $status = 'commit-ok';
+            $error = null;
+            $changed = 0;
+            $operation = '';
+
+            if ($kindIndex === 0) {
+                $operation = 'insert-track';
+                $trackArtist = (($seed + $i) % 5) === 0 ? null : $artistId;
+                if ($findTrack($tracks, $trackId) !== null) {
+                    $status = 'unique-failed';
+                    $error = 'UNIQUE constraint failed: track.trackid';
+                } elseif ($trackArtist === null && $trackArtistNotNull) {
+                    $status = 'not-null-failed';
+                    $error = 'NOT NULL constraint failed: track.trackartist';
+                } elseif ($trackArtist !== null && $findArtist($artists, $trackArtist) === null) {
+                    $status = 'constraint-failed';
+                    $error = 'FOREIGN KEY constraint failed';
+                } else {
+                    $tracks[] = [
+                        'trackid' => $trackId,
+                        'trackname' => 'dynamic_track_' . $seed . '_' . $i,
+                        'trackartist' => $trackArtist,
+                    ];
+                    $changed = 1;
+                }
+            } elseif ($kindIndex === 1) {
+                $operation = 'delete-track';
+                $index = $findTrack($tracks, $trackId);
+                if ($index !== null) {
+                    unset($tracks[$index]);
+                    $tracks = array_values($tracks);
+                    $changed = 1;
+                }
+            } elseif ($kindIndex === 2) {
+                $operation = 'update-track-artist';
+                $index = $findTrack($tracks, $trackId);
+                if ($index !== null) {
+                    if ($artistId !== null && $findArtist($artists, $artistId) === null) {
+                        $status = 'constraint-failed';
+                        $error = 'FOREIGN KEY constraint failed';
+                    } else {
+                        $tracks[$index]['trackartist'] = $artistId;
+                        $changed = 1;
+                    }
+                }
+            } elseif ($kindIndex === 3) {
+                $operation = 'insert-artist';
+                if ($findArtist($artists, $artistId) !== null) {
+                    $status = 'unique-failed';
+                    $error = 'UNIQUE constraint failed: artist.artistid';
+                } else {
+                    $artists[] = ['artistid' => $artistId, 'artistname' => 'dynamic_artist_' . $seed . '_' . $i];
+                    $changed = 1;
+                }
+            } elseif ($kindIndex === 4) {
+                $operation = 'delete-artist';
+                $index = $findArtist($artists, $artistId);
+                if ($index !== null) {
+                    if ($trackReferenceCount($tracks, $artistId) > 0) {
+                        $status = 'constraint-failed';
+                        $error = 'FOREIGN KEY constraint failed';
+                    } else {
+                        unset($artists[$index]);
+                        $artists = array_values($artists);
+                        $changed = 1;
+                    }
+                }
+            } else {
+                $operation = 'update-artist-id';
+                $index = $findArtist($artists, $artistId);
+                if ($index !== null) {
+                    if ($findArtist($artists, $newArtistId) !== null) {
+                        $status = 'unique-failed';
+                        $error = 'UNIQUE constraint failed: artist.artistid';
+                    } elseif ($trackReferenceCount($tracks, $artistId) > 0) {
+                        $status = 'constraint-failed';
+                        $error = 'FOREIGN KEY constraint failed';
+                    } else {
+                        $artists[$index]['artistid'] = $newArtistId;
+                        $changed = 1;
+                    }
+                }
+            }
+
+            if ($status !== 'commit-ok') {
+                $artists = $snapshotArtists;
+                $tracks = $snapshotTracks;
+                ++$rejectedCount;
+            } else {
+                ++$acceptedCount;
+            }
+
+            $violations = $invariantViolations($artists, $tracks);
+            if ($violations !== []) {
+                $failedInvariantAfterRollback = true;
+            }
+
+            $trace[] = [
+                'index' => $i,
+                'operation' => $operation,
+                'status' => $status,
+                'error' => $error,
+                'changed' => $changed,
+                'artist_count' => count($artists),
+                'track_count' => count($tracks),
+                'invariant_violation_count' => count($violations),
+            ];
+        }
+
+        $exampleArtists = [
+            ['artistid' => 1, 'artistname' => 'Dean Martin'],
+            ['artistid' => 2, 'artistname' => 'Frank Sinatra'],
+        ];
+        $exampleTracks = [
+            ['trackid' => 11, 'trackname' => "That's Amore", 'trackartist' => 1],
+            ['trackid' => 12, 'trackname' => 'Christmas Blues', 'trackartist' => 1],
+            ['trackid' => 13, 'trackname' => 'My Way', 'trackartist' => 2],
+        ];
+        $missingArtistInsertStatus = 'constraint-failed';
+        $exampleTracks[] = ['trackid' => 14, 'trackname' => 'Mr. Bojangles', 'trackartist' => null];
+        $nullArtistInsertStatus = 'commit-ok';
+        $missingArtistUpdateStatus = 'constraint-failed';
+        $exampleArtists[] = ['artistid' => 3, 'artistname' => 'Sammy Davis Jr.'];
+        foreach ($exampleTracks as &$track) {
+            if ((int) $track['trackid'] === 14) {
+                $track['trackartist'] = 3;
+            }
+        }
+        unset($track);
+        $exampleTracks[] = ['trackid' => 15, 'trackname' => 'Boogie Woogie', 'trackartist' => 3];
+        $addArtistUpdateInsertStatus = 'commit-ok';
+        $deleteDependentSinatraStatus = 'constraint-failed';
+        $exampleTracks = array_values(array_filter(
+            $exampleTracks,
+            static fn (array $track): bool => (int) $track['trackid'] !== 13
+        ));
+        $exampleArtists = array_values(array_filter(
+            $exampleArtists,
+            static fn (array $artist): bool => (int) $artist['artistid'] !== 2
+        ));
+        $deleteSinatraAfterTrackStatus = 'commit-ok';
+        $updateDeanWithTracksStatus = 'constraint-failed';
+        $exampleTracks = array_values(array_filter(
+            $exampleTracks,
+            static fn (array $track): bool => !in_array((int) $track['trackid'], [11, 12], true)
+        ));
+        foreach ($exampleArtists as &$artist) {
+            if ((int) $artist['artistid'] === 1) {
+                $artist['artistid'] = 4;
+            }
+        }
+        unset($artist);
+        $updateDeanAfterTrackDeleteStatus = 'commit-ok';
+
+        $finalViolations = $invariantViolations($artists, $tracks);
+        $exampleArtists = $sortArtists($exampleArtists);
+        $exampleTracks = $sortTracks($exampleTracks);
+
+        return [
+            'source' => 'e_fkey.test e_fkey-4.1..14.4',
+            'operation' => 'runtime-foreign-key-intro-and-example',
+            'seed' => $seed,
+            'foreign_keys_default_enabled' => false,
+            'default_disabled' => $defaultDisabled,
+            'enabled_cascade' => $enabledCascade,
+            'pragma_state_sequence' => [0, 1, 0],
+            'transaction_toggle' => $transactionToggle,
+            'create_track_schema_status' => 'commit-ok',
+            'missing_artist_insert' => ['status' => 'constraint-failed', 'error' => 'FOREIGN KEY constraint failed'],
+            'wrong_artist_after_parent_insert' => ['status' => 'constraint-failed', 'error' => 'FOREIGN KEY constraint failed'],
+            'valid_artist_insert' => ['status' => 'commit-ok'],
+            'dependent_artist_delete' => ['status' => 'constraint-failed', 'error' => 'FOREIGN KEY constraint failed'],
+            'delete_after_track_removal' => ['status' => 'commit-ok'],
+            'null_child_insert' => ['status' => $trackArtistNotNull ? 'not-null-failed' : 'commit-ok'],
+            'null_child_exempt_from_fk' => !$trackArtistNotNull,
+            'track_artist_not_null' => $trackArtistNotNull,
+            'foreign_key_expression' => 'trackartist IS NULL OR EXISTS(parent)',
+            'dynamic_operation_count' => $operationCount,
+            'dynamic_accepted_count' => $acceptedCount,
+            'dynamic_rejected_count' => $rejectedCount,
+            'dynamic_trace' => $trace,
+            'dynamic_final_artists' => $sortArtists($artists),
+            'dynamic_final_tracks' => $sortTracks($tracks),
+            'dynamic_invariant_violations' => $finalViolations,
+            'dynamic_invariant_violation_count' => count($finalViolations),
+            'dynamic_failed_invariant_after_rollback' => $failedInvariantAfterRollback,
+            'dynamic_final_invariant_ok' => $finalViolations === [],
+            'example' => [
+                'missing_artist_insert_status' => $missingArtistInsertStatus,
+                'null_artist_insert_status' => $nullArtistInsertStatus,
+                'missing_artist_update_status' => $missingArtistUpdateStatus,
+                'add_artist_update_insert_status' => $addArtistUpdateInsertStatus,
+                'delete_dependent_sinatra_status' => $deleteDependentSinatraStatus,
+                'delete_sinatra_after_track_status' => $deleteSinatraAfterTrackStatus,
+                'update_dean_with_tracks_status' => $updateDeanWithTracksStatus,
+                'update_dean_after_track_delete_status' => $updateDeanAfterTrackDeleteStatus,
+                'final_artist_ids' => array_values(array_map(static fn (array $artist): int => (int) $artist['artistid'], $exampleArtists)),
+                'final_track_artist_ids' => array_values(array_map(static fn (array $track): int => (int) $track['trackartist'], $exampleTracks)),
+            ],
+            'dependencies' => [
+                'sqlite-efkey-runtime-foreign-keys-default-off',
+                'sqlite-efkey-runtime-pragma-reports-connection-state',
+                'sqlite-efkey-runtime-toggle-inside-transaction-is-no-op',
+                'sqlite-efkey-intro-null-child-key-satisfies-foreign-key',
+                'sqlite-efkey-intro-parent-delete-update-blocked-while-child-references',
+                'sqlite-efkey-intro-invariant-preserved-after-failed-statements',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array<string,mixed>> $parentRows
      * @param list<array<string,mixed>> $childRows
      * @param array{

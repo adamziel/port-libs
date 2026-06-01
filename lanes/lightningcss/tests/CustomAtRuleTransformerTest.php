@@ -2713,6 +2713,75 @@ CSS;
         $t->same('.test{background:linear-gradient(red 25%,#00f 75%);width:-10px}', $result);
         $t->same(['--percentage1', '--percentage2', '--length1', '--length2'], $seenNames);
     },
+    'custom at-rules preserve upstream raw env spacing across declaration value boundaries' => static function (TestRunner $t): void {
+        $tokens = [
+            '--var1' => 'var(--foo)',
+            '--var2' => 'var(--bar)',
+            '--function' => 'scale(1.5)',
+            '--length1' => '10px',
+            '--length2' => '20px',
+            '--x' => '4',
+            '--y' => '12',
+            '--num1' => '5',
+            '--num2' => '10',
+            '--num3' => '15',
+            '--counter' => '2',
+            '--ident1' => 'solid',
+            '--ident2' => 'auto',
+            '--color' => 'red',
+            '--string1' => '"hello"',
+            '--string2' => '" world"',
+        ];
+        $seenNames = [];
+
+        $css = <<<'CSS'
+.test {
+  background: env(--var1) env(--var2);
+  border: env(--var1)env(--ident1);
+  transform: env(--function) env(--function);
+  padding: env(--length1) env(--length2);
+  margin: env(--length1) env(--ident2);
+  outline: env(--color) env(--ident1);
+  cursor: url(cursor.png) env(--x) env(--y), auto;
+  stroke-dasharray: env(--num1) env(--num2) env(--num3);
+  counter-increment: myCounter env(--counter);
+  content: env(--string1) env(--string2);
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'EnvironmentVariable' => static function (array $environmentVariable) use (&$seenNames, $tokens): ?array {
+                $name = $environmentVariable['name']['ident'] ?? $environmentVariable['name']['value'] ?? '';
+                $seenNames[] = $name;
+
+                return isset($tokens[$name]) ? ['raw' => $tokens[$name]] : null;
+            },
+        ]);
+
+        $t->same('.test{background:var(--foo) var(--bar);border:var(--foo)solid;transform:scale(1.5) scale(1.5);padding:10px 20px;margin:10px auto;outline:red solid;cursor:url(cursor.png) 4 12, auto;stroke-dasharray:5 10 15;counter-increment:myCounter 2;content:"hello" " world"}', $result);
+        $t->same([
+            '--var1',
+            '--var2',
+            '--var1',
+            '--ident1',
+            '--function',
+            '--function',
+            '--length1',
+            '--length2',
+            '--length1',
+            '--ident2',
+            '--color',
+            '--ident1',
+            '--x',
+            '--y',
+            '--num1',
+            '--num2',
+            '--num3',
+            '--counter',
+            '--string1',
+            '--string2',
+        ], $seenNames);
+    },
     'custom at-rules revisit upstream raw Function variables' => static function (TestRunner $t): void {
         $seen = [];
         $result = (new CustomAtRuleTransformer())->transform('.foo { color: theme("foo"); background: theme("red"); }', [], [

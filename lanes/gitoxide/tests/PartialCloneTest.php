@@ -411,6 +411,65 @@ return [
         $t->same(true, $database->isPromisorObject($hydratedManifestOid));
         $t->same('promisor-present', $database->objectState($hydratedManifestOid)['status']);
     },
+    'object database writes received promisor pack bundles with keep sidecars' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $database = new ObjectDatabase($gitDir);
+        $hydratedPluginBlob = new GitObject('blob', 'Received filtered pack for a WordPress plugin asset');
+        $hydratedPluginOid = $hydratedPluginBlob->oid();
+        $pack = PackBuilder::build([$hydratedPluginBlob]);
+        $beforePacks = $database->promisorPackNames();
+
+        $write = $database->writePromisorPackBundle($pack, "received filtered pack\n");
+        $packDir = $gitDir . '/objects/pack';
+
+        $t->same('pack-' . $pack->packChecksum() . '.pack', $write['packName']);
+        $t->same('pack-' . $pack->packChecksum() . '.idx', $write['indexName']);
+        $t->same('pack-' . $pack->packChecksum() . '.promisor', $write['promisorName']);
+        $t->same('pack-' . $pack->packChecksum() . '.keep', $write['keepName']);
+        $t->same($pack->packChecksum(), $write['packChecksum']);
+        $t->same($pack->indexChecksum(), $write['indexChecksum']);
+        $t->same([$hydratedPluginOid], $write['objectIds']);
+        $t->same(1, $write['objectCount']);
+        $t->same(false, $write['alreadyPresent']);
+        $t->same(true, is_file($packDir . '/' . $write['packName']));
+        $t->same(true, is_file($packDir . '/' . $write['indexName']));
+        $t->same(true, is_file($packDir . '/' . $write['promisorName']));
+        $t->same(true, is_file($packDir . '/' . $write['keepName']));
+        $t->same("received filtered pack\n", file_get_contents($packDir . '/' . $write['promisorName']));
+        $t->same(count($beforePacks) + 1, count($database->promisorPackNames()));
+        $t->same('promisor-present', $database->objectState($hydratedPluginOid)['status']);
+        $t->same('pack', $database->readHeader($hydratedPluginOid)['source']);
+        $t->same($hydratedPluginBlob->body, $database->read($hydratedPluginOid)->body);
+
+        $duplicate = $database->writePromisorPackBundle($pack, "duplicate filtered pack marker\n");
+        $t->same(true, $duplicate['alreadyPresent']);
+        $t->same(null, $duplicate['keepName']);
+        $t->same($write['packName'], $duplicate['packName']);
+        $t->same($write['indexName'], $duplicate['indexName']);
+        $t->same($write['promisorName'], $duplicate['promisorName']);
+        $t->same("duplicate filtered pack marker\n", file_get_contents($packDir . '/' . $write['promisorName']));
+        $t->same(count($beforePacks) + 1, count($database->promisorPackNames()));
+    },
+    'refresh-disabled handle writes promisor pack bundle without refreshing its cached inventory' => static function (TestRunner $t) use ($writePromisorPackFixture): void {
+        [$gitDir] = $writePromisorPackFixture();
+        $staleDatabase = (new ObjectDatabase($gitDir))->withObjectStorageRefreshDisabled();
+        $hydratedThemeBlob = new GitObject('blob', 'Received filtered pack hidden from a refresh-never handle');
+        $hydratedThemeOid = $hydratedThemeBlob->oid();
+        $pack = PackBuilder::build([$hydratedThemeBlob]);
+
+        $t->same(1, count($staleDatabase->promisorPackNames()));
+        $write = $staleDatabase->writePromisorPackBundle($pack, "refresh-never received filtered pack\n");
+
+        $t->same(false, $staleDatabase->objectStorageRefreshesOnMiss());
+        $t->same(false, in_array($write['promisorName'], $staleDatabase->promisorPackNames(), true));
+        $t->same(false, $staleDatabase->contains($hydratedThemeOid));
+        $t->same('promised-missing', $staleDatabase->objectState($hydratedThemeOid)['status']);
+
+        $freshDatabase = $staleDatabase->withObjectStorageRefreshEnabled();
+        $t->same(true, in_array($write['promisorName'], $freshDatabase->promisorPackNames(), true));
+        $t->same('promisor-present', $freshDatabase->objectState($hydratedThemeOid)['status']);
+        $t->same($hydratedThemeBlob->body, $freshDatabase->read($hydratedThemeOid)->body);
+    },
     'object database refresh-disabled handle preserves promised missing state after external promisor hydration' => static function (TestRunner $t) use ($writePromisorPackFixture, $writePromisorPackForObject): void {
         [$gitDir] = $writePromisorPackFixture();
         $hydratedBlockBlob = new GitObject('blob', 'Externally hydrated block bytes hidden from a refresh-disabled handle');
@@ -665,6 +724,7 @@ return [
         ]], $summary['promisorRemotes']);
         $t->same('promisor-present', $summary['afterRead']['status']);
         $t->same(true, in_array($summary['hydrationPack'], $summary['promisorPacksAfterHydration'], true));
+        $t->same(true, str_ends_with($summary['hydrationKeep'], '.keep'));
         $t->same(true, $summary['persistedInPackStore']);
         $t->same(false, $summary['refreshDisabledRefreshesOnMiss']);
         $t->same('promised-missing', $summary['beforeExternalHydration']['status']);
@@ -678,6 +738,7 @@ return [
         $t->same([], $summary['refreshDisabledPrefixAfterExternalHydration']['candidates']);
         $t->same('promised-missing', $summary['refreshDisabledAfterExternalHydration']['status']);
         $t->same(false, in_array($summary['externalHydrationPack'], $summary['refreshDisabledPromisorPacksAfterExternalHydration'], true));
+        $t->same(true, str_ends_with($summary['externalHydrationKeep'], '.keep'));
         $t->same(true, in_array($summary['externalHydratedObject'], $summary['objectIdsAfterExternalHydration'], true));
         $t->same($summary['packedObjectCountBeforeExternalHydration'] + 1, $summary['packedObjectCountAfterExternalHydration']);
         $t->same(true, in_array($summary['externalHydrationPack'], $summary['promisorPacksAfterExternalHydration'], true));
@@ -702,6 +763,7 @@ return [
         $t->same(true, in_array($summary['directInventoryPack'], $summary['directInventoryPackNames'], true));
         $t->same(true, in_array($summary['directInventoryObject'], $summary['directInventoryObjectIds'], true));
         $t->same(true, $summary['directInventoryIsPromisor']);
+        $t->same(true, str_ends_with($summary['directInventoryKeep'], '.keep'));
         $t->same('promised-missing', $summary['refreshNeverReturnedBefore']['status']);
         $t->same([$summary['refreshNeverReturnedObject']], $summary['refreshNeverReturnedRequests']);
         $t->same('present', $summary['refreshNeverReturnedAfter']['status']);

@@ -22,8 +22,7 @@ final class CredentialContext
     public static function fromBytes(string $input): self
     {
         $fields = [];
-        foreach (explode("\n", $input) as $line) {
-            $line = str_ends_with($line, "\r") ? substr($line, 0, -1) : $line;
+        foreach (self::protocolLines($input) as $line) {
             if ($line === '') {
                 break;
             }
@@ -276,6 +275,27 @@ final class CredentialContext
         }
         if ($valueMustBeUtf8 && preg_match('//u', $value) !== 1) {
             throw new \InvalidArgumentException("Credential context field {$key} must be valid UTF-8");
+        }
+    }
+
+    /**
+     * @return \Generator<int, string>
+     */
+    private static function protocolLines(string $input): \Generator
+    {
+        $offset = 0;
+        $length = strlen($input);
+        while ($offset < $length) {
+            $newline = strpos($input, "\n", $offset);
+            if ($newline === false) {
+                yield substr($input, $offset);
+
+                return;
+            }
+
+            $line = substr($input, $offset, $newline - $offset);
+            yield str_ends_with($line, "\r") ? substr($line, 0, -1) : $line;
+            $offset = $newline + 1;
         }
     }
 

@@ -160,6 +160,11 @@ final class CustomAtRuleTransformer
 
     private bool $functionReplacementAppliedColorVisitor = false;
 
+    /** @var array<string, bool> */
+    private array $rawValueVisitorReplacementProperties = [];
+
+    private ?string $activeDeclarationProperty = null;
+
     private DeclarationBlock $declarationBlock;
 
     private CssMinifier $minifier;
@@ -843,6 +848,7 @@ final class CustomAtRuleTransformer
             }
         }
         $code = $this->minifier->minify($this->processRuleList($css));
+        $code = $this->restoreRawValueVisitorTokenBoundaries($code);
         $code = $this->applyStyleSheetExitVisitor($code);
 
         return [
@@ -976,6 +982,8 @@ final class CustomAtRuleTransformer
     private function configure(array $customAtRules, array|callable $visitor, array $functionVisitors): void
     {
         $visitor = $this->resolveVisitor($visitor);
+        $this->rawValueVisitorReplacementProperties = [];
+        $this->activeDeclarationProperty = null;
 
         $this->customAtRules = [];
         foreach ($customAtRules as $name => $definition) {
@@ -5835,13 +5843,94 @@ final class CustomAtRuleTransformer
 
     private function rewriteDeclarationValue(string $value, ?string $property = null): string
     {
+        $previousProperty = $this->activeDeclarationProperty;
+        $this->activeDeclarationProperty = $property === null ? null : strtolower($property);
         $this->functionReplacementAppliedColorVisitor = false;
-        $rewritten = $this->rewriteValueTokens($this->rewriteValueFunctions($this->rewriteStandaloneLengths($value)));
-        if ($property !== null && !$this->functionReplacementAppliedColorVisitor) {
-            $rewritten = $this->rewriteColorDeclarationValue($rewritten, $property);
+        try {
+            $rewritten = $this->rewriteValueTokens($this->rewriteValueFunctions($this->rewriteStandaloneLengths($value)));
+            if ($property !== null && !$this->functionReplacementAppliedColorVisitor) {
+                $rewritten = $this->rewriteColorDeclarationValue($rewritten, $property);
+            }
+
+            return $property === null ? $rewritten : $this->rewriteAnimationCustomIdents($property, $rewritten);
+        } finally {
+            $this->activeDeclarationProperty = $previousProperty;
+        }
+    }
+
+    private function restoreRawValueVisitorTokenBoundaries(string $code): string
+    {
+        if ($this->rawValueVisitorReplacementProperties === []) {
+            return $code;
         }
 
-        return $property === null ? $rewritten : $this->rewriteAnimationCustomIdents($property, $rewritten);
+        return preg_replace_callback(
+            '/([\\{;])([-_a-zA-Z][-_a-zA-Z0-9]*):([^;{}]+)/',
+            function (array $matches): string {
+                $property = strtolower($matches[2]);
+                if (!isset($this->rawValueVisitorReplacementProperties[$property])) {
+                    return $matches[0];
+                }
+
+                return $matches[1] . $matches[2] . ':' . $this->restoreRawValueVisitorDeclarationSpacing($property, $matches[3]);
+            },
+            $code
+        ) ?? $code;
+    }
+
+    private function restoreRawValueVisitorDeclarationSpacing(string $property, string $value): string
+    {
+        if ($property === 'content') {
+            return $this->restoreAdjacentStringTokenSpacing($value);
+        }
+
+        if ($property === 'cursor') {
+            return preg_replace('/,(?!\\s)(?=(?!url\\()[_-]?[a-zA-Z])/i', ', ', $value) ?? $value;
+        }
+
+        if ($property === 'transform' || str_ends_with($property, '-transform')) {
+            return preg_replace(
+                '/\\)(?=(?:matrix(?:3d)?|translate(?:3d|[XYZ])?|scale(?:3d|[XYZ])?|rotate(?:3d|[XYZ])?|skew[XY]?|perspective)\\()/i',
+                ') ',
+                $value
+            ) ?? $value;
+        }
+
+        return $value;
+    }
+
+    private function restoreAdjacentStringTokenSpacing(string $value): string
+    {
+        $output = '';
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            $output .= $char;
+
+            if ($quote === null) {
+                if ($char === '"' || $char === "'") {
+                    $quote = $char;
+                }
+                continue;
+            }
+
+            if ($char === '\\' && $i + 1 < $length) {
+                $output .= $value[++$i];
+                continue;
+            }
+
+            if ($char === $quote) {
+                $quote = null;
+                $next = $value[$i + 1] ?? '';
+                if ($next === '"' || $next === "'") {
+                    $output .= ' ';
+                }
+            }
+        }
+
+        return $output;
     }
 
     private function rewriteColorDeclarationValue(string $value, string $property): string
@@ -6162,6 +6251,8 @@ final class CustomAtRuleTransformer
             if ($replacement !== null) {
                 $value = $this->applyValueVisitors($this->normalizeVisitorValue($replacement), [...$skipStructuredTypes, 'env']);
                 if (!is_array($value) || ($value['type'] ?? null) !== 'env') {
+                    $this->recordRawValueVisitorReplacement($value);
+
                     return $value;
                 }
 
@@ -6170,9 +6261,14 @@ final class CustomAtRuleTransformer
 
             $exitReplacement = $this->callEnvironmentVariableExitVisitor($environmentVariable);
 
-            return $exitReplacement === null
-                ? ['type' => 'env', 'value' => $environmentVariable]
-                : $this->applyValueVisitors($this->normalizeVisitorValue($exitReplacement), [...$skipStructuredTypes, 'env']);
+            if ($exitReplacement === null) {
+                return ['type' => 'env', 'value' => $environmentVariable];
+            }
+
+            $value = $this->applyValueVisitors($this->normalizeVisitorValue($exitReplacement), [...$skipStructuredTypes, 'env']);
+            $this->recordRawValueVisitorReplacement($value);
+
+            return $value;
         }
 
         if ($lower === 'var' && $this->hasVariableVisitor()) {
@@ -6182,6 +6278,8 @@ final class CustomAtRuleTransformer
             if ($replacement !== null) {
                 $value = $this->applyValueVisitors($this->normalizeVisitorValue($replacement), [...$skipStructuredTypes, 'var']);
                 if (!is_array($value) || ($value['type'] ?? null) !== 'var') {
+                    $this->recordRawValueVisitorReplacement($value);
+
                     return $value;
                 }
 
@@ -6190,9 +6288,14 @@ final class CustomAtRuleTransformer
 
             $exitReplacement = $this->callVariableExitVisitor($variable);
 
-            return $exitReplacement === null
-                ? ['type' => 'var', 'value' => $variable]
-                : $this->applyValueVisitors($this->normalizeVisitorValue($exitReplacement), [...$skipStructuredTypes, 'var']);
+            if ($exitReplacement === null) {
+                return ['type' => 'var', 'value' => $variable];
+            }
+
+            $value = $this->applyValueVisitors($this->normalizeVisitorValue($exitReplacement), [...$skipStructuredTypes, 'var']);
+            $this->recordRawValueVisitorReplacement($value);
+
+            return $value;
         }
 
         if ($lower === 'url' && $this->urlVisitor !== null) {
@@ -6206,6 +6309,38 @@ final class CustomAtRuleTransformer
         }
 
         return null;
+    }
+
+    private function recordRawValueVisitorReplacement(mixed $value): void
+    {
+        if ($this->activeDeclarationProperty === null || !$this->visitorValueContainsRawCss($value)) {
+            return;
+        }
+
+        $this->rawValueVisitorReplacementProperties[$this->activeDeclarationProperty] = true;
+    }
+
+    private function visitorValueContainsRawCss(mixed $value): bool
+    {
+        if (!is_array($value)) {
+            return false;
+        }
+
+        if (isset($value['raw']) && is_string($value['raw'])) {
+            return true;
+        }
+
+        if (($value['type'] ?? null) === 'raw' && is_string($value['value'] ?? null)) {
+            return true;
+        }
+
+        foreach ($value as $child) {
+            if (is_array($child) && $this->visitorValueContainsRawCss($child)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function hasEnvironmentVariableVisitor(): bool

@@ -40,15 +40,14 @@ for ($i = 0; $i < 72; $i++) {
 }
 $crossPackBaseBlob = new GitObject('blob', "WordPress cross-pack template base\n{$crossPackStable}status=draft\nchecksum=old\n");
 $crossPackTargetBlob = new GitObject('blob', "WordPress cross-pack template base\n{$crossPackStable}status=publish\nchecksum=new\n");
-$resolver = new class([$mediaBlob, $thinBaseBlob], $gitDir) implements PromisorObjectResolver {
+$resolver = new class([$mediaBlob, $thinBaseBlob]) implements PromisorObjectResolver {
     public array $requests = [];
     public ?string $hydrationPack = null;
+    public ?string $hydrationKeep = null;
     private array $objectsById = [];
 
-    public function __construct(
-        array $objects,
-        private readonly string $gitDir,
-    ) {
+    public function __construct(array $objects)
+    {
         foreach ($objects as $object) {
             $this->objectsById[$object->oid()] = $object;
         }
@@ -62,15 +61,14 @@ $resolver = new class([$mediaBlob, $thinBaseBlob], $gitDir) implements PromisorO
             return null;
         }
 
-        $pack = PackBuilder::build([$object]);
-        $packDir = $this->gitDir . '/objects/pack';
-        $basename = 'pack-' . $pack->packChecksum();
+        $write = $database->writePromisorPackBundle(
+            PackBuilder::build([$object]),
+            "WordPress media lazy hydration\n"
+        );
         if ($oid === array_key_first($this->objectsById)) {
-            $this->hydrationPack = $basename . '.promisor';
+            $this->hydrationPack = $write['promisorName'];
+            $this->hydrationKeep = $write['keepName'];
         }
-        file_put_contents($packDir . '/' . $basename . '.pack', $pack->packBytes());
-        file_put_contents($packDir . '/' . $basename . '.idx', $pack->indexBytes());
-        file_put_contents($packDir . '/' . $basename . '.promisor', "WordPress media lazy hydration\n");
 
         return $object;
     }
@@ -89,10 +87,7 @@ $beforeExternalHydration = $database->objectState($templateOid);
 $objectIdsBeforeExternalHydration = $database->objectIds();
 $packedObjectCountBeforeExternalHydration = $database->packedObjectCount();
 $templatePack = PackBuilder::build([$templateBlob]);
-$templatePackBase = 'pack-' . $templatePack->packChecksum();
-file_put_contents($packDir . '/' . $templatePackBase . '.pack', $templatePack->packBytes());
-file_put_contents($packDir . '/' . $templatePackBase . '.idx', $templatePack->indexBytes());
-file_put_contents($packDir . '/' . $templatePackBase . '.promisor', "WordPress template external hydration\n");
+$templateWrite = $database->writePromisorPackBundle($templatePack, "WordPress template external hydration\n");
 $objectIdsAfterExternalHydration = $database->objectIds();
 $packedObjectCountAfterExternalHydration = $database->packedObjectCount();
 $containsAfterExternalHydration = $database->contains($templateOid);
@@ -173,10 +168,7 @@ $crossPackTargetAfterRead = $database->objectState($crossPackTargetBlob->oid());
 
 $inventoryBlob = new GitObject('blob', 'WordPress direct promisor inventory refresh bytes');
 $inventoryPack = PackBuilder::build([$inventoryBlob]);
-$inventoryPackBase = 'pack-' . $inventoryPack->packChecksum();
-file_put_contents($packDir . '/' . $inventoryPackBase . '.pack', $inventoryPack->packBytes());
-file_put_contents($packDir . '/' . $inventoryPackBase . '.idx', $inventoryPack->indexBytes());
-file_put_contents($packDir . '/' . $inventoryPackBase . '.promisor', "WordPress direct promisor inventory hydration\n");
+$inventoryWrite = $database->writePromisorPackBundle($inventoryPack, "WordPress direct promisor inventory hydration\n");
 $directInventoryPackNames = $database->promisorPackNames();
 $directInventoryObjectIds = $database->promisorObjectIds();
 $directInventoryIsPromisor = $database->isPromisorObject($inventoryBlob->oid());
@@ -188,6 +180,7 @@ return [
     'beforeRead' => $before,
     'resolverRequests' => $resolver->requests,
     'hydrationPack' => $resolver->hydrationPack,
+    'hydrationKeep' => $resolver->hydrationKeep,
     'promisorPacksAfterHydration' => $database->promisorPackNames(),
     'resolvedType' => $resolved->type,
     'resolvedSize' => strlen($resolved->body),
@@ -199,7 +192,8 @@ return [
     'beforeExternalHydration' => $beforeExternalHydration,
     'objectIdsBeforeExternalHydration' => $objectIdsBeforeExternalHydration,
     'packedObjectCountBeforeExternalHydration' => $packedObjectCountBeforeExternalHydration,
-    'externalHydrationPack' => $templatePackBase . '.promisor',
+    'externalHydrationPack' => $templateWrite['promisorName'],
+    'externalHydrationKeep' => $templateWrite['keepName'],
     'objectIdsAfterExternalHydration' => $objectIdsAfterExternalHydration,
     'packedObjectCountAfterExternalHydration' => $packedObjectCountAfterExternalHydration,
     'containsAfterExternalHydration' => $containsAfterExternalHydration,
@@ -240,7 +234,8 @@ return [
     'crossPackTargetAfterRead' => $crossPackTargetAfterRead,
     'promisorPacksAfterCrossPackHydration' => $database->promisorPackNames(),
     'directInventoryObject' => $inventoryBlob->oid(),
-    'directInventoryPack' => $inventoryPackBase . '.promisor',
+    'directInventoryPack' => $inventoryWrite['promisorName'],
+    'directInventoryKeep' => $inventoryWrite['keepName'],
     'directInventoryPackNames' => $directInventoryPackNames,
     'directInventoryObjectIds' => $directInventoryObjectIds,
     'directInventoryIsPromisor' => $directInventoryIsPromisor,

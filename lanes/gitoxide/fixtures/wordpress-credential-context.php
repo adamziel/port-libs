@@ -47,6 +47,8 @@ try {
     $duplicateInvalidStringRejected = true;
 }
 $duplicateBytePath = CredentialContext::fromBytes("path=wp-content\xff.git\npath=wp-content.git\n");
+$bareCarriageReturnPath = CredentialContext::fromBytes("path=wp-content\r");
+$crlfTerminatedPath = CredentialContext::fromBytes("path=wp-content\r\n");
 $helperProgramProtocolHost = [];
 $helperProgramMissingCredential = false;
 try {
@@ -126,6 +128,8 @@ return [
     'fileUrlPath' => $fileUrlContext->path,
     'duplicateInvalidStringRejected' => $duplicateInvalidStringRejected,
     'duplicateBytePath' => $duplicateBytePath->path,
+    'bareCarriageReturnPathPreserved' => $bareCarriageReturnPath->path === "wp-content\r",
+    'crlfPathTerminatorStripped' => $crlfTerminatedPath->path === 'wp-content',
     'helperProgramProtocolHost' => $helperProgramProtocolHost,
     'helperProgramMissingCredential' => $helperProgramMissingCredential,
     'helperProgramUrlOnly' => $helperProgramUrlOnly,

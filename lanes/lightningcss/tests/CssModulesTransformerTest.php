@@ -181,6 +181,51 @@ CSS);
             throw new RuntimeException('Expected invalid CSS selector escape exception');
         }
     },
+    'css modules rejects upstream identifier-splitting selector comments before composing exports' => static function (TestRunner $t) use ($export, $local): void {
+        $valid = (new CssModulesTransformer())->transform(<<<'CSS'
+.card/* build marker */.is-wide {
+  color: red;
+}
+
+:global(.wp-block/* build marker */.legacy) .card {
+  color: yellow;
+}
+
+.button {
+  composes: base;
+  color: blue;
+}
+
+.base {
+  color: green;
+}
+CSS);
+
+        $t->same('.EgL3uq_card.EgL3uq_is-wide{color:red}.wp-block.legacy .EgL3uq_card{color:#ff0}.EgL3uq_button{color:#00f}.EgL3uq_base{color:green}', $valid['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'is-wide' => $export('EgL3uq_is-wide'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+        ], $valid['exports']);
+        $t->same([], $valid['references']);
+
+        foreach ([
+            '.card/* build marker */Title { color: red }',
+            ':local(.card/* build marker */Title) { color: red }',
+            ':global(.wp-block/* build marker */button) .card { color: red }',
+            '@media (min-width: 1px) { .card/* build marker */Title { composes: base; color: red } .base { color: blue } }',
+        ] as $css) {
+            try {
+                (new CssModulesTransformer())->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same('CSS comments cannot split selector identifiers', $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected invalid selector comment boundary exception');
+        }
+    },
     'css modules enforces upstream pseudo-element boundaries around local global selectors' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 :host(:global(.wp-block)) .card,

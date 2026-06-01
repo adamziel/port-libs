@@ -2387,6 +2387,84 @@ CSS,
             ]),
         ], $result['exports']);
     },
+    'css bundler rejects css module composes in conditional imports like upstream' => static function (TestRunner $t) use ($bundleModules): void {
+        $assertNestedComposesError = static function (callable $callback) use ($t): void {
+            try {
+                $callback();
+            } catch (InvalidArgumentException $exception) {
+                $t->same('The `composes` property cannot be used within nested rules', $exception->getMessage());
+
+                return;
+            }
+
+            throw new RuntimeException('Expected conditional CSS Modules composes rejection');
+        };
+
+        $assertNestedComposesError(static fn (): array => $bundleModules([
+            '/entry.css' => '@import "component.css" screen; .entry { color: red }',
+            '/component.css' => '.card { composes: local; color: green } .local { color: blue }',
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/component.css' => 'comp',
+            ],
+        ]));
+
+        $files = [
+            '/entry.css' => '@import "component.css" layer(theme.blocks); .entry { color: red }',
+            '/component.css' => '.card { composes: token from "tokens.css"; color: green }',
+            '/tokens.css' => '.token { color: blue }',
+        ];
+        $reads = [];
+        $assertNestedComposesError(static function () use ($files, &$reads): array {
+            return (new CssBundler())->bundleCssModulesWithReader(
+                '/entry.css',
+                static function (string $file) use ($files, &$reads): string {
+                    $reads[] = $file;
+                    if (!array_key_exists($file, $files)) {
+                        throw new RuntimeException("Missing CSS Modules fixture {$file}");
+                    }
+
+                    return $files[$file];
+                },
+                null,
+                [
+                    'hashes' => [
+                        '/entry.css' => 'entry',
+                        '/component.css' => 'comp',
+                        '/tokens.css' => 'tok',
+                    ],
+                ]
+            );
+        });
+        $t->same(['/entry.css', '/component.css', '/tokens.css'], $reads);
+
+        $t->same(
+            '@supports (display:grid){.comp_card{color:green}}.entry_entry{color:red}',
+            $bundleModules([
+                '/entry.css' => '@import "component.css" supports(display: grid); .entry { color: red }',
+                '/component.css' => '.card { color: green }',
+            ], '/entry.css', null, [
+                'hashes' => [
+                    '/entry.css' => 'entry',
+                    '/component.css' => 'comp',
+                ],
+            ])['code']
+        );
+
+        $t->same(
+            '.comp_card{color:green}.comp_local{color:#00f}.entry_entry{color:red}',
+            $bundleModules([
+                '/entry.css' => '@import "component.css" screen; @import "component.css"; .entry { color: red }',
+                '/component.css' => '.card { composes: local; color: green } .local { color: blue }',
+            ], '/entry.css', null, [
+                'hashes' => [
+                    '/entry.css' => 'entry',
+                    '/component.css' => 'comp',
+                ],
+            ])['code']
+        );
+    },
     'css bundler maps upstream css module source maps across import graph' => static function (TestRunner $t) use ($moduleExport, $moduleLocal): void {
         $entryCss = <<<'CSS'
 @import "./theme.css";

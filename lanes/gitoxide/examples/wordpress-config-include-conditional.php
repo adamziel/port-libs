@@ -44,6 +44,8 @@ return [
     'absoluteWorktreeGlobPolicy' => $fixture['absoluteWorktreeGlobPolicy'],
     'backslashGitdirSlashPolicy' => $fixture['backslashGitdirSlashPolicy'],
     'backslashGitdirWildcardPolicy' => $fixture['backslashGitdirWildcardPolicy'],
+    'drivePrefixSupported' => $fixture['drivePrefixSupported'],
+    'drivePrefixGitdirPolicy' => $fixture['drivePrefixGitdirPolicy'],
     'symlinkGitdirSupported' => $fixture['symlinkGitdirSupported'],
     'symlinkRealpathPolicy' => $fixture['symlinkRealpathPolicy'],
     'symlinkLiteralPolicy' => $fixture['symlinkLiteralPolicy'],
