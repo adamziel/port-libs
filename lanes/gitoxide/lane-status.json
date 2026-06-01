@@ -1,16 +1,16 @@
 {
     "schemaVersion": 1,
     "library": "gitoxide",
-  "estimatedProgress": 93.2,
-  "suiteProgress": "Supervisor-integrated Gitoxide smart HTTP trailing-dot/noProxy cookie parity and SSH receive-pack invocation-quote boundary slices. Verification passed PHP lint, git diff --check, full Gitoxide lane 40 files / 7184 assertions / 0 failures, and touched examples.",
-  "phpPass": 7184,
+  "estimatedProgress": 93.4,
+  "suiteProgress": "Supervisor-integrated Gitoxide pack/MIDX duplicate prefix, packed-ref prepared delete, and tree-merge rename-within-rename resolve-tree slices. Verification passed PHP lint, git diff --check, full Gitoxide lane 40 files / 7245 assertions / 0 failures, and touched examples.",
+  "phpPass": 7245,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full Cargo runner not executed for isolated batch",
-  "audit": "2026-06-01 supervisor replay: full Gitoxide lane passed 40 files / 7184 assertions / 0 failures after accepting smart HTTP trailing-dot domain cookie/noProxy behavior and SSH receive-pack shell-quoted invocation parity. Conservative mapped coverage moves to 1721 / 2886. Full upstream Cargo workspace was not executed.",
-  "currentWork": "Smart HTTP trailing-dot domain cookie/noProxy proxy credential behavior and SSH receive-pack invocation quote parity integrated on current base.",
-  "blocker": "Full upstream Cargo workspace remains unexecuted. Native PHP full-lane evidence is green at 7184 assertions; keep bounded Gitoxide workers on config/include, credential, object database, transport, tree/pathspec, partial-clone, protocol, URL/refspec, receive-pack, reference transaction, and merge-base slices.",
-  "latestCommit": "52d782fb4acaec6efc117205ce6c5ae05c1b55ed",
+  "audit": "2026-06-01 supervisor replay: full Gitoxide lane passed 40 files / 7245 assertions / 0 failures after accepting pack/MIDX duplicate prefix de-duplication, packed-ref prepared delete, and rename-within-rename resolve-tree parity. Conservative mapped coverage moves to 1726 / 2886. Full upstream Cargo workspace was not executed.",
+  "currentWork": "Pack/MIDX duplicate prefix de-duplication, packed-ref prepared delete, and rename-within-rename resolve-tree parity integrated on current base.",
+  "blocker": "Full upstream Cargo workspace remains unexecuted. Native PHP full-lane evidence is green at 7245 assertions; keep bounded Gitoxide workers on config/include, credential, object database, transport, tree/pathspec, partial-clone, protocol, URL/refspec, receive-pack, reference transaction, and merge-base slices.",
+  "latestCommit": "15e6aeb48e449dad539b95887dd1347b73ceddb8",
     "nextTask": "Keep three Gitoxide workers on current-base non-overlapping protocol, pack/object, reference transaction, config/include, credential, transport, tree/pathspec, sparse-checkout, URL/refspec, and merge-base slices with full-lane PHP gates after each accepted batch.",
-  "commit": "52d782fb4acaec6efc117205ce6c5ae05c1b55ed"
+  "commit": "15e6aeb48e449dad539b95887dd1347b73ceddb8"
 }
