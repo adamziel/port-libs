@@ -1924,6 +1924,28 @@ CSS,
             throw new RuntimeException('Expected parser diagnostic for unterminated resolver source');
         }
 
+        $objectReadRejected = false;
+        try {
+            (new CssBundler())->bundleWithReader('foo.css', static function (string $file): mixed {
+                if ($file === 'foo.css') {
+                    return '@import "bar.css"; .foo { color: red }';
+                }
+
+                return (object) ['source' => '.bar { color: blue }'];
+            });
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('expect String, got: Object', $exception->getMessage());
+            $t->same('foo.css', $exception->sourceFile);
+            $t->same(1, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
+            $objectReadRejected = true;
+        }
+
+        if (!$objectReadRejected) {
+            throw new RuntimeException('Expected object read callback exception');
+        }
+
         try {
             (new CssBundler())->bundleWithReader('foo.css', static fn (): int => 1234);
         } catch (CssBundleException $exception) {

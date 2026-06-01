@@ -206,6 +206,31 @@ if (!$resolverRejected) {
 
 echo 'resolver-error-location: mapped' . PHP_EOL;
 
+$readerObjectRejected = false;
+try {
+    (new CssBundler())->bundleWithReader(
+        '/theme.css',
+        static function (string $file): mixed {
+            return $file === '/theme.css'
+                ? '@import "blocks/card.css"; .wp-site-blocks { color: red }'
+                : (object) ['source' => '.wp-block-card { color: green }'];
+        }
+    );
+} catch (CssBundleException $exception) {
+    $readerObjectRejected = $exception->kind === 'resolver-error'
+        && $exception->getMessage() === 'expect String, got: Object'
+        && $exception->sourceFile === '/theme.css'
+        && $exception->sourceLine === 1
+        && $exception->sourceColumn === 1;
+}
+
+if (!$readerObjectRejected) {
+    fwrite(STDERR, "Expected object reader return to use upstream SourceProvider diagnostics\n");
+    exit(1);
+}
+
+echo 'reader-object-diagnostic: rejected' . PHP_EOL;
+
 $sharedPresetBundle = (new CssBundler())->bundle('style.css', [
     'style.css' => <<<'CSS'
 @import "../shared/presets.css";

@@ -375,8 +375,9 @@ so repository traversal can intentionally enumerate complete deploy trees.
 `examples/wordpress-commit-signature.php` now covers writing detached gpgsig
 headers while keeping already-signed import commits stable. The protocol v1
 push-response example now parses proc-receive fall-through statuses, and the
-sparse-checkout example now normalizes absolute pathspecs under the worktree
-root for deployment selection.
+same example preserves receive-pack empty rejection text when a deployment hook
+sends `ng <ref> ` with a trailing separator. The sparse-checkout example now
+normalizes absolute pathspecs under the worktree root for deployment selection.
 
 ## WordPress Protocol And Merge-Base Priority Examples
 

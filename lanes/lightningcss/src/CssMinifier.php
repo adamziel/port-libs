@@ -10599,7 +10599,7 @@ final class CssMinifier
 
     private function fontShorthandHasTargetFallbackBoundary(string $value): bool
     {
-        return (bool) preg_match('/(?:^|[\s,])system-ui(?:[\s,]|$)|(?:^|[\s\/])xxx-large(?:[\s\/]|$)|(?:\d|\.)cq(?:w|h|i|b|min|max)\b/i', $value);
+        return (bool) preg_match('/(?:^|[\s,])system-ui(?:[\s,]|$)|(?:^|[\s\/])xxx-large(?:[\s\/]|$)|(?:\d|\.)cq(?:w|h|i|b|min|max)\b|(?:^|[\s,])oblique\s+[+-]?(?:\d+|\d*\.\d+)(?:deg|grad|rad|turn)?(?:[\s\/,]|$)/i', $value);
     }
 
     private function serializeContainerShorthand(string $name, string $type): string

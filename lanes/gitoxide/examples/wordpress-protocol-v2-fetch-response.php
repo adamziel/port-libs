@@ -15,6 +15,18 @@ $suffixlessAckResponse = FetchResponse::fromV2PacketLines($fixture['suffixlessAc
 $refInWantResponse = FetchResponse::fromV2PacketLines($fixture['refInWantResponse']);
 $sha256Response = FetchResponse::fromV2PacketLines($fixture['sha256Response']);
 $cloneExchange = ProtocolV2FetchExchange::fromPacketLines($fixture['cloneExchangeResponse']);
+$responseEndNoPackResponse = FetchResponse::fromV2PacketLines($fixture['responseEndNoPackResponse']);
+$responseEndPackResponse = FetchResponse::fromV2PacketLines($fixture['responseEndPackResponse']);
+$sidebandAllResponseEndMessages = [];
+$sidebandAllResponseEndResponse = FetchResponse::fromV2PacketLines(
+    $fixture['sidebandAllResponseEndResponse'],
+    true,
+    static function (bool $isError, string $text) use (&$sidebandAllResponseEndMessages): bool {
+        $sidebandAllResponseEndMessages[] = ['isError' => $isError, 'text' => $text];
+
+        return true;
+    }
+);
 $smartHttpUploadPackResponse = FetchResponse::fromSmartHttpUploadPackResult($fixture['smartHttpUploadPackResponse']);
 $uploadPackError = null;
 try {
@@ -124,6 +136,17 @@ return [
         && $cloneExchange->fetchResponse()->packData() === $fixture['packData']
         && $cloneExchange->fetchResponse()->progressMessages() === ['Enumerating objects: 1, done.'],
     'cloneExchangePackTrailer' => bin2hex(substr($cloneExchange->fetchResponse()->packData(), -20)),
+    'responseEndNoPackParsed' => $responseEndNoPackResponse->hasPack() === false
+        && count($responseEndNoPackResponse->acknowledgements()) === 1
+        && $responseEndNoPackResponse->acknowledgements()[0]->kind === 'nak',
+    'responseEndPackParsed' => $responseEndPackResponse->hasPack()
+        && $responseEndPackResponse->packData() === $fixture['packData']
+        && $responseEndPackResponse->progressMessages() === ['Counting objects: 100% (1/1)'],
+    'responseEndPackTrailer' => bin2hex(substr($responseEndPackResponse->packData(), -20)),
+    'sidebandAllResponseEndParsed' => $sidebandAllResponseEndResponse->hasPack()
+        && $sidebandAllResponseEndResponse->packData() === $fixture['packData']
+        && $sidebandAllResponseEndResponse->errorMessages() === ['remote: deployment warning before pack'],
+    'sidebandAllResponseEndMessages' => $sidebandAllResponseEndMessages,
     'smartHttpUploadPackParsed' => $smartHttpUploadPackResponse->packData() === $fixture['packData']
         && count($smartHttpUploadPackResponse->acknowledgements()) === 3
         && $smartHttpUploadPackResponse->progressMessages() === ['Counting objects: 100% (1/1)' . "\r" . 'Counting objects: 100% (1/1), done.'],

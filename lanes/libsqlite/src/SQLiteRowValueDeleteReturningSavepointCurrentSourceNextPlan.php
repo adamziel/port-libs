@@ -18,10 +18,10 @@ final class SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan
         array $releasedStatements,
         array $rollbackStatements,
         array $uniqueConstraints,
-        string $outerSavepoint = 'wp_options_delete_returning_outer',
-        string $releasedSavepoint = 'wp_options_delete_returning_released',
-        string $rollbackSavepoint = 'wp_options_delete_returning_rollback',
-        string $rowIdColumn = 'option_id',
+        string $outerSavepoint = 'app_settings_delete_returning_outer',
+        string $releasedSavepoint = 'app_settings_delete_returning_released',
+        string $rollbackSavepoint = 'app_settings_delete_returning_rollback',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($releasedStatements === []) {
             throw new \InvalidArgumentException('SQLite row-value DELETE RETURNING savepoint needs released statements');

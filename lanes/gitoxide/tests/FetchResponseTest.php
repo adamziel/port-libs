@@ -281,6 +281,60 @@ return [
             ))
         );
     },
+    'accepts protocol v2 response-end terminators after sections and sideband packs' => static function (TestRunner $t) use ($packet, $delimiter): void {
+        $pack = 'PACK' . pack('N', 2) . pack('N', 1) . 'response-end-pack';
+
+        $noPack = FetchResponse::fromV2PacketLines(
+            $packet("acknowledgments\n")
+            . $packet("NAK\n")
+            . '0002'
+        );
+
+        $t->same(false, $noPack->hasPack());
+        $t->same(FetchAcknowledgement::NAK, $noPack->acknowledgements()[0]->kind);
+        $t->same('', $noPack->packData());
+        $t->same([], $noPack->progressMessages());
+
+        $withPack = FetchResponse::fromV2PacketLines(
+            $packet("acknowledgments\n")
+            . $packet("ACK 190c3f6b2319c1f4ec854215533caf8623f8f870\n")
+            . $delimiter
+            . $packet("packfile\n")
+            . $packet("\x02Counting objects: 100% (1/1)\n")
+            . $packet("\x01" . $pack)
+            . '0002'
+        );
+
+        $t->same(true, $withPack->hasPack());
+        $t->same(FetchAcknowledgement::COMMON, $withPack->acknowledgements()[0]->kind);
+        $t->same($pack, $withPack->packData());
+        $t->same(['Counting objects: 100% (1/1)'], $withPack->progressMessages());
+        $t->same([], $withPack->errorMessages());
+
+        $sidebandAllCalls = [];
+        $sidebandAll = FetchResponse::fromV2PacketLines(
+            $packet("\x02remote: response-end aware negotiation\n")
+            . $packet("\x01packfile\n")
+            . $packet("\x03remote: deployment warning before pack\n")
+            . $packet("\x01" . $pack)
+            . '0002',
+            true,
+            static function (bool $isError, string $text) use (&$sidebandAllCalls): bool {
+                $sidebandAllCalls[] = [$isError, $text];
+
+                return true;
+            }
+        );
+
+        $t->same(true, $sidebandAll->hasPack());
+        $t->same($pack, $sidebandAll->packData());
+        $t->same(['remote: response-end aware negotiation'], $sidebandAll->progressMessages());
+        $t->same(['remote: deployment warning before pack'], $sidebandAll->errorMessages());
+        $t->same([
+            [false, 'remote: response-end aware negotiation'],
+            [true, 'remote: deployment warning before pack'],
+        ], $sidebandAllCalls);
+    },
     'surfaces raw upload-pack ERR packets before sideband decoding' => static function (TestRunner $t) use ($packet, $flush, $runtimeMessage): void {
         $t->contains(
             'fetch response: upload-pack error backend died',
@@ -672,6 +726,14 @@ return [
         $t->same($fixture['sha256PackTrailer'], $summary['sha256PackTrailer']);
         $t->same(true, $summary['cloneExchangeParsed']);
         $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['cloneExchangePackTrailer']);
+        $t->same(true, $summary['responseEndNoPackParsed']);
+        $t->same(true, $summary['responseEndPackParsed']);
+        $t->same('3b4b12f4cf6262d95e165b4517d71d0b9df20789', $summary['responseEndPackTrailer']);
+        $t->same(true, $summary['sidebandAllResponseEndParsed']);
+        $t->same([
+            ['isError' => false, 'text' => 'remote: response-end aware negotiation'],
+            ['isError' => true, 'text' => 'remote: deployment warning before pack'],
+        ], $summary['sidebandAllResponseEndMessages']);
         $t->same($fixture['packData'], $smartHttpUploadPackResponse->packData());
         $t->same(['Counting objects: 100% (1/1)' . "\r" . 'Counting objects: 100% (1/1), done.'], $smartHttpUploadPackResponse->progressMessages());
         $t->same(true, $summary['smartHttpUploadPackParsed']);

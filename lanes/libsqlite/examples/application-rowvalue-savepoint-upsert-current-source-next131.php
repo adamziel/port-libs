@@ -23,7 +23,8 @@ $plan = SQLiteRowValueSavepointUpsertCurrentSourceNextPlan::execute(
     $tables,
     $statements,
     [['blog_id', 'option_name'], ['option_id']],
-    'wp_options_upsert_import'
+    'app_settings_upsert_import',
+    'option_id',
 );
 
 $summary = [

@@ -27,8 +27,8 @@ $cleanupSql = "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_tra
 
 $fail = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($failSql, $failTables, 'option_id', $unique, true);
 $plainFail = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($failSql, $failTables, 'option_id', $unique);
-$savepointFail = static fn (): array => SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan::execute($failTables, [$failSql, $cleanupSql], $unique);
-$savepointCommit = static fn (): array => SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan::execute($tables, [$commitSql, $cleanupSql], $unique);
+$savepointFail = static fn (): array => SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan::execute($failTables, [$failSql, $cleanupSql], $unique, 'app_settings_fail_batch', 'option_id');
+$savepointCommit = static fn (): array => SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan::execute($tables, [$commitSql, $cleanupSql], $unique, 'app_settings_fail_batch', 'option_id');
 
 $cases = [
     'parser records OR FAIL conflict action' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($failSql)['conflict_action'], 'fail'],
@@ -85,7 +85,7 @@ $cases = [
 
     'malformed empty statement list rejected' => [static fn (): mixed => SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan::execute($tables, [], $unique), InvalidArgumentException::class],
     'malformed empty unique constraints rejected' => [static fn (): mixed => SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan::execute($tables, [$commitSql], []), InvalidArgumentException::class],
-    'malformed table rows rejected' => [static fn (): mixed => SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan::execute(['wp_options' => ['bad']], [$commitSql], $unique), InvalidArgumentException::class],
+    'malformed table rows rejected' => [static fn (): mixed => SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan::execute(['wp_options' => ['bad']], [$commitSql], $unique, 'app_settings_fail_batch', 'option_id'), InvalidArgumentException::class],
 ];
 
 $tests = [];

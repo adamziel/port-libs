@@ -162,6 +162,28 @@ return [
         $t->same('refs/heads/protected', $rejected->refName);
         $t->same('failed', $rejected->message);
     },
+    'preserves empty rejected ref status text after trailing space like send-pack' => static function (TestRunner $t) use ($packet, $flush): void {
+        $direct = PushResponse::fromReportStatusPacketLines(
+            $packet("unpack ok\n")
+            . $packet("ng refs/heads/main \n")
+            . $flush
+        );
+        $sideband = PushResponse::fromSidebandPacketLines(
+            $packet("\x02remote: deployment hook rejected without text\n")
+            . $packet("\x01" . $packet("unpack ok\n"))
+            . $packet("\x01" . $packet("ng refs/heads/main \n"))
+            . $packet("\x01" . $flush)
+            . $flush
+        )->forExpectedRefNames(['refs/heads/main']);
+
+        $t->same(false, $direct->isSuccessful());
+        $t->same(PushRefStatus::REJECTED, $direct->refStatuses()[0]->status);
+        $t->same('refs/heads/main', $direct->rejectedRefs()[0]->refName);
+        $t->same('', $direct->rejectedRefs()[0]->message);
+        $t->same(false, $sideband->isSuccessful());
+        $t->same(['remote: deployment hook rejected without text'], $sideband->progressMessages());
+        $t->same('', $sideband->rejectedRefs()[0]->message);
+    },
     'parses report-status-v2 object-id options before trailing diagnostics' => static function (TestRunner $t) use ($packet, $flush): void {
         $oldSha1 = str_repeat('A', 40);
         $newSha256 = str_repeat('B', 64);
@@ -549,6 +571,7 @@ return [
         $compatibility = PushResponse::fromReportStatusPacketLines($fixture['compatibilityResponse']);
         $compatibilityAccepted = $compatibility->refStatuses()[0];
         $compatibilityRejected = $compatibility->refStatuses()[1];
+        $emptyRejection = PushResponse::fromReportStatusPacketLines($fixture['emptyRejectionResponse'])->refStatuses()[0];
         $valuelessOption = PushResponse::fromReportStatusPacketLines($fixture['valuelessOptionResponse'])
             ->forExpectedRefNames([$fixture['valuelessOptionRef']['requested']])
             ->refStatuses()[0];
@@ -576,6 +599,9 @@ return [
         $t->same(true, $compatibilityAccepted->forcedUpdate);
         $t->same('refs/heads/protected', $compatibilityRejected->refName);
         $t->same('failed', $compatibilityRejected->message);
+        $t->same($fixture['emptyRejectionRef']['requested'], $emptyRejection->refName);
+        $t->same(PushRefStatus::REJECTED, $emptyRejection->status);
+        $t->same($fixture['emptyRejectionRef']['message'], $emptyRejection->message);
         $t->same($fixture['valuelessOptionRef']['requested'], $valuelessOption->refName);
         $t->same($fixture['valuelessOptionRef']['requested'], $valuelessOption->effectiveRefName());
         $t->same($fixture['valuelessOptionRef']['message'], $valuelessOption->message);
@@ -606,6 +632,7 @@ return [
         $t->same(true, $summary['compatibilityOptionExtensionsIgnored']);
         $t->same(true, $summary['compatibilityTrailingObjectDiagnosticsIgnored']);
         $t->same(true, $summary['compatibilityBareRejectionDefaulted']);
+        $t->same(true, $summary['emptyRejectionMessagePreserved']);
         $t->same(true, $summary['expectedUnknownStatusIgnored']);
         $t->same(true, $summary['expectedLastStatusWon']);
         $t->same(true, $summary['multiReportStatusPreserved']);

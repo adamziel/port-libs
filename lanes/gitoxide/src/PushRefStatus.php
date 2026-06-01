@@ -33,7 +33,7 @@ final class PushRefStatus
         if ($newObject !== null) {
             self::assertObjectId($newObject);
         }
-        if ($status === self::REJECTED && ($message === null || $message === '')) {
+        if ($status === self::REJECTED && $message === null) {
             throw new \InvalidArgumentException('push response: rejected ref status requires an error message');
         }
     }

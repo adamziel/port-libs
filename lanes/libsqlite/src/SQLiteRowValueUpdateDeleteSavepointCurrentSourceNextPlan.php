@@ -16,8 +16,8 @@ final class SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan
         array $tables,
         array $statements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_cleanup',
-        string $rowIdColumn = 'option_id',
+        string $savepoint = 'app_settings_cleanup',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($statements === []) {
             throw new \InvalidArgumentException('SQLite row-value savepoint plan needs at least one statement');

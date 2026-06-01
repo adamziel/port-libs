@@ -70,6 +70,16 @@ return [
         $t->same($modern, $prefixer->prefixForTargets($transition, ['opera' => 13]));
         $t->same($webkit, $prefixer->prefixForTargets($transition, ['ios_saf' => 6]));
         $t->same($modern, $prefixer->prefixForTargets($transition, ['ios_saf' => 7]));
+        $t->same($webkit, $prefixer->prefixForTargets($transition, ['android' => '4.2']));
+        $t->same($modern, $prefixer->prefixForTargets($transition, ['android' => '4.3']));
+        $t->same(
+            '.foo{-webkit-transition-property:opacity;transition-property:opacity}',
+            $prefixer->prefixForTargets('.foo { transition-property: opacity; }', ['android' => '4.2'])
+        );
+        $t->same(
+            '.foo{transition-property:opacity}',
+            $prefixer->prefixForTargets('.foo { transition-property: opacity; }', ['android' => '4.3'])
+        );
         $t->same(
             '.foo{-webkit-transition:opacity .2s ease-in-out .1s;transition:opacity .2s ease-in-out .1s}',
             $prefixer->prefixForTargets('.foo { transition-duration: 200ms; transition-delay: 100ms; transition-timing-function: ease-in-out; transition-property: opacity; }', ['safari' => 6])
@@ -666,6 +676,26 @@ CSS;
         $t->same(
             '.foo{font-style:oblique 40deg}',
             $prefixer->prefixForTargets('.foo { font-style: oblique; font-style: oblique 40deg; }', ['firefox' => 80])
+        );
+        $t->same(
+            '.foo{font:22px Helvetica;font:oblique 40deg 22px Helvetica}',
+            $prefixer->prefixForTargets('.foo { font: 22px Helvetica; font: oblique 40deg 22px Helvetica; }', ['firefox' => 50])
+        );
+        $t->same(
+            '.foo{font:oblique 40deg 22px Helvetica}',
+            $prefixer->prefixForTargets('.foo { font: 22px Helvetica; font: oblique 40deg 22px Helvetica; }', ['firefox' => 80])
+        );
+        $t->same(
+            '.foo{font:22px Helvetica;font:oblique 40deg xxx-large Helvetica}',
+            $prefixer->prefixForTargets('.foo { font: 22px Helvetica; font: oblique 40deg xxx-large Helvetica; }', ['firefox' => 50, 'chrome' => 80])
+        );
+        $t->same(
+            '.foo{font:oblique 40deg xxx-large Helvetica}',
+            $prefixer->prefixForTargets('.foo { font: 22px Helvetica; font: oblique 40deg xxx-large Helvetica; }', ['firefox' => 80, 'chrome' => 80])
+        );
+        $t->same(
+            '.foo{font:oblique 40deg 22px ' . $systemFallback . ',sans-serif}',
+            $prefixer->prefixForTargets('.foo { font: oblique 40deg 22px system-ui, sans-serif; }', ['safari' => 8])
         );
         $t->same(
             '.foo{font:22px Helvetica;font:xxx-large system-ui}',
@@ -3127,6 +3157,22 @@ CSS;
         );
         $t->same(
             '@layer blocks{@media (min-width:240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 62])
+        );
+        $t->same(
+            '@layer blocks{@media (width>=240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= 240px) { .wp-block-query { color: yellow; } } }', ['firefox' => 63])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= 240px) { .wp-block-query { color: yellow; } } }', ['opera' => 70])
+        );
+        $t->same(
+            '@layer blocks{@media (width>=240px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (width >= 240px) { .wp-block-query { color: yellow; } } }', ['opera' => 71])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:240px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (width >= 240px) { .wp-block-query { color: yellow; } } }', ['safari' => '16.3'])
         );
         $t->same(
@@ -3148,6 +3194,22 @@ CSS;
         $t->same(
             '@layer blocks{@media (hover) and (min-width:100px) and (max-width:200px){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (hover) and (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:100px) and (max-width:200px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 101])
+        );
+        $t->same(
+            '@layer blocks{@media (100px<=width<=200px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['firefox' => 102])
+        );
+        $t->same(
+            '@layer blocks{@media (min-width:100px) and (max-width:200px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['opera' => 70])
+        );
+        $t->same(
+            '@layer blocks{@media (100px<=width<=200px){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media (100px <= width <= 200px) { .wp-block-query { color: yellow; } } }', ['opera' => 71])
         );
         $t->same(
             '@layer blocks{@media (min-width:100px) and (max-width:200px){.wp-block-query{color:#ff0}}}',

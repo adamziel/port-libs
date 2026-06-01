@@ -605,7 +605,7 @@ final class CssBundler
             'bool' => 'Boolean',
             'null' => 'Null',
             'array' => 'Object',
-            default => get_debug_type($value),
+            default => is_object($value) ? 'Object' : get_debug_type($value),
         };
     }
 

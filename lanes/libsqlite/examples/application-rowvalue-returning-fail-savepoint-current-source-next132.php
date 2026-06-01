@@ -23,6 +23,8 @@ $plan = SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan::execute(
         "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((1, '_transient_feed'), (1, '_transient_timeout_feed')) RETURNING option_id, option_name ORDER BY option_id",
     ],
     [['blog_id', 'option_name']],
+    'app_settings_fail_batch',
+    'option_id',
 );
 
 $summary = [

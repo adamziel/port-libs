@@ -38,7 +38,7 @@ $requester = static function (string $method, string $url, array $headers, ?stri
         return [
             'status' => 308,
             'headers' => [
-                'Location' => '/redirected.git/git-receive-pack',
+                'Location' => '../redirected.git/git-receive-pack',
                 'Set-Cookie' => [
                     'stale_gate=closed; Path=/; Secure',
                     'stale_gate=; Max-Age=0; Path=/; Secure',
@@ -613,6 +613,7 @@ return [
         && $pathOrderRootPosition !== false
         && $pathOrderReceivePosition < $pathOrderRedirectPosition
         && $pathOrderRedirectPosition < $pathOrderRootPosition,
+    'dotSegmentPostRedirectNormalized' => ($requests[2]['url'] ?? null) === 'https://git.example.test/redirected.git/git-receive-pack',
     'postBodyPreserved' => ($requests[2]['body'] ?? null) === $request->requestBytes(),
     'rewritingPostRedirectRejected' => $rewritingRedirectRejected,
     'rewritingRequestMethods' => array_map(static fn (array $request): string => $request['method'], $rewritingRequests),

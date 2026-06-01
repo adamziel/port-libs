@@ -31,8 +31,8 @@ $commitStatements = [$nullSafeUpdateSql, $deleteSql, $notIsUpdateSql];
 $nullSafeUpdate = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($nullSafeUpdateSql, $tables);
 $delete = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($deleteSql, $tables);
 $notIsUpdate = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($notIsUpdateSql, $tables);
-$commit = static fn (): array => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $commitStatements, $unique, 'app_settings_rowvalue_is_batch');
-$rollback = static fn (): array => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $rollbackStatements, $unique, 'app_settings_rowvalue_is_batch');
+$commit = static fn (): array => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $commitStatements, $unique, 'app_settings_rowvalue_is_batch', 'option_id');
+$rollback = static fn (): array => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $rollbackStatements, $unique, 'app_settings_rowvalue_is_batch', 'option_id');
 
 $cases = [
     'parse row value is update where preserved' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($nullSafeUpdateSql)['where'], '(status, bucket) IS (NULL, NULL)'],

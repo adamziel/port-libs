@@ -36,8 +36,8 @@ $rollbackStatements = [
 
 $ignore = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($ignoreSql, $tables, 'option_id', $unique);
 $replace = static fn (): array => SQLiteUpdateDeleteReturningSql::execute($replaceSql, $tables, 'option_id', $unique);
-$commit = static fn (): array => SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan::execute($tables, $commitStatements, $unique);
-$rollback = static fn (): array => SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan::execute($tables, $rollbackStatements, $unique);
+$commit = static fn (): array => SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan::execute($tables, $commitStatements, $unique, 'app_settings_conflict_batch', 'option_id');
+$rollback = static fn (): array => SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan::execute($tables, $rollbackStatements, $unique, 'app_settings_conflict_batch', 'option_id');
 
 $cases = [
     'parse update or ignore conflict action' => [static fn (): mixed => SQLiteUpdateDeleteReturningSql::parse($ignoreSql)['conflict_action'], 'ignore'],

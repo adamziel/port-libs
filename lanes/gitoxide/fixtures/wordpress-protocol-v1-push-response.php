@@ -70,6 +70,13 @@ return [
         . $packet("option forced-update true\n")
         . $packet("ng refs/heads/protected\n")
         . $flush,
+    'emptyRejectionRef' => [
+        'requested' => 'refs/heads/wp-preview',
+        'message' => '',
+    ],
+    'emptyRejectionResponse' => $packet("unpack ok\n")
+        . $packet("ng refs/heads/wp-preview \n")
+        . $flush,
     'valuelessOptionRef' => [
         'requested' => 'refs/for/wp-release',
         'message' => 'accepted without rewrite details',

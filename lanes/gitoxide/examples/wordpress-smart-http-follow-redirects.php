@@ -26,6 +26,7 @@ return [
     'sameScopeRedirectCookieReplaced' => $fixture['sameScopeRedirectCookieReplaced'],
     'callerCookieHeaderPreserved' => $fixture['callerCookieHeaderPreserved'],
     'pathSpecificRedirectCookiesFirst' => $fixture['pathSpecificRedirectCookiesFirst'],
+    'dotSegmentPostRedirectNormalized' => $fixture['dotSegmentPostRedirectNormalized'],
     'postBodyPreserved' => $fixture['postBodyPreserved'],
     'rewritingPostRedirectRejected' => $fixture['rewritingPostRedirectRejected'],
     'rewritingRequestMethods' => $fixture['rewritingRequestMethods'],

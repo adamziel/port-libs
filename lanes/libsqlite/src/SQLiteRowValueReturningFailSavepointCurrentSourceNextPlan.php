@@ -16,8 +16,8 @@ final class SQLiteRowValueReturningFailSavepointCurrentSourceNextPlan
         array $tables,
         array $statements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_fail_batch',
-        string $rowIdColumn = 'option_id',
+        string $savepoint = 'app_settings_fail_batch',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($statements === []) {
             throw new \InvalidArgumentException('SQLite row-value RETURNING FAIL savepoint needs statements');

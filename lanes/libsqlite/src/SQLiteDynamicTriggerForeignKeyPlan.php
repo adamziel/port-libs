@@ -7440,6 +7440,100 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * Model triggerC.test triggerC-9.1..9.2. The upstream case creates an
+     * index on b, then an AFTER DELETE trigger that deletes rows whose b value
+     * matches old.a. Deleting b=4 from the 1..12 chain leaves only a=1..4.
+     *
+     * @return array<string,mixed>
+     */
+    public static function triggerCIndexedDeleteCascadePlan(array $rows, int $deleteB): array
+    {
+        if ($rows === []) {
+            throw new \InvalidArgumentException('SQLite triggerC indexed delete cascade requires rows');
+        }
+
+        $active = [];
+        foreach (array_values($rows) as $position => $row) {
+            if (!array_key_exists('a', $row) || !array_key_exists('b', $row)) {
+                throw new \InvalidArgumentException('SQLite triggerC indexed delete cascade row must contain a and b');
+            }
+            if (!is_int($row['a']) || !is_int($row['b'])) {
+                throw new \InvalidArgumentException('SQLite triggerC indexed delete cascade row values must be integers');
+            }
+
+            $active[$position] = [
+                'a' => $row['a'],
+                'b' => $row['b'],
+                'position' => $position,
+            ];
+        }
+
+        $sortRows = static function (array $input): array {
+            usort($input, static fn (array $left, array $right): int => ($left['a'] <=> $right['a']) ?: ($left['position'] <=> $right['position']));
+
+            return array_map(static fn (array $row): array => ['a' => $row['a'], 'b' => $row['b']], $input);
+        };
+
+        $deletedRows = [];
+        $indexProbeValues = [];
+        $deleteByIndexedB = static function (int $bValue, int $depth) use (&$deleteByIndexedB, &$active, &$deletedRows, &$indexProbeValues): void {
+            $indexProbeValues[] = $bValue;
+            $matches = [];
+            foreach ($active as $key => $row) {
+                if ($row['b'] === $bValue) {
+                    $matches[$key] = $row;
+                }
+            }
+            uasort($matches, static fn (array $left, array $right): int => ($left['position'] <=> $right['position']));
+
+            foreach ($matches as $key => $row) {
+                if (!isset($active[$key])) {
+                    continue;
+                }
+
+                unset($active[$key]);
+                $deletedRows[] = [
+                    'a' => $row['a'],
+                    'b' => $row['b'],
+                    'depth' => $depth,
+                    'next_index_probe' => $row['a'],
+                ];
+                $deleteByIndexedB($row['a'], $depth + 1);
+            }
+        };
+
+        $initialRows = $sortRows($active);
+        $deleteByIndexedB($deleteB, 0);
+        $finalRows = $sortRows($active);
+
+        return [
+            'source' => 'triggerC.test triggerC-9.1..9.2',
+            'operation' => 'indexed-after-delete-recursive-cascade',
+            'status' => 'commit-ok',
+            'trigger_name' => 't9r1',
+            'index_name' => 't9b',
+            'recursive_trigger_enabled' => true,
+            'delete_b' => $deleteB,
+            'initial_rows' => $initialRows,
+            'initial_a_values' => array_values(array_column($initialRows, 'a')),
+            'initial_row_count' => count($initialRows),
+            'deleted_rows' => $deletedRows,
+            'deleted_a_values' => array_values(array_column($deletedRows, 'a')),
+            'deleted_b_values' => array_values(array_column($deletedRows, 'b')),
+            'trigger_fire_count' => count($deletedRows),
+            'index_probe_values' => $indexProbeValues,
+            'final_rows' => $finalRows,
+            'final_a_values' => array_values(array_column($finalRows, 'a')),
+            'final_row_count' => count($finalRows),
+            'dependencies' => [
+                'sqlite-triggerC-indexed-after-delete-recursive-cascade',
+                'sqlite-triggerC-after-delete-old-row-feeds-recursive-delete',
+                'sqlite-triggerC-delete-trigger-uses-indexed-b-lookup',
+            ],
+        ];
+    }
+
+    /**
      * @return array<string,mixed>
      */
     public static function largeTriggerBodyExecution(int $statementCount, int $outerInsertValue = 5, int $outerRowCount = 1): array

@@ -1486,7 +1486,7 @@ return [
                     if (count($relativePermanentRedirectRequests) === 2) {
                         return [
                             'status' => 308,
-                            'headers' => ['Location' => '/redirected.git/git-receive-pack'],
+                            'headers' => ['Location' => '../redirected.git/git-receive-pack'],
                             'body' => '',
                         ];
                     }
@@ -1513,6 +1513,7 @@ return [
         $t->same(true, $relativePermanentRedirectResponse->isSuccessful());
         $t->same(3, count($relativePermanentRedirectRequests));
         $t->same('https://git.example.test/redirected.git/git-receive-pack', $relativePermanentRedirectRequests[2]['url']);
+        $t->same(false, str_contains($relativePermanentRedirectRequests[2]['url'], '/../'));
         $t->same('POST', $relativePermanentRedirectRequests[2]['method']);
         $t->same($relativePermanentRedirectRequest->requestBytes(), $relativePermanentRedirectRequests[2]['body']);
 
@@ -1661,6 +1662,7 @@ return [
         $t->same(true, $redirectExample['sameScopeRedirectCookieReplaced']);
         $t->same(true, $redirectExample['callerCookieHeaderPreserved']);
         $t->same(true, $redirectExample['pathSpecificRedirectCookiesFirst']);
+        $t->same(true, $redirectExample['dotSegmentPostRedirectNormalized']);
         $t->same(true, $redirectFixture['rewritingPostRedirectRejected']);
         $t->same(true, $redirectFixture['permanentPostRedirectRejected']);
         $t->same(true, $redirectFixture['seeOtherPostRedirectRejected']);

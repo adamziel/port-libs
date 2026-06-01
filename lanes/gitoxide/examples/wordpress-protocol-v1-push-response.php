@@ -12,6 +12,7 @@ $response = PushResponse::fromSidebandPacketLines($fixture['response']);
 $rewrittenResponse = PushResponse::fromReportStatusPacketLines($fixture['rewrittenResponse']);
 $fallThroughResponse = PushResponse::fromReportStatusPacketLines($fixture['fallThroughResponse']);
 $compatibilityResponse = PushResponse::fromReportStatusPacketLines($fixture['compatibilityResponse']);
+$emptyRejectionResponse = PushResponse::fromReportStatusPacketLines($fixture['emptyRejectionResponse']);
 $valuelessOptionResponse = PushResponse::fromReportStatusPacketLines($fixture['valuelessOptionResponse'])
     ->forExpectedRefNames([$fixture['valuelessOptionRef']['requested']]);
 $expectedFilteredResponse = PushResponse::fromReportStatusPacketLines($fixture['expectedFilterResponse'])
@@ -113,6 +114,14 @@ return [
         ],
         $compatibilityResponse->refStatuses()
     ),
+    'emptyRejectionRefs' => array_map(
+        static fn (PushRefStatus $status): array => [
+            'requestedRef' => $status->refName,
+            'status' => $status->status,
+            'message' => $status->message,
+        ],
+        $emptyRejectionResponse->refStatuses()
+    ),
     'valuelessOptionRefs' => array_map(
         static fn (PushRefStatus $status): array => [
             'requestedRef' => $status->refName,
@@ -175,6 +184,7 @@ return [
     'compatibilityTrailingObjectDiagnosticsIgnored' => $compatibilityResponse->refStatuses()[0]->oldObject === $fixture['compatibilityRef']['oldObject']
         && $compatibilityResponse->refStatuses()[0]->newObject === $fixture['compatibilityRef']['newObject'],
     'compatibilityBareRejectionDefaulted' => $compatibilityResponse->refStatuses()[1]->message === 'failed',
+    'emptyRejectionMessagePreserved' => $emptyRejectionResponse->rejectedRefs()[0]->message === '',
     'valuelessReportStatusOptionsAccepted' => $valuelessOptionResponse->isSuccessful()
         && $valuelessOptionResponse->refStatuses()[0]->effectiveRefName() === $fixture['valuelessOptionRef']['requested']
         && $valuelessOptionResponse->refStatuses()[0]->oldObject === null

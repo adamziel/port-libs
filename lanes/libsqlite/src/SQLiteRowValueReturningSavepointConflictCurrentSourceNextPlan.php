@@ -16,8 +16,8 @@ final class SQLiteRowValueReturningSavepointConflictCurrentSourceNextPlan
         array $tables,
         array $statements,
         array $uniqueConstraints,
-        string $savepoint = 'wp_options_conflict_batch',
-        string $rowIdColumn = 'option_id',
+        string $savepoint = 'app_settings_conflict_batch',
+        string $rowIdColumn = 'setting_id',
     ): array {
         if ($statements === []) {
             throw new \InvalidArgumentException('SQLite row-value RETURNING conflict savepoint needs statements');

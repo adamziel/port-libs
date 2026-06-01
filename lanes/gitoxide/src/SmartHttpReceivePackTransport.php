@@ -488,7 +488,8 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             self::validateDecodedUrlComponent($parts['query'], 'smart HTTP receive-pack redirect URL query');
         }
 
-        $normalized = $parts['scheme'] . '://' . self::authority($parts['host'], $parts['port']) . ($parts['path'] ?? '');
+        $path = isset($parts['path']) ? self::normalizeRedirectPath($parts['path']) : '';
+        $normalized = $parts['scheme'] . '://' . self::authority($parts['host'], $parts['port']) . $path;
         if (isset($parts['query'])) {
             $normalized .= '?' . $parts['query'];
         }
@@ -551,6 +552,71 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return $parts['scheme'] === 'https' ? 443 : 80;
+    }
+
+    private static function normalizeRedirectPath(string $path): string
+    {
+        if ($path === '') {
+            return '';
+        }
+
+        $input = $path;
+        $output = '';
+        while ($input !== '') {
+            if (str_starts_with($input, '../')) {
+                $input = substr($input, 3);
+                continue;
+            }
+            if (str_starts_with($input, './')) {
+                $input = substr($input, 2);
+                continue;
+            }
+            if (str_starts_with($input, '/./')) {
+                $input = '/' . substr($input, 3);
+                continue;
+            }
+            if ($input === '/.') {
+                $input = '/';
+                continue;
+            }
+            if (str_starts_with($input, '/../')) {
+                $input = '/' . substr($input, 4);
+                $output = self::removeLastRedirectPathSegment($output);
+                continue;
+            }
+            if ($input === '/..') {
+                $input = '/';
+                $output = self::removeLastRedirectPathSegment($output);
+                continue;
+            }
+            if ($input === '.' || $input === '..') {
+                $input = '';
+                continue;
+            }
+
+            $nextSlash = str_starts_with($input, '/')
+                ? strpos($input, '/', 1)
+                : strpos($input, '/');
+            $segmentLength = $nextSlash === false ? strlen($input) : $nextSlash;
+            $output .= substr($input, 0, $segmentLength);
+            $input = substr($input, $segmentLength);
+        }
+
+        return $output;
+    }
+
+    private static function removeLastRedirectPathSegment(string $path): string
+    {
+        if ($path === '') {
+            return '';
+        }
+
+        $position = strrpos($path, '/');
+        if ($position === false) {
+            return '';
+        }
+
+        return substr($path, 0, $position);
     }
 
     /**

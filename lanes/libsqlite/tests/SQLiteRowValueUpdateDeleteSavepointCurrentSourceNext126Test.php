@@ -33,14 +33,14 @@ $nullUniqueStatements = [
     "UPDATE wp_options SET (blog_id, option_name, status) = (2, NULL, 'null-key') WHERE option_id = 7 RETURNING option_id, option_name, status",
 ];
 
-$commit = static fn (): array => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $commitStatements, $unique, 'wp_options_cleanup');
-$rollback = static fn (): array => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $rollbackStatements, $unique, 'wp_options_cleanup');
-$nullUnique = static fn (): array => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $nullUniqueStatements, $unique, 'wp_options_cleanup');
+$commit = static fn (): array => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $commitStatements, $unique, 'app_settings_cleanup', 'option_id');
+$rollback = static fn (): array => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $rollbackStatements, $unique, 'app_settings_cleanup', 'option_id');
+$nullUnique = static fn (): array => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $nullUniqueStatements, $unique, 'app_settings_cleanup', 'option_id');
 
 $cases = [
     'commit status releases savepoint' => [static fn (): mixed => $commit()['status'], 'released'],
     'commit not rolled back' => [static fn (): mixed => $commit()['rolled_back'], false],
-    'commit savepoint is named' => [static fn (): mixed => $commit()['savepoint'], 'wp_options_cleanup'],
+    'commit savepoint is named' => [static fn (): mixed => $commit()['savepoint'], 'app_settings_cleanup'],
     'commit changes count includes update and delete rows' => [static fn (): mixed => $commit()['changes'], 4],
     'commit attempted changes count matches changes' => [static fn (): mixed => $commit()['attempted_changes'], 4],
     'commit executed two statements' => [static fn (): mixed => count($commit()['executed_statements']), 2],
@@ -91,8 +91,8 @@ $cases = [
     'null unique changes count one' => [static fn (): mixed => $nullUnique()['changes'], 1],
     'null unique returning rows include null key' => [static fn (): mixed => $nullUnique()['yielded_returning'][0]['rows'], [['option_id' => 7, 'option_name' => null, 'status' => 'null-key']]],
     'malformed empty statement list rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, [], $unique), InvalidArgumentException::class],
-    'malformed missing unique table rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $commitStatements, [['table' => 'missing', 'columns' => ['id']]]), InvalidArgumentException::class],
-    'malformed missing unique column rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $commitStatements, [['table' => 'wp_options', 'columns' => ['missing']]]), InvalidArgumentException::class],
+    'malformed missing unique table rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $commitStatements, [['table' => 'missing', 'columns' => ['id']]], 'app_settings_cleanup', 'option_id'), InvalidArgumentException::class],
+    'malformed missing unique column rejected' => [static fn (): mixed => SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute($tables, $commitStatements, [['table' => 'wp_options', 'columns' => ['missing']]], 'app_settings_cleanup', 'option_id'), InvalidArgumentException::class],
 ];
 
 foreach ($cases as $name => [$callback, $expected]) {

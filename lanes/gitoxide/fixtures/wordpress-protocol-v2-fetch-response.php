@@ -102,6 +102,21 @@ return [
         . $packet("\x02remote: WordPress deployment fetch can be cancelled\n")
         . $packet("\x01" . $packData)
         . $flush,
+    'responseEndNoPackResponse' => $packet("acknowledgments\n")
+        . $packet("NAK\n")
+        . '0002',
+    'responseEndPackResponse' => $packet("acknowledgments\n")
+        . $packet("ACK {$installed}\n")
+        . $delimiter
+        . $packet("packfile\n")
+        . $packet("\x02Counting objects: 100% (1/1)\n")
+        . $packet("\x01" . $packData)
+        . '0002',
+    'sidebandAllResponseEndResponse' => $packet("\x02remote: response-end aware negotiation\n")
+        . $packet("\x01packfile\n")
+        . $packet("\x03remote: deployment warning before pack\n")
+        . $packet("\x01" . $packData)
+        . '0002',
     'smartHttpUploadPackResponse' => "HTTP/1.1 200 OK\r\n"
         . "Content-Type: application/x-git-upload-pack-result\r\n"
         . 'Content-Length: ' . strlen($smartHttpUploadPackBody) . "\r\n"
@@ -128,6 +143,7 @@ return [
     'truncatedPackUse' => 'A truncated protocol v2 sideband pack response without a flush is rejected before WordPress deployment tooling can import a partial pack.',
     'overflowProgressUse' => 'Remote progress percentages larger than Gitoxide u32 progress bounds are ignored while step and maximum counters are retained for WordPress deployment diagnostics.',
     'progressCancelUse' => 'A WordPress deployment fetch can abort while reading sideband progress, matching Gitoxide sideband reader interruption behavior before pack bytes are imported.',
+    'responseEndUse' => 'Stateless protocol v2 fetch responses can end with a response-end packet after acknowledgements or sidebanded pack bytes, so WordPress deployment tooling does not require a flush-only terminator.',
     'suffixlessAckUse' => 'Suffixless protocol v2 ACK lines are treated as common acknowledgements before the packfile, matching Gitoxide fetch.response fixture behavior for deployment fetch negotiation.',
     'refInWantUse' => 'A WordPress deployment fetch using ref-in-want can parse the wanted-refs section and still hand the following sideband pack bytes to object import without requiring a separate ls-refs advertisement.',
     'cloneExchangeUse' => 'A WordPress deployment fetch can parse a persistent protocol v2 upload-pack exchange from capability advertisement through ls-refs and the following sidebanded fetch response before importing pack bytes.',

@@ -24,6 +24,10 @@ $plan = SQLiteRowValueDeleteReturningSavepointCurrentSourceNextPlan::execute(
         "DELETE FROM wp_options WHERE (blog_id, option_name) IN ((2)) RETURNING option_id",
     ],
     [['blog_id', 'option_name']],
+    'app_settings_delete_returning_outer',
+    'app_settings_delete_returning_released',
+    'app_settings_delete_returning_rollback',
+    'option_id',
 );
 
 if ($plan['status'] !== 'rollback-savepoint-rolled-back') {

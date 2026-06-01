@@ -1410,6 +1410,39 @@ return [
         $map->offsetLines(4, -1);
         $t->same(';;', $map->writeVlq());
     },
+    'source map keeps empty generated-line spans after column-offset drains mappings' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('column-drain.css');
+        $map->setSourceContent($sourceIndex, ".column-drain{}\n");
+        $map->addMapping(2, 0, $sourceIndex, 0, 0, 'column-drain-rule');
+
+        $map->offsetColumns(2, 1, -1);
+        $roundTrip = SourceMap::fromBuffer('/', $map->toBuffer());
+
+        $t->same(';;', $map->writeVlq());
+        $t->same([], $map->getMappings());
+        $t->same(['column-drain.css'], $map->getSources());
+        $t->same([".column-drain{}\n"], $map->getSourcesContent());
+        $t->same(['column-drain-rule'], $map->getNames());
+        $t->same(null, $map->findClosestMapping(2, 0));
+        $t->same(';;', $roundTrip->writeVlq());
+
+        $prefixDrain = new SourceMap();
+        $prefixSource = $prefixDrain->addSource('column-prefix-drain.css');
+        $prefixDrain->setSourceContent($prefixSource, ".prefix-a{}\n.prefix-b{}\n");
+        $prefixDrain->addMapping(2, 0, $prefixSource, 0, 0, 'prefix-a');
+        $prefixDrain->addMapping(2, 10, $prefixSource, 1, 0, 'prefix-b');
+
+        $prefixDrain->offsetColumns(2, 5, -5);
+        $prefixDecoded = SourceMap::decodeVlq($prefixDrain->writeVlq());
+
+        $t->same(';;KACAC', $prefixDrain->writeVlq());
+        $t->same([2], array_column($prefixDecoded, 'generatedLine'));
+        $t->same([5], array_column($prefixDecoded, 'generatedColumn'));
+        $t->same([1], array_column($prefixDecoded, 'originalLine'));
+        $t->same([1], array_column($prefixDecoded, 'nameIndex'));
+        $t->same(['prefix-a', 'prefix-b'], $prefixDrain->getNames());
+    },
     'source map replaces parent mappings with empty child lines from nested maps' => static function (TestRunner $t): void {
         $parent = new SourceMap();
         $entry = $parent->addSource('entry.css');

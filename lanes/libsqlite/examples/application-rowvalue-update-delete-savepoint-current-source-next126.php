@@ -27,7 +27,8 @@ $plan = SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute(
         "UPDATE wp_options SET (blog_id, option_name, status) = (1, 'home', 'duplicate') WHERE (blog_id, option_name) = (2, 'pending_theme') RETURNING option_id, blog_id, option_name, status",
     ],
     [['table' => 'wp_options', 'columns' => ['blog_id', 'option_name']]],
-    'wp_options_cleanup',
+    'app_settings_cleanup',
+    'option_id',
 );
 
 if (($argv[1] ?? null) === '--self-test') {

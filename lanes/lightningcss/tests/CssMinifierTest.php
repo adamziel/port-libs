@@ -1191,6 +1191,14 @@ CSS
         $t->same('.foo{font:500 medium Charcoal}', $minifier->minify('.foo { font: normal normal 500 medium/normal Charcoal; }'));
         $t->same('.foo{font:400 medium Charcoal}', $minifier->minify('.foo { font: normal normal 400 medium Charcoal; }'));
         $t->same('.foo{font:500 medium/10px Charcoal}', $minifier->minify('.foo { font: normal normal 500 medium/10px Charcoal; }'));
+        $t->same(
+            '.foo{font:22px Helvetica;font:oblique 40deg 22px Helvetica}',
+            $minifier->minify('.foo { font: 22px Helvetica; font: oblique 40deg 22px Helvetica; }', preserveFontTargetFallbacks: true)
+        );
+        $t->same(
+            '.foo{font:oblique 40deg 22px Helvetica}',
+            $minifier->minify('.foo { font: 22px Helvetica; font: oblique 40deg 22px Helvetica; }')
+        );
     },
     'css minifier maps upstream font-face src descriptors and unicode ranges' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

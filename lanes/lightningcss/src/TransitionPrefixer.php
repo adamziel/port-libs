@@ -1503,21 +1503,21 @@ final class TransitionPrefixer
             'mediaRangeSimpleNeedsFallback' => $mediaRangeIncluded || (!$mediaRangeExcluded && (
                 $this->targetInRange($normalized, 'chrome', [0], [103])
                 || $this->targetInRange($normalized, 'edge', [0], [103])
-                || $this->targetInRange($normalized, 'firefox', [0], [60])
+                || $this->targetInRange($normalized, 'firefox', [0], [62])
                 || $this->targetInRange($normalized, 'safari', [0], [16, 3, 255])
                 || $this->targetInRange($normalized, 'ios_saf', [0], [16, 3, 255])
                 || $this->targetInRange($normalized, 'android', [0], [103])
-                || $this->targetInRange($normalized, 'opera', [0], [89])
+                || $this->targetInRange($normalized, 'opera', [0], [70])
                 || $this->targetInRange($normalized, 'samsung', [0], [19])
             )),
             'mediaRangeIntervalNeedsFallback' => $mediaIntervalIncluded || (!$mediaIntervalExcluded && (
                 $this->targetInRange($normalized, 'chrome', [0], [103])
                 || $this->targetInRange($normalized, 'edge', [0], [103])
-                || $this->targetInRange($normalized, 'firefox', [0], [85])
+                || $this->targetInRange($normalized, 'firefox', [0], [101])
                 || $this->targetInRange($normalized, 'safari', [0], [16, 3, 255])
                 || $this->targetInRange($normalized, 'ios_saf', [0], [16, 3, 255])
                 || $this->targetInRange($normalized, 'android', [0], [103])
-                || $this->targetInRange($normalized, 'opera', [0], [89])
+                || $this->targetInRange($normalized, 'opera', [0], [70])
                 || $this->targetInRange($normalized, 'samsung', [0], [19])
             )),
             'mediaResolutionNeedsWebkitPrefix' => $this->targetInRange($normalized, 'android', [2, 3], [4, 2])
@@ -1622,7 +1622,7 @@ final class TransitionPrefixer
                 || $this->targetInRange($normalized, 'opera', [15], [29])
                 || $this->targetInRange($normalized, 'safari', [4], [8]),
             'keyframesNeedsMoz' => $this->targetInRange($normalized, 'firefox', [5], [15]),
-            'transitionNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 0, 4])
+            'transitionNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 2])
                 || $this->targetInRange($normalized, 'chrome', [4], [25])
                 || $this->targetInRange($normalized, 'ios_saf', [3], [6])
                 || $this->targetInRange($normalized, 'safari', [3, 1], [6]),
@@ -1903,13 +1903,13 @@ final class TransitionPrefixer
      */
     private function fontShorthandValueSupportedForTargetFallback(string $value, array $targetOptions): bool
     {
-        $familyOffset = $this->fontShorthandFamilyOffset($value);
-        if ($familyOffset === null) {
+        $shorthand = $this->fontShorthandTargetInfo($value);
+        if ($shorthand === null) {
             return false;
         }
 
-        $prefix = trim(substr($value, 0, $familyOffset));
-        $family = substr($value, $familyOffset);
+        $prefix = trim(substr($value, 0, $shorthand['familyOffset']));
+        $family = substr($value, $shorthand['familyOffset']);
         $tokens = $this->splitWhitespaceTopLevel($prefix);
         $sizeToken = '';
         foreach ($tokens as $token) {
@@ -1921,6 +1921,13 @@ final class TransitionPrefixer
         }
 
         $hasTargetFeature = false;
+        if ($shorthand['hasObliqueAngle']) {
+            if (!($targetOptions['fontObliqueAngleSupported'] ?? false)) {
+                return false;
+            }
+            $hasTargetFeature = true;
+        }
+
         if ($sizeToken !== '') {
             $lowerSize = strtolower(trim($sizeToken));
             if ($lowerSize === 'xxx-large') {
@@ -1959,11 +1966,34 @@ final class TransitionPrefixer
 
     private function fontShorthandFamilyOffset(string $value): ?int
     {
+        return $this->fontShorthandTargetInfo($value)['familyOffset'] ?? null;
+    }
+
+    /**
+     * @return array{familyOffset:int,hasObliqueAngle:bool}|null
+     */
+    private function fontShorthandTargetInfo(string $value): ?array
+    {
         $tokens = $this->splitWhitespaceTopLevelWithOffsets($value);
-        foreach ($tokens as $token) {
+        $hasObliqueAngle = false;
+        $tokenCount = count($tokens);
+        for ($index = 0; $index < $tokenCount; $index++) {
+            $token = $tokens[$index];
             $parts = $this->splitTopLevel($token['token'], '/');
             if (count($parts) <= 2 && $this->isFontTargetSizeToken($parts[0] ?? '')) {
-                return $this->skipWhitespace($value, $token['end']);
+                return [
+                    'familyOffset' => $this->skipWhitespace($value, $token['end']),
+                    'hasObliqueAngle' => $hasObliqueAngle,
+                ];
+            }
+
+            if (strcasecmp(trim($token['token']), 'oblique') === 0
+                && isset($tokens[$index + 1])
+                && $this->isFontTargetObliqueAngleToken($tokens[$index + 1]['token'])
+            ) {
+                $hasObliqueAngle = true;
+                $index++;
+                continue;
             }
 
             if ($this->isFontTargetPreSizeToken($token['token'])) {
@@ -1974,6 +2004,11 @@ final class TransitionPrefixer
         }
 
         return null;
+    }
+
+    private function isFontTargetObliqueAngleToken(string $token): bool
+    {
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:deg|grad|rad|turn)?$/i', trim($token)) === 1;
     }
 
     /**
@@ -2081,6 +2116,10 @@ final class TransitionPrefixer
             'smaller',
         ], true)) {
             return true;
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:deg|grad|rad|turn)$/i', $lower) === 1) {
+            return false;
         }
 
         return preg_match('/^(?:0|[+-]?(?:\d+|\d*\.\d+)(?:[a-z]+|%))$/i', $lower) === 1

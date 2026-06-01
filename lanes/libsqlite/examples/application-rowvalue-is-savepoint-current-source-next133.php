@@ -25,6 +25,7 @@ $plan = SQLiteRowValueUpdateDeleteSavepointCurrentSourceNextPlan::execute(
     ],
     [['table' => 'wp_options', 'columns' => ['blog_id', 'option_name']]],
     'app_settings_rowvalue_is_batch',
+    'option_id',
 );
 
 $summary = [
