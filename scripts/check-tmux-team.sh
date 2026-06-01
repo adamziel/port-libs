@@ -27,7 +27,7 @@ ps -ewwo args | awk '/^bash scripts\/run-isolated-lane-worker\.sh / {c++} END {p
 printf 'dev codex workers: '
 ps -ewwo args | awk '/codex-linux-x64/ && /worktrees\/port-dev-/ {c++} END {print c+0}'
 printf 'long sleepers: '
-pgrep -af 'sleep 900|sleep 600|sleep 1200|Sleeping 900' |
+{ pgrep -af 'sleep 900|sleep 600|sleep 1200|Sleeping 900' || true; } |
   awk '!/pgrep -af/ && !/check-tmux-team/ {c++} END {print c+0}'
 printf '\nPort worker panes:\n'
 for session in port-gitoxide port-lightningcss port-markerpdf port-libsqlite port-readability port-pandoc port-quadrable port-syncthing port-difftastic port-rclone port-dolt port-dolt-runner port-esbuild port-auditor port-integrator port-evaluator port-watchdog; do
