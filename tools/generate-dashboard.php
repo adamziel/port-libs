@@ -68,6 +68,27 @@ $metricSummary = static function (mixed $value): string {
     return 'inventory';
 };
 
+$formatCount = static function (mixed $value): string {
+    if (is_int($value)) {
+        return number_format($value);
+    }
+
+    if (is_float($value)) {
+        return number_format($value, 0);
+    }
+
+    if (!is_string($value)) {
+        return '0';
+    }
+
+    $value = trim($value);
+    if (preg_match('/^\d+$/', $value) === 1) {
+        return number_format((int) $value);
+    }
+
+    return $value;
+};
+
 $shortCommit = static function (string $value): string {
     $value = trim($value);
     if ($value === '' || $value === 'none') {
@@ -149,13 +170,13 @@ foreach ($laneDirs as $dir) {
         'benchmark' => $shorten($manifestStatus, 72),
         'denominator' => $denominator,
         'mapped' => $mapped,
-        'coverage' => $mapped . ' / ' . $denominator,
-        'php' => $stringValue($status['phpPass'] ?? 0, '0') . ' pass / ' . $stringValue($status['phpFail'] ?? 0, '0') . ' fail',
+        'coverage' => $formatCount($mapped) . ' / ' . $formatCount($denominator),
+        'php' => $formatCount($status['phpPass'] ?? 0) . ' pass / ' . $formatCount($status['phpFail'] ?? 0) . ' fail',
         'wordpressScenarios' => $scenarioSummary($manifest['wordpressScenario'] ?? null, $status['wordpressScenarios'] ?? null),
         'phase' => $shorten($stringValue($status['phase'] ?? null, 'planning'), 72),
         'audit' => $shorten($stringValue($status['audit'] ?? null, 'not started'), 72),
-        'currentWork' => $shorten($currentWork, 96),
-        'nextTarget' => $shorten($nextTask, 96),
+        'currentWork' => $shorten($currentWork, 84),
+        'nextTarget' => $shorten($nextTask, 84),
         'blocker' => $blockerSummary($blocker),
         'commit' => $shortCommit($stringValue($status['latestCommit'] ?? null, 'none')),
         'statusPath' => 'lanes/' . rawurlencode($lane) . '/lane-status.json',
@@ -183,14 +204,13 @@ $htmlRows = '';
 foreach ($rows as $row) {
     $htmlRows .= '<tr>'
         . '<th scope="row"><a href="' . $escape($row['statusPath']) . '">' . $escape($row['library']) . '</a></th>'
-        . '<td><meter min="0" max="100" value="' . $escape($row['progressPercent']) . '"></meter> ' . $escape($row['progressPercent']) . '%</td>'
-        . '<td>' . $escape($row['php']) . '</td>'
-        . '<td><a href="' . $escape($row['manifestPath']) . '">' . $escape($row['coverage']) . '</a></td>'
-        . '<td>' . $escape($row['phase']) . '</td>'
+        . '<td class="num">' . $escape($row['progressPercent']) . '%</td>'
+        . '<td class="num">' . $escape($row['php']) . '</td>'
+        . '<td class="num"><a href="' . $escape($row['manifestPath']) . '">' . $escape($row['coverage']) . '</a></td>'
         . '<td>' . $escape($row['currentWork']) . '</td>'
         . '<td>' . $escape($row['nextTarget']) . '</td>'
         . '<td>' . $escape($row['blocker']) . '</td>'
-        . '<td>' . $escape($row['commit']) . '</td>'
+        . '<td class="commit">' . $escape($row['commit']) . '</td>'
         . '</tr>' . "\n";
 }
 
@@ -208,17 +228,18 @@ $html = <<<HTML
     h1 { margin: 0 0 6px; font-size: 22px; }
     .meta { margin: 0 0 14px; color: color-mix(in srgb, CanvasText 68%, Canvas); font-size: 13px; }
     .table-wrap { overflow-x: auto; }
-    table { width: 100%; min-width: 1120px; border-collapse: collapse; font-size: 12px; line-height: 1.35; }
-    th, td { border: 1px solid color-mix(in srgb, CanvasText 16%, Canvas); padding: 6px 8px; text-align: left; vertical-align: top; }
+    table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 13px; line-height: 1.35; }
+    th, td { border: 1px solid color-mix(in srgb, CanvasText 16%, Canvas); padding: 7px 8px; text-align: left; vertical-align: top; }
     thead th { background: color-mix(in srgb, CanvasText 8%, Canvas); position: sticky; top: 0; }
     tbody th { background: color-mix(in srgb, CanvasText 3%, Canvas); white-space: nowrap; }
-    meter { width: 72px; vertical-align: middle; }
+    .num { white-space: nowrap; text-align: right; }
+    .commit { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; }
     td { overflow-wrap: anywhere; }
   </style>
 </head>
 <body>
   <h1>Native PHP Porting Progress</h1>
-  <p class="meta">Generated {$escape($generated)} from source {$escape($sourceCommitShort)}. Average progress {$escape(number_format($average, 1))}%. Rows link to status and manifest details.</p>
+  <p class="meta">Generated {$escape($generated)} from source {$escape($sourceCommitShort)}. Average progress {$escape(number_format($average, 1))}%.</p>
   <div class="table-wrap">
     <table>
       <thead>
@@ -227,10 +248,9 @@ $html = <<<HTML
           <th>Progress</th>
           <th>PHP Tests</th>
           <th>Mapped</th>
-          <th>Phase</th>
-          <th>Current State</th>
+          <th>State</th>
           <th>Next</th>
-          <th>Blocker</th>
+          <th>Gap</th>
           <th>Commit</th>
         </tr>
       </thead>
@@ -256,7 +276,6 @@ foreach ($rows as $row) {
         . $markdownCell($row['progressPercent'] . '%') . ' | '
         . $markdownCell($row['php']) . ' | '
         . '[' . $markdownCell($row['coverage']) . '](' . $row['manifestPath'] . ') | '
-        . $markdownCell($row['phase']) . ' | '
         . $markdownCell($row['currentWork']) . ' | '
         . $markdownCell($row['nextTarget']) . ' | '
         . $markdownCell($row['blocker']) . ' | '
@@ -270,8 +289,8 @@ Generated: {$generated}
 Source snapshot: `{$sourceCommitShort}`
 Average progress: `{$markdownCell(number_format($average, 1))}%`
 
-| Project | Progress | PHP Tests | Mapped | Phase | Current State | Next | Blocker | Commit |
-| --- | ---: | --- | --- | --- | --- | --- | --- | --- |
+| Project | Progress | PHP Tests | Mapped | State | Next | Gap | Commit |
+| --- | ---: | ---: | ---: | --- | --- | --- | --- |
 {$progressRows}
 MD;
 
