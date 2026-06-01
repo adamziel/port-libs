@@ -1580,13 +1580,14 @@ final class SQLiteSelectQuery
                 continue;
             }
             foreach (self::emptyImplicitAggregateColumnNames($expression) as $column) {
+                if (array_key_exists($column, $summary)) {
+                    continue;
+                }
                 if ($sampleRow !== null && array_key_exists($column, $sampleRow)) {
                     $summary[$column] = $sampleRow[$column];
                     continue;
                 }
-                if (!array_key_exists($column, $summary)) {
-                    $summary[$column] = null;
-                }
+                $summary[$column] = null;
             }
         }
     }

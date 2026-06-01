@@ -3664,11 +3664,17 @@ final class CssModulesTransformer
             return $this->scopeDashedIdent($name, true);
         }
 
-        if (count($parts) !== 3 || strcasecmp($parts[1], 'from') !== 0) {
+        if (count($parts) !== 3) {
             return null;
         }
 
-        if (strcasecmp($parts[2], 'global') === 0) {
+        $fromKeyword = $this->decodeCssIdentifierToken($parts[1]);
+        if ($fromKeyword === null || strcasecmp($fromKeyword, 'from') !== 0) {
+            return null;
+        }
+
+        $globalKeyword = $this->decodeCssIdentifierToken($parts[2]);
+        if ($globalKeyword !== null && strcasecmp($globalKeyword, 'global') === 0) {
             return $name;
         }
 

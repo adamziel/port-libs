@@ -1288,6 +1288,40 @@ CSS,
 
 echo 'css-modules-missing-dependency-location: rejected' . PHP_EOL;
 
+$escapedFromResolverTrace = [];
+try {
+    (new CssBundler())->bundleCssModules('/modules/escaped-from-card.css', [
+        '/modules/escaped-from-card.css' => <<<'CSS'
+.wp-block-intro { color: red; }
+
+.wp-block-card {
+  c\6fmposes: remote fr\6fm "pkg:remote-card.css";
+  color: blue;
+}
+CSS,
+    ], static function (string $specifier, string $originatingFile) use (&$escapedFromResolverTrace): string {
+        $escapedFromResolverTrace[] = [$specifier, $originatingFile];
+        throw new RuntimeException("Failed to resolve WP module `{$specifier}` from `{$originatingFile}`.");
+    });
+
+    fwrite(STDERR, "Expected escaped CSS Modules from diagnostic\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'resolver-error'
+        || $exception->getMessage() !== 'Failed to resolve WP module `pkg:remote-card.css` from `/modules/escaped-from-card.css`.'
+        || $exception->sourceFile !== '/modules/escaped-from-card.css'
+        || $exception->sourceLine !== 3
+        || $exception->sourceColumn !== 1
+        || $escapedFromResolverTrace !== [['pkg:remote-card.css', '/modules/escaped-from-card.css']]
+    ) {
+        fwrite(STDERR, 'Unexpected escaped CSS Modules from diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+}
+
+echo 'css-modules-escaped-from-location: rejected' . PHP_EOL;
+
 try {
     (new CssBundler())->bundleCssModules('/modules/remote-card.css', [
         '/modules/remote-card.css' => <<<'CSS'

@@ -379,10 +379,18 @@ final class SQLiteSelectSql
             }
         }
 
+        $specificAggregates = self::needsSpecificAggregateSummaries($select);
+        $implicitAggregate = self::selectHasAggregate($select);
+
         $plan = [
             'from' => [[]],
             'select' => $select,
         ];
+        if ($implicitAggregate) {
+            $groupBy = self::implicitAggregateGroup($select, [], $specificAggregates);
+            $plan['groupBy'] = $groupBy;
+            $plan['select'] = self::rewriteAggregateSelect($select, $groupBy['valueColumn'], $specificAggregates);
+        }
         if ($distinct) {
             $plan['distinct'] = true;
         }

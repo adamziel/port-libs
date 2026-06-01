@@ -2576,6 +2576,92 @@ CSS,
             'entry' => $moduleExport('entry_entry'),
         ], $disabled['exports']);
     },
+    'css bundler passes upstream css module animation option through compose graph' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal): void {
+        $result = $bundleModules([
+            '/entry.css' => <<<'CSS'
+.entry {
+  composes: card from "./card.css";
+  animation: entry-pop 1s;
+}
+
+@keyframes entry-pop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+CSS,
+            '/card.css' => <<<'CSS'
+.card {
+  animation: card-pop 1s;
+}
+
+@keyframes card-pop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+CSS,
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/card.css' => 'dep',
+            ],
+            'animation' => false,
+        ]);
+
+        $t->same('.dep_card{animation:1s card-pop}@keyframes card-pop{0%{opacity:0}to{opacity:1}}.entry_entry{animation:1s entry-pop}@keyframes entry-pop{0%{opacity:0}to{opacity:1}}', $result['code']);
+        $t->same([
+            'entry' => $moduleExport('entry_entry', [
+                $moduleLocal('dep_card'),
+            ]),
+        ], $result['exports']);
+    },
+    'css bundler passes upstream css module custom-ident option through compose graph' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleGlobal, $moduleLocal): void {
+        $result = $bundleModules([
+            '/entry.css' => <<<'CSS'
+.card {
+  composes: wp-alignwide from global;
+  composes: token from "./tokens.css";
+  list-style: inside card-steps;
+}
+
+@counter-style card-steps {
+  system: cyclic;
+  symbols: A B;
+  suffix: ". ";
+}
+CSS,
+            '/tokens.css' => <<<'CSS'
+.token {
+  composes: wp-token from global;
+  list-style-type: dep-steps;
+}
+
+@counter-style dep-steps {
+  system: cyclic;
+  symbols: C D;
+}
+CSS,
+        ], '/entry.css', null, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/tokens.css' => 'dep',
+            ],
+            'custom_idents' => false,
+        ]);
+
+        $t->same('.dep_token{list-style-type:dep-steps}@counter-style dep-steps{system:cyclic;symbols:C D}.entry_card{list-style:inside card-steps}@counter-style card-steps{system:cyclic;symbols:A B;suffix:". "}', $result['code']);
+        $t->same([
+            'card' => $moduleExport('entry_card', [
+                $moduleGlobal('wp-alignwide'),
+                $moduleLocal('dep_token'),
+                $moduleGlobal('wp-token'),
+            ]),
+            'card-steps' => [
+                'name' => 'entry_card-steps',
+                'composes' => [],
+                'isReferenced' => true,
+            ],
+        ], $result['exports']);
+    },
     'css bundler maps upstream file-backed css modules import graph' => static function (TestRunner $t) use ($withTempFiles, $moduleExport, $moduleLocal): void {
         $withTempFiles([
             'theme/card.module.css' => <<<'CSS'
@@ -2672,6 +2758,8 @@ CSS,
 }
 CSS,
             ], '/entry.css');
+
+            throw new RuntimeException('Expected missing CSS Modules dependency read diagnostic');
         } catch (CssBundleException $exception) {
             $t->same('resolver-error', $exception->kind);
             $t->same('Could not read `/missing.css`.', $exception->getMessage());
@@ -2698,6 +2786,8 @@ CSS,
             ], '/entry.css', static function (string $specifier, string $originatingFile): string {
                 throw new RuntimeException("Cannot resolve {$specifier} from {$originatingFile}");
             });
+
+            throw new RuntimeException('Expected CSS Modules resolver diagnostic');
         } catch (CssBundleException $exception) {
             $t->same('resolver-error', $exception->kind);
             $t->same('Cannot resolve pkg:tokens.css from /entry.css', $exception->getMessage());
@@ -2733,6 +2823,76 @@ CSS,
         }
 
         throw new RuntimeException('Expected external CSS Modules dependency diagnostic');
+    },
+    'css bundler maps upstream escaped css module dependency diagnostics to decoded from locations' => static function (TestRunner $t) use ($bundleModules): void {
+        try {
+            $bundleModules([
+                '/entry.css' => <<<'CSS'
+.intro { color: red; }
+
+.card {
+  c\6fmposes: token from "./missing.css";
+  color: blue;
+}
+CSS,
+            ], '/entry.css');
+
+            throw new RuntimeException('Expected escaped composes dependency read diagnostic');
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Could not read `/missing.css`.', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(4, $exception->sourceLine);
+            $t->same(15, $exception->sourceColumn);
+        }
+
+        try {
+            $bundleModules([
+                '/entry.css' => <<<'CSS'
+@media screen {
+  .card {
+    composes: token fr\6fm "pkg:tokens.css";
+    color: blue;
+  }
+}
+CSS,
+            ], '/entry.css', static function (string $specifier, string $originatingFile): string {
+                throw new RuntimeException("Cannot resolve {$specifier} from {$originatingFile}");
+            });
+
+            throw new RuntimeException('Expected escaped from dependency resolver diagnostic');
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Cannot resolve pkg:tokens.css from /entry.css', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(2, $exception->sourceLine);
+            $t->same(3, $exception->sourceColumn);
+        }
+
+        try {
+            $bundleModules([
+                '/entry.css' => <<<'CSS'
+@media screen {
+  .card {
+    margin: env(--gap fr\6fm "./missing.css", 1rem);
+    color: blue;
+  }
+}
+CSS,
+            ], '/entry.css', null, [
+                'dashedIdents' => true,
+            ]);
+        } catch (CssBundleException $exception) {
+            $t->same('resolver-error', $exception->kind);
+            $t->same('Could not read `/missing.css`.', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(2, $exception->sourceLine);
+            $t->same(3, $exception->sourceColumn);
+
+            return;
+        }
+
+        throw new RuntimeException('Expected escaped CSS Modules dependency diagnostics');
     },
     'css bundler rejects external css module from references like upstream' => static function (TestRunner $t) use ($bundleModules): void {
         try {

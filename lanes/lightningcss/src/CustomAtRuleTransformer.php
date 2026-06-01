@@ -209,41 +209,20 @@ final class CustomAtRuleTransformer
         return [
             'Rule' => [
                 'custom' => static function (array $rule, self $transformer) use ($visitors): mixed {
-                    foreach ($visitors as $visitor) {
-                        $callback = self::customRuleVisitorCallback($visitor, $rule['name']);
-                        if ($callback === null) {
-                            continue;
-                        }
-
-                        $replacement = $callback($rule, $transformer);
-                        if ($replacement !== null) {
-                            return $replacement;
-                        }
-                    }
-
-                    return null;
+                    return self::applyComposedRuleVisitors(
+                        $visitors,
+                        ['type' => 'custom', 'value' => $rule],
+                        $transformer,
+                        false
+                    );
                 },
                 'unknown' => static function (array $rule, self $transformer) use ($visitors): mixed {
-                    $forwardedUnknown = false;
-                    foreach ($visitors as $visitor) {
-                        $callback = self::unknownRuleVisitorCallback($visitor, $rule['name']);
-                        if ($callback === null) {
-                            continue;
-                        }
-
-                        $replacement = $callback($rule, $transformer);
-                        if ($replacement !== null) {
-                            if (self::isUnknownRuleReplacement($replacement)) {
-                                $rule = self::normalizeUnknownRuleReplacement($rule, $replacement);
-                                $forwardedUnknown = true;
-                                continue;
-                            }
-
-                            return $replacement;
-                        }
-                    }
-
-                    return $forwardedUnknown ? ['type' => 'unknown', 'value' => $rule] : null;
+                    return self::applyComposedRuleVisitors(
+                        $visitors,
+                        ['type' => 'unknown', 'value' => $rule],
+                        $transformer,
+                        false
+                    );
                 },
                 'style' => static function (array $rule, self $transformer) use ($visitors): mixed {
                     $rules = [$rule];
@@ -321,41 +300,20 @@ final class CustomAtRuleTransformer
             ],
             'RuleExit' => [
                 'custom' => static function (array $rule, self $transformer) use ($visitors): mixed {
-                    foreach ($visitors as $visitor) {
-                        $callback = self::customRuleExitVisitorCallback($visitor, $rule['name']);
-                        if ($callback === null) {
-                            continue;
-                        }
-
-                        $replacement = $callback($rule, $transformer);
-                        if ($replacement !== null) {
-                            return $replacement;
-                        }
-                    }
-
-                    return null;
+                    return self::applyComposedRuleVisitors(
+                        $visitors,
+                        ['type' => 'custom', 'value' => $rule],
+                        $transformer,
+                        true
+                    );
                 },
                 'unknown' => static function (array $rule, self $transformer) use ($visitors): mixed {
-                    $forwardedUnknown = false;
-                    foreach ($visitors as $visitor) {
-                        $callback = self::unknownRuleExitVisitorCallback($visitor, $rule['name']);
-                        if ($callback === null) {
-                            continue;
-                        }
-
-                        $replacement = $callback($rule, $transformer);
-                        if ($replacement !== null) {
-                            if (self::isUnknownRuleReplacement($replacement)) {
-                                $rule = self::normalizeUnknownRuleReplacement($rule, $replacement);
-                                $forwardedUnknown = true;
-                                continue;
-                            }
-
-                            return $replacement;
-                        }
-                    }
-
-                    return $forwardedUnknown ? ['type' => 'unknown', 'value' => $rule] : null;
+                    return self::applyComposedRuleVisitors(
+                        $visitors,
+                        ['type' => 'unknown', 'value' => $rule],
+                        $transformer,
+                        true
+                    );
                 },
                 'style' => static function (array $rule, self $transformer) use ($visitors): mixed {
                     $rules = [$rule];
@@ -4212,63 +4170,6 @@ final class CustomAtRuleTransformer
     }
 
     /**
-     * @param array<string, mixed> $visitor
-     */
-    private static function customRuleVisitorCallback(array $visitor, string $ruleName): ?callable
-    {
-        $ruleConfig = $visitor['Rule'] ?? null;
-        if (is_callable($ruleConfig)) {
-            return $ruleConfig;
-        }
-
-        if (is_array($ruleConfig)) {
-            $customConfig = $ruleConfig['custom'] ?? null;
-            if (is_callable($customConfig)) {
-                return $customConfig;
-            }
-
-            if (is_array($customConfig)) {
-                return self::caseInsensitiveCallback($customConfig, $ruleName);
-            }
-        }
-
-        $customConfig = $visitor['custom'] ?? null;
-        if (is_callable($customConfig)) {
-            return $customConfig;
-        }
-
-        if (is_array($customConfig)) {
-            return self::caseInsensitiveCallback($customConfig, $ruleName);
-        }
-
-        return self::caseInsensitiveCallback($visitor, $ruleName);
-    }
-
-    /**
-     * @param array<string, mixed> $visitor
-     */
-    private static function customRuleExitVisitorCallback(array $visitor, string $ruleName): ?callable
-    {
-        $ruleConfig = $visitor['RuleExit'] ?? null;
-        if (is_callable($ruleConfig)) {
-            return $ruleConfig;
-        }
-
-        if (is_array($ruleConfig)) {
-            $customConfig = $ruleConfig['custom'] ?? null;
-            if (is_callable($customConfig)) {
-                return $customConfig;
-            }
-
-            if (is_array($customConfig)) {
-                return self::caseInsensitiveCallback($customConfig, $ruleName);
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * @param list<array<string, mixed>> $visitors
      * @param array<string, mixed> $token
      */
@@ -4337,6 +4238,165 @@ final class CustomAtRuleTransformer
 
     /**
      * @param list<array<string, mixed>> $visitors
+     * @param array<string, mixed> $rule
+     */
+    private static function applyComposedRuleVisitors(array $visitors, array $rule, self $transformer, bool $exit): mixed
+    {
+        $rules = [$rule];
+        $changed = false;
+        $seen = [];
+        $visitorCount = count($visitors);
+        $visitorName = $exit ? 'RuleExit' : 'Rule';
+
+        for ($ruleIndex = 0; $ruleIndex < count($rules); $ruleIndex++) {
+            for ($visitorIndex = 0; $visitorIndex < $visitorCount && $ruleIndex < count($rules);) {
+                if (!empty($seen[$visitorIndex])) {
+                    $visitorIndex++;
+                    continue;
+                }
+
+                $currentRule = $rules[$ruleIndex];
+                if (!is_array($currentRule)) {
+                    $visitorIndex++;
+                    continue;
+                }
+
+                $callback = self::composedRuleVisitorCallback($visitors[$visitorIndex], $currentRule, $exit);
+                if ($callback === null) {
+                    $visitorIndex++;
+                    continue;
+                }
+
+                $replacement = $callback['callback']($callback['argument'], $transformer);
+                if ($replacement === null) {
+                    $visitorIndex++;
+                    continue;
+                }
+
+                $nextRules = self::normalizeComposedRuleVisitorReplacement($replacement, $visitorName);
+                array_splice($rules, $ruleIndex, 1, $nextRules);
+                $changed = true;
+                $seen[$visitorIndex] = true;
+                $visitorIndex = 0;
+            }
+        }
+
+        if (!$changed) {
+            return null;
+        }
+
+        return count($rules) === 1 ? $rules[0] : $rules;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     * @param array<string, mixed> $rule
+     * @return array{callback:callable,argument:mixed}|null
+     */
+    private static function composedRuleVisitorCallback(array $visitor, array $rule, bool $exit): ?array
+    {
+        $ruleConfig = $visitor[$exit ? 'RuleExit' : 'Rule'] ?? null;
+        if (is_callable($ruleConfig)) {
+            return ['callback' => $ruleConfig, 'argument' => $rule];
+        }
+
+        $type = strtolower((string) ($rule['type'] ?? ''));
+        if (is_array($ruleConfig)) {
+            if ($type === 'custom' && isset($rule['value']) && is_array($rule['value'])) {
+                $customConfig = $ruleConfig['custom'] ?? null;
+                $callback = self::namedOrCallableRuleCallback($customConfig, (string) ($rule['value']['name'] ?? ''));
+
+                return $callback === null ? null : ['callback' => $callback, 'argument' => $rule['value']];
+            }
+
+            if ($type === 'unknown' && isset($rule['value']) && is_array($rule['value'])) {
+                $unknownConfig = $ruleConfig['unknown'] ?? null;
+                $callback = self::namedOrCallableRuleCallback($unknownConfig, (string) ($rule['value']['name'] ?? ''));
+
+                return $callback === null ? null : ['callback' => $callback, 'argument' => $rule['value']];
+            }
+
+            $callback = $ruleConfig[$type] ?? null;
+            if (is_callable($callback)) {
+                return ['callback' => $callback, 'argument' => $rule];
+            }
+        }
+
+        if ($exit) {
+            return null;
+        }
+
+        if ($type === 'custom' && isset($rule['value']) && is_array($rule['value'])) {
+            $callback = self::namedOrCallableRuleCallback($visitor['custom'] ?? null, (string) ($rule['value']['name'] ?? ''))
+                ?? self::caseInsensitiveCallback($visitor, (string) ($rule['value']['name'] ?? ''));
+
+            return $callback === null ? null : ['callback' => $callback, 'argument' => $rule['value']];
+        }
+
+        if ($type === 'unknown' && isset($rule['value']) && is_array($rule['value'])) {
+            $callback = self::namedOrCallableRuleCallback($visitor['unknown'] ?? null, (string) ($rule['value']['name'] ?? ''));
+
+            return $callback === null ? null : ['callback' => $callback, 'argument' => $rule['value']];
+        }
+
+        foreach (['style', 'media'] as $legacyType) {
+            if ($type !== $legacyType) {
+                continue;
+            }
+            $callback = $visitor[$legacyType] ?? null;
+
+            return is_callable($callback) ? ['callback' => $callback, 'argument' => $rule] : null;
+        }
+
+        return null;
+    }
+
+    private static function namedOrCallableRuleCallback(mixed $config, string $name): ?callable
+    {
+        if (is_callable($config)) {
+            return $config;
+        }
+
+        if (is_array($config)) {
+            return self::caseInsensitiveCallback($config, $name);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private static function normalizeComposedRuleVisitorReplacement(mixed $replacement, string $visitorName): array
+    {
+        if ($replacement === false || $replacement === []) {
+            return [];
+        }
+        if (is_string($replacement)) {
+            return [$replacement];
+        }
+        if (!is_array($replacement)) {
+            throw new \InvalidArgumentException($visitorName . ' visitor must return a rule array, list of rules, string, or null');
+        }
+        if (array_is_list($replacement)) {
+            $rules = [];
+            foreach ($replacement as $item) {
+                foreach (self::normalizeComposedRuleVisitorReplacement($item, $visitorName) as $rule) {
+                    $rules[] = $rule;
+                }
+            }
+
+            return $rules;
+        }
+        if (($replacement['kind'] ?? null) === 'remove') {
+            return [];
+        }
+
+        return [$replacement];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $visitors
      * @param array<string, mixed> $declaration
      * @return list<array<string, mixed>>|null
      */
@@ -4378,55 +4438,6 @@ final class CustomAtRuleTransformer
         }
 
         return $changed ? $declarations : null;
-    }
-
-    /**
-     * @param array<string, mixed> $visitor
-     */
-    private static function unknownRuleVisitorCallback(array $visitor, string $ruleName): ?callable
-    {
-        $ruleConfig = $visitor['Rule'] ?? null;
-        if (is_array($ruleConfig)) {
-            $unknownConfig = $ruleConfig['unknown'] ?? null;
-            if (is_callable($unknownConfig)) {
-                return $unknownConfig;
-            }
-
-            if (is_array($unknownConfig)) {
-                return self::caseInsensitiveCallback($unknownConfig, $ruleName);
-            }
-        }
-
-        $unknownConfig = $visitor['unknown'] ?? null;
-        if (is_callable($unknownConfig)) {
-            return $unknownConfig;
-        }
-
-        if (is_array($unknownConfig)) {
-            return self::caseInsensitiveCallback($unknownConfig, $ruleName);
-        }
-
-        return null;
-    }
-
-    /**
-     * @param array<string, mixed> $visitor
-     */
-    private static function unknownRuleExitVisitorCallback(array $visitor, string $ruleName): ?callable
-    {
-        $ruleConfig = $visitor['RuleExit'] ?? null;
-        if (is_array($ruleConfig)) {
-            $unknownConfig = $ruleConfig['unknown'] ?? null;
-            if (is_callable($unknownConfig)) {
-                return $unknownConfig;
-            }
-
-            if (is_array($unknownConfig)) {
-                return self::caseInsensitiveCallback($unknownConfig, $ruleName);
-            }
-        }
-
-        return null;
     }
 
     /**
@@ -4907,16 +4918,6 @@ final class CustomAtRuleTransformer
             && ($replacement['type'] ?? null) === 'unknown'
             && isset($replacement['value'])
             && is_array($replacement['value']);
-    }
-
-    /**
-     * @param array<string, mixed> $current
-     * @param array{value: array<string, mixed>} $replacement
-     * @return array<string, mixed>
-     */
-    private static function normalizeUnknownRuleReplacement(array $current, array $replacement): array
-    {
-        return array_replace($current, $replacement['value']);
     }
 
     /**

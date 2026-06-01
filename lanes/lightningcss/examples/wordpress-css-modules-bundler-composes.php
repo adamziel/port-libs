@@ -56,5 +56,70 @@ if ($result !== $expected) {
     exit(1);
 }
 
+$optionResult = (new CssBundler())->bundleCssModules('/block.module.css', [
+    '/block.module.css' => <<<'CSS'
+.card {
+  composes: wp-alignwide from global;
+  composes: token from "./tokens.module.css";
+  animation: card-pop 1s;
+  list-style: inside card-steps;
+}
+
+@keyframes card-pop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@counter-style card-steps {
+  system: cyclic;
+  symbols: A B;
+}
+CSS,
+    '/tokens.module.css' => <<<'CSS'
+.token {
+  composes: wp-token from global;
+  animation-name: token-pop;
+}
+
+@keyframes token-pop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+CSS,
+], null, [
+    'hashes' => [
+        '/block.module.css' => 'block',
+        '/tokens.module.css' => 'tok',
+    ],
+    'animation' => false,
+    'customIdents' => false,
+]);
+
+$expectedOptionResult = [
+    'code' => '.tok_token{animation-name:token-pop}@keyframes token-pop{0%{opacity:0}to{opacity:1}}.block_card{animation:1s card-pop;list-style:inside card-steps}@keyframes card-pop{0%{opacity:0}to{opacity:1}}@counter-style card-steps{system:cyclic;symbols:A B}',
+    'exports' => [
+        'card' => [
+            'name' => 'block_card',
+            'composes' => [
+                ['type' => 'global', 'name' => 'wp-alignwide'],
+                ['type' => 'local', 'name' => 'tok_token'],
+                ['type' => 'global', 'name' => 'wp-token'],
+            ],
+            'isReferenced' => false,
+        ],
+        'card-steps' => [
+            'name' => 'block_card-steps',
+            'composes' => [],
+            'isReferenced' => true,
+        ],
+    ],
+];
+
+if ($optionResult !== $expectedOptionResult) {
+    fwrite(STDERR, "Unexpected CSS Modules bundled option output:\n" . var_export($optionResult, true) . "\n");
+    exit(1);
+}
+
 echo $result['code'] . PHP_EOL;
 echo 'source-index-composes: preserved' . PHP_EOL;
+echo 'css-module-options: forwarded' . PHP_EOL;

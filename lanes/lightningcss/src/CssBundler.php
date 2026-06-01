@@ -121,7 +121,7 @@ final class CssBundler
      *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,grid?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModules(string $entry, array $files, ?callable $resolver = null, array $options = []): array
     {
@@ -137,7 +137,7 @@ final class CssBundler
      *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,grid?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModulesWithSourceMap(
         string $entry,
@@ -157,7 +157,7 @@ final class CssBundler
      *
      * @param callable(string): string $reader
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,grid?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModulesWithReader(string $entry, callable $reader, ?callable $resolver = null, array $options = []): array
     {
@@ -173,7 +173,7 @@ final class CssBundler
      *
      * @param callable(string): string $reader
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,grid?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModulesWithReaderSourceMap(
         string $entry,
@@ -192,7 +192,7 @@ final class CssBundler
      * }
      *
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,grid?:bool,container?:bool,projectRoot?:string,project_root?:string} $options
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,projectRoot?:string,project_root?:string} $options
      */
     public function bundleCssModulesFile(string $entry, ?callable $resolver = null, array $options = []): array
     {
@@ -207,7 +207,7 @@ final class CssBundler
      *
      * @param array<string, string> $files
      * @param (callable(string, string): (string|array{external?:string,file?:string}))|null $resolver
-     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,grid?:bool,container?:bool,projectRoot?:string,project_root?:string} $cssModuleOptions
+     * @param array{hashes?:array<string,string>|callable(string):string,pattern?:string,minify?:bool,dashedIdents?:bool,dashed_idents?:bool,animation?:bool,grid?:bool,container?:bool,customIdents?:bool,custom_idents?:bool,projectRoot?:string,project_root?:string} $cssModuleOptions
      * @param (callable(string): string)|null $reader
      */
     private function bundleInternal(
@@ -307,7 +307,15 @@ final class CssBundler
         $cssModuleDependencyLocations = [];
         if ($this->cssModules) {
             $cssModuleDependencyLocations = $this->cssModuleDependencyLocations($source);
-            $cssModuleResult = (new CssModulesTransformer())->transform($source, $this->cssModuleTransformOptions($file));
+            try {
+                $cssModuleResult = (new CssModulesTransformer())->transform($source, $this->cssModuleTransformOptions($file));
+            } catch (\InvalidArgumentException $exception) {
+                if ($exception->getMessage() === 'The `composes` property cannot be used within nested rules') {
+                    $this->throwFirstCssModuleDependencyDiagnostic($file, $rule, $cssModuleDependencyLocations);
+                }
+
+                throw $exception;
+            }
             $source = $cssModuleResult['code'];
         }
 
@@ -396,6 +404,39 @@ final class CssBundler
         $this->stylesheets[$sourceIndex]['cssModuleReferences'] = $cssModuleReferences;
 
         return $sourceIndex;
+    }
+
+    /**
+     * @param array{layer:?string,supports:?string,media:string,loc:array{line:int,column:int},file:string} $rule
+     * @param array<string, array{read:array{line:int,column:int},resolve:array{line:int,column:int}}> $dependencyLocations
+     */
+    private function throwFirstCssModuleDependencyDiagnostic(string $file, array $rule, array $dependencyLocations): void
+    {
+        foreach ($dependencyLocations as $specifier => $locations) {
+            $dependencyLoc = $locations['read'];
+            $resolveLoc = $locations['resolve'];
+            $resolved = $this->resolveImport($specifier, $file, $resolveLoc);
+            if (isset($resolved['external'])) {
+                throw new CssBundleException(
+                    'referenced-external-module-with-css-module-from',
+                    'Referenced external module with CSS module "from" clause',
+                    $file,
+                    $resolveLoc['line'],
+                    $resolveLoc['column'],
+                );
+            }
+
+            $this->readFile(
+                $resolved['file'],
+                [
+                    'layer' => $rule['layer'],
+                    'supports' => $rule['supports'],
+                    'media' => $rule['media'],
+                    'loc' => $dependencyLoc,
+                    'file' => $file,
+                ]
+            );
+        }
     }
 
     /**
@@ -2132,7 +2173,7 @@ final class CssBundler
     }
 
     /**
-     * @return array{hash?:string,filename:string,projectRoot?:string,pattern:string,minify:bool,dashedIdents:bool,grid:bool,container:bool,preserveDependencyComposesDuplicates:bool}
+     * @return array{hash?:string,filename:string,projectRoot?:string,pattern:string,minify:bool,dashedIdents:bool,animation:bool,grid:bool,container:bool,customIdents:bool,preserveDependencyComposesDuplicates:bool}
      */
     private function cssModuleTransformOptions(string $file): array
     {
@@ -2141,8 +2182,10 @@ final class CssBundler
             'pattern' => $this->cssModulePattern(),
             'minify' => $this->cssModuleOptions['minify'] ?? true,
             'dashedIdents' => ($this->cssModuleOptions['dashedIdents'] ?? $this->cssModuleOptions['dashed_idents'] ?? false) === true,
+            'animation' => ($this->cssModuleOptions['animation'] ?? true) !== false,
             'grid' => ($this->cssModuleOptions['grid'] ?? true) !== false,
             'container' => ($this->cssModuleOptions['container'] ?? true) !== false,
+            'customIdents' => ($this->cssModuleOptions['customIdents'] ?? $this->cssModuleOptions['custom_idents'] ?? true) !== false,
             'preserveDependencyComposesDuplicates' => true,
         ];
 
@@ -2235,17 +2278,9 @@ final class CssBundler
     {
         $locations = [];
         $offset = 0;
-        while (preg_match('/\bcomposes\b/i', $source, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
-            $propertyOffset = $match[0][1];
-            $offset = $propertyOffset + strlen($match[0][0]);
-            $previous = $propertyOffset > 0 ? $source[$propertyOffset - 1] : '';
-            if (
-                ($previous !== '' && $this->isIdentifierChar($previous))
-                || $this->isCssOffsetInsideStringOrComment($source, $propertyOffset)
-            ) {
-                continue;
-            }
-
+        while (($property = $this->findNextCssIdentifierInSet($source, ['composes'], $offset)) !== null) {
+            $propertyOffset = $property['start'];
+            $offset = $property['end'];
             $colon = $this->skipWhitespaceAndComments($source, $offset);
             if (($source[$colon] ?? '') !== ':') {
                 continue;
@@ -2269,11 +2304,11 @@ final class CssBundler
         }
 
         $offset = 0;
-        while (preg_match('/\b(?:var|env)\(/i', $source, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
-            $functionOffset = $match[0][1];
-            $open = $functionOffset + strlen($match[0][0]) - 1;
+        while (($function = $this->findNextCssIdentifierInSet($source, ['var', 'env'], $offset)) !== null) {
+            $functionOffset = $function['start'];
+            $open = $function['end'];
             $offset = $open + 1;
-            if ($this->isCssOffsetInsideStringOrComment($source, $functionOffset)) {
+            if (($source[$open] ?? '') !== '(') {
                 continue;
             }
 
@@ -2451,13 +2486,8 @@ final class CssBundler
     {
         $specifiers = [];
         $offset = 0;
-        while (preg_match('/\bfrom\b/i', $value, $match, PREG_OFFSET_CAPTURE, $offset) === 1) {
-            $fromOffset = $match[0][1];
-            $offset = $fromOffset + strlen($match[0][0]);
-            if ($this->isCssOffsetInsideStringOrComment($value, $fromOffset)) {
-                continue;
-            }
-
+        while (($from = $this->findNextCssIdentifierInSet($value, ['from'], $offset)) !== null) {
+            $offset = $from['end'];
             $quoteOffset = $this->skipWhitespaceAndComments($value, $offset);
             $quote = $value[$quoteOffset] ?? '';
             if ($quote !== '"' && $quote !== "'") {
@@ -2474,6 +2504,73 @@ final class CssBundler
         }
 
         return $specifiers;
+    }
+
+    /**
+     * @param list<string> $names
+     * @return array{name:string,start:int,end:int}|null
+     */
+    private function findNextCssIdentifierInSet(string $source, array $names, int $offset): ?array
+    {
+        $lookup = [];
+        foreach ($names as $name) {
+            $lookup[strtolower($name)] = true;
+        }
+
+        $quote = null;
+        $length = strlen($source);
+        for ($i = $offset; $i < $length; $i++) {
+            $char = $source[$i];
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '/' && ($source[$i + 1] ?? '') === '*') {
+                $end = strpos($source, '*/', $i + 2);
+                if ($end === false) {
+                    throw new CssBundleException('parser-error', 'CSS contains an unbalanced comment');
+                }
+
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char !== '\\' && !$this->isIdentifierChar($char)) {
+                continue;
+            }
+
+            $identifier = $this->readCssIdentifierToken($source, $i);
+            if ($identifier === null) {
+                if ($char === '\\') {
+                    $i = $this->cssEscapeEndOffset($source, $i);
+                }
+                continue;
+            }
+
+            if (isset($lookup[strtolower($identifier['name'])])) {
+                return [
+                    'name' => $identifier['name'],
+                    'start' => $i,
+                    'end' => $identifier['end'],
+                ];
+            }
+
+            $i = $identifier['end'] - 1;
+        }
+
+        return null;
     }
 
     private function isCssOffsetInsideStringOrComment(string $source, int $offset): bool

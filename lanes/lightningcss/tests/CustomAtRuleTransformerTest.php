@@ -3615,4 +3615,212 @@ CSS;
         $t->same('1rem', $seen['tokens']['bodyRules'][0]['value']['declarations']['declarations'][0]['raw']);
         $t->same('wp-accent', $seen['alias']['prelude']);
     },
+    'custom at-rules compose upstream returned parser rules through later Rule visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'custom' => [
+                        'tokens' => static function (array $rule) use (&$seen): array {
+                            $seen[] = 'custom:' . $rule['prelude'];
+
+                            return [
+                                [
+                                    'type' => 'style',
+                                    'value' => [
+                                        'selectors' => [
+                                            [
+                                                ['type' => 'class', 'name' => 'wp-token'],
+                                            ],
+                                        ],
+                                        'declarations' => [
+                                            'declarations' => [[
+                                                'property' => 'color',
+                                                'value' => [
+                                                    'type' => 'rgb',
+                                                    'r' => 255,
+                                                    'g' => 255,
+                                                    'b' => 0,
+                                                    'alpha' => 1,
+                                                ],
+                                            ]],
+                                            'importantDeclarations' => [],
+                                        ],
+                                    ],
+                                ],
+                                [
+                                    'type' => 'media',
+                                    'value' => [
+                                        'query' => [
+                                            'mediaQueries' => [
+                                                ['raw' => '(min-width: 40rem)'],
+                                            ],
+                                        ],
+                                        'rules' => [[
+                                            'type' => 'style',
+                                            'value' => [
+                                                'selectors' => [
+                                                    [
+                                                        ['type' => 'class', 'name' => 'wp-card'],
+                                                    ],
+                                                ],
+                                                'declarations' => [
+                                                    'declarations' => [[
+                                                        'property' => 'color',
+                                                        'value' => [
+                                                            'type' => 'rgb',
+                                                            'r' => 255,
+                                                            'g' => 0,
+                                                            'b' => 0,
+                                                            'alpha' => 1,
+                                                        ],
+                                                    ]],
+                                                    'importantDeclarations' => [],
+                                                ],
+                                            ],
+                                        ]],
+                                    ],
+                                ],
+                            ];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'Rule' => [
+                    'style' => static function (array $rule) use (&$seen): array {
+                        $seen[] = 'style:' . ($rule['value']['selectors'][0][0]['name'] ?? '');
+                        $rule['value']['declarations']['declarations'][] = [
+                            'property' => 'width',
+                            'value' => [
+                                'type' => 'length-percentage',
+                                'value' => [
+                                    'type' => 'dimension',
+                                    'value' => ['unit' => 'px', 'value' => 16],
+                                ],
+                            ],
+                        ];
+
+                        return $rule;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'media' => static function (array $rule) use (&$seen): array {
+                        $seen[] = 'media:' . ($rule['value']['query']['mediaQueries'][0]['raw'] ?? '');
+                        $rule['value']['query']['mediaQueries'][0]['raw'] = '(min-width: 48rem)';
+
+                        return $rule;
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@tokens accent;', [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ], $visitor);
+
+        $t->same('.wp-token{color:#ff0;width:16px}@media (width>=48rem){.wp-card{color:red}}', $result);
+        $t->same([
+            'custom:accent',
+            'style:wp-token',
+            'media:(min-width: 40rem)',
+        ], $seen);
+    },
+    'custom at-rules compose upstream RuleExit returned custom and unknown rules through later style visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $returnedStyle = static function (string $selector, array $color): array {
+            return [
+                'type' => 'style',
+                'value' => [
+                    'selectors' => [
+                        [
+                            ['type' => 'class', 'name' => $selector],
+                        ],
+                    ],
+                    'declarations' => [
+                        'declarations' => [[
+                            'property' => 'color',
+                            'value' => $color,
+                        ]],
+                        'importantDeclarations' => [],
+                    ],
+                ],
+            ];
+        };
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'RuleExit' => [
+                    'custom' => [
+                        'tokens' => static function (array $rule) use (&$seen, $returnedStyle): array {
+                            $seen[] = 'custom-exit:' . $rule['prelude'];
+
+                            return $returnedStyle('wp-token-exit', [
+                                'type' => 'rgb',
+                                'r' => 255,
+                                'g' => 255,
+                                'b' => 0,
+                                'alpha' => 1,
+                            ]);
+                        },
+                    ],
+                    'unknown' => [
+                        'dep' => static function (array $rule) use (&$seen, $returnedStyle): array {
+                            $seen[] = 'unknown-exit:' . ($rule['preludeTokens'][0]['value']['value'] ?? '');
+
+                            return $returnedStyle('wp-dep-exit', [
+                                'type' => 'rgb',
+                                'r' => 255,
+                                'g' => 0,
+                                'b' => 0,
+                                'alpha' => 1,
+                            ]);
+                        },
+                    ],
+                ],
+            ],
+            [
+                'RuleExit' => [
+                    'style' => static function (array $rule) use (&$seen): array {
+                        $seen[] = 'style-exit:' . ($rule['value']['selectors'][0][0]['name'] ?? '');
+                        $rule['value']['declarations']['declarations'][] = [
+                            'property' => 'height',
+                            'value' => [
+                                'type' => 'length-percentage',
+                                'value' => [
+                                    'type' => 'dimension',
+                                    'value' => ['unit' => 'px', 'value' => 24],
+                                ],
+                            ],
+                        ];
+
+                        return $rule;
+                    },
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@tokens accent;
+@dep "tokens.css";
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'tokens' => [
+                'prelude' => '<custom-ident>',
+            ],
+        ], $visitor);
+
+        $t->same('.wp-token-exit{color:#ff0;height:24px}.wp-dep-exit{color:red;height:24px}', $result);
+        $t->same([
+            'custom-exit:accent',
+            'style-exit:wp-token-exit',
+            'unknown-exit:tokens.css',
+            'style-exit:wp-dep-exit',
+        ], $seen);
+    },
 ];
