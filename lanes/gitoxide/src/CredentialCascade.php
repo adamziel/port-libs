@@ -114,7 +114,7 @@ final class CredentialCascade
             }
 
             throw new \RuntimeException(
-                "Could not obtain identity for context: {$context->redacted()->storageBytes()}",
+                "Could not obtain identity for context: {$context->redacted()->diagnosticBytes()}",
             );
         }
 

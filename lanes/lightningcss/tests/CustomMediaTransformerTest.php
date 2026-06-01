@@ -131,7 +131,7 @@ CSS;
 CSS;
 
         $t->same(
-            '@import "./blocks/cards.css" layer(theme.blocks) screen and (width>=782px);@import "./blocks/animations.css" layer supports(animation-name:fade)(prefers-reduced-motion:no-preference);',
+            '@import "./blocks/cards.css" layer(theme.blocks) screen and (width>=782px);@import "./blocks/animations.css" layer supports(animation-name:fade) (prefers-reduced-motion:no-preference);',
             $transformAndMinify($css)
         );
     },

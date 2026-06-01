@@ -92,6 +92,44 @@ final class CredentialContext
         return $bytes;
     }
 
+    public function diagnosticBytes(): string
+    {
+        $bytes = '';
+        foreach ([
+            'url' => $this->url,
+            'path' => $this->path,
+            'protocol' => $this->protocol,
+            'host' => $this->host,
+            'username' => $this->username,
+            'password' => $this->password,
+            'oauth_refresh_token' => $this->oauthRefreshToken,
+        ] as $key => $value) {
+            if ($value === null) {
+                continue;
+            }
+
+            try {
+                self::validateField($key, $value, !in_array($key, ['url', 'path'], true));
+            } catch (\InvalidArgumentException) {
+                return $bytes;
+            }
+            $bytes .= "{$key}={$value}\n";
+        }
+
+        if ($this->passwordExpiryUtc !== null) {
+            $key = 'password_expiry_utc';
+            $value = (string) $this->passwordExpiryUtc;
+            try {
+                self::validateField($key, $value);
+            } catch (\InvalidArgumentException) {
+                return $bytes;
+            }
+            $bytes .= "{$key}={$value}\n";
+        }
+
+        return $bytes;
+    }
+
     public function clearSecrets(): self
     {
         return new self(

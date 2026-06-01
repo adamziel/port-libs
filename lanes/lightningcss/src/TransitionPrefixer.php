@@ -998,17 +998,11 @@ final class TransitionPrefixer
         }
 
         $this->skipCssWhitespace($body, $position);
-        while ($position < $length) {
-            $before = $position;
-            if ($this->consumeImportLayerModifier($body, $position)) {
-                $this->skipCssWhitespace($body, $position);
-            }
-            if ($this->consumeCssFunctionModifier($body, $position, 'supports')) {
-                $this->skipCssWhitespace($body, $position);
-            }
-            if ($position === $before) {
-                break;
-            }
+        if ($this->consumeImportLayerModifier($body, $position)) {
+            $this->skipCssWhitespace($body, $position);
+        }
+        if ($this->consumeCssFunctionModifier($body, $position, 'supports')) {
+            $this->skipCssWhitespace($body, $position);
         }
 
         $media = trim(substr($body, $position));

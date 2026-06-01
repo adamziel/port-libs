@@ -169,6 +169,7 @@ CSS
     'css minifier maps upstream basic color value minification' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();
 
+        $t->same('.foo{color:#ff0}', $minifier->minify('.foo { color: yellow }'));
         $t->same('.foo{color:#ff0}', $minifier->minify('.foo { color: rgb(255, 255, 0) }'));
         $t->same('.foo{color:#ff0}', $minifier->minify('.foo { color: rgba(255, 255, 0, 1) }'));
         $t->same('.foo{color:#ff0c}', $minifier->minify('.foo { color: rgba(255, 255, 0, 0.8) }'));
@@ -2371,8 +2372,16 @@ CSS
             $minifier->minify('@import url(foo.css) supports(display: flex) print;')
         );
         $t->same(
+            '@import "foo.css" supports(display:flex) layer;',
+            $minifier->minify('@import url(foo.css) supports(display: flex) layer;')
+        );
+        $t->same(
             '@import "foo.css" layer(theme.blocks) supports(display:grid) screen;',
             $minifier->minify('@import u\72l(foo.css) l\61yer(theme.blocks) s\75pports(display: grid) screen;')
+        );
+        $t->same(
+            '@import "foo.css" layer supports(display:grid) (width>=240px);',
+            $minifier->minify('@import url(foo.css) layer supports(display: grid) (width >= 240px);')
         );
         $t->same(
             '@import "foo.css" supports(display:flex) print;',
@@ -2405,12 +2414,16 @@ CSS
         $t->same('@import "foo.css";', $minifier->minify('@charset "UTF-8"; @import url(foo.css);'));
         $t->same('@layer foo;@import "foo.css";', $minifier->minify('@layer foo; @import url(foo.css);'));
         $t->same('@import "test.css" layer;', $minifier->minify("@import 'test.css' layer;"));
+        $t->same('@import "test.css" layer layer;', $minifier->minify("@import 'test.css' layer layer;"));
         $t->same('@import "test.css" layer(foo);', $minifier->minify("@import 'test.css' layer(foo);"));
         $t->same('@import "test.css" layer(foo.bar);', $minifier->minify("@import 'test.css' layer(foo.bar);"));
         $t->same('@import "test.css" layer(foo\\ bar);', $minifier->minify("@import 'test.css' layer(foo\\20 bar);"));
         $t->same('@import "test.css" layer(foo\\.bar);', $minifier->minify("@import 'test.css' layer(foo\\2e bar);"));
         $t->same('@import "test.css" layer(foo\\,bar);', $minifier->minify("@import 'test.css' layer(foo\\2c bar);"));
         $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify("@import 'test.css' layer(foo, bar) {};"));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@import "foo.css" supports(display:grid) layer(theme.blocks) (width >= 240px);'));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@import "foo.css" layer(theme.blocks) layer(other.blocks);'));
+        $t->throws(InvalidArgumentException::class, static fn () => $minifier->minify('@import "foo.css" supports(display:grid) supports(color:red);'));
     },
     'css minifier maps upstream layer statement and block consolidation' => static function (TestRunner $t): void {
         $minifier = new CssMinifier();

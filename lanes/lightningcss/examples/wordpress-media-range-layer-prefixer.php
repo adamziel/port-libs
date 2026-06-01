@@ -92,6 +92,14 @@ $actual = [
         '@import "blocks/density.css" layer(theme.blocks) ((resolution >= 2dppx)); @layer theme.blocks { .wp-block-query.is-imported-density { color: yellow; } }',
         ['safari' => 15, 'firefox' => 10]
     ),
+    'importBareLayerSupportsRangeFallback' => $prefixer->prefixForTargets(
+        '@import "blocks/query.css" layer supports(display: grid) (width >= 240px); @layer theme.blocks { .wp-block-query.is-imported-range { color: yellow; } }',
+        ['firefox' => 60]
+    ),
+    'importRangeLayerMediaListFallback' => $prefixer->prefixForTargets(
+        '@import "blocks/query.css" layer(theme.blocks) (width >= 240px), (hover); @layer theme.blocks { .wp-block-query.is-imported-range { color: yellow; } }',
+        ['firefox' => 60]
+    ),
     'safari163RangeFallback' => $prefixer->prefixForTargets(
         '@layer theme.blocks { @media (width >= 240px) { .wp-block-query.is-range-boundary { color: yellow; } } }',
         ['safari' => '16.3']
@@ -637,6 +645,16 @@ try {
     $actual['emptyMediaListGuard'] = 'invalid-media-query';
 }
 
+try {
+    $prefixer->prefixForTargets(
+        '@import "blocks/query.css" supports(display: grid) layer(theme.blocks) (width >= 240px); @layer theme.blocks { .wp-block-query.is-imported-range { color: yellow; } }',
+        ['firefox' => 60]
+    );
+    $actual['importLayerAfterSupportsGuard'] = 'missing';
+} catch (InvalidArgumentException) {
+    $actual['importLayerAfterSupportsGuard'] = 'invalid-import-modifier-order';
+}
+
 $expected = [
     'minifiedResolutionXUnit' => '@import "blocks/density.css" layer(theme.blocks) (resolution>=2x);@layer theme.blocks{@media (2x<=resolution<=3x){.wp-block-query.is-density-window{color:#ff0}}}',
     'safari15' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query{color:#7fff00}}@media (width:320px){.wp-block-query.is-exact-width{color:#ff0}}@media not screen and not (min-width:240px){.wp-block-query.is-print-narrow{color:#ff0}}@media screen and not (max-width:max(10px,1rem)){.wp-block-query.is-fluid-breakpoint{color:#ff0}}@media (hover) or ((min-width:100px) and (max-width:200px)){.wp-block-query.is-style-featured{color:#ff0}}@media (color) and (-webkit-min-device-pixel-ratio:2),(color) and (min-resolution:2dppx){.wp-block-query.is-density-aware{color:#ff0}}@media (min-aspect-ratio:16/9) and (not (max-color-index:2)){.wp-block-query.is-wide-color{color:#ff0}}@media (min-theme-breakpoint:2){.wp-block-query.is-custom-breakpoint{color:#ff0}}@media (theme-state:expanded){.wp-block-query.is-expanded-state{color:#ff0}}}',
@@ -648,6 +666,8 @@ $expected = [
     'importIntervalLayerTailFallback' => '@import "blocks/query.css" layer(theme.blocks) (min-width:100px) and (max-width:200px);@layer theme.blocks{.wp-block-query.is-imported-window{color:#ff0}}',
     'importResolutionRangeXUnitTailFallback' => '@import "blocks/density.css" layer(theme.blocks) (min-resolution:2x);@layer theme.blocks{.wp-block-query.is-imported-density{color:#ff0}}',
     'importResolutionRangePrefixTailFallback' => '@import "blocks/density.css" layer(theme.blocks) (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx);@layer theme.blocks{.wp-block-query.is-imported-density{color:#ff0}}',
+    'importBareLayerSupportsRangeFallback' => '@import "blocks/query.css" layer supports(display:grid) (min-width:240px);@layer theme.blocks{.wp-block-query.is-imported-range{color:#ff0}}',
+    'importRangeLayerMediaListFallback' => '@import "blocks/query.css" layer(theme.blocks) (min-width:240px),(hover);@layer theme.blocks{.wp-block-query.is-imported-range{color:#ff0}}',
     'safari163RangeFallback' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query.is-range-boundary{color:#ff0}}}',
     'safari164RangeModern' => '@layer theme.blocks{@media (width>=240px){.wp-block-query.is-range-boundary{color:#ff0}}}',
     'firefox62RangeFallback' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query.is-firefox-range-boundary{color:#ff0}}}',
@@ -707,6 +727,7 @@ $expected = [
     'missingAndGuard' => 'invalid-media-query',
     'invalidExplicitConditionGuard' => 'invalid-media-query',
     'emptyMediaListGuard' => 'invalid-media-query',
+    'importLayerAfterSupportsGuard' => 'invalid-import-modifier-order',
 ];
 
 if ($actual !== $expected) {

@@ -128,6 +128,29 @@ return [
             $quitMessage = $error->getMessage();
         }
         $t->same('Credential helper asked to stop trying to obtain credentials', $quitMessage);
+
+        $invalidContextMessage = null;
+        try {
+            CredentialHelperOutcome::requireIdentity(
+                null,
+                new CredentialContext(
+                    url: 'https://git.example.test/wp-content.git',
+                    path: "wp-content\nsite.git",
+                    username: 'deploy-bot',
+                    password: 'secret-token',
+                    oauthRefreshToken: 'refresh-secret',
+                ),
+            );
+        } catch (RuntimeException $error) {
+            $invalidContextMessage = $error->getMessage();
+        }
+        $t->same(
+            "Could not obtain identity for context: url=https://git.example.test/wp-content.git\n",
+            $invalidContextMessage,
+            'identity-missing diagnostics use best-effort context bytes',
+        );
+        $t->same(false, str_contains($invalidContextMessage ?? '', 'secret-token'));
+        $t->same(false, str_contains($invalidContextMessage ?? '', 'refresh-secret'));
     },
     'credential helper exchange accepts protocol and host without auto populating url' => static function (TestRunner $t): void {
         $called = false;

@@ -101,6 +101,39 @@ return [
         $crlfTerminated = CredentialContext::fromBytes("path=wp-content\r\n");
         $t->same('wp-content', $crlfTerminated->path);
     },
+    'credential context diagnostics stop at invalid fields without leaking secrets' => static function (TestRunner $t): void {
+        $invalidPath = new CredentialContext(
+            url: 'https://git.example.test/wp-content.git',
+            path: "wp-content\nsite.git",
+            protocol: 'https',
+            host: 'git.example.test',
+            username: 'deploy',
+            password: 'secret-token',
+            oauthRefreshToken: 'refresh-token',
+        );
+
+        $t->throws(InvalidArgumentException::class, static fn () => $invalidPath->storageBytes());
+        $t->same(
+            "url=https://git.example.test/wp-content.git\n",
+            $invalidPath->redacted()->diagnosticBytes(),
+        );
+
+        $invalidPassword = new CredentialContext(
+            protocol: 'https',
+            host: 'git.example.test',
+            username: 'deploy',
+            password: "secret\ntoken",
+            oauthRefreshToken: 'refresh-token',
+        );
+
+        $t->throws(InvalidArgumentException::class, static fn () => $invalidPassword->storageBytes());
+        $t->same(
+            "protocol=https\nhost=git.example.test\nusername=deploy\npassword=<redacted>\noauth_refresh_token=<redacted>\n",
+            $invalidPassword->redacted()->diagnosticBytes(),
+        );
+        $t->same(false, str_contains($invalidPassword->redacted()->diagnosticBytes(), 'secret'));
+        $t->same(false, str_contains($invalidPassword->redacted()->diagnosticBytes(), 'refresh-token'));
+    },
     'credential context constructor preserves upstream string and byte field boundary' => static function (TestRunner $t): void {
         $badUtf8 = "bad\xff";
         foreach ([
@@ -520,6 +553,8 @@ return [
         $t->same($fixture['helperInvocationIdentity'], $fixture['helperRequiredIdentity']);
         $t->same(true, $fixture['helperMissingIdentityRedacted']);
         $t->same('Credential helper asked to stop trying to obtain credentials', $fixture['helperQuitMessage']);
+        $t->same("Could not obtain identity for context: url=https://git.example.test/wp-content.git\n", $fixture['invalidContextDiagnosticMessage']);
+        $t->same(false, $fixture['invalidContextDiagnosticSecretLeaked']);
         $t->same($fixture['credentialUrl'], $summary['credentialUrl']);
         $t->same($fixture['encodedContext']['path'], $summary['encodedPath']);
         $t->same(true, $summary['fileUrlClearedHost']);
@@ -551,6 +586,8 @@ return [
         $t->same(true, $summary['helperInvocationNextQuit']);
         $t->same(true, $summary['helperMissingIdentityRedacted']);
         $t->same($fixture['helperQuitMessage'], $summary['helperQuitMessage']);
+        $t->same($fixture['invalidContextDiagnosticMessage'], $summary['invalidContextDiagnosticMessage']);
+        $t->same(false, $summary['invalidContextDiagnosticSecretLeaked']);
         $t->same(true, $summary['bareCarriageReturnPathPreserved']);
         $t->same(true, $summary['crlfPathTerminatorStripped']);
         $t->same(true, $summary['constructorInvalidStringRejected']);

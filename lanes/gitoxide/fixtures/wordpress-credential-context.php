@@ -261,6 +261,21 @@ try {
 } catch (RuntimeException $error) {
     $helperQuitMessage = $error->getMessage();
 }
+$invalidContextDiagnosticMessage = '';
+try {
+    CredentialHelperOutcome::requireIdentity(
+        null,
+        new CredentialContext(
+            url: 'https://git.example.test/wp-content.git',
+            path: "wp-content\nsite.git",
+            username: 'deploy-bot',
+            password: 'wp-deploy-token',
+            oauthRefreshToken: 'wp-refresh-token',
+        ),
+    );
+} catch (RuntimeException $error) {
+    $invalidContextDiagnosticMessage = $error->getMessage();
+}
 
 return [
     'requestBytes' => $request->storageBytes(),
@@ -392,8 +407,11 @@ return [
         && !str_contains($helperMissingIdentityMessage, 'wp-deploy-token')
         && !str_contains($helperMissingIdentityMessage, 'wp-refresh-token'),
     'helperQuitMessage' => $helperQuitMessage,
+    'invalidContextDiagnosticMessage' => $invalidContextDiagnosticMessage,
+    'invalidContextDiagnosticSecretLeaked' => str_contains($invalidContextDiagnosticMessage, 'wp-deploy-token')
+        || str_contains($invalidContextDiagnosticMessage, 'wp-refresh-token'),
     'redactedBytes' => $redacted->storageBytes(),
     'clearedPassword' => $cleared->password,
     'clearedOauthRefreshToken' => $cleared->oauthRefreshToken,
-    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, preserve an explicit repository path when HTTP path matching is disabled, elide default helper-context ports while preserving non-default HTTPS and SSH ports, distinguish empty HTTP userinfo from password-only helper URLs, preserve byte-oriented and whitespace-bearing local mirror paths without username expansion, enforce string-field UTF-8 and helper action boundaries before callbacks, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs.',
+    'wordpressUse' => 'A WordPress deployment tool can exchange Git credential-helper protocol fields, destructure local mirror and extension-scheme remotes, preserve an explicit repository path when HTTP path matching is disabled, elide default helper-context ports while preserving non-default HTTPS and SSH ports, distinguish empty HTTP userinfo from password-only helper URLs, preserve byte-oriented and whitespace-bearing local mirror paths without username expansion, enforce string-field UTF-8 and helper action boundaries before callbacks, derive a safe display URL, and redact or clear deployment secrets before writing diagnostic logs, including malformed helper-context diagnostics.',
 ];

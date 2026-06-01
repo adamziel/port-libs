@@ -122,6 +122,20 @@ return [
         $t->same('pass', $result->password);
         $t->same(null, $result->context->passwordExpiryUtc);
     },
+    'credential cascade identity-missing diagnostics tolerate invalid context bytes' => static function (TestRunner $t): void {
+        $message = null;
+        try {
+            (new CredentialCascade([]))->get(new CredentialContext(
+                url: 'https://git.example.test/wp-content.git',
+                path: "wp-content\nsite.git",
+                username: 'deploy-bot',
+            ));
+        } catch (RuntimeException $error) {
+            $message = $error->getMessage();
+        }
+
+        $t->same('Could not obtain identity for context: ', $message);
+    },
     'credential cascade helper root urls clear stale http paths' => static function (TestRunner $t): void {
         $cascade = new CredentialCascade([
             static fn (): string => "path=stale/repository/path\nurl=https://example.com/\n",

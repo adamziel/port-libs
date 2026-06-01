@@ -65,7 +65,7 @@ final class CredentialHelperOutcome
     private static function identityMissing(CredentialContext $requestContext): \RuntimeException
     {
         return new \RuntimeException(
-            "Could not obtain identity for context: {$requestContext->redacted()->storageBytes()}",
+            "Could not obtain identity for context: {$requestContext->redacted()->diagnosticBytes()}",
         );
     }
 }

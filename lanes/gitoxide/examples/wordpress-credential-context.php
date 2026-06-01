@@ -56,6 +56,8 @@ return [
     'helperInvocationErasePayloadBytes' => strlen($fixture['helperInvocationErasePayload']),
     'helperMissingIdentityRedacted' => $fixture['helperMissingIdentityRedacted'],
     'helperQuitMessage' => $fixture['helperQuitMessage'],
+    'invalidContextDiagnosticMessage' => $fixture['invalidContextDiagnosticMessage'],
+    'invalidContextDiagnosticSecretLeaked' => $fixture['invalidContextDiagnosticSecretLeaked'],
     'redactedBytes' => $fixture['redactedBytes'],
     'secretsInCleartextLog' => str_contains($fixture['redactedBytes'], 'wp-deploy-token')
         || str_contains($fixture['redactedBytes'], 'wp-refresh-token'),

@@ -2127,9 +2127,11 @@ final class CssMinifier
 
         $tail = trim(substr($rest, $offset));
         $parts = [$source];
+        $layerSeen = false;
+        $supportsSeen = false;
         while ($tail !== '') {
             $layerOpen = $this->cssFunctionOpenOffset($tail, 0, 'layer');
-            if ($layerOpen !== null) {
+            if ($layerOpen !== null && !$layerSeen && !$supportsSeen) {
                 [$function, $functionEnd] = $this->readFunctionRaw($tail, $layerOpen);
                 $layerName = trim(substr($function, 1, -1));
                 if (count($this->splitLayerNameList($layerName)) > 1) {
@@ -2138,11 +2140,12 @@ final class CssMinifier
 
                 $parts[] = 'layer(' . $this->minifyLayerName($layerName) . ')';
                 $tail = trim(substr($tail, $functionEnd + 1));
+                $layerSeen = true;
                 continue;
             }
 
             $layerToken = $this->readCssIdentifierToken($tail, 0);
-            if ($layerToken !== null && strcasecmp($layerToken['name'], 'layer') === 0) {
+            if ($layerToken !== null && strcasecmp($layerToken['name'], 'layer') === 0 && !$layerSeen && !$supportsSeen) {
                 if (($tail[$layerToken['end']] ?? '') === '(') {
                     [$function, $functionEnd] = $this->readFunctionRaw($tail, $layerToken['end']);
                     $layerName = trim(substr($function, 1, -1));
@@ -2152,20 +2155,23 @@ final class CssMinifier
 
                     $parts[] = 'layer(' . $this->minifyLayerName($layerName) . ')';
                     $tail = trim(substr($tail, $functionEnd + 1));
+                    $layerSeen = true;
                     continue;
                 }
 
                 $parts[] = 'layer';
                 $tail = trim(substr($tail, $layerToken['end']));
+                $layerSeen = true;
                 continue;
             }
 
             $supportsOpen = $this->cssFunctionOpenOffset($tail, 0, 'supports');
-            if ($supportsOpen !== null) {
+            if ($supportsOpen !== null && !$supportsSeen) {
                 [$function, $functionEnd] = $this->readFunctionRaw($tail, $supportsOpen);
                 $condition = substr($function, 1, -1);
                 $parts[] = 'supports(' . $this->minifyImportSupportsCondition($condition) . ')';
                 $tail = trim(substr($tail, $functionEnd + 1));
+                $supportsSeen = true;
                 continue;
             }
 
@@ -2218,11 +2224,8 @@ final class CssMinifier
     private function serializeImportParts(array $parts): string
     {
         $output = array_shift($parts);
-        $previous = $output;
         foreach ($parts as $part) {
-            $separator = str_starts_with($previous, 'supports(') && str_starts_with($part, '(') ? '' : ' ';
-            $output .= $separator . $part;
-            $previous = $part;
+            $output .= ' ' . $part;
         }
 
         return $output;
