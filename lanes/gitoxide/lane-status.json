@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "library": "gitoxide",
-  "estimatedProgress": 90.9,
-  "suiteProgress": "Supervisor-integrated Gitoxide smart HTTP protocol-v2 fetch sideband parsing and send-pack receive-status delimiter termination. Verification passed PHP lint on changed files, full Gitoxide lane 40 files / 6395 assertions / 0 failures, accepted examples, and diff checks.",
-  "phpPass": 6395,
+  "estimatedProgress": 91.0,
+  "suiteProgress": "Supervisor-integrated Gitoxide receive-pack request packet-line boundary parity. Verification passed PHP lint/diff checks, full Gitoxide lane 40 files / 6404 assertions / 0 failures, focused 4-file gate 1843 assertions / 0 failures, accepted receive-pack example, and dashboard-source integration checks.",
+  "phpPass": 6404,
   "phpFail": 0,
   "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
   "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full runner not executed for isolated batch",
-  "audit": "2026-05-31 supervisor batch at source d125986b: full Gitoxide lane passed 40 files / 6395 assertions / 0 failures. Conservative mapped coverage moves from 1672 / 2886 to 1674 / 2886 for smart HTTP protocol-v2 fetch upload-pack sideband parsing and send-pack receive-status delimiter termination. Full upstream Cargo workspace was not executed.",
-  "currentWork": "Smart HTTP protocol-v2 fetch sideband parsing and send-pack receive-status delimiter termination integrated on current base.",
-  "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch. Native PHP full-lane evidence is green at 6395 assertions; continue bounded Gitoxide workers while LightningCSS remains the larger capacity target.",
-  "latestCommit": "d125986b6844955083cb1c559b0d1e3e4ddf0506",
+  "audit": "2026-06-01 supervisor batch at source 85f106700: full Gitoxide lane passed 40 files / 6404 assertions / 0 failures. Conservative mapped coverage moves from 1674 / 2886 to 1675 / 2886 for receive-pack request packet-line boundary parity. Full upstream Cargo workspace was not executed.",
+  "currentWork": "Receive-pack request packet-line boundary parity integrated on current base.",
+  "blocker": "Full upstream Cargo workspace remains unexecuted for this isolated batch. Native PHP full-lane evidence is green at 6404 assertions; continue bounded Gitoxide workers while LightningCSS remains the larger capacity target.",
+  "latestCommit": "85f106700a64a56e013cb9779b2217c298e8a5899",
   "nextTask": "Keep three Gitoxide workers on config/include, loose-object integrity, attributes/pathspec, pack/index/object database, reference transactions, tree merge, partial clone, receive-pack/smart HTTP/SSH, URL/refspec, and protocol slices with full-lane PHP gates after each accepted batch.",
-  "commit": "d125986b6844955083cb1c559b0d1e3e4ddf0506"
+  "commit": "85f106700a64a56e013cb9779b2217c298e8a5899"
 }

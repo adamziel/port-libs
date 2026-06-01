@@ -55,6 +55,20 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (receive-pack/CSS boundary batch 00:05
+  UTC): source commit `85f106700a64a56e013cb9779b2217c298e8a5899`
+  (`ports: extend receive-pack and css boundary parity`) landed three screened
+  handoffs. Verification passed `git diff --check`, PHP lint on `11`
+  changed/new PHP files, full Gitoxide `40 files / 6404 assertions / 0
+  failures`, full LightningCSS `13 files / 5016 assertions / 0 failures`,
+  focused Gitoxide/LightningCSS gate `4 files / 1843 assertions / 0
+  failures`, and accepted example self-tests. Dashboard evidence should now
+  report Gitoxide `1675 / 2886` mapped and `6404 pass / 0 fail`,
+  LightningCSS `2218 / 3532` mapped and `5016 pass / 0 fail`, and libsqlite
+  unchanged at `1589 / 1589` mapped with `4479562 pass / 0 fail`. Full
+  upstream Cargo and Rust/Node/WASM runners were not executed for this
+  isolated batch, so those remain honest completion risks.
+
 - 2026-05-31 supervisor continuation (post-refill CSS/Git/SQLite parity batch
   23:56 UTC): source commit `d125986b6844955083cb1c559b0d1e3e4ddf0506`
   (`ports: extend git css sqlite parity after refill`) landed eight screened
