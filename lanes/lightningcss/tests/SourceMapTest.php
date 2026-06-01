@@ -374,6 +374,38 @@ return [
         $t->same($shared, $map->getSourceIndex('file:///srv/www/site/wp-content/themes/example/shared.css'));
         $t->same(0, $map->getNameIndex('shared-rule'));
     },
+    'source map preserves direct skipped child tables for reused offset sources' => static function (TestRunner $t): void {
+        $parent = new SourceMap('/theme');
+        $entry = $parent->addSource('cache/entry.css');
+        $shared = $parent->addSource('src/shared.scss');
+        $parent->setSourceContent($entry, ".entry{}\n");
+        $parent->setSourceContent($shared, ".shared { color: \$old; }\n");
+        $parent->addMapping(0, 0, $entry, 0, 0, 'entryRule');
+
+        $child = new SourceMap('/theme');
+        $childShared = $child->addSource('src/./shared.scss');
+        $child->setSourceContent($childShared, ".shared { color: \$new; }\n");
+        $child->addMapping(0, 6, $childShared, 12, 4, 'childRule');
+        $child->addName('unusedChildName');
+
+        $parent->addSourceMap($child, -1);
+        $data = $parent->toArray(null, false);
+
+        $t->same('AAAAA', $parent->writeVlq());
+        $t->same(
+            [['generatedLine' => 0, 'generatedColumn' => 0, 'sourceIndex' => 0, 'originalLine' => 0, 'originalColumn' => 0, 'nameIndex' => 0]],
+            $parent->getMappings()
+        );
+        $t->same(['cache/entry.css', 'src/shared.scss'], $data['sources']);
+        $t->same([".entry{}\n", ".shared { color: \$new; }\n"], $data['sourcesContent']);
+        $t->same(['entryRule', 'childRule', 'unusedChildName'], $data['names']);
+        $t->same(1, $parent->getSourceIndex('src/shared.scss'));
+        $t->same(1, $parent->getNameIndex('childRule'));
+        $t->same([], $child->getSources());
+        $t->same([], $child->getSourcesContent());
+        $t->same([], $child->getNames());
+        $t->same('', $child->writeVlq());
+    },
     'source map imports negative-offset raw vlq maps after skipped-line deltas' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $map->addVlqMap(

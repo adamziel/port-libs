@@ -107,6 +107,7 @@ return [
     'unsafeSmartHttpRawUrlControlByteRejected' => $fixture['unsafeSmartHttpRawUrlControlByteRejected'],
     'unsafeSmartHttpRawProxyControlByteRejected' => $fixture['unsafeSmartHttpRawProxyControlByteRejected'],
     'smartHttpAdvertisementWithoutServiceHeaderAccepted' => $fixture['smartHttpAdvertisementWithoutServiceHeaderAccepted'],
+    'smartHttpUppercaseServiceHeaderAccepted' => $fixture['smartHttpUppercaseServiceHeaderAccepted'],
     'smartHttpDuplicateContentTypeAccepted' => $fixture['smartHttpDuplicateContentTypeAccepted'],
     'smartHttpSha256DeleteMethods' => $fixture['smartHttpSha256DeleteBoundary']['requestMethods'],
     'smartHttpSha256DeleteCommand' => $fixture['smartHttpSha256DeleteBoundary']['requestCommand'],

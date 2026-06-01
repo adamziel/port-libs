@@ -1878,7 +1878,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         $header = substr($bytes, $offset, 4);
-        if (preg_match('/^[0-9a-f]{4}$/', $header) !== 1) {
+        if (preg_match('/^[0-9a-fA-F]{4}$/', $header) !== 1) {
             throw new \RuntimeException("{$label} has an invalid pkt-line length {$header}");
         }
 

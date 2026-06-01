@@ -2196,6 +2196,37 @@ if (
 
 echo 'css-modules-dependency-source-map: remapped' . PHP_EOL;
 
+$emptyCssModuleResolved = [];
+$emptyCssModuleBundle = (new CssBundler())->bundleCssModules('/modules/empty-card.css', [
+    '/modules/empty-card.css' => <<<'CSS'
+.wp-block-card {
+  composes: token from "";
+  color: red;
+}
+CSS,
+    '/modules/empty-tokens.css' => '.token { color: blue }',
+], static function (string $specifier, string $originatingFile) use (&$emptyCssModuleResolved): string {
+    $emptyCssModuleResolved[] = [$specifier, $originatingFile];
+
+    return '/modules/empty-tokens.css';
+}, [
+    'hashes' => [
+        '/modules/empty-card.css' => 'card',
+        '/modules/empty-tokens.css' => 'tok',
+    ],
+]);
+
+if (
+    $emptyCssModuleBundle['code'] !== '.tok_token{color:#00f}.card_wp-block-card{color:red}'
+    || ($emptyCssModuleBundle['exports']['wp-block-card']['composes'][0]['name'] ?? null) !== 'tok_token'
+    || $emptyCssModuleResolved !== [['', '/modules/empty-card.css']]
+) {
+    fwrite(STDERR, "Expected empty CSS Modules from specifier to resolve through the bundle graph\n");
+    exit(1);
+}
+
+echo 'css-modules-empty-from: resolved' . PHP_EOL;
+
 $moduleOrderFiles = [
     '/modules/order-card.css' => <<<'CSS'
 @import "pkg:theme.css";

@@ -975,7 +975,7 @@ final class CssBundler
                 }
 
                 $specifier = (string) ($reference['specifier'] ?? '');
-                if ($specifier !== '' && !in_array($specifier, $specifiers, true)) {
+                if (!in_array($specifier, $specifiers, true)) {
                     $specifiers[] = $specifier;
                 }
             }
@@ -986,7 +986,7 @@ final class CssBundler
             }
 
             $specifier = (string) ($reference['specifier'] ?? '');
-            if ($specifier !== '' && !in_array($specifier, $specifiers, true)) {
+            if (!in_array($specifier, $specifiers, true)) {
                 $specifiers[] = $specifier;
             }
         }
@@ -3649,7 +3649,7 @@ final class CssBundler
 
             $end = $this->readQuotedTokenEnd($value, $quoteOffset);
             $specifier = $this->cssStringTokenValue(substr($value, $quoteOffset, $end - $quoteOffset));
-            if ($specifier !== '' && !in_array($specifier, $specifiers, true)) {
+            if (!in_array($specifier, $specifiers, true)) {
                 $specifiers[] = $specifier;
             }
 

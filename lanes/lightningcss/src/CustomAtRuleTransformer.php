@@ -3007,6 +3007,30 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @param array<string, mixed> $rule
+     * @return array<string, mixed>
+     */
+    private function visitReturnedCustomRulePrelude(array $rule): array
+    {
+        $prelude = $rule['prelude'] ?? null;
+        if (!is_array($prelude)) {
+            return $rule;
+        }
+
+        $preludeAst = array_is_list($prelude)
+            ? ['type' => 'token-list', 'value' => array_values($prelude)]
+            : $prelude;
+
+        $visitedPrelude = $this->visitCustomPreludeValue($preludeAst);
+        $rule['preludeAst'] = $visitedPrelude['value'];
+        if ($visitedPrelude['changed']) {
+            $rule['prelude'] = $this->serializeVisitorValue($visitedPrelude['value']);
+        }
+
+        return $rule;
+    }
+
+    /**
      * @param list<string>|null $parentSelectors
      * @return array{name:string, prelude:string, preludeTokens:list<mixed>, block:list<mixed>|null, body:string, hasBlock:bool, loc:array{source_index:int,line:int,column:int}, context:string, parentSelectors:list<string>}
      */
@@ -4757,6 +4781,7 @@ final class CustomAtRuleTransformer
             throw new \InvalidArgumentException('Custom at-rule replacement is missing a name');
         }
 
+        $rule = $this->visitReturnedCustomRulePrelude($rule);
         $visitedRule = $this->processCustomRuleChildrenForExit($rule, $parentSelectors);
 
         if (!$this->suppressReturnedRuleExitVisitors) {

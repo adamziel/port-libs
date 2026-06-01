@@ -483,6 +483,23 @@ return [
 
         return $transport->readAdvertisement() === $advertisementBytes;
     })(),
+    'smartHttpUppercaseServiceHeaderAccepted' => (static function () use ($advertisementBytes, $flush): bool {
+        $uppercasePacket = static fn (string $payload): string => strtoupper(sprintf('%04x', strlen($payload) + 4)) . $payload;
+        $transport = new SmartHttpReceivePackTransport(
+            'https://git.example.test/wp-content.git',
+            static fn (): array => [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                'body' => $uppercasePacket("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+            ],
+        );
+
+        try {
+            return $transport->readAdvertisement() === $advertisementBytes;
+        } catch (Throwable) {
+            return false;
+        }
+    })(),
     'smartHttpDuplicateContentTypeAccepted' => (static function () use ($packet, $flush, $advertisementBytes, $blob): bool {
         $responseBytes = $packet("\x01" . $packet("unpack ok\n"))
             . $packet("\x01" . $packet("ok refs/heads/main\n"))

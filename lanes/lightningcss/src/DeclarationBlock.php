@@ -6354,7 +6354,7 @@ final class DeclarationBlock
             }
 
             if ($components['outline-width'] === null && $this->isBorderWidthToken($token)) {
-                $components['outline-width'] = $token;
+                $components['outline-width'] = $this->normalizeOutlineWidthValue($token);
                 continue;
             }
 
@@ -6387,7 +6387,7 @@ final class DeclarationBlock
      */
     private function composeOutlineShorthandValue(array $components): string
     {
-        $width = trim($components['outline-width']);
+        $width = $this->normalizeOutlineWidthValue($components['outline-width']);
         $style = strtolower(trim($components['outline-style']));
         $color = $this->normalizeOutlineColorValue($components['outline-color']);
         $parts = [];
@@ -6408,17 +6408,29 @@ final class DeclarationBlock
     private function normalizeOutlineLonghandValue(string $property, string $value): string
     {
         return match ($property) {
-            'outline-style' => strtolower(trim($value)),
+            'outline-width' => $this->normalizeOutlineWidthValue($value),
+            'outline-style' => $this->normalizeKeywordDeclarationValue($value, self::OUTLINE_STYLES),
             'outline-color' => $this->normalizeOutlineColorValue($value),
             default => trim($value),
         };
+    }
+
+    private function normalizeOutlineWidthValue(string $value): string
+    {
+        $trimmed = trim($value);
+        $keyword = strtolower($trimmed);
+        if (in_array($keyword, self::BORDER_WIDTH_KEYWORDS, true)) {
+            return $keyword;
+        }
+
+        return $this->normalizeLengthDeclarationToken($trimmed) ?? $trimmed;
     }
 
     private function normalizeOutlineColorValue(string $value): string
     {
         $value = trim($value);
 
-        return strcasecmp($value, 'currentcolor') === 0 ? 'currentColor' : $value;
+        return $this->normalizeDirectColorDeclarationValue('outline-color', $value);
     }
 
     private function isOutlineProperty(string $property): bool
@@ -14592,6 +14604,10 @@ final class DeclarationBlock
 
         if (in_array($property, self::DIRECT_COLOR_PROPERTIES, true)) {
             return $this->normalizeDirectColorDeclarationValue($property, $value);
+        }
+
+        if ($this->isOutlineLonghand($property)) {
+            return $this->normalizeOutlineLonghandValue($property, $value);
         }
 
         if (in_array($property, self::SVG_PAINT_PROPERTIES, true)) {

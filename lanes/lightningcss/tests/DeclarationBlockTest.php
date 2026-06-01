@@ -1944,6 +1944,24 @@ return [
         $t->same(['value' => 'solid', 'important' => false], $block->getProperty('outline: solid 2px red', 'outline-style'));
         $t->same(['value' => 'red', 'important' => false], $block->getProperty('outline: solid 2px red', 'outline-color'));
         $t->same(['value' => '2px solid red', 'important' => false], $block->getProperty('outline: solid 2px red', 'outline'));
+        $directOutline = 'outline-style: Dashed; outline-width: +002.000px; outline-color: RGB(255 0 0 / 100%)';
+        $t->same(
+            [
+                'outline-style' => 'dashed',
+                'outline-width' => '2px',
+                'outline-color' => 'red',
+            ],
+            $block->parse($directOutline)
+        );
+        $t->same(['value' => '2px dashed red', 'important' => false], $block->getProperty($directOutline, 'outline'));
+        $t->same(
+            ['value' => '2px dashed red', 'important' => false],
+            $block->getProperty('outline: +002.000px Dashed RGB(255 0 0 / 100%)', 'outline')
+        );
+        $t->same(
+            ['value' => '2px', 'important' => false],
+            $block->getProperty('outline: +002.000px Dashed RGB(255 0 0 / 100%)', 'outline-width')
+        );
         $t->same(
             ['value' => 'auto var(--wp--preset--color--accent)', 'important' => true],
             $block->getProperty('outline: auto var(--wp--preset--color--accent) !important', 'outline')
@@ -4226,6 +4244,18 @@ return [
         $t->same(
             'outline: 4px',
             $block->setProperty('outline: none', 'outline-width', '4px')
+        );
+        $t->same(
+            'outline: 2px dashed red',
+            $block->setProperty('outline: +002.000px solid RGB(255 0 0 / 100%)', 'outline-style', 'DASHED')
+        );
+        $t->same(
+            'color: red; outline-style: dashed',
+            $block->setProperty('color: red', 'outline-style', 'DASHED')
+        );
+        $t->same(
+            'color: red; outline-width: 2px',
+            $block->setProperty('color: red', 'outline-width', '+002.000px')
         );
         $t->same(
             'outline-color: green',

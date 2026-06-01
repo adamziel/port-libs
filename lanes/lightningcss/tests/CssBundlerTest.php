@@ -3182,6 +3182,35 @@ CSS,
             ]),
         ], $result['exports']);
     },
+    'css bundler passes empty css module from specifiers to resolver like upstream' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal): void {
+        $resolved = [];
+        $result = $bundleModules([
+            '/modules/card.css' => <<<'CSS'
+.wp-block-card {
+  composes: token from "";
+  color: red;
+}
+CSS,
+            '/modules/empty.css' => '.token { color: blue }',
+        ], '/modules/card.css', static function (string $specifier, string $originatingFile) use (&$resolved): string {
+            $resolved[] = [$specifier, $originatingFile];
+
+            return '/modules/empty.css';
+        }, [
+            'hashes' => [
+                '/modules/card.css' => 'card',
+                '/modules/empty.css' => 'tok',
+            ],
+        ]);
+
+        $t->same('.tok_token{color:#00f}.card_wp-block-card{color:red}', $result['code']);
+        $t->same([['', '/modules/card.css']], $resolved);
+        $t->same([
+            'wp-block-card' => $moduleExport('card_wp-block-card', [
+                $moduleLocal('tok_token'),
+            ]),
+        ], $result['exports']);
+    },
     'css bundler preserves upstream external import ordering after css module dependency hoist' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal): void {
         $result = $bundleModules([
             '/entry.css' => <<<'CSS'

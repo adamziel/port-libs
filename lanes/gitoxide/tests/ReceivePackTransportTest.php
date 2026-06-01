@@ -965,6 +965,47 @@ return [
         $t->same('wp-deploy/2', $overrideRequests[1]['headers']['User-Agent']);
         $t->same('', $overrideRequests[1]['headers']['Expect']);
         $t->same($overrideRequest->requestBytes(), $overrideRequests[1]['body']);
+
+        $uppercasePacket = static fn (string $payload): string => strtoupper(sprintf('%04x', strlen($payload) + 4)) . $payload;
+        $uppercaseRequests = [];
+        $uppercaseClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$uppercaseRequests, $uppercasePacket, $flush, $advertisement, $responseBytes): array {
+                    $uppercaseRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $uppercasePacket("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+            ),
+            'port-libs/0.1'
+        );
+        $uppercaseSession = $uppercaseClient->handshake();
+        $uppercaseSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $uppercaseRequest = $uppercaseSession->buildRequest([$blob]);
+        $uppercaseResponse = $uppercaseClient->send($uppercaseRequest);
+
+        $t->same(true, $uppercaseResponse->isSuccessful());
+        $t->same(['GET', 'POST'], array_column($uppercaseRequests, 'method'));
+        $t->same('https://git.example.test/wp-content.git/info/refs?service=git-receive-pack', $uppercaseRequests[0]['url']);
+        $t->same('https://git.example.test/wp-content.git/git-receive-pack', $uppercaseRequests[1]['url']);
+        $t->same($uppercaseRequest->requestBytes(), $uppercaseRequests[1]['body']);
     },
     'smart http receive-pack accepts advertisement without service announcement' => static function (TestRunner $t) use ($packet, $flush): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
@@ -5471,6 +5512,7 @@ return [
         $t->same(true, $fixture['unsafeSmartHttpRawUrlControlByteRejected']);
         $t->same(true, $fixture['unsafeSmartHttpRawProxyControlByteRejected']);
         $t->same(true, $fixture['smartHttpAdvertisementWithoutServiceHeaderAccepted']);
+        $t->same(true, $fixture['smartHttpUppercaseServiceHeaderAccepted']);
         $t->same(true, $fixture['smartHttpDuplicateContentTypeAccepted']);
         $t->same(['GET', 'POST'], $fixture['smartHttpSha256DeleteBoundary']['requestMethods']);
         $t->same('sha256', $fixture['smartHttpSha256DeleteBoundary']['sessionObjectFormat']);

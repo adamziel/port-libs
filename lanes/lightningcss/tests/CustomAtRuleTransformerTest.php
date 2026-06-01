@@ -2807,6 +2807,75 @@ CSS;
         $t->same('style-block', $seen['bodyType']);
         $t->same(['dashed-ident'], $seen['astTypes']);
     },
+    'custom at-rules visit returned custom prelude token lists before exits' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'custom' => [
+                        'wp-layer' => static function (array $rule): array {
+                            $rule['prelude'] = [
+                                ['type' => 'dashed-ident', 'value' => '--wp-slot'],
+                                ['type' => 'length', 'value' => ['unit' => 'px', 'value' => 16.0]],
+                                ['type' => 'function', 'value' => ['name' => 'theme', 'arguments' => [
+                                    ['type' => 'token', 'value' => ['type' => 'ident', 'value' => 'draft']],
+                                ]]],
+                            ];
+
+                            return ['type' => 'custom', 'value' => $rule];
+                        },
+                    ],
+                ],
+            ],
+            [
+                'DashedIdent' => static fn (string $ident): string => $ident === '--wp-slot'
+                    ? '--theme-wp-slot'
+                    : $ident,
+                'Length' => static function (array $length): ?array {
+                    if (($length['unit'] ?? null) !== 'px') {
+                        return null;
+                    }
+
+                    return [
+                        'unit' => 'rem',
+                        'value' => ((float) $length['value']) / 16,
+                    ];
+                },
+                'RuleExit' => [
+                    'custom' => [
+                        'wp-layer' => static function (array $rule) use (&$seen): ?array {
+                            $preludeAst = is_array($rule['preludeAst']['value'] ?? null) ? $rule['preludeAst']['value'] : [];
+                            $seen = [
+                                'prelude' => $rule['prelude'],
+                                'astTypes' => array_map(
+                                    static fn (array $component): string => $component['type'],
+                                    $preludeAst
+                                ),
+                            ];
+
+                            return null;
+                        },
+                    ],
+                ],
+            ],
+        ]);
+
+        $css = <<<'CSS'
+@wp-layer --wp-slot {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform(
+            $css,
+            ['wp-layer' => ['prelude' => '*', 'body' => 'style-block']],
+            $visitor
+        );
+
+        $t->same('@wp-layer --theme-wp-slot 1rem theme(draft){color:red}', $result);
+        $t->same('--theme-wp-slot 1rem theme(draft)', $seen['prelude']);
+        $t->same(['dashed-ident', 'length', 'function'], $seen['astTypes']);
+    },
     'custom at-rules compose upstream Token scalar visitors in declaration values' => static function (TestRunner $t): void {
         $seen = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([
