@@ -5091,6 +5091,26 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media not ((100px <= width <= 200px) or (hover)) { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
         );
     },
+    'transition prefixer maps upstream media ranges after layer statements' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@layer reset,blocks;@media (min-width:240px){@layer blocks{.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer reset, blocks; @media (width >= 240px) { @layer blocks { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer reset,blocks;@media (min-width:100px) and (max-width:200px){@layer blocks{.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer reset, blocks; @media (100px <= width <= 200px) { @layer blocks { .wp-block-query { color: yellow; } } }', ['firefox' => 85])
+        );
+        $t->same(
+            '@layer reset,blocks;@media (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx){@layer blocks{.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer reset, blocks; @media (resolution >= 2dppx) { @layer blocks { .wp-block-query { color: yellow; } } }', ['safari' => 15, 'firefox' => 10])
+        );
+        $t->same(
+            '@import "blocks/base.css" layer(reset);@media (min-width:240px){@layer blocks{.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@import "blocks/base.css" layer(reset); @media (width >= 240px) { @layer blocks { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+    },
     'transition prefixer maps upstream resolution media prefixes inside layers' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 

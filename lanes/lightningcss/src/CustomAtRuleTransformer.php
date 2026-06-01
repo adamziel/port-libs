@@ -66,6 +66,18 @@ final class CustomAtRuleTransformer
     private $containerRuleExitVisitor = null;
 
     /** @var callable|null */
+    private $layerBlockRuleVisitor = null;
+
+    /** @var callable|null */
+    private $layerBlockRuleExitVisitor = null;
+
+    /** @var callable|null */
+    private $layerStatementRuleVisitor = null;
+
+    /** @var callable|null */
+    private $layerStatementRuleExitVisitor = null;
+
+    /** @var callable|null */
     private $mediaQueryVisitor = null;
 
     /** @var callable|null */
@@ -390,6 +402,12 @@ final class CustomAtRuleTransformer
 
                     return count($rules) === 1 ? $rules[0] : $rules;
                 },
+                'layer-block' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    return self::applyComposedTypedRuleVisitors($visitors, $rule, $transformer, 'layer-block', false);
+                },
+                'layer-statement' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    return self::applyComposedTypedRuleVisitors($visitors, $rule, $transformer, 'layer-statement', false);
+                },
             ],
             'RuleExit' => [
                 'custom' => static function (array $rule, self $transformer) use ($visitors): mixed {
@@ -550,6 +568,12 @@ final class CustomAtRuleTransformer
                     }
 
                     return count($rules) === 1 ? $rules[0] : $rules;
+                },
+                'layer-block' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    return self::applyComposedTypedRuleVisitors($visitors, $rule, $transformer, 'layer-block', true);
+                },
+                'layer-statement' => static function (array $rule, self $transformer) use ($visitors): mixed {
+                    return self::applyComposedTypedRuleVisitors($visitors, $rule, $transformer, 'layer-statement', true);
                 },
             ],
             'StyleSheet' => static function (array $stylesheet, self $transformer) use ($visitors): mixed {
@@ -1171,7 +1195,7 @@ final class CustomAtRuleTransformer
             }
         }
         foreach ($visitor as $name => $callback) {
-            if (is_string($name) && is_callable($callback) && !in_array($name, ['Rule', 'Function', 'Token', 'custom', 'unknown', 'media', 'container'], true)) {
+            if (is_string($name) && is_callable($callback) && !in_array($name, ['Rule', 'Function', 'Token', 'custom', 'unknown', 'media', 'container', 'layer-block', 'layer-statement'], true)) {
                 $this->ruleVisitors[$this->normalizeAtRuleName($name)] = $callback;
             }
         }
@@ -1265,6 +1289,30 @@ final class CustomAtRuleTransformer
         $containerExitVisitor = $ruleExitSubVisitors['container'] ?? null;
         if (is_callable($containerExitVisitor)) {
             $this->containerRuleExitVisitor = $containerExitVisitor;
+        }
+
+        $this->layerBlockRuleVisitor = null;
+        $layerBlockVisitor = $ruleSubVisitors['layer-block'] ?? $visitor['layer-block'] ?? null;
+        if (is_callable($layerBlockVisitor)) {
+            $this->layerBlockRuleVisitor = $layerBlockVisitor;
+        }
+
+        $this->layerBlockRuleExitVisitor = null;
+        $layerBlockExitVisitor = $ruleExitSubVisitors['layer-block'] ?? null;
+        if (is_callable($layerBlockExitVisitor)) {
+            $this->layerBlockRuleExitVisitor = $layerBlockExitVisitor;
+        }
+
+        $this->layerStatementRuleVisitor = null;
+        $layerStatementVisitor = $ruleSubVisitors['layer-statement'] ?? $visitor['layer-statement'] ?? null;
+        if (is_callable($layerStatementVisitor)) {
+            $this->layerStatementRuleVisitor = $layerStatementVisitor;
+        }
+
+        $this->layerStatementRuleExitVisitor = null;
+        $layerStatementExitVisitor = $ruleExitSubVisitors['layer-statement'] ?? null;
+        if (is_callable($layerStatementExitVisitor)) {
+            $this->layerStatementRuleExitVisitor = $layerStatementExitVisitor;
         }
 
         $this->mediaQueryVisitor = is_callable($visitor['MediaQuery'] ?? null) ? $visitor['MediaQuery'] : null;
@@ -1507,6 +1555,9 @@ final class CustomAtRuleTransformer
     private function stylesheetAtRuleStatement(string $statement, ?array $loc = null): array
     {
         [$name, $prelude] = $this->parseAtPrelude($statement);
+        if ($name === 'layer') {
+            return $this->buildLayerStatementRule($prelude, null, $loc);
+        }
         if ($this->isCustomAtRule($name)) {
             return ['type' => 'custom', 'value' => $this->buildCustomRule($name, $prelude, null, null, false, $loc)];
         }
@@ -1535,6 +1586,9 @@ final class CustomAtRuleTransformer
         }
         if ($name === 'container') {
             return $this->buildContainerRule($atPrelude, $body, null, $loc);
+        }
+        if ($name === 'layer') {
+            return $this->buildLayerBlockRule($atPrelude, $body, null, $loc);
         }
         if ($this->isCustomAtRule($name)) {
             return ['type' => 'custom', 'value' => $this->buildCustomRule($name, $atPrelude, $body, null, false, $loc)];
@@ -1885,6 +1939,12 @@ final class CustomAtRuleTransformer
         if (($rule['type'] ?? null) === 'container' && isset($rule['value']) && is_array($rule['value'])) {
             return $this->stylesheetContainerRuleToCss($rule['value']);
         }
+        if (($rule['type'] ?? null) === 'layer-statement' && isset($rule['value']) && is_array($rule['value'])) {
+            return $this->emitReturnedLayerStatementRule($rule['value']);
+        }
+        if (($rule['type'] ?? null) === 'layer-block' && isset($rule['value']) && is_array($rule['value'])) {
+            return $this->stylesheetLayerBlockRuleToCss($rule['value']);
+        }
         if (($rule['type'] ?? null) !== 'style' && ($rule['kind'] ?? null) !== 'style-rule') {
             return isset($rule['raw']) && is_string($rule['raw']) ? $rule['raw'] : '';
         }
@@ -1980,6 +2040,21 @@ final class CustomAtRuleTransformer
         }
 
         return '@container' . ($prelude === '' ? '' : ' ' . $prelude) . '{' . $body . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function stylesheetLayerBlockRuleToCss(array $value): string
+    {
+        $name = $this->serializeLayerName($value['name'] ?? null);
+        $rules = is_array($value['rules'] ?? null) ? $value['rules'] : [];
+        $body = '';
+        foreach ($rules as $rule) {
+            $body .= $this->stylesheetVisitorRuleToCss($rule);
+        }
+
+        return '@layer' . ($name === '' ? '' : ' ' . $name) . '{' . $body . '}';
     }
 
     /**
@@ -2259,7 +2334,7 @@ final class CustomAtRuleTransformer
     private function stylesheetDeclarationEntry(array $entry, bool $important): array
     {
         $property = (string) ($entry['property'] ?? '');
-        $value = $entry['value'] ?? '';
+        $value = $entry['value'] ?? ($entry['raw'] ?? '');
         if ($property === 'unparsed' && is_array($value)) {
             $propertyId = $value['propertyId'] ?? null;
             if (is_array($propertyId) && is_string($propertyId['property'] ?? null)) {
@@ -2354,6 +2429,8 @@ final class CustomAtRuleTransformer
                     $output .= $this->processSupportsRule($atPrelude, $body, null, $ruleLocation);
                 } elseif ($name === 'container') {
                     $output .= $this->processContainerRule($atPrelude, $body, null, $ruleLocation);
+                } elseif ($name === 'layer') {
+                    $output .= $this->processLayerBlockRule($atPrelude, $body, null, $ruleLocation);
                 } elseif ($this->isCustomAtRule($name)) {
                     $output .= $this->processCustomAtRule($prelude, $body, null, $ruleLocation);
                 } else {
@@ -2402,6 +2479,9 @@ final class CustomAtRuleTransformer
         }
 
         [$name, $prelude] = $this->parseAtPrelude($statement);
+        if ($name === 'layer') {
+            return $this->processLayerStatementRule($prelude, $parentSelectors, $loc);
+        }
         if (!$this->isCustomAtRule($name)) {
             $rule = $this->buildUnknownRule($name, $prelude, null, $parentSelectors, $loc);
             $genericReplacement = $this->callAnyRuleVisitor(['type' => 'unknown', 'value' => $rule]);
@@ -2501,6 +2581,8 @@ final class CustomAtRuleTransformer
                     $output .= $this->processSupportsRule($atPrelude, $nestedBody, $selectors, $nestedLocation);
                 } elseif ($name === 'container') {
                     $output .= $this->processContainerRule($atPrelude, $nestedBody, $selectors, $nestedLocation);
+                } elseif ($name === 'layer') {
+                    $output .= $this->processLayerBlockRule($atPrelude, $nestedBody, $selectors, $nestedLocation);
                 } elseif ($this->isCustomAtRule($name)) {
                     $output .= $this->processCustomAtRule($nestedPrelude, $nestedBody, $selectors, $nestedLocation);
                 } elseif (str_starts_with($nestedPrelude, '@nest ')) {
@@ -2750,6 +2832,67 @@ final class CustomAtRuleTransformer
     /**
      * @param list<string>|null $parentSelectors
      */
+    private function processLayerStatementRule(string $prelude, ?array $parentSelectors, ?array $loc = null): string
+    {
+        $rule = $this->buildLayerStatementRule($prelude, $parentSelectors, $loc);
+        if ($this->ruleVisitor !== null) {
+            $replacement = $this->callAnyRuleVisitor($rule);
+            if ($replacement !== null) {
+                return $this->emitReplacement($replacement, $parentSelectors);
+            }
+        }
+
+        if ($this->layerStatementRuleVisitor !== null) {
+            $replacement = ($this->layerStatementRuleVisitor)($rule, $this);
+            if ($replacement !== null) {
+                return $this->emitReplacement($replacement, $parentSelectors);
+            }
+        }
+
+        $exitReplacement = $this->applyLayerStatementRuleExit($rule, $parentSelectors);
+        if ($exitReplacement !== null) {
+            return $exitReplacement;
+        }
+
+        return $this->emitReturnedLayerStatementRule($rule['value']);
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     */
+    private function processLayerBlockRule(string $prelude, string $body, ?array $parentSelectors, ?array $loc = null): string
+    {
+        if ($this->ruleVisitor !== null) {
+            $replacement = $this->callAnyRuleVisitor($this->buildLayerBlockRule($prelude, $body, $parentSelectors, $loc));
+            if ($replacement !== null) {
+                return $this->emitReplacement($replacement, $parentSelectors);
+            }
+        }
+
+        if ($this->layerBlockRuleVisitor !== null) {
+            $rule = $this->buildLayerBlockRule($prelude, $body, $parentSelectors, $loc);
+            $replacement = ($this->layerBlockRuleVisitor)($rule, $this);
+            if ($replacement !== null) {
+                return $this->emitReplacement($replacement, $parentSelectors);
+            }
+        }
+
+        $name = $this->parseLayerBlockName($prelude);
+        $nameCss = $this->serializeLayerName($name);
+        $bodyCss = $parentSelectors === null
+            ? $this->processRuleList($body)
+            : $this->processStyleBody($body, $parentSelectors);
+        $exitReplacement = $this->applyLayerBlockRuleExit($this->buildVisitedLayerBlockRule($name, $bodyCss, $parentSelectors, $loc), $parentSelectors);
+        if ($exitReplacement !== null) {
+            return $exitReplacement;
+        }
+
+        return '@layer' . ($nameCss === '' ? '' : ' ' . $nameCss) . '{' . $bodyCss . '}';
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     */
     private function processCustomAtRule(string $prelude, string $body, ?array $parentSelectors, ?array $loc = null): string
     {
         [$name, $atPrelude] = $this->parseAtPrelude($prelude);
@@ -2990,6 +3133,131 @@ final class CustomAtRuleTransformer
             'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
             'parentSelectors' => $parentSelectors ?? [],
         ];
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     * @return array{type:string,value:array{loc:array{source_index:int,line:int,column:int},names:list<list<string>>},context:string,parentSelectors:list<string>}
+     */
+    private function buildLayerStatementRule(string $prelude, ?array $parentSelectors, ?array $loc = null): array
+    {
+        return [
+            'type' => 'layer-statement',
+            'value' => [
+                'loc' => $loc ?? $this->defaultSourceLocation(),
+                'names' => $this->parseLayerStatementNames($prelude),
+            ],
+            'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
+            'parentSelectors' => $parentSelectors ?? [],
+        ];
+    }
+
+    /**
+     * @param list<string>|null $parentSelectors
+     * @return array{type:string,value:array{loc:array{source_index:int,line:int,column:int},name:list<string>|null,rules:list<array<string, mixed>>},context:string,parentSelectors:list<string>}
+     */
+    private function buildLayerBlockRule(string $prelude, string $body, ?array $parentSelectors, ?array $loc = null): array
+    {
+        return [
+            'type' => 'layer-block',
+            'value' => [
+                'loc' => $loc ?? $this->defaultSourceLocation(),
+                'name' => $this->parseLayerBlockName($prelude),
+                'rules' => $this->parseReturnedRuleList($body, $parentSelectors),
+            ],
+            'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
+            'parentSelectors' => $parentSelectors ?? [],
+        ];
+    }
+
+    /**
+     * @param list<string>|null $name
+     * @param list<string>|null $parentSelectors
+     * @return array{type:string,value:array{loc:array{source_index:int,line:int,column:int},name:list<string>|null,rules:list<array<string, mixed>>},context:string,parentSelectors:list<string>}
+     */
+    private function buildVisitedLayerBlockRule(?array $name, string $body, ?array $parentSelectors, ?array $loc = null): array
+    {
+        return [
+            'type' => 'layer-block',
+            'value' => [
+                'loc' => $loc ?? $this->defaultSourceLocation(),
+                'name' => $name,
+                'rules' => $this->parseReturnedRuleList($body, null),
+            ],
+            'context' => $parentSelectors === null ? 'rule-list' : 'style-block',
+            'parentSelectors' => $parentSelectors ?? [],
+        ];
+    }
+
+    /**
+     * @return list<list<string>>
+     */
+    private function parseLayerStatementNames(string $prelude): array
+    {
+        $names = [];
+        foreach ($this->splitTopLevel($this->rewriteAtRulePreludeValue($prelude), ',') as $name) {
+            $segments = $this->parseLayerName($name);
+            if ($segments !== null) {
+                $names[] = $segments;
+            }
+        }
+
+        return $names;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function parseLayerBlockName(string $prelude): ?array
+    {
+        return $this->parseLayerName($this->rewriteAtRulePreludeValue($prelude));
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function parseLayerName(string $name): ?array
+    {
+        $name = trim($name);
+        if ($name === '') {
+            return null;
+        }
+
+        $segments = [];
+        foreach ($this->splitLayerNameSegments($name) as $segment) {
+            $decoded = $this->decodeCssIdentifierToken($segment);
+            if ($decoded === null || (!str_contains($segment, '\\') && !$this->isCssIdentifierToken($decoded))) {
+                throw new \InvalidArgumentException("Invalid @layer name segment: {$segment}");
+            }
+
+            $segments[] = $decoded;
+        }
+
+        return $segments === [] ? null : $segments;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitLayerNameSegments(string $name): array
+    {
+        $segments = [''];
+        $length = strlen($name);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $name[$i];
+            if ($char === '\\' && $i + 1 < $length) {
+                $segments[array_key_last($segments)] .= $char . $name[++$i];
+                continue;
+            }
+            if ($char === '.') {
+                $segments[] = '';
+                continue;
+            }
+
+            $segments[array_key_last($segments)] .= $char;
+        }
+
+        return array_values(array_filter(array_map('trim', $segments), static fn (string $segment): bool => $segment !== ''));
     }
 
     /**
@@ -4310,6 +4578,46 @@ final class CustomAtRuleTransformer
     }
 
     /**
+     * @param array<string, mixed> $rule
+     * @param list<string>|null $parentSelectors
+     */
+    private function applyLayerBlockRuleExit(array $rule, ?array $parentSelectors): ?string
+    {
+        $genericReplacement = $this->callAnyRuleExitVisitor($rule);
+        if ($genericReplacement !== null) {
+            return $this->emitReplacementFromRuleExit($genericReplacement, $parentSelectors);
+        }
+
+        if ($this->layerBlockRuleExitVisitor === null) {
+            return null;
+        }
+
+        $replacement = ($this->layerBlockRuleExitVisitor)($rule, $this);
+
+        return $replacement === null ? null : $this->emitReplacementFromRuleExit($replacement, $parentSelectors);
+    }
+
+    /**
+     * @param array<string, mixed> $rule
+     * @param list<string>|null $parentSelectors
+     */
+    private function applyLayerStatementRuleExit(array $rule, ?array $parentSelectors): ?string
+    {
+        $genericReplacement = $this->callAnyRuleExitVisitor($rule);
+        if ($genericReplacement !== null) {
+            return $this->emitReplacementFromRuleExit($genericReplacement, $parentSelectors);
+        }
+
+        if ($this->layerStatementRuleExitVisitor === null) {
+            return null;
+        }
+
+        $replacement = ($this->layerStatementRuleExitVisitor)($rule, $this);
+
+        return $replacement === null ? null : $this->emitReplacementFromRuleExit($replacement, $parentSelectors);
+    }
+
+    /**
      * @param list<string>|null $parentSelectors
      */
     private function emitReplacementFromRuleExit(mixed $replacement, ?array $parentSelectors): string
@@ -4382,6 +4690,12 @@ final class CustomAtRuleTransformer
         }
         if (($replacement['type'] ?? null) === 'container' && isset($replacement['value']) && is_array($replacement['value'])) {
             return $this->emitReturnedContainerRule($replacement['value'], $parentSelectors);
+        }
+        if (($replacement['type'] ?? null) === 'layer-statement' && isset($replacement['value']) && is_array($replacement['value'])) {
+            return $this->emitReturnedLayerStatementRule($replacement['value']);
+        }
+        if (($replacement['type'] ?? null) === 'layer-block' && isset($replacement['value']) && is_array($replacement['value'])) {
+            return $this->emitReturnedLayerBlockRule($replacement['value'], $parentSelectors);
         }
 
         $kind = (string) ($replacement['kind'] ?? '');
@@ -4555,6 +4869,80 @@ final class CustomAtRuleTransformer
         }
 
         return '@container' . ($prelude === '' ? '' : ' ' . $prelude) . '{' . $body . '}';
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function emitReturnedLayerStatementRule(array $value): string
+    {
+        $names = $value['names'] ?? [];
+        if (!is_array($names)) {
+            $names = [];
+        }
+
+        $serialized = [];
+        foreach ($names as $name) {
+            $css = $this->serializeLayerName($name);
+            if ($css !== '') {
+                $serialized[] = $css;
+            }
+        }
+
+        return '@layer' . ($serialized === [] ? '' : ' ' . implode(',', $serialized)) . ';';
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @param list<string>|null $parentSelectors
+     */
+    private function emitReturnedLayerBlockRule(array $value, ?array $parentSelectors): string
+    {
+        $name = $this->serializeLayerName($value['name'] ?? null);
+        $rules = $value['rules'] ?? [];
+        if (!is_array($rules)) {
+            $rules = [];
+        }
+
+        $body = '';
+        foreach ($rules as $rule) {
+            $body .= $this->emitReturnedChildRule($rule, $parentSelectors);
+        }
+
+        if (!$this->suppressReturnedRuleExitVisitors) {
+            $exitReplacement = $this->applyLayerBlockRuleExit($this->buildVisitedLayerBlockRule($this->parseLayerBlockName($name), $body, $parentSelectors), $parentSelectors);
+            if ($exitReplacement !== null) {
+                return $exitReplacement;
+            }
+        }
+
+        return '@layer' . ($name === '' ? '' : ' ' . $name) . '{' . $body . '}';
+    }
+
+    private function serializeLayerName(mixed $name): string
+    {
+        if ($name === null) {
+            return '';
+        }
+        if (is_string($name)) {
+            $name = $this->parseLayerBlockName($name) ?? [];
+        }
+        if (!is_array($name)) {
+            return '';
+        }
+
+        $segments = [];
+        foreach ($name as $segment) {
+            if (!is_string($segment) && !is_int($segment) && !is_float($segment)) {
+                continue;
+            }
+            $segment = trim((string) $segment);
+            if ($segment !== '') {
+                $segments[] = $this->escapeSelectorIdentifier($segment);
+            }
+        }
+
+        return implode('.', $segments);
     }
 
     /**
@@ -5225,6 +5613,70 @@ final class CustomAtRuleTransformer
         }
 
         return count($rules) === 1 ? $rules[0] : $rules;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $visitors
+     * @param array<string, mixed> $rule
+     */
+    private static function applyComposedTypedRuleVisitors(array $visitors, array $rule, self $transformer, string $type, bool $exit): mixed
+    {
+        $rules = [$rule];
+        $changed = false;
+        $visitorName = $exit ? 'RuleExit' : 'Rule';
+
+        foreach ($visitors as $visitor) {
+            $callback = self::typedRuleVisitorCallback($visitor, $type, $exit);
+            if ($callback === null) {
+                continue;
+            }
+
+            $nextRules = [];
+            foreach ($rules as $currentRule) {
+                $replacement = $callback($currentRule, $transformer);
+                if ($replacement === null) {
+                    $nextRules[] = $currentRule;
+                    continue;
+                }
+
+                $changed = true;
+                foreach (self::normalizeRuleVisitorReplacement($replacement, $visitorName . '.' . $type) as $nextRule) {
+                    $nextRules[] = $nextRule;
+                }
+            }
+
+            $rules = $nextRules;
+            if ($rules === []) {
+                break;
+            }
+        }
+
+        if (!$changed) {
+            return null;
+        }
+
+        return count($rules) === 1 ? $rules[0] : $rules;
+    }
+
+    /**
+     * @param array<string, mixed> $visitor
+     */
+    private static function typedRuleVisitorCallback(array $visitor, string $type, bool $exit): ?callable
+    {
+        $ruleConfig = $visitor[$exit ? 'RuleExit' : 'Rule'] ?? null;
+        if (is_callable($ruleConfig)) {
+            return $ruleConfig;
+        }
+
+        if (is_array($ruleConfig) && is_callable($ruleConfig[$type] ?? null)) {
+            return $ruleConfig[$type];
+        }
+
+        if (!$exit && is_callable($visitor[$type] ?? null)) {
+            return $visitor[$type];
+        }
+
+        return null;
     }
 
     /**
@@ -9759,9 +10211,11 @@ final class CustomAtRuleTransformer
                 $statement = trim(substr($css, $cursor, $nextStatement - $cursor));
                 if ($statement !== '' && str_starts_with($statement, '@')) {
                     [$name, $prelude] = $this->parseAtPrelude($statement);
-                    $rules[] = $this->isCustomAtRule($name)
+                    $rules[] = $name === 'layer'
+                        ? $this->buildLayerStatementRule($prelude, $parentSelectors, $ruleLocation)
+                        : ($this->isCustomAtRule($name)
                         ? ['type' => 'custom', 'value' => $this->buildCustomRule($name, $prelude, null, $parentSelectors, true, $ruleLocation)]
-                        : ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $prelude, null, $parentSelectors, $ruleLocation)];
+                        : ['type' => 'unknown', 'value' => $this->buildUnknownRule($name, $prelude, null, $parentSelectors, $ruleLocation)]);
                 }
                 $cursor = $nextStatement + 1;
                 continue;
@@ -9789,6 +10243,8 @@ final class CustomAtRuleTransformer
                     ];
                 } elseif ($name === 'container') {
                     $rules[] = $this->buildContainerRule($atPrelude, $body, $parentSelectors, $ruleLocation);
+                } elseif ($name === 'layer') {
+                    $rules[] = $this->buildLayerBlockRule($atPrelude, $body, $parentSelectors, $ruleLocation);
                 } elseif ($this->isCustomAtRule($name)) {
                     $rules[] = ['type' => 'custom', 'value' => $this->buildCustomRule($name, $atPrelude, $body, $parentSelectors, true, $ruleLocation)];
                 } else {

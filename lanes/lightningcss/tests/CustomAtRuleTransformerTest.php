@@ -5261,6 +5261,167 @@ CSS;
         $t->same('@container wp-card (inline-size>48em){.card{color:red}.container-ready{color:#ff0}}', $result);
         $t->same(['container:wp-card:45', 'container:wp-card:48'], $seen);
     },
+    'custom at-rules expose upstream cascade layer statement and block visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Rule' => [
+                'layer-statement' => static function (array $rule) use (&$seen): array {
+                    $seen[] = [
+                        'type' => $rule['type'] ?? null,
+                        'names' => $rule['value']['names'] ?? null,
+                    ];
+                    $rule['value']['names'][] = ['utilities'];
+
+                    return $rule;
+                },
+                'layer-block' => static function (array $rule) use (&$seen): array {
+                    $seen[] = [
+                        'type' => $rule['type'] ?? null,
+                        'name' => $rule['value']['name'] ?? null,
+                        'childType' => $rule['value']['rules'][0]['type'] ?? null,
+                        'childSelector' => $rule['value']['rules'][0]['value']['selectors'][0][0]['name'] ?? null,
+                    ];
+                    $rule['value']['name'] = ['theme', 'cards'];
+
+                    return $rule;
+                },
+            ],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('@layer reset, theme.blocks; @layer theme.blocks { .card { width: 16px; } }', [], $visitor);
+
+        $t->same('@layer reset,theme.blocks,utilities;@layer theme.cards{.card{width:16px}}', $result);
+        $t->same([
+            [
+                'type' => 'layer-statement',
+                'names' => [['reset'], ['theme', 'blocks']],
+            ],
+            [
+                'type' => 'layer-block',
+                'name' => ['theme', 'blocks'],
+                'childType' => 'style',
+                'childSelector' => 'card',
+            ],
+        ], $seen);
+    },
+    'custom at-rules expose upstream cascade layer rules to StyleSheet visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'StyleSheet' => static function (array $stylesheet) use (&$seen): array {
+                foreach ($stylesheet['rules'] as $rule) {
+                    $seen[] = [
+                        'type' => $rule['type'] ?? null,
+                        'names' => $rule['value']['names'] ?? null,
+                        'name' => $rule['value']['name'] ?? null,
+                        'childType' => $rule['value']['rules'][0]['type'] ?? null,
+                    ];
+                }
+
+                return $stylesheet;
+            },
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('@layer reset, theme.blocks; @layer theme.blocks { .card { color: red; } }', [], $visitor);
+
+        $t->same('@layer reset;@layer theme.blocks{.card{color:red}}', $result);
+        $t->same([
+            [
+                'type' => 'layer-statement',
+                'names' => [['reset'], ['theme', 'blocks']],
+                'name' => null,
+                'childType' => null,
+            ],
+            [
+                'type' => 'layer-block',
+                'names' => null,
+                'name' => ['theme', 'blocks'],
+                'childType' => 'style',
+            ],
+        ], $seen);
+    },
+    'custom at-rules apply upstream RuleExit layer block visitors after children' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = [
+            'Length' => static function (array $length): ?array {
+                return $length['unit'] === 'px'
+                    ? ['unit' => 'rem', 'value' => $length['value'] / 16]
+                    : null;
+            },
+            'RuleExit' => [
+                'layer-block' => static function (array $rule) use (&$seen): array {
+                    $seen = [
+                        'type' => $rule['type'] ?? null,
+                        'name' => $rule['value']['name'] ?? null,
+                        'childRaw' => $rule['value']['rules'][0]['value']['declarations']['declarations'][0]['raw'] ?? null,
+                    ];
+                    $rule['value']['name'] = ['theme', 'ready'];
+
+                    return $rule;
+                },
+            ],
+        ];
+
+        $result = (new CustomAtRuleTransformer())->transform('@layer theme { .card { width: 16px; } }', [], $visitor);
+
+        $t->same('@layer theme.ready{.card{width:1rem}}', $result);
+        $t->same([
+            'type' => 'layer-block',
+            'name' => ['theme'],
+            'childRaw' => '1rem',
+        ], $seen);
+    },
+    'custom at-rules compose upstream Rule layer block visitors' => static function (TestRunner $t): void {
+        $seen = [];
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Rule' => [
+                    'layer-block' => static function (array $rule) use (&$seen): array {
+                        $seen[] = implode('.', $rule['value']['name'] ?? []);
+                        $rule['value']['name'] = ['theme', 'components'];
+
+                        return $rule;
+                    },
+                ],
+            ],
+            [
+                'Rule' => [
+                    'layer-block' => static function (array $rule) use (&$seen): array {
+                        $seen[] = implode('.', $rule['value']['name'] ?? []);
+                        $rule['value']['rules'][] = [
+                            'type' => 'style',
+                            'value' => [
+                                'selectors' => [
+                                    [
+                                        ['type' => 'class', 'name' => 'layer-ready'],
+                                    ],
+                                ],
+                                'declarations' => [
+                                    'declarations' => [[
+                                        'property' => 'color',
+                                        'value' => [
+                                            'type' => 'rgb',
+                                            'r' => 255,
+                                            'g' => 255,
+                                            'b' => 0,
+                                            'alpha' => 1,
+                                        ],
+                                    ]],
+                                    'importantDeclarations' => [],
+                                ],
+                            ],
+                        ];
+
+                        return $rule;
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform('@layer theme { .card { color: red; } }', [], $visitor);
+
+        $t->same('@layer theme.components{.card{color:red}.layer-ready{color:#ff0}}', $result);
+        $t->same(['theme', 'theme.components'], $seen);
+    },
     'custom at-rules compose upstream Selector prefix visitors' => static function (TestRunner $t): void {
         $seenSelectorTypes = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([

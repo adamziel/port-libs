@@ -6,6 +6,16 @@ namespace PortLibs\LightningCSS;
 
 final class CssFormatter
 {
+    private const FONT_LONGHANDS = [
+        'font-family',
+        'font-size',
+        'font-style',
+        'font-weight',
+        'font-stretch',
+        'font-variant-caps',
+        'line-height',
+    ];
+
     public function format(string $css): string
     {
         $css = trim($this->stripComments($css));
@@ -274,7 +284,7 @@ final class CssFormatter
         }
 
         $indent = $this->indent($indentLevel);
-        $declarations = $this->parseDeclarations($body);
+        $declarations = $this->composeFontStyleDeclarations($this->parseDeclarations($body));
         if ($declarations === []) {
             return $indent . $selector . ' {}';
         }
@@ -294,11 +304,340 @@ final class CssFormatter
         $indent = $this->indent($indentLevel);
         $prefix = $indent . $property . ': ';
         $formatted = match ($property) {
+            'font' => $this->formatFontShorthandValue($value),
             'grid', 'grid-template' => $this->formatGridTemplateDeclarationValue($property, $value, strlen($prefix)),
             default => $this->formatDeclarationValue($value),
         };
 
         return $prefix . $formatted . ';';
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @return list<array{string, string}>
+     */
+    private function composeFontStyleDeclarations(array $declarations): array
+    {
+        $output = [];
+        $skip = [];
+        $count = count($declarations);
+
+        for ($i = 0; $i < $count; $i++) {
+            if (isset($skip[$i])) {
+                continue;
+            }
+
+            [$property, $value] = $declarations[$i];
+            if ($property === 'font') {
+                $lineHeightIndex = $this->nextLineHeightIndex($declarations, $i + 1, $skip);
+                if ($lineHeightIndex !== null && $this->canFoldFontLineHeight($declarations[$lineHeightIndex][1])) {
+                    $output[] = ['font', $this->formatFontShorthandValue($value, $declarations[$lineHeightIndex][1])];
+                    $skip[$lineHeightIndex] = true;
+                    continue;
+                }
+
+                $output[] = ['font', $this->formatFontShorthandValue($value)];
+                continue;
+            }
+
+            if ($this->isFontLonghand($property)) {
+                $collected = $this->collectContiguousFontLonghands($declarations, $i, $skip);
+                $font = $this->composeFontLonghands($collected['values']);
+                if ($font !== null) {
+                    $output[] = ['font', $font['value']];
+                    foreach ($font['consumed'] as $consumedProperty) {
+                        foreach ($collected['indexes'][$consumedProperty] ?? [] as $index) {
+                            $skip[$index] = true;
+                        }
+                    }
+                    continue;
+                }
+            }
+
+            $output[] = [$property, $value];
+        }
+
+        return $output;
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @param array<int, bool> $skip
+     * @return array{values:array<string, string>, indexes:array<string, list<int>>}
+     */
+    private function collectContiguousFontLonghands(array $declarations, int $start, array $skip): array
+    {
+        $values = [];
+        $indexes = [];
+        $count = count($declarations);
+        for ($i = $start; $i < $count; $i++) {
+            if (isset($skip[$i])) {
+                continue;
+            }
+
+            [$property, $value] = $declarations[$i];
+            if (!$this->isFontLonghand($property)) {
+                break;
+            }
+
+            $values[$property] = $value;
+            $indexes[$property][] = $i;
+        }
+
+        return ['values' => $values, 'indexes' => $indexes];
+    }
+
+    private function isFontLonghand(string $property): bool
+    {
+        return in_array($property, self::FONT_LONGHANDS, true);
+    }
+
+    /**
+     * @param list<array{string, string}> $declarations
+     * @param array<int, bool> $skip
+     */
+    private function nextLineHeightIndex(array $declarations, int $start, array $skip): ?int
+    {
+        $count = count($declarations);
+        for ($i = $start; $i < $count; $i++) {
+            if (isset($skip[$i])) {
+                continue;
+            }
+
+            [$property] = $declarations[$i];
+            if ($property === 'line-height') {
+                return $i;
+            }
+
+            if (!$this->isFontLonghand($property)) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $values
+     * @return array{value:string, consumed:list<string>}|null
+     */
+    private function composeFontLonghands(array $values): ?array
+    {
+        if (!isset($values['font-family'], $values['font-size'])) {
+            return null;
+        }
+
+        $parts = [];
+        $consumed = ['font-family', 'font-size'];
+
+        $style = $this->formatDeclarationValue($values['font-style'] ?? 'normal');
+        if (strcasecmp($style, 'normal') !== 0) {
+            $parts[] = $style;
+        }
+        if (array_key_exists('font-style', $values)) {
+            $consumed[] = 'font-style';
+        }
+
+        $variant = $this->formatDeclarationValue($values['font-variant-caps'] ?? 'normal');
+        if (strcasecmp($variant, 'small-caps') === 0) {
+            $parts[] = $variant;
+            $consumed[] = 'font-variant-caps';
+        } elseif (strcasecmp($variant, 'normal') === 0 && array_key_exists('font-variant-caps', $values)) {
+            $consumed[] = 'font-variant-caps';
+        }
+
+        $weight = $this->formatDeclarationValue($values['font-weight'] ?? 'normal');
+        if (strcasecmp($weight, 'normal') !== 0) {
+            $parts[] = $weight;
+        }
+        if (array_key_exists('font-weight', $values)) {
+            $consumed[] = 'font-weight';
+        }
+
+        $stretch = $this->formatDeclarationValue($values['font-stretch'] ?? 'normal');
+        if (strcasecmp($stretch, 'normal') !== 0) {
+            $parts[] = $stretch;
+        }
+        if (array_key_exists('font-stretch', $values)) {
+            $consumed[] = 'font-stretch';
+        }
+
+        $size = $this->formatDeclarationValue($values['font-size']);
+        if (isset($values['line-height']) && $this->canFoldFontLineHeight($values['line-height'])) {
+            $size .= ' / ' . $this->formatDeclarationValue($values['line-height']);
+            $consumed[] = 'line-height';
+        }
+        $parts[] = $size;
+        $parts[] = $this->formatFontFamilyList($values['font-family']);
+
+        return [
+            'value' => implode(' ', $parts),
+            'consumed' => array_values(array_unique($consumed)),
+        ];
+    }
+
+    private function canFoldFontLineHeight(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return false;
+        }
+
+        return preg_match('/\b(var|env|calc|min|max|clamp)\s*\(/i', $value) !== 1;
+    }
+
+    private function formatFontShorthandValue(string $value, ?string $lineHeight = null): string
+    {
+        $value = trim(preg_replace('/\s+/', ' ', $value) ?? $value);
+        $tokens = $this->splitWhitespaceTokensWithOffsets($value);
+        if ($tokens === []) {
+            return $this->formatDeclarationValue($value);
+        }
+
+        foreach ($tokens as $index => $token) {
+            $tokenValue = $token['value'];
+            [$sizeToken, $embeddedLineHeight] = $this->splitFontSizeAndLineHeight($tokenValue);
+            if (!$this->isFontSizeToken($sizeToken)) {
+                continue;
+            }
+
+            $familyStart = $token['end'];
+            if ($embeddedLineHeight === null && $index + 1 < count($tokens) && $tokens[$index + 1]['value'] === '/') {
+                $next = $tokens[$index + 2] ?? null;
+                if ($next !== null) {
+                    $embeddedLineHeight = $next['value'];
+                    $familyStart = $next['end'];
+                }
+            }
+
+            $prefix = trim(substr($value, 0, $token['start']));
+            $family = trim(substr($value, $familyStart));
+            if ($family === '') {
+                return $this->formatDeclarationValue($value);
+            }
+
+            $size = $this->formatDeclarationValue($sizeToken);
+            $foldedLineHeight = $lineHeight !== null ? $this->formatDeclarationValue($lineHeight) : $embeddedLineHeight;
+            if ($foldedLineHeight !== null && $foldedLineHeight !== '') {
+                $size .= ' / ' . $this->formatDeclarationValue($foldedLineHeight);
+            }
+
+            $parts = [];
+            if ($prefix !== '') {
+                $parts[] = $this->formatDeclarationValue($prefix);
+            }
+            $parts[] = $size;
+            $parts[] = $this->formatFontFamilyList($family);
+
+            return implode(' ', $parts);
+        }
+
+        return $this->formatDeclarationValue($value);
+    }
+
+    /**
+     * @return array{0:string,1:string|null}
+     */
+    private function splitFontSizeAndLineHeight(string $token): array
+    {
+        $slash = $this->findNextTopLevel($token, '/', 0);
+        if ($slash === null) {
+            return [$token, null];
+        }
+
+        return [
+            trim(substr($token, 0, $slash)),
+            trim(substr($token, $slash + 1)),
+        ];
+    }
+
+    private function isFontSizeToken(string $token): bool
+    {
+        $token = strtolower(trim($token));
+        if (preg_match('/^(?:xx-small|x-small|small|medium|large|x-large|xx-large|xxx-large|larger|smaller)$/', $token) === 1) {
+            return true;
+        }
+
+        return preg_match('/^[+-]?(?:\d+|\d*\.\d+)(?:%|[a-z][a-z0-9-]*)$/', $token) === 1
+            || preg_match('/^(?:var|calc|min|max|clamp)\(/', $token) === 1;
+    }
+
+    private function formatFontFamilyList(string $value): string
+    {
+        $families = [];
+        foreach ($this->splitTopLevel($value, ',') as $family) {
+            $family = trim($family);
+            if ($family === '') {
+                continue;
+            }
+
+            $families[] = $this->formatFontFamilyName($family);
+        }
+
+        return implode(', ', $families);
+    }
+
+    private function formatFontFamilyName(string $family): string
+    {
+        $family = trim(preg_replace('/\s+/', ' ', $family) ?? $family);
+        if ($this->isCssStringToken($family)) {
+            $quote = $family[0];
+            $inner = substr($family, 1, -1);
+            if ($this->canUnquoteFontFamily($inner)) {
+                return stripcslashes($inner);
+            }
+
+            return $quote . str_replace($quote, '\\' . $quote, $inner) . $quote;
+        }
+
+        return $family;
+    }
+
+    private function canUnquoteFontFamily(string $family): bool
+    {
+        $family = trim(preg_replace('/\s+/', ' ', stripcslashes($family)) ?? $family);
+        if ($family === '') {
+            return false;
+        }
+
+        $reserved = [
+            'serif',
+            'sans-serif',
+            'monospace',
+            'cursive',
+            'fantasy',
+            'system-ui',
+            'ui-serif',
+            'ui-sans-serif',
+            'ui-monospace',
+            'ui-rounded',
+            'emoji',
+            'math',
+            'fangsong',
+            'caption',
+            'icon',
+            'menu',
+            'message-box',
+            'small-caption',
+            'status-bar',
+            'default',
+            'inherit',
+            'initial',
+            'unset',
+            'revert',
+            'revert-layer',
+        ];
+        if (in_array(strtolower($family), $reserved, true)) {
+            return false;
+        }
+
+        foreach (preg_split('/\s+/', $family) ?: [] as $word) {
+            if (preg_match('/^-?[_a-zA-Z][_a-zA-Z0-9-]*$/', $word) !== 1) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function formatDeclarations(string $body, int $indentLevel): string
@@ -753,6 +1092,70 @@ final class CssFormatter
         }
 
         return $output;
+    }
+
+    /**
+     * @return list<array{value:string, start:int, end:int}>
+     */
+    private function splitWhitespaceTokensWithOffsets(string $value): array
+    {
+        $tokens = [];
+        $quote = null;
+        $parenDepth = 0;
+        $start = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($start === null && !ctype_space($char)) {
+                $start = $i;
+            }
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+
+            if ($char === ')' && $parenDepth > 0) {
+                $parenDepth--;
+                continue;
+            }
+
+            if (ctype_space($char) && $parenDepth === 0 && $start !== null) {
+                $tokens[] = [
+                    'value' => substr($value, $start, $i - $start),
+                    'start' => $start,
+                    'end' => $i,
+                ];
+                $start = null;
+            }
+        }
+
+        if ($start !== null) {
+            $tokens[] = [
+                'value' => substr($value, $start),
+                'start' => $start,
+                'end' => $length,
+            ];
+        }
+
+        return $tokens;
     }
 
     /**

@@ -174,6 +174,59 @@ CSS, $formatter->format(<<<'CSS'
 }
 CSS));
     },
+    'css formatter maps upstream font shorthand printer cases' => static function (TestRunner $t): void {
+        $formatter = new CssFormatter();
+
+        $t->same(<<<'CSS'
+.foo {
+  font: italic small-caps bold expanded 12px / 1.2em Helvetica, Times New Roman, sans-serif;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  font-family: "Helvetica", "Times New Roman", sans-serif;
+  font-size: 12px;
+  font-weight: bold;
+  font-style: italic;
+  font-stretch: expanded;
+  font-variant-caps: small-caps;
+  line-height: 1.2em;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  font: italic bold expanded 12px / 1.2em Helvetica, Times New Roman, sans-serif;
+  font-variant-caps: all-small-caps;
+}
+
+CSS, $formatter->format(<<<'CSS'
+.foo {
+  font-family: "Helvetica", "Times New Roman", sans-serif;
+  font-size: 12px;
+  font-weight: bold;
+  font-style: italic;
+  font-stretch: expanded;
+  font-variant-caps: all-small-caps;
+  line-height: 1.2em;
+}
+CSS));
+
+        $t->same(<<<'CSS'
+.foo {
+  font: 12px / 1.2em Helvetica, Times New Roman, sans-serif;
+}
+
+CSS, $formatter->format('.foo { font: 12px "Helvetica", "Times New Roman", sans-serif; line-height: 1.2em; }'));
+
+        $t->same(<<<'CSS'
+.foo {
+  font: 12px Helvetica, Times New Roman, sans-serif;
+  line-height: var(--lh);
+}
+
+CSS, $formatter->format('.foo { font: 12px "Helvetica", "Times New Roman", sans-serif; line-height: var(--lh); }'));
+    },
     'css formatter maps upstream grid template printer cases' => static function (TestRunner $t): void {
         $formatter = new CssFormatter();
 

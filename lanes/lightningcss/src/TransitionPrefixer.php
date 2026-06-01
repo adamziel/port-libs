@@ -96,7 +96,12 @@ final class TransitionPrefixer
             }
 
             $close = $this->findMatchingBrace($css, $open);
-            $prelude = trim(substr($css, $cursor, $open - $cursor));
+            [$leadingStatements, $blockPrelude] = $this->splitLeadingStatementPrelude(substr($css, $cursor, $open - $cursor));
+            if ($leadingStatements !== '') {
+                $output .= $leadingStatements;
+                $lastMergeableStyleRule = null;
+            }
+            $prelude = trim($blockPrelude);
             $body = substr($css, $open + 1, $close - $open - 1);
             if (str_starts_with($prelude, '@')) {
                 $lastMergeableStyleRule = null;
@@ -149,6 +154,75 @@ final class TransitionPrefixer
         }
 
         return $output;
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private function splitLeadingStatementPrelude(string $prelude): array
+    {
+        $length = strlen($prelude);
+        $parenDepth = 0;
+        $bracketDepth = 0;
+        $quote = null;
+        $escaped = false;
+        $lastStatementEnd = null;
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $prelude[$i];
+            if ($escaped) {
+                $escaped = false;
+                continue;
+            }
+
+            if ($char === '\\') {
+                $escaped = true;
+                continue;
+            }
+
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+
+            if ($char === ')' && $parenDepth > 0) {
+                $parenDepth--;
+                continue;
+            }
+
+            if ($char === '[') {
+                $bracketDepth++;
+                continue;
+            }
+
+            if ($char === ']' && $bracketDepth > 0) {
+                $bracketDepth--;
+                continue;
+            }
+
+            if ($char === ';' && $parenDepth === 0 && $bracketDepth === 0) {
+                $lastStatementEnd = $i + 1;
+            }
+        }
+
+        if ($lastStatementEnd === null) {
+            return ['', $prelude];
+        }
+
+        return [substr($prelude, 0, $lastStatementEnd), substr($prelude, $lastStatementEnd)];
     }
 
     /**
