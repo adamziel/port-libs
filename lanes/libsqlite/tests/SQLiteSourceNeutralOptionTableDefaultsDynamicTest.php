@@ -6,6 +6,7 @@ use PortLibs\LibSqlite\SQLiteAttachedSchemaCatalog;
 use PortLibs\LibSqlite\SQLiteAttachTempWalSchemaTriggerPlan;
 use PortLibs\LibSqlite\SQLiteEncodingCollationSourceCursor;
 use PortLibs\LibSqlite\SQLiteIndexPredicate;
+use PortLibs\LibSqlite\SQLiteJsonSchemaWalSavepointPlan;
 use PortLibs\LibSqlite\SQLiteJsonPathIndexedUpdatePlan;
 use PortLibs\LibSqlite\SQLiteJsonPathStrictLaxNegativeIndexCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteMultiColumnRangePlan;
@@ -15,6 +16,15 @@ use PortLibs\LibSqlite\SQLiteTriggerForeignKeyReturningPlan;
 use PortLibs\LibSqlite\SQLiteTriggerReturningForeignKeySavepointPlan;
 use PortLibs\LibSqlite\SQLiteTriggerSavepointReturningViewCurrentSourceNextPlan;
 use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan;
+use PortLibs\LibSqlite\SQLiteVfsFileControlPersistence;
+use PortLibs\LibSqlite\SQLiteVfsFileControlPersistencePlan;
+use PortLibs\LibSqlite\SQLiteVfsLockByteUriShmCurrentSourceNext;
+use PortLibs\LibSqlite\SQLiteVfsOpenFileControl;
+use PortLibs\LibSqlite\SQLiteVfsOpenLockFileControlCurrentSource;
+use PortLibs\LibSqlite\SQLiteVfsShmFileControlLockCurrentSourcePlan;
+use PortLibs\LibSqlite\SQLiteVfsShmLockFileControlCurrentSource;
+use PortLibs\LibSqlite\SQLiteVfsShmOpenFileControlCurrentSourcePlan;
+use PortLibs\LibSqlite\SQLiteVfsWalShmLockBytePlan;
 use PortLibs\LibSqlite\SQLiteWal;
 use PortLibs\LibSqlite\SQLiteWalHeader;
 
@@ -32,6 +42,18 @@ $jsonPathOptionDefaultSourceFiles = [
 $triggerForeignKeyDefaultSourceFiles = [
     $sourceRoot . '/SQLiteTriggerForeignKeyReturningPlan.php',
     $sourceRoot . '/SQLiteTriggerReturningForeignKeySavepointPlan.php',
+];
+$vfsDefaultSourceFiles = [
+    $sourceRoot . '/SQLiteJsonSchemaWalSavepointPlan.php',
+    $sourceRoot . '/SQLiteVfsFileControlPersistence.php',
+    $sourceRoot . '/SQLiteVfsFileControlPersistencePlan.php',
+    $sourceRoot . '/SQLiteVfsLockByteUriShmCurrentSourceNext.php',
+    $sourceRoot . '/SQLiteVfsOpenFileControl.php',
+    $sourceRoot . '/SQLiteVfsOpenLockFileControlCurrentSource.php',
+    $sourceRoot . '/SQLiteVfsShmFileControlLockCurrentSourcePlan.php',
+    $sourceRoot . '/SQLiteVfsShmLockFileControlCurrentSource.php',
+    $sourceRoot . '/SQLiteVfsShmOpenFileControlCurrentSourcePlan.php',
+    $sourceRoot . '/SQLiteVfsWalShmLockBytePlan.php',
 ];
 
 $utf16KeyValuePlanLegacyDefaultMatches = static function () use ($libsqliteRoot): array {
@@ -200,6 +222,36 @@ $triggerForeignKeyLegacyDefaultMatches = static function () use ($triggerForeign
     return $matches;
 };
 
+$vfsLegacyDefaultMatches = static function () use ($vfsDefaultSourceFiles, $libsqliteRoot): array {
+    $terms = [
+        'wp-content',
+        'wp%20',
+        'wp-import',
+        'wp-json-schema',
+        '/srv/wp',
+        '/srv/www/wp',
+        'wp-',
+    ];
+    $pattern = '/(?:' . implode('|', array_map(static fn (string $term): string => preg_quote($term, '/'), $terms)) . ')/';
+    $matches = [];
+
+    foreach ($vfsDefaultSourceFiles as $file) {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            throw new RuntimeException("Unable to read {$file}");
+        }
+        if (preg_match_all($pattern, $contents, $fileMatches) < 1) {
+            continue;
+        }
+        $relative = str_replace($libsqliteRoot . '/', '', $file);
+        foreach ($fileMatches[0] as $match) {
+            $matches[] = "{$relative}: {$match}";
+        }
+    }
+
+    return $matches;
+};
+
 $settingsRows = [
     ['setting_id' => 1, 'key_name' => 'base_url', 'load_policy' => 'yes'],
     ['setting_id' => 2, 'key_name' => 'site_title', 'load_policy' => 'yes'],
@@ -251,6 +303,72 @@ return [
     'utf16 late key value source uses neutral setting defaults' => static fn (TestRunner $t) => $t->same([], $utf16LateKeyValuePlanLegacyDefaultMatches()),
     'source-neutral json path defaults use generic setting keys in source' => static fn (TestRunner $t) => $t->same([], $jsonPathLegacyDefaultMatches()),
     'source-neutral trigger foreign key returning defaults use generic setting rowids in source' => static fn (TestRunner $t) => $t->same([], $triggerForeignKeyLegacyDefaultMatches()),
+    'source-neutral vfs defaults use generic application paths in source' => static fn (TestRunner $t) => $t->same([], $vfsLegacyDefaultMatches()),
+    'source-neutral vfs file-control sequence default path is generic' => static function (TestRunner $t): void {
+        $plan = SQLiteVfsFileControlPersistencePlan::persistentFileControlSequence(['file_control(persist_wal, on)']);
+
+        $t->same('/srv/app/data/application.sqlite', $plan['events'][0]['result']['path']);
+        $t->same('ok', $plan['events'][0]['result']['status']);
+    },
+    'source-neutral persistent file-control default connection is generic' => static function (TestRunner $t): void {
+        $root = sys_get_temp_dir() . '/port-libsqlite-source-neutral-vfs-' . bin2hex(random_bytes(4));
+        $persistence = new SQLiteVfsFileControlPersistence($root);
+        $plan = $persistence->persistentFileControlApply('/srv/app/data/persistent.sqlite', true, true, ['persist_wal' => true]);
+
+        $t->same('app-import', $plan['connection']);
+        $t->same('app-import', $plan['lock']['connection']);
+        $t->same('app-import', $plan['release']['connection']);
+    },
+    'source-neutral uri shm default filename is generic' => static function (TestRunner $t): void {
+        $plan = SQLiteVfsLockByteUriShmCurrentSourceNext::plan(['open(main)']);
+
+        $t->same('/srv/app/data/application copy.sqlite', $plan['events'][0]['path']);
+        $t->same('/srv/app/data/application copy.sqlite', $plan['events'][0]['owner']);
+    },
+    'source-neutral json schema WAL page prefix is generic' => static function (TestRunner $t): void {
+        $plan = SQLiteJsonSchemaWalSavepointPlan::plan(
+            [],
+            [[
+                'name' => 'create_app_schema',
+                'type' => 'table',
+                'page_number' => 1,
+                'sql' => 'CREATE TABLE app_schema(key_name text primary key, key_value text)',
+            ]],
+            ['schema_cookie' => 1, 'data_version' => 1, 'page_size' => 512],
+        );
+
+        $t->same('app-json-schema:', substr($plan['database_bytes'], 0, 16));
+    },
+    'source-neutral open file-control default path is generic' => static function (TestRunner $t): void {
+        $plan = SQLiteVfsOpenFileControl::openFileControlSequence(['file_control(mmap_size, 1)']);
+
+        $t->same('/srv/app/data/application.sqlite', $plan['current']['stat']['path']);
+    },
+    'source-neutral open lock file-control default path is generic' => static function (TestRunner $t): void {
+        $plan = SQLiteVfsOpenLockFileControlCurrentSource::planOpenLockFileControl(['open']);
+
+        $t->same('/srv/app/data/application.sqlite', $plan['events'][0]['path']);
+    },
+    'source-neutral shm file-control lock default path is generic' => static function (TestRunner $t): void {
+        $plan = SQLiteVfsShmFileControlLockCurrentSourcePlan::planShmFileControlLock(['open(main)']);
+
+        $t->same('/srv/app/data/application.sqlite', $plan['events'][0]['path']);
+    },
+    'source-neutral shm lock file-control default path is generic' => static function (TestRunner $t): void {
+        $plan = SQLiteVfsShmLockFileControlCurrentSource::planShmLockFileControl(['open']);
+
+        $t->same('/srv/app/data/application.sqlite', $plan['events'][0]['path']);
+    },
+    'source-neutral shm open file-control default path is generic' => static function (TestRunner $t): void {
+        $plan = SQLiteVfsShmOpenFileControlCurrentSourcePlan::planShmOpenFileControl(['open(main)']);
+
+        $t->same('/srv/app/data/application.sqlite', $plan['events'][0]['path']);
+    },
+    'source-neutral wal shm lock byte default path is generic' => static function (TestRunner $t): void {
+        $plan = SQLiteVfsWalShmLockBytePlan::plan([], ['lock reserved app-import 1']);
+
+        $t->same('/srv/app/data/application.sqlite', $plan['events'][0]['path']);
+    },
     'trigger foreign key returning default rowid is setting id' => static function (TestRunner $t): void {
         $parents = [
             ['setting_id' => 1, 'key_name' => 'base_url', 'key_value' => 'https://old.test', 'load_policy' => 'yes'],

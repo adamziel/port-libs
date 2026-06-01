@@ -22,7 +22,7 @@ final class SQLiteVfsWalShmLockBytePlan
 
         foreach ($operations as $operation) {
             $op = self::operation($operation);
-            $path = self::path((string) ($op['path'] ?? $state['selected_path'] ?? '/srv/www/wp-content/database/.ht.sqlite'));
+            $path = self::path((string) ($op['path'] ?? $state['selected_path'] ?? '/srv/app/data/application.sqlite'));
             $state['selected_path'] = $path;
             $state['sources'][$path] ??= self::source($path, []);
             $before = self::snapshot($state);

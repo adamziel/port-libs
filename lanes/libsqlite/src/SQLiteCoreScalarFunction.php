@@ -2567,14 +2567,17 @@ final class SQLiteCoreScalarFunction
     {
         $leftPadding = 0;
         if ($start > 0) {
-            $offset = $start - 1;
+            $rawOffset = $start - 1;
+            $offset = $rawOffset;
         } elseif ($start < 0) {
-            $offset = $unitCount + $start;
-            if ($offset < 0) {
-                $leftPadding = -$offset;
+            $rawOffset = $unitCount + $start;
+            $offset = $rawOffset;
+            if ($rawOffset < 0) {
+                $leftPadding = -$rawOffset;
                 $offset = 0;
             }
         } else {
+            $rawOffset = 0;
             $offset = 0;
         }
 
@@ -2589,8 +2592,10 @@ final class SQLiteCoreScalarFunction
         }
 
         if ($length < 0) {
-            $end = min(max($offset, 0), $unitCount);
-            $offset = max(0, $end + $length);
+            $windowStart = $rawOffset + $length;
+            $windowEnd = $rawOffset;
+            $offset = min(max($windowStart, 0), $unitCount);
+            $end = min(max($windowEnd, 0), $unitCount);
 
             return [$offset, $end - $offset];
         }

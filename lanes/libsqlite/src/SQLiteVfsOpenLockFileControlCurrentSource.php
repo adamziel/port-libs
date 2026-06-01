@@ -374,7 +374,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
         $state['sequence']++;
         $filename = (string) ($op['filename'] ?? '');
         if ($filename === '') {
-            $filename = (string) ($options['filename'] ?? '/srv/www/wp-content/database/.ht.sqlite');
+            $filename = (string) ($options['filename'] ?? '/srv/app/data/application.sqlite');
         }
         $uri = self::openUri($filename, $uriAware);
         $path = (string) $uri['path'];
@@ -503,7 +503,7 @@ final class SQLiteVfsOpenLockFileControlCurrentSource
     {
         $filename = trim($filename);
         if ($filename === '') {
-            return '/srv/www/wp-content/database/.ht.sqlite';
+            return '/srv/app/data/application.sqlite';
         }
         if ($filename === ':memory:' || str_starts_with(strtolower($filename), 'file::memory:')) {
             return ':memory:';

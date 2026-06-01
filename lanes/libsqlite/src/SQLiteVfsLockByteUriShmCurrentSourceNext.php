@@ -102,7 +102,7 @@ final class SQLiteVfsLockByteUriShmCurrentSourceNext
         }
 
         $state = self::normalizeCurrent($options['current'] ?? null);
-        $defaultFilename = self::stringValue($options['filename'] ?? 'file:/srv/www/wp-content/database/wp%20copy.sqlite?mode=rw&cache=shared', 'filename');
+        $defaultFilename = self::stringValue($options['filename'] ?? 'file:/srv/app/data/application%20copy.sqlite?mode=rw&cache=shared', 'filename');
         $events = [];
 
         foreach ($operations as $operation) {

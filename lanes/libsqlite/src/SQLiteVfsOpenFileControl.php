@@ -136,7 +136,7 @@ final class SQLiteVfsOpenFileControl
         }
 
         $root = self::stringOption($options, 'root', sys_get_temp_dir() . '/port-libsqlite-vfs-open-filecontrol-74-' . bin2hex(random_bytes(4)));
-        $filename = self::stringOption($options, 'filename', '/srv/www/wp-content/database/.ht.sqlite');
+        $filename = self::stringOption($options, 'filename', '/srv/app/data/application.sqlite');
         $fileExists = (bool) ($options['file_exists'] ?? true);
         $directoryWritable = (bool) ($options['directory_writable'] ?? true);
         $sectorSize = (int) ($options['sector_size'] ?? 512);

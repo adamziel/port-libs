@@ -97,7 +97,7 @@ $sourceTextMatches = static function () use ($sourceFiles, $relativePath): array
             throw new RuntimeException("Unable to read {$file}");
         }
 
-        if (preg_match('/WordPress|wordpress|wordPress/', $contents) === 1) {
+        if (preg_match('/WordPress|wordpress|wordPress|wp_|wp-content|wp%20|wp-import|wp-json-schema|\/srv\/wp|\/srv\/www\/wp|wp-/', $contents) === 1) {
             $matches[] = $relativePath($file);
         }
     }
@@ -235,7 +235,7 @@ $keyValueFixtureFilenameMatches = static function () use ($keyValueFixtureFiles,
 };
 
 return [
-    'libsqlite source has no WordPress-named text' => static fn (TestRunner $t) => $t->same([], $sourceTextMatches()),
+    'libsqlite source has no WordPress-shaped text' => static fn (TestRunner $t) => $t->same([], $sourceTextMatches()),
     'libsqlite filenames have no WordPress-specific names' => static fn (TestRunner $t) => $t->same([], $filenameMatches()),
     'libsqlite php declarations have no WordPress-specific class or method names' => static fn (TestRunner $t) => $t->same([], $domainSpecificDeclarationMatches()),
     'libsqlite key-value source API uses neutral setting names' => static fn (TestRunner $t) => $t->same([], $keyValueSourceTermMatches()),

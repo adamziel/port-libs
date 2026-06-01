@@ -35,7 +35,7 @@ final class SQLiteVfsFileControlPersistence
         bool $fileExists,
         bool $directoryWritable,
         array $controls,
-        string $connection = 'wp-import',
+        string $connection = 'app-import',
         int $sectorSize = 512,
         array $deviceFlags = ['powersafe_overwrite'],
         string $syncMode = 'normal',

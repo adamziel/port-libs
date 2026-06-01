@@ -459,7 +459,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
         $source = self::sourceName((string) ($op['source'] ?? 'main'));
         $filename = trim((string) ($op['filename'] ?? ''));
         if ($filename === '') {
-            $filename = (string) ($options['filename'] ?? '/srv/www/wp-content/database/.ht.sqlite');
+            $filename = (string) ($options['filename'] ?? '/srv/app/data/application.sqlite');
         }
         $uri = str_starts_with(strtolower(trim($filename)), 'file:') ? SQLiteFileUri::parse(trim($filename)) : null;
         $temporary = $trackTemporary && ($source === 'temp' || $source === 'temp-shm' || $filename === '' || (is_array($uri) && ($uri['mode'] ?? null) === 'memory'));
@@ -578,7 +578,7 @@ final class SQLiteVfsShmFileControlLockCurrentSourcePlan
     {
         $filename = trim($filename);
         if ($filename === '') {
-            return '/srv/www/wp-content/database/.ht.sqlite';
+            return '/srv/app/data/application.sqlite';
         }
         if (str_starts_with(strtolower($filename), 'file:')) {
             $uri = SQLiteFileUri::parse($filename);

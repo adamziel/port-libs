@@ -233,6 +233,6 @@ final class SQLiteJsonSchemaWalSavepointPlan
 
     private static function pageImage(int $pageSize, int $pageNumber, string $label, int $schemaCookie, int $dataVersion): string
     {
-        return str_pad("wp-json-schema:{$pageNumber}:{$label}:schema={$schemaCookie}:data={$dataVersion}", $pageSize, "\0");
+        return str_pad("app-json-schema:{$pageNumber}:{$label}:schema={$schemaCookie}:data={$dataVersion}", $pageSize, "\0");
     }
 }

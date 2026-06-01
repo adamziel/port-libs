@@ -52,7 +52,7 @@ final class SQLiteVfsFileControlPersistencePlan
         }
 
         $plan = new self(
-            self::stringOption($options, 'filename', 'file:/srv/www/wp-content/database/.ht.sqlite?mode=rw&cache=shared&vfs=unix'),
+            self::stringOption($options, 'filename', 'file:/srv/app/data/application.sqlite?mode=rw&cache=shared&vfs=unix'),
             (bool) ($options['file_exists'] ?? true),
             (bool) ($options['directory_writable'] ?? true),
             self::intOption($options, 'sector_size', 4096),

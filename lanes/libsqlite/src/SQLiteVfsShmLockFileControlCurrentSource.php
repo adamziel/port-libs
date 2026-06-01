@@ -38,7 +38,7 @@ final class SQLiteVfsShmLockFileControlCurrentSource
         }
 
         $state = self::normalizeCurrent($options['current'] ?? null);
-        $open = self::openSource((string) ($options['filename'] ?? '/srv/www/wp-content/database/.ht.sqlite'), $uriAware, $state);
+        $open = self::openSource((string) ($options['filename'] ?? '/srv/app/data/application.sqlite'), $uriAware, $state);
         $path = $open['source_key'];
         if ($path === '') {
             throw new \InvalidArgumentException("SQLite SHM lock file-control current-source {} requires a database path");

@@ -185,7 +185,7 @@ final class SQLiteVfsShmOpenFileControlCurrentSourcePlan
     private static function openHandle(array &$state, array $op, array $options): array
     {
         $state['sequence']++;
-        $filename = self::stringValue($op['filename'] ?? $options['filename'] ?? '/srv/www/wp-content/database/.ht.sqlite');
+        $filename = self::stringValue($op['filename'] ?? $options['filename'] ?? '/srv/app/data/application.sqlite');
         $uri = SQLiteFileUri::parse($filename);
         $path = self::openPath($filename, $uri);
         $memory = $path === ':memory:' || $uri['mode'] === 'memory';
