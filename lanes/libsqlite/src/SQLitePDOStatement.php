@@ -84,7 +84,10 @@ final class SQLitePDOStatement extends \PDOStatement
             $this->errorCode = $this->errorInfo[0];
             $this->connection->restorePdoErrorState($connectionErrorState);
 
-            throw $this->pdoException($this->errorInfo[2] ?? $exception->getMessage(), $this->errorInfo, $exception);
+            return $this->connection->handleStatementFailure(
+                $this->pdoException($this->errorInfo[2] ?? $exception->getMessage(), $this->errorInfo, $exception),
+                __METHOD__,
+            );
         }
         $this->rows = $result['rows'];
         $this->rowCount = $result['changes'];
@@ -221,7 +224,6 @@ final class SQLitePDOStatement extends \PDOStatement
         try {
             static $property = null;
             $property ??= new \ReflectionProperty(\Exception::class, 'code');
-            $property->setAccessible(true);
             $property->setValue($exception, $code);
         } catch (\Throwable) {
         }

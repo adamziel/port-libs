@@ -755,7 +755,9 @@ return [
         $pdo = new SQLitePDO('sqlite::memory:');
         $t->same(PDO::ERRMODE_EXCEPTION, $pdo->getAttribute(PDO::ATTR_ERRMODE));
         $t->true($pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION));
-        $t->throws(PDOException::class, static fn () => $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT));
+        $t->true($pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_SILENT));
+        $t->same(PDO::ERRMODE_SILENT, $pdo->getAttribute(PDO::ATTR_ERRMODE));
+        $t->true($pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION));
         $t->throws(PDOException::class, static fn () => $pdo->getAttribute(PDO::ATTR_AUTOCOMMIT));
         $t->same('sqlite', $pdo->getAttribute(PDO::ATTR_DRIVER_NAME));
         $t->throws(PDOException::class, static fn () => $pdo->exec('VACUUM'));

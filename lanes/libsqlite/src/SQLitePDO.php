@@ -93,8 +93,15 @@ final class SQLitePDO extends \PDO
     public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): \PDOStatement|false
     {
         $statement = $this->prepare($query);
+        if ($statement === false) {
+            return false;
+        }
         try {
-            $statement->execute();
+            if ($statement->execute() === false) {
+                $this->recordErrorInfo($statement->errorInfo());
+
+                return false;
+            }
         } catch (\PDOException $exception) {
             $this->recordErrorInfo($statement->errorInfo());
             throw $exception;
@@ -118,7 +125,11 @@ final class SQLitePDO extends \PDO
             throw new \PDOException('SQLitePDO prepare options are not supported');
         }
 
-        $this->validatePrepareSql($query);
+        try {
+            $this->validatePrepareSql($query);
+        } catch (\PDOException $exception) {
+            return $this->handleConnectionFailure($exception, __METHOD__);
+        }
 
         return new SQLitePDOStatement($this, $query, $initialStatementErrorInfo);
     }
@@ -144,10 +155,10 @@ final class SQLitePDO extends \PDO
     public function setAttribute(int $attribute, mixed $value): bool
     {
         if ($attribute === \PDO::ATTR_ERRMODE) {
-            if ($value !== \PDO::ERRMODE_EXCEPTION) {
-                throw new \PDOException('SQLitePDO supports only PDO::ERRMODE_EXCEPTION');
+            if (!in_array($value, [\PDO::ERRMODE_SILENT, \PDO::ERRMODE_WARNING, \PDO::ERRMODE_EXCEPTION], true)) {
+                throw new \PDOException('SQLitePDO error mode is not supported');
             }
-            $this->errmode = \PDO::ERRMODE_EXCEPTION;
+            $this->errmode = (int) $value;
 
             return true;
         }
@@ -193,7 +204,10 @@ final class SQLitePDO extends \PDO
         if ($params !== null) {
             $statements = $this->splitStatements($statement);
             if (count($statements) > 1) {
-                throw $this->failure('SQLitePDO exec with parameters does not support multi-statement SQL batches');
+                return $this->handleConnectionFailure(
+                    $this->failure('SQLitePDO exec with parameters does not support multi-statement SQL batches'),
+                    __METHOD__,
+                );
             }
 
             $prepared = $this->prepare($statements[0] ?? '');
@@ -201,7 +215,11 @@ final class SQLitePDO extends \PDO
                 return false;
             }
             try {
-                $prepared->execute($params);
+                if ($prepared->execute($params) === false) {
+                    $this->recordErrorInfo($prepared->errorInfo());
+
+                    return false;
+                }
             } catch (\PDOException $exception) {
                 $this->recordErrorInfo($prepared->errorInfo());
                 throw $exception;
@@ -212,9 +230,13 @@ final class SQLitePDO extends \PDO
         }
 
         $changes = 0;
-        foreach ($this->splitStatements($statement) as $sql) {
-            $result = $this->executeSql($sql, []);
-            $changes += $result['changes'];
+        try {
+            foreach ($this->splitStatements($statement) as $sql) {
+                $result = $this->executeSql($sql, []);
+                $changes += $result['changes'];
+            }
+        } catch (\PDOException $exception) {
+            return $this->handleConnectionFailure($exception, __METHOD__);
         }
         $this->lastChanges = $changes;
 
@@ -257,6 +279,21 @@ final class SQLitePDO extends \PDO
     public function errorInfo(): array
     {
         return $this->errorInfo;
+    }
+
+    /**
+     * @internal
+     */
+    public function handleStatementFailure(\PDOException $exception, string $method): false
+    {
+        if ($this->errmode === \PDO::ERRMODE_EXCEPTION) {
+            throw $exception;
+        }
+        if ($this->errmode === \PDO::ERRMODE_WARNING) {
+            $this->emitPdoWarning($method, $exception);
+        }
+
+        return false;
     }
 
     /**
@@ -400,6 +437,18 @@ final class SQLitePDO extends \PDO
         return $this->pdoException($message, $driverCode, $previous);
     }
 
+    private function handleConnectionFailure(\PDOException $exception, string $method): false
+    {
+        if ($this->errmode === \PDO::ERRMODE_EXCEPTION) {
+            throw $exception;
+        }
+        if ($this->errmode === \PDO::ERRMODE_WARNING) {
+            $this->emitPdoWarning($method, $exception);
+        }
+
+        return false;
+    }
+
     /** @param array{0:string,1:int|null,2:string|null} $errorInfo */
     private function recordErrorInfo(array $errorInfo): void
     {
@@ -416,12 +465,24 @@ final class SQLitePDO extends \PDO
         return $exception;
     }
 
+    private function emitPdoWarning(string $method, \PDOException $exception): void
+    {
+        $errorInfo = $exception->errorInfo ?? $this->errorInfo;
+        $sqlState = is_string($errorInfo[0] ?? null) ? $errorInfo[0] : 'HY000';
+        $driverCode = is_int($errorInfo[1] ?? null) ? $errorInfo[1] : 1;
+        $message = is_string($errorInfo[2] ?? null) ? $errorInfo[2] : $exception->getMessage();
+
+        trigger_error(
+            "{$method}(): SQLSTATE[{$sqlState}]: General error: {$driverCode} {$message}",
+            E_USER_WARNING,
+        );
+    }
+
     private function setExceptionCode(\PDOException $exception, string $code): void
     {
         try {
             static $property = null;
             $property ??= new \ReflectionProperty(\Exception::class, 'code');
-            $property->setAccessible(true);
             $property->setValue($exception, $code);
         } catch (\Throwable) {
         }
