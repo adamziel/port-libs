@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 19:16:48 UTC",
-    "sourceCommit": "1e3c6222315d6be19800761fc800a493b5459ba6",
-    "sourceCommitShort": "1e3c6222315d",
+    "generated": "2026-06-01 19:25:54 UTC",
+    "sourceCommit": "0b3b727dd54d4f2e36854df953f8ccdc5940dd777",
+    "sourceCommitShort": "0b3b727dd54d",
     "sourceBranch": "unknown",
-    "dashboardCommit": "1e3c6222315d6be19800761fc800a493b5459ba6",
-    "dashboardCommitShort": "1e3c6222315d",
+    "dashboardCommit": "0b3b727dd122141d074b8c7559435d640769c28b",
+    "dashboardCommitShort": "0b3b727dd122",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -22,13 +22,13 @@
             "coverage": "1,589 / 1,589 (100.0%)",
             "mapPercent": "100.0%",
             "unmapped": "0",
-            "php": "6,191,969 pass / 16 fail",
+            "php": "6,192,971 pass / 16 fail",
             "phase": "current-base source integration accepted by supervisor with focused a...",
-            "audit": "2026-06-01 19:18 UTC supervisor integration: source commit 1aa392ceef...",
-            "currentWork": "atof1 random roundtrip rows, func2 substr negative-window behavior, selectA UNION ALL...",
+            "audit": "2026-06-01 19:31 UTC supervisor integration: source commit 0b3b727dd5...",
+            "currentWork": "PRAGMA/schema authorizer-clear coverage, source-neutral database key/value defaults,...",
             "nextTarget": "Run/triage the 16 broad libsqlite failures, continue focused...",
             "remainingGate": "Broad libsqlite full-lane/release parity is not green: latest selecte...",
-            "commit": "1aa392c"
+            "commit": "0b3b727dd54d4f2..."
         },
         {
             "lane": "lightningcss",
