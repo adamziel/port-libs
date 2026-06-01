@@ -55,6 +55,27 @@
 
 ## Current Coordination Snapshot
 
+- 2026-06-01 supervisor continuation (AO cleanup + Gitoxide/libsqlite
+  integration 02:13 UTC): audited the user's active-session cleanup concern.
+  There is still one attached tmux session (`main`), not duplicate live
+  sessions. AO-style cleanup parked 3769 stale handoff candidate triplets older
+  than 60 minutes under
+  `.tmux-team/tmp/handoff-parked/20260601T0212Z-stale-candidate-queue/`, kept
+  live worker windows with running Codex children, and refilled the visible pool
+  to 11 isolated workers (`0` long sleepers) with `gpt-5.5` xhigh priority.
+  Source commit `7e6823e48e4539f9046818b83142d3cf5ae9d0c7` (`ports: extend
+  git transport and sqlite dynamic parity`) integrates Gitoxide protocol-v2
+  fetch sideband progress handlers, send-pack valueless report-status-v2
+  options, SSH receive-pack environment-removal parity, libsqlite VFS
+  `win32lock` retry behavior, and row-value UPDATE/DELETE LIMIT `random()`
+  dynamic parity. Verification passed PHP lint for changed/new PHP,
+  `git diff --check`, full Gitoxide `40 files / 6838 assertions / 0 failures`,
+  focused libsqlite/no-domain guard `3 files / 28052 assertions / 0 failures`,
+  and touched examples. Dashboard/status now reports Gitoxide `1703 / 2886`
+  mapped and `6838 pass / 0 fail`, and libsqlite `1589 / 1589` mapped with
+  `5357651 pass / 7 fail`. Broad libsqlite full-lane/release parity and
+  pre-existing source-neutral cleanup debt remain open.
+
 - 2026-06-01 supervisor continuation (Gitoxide/libsqlite source integration
   02:06 UTC): harvested completed handoffs after the pool dipped, refilled
   visible capacity back to 11 isolated workers (`0` long sleepers), and

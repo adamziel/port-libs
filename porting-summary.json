@@ -1,11 +1,11 @@
 {
-    "generated": "2026-06-01 02:06:08 UTC",
-    "sourceCommit": "6de4ba23b085e8645eb64cdbe7c383c4e7255326",
-    "sourceCommitShort": "6de4ba23b085",
+    "generated": "2026-06-01 02:17:07 UTC",
+    "sourceCommit": "7e6823e48e4539f9046818b83142d3cf5ae9d0c7",
+    "sourceCommitShort": "7e6823e48e45",
     "sourceBranch": "unknown",
-    "dashboardCommit": "6de4ba23b085e8645eb64cdbe7c383c4e7255326",
-    "dashboardCommitShort": "6de4ba23b085",
-    "averageProgressPercent": "88.0",
+    "dashboardCommit": "7e6823e48e4539f9046818b83142d3cf5ae9d0c7",
+    "dashboardCommitShort": "7e6823e48e45",
+    "averageProgressPercent": "88.1",
     "lanes": [
         {
             "library": "difftastic",
@@ -60,20 +60,20 @@
         },
         {
             "library": "gitoxide",
-            "progressPercent": "92.1",
-            "suite": "current-base-merge-base-hydration-followup",
-            "benchmark": "current-base-merge-base-hydration-followup",
+            "progressPercent": "92.2",
+            "suite": "current-base-transport-protocol-followup",
+            "benchmark": "current-base-transport-protocol-followup",
             "denominator": "2886",
-            "mapped": "1700",
-            "coverage": "1700 / 2886",
-            "php": "6799 pass / 0 fail",
+            "mapped": "1703",
+            "coverage": "1703 / 2886",
+            "php": "6838 pass / 0 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "current-base source integration accepted by supervisor...",
             "audit": "2026-06-01 supervisor followup: full Gito...",
-            "currentWork": "Merge-base graph reuse after shallow/promisor ancestor hydration integrated on current ba...",
+            "currentWork": "Protocol-v2 fetch sideband progress handlers, send-pack valueless report-status-v2 option...",
             "nextTarget": "Keep three Gitoxide workers on current-base non-overlapping protocol, pack/object, refere...",
             "blocker": "Full upstream Cargo workspace remains unexecuted.",
-            "commit": "6de4ba2"
+            "commit": "7e6823e"
         },
         {
             "library": "libsqlite",
@@ -83,14 +83,14 @@
             "denominator": "1589",
             "mapped": "1589",
             "coverage": "1589 / 1589",
-            "php": "5329602 pass / 7 fail",
+            "php": "5357651 pass / 7 fail",
             "wordpressScenarios": "1 / 1",
             "phase": "focused source integration accepted; broad full-lane an...",
             "audit": "2026-06-01 supervisor followup: focused l...",
-            "currentWork": "Real upstream nulls1 UPSERT conflict-target NULLS diagnostics integrated on current base,...",
+            "currentWork": "VFS win32lock retry behavior and row-value UPDATE/DELETE LIMIT random() dynamic parity in...",
             "nextTarget": "Keep SQLite workers on broad full-lane failure triage and source-neutral cleanup, especia...",
             "blocker": "Broad libsqlite full-lane/release parity is not green: sampled failures r...",
-            "commit": "6de4ba2"
+            "commit": "7e6823e"
         },
         {
             "library": "LightningCSS",
