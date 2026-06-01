@@ -113,6 +113,10 @@ $rowValueWindowDefaultSignatureMatches = static function () use ($partitionedWin
         'executeCurrentRowWindowFrames',
         'executeReplayPairWindow',
         'executeStatementWindowMetrics',
+        'executePeerGroupWindowReceipt',
+        'executePairCurrentRowFrames',
+        'executeChainedStatementWindows',
+        'executeTupleFrameWindowReceipt',
     ];
     $terms = [
         'opt' . 'ion_id',
@@ -185,6 +189,27 @@ $returningWindowDefaultRows = static fn (): array => SQLiteRowValueUpdateDeleteR
     [['tenant_id', 'key_name']],
 );
 
+$peerWindowDefaultRows = static fn (): array => SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executePeerGroupWindowReceipt(
+    [
+        'app_settings' => [
+            ['setting_id' => 1, 'tenant_id' => 1, 'key_name' => 'base_url', 'key_value' => 'old', 'load_policy' => 'yes', 'status' => 'live', 'bytes' => 10],
+            ['setting_id' => 2, 'tenant_id' => 1, 'key_name' => 'module_registry', 'key_value' => 'enabled', 'load_policy' => 'no', 'status' => 'queued', 'bytes' => 12],
+            ['setting_id' => 3, 'tenant_id' => 2, 'key_name' => 'cache_policy', 'key_value' => 'cache', 'load_policy' => 'no', 'status' => 'stale', 'bytes' => 6],
+        ],
+    ],
+    [
+        "UPDATE app_settings SET (status, key_value, bytes) = ('yield', key_value || ':yield', bytes + 1) WHERE setting_id = 1 RETURNING setting_id, tenant_id, key_name, status, key_value, bytes ORDER BY setting_id",
+    ],
+    [
+        "UPDATE app_settings SET (status, key_value, bytes) = ('attempt', key_value || ':attempt', bytes + 1) WHERE setting_id = 2 RETURNING setting_id, tenant_id, key_name, status, key_value, bytes ORDER BY setting_id",
+    ],
+    [
+        "UPDATE app_settings SET (status, key_value, bytes) = ('retry', key_value || ':retry', bytes + 2) WHERE setting_id = 2 RETURNING setting_id, tenant_id, key_name, status, key_value, bytes ORDER BY setting_id",
+        "DELETE FROM app_settings WHERE setting_id = 3 RETURNING setting_id, tenant_id, key_name, status, key_value, bytes ORDER BY setting_id",
+    ],
+    [['tenant_id', 'key_name']],
+);
+
 return [
     'source-neutral compound window defaults dynamic source has no legacy setting table terms' => static fn (TestRunner $t) => $t->same([], $compoundWindowSourceMatches()),
     'source-neutral partitioned row-value window source defaults use setting terms' => static fn (TestRunner $t) => $t->same([], $partitionedWindowSourceMatches()),
@@ -207,5 +232,13 @@ return [
         $t->same([2], array_column($plan['retry_window'], 'setting_id'));
         $t->same(false, array_key_exists('option_id', $plan['retry_window'][0]));
         $t->same('retry', array_column($plan['current_source_tables']['app_settings'], 'status', 'setting_id')[2]);
+    },
+    'source-neutral row-value peer window default rowid is setting id' => static function (TestRunner $t) use ($peerWindowDefaultRows): void {
+        $plan = $peerWindowDefaultRows();
+
+        $t->same([2, 3], $plan['retry_peer_group_ids_next240']);
+        $t->same(false, array_key_exists('option_id', $plan['retry_peer_groups_next240'][0]));
+        $t->same([2, 3], $plan['retry_peer_group_receipt_next240']['retry_ids']);
+        $t->same([1, 2], array_column($plan['current_source_tables']['app_settings'], 'setting_id'));
     },
 ];

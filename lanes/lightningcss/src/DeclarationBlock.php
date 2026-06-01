@@ -53,6 +53,22 @@ final class DeclarationBlock
         'max-block-size' => ['group' => 'max-size', 'category' => 'logical'],
         'max-inline-size' => ['group' => 'max-size', 'category' => 'logical'],
     ];
+    private const PREFERRED_SIZE_PROPERTIES = [
+        'width',
+        'height',
+        'block-size',
+        'inline-size',
+        'min-width',
+        'min-height',
+        'min-block-size',
+        'min-inline-size',
+    ];
+    private const MAX_SIZE_PROPERTIES = [
+        'max-width',
+        'max-height',
+        'max-block-size',
+        'max-inline-size',
+    ];
 
     private const CSS_WIDE_KEYWORDS = ['initial', 'inherit', 'unset', 'revert', 'revert-layer'];
 
@@ -135,9 +151,26 @@ final class DeclarationBlock
         'text-bottom',
     ];
     private const ALPHA_VALUE_PROPERTIES = ['opacity', 'fill-opacity', 'stroke-opacity'];
-    private const COLOR_OR_AUTO_PROPERTIES = ['accent-color'];
+    private const COLOR_OR_AUTO_PROPERTIES = ['accent-color', 'caret-color'];
     private const DIRECT_COLOR_PROPERTIES = [
         'accent-color',
+        'caret-color',
+        'color',
+        'background-color',
+        'border-top-color',
+        'border-bottom-color',
+        'border-left-color',
+        'border-right-color',
+        'border-block-start-color',
+        'border-block-end-color',
+        'border-inline-start-color',
+        'border-inline-end-color',
+        'outline-color',
+        'text-decoration-color',
+        '-webkit-text-decoration-color',
+        '-moz-text-decoration-color',
+        'text-emphasis-color',
+        '-webkit-text-emphasis-color',
     ];
     private const SVG_PAINT_PROPERTIES = ['fill', 'stroke'];
     private const SVG_MARKER_PROPERTIES = ['marker', 'marker-start', 'marker-mid', 'marker-end'];
@@ -6287,7 +6320,7 @@ final class DeclarationBlock
     {
         $value = trim($value);
 
-        return strcasecmp($value, 'currentcolor') === 0 ? 'currentcolor' : $value;
+        return strcasecmp($value, 'currentcolor') === 0 ? 'currentColor' : $value;
     }
 
     private function isOutlineProperty(string $property): bool
@@ -13890,6 +13923,14 @@ final class DeclarationBlock
             return $this->normalizeBoxSpacingDeclarationValue($value);
         }
 
+        if (in_array($property, self::PREFERRED_SIZE_PROPERTIES, true)) {
+            return $this->normalizeSizeDeclarationValue($value, true);
+        }
+
+        if (in_array($property, self::MAX_SIZE_PROPERTIES, true)) {
+            return $this->normalizeSizeDeclarationValue($value, false);
+        }
+
         if (in_array($property, self::ALPHA_VALUE_PROPERTIES, true)) {
             return $this->normalizeAlphaValue($value);
         }
@@ -15066,8 +15107,28 @@ final class DeclarationBlock
         if (strcasecmp($value, 'currentcolor') === 0) {
             return 'currentColor';
         }
+        if (!$this->isDirectColorDeclarationToken($value)) {
+            return $value;
+        }
 
         return $this->normalizeMinifiedDeclarationValue($property, $value);
+    }
+
+    private function isDirectColorDeclarationToken(string $value): bool
+    {
+        $tokens = $this->splitWhitespaceTopLevel($value);
+        if (count($tokens) !== 1) {
+            return false;
+        }
+
+        $token = $tokens[0];
+        if ($token === '' || preg_match('/^(?:var|env)\(/i', $token) === 1) {
+            return false;
+        }
+
+        return $token[0] === '#'
+            || preg_match('/^-?[_a-zA-Z][_a-zA-Z0-9-]*$/', $token) === 1
+            || preg_match('/^(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark)\(/i', $token) === 1;
     }
 
     private function normalizeSvgMarkerValue(string $value): string
@@ -15152,6 +15213,50 @@ final class DeclarationBlock
             ' ',
             array_map(fn (string $token): string => $this->normalizeLengthPercentageOrAutoToken($token), $tokens)
         );
+    }
+
+    private function normalizeSizeDeclarationValue(string $value, bool $preferredSize): string
+    {
+        $trimmed = trim($value);
+        $lower = strtolower($trimmed);
+        $keywords = [
+            'min-content',
+            '-webkit-min-content',
+            '-moz-min-content',
+            'max-content',
+            '-webkit-max-content',
+            '-moz-max-content',
+            'fit-content',
+            '-webkit-fit-content',
+            '-moz-fit-content',
+            'stretch',
+            '-webkit-fill-available',
+            '-moz-available',
+            'contain',
+        ];
+
+        if ($preferredSize) {
+            $keywords[] = 'auto';
+        } else {
+            $keywords[] = 'none';
+        }
+
+        if (in_array($lower, $keywords, true)) {
+            return $lower;
+        }
+
+        if (preg_match('/^fit-content\(\s*(.+?)\s*\)$/is', $trimmed, $matches) === 1) {
+            $inner = $this->normalizeLengthPercentageDeclarationToken($matches[1]);
+            if ($inner === null) {
+                return $trimmed;
+            }
+
+            return 'fit-content(' . $inner . ')';
+        }
+
+        $size = $this->normalizeLengthPercentageDeclarationToken($trimmed);
+
+        return $size ?? $trimmed;
     }
 
     private function normalizeLengthOrNumberDeclarationToken(string $token): ?string

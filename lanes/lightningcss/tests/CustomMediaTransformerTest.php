@@ -250,6 +250,31 @@ CSS;
             $transformAndMinify($css)
         );
     },
+    'custom media transformer preserves unknown legacy-looking range aliases in layers' => static function (TestRunner $t) use ($transformAndMinify): void {
+        $css = <<<'CSS'
+@custom-media --not-theme-min not (min-Theme-Breakpoint: 2);
+@custom-media --not-token-max not (max---WP-Breakpoint: 4);
+
+@layer theme.blocks {
+  @media (--not-theme-min) {
+    .min {
+      color: yellow;
+    }
+  }
+
+  @media (--not-token-max) {
+    .max {
+      color: blue;
+    }
+  }
+}
+CSS;
+
+        $t->same(
+            '@layer theme.blocks{@media not (min-Theme-Breakpoint:2){.min{color:#ff0}}@media not (max---WP-Breakpoint:4){.max{color:#00f}}}',
+            $transformAndMinify($css)
+        );
+    },
     'custom media transformer preserves declarations when requested' => static function (TestRunner $t): void {
         $css = '@custom-media --foo print; @media (--foo) { .a { color: red } }';
         $transformed = (new CustomMediaTransformer())->transform($css, true);

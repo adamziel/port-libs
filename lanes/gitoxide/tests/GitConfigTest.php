@@ -150,7 +150,13 @@ return [
         $t->same('override-value', $loadConditionalValue('onbranch:main', ['branchName' => 'refs/heads/main']));
         $t->same('base-value', $loadConditionalValue('onbranch:refs/heads/main', ['branchName' => 'refs/heads/main']));
         $t->same('base-value', $loadConditionalValue('onbranch:good', ['branchName' => 'refs/bisect/good']));
+        $t->same('override-value', $loadConditionalValue('onbranch:prefix*', ['branchName' => 'refs/heads/prefixsuffix']));
+        $t->same('base-value', $loadConditionalValue('onbranch:prefix*', ['branchName' => 'refs/heads/prefix/suffix']));
+        $t->same('override-value', $loadConditionalValue('onbranch:*suffix', ['branchName' => 'refs/heads/prefixsuffix']));
+        $t->same('base-value', $loadConditionalValue('onbranch:*suffix', ['branchName' => 'refs/heads/prefix/suffix']));
+        $t->same('override-value', $loadConditionalValue('onbranch:*/suffix', ['branchName' => 'refs/heads/prefix/suffix']));
         $t->same('override-value', $loadConditionalValue('onbranch:feature/', ['branchName' => 'refs/heads/feature/b/start']));
+        $t->same('override-value', $loadConditionalValue('onbranch:feature/b/', ['branchName' => 'refs/heads/feature/b/start']));
         $t->same('override-value', $loadConditionalValue('onbranch:feature/*/start', ['branchName' => 'refs/heads/feature/a/start']));
         $t->same('base-value', $loadConditionalValue('onbranch:feature/*/start', ['branchName' => 'refs/heads/feature/a/b/start']));
         $t->same('override-value', $loadConditionalValue('onbranch:feature/**/start', ['branchName' => 'refs/heads/feature/a/b/start']));
@@ -1394,6 +1400,8 @@ return [
         $t->same('refs/heads/deploy/site-a', $fixture['activeBranch']);
         $t->same('https://git.example.test/wp-content.git', $fixture['remoteUrl']);
         $t->same('enabled', $fixture['preview']);
+        $t->same('matched', $fixture['singleComponentBranchPolicy']);
+        $t->same(null, $fixture['singleComponentSlashPolicy']);
         $t->same('zdiff3', $fixture['conflictStyle']);
         $t->same('X-WP-Deploy: staging', $fixture['httpExtraHeader']);
         $t->same('true', $fixture['transferFsckObjects']);
@@ -1448,6 +1456,8 @@ return [
         $t->same(true, $fixture['depthZeroError']);
         $t->same(null, $fixture['mixedCaseIncludeIfPolicy']);
         $t->same($fixture['preview'], $summary['preview']);
+        $t->same($fixture['singleComponentBranchPolicy'], $summary['singleComponentBranchPolicy']);
+        $t->same($fixture['singleComponentSlashPolicy'], $summary['singleComponentSlashPolicy']);
         $t->same($fixture['conflictStyle'], $summary['conflictStyle']);
         $t->same($fixture['escapedGitdirPolicy'], $summary['escapedGitdirPolicy']);
         $t->same($fixture['recursiveGitdirPolicy'], $summary['recursiveGitdirPolicy']);

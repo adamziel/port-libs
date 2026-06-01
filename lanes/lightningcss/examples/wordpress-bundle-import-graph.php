@@ -1813,6 +1813,34 @@ if (
 
 echo 'css-modules-source-map: collected' . PHP_EOL;
 
+$cssModuleDependencyMap = 'data:application/json;base64,' . base64_encode(json_encode([
+    'version' => 3,
+    'mappings' => 'AAAA',
+    'sources' => ['modules/_tokens.scss'],
+    'sourcesContent' => ['.token { color: $brand-blue; }'],
+    'names' => [],
+], JSON_THROW_ON_ERROR));
+$cssModuleDependencyMappedBundle = (new CssBundler())->bundleCssModulesWithSourceMap('/modules/card.css', [
+    '/modules/card.css' => '.wp-block-card { composes: token from "./tokens.css"; color: red }',
+    '/modules/tokens.css' => ".token { color: blue }\n/*# sourceMappingURL={$cssModuleDependencyMap} */",
+], null, [
+    'hashes' => [
+        '/modules/card.css' => 'card',
+        '/modules/tokens.css' => 'tok',
+    ],
+], '/');
+$cssModuleDependencySources = $cssModuleDependencyMappedBundle['sourceMap']->toArray(null, false)['sources'];
+if (
+    $cssModuleDependencyMappedBundle['code'] !== '.tok_token{color:#00f}.card_wp-block-card{color:red}'
+    || ($cssModuleDependencyMappedBundle['exports']['wp-block-card']['composes'][0]['name'] ?? null) !== 'tok_token'
+    || $cssModuleDependencySources !== ['modules/card.css', 'modules/_tokens.scss']
+) {
+    fwrite(STDERR, "Expected CSS Modules dependency source-map remapping output\n");
+    exit(1);
+}
+
+echo 'css-modules-dependency-source-map: remapped' . PHP_EOL;
+
 $moduleOrderFiles = [
     '/modules/order-card.css' => <<<'CSS'
 @import "pkg:theme.css";

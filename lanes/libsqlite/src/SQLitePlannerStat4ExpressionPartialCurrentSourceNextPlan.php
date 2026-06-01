@@ -25641,6 +25641,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 self::currentStat4PayloadPayloadsByRowid($index),
                 self::currentStat4PayloadRowids($base['matchedRowids'] ?? null),
                 $neededColumns,
+                self::stat4KeyColumnForPartialKeyFields($index, 'next253'),
             );
             $ready = ($base['status'] ?? null) === 'stat4-expression-partial-current-source-next250-ready'
                 && $fence['allYieldedRowsHaveCurrentPayloads'] === true
@@ -25690,7 +25691,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
          * @param list<string> $neededColumns
          * @return array<string,mixed>
          */
-        private static function currentStat4PayloadFence(array $rowsByRowid, array $payloadsByRowid, array $yieldedRowids, array $neededColumns): array
+        private static function currentStat4PayloadFence(array $rowsByRowid, array $payloadsByRowid, array $yieldedRowids, array $neededColumns, string $keyColumn): array
         {
             if ($neededColumns === []) {
                 throw new \InvalidArgumentException('SQLite next253 needed columns must be non-empty');
@@ -25715,7 +25716,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
                 $expected = self::currentStat4PayloadCoveredValues($row, $neededColumns);
                 $actual = self::currentStat4PayloadCoveredValues(self::currentStat4PayloadCoveredValuesFromPayload($payload), $neededColumns);
-                $expressionMatches = self::currentStat4PayloadExpressionKey($row) === self::currentStat4PayloadExpressionKeyFromPayload($payload);
+                $currentExpressionKey = self::currentStat4PayloadExpressionKey($row, $keyColumn);
+                $payloadExpressionKey = self::currentStat4PayloadExpressionKeyFromPayload($payload);
+                $expressionMatches = $currentExpressionKey === $payloadExpressionKey;
                 $coveredValuesMatch = $expected === $actual;
                 $matches = $expressionMatches && $coveredValuesMatch;
                 if ($matches) {
@@ -25725,8 +25728,8 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 }
                 $proofs[] = [
                     'rowid' => $rowid,
-                    'currentExpressionKey' => self::currentStat4PayloadExpressionKey($row),
-                    'payloadExpressionKey' => self::currentStat4PayloadExpressionKeyFromPayload($payload),
+                    'currentExpressionKey' => $currentExpressionKey,
+                    'payloadExpressionKey' => $payloadExpressionKey,
                     'expressionMatches' => $expressionMatches,
                     'currentCoveredValues' => $expected,
                     'payloadCoveredValues' => $actual,
@@ -25854,9 +25857,9 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
         }
 
         /** @param array<string,mixed> $row */
-        private static function currentStat4PayloadExpressionKey(array $row): string
+        private static function currentStat4PayloadExpressionKey(array $row, string $keyColumn): string
         {
-            return strtolower((string) ($row['option_name'] ?? ''));
+            return self::stat4ExpressionKeyFromRow($row, $keyColumn, 'next253');
         }
 
         /** @param array<string,mixed> $payload */
@@ -28254,7 +28257,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'rowid' => $rowid,
                 'payloadRowid' => $payloadRowid,
-                'expressionKey' => $hasCurrentRow ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    $hasCurrentRow ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => self::projectedColumnsForStat4PayloadHandoffSeed($row, $neededColumns),
                 'hasCurrentRow' => $hasCurrentRow,
                 'payloadMatchesCurrentRowid' => $payloadMatches,
@@ -28422,7 +28429,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -28593,7 +28604,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -28764,7 +28779,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -28935,7 +28954,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -29106,7 +29129,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -29277,7 +29304,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -29448,7 +29479,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -29619,7 +29654,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -29724,7 +29763,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -29895,7 +29938,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -30066,7 +30113,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -30237,7 +30288,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -30462,7 +30517,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -30687,7 +30746,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -30912,7 +30975,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -31137,7 +31204,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -31317,7 +31388,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 'slice' => $slice,
                 'continuesSlice' => $priorSlice,
                 'rowid' => $rowid,
-                'expressionKey' => is_array($row) ? strtolower((string) ($row['option_name'] ?? '')) : null,
+                'expressionKey' => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, 'stat4 expression partial handoff', (string) ($base['selectedPlan']['name'] ?? '')),
+                    'stat4 expression partial handoff'
+                ),
                 'projectedColumns' => $projected,
                 'priorProjectedColumns' => $priorProjected,
                 'priorPrepared' => ($priorWindow['prepared'] ?? null) === true,
@@ -31842,7 +31917,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "slice" => $slice,
                 "continuesSlice" => $priorSlice,
                 "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
+                "expressionKey" => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, "stat4 expression partial handoff", (string) ($base["selectedPlan"]["name"] ?? "")),
+                    "stat4 expression partial handoff"
+                ),
                 "projectedColumns" => $projected,
                 "priorProjectedColumns" => $priorProjected,
                 "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
@@ -32074,7 +32153,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "slice" => $slice,
                 "continuesSlice" => $priorSlice,
                 "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
+                "expressionKey" => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, "stat4 expression partial handoff", (string) ($base["selectedPlan"]["name"] ?? "")),
+                    "stat4 expression partial handoff"
+                ),
                 "projectedColumns" => $projected,
                 "priorProjectedColumns" => $priorProjected,
                 "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
@@ -32302,7 +32385,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "slice" => $slice,
                 "continuesSlice" => $priorSlice,
                 "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
+                "expressionKey" => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, "stat4 expression partial handoff", (string) ($base["selectedPlan"]["name"] ?? "")),
+                    "stat4 expression partial handoff"
+                ),
                 "projectedColumns" => $projected,
                 "priorProjectedColumns" => $priorProjected,
                 "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
@@ -32514,7 +32601,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "slice" => $slice,
                 "continuesSlice" => $priorSlice,
                 "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
+                "expressionKey" => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, "stat4 expression partial handoff", (string) ($base["selectedPlan"]["name"] ?? "")),
+                    "stat4 expression partial handoff"
+                ),
                 "projectedColumns" => $projected,
                 "priorProjectedColumns" => $priorProjected,
                 "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
@@ -32707,7 +32798,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "slice" => $slice,
                 "continuesSlice" => $priorSlice,
                 "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
+                "expressionKey" => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, "stat4 expression partial handoff", (string) ($base["selectedPlan"]["name"] ?? "")),
+                    "stat4 expression partial handoff"
+                ),
                 "projectedColumns" => $projected,
                 "priorProjectedColumns" => $priorProjected,
                 "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
@@ -32945,7 +33040,11 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
                 "slice" => $slice,
                 "continuesSlice" => $priorSlice,
                 "rowid" => $rowid,
-                "expressionKey" => is_array($row) ? strtolower((string) ($row["option_name"] ?? "")) : null,
+                "expressionKey" => self::expressionKeyForStat4ExpressionPartialHandoff(
+                    is_array($row) ? $row : null,
+                    self::keyColumnForStat4ExpressionPartialHandoff($currentSource, "stat4 expression partial handoff", (string) ($base["selectedPlan"]["name"] ?? "")),
+                    "stat4 expression partial handoff"
+                ),
                 "projectedColumns" => $projected,
                 "priorProjectedColumns" => $priorProjected,
                 "priorPrepared" => ($priorWindow["prepared"] ?? null) === true,
@@ -33450,9 +33549,14 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
     private static function keyColumnForPreparedHandoff(array $source): string
     {
+        return self::keyColumnForStat4ExpressionPartialHandoff($source, 'prepared handoff');
+    }
+
+    private static function keyColumnForStat4ExpressionPartialHandoff(array $source, string $label, ?string $selectedName = null): string
+    {
         return self::stat4KeyColumnForPartialKeyFields(
-            self::indexForPreparedHandoffKeyFields($source),
-            "prepared handoff",
+            self::indexForStat4ExpressionPartialKeyFields($source, $label, $selectedName),
+            $label,
         );
     }
 
@@ -33461,14 +33565,33 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
      */
     private static function indexForPreparedHandoffKeyFields(array $source): array
     {
+        return self::indexForStat4ExpressionPartialKeyFields($source, 'prepared handoff');
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private static function indexForStat4ExpressionPartialKeyFields(array $source, string $label, ?string $selectedName = null): array
+    {
         $indexes = $source["indexes"] ?? null;
         if (!is_array($indexes) || $indexes === []) {
-            throw new \InvalidArgumentException("SQLite prepared handoff needs index key fields");
+            throw new \InvalidArgumentException("SQLite " . $label . " needs index key fields");
+        }
+
+        if ($selectedName !== null && $selectedName !== '') {
+            foreach ($indexes as $index) {
+                if (!is_array($index)) {
+                    throw new \InvalidArgumentException("SQLite " . $label . " index metadata must be arrays");
+                }
+                if ((string) ($index["name"] ?? '') === $selectedName) {
+                    return $index;
+                }
+            }
         }
 
         foreach ($indexes as $index) {
             if (!is_array($index)) {
-                throw new \InvalidArgumentException("SQLite prepared handoff index metadata must be arrays");
+                throw new \InvalidArgumentException("SQLite " . $label . " index metadata must be arrays");
             }
             if (($index["selected"] ?? false) === true) {
                 return $index;
@@ -33477,7 +33600,7 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
         $first = reset($indexes);
         if (!is_array($first)) {
-            throw new \InvalidArgumentException("SQLite prepared handoff index metadata must be arrays");
+            throw new \InvalidArgumentException("SQLite " . $label . " index metadata must be arrays");
         }
 
         return $first;
@@ -33485,11 +33608,16 @@ final class SQLitePlannerStat4ExpressionPartialCurrentSourceNextPlan
 
     private static function expressionKeyForPreparedHandoff(?array $row, string $keyColumn): ?string
     {
+        return self::expressionKeyForStat4ExpressionPartialHandoff($row, $keyColumn, 'prepared handoff');
+    }
+
+    private static function expressionKeyForStat4ExpressionPartialHandoff(?array $row, string $keyColumn, string $label): ?string
+    {
         if ($row === null) {
             return null;
         }
 
-        return self::stat4ExpressionKeyFromRow($row, $keyColumn, "prepared handoff");
+        return self::stat4ExpressionKeyFromRow($row, $keyColumn, $label);
     }
 
     private static function cursorProgramForPreparedHandoff(array $program, bool $ready, array $fence): array

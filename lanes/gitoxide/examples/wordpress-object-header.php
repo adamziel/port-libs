@@ -14,6 +14,11 @@ $header = GitObject::decodeLooseHeader($storage);
 $readAhead = GitObject::fromLooseBytes($storage . 'next loose object bytes already buffered');
 $positiveSizeStorage = $fixture['positiveSizeLooseHeader'] . $fixture['blockBlobBody'];
 $positiveSizeObject = GitObject::fromStorageBytes($positiveSizeStorage);
+$zeroPaddedSizeStorage = $fixture['zeroPaddedSizeLooseHeader'] . $fixture['blockBlobBody'];
+$zeroPaddedSizeObject = GitObject::fromStorageBytes($zeroPaddedSizeStorage);
+$zeroPaddedSizeIntegrityVerified = false;
+$zeroPaddedSizeNonCanonicalRejected = false;
+$zeroPaddedSizeNonCanonicalMessage = null;
 $negativeZeroSizeStorage = $fixture['negativeZeroSizeLooseHeader'] . $fixture['emptyBlobBody'];
 $negativeZeroSizeObject = GitObject::fromStorageBytes($negativeZeroSizeStorage);
 $lfSizeStorage = $fixture['lfSizeLooseHeader'] . $fixture['blockBlobBody'];
@@ -71,6 +76,38 @@ try {
     GitObject::fromStorageBytes($storage . 'next loose object bytes already buffered');
 } catch (InvalidArgumentException) {
     $strictRejectsReadAhead = true;
+}
+
+$zeroPaddedObjectsDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-zero-padded-' . bin2hex(random_bytes(4)) . '/objects';
+$zeroPaddedOid = $zeroPaddedSizeObject->oid();
+$zeroPaddedPath = $zeroPaddedObjectsDirectory . '/' . substr($zeroPaddedOid, 0, 2) . '/' . substr($zeroPaddedOid, 2);
+if (!is_dir(dirname($zeroPaddedPath)) && !mkdir(dirname($zeroPaddedPath), 0777, true) && !is_dir(dirname($zeroPaddedPath))) {
+    throw new RuntimeException('Unable to create object-header zero-padded size fixture directory');
+}
+$zeroPaddedCompressed = gzcompress($zeroPaddedSizeStorage);
+if ($zeroPaddedCompressed === false) {
+    throw new RuntimeException('Unable to compress object-header zero-padded size fixture');
+}
+file_put_contents($zeroPaddedPath, $zeroPaddedCompressed);
+$zeroPaddedStore = LooseObjectStore::fromObjectsDirectory($zeroPaddedObjectsDirectory);
+$zeroPaddedIntegrity = $zeroPaddedStore->verifyIntegrity();
+$zeroPaddedSizeIntegrityVerified = $zeroPaddedIntegrity['numObjects'] === 1
+    && $zeroPaddedIntegrity['verifiedObjectIds'] === [$zeroPaddedOid];
+
+$zeroPaddedNonCanonicalDirectory = sys_get_temp_dir() . '/port-libs-git-object-header-zero-padded-raw-' . bin2hex(random_bytes(4)) . '/objects';
+$zeroPaddedRawOid = hash('sha1', $zeroPaddedSizeStorage);
+$zeroPaddedRawPath = $zeroPaddedNonCanonicalDirectory . '/' . substr($zeroPaddedRawOid, 0, 2) . '/' . substr($zeroPaddedRawOid, 2);
+if (!is_dir(dirname($zeroPaddedRawPath)) && !mkdir(dirname($zeroPaddedRawPath), 0777, true) && !is_dir(dirname($zeroPaddedRawPath))) {
+    throw new RuntimeException('Unable to create object-header raw zero-padded size fixture directory');
+}
+file_put_contents($zeroPaddedRawPath, $zeroPaddedCompressed);
+try {
+    LooseObjectStore::fromObjectsDirectory($zeroPaddedNonCanonicalDirectory)->verifyIntegrity();
+} catch (RuntimeException $exception) {
+    $zeroPaddedSizeNonCanonicalRejected = str_contains($exception->getMessage(), 'Loose object hash mismatch')
+        && str_contains($exception->getMessage(), $zeroPaddedRawOid)
+        && str_contains($exception->getMessage(), $zeroPaddedOid);
+    $zeroPaddedSizeNonCanonicalMessage = $exception->getMessage();
 }
 
 try {
@@ -232,6 +269,12 @@ return [
     'positiveSizeHeaderAccepted' => $positiveSizeObject->body === $fixture['blockBlobBody'],
     'positiveSizeCanonicalOid' => $positiveSizeObject->oid(),
     'positiveSizeRawHeaderOid' => hash('sha1', $positiveSizeStorage),
+    'zeroPaddedSizeHeaderAccepted' => $zeroPaddedSizeObject->body === $fixture['blockBlobBody'],
+    'zeroPaddedSizeCanonicalOid' => $zeroPaddedOid,
+    'zeroPaddedSizeRawHeaderOid' => $zeroPaddedRawOid,
+    'zeroPaddedSizeIntegrityVerified' => $zeroPaddedSizeIntegrityVerified,
+    'zeroPaddedSizeNonCanonicalRejected' => $zeroPaddedSizeNonCanonicalRejected,
+    'zeroPaddedSizeNonCanonicalMessage' => $zeroPaddedSizeNonCanonicalMessage,
     'negativeZeroSizeHeaderAccepted' => $negativeZeroSizeObject->body === $fixture['emptyBlobBody'],
     'negativeZeroSizeCanonicalOid' => $negativeZeroSizeObject->oid(),
     'negativeZeroSizeRawHeaderOid' => hash('sha1', $negativeZeroSizeStorage),

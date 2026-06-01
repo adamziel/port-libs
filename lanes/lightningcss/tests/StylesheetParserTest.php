@@ -55,7 +55,7 @@ return [
         $group = $rules[0];
         $t->same('red', $group->declarations['color']);
         $t->same(['& .wp-block-button__link'], $group->rules[0]->selectors);
-        $t->same('white', $group->rules[0]->declarations['color']);
+        $t->same('#fff', $group->rules[0]->declarations['color']);
         $t->same('supports', $group->rules[1]->name);
         $t->same(['& > .wp-block-columns'], $group->rules[1]->rules[0]->selectors);
         $t->same('grid', $group->rules[1]->rules[0]->declarations['display']);

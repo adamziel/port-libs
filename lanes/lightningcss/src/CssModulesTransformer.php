@@ -2471,12 +2471,15 @@ final class CssModulesTransformer
                 );
                 $ofKeyword = $this->findNthChildOfKeyword($inner);
                 if ($ofKeyword === null) {
+                    $this->assertNoCssModulesModePseudoInNthChildFormula($inner);
                     $output .= ':' . $nthChildSelectorFunction['rawName'] . '(' . $this->minifyNthChildFormula($inner) . ')';
                     $i = $nthChildSelectorFunction['close'];
                     continue;
                 }
 
-                $formula = $this->minifyNthChildFormula(substr($inner, 0, $ofKeyword['start']));
+                $formulaSource = substr($inner, 0, $ofKeyword['start']);
+                $this->assertNoCssModulesModePseudoInNthChildFormula($formulaSource);
+                $formula = $this->minifyNthChildFormula($formulaSource);
                 $selectorList = substr($inner, $ofKeyword['end']);
                 $output .= ':'
                     . $nthChildSelectorFunction['rawName']
@@ -3419,6 +3422,11 @@ final class CssModulesTransformer
         }
 
         return $formula;
+    }
+
+    private function assertNoCssModulesModePseudoInNthChildFormula(string $formula): void
+    {
+        $this->assertNoCssModulesModePseudoInSelectorFunctionArgs($formula, 'Unexpected token Colon');
     }
 
     /**

@@ -2609,6 +2609,97 @@ CSS;
         $t->same(['type' => 'dppx', 'value' => 2.0], $seen['tokens'][5]['value']);
         $t->same('blocks/card/icon.svg', $seen['tokens'][6]['value']['url']);
     },
+    'custom at-rules serialize returned upstream unknown prelude token lists' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@wp-token --wp-gap #056ef0;
+
+.wp-block-card {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => [
+                    'wp-token' => static function (array $rule) use (&$seen): array {
+                        $seen = [
+                            'prelude' => $rule['prelude'],
+                            'tokens' => array_map(
+                                static fn (array $component): string => $component['type'],
+                                $rule['preludeTokens']
+                            ),
+                        ];
+                        $rule['prelude'] = [
+                            ['type' => 'dashed-ident', 'value' => '--wp-card-gap'],
+                            ['type' => 'color', 'value' => ['type' => 'rgb', 'r' => 5, 'g' => 110, 'b' => 240, 'alpha' => 1]],
+                            ['type' => 'function', 'value' => ['name' => 'var', 'arguments' => [
+                                ['type' => 'ident', 'value' => '--wp-scale'],
+                            ]]],
+                        ];
+
+                        return ['type' => 'unknown', 'value' => $rule];
+                    },
+                ],
+            ],
+        ]);
+
+        $cleared = (new CustomAtRuleTransformer())->transform($css, [], [
+            'Rule' => [
+                'unknown' => [
+                    'wp-token' => static function (array $rule): array {
+                        $rule['prelude'] = [];
+
+                        return ['type' => 'unknown', 'value' => $rule];
+                    },
+                ],
+            ],
+        ]);
+
+        $t->same('@wp-token --wp-card-gap #056ef0 var(--wp-scale);.wp-block-card{color:red}', $result);
+        $t->same('@wp-token;.wp-block-card{color:red}', $cleared);
+        $t->same('--wp-gap #056ef0', $seen['prelude']);
+        $t->same(['dashed-ident', 'color'], $seen['tokens']);
+    },
+    'custom at-rules serialize returned custom prelude token lists' => static function (TestRunner $t): void {
+        $seen = [];
+        $css = <<<'CSS'
+@wp-layer --wp-slot {
+  color: red;
+}
+CSS;
+
+        $result = (new CustomAtRuleTransformer())->transform(
+            $css,
+            ['wp-layer' => ['prelude' => '*', 'body' => 'style-block']],
+            [
+                'Rule' => [
+                    'custom' => [
+                        'wp-layer' => static function (array $rule) use (&$seen): array {
+                            $seen = [
+                                'prelude' => $rule['prelude'],
+                                'bodyType' => $rule['bodyType'],
+                                'astTypes' => array_map(
+                                    static fn (array $component): string => $component['type'],
+                                    is_array($rule['preludeAst']['value'] ?? null) ? $rule['preludeAst']['value'] : []
+                                ),
+                            ];
+                            $rule['prelude'] = [
+                                ['type' => 'dashed-ident', 'value' => '--wp-slot-live'],
+                            ];
+
+                            return ['type' => 'custom', 'value' => $rule];
+                        },
+                    ],
+                ],
+            ]
+        );
+
+        $t->same('@wp-layer --wp-slot-live{color:red}', $result);
+        $t->same('--wp-slot', $seen['prelude']);
+        $t->same('style-block', $seen['bodyType']);
+        $t->same(['dashed-ident'], $seen['astTypes']);
+    },
     'custom at-rules compose upstream Token scalar visitors in declaration values' => static function (TestRunner $t): void {
         $seen = [];
         $visitor = CustomAtRuleTransformer::composeVisitors([

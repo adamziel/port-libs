@@ -4145,7 +4145,7 @@ final class CustomAtRuleTransformer
             throw new \InvalidArgumentException('Custom at-rule replacement is missing a name');
         }
 
-        $prelude = trim((string) ($rule['prelude'] ?? ''));
+        $prelude = $this->serializeAtRulePreludeValue($rule['prelude'] ?? '');
         $head = '@' . $name . ($prelude === '' ? '' : ' ' . $prelude);
         $bodyType = $rule['bodyType'] ?? null;
         if ($bodyType === null) {
@@ -4173,7 +4173,7 @@ final class CustomAtRuleTransformer
             throw new \InvalidArgumentException('Custom at-rule is missing a name');
         }
 
-        $prelude = trim((string) ($rule['prelude'] ?? ''));
+        $prelude = $this->serializeAtRulePreludeValue($rule['prelude'] ?? '');
         $head = '@' . $name . ($prelude === '' ? '' : ' ' . $prelude);
         if (($rule['bodyType'] ?? null) === null) {
             return $head . ';';
@@ -4646,10 +4646,12 @@ final class CustomAtRuleTransformer
             throw new \InvalidArgumentException('Unknown at-rule replacement is missing a name');
         }
 
-        $preludeValue = $rule['prelude'] ?? '';
-        $prelude = is_string($preludeValue)
-            ? $preludeValue
-            : (string) ($rule['preludeText'] ?? '');
+        $prelude = array_key_exists('prelude', $rule)
+            ? $this->serializeAtRulePreludeValue($rule['prelude'])
+            : $this->serializeAtRulePreludeValue(
+                '',
+                is_string($rule['preludeText'] ?? null) ? $rule['preludeText'] : ''
+            );
         $prelude = trim($this->rewriteAtRulePreludeValue($prelude));
         if ($this->isKeyframesAtRule($name)) {
             $prelude = $this->rewriteKeyframesPrelude($prelude);
@@ -4666,6 +4668,21 @@ final class CustomAtRuleTransformer
                 ? $this->processRuleList($body)
                 : $this->processStyleBody($body, $parentSelectors)
         ) . '}';
+    }
+
+    private function serializeAtRulePreludeValue(mixed $prelude, string $fallback = ''): string
+    {
+        if (is_string($prelude)) {
+            return trim($prelude);
+        }
+        if (is_array($prelude)) {
+            $serialized = $this->serializeVisitorValue($prelude);
+            if ($serialized !== '') {
+                return trim($serialized);
+            }
+        }
+
+        return trim($fallback);
     }
 
     /**

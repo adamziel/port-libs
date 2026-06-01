@@ -22,6 +22,11 @@ $classAttributes = GitAttributes::fromString(
     . "wp-content/plugins/foo[/]bar.php slash-class\n",
     withBuiltInMacros: false,
 );
+$posixClassNameFoldAttributes = GitAttributes::fromString(
+    "WP-CONTENT/uploads/[[:UPPER:]]LUGINS/** folded-class\n"
+    . "wp-content/uploads/plugins/** deploy\n",
+    withBuiltInMacros: false,
+);
 $quotedPatternAttributes = GitAttributes::fromString(
     "\"wp-content/uploads/slot\\040hero.jpg\" quoted-space\n"
     . "\"wp-content/uploads/form\\fhero.jpg\" formfeed-upload\n"
@@ -138,6 +143,9 @@ $nestedAttributes = GitAttributes::fromSources([
 ]);
 $datedUploadSearch = PathspecSearch::fromSpecs([':(attr:dated-upload)wp-content/uploads/**']);
 $whitespaceUploadSearch = PathspecSearch::fromSpecs([':(attr:whitespace-upload)wp-content/uploads/**']);
+$posixClassNameFoldSearch = PathspecSearch::fromSpecs([
+    ':(icase,attr:deploy)wp-content/uploads/[[:UPPER:]]LUGINS/**',
+]);
 $reversedRangeSearch = PathspecSearch::fromSpecs([':(attr:reversed-range)wp-content/uploads/[z-a]/**']);
 $foldedReversedRangeSearch = PathspecSearch::fromSpecs([':(icase)wp-content/uploads/[Z-A]/**']);
 $componentLocalDoubleStarSearch = PathspecSearch::fromSpecs([
@@ -166,6 +174,7 @@ $nestedDeploymentSearch = PathspecSearch::fromSpecs([
 ]);
 $quotedSpacePath = 'wp-content/uploads/slot hero.jpg';
 $quotedFormFeedPath = "wp-content/uploads/form\x0chero.jpg";
+$posixClassNameFoldPath = 'wp-content/uploads/plugins/block.json';
 $formFeedOnlyPath = "\f";
 $spacedFormFeedOnlyPath = " \f ";
 $embeddedFormFeedPath = "wp-content/uploads/slot\fhero.jpg";
@@ -273,6 +282,31 @@ return [
         'wp-content/uploads/[[:unknown:]]/photo.jpg',
         false,
         $classAttributes,
+    ),
+    'caseSensitivePosixClassNameAttributeSkipped' => $posixClassNameFoldAttributes->attributesForPath(
+        $posixClassNameFoldPath,
+        ['folded-class'],
+    ),
+    'foldedPosixClassNameAttributeMatches' => $posixClassNameFoldAttributes->attributesForPath(
+        $posixClassNameFoldPath,
+        ['folded-class'],
+        false,
+        true,
+    ),
+    'caseSensitivePosixClassNamePathspecSkipped' => !PathspecMatcher::matchesOne(
+        'wp-content/uploads/[[:UPPER:]]LUGINS/**',
+        $posixClassNameFoldPath,
+        false,
+    ),
+    'foldedPosixClassNamePathspecMatches' => PathspecMatcher::matchesOne(
+        ':(icase)wp-content/uploads/[[:LOWER:]]LUGINS/**',
+        $posixClassNameFoldPath,
+        false,
+    ),
+    'foldedPosixClassNameAttrPathspecMatches' => $posixClassNameFoldSearch->isIncluded(
+        $posixClassNameFoldPath,
+        false,
+        $posixClassNameFoldAttributes,
     ),
     'quotedSpaceUploadAttributes' => $quotedPatternAttributes->attributesForPath(
         $quotedSpacePath,

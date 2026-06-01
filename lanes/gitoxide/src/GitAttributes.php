@@ -732,6 +732,9 @@ final class GitAttributes
                 $end = strpos($class, ':]', $i + 2);
                 if ($end !== false) {
                     $name = substr($class, $i + 2, $end - $i - 2);
+                    if ($ignoreCase) {
+                        $name = strtolower($name);
+                    }
                     $mapped = self::posixCharacterClassRegex($name);
                     if ($mapped === null) {
                         return '(?!)';

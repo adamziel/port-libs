@@ -95,6 +95,47 @@ $lateCurrentSourceFenceMethods = [
     'currentPartialPredicateExpressionKey',
 ];
 
+$preparedHandoffWindowMethods = [
+    'materializeCurrentStat4PayloadFence',
+    'currentStat4PayloadFence',
+    'currentStat4PayloadExpressionKey',
+    'handoffFenceForStat4PayloadHandoffSeed',
+    'handoffFenceForStat4PayloadHandoffContinuation',
+    'handoffFenceForStat4PayloadHandoffMiddle',
+    'handoffFenceForStat4PayloadHandoffValidation',
+    'handoffFenceForStat4ExpressionPartialCurrentHandoffTail',
+    'handoffFencePreparedHandoffBridgeSeed',
+    'handoffFencePreparedHandoffBridgeMiddle',
+    'handoffFencePreparedHandoffBridgeLate',
+    'handoffFencePreparedHandoffBridgeValidation',
+    'handoffFencePreparedHandoffBridgeFollowup',
+    'handoffFencePreparedHandoffBridgePenultimate',
+    'handoffFencePreparedHandoffBridgeFinal',
+    'handoffFenceForStat4ExpressionPartialPreparedBridgeCurrentSourceHandoff',
+    'handoffFenceForStat4ExpressionPartialPreparedBridgeFirstContinuation',
+    'handoffFenceForStat4ExpressionPartialPreparedBridgeSecondContinuation',
+    'handoffFenceForStat4ExpressionPartialPreparedBridgeThirdContinuation',
+    'handoffFenceForStat4ExpressionPartialPreparedBridgeFourthContinuation',
+    'handoffFenceForStat4ExpressionPartialPreparedBridgeFifthContinuation',
+    'handoffFenceForStat4ExpressionPartialPreparedBridge',
+    'handoffFenceForStat4ExpressionPartialPreparedHandoff',
+    'handoffFencePreparedHandoffPenultimateSeed',
+    'handoffFencePreparedHandoffFinalSeed',
+    'stat4ExpressionPartialPreparedContinuationFence',
+    'stat4ExpressionPartialHandoffFenceForRange',
+    'keyColumnForStat4ExpressionPartialHandoff',
+    'indexForStat4ExpressionPartialKeyFields',
+    'expressionKeyForStat4ExpressionPartialHandoff',
+];
+
+$genericCurrentSource = [
+    'indexes' => [$genericIndex + ['selected' => true]],
+    'rows' => [
+        ['rowid' => 1, 'key_name' => 'Module_Alpha', 'tenant_id' => 1, 'key_value' => 'alpha'],
+        ['rowid' => 2, 'key_name' => 'Module_Beta', 'tenant_id' => 1, 'key_value' => 'beta'],
+    ],
+];
+
 return [
     'planner stat4 prepared handoff key fields are source neutral' => static fn (TestRunner $t) => $t->same([], $domainMatches([
         'handoffFenceForStat4ExpressionPartialPreparedBridge',
@@ -131,6 +172,7 @@ return [
         'firstExpressionFromIndexes',
     ])),
     'planner stat4 late current source fences are source neutral' => static fn (TestRunner $t) => $t->same([], $domainMatches($lateCurrentSourceFenceMethods)),
+    'planner stat4 prepared handoff windows are source neutral' => static fn (TestRunner $t) => $t->same([], $domainMatches($preparedHandoffWindowMethods)),
     'planner stat4 prepared handoff key column uses generic metadata' => static fn (TestRunner $t) => $t->same('key_name', $callPrivate('keyColumnForPreparedHandoff', ['indexes' => [$genericIndex]])),
     'planner stat4 prepared handoff expression key uses generic row field' => static fn (TestRunner $t) => $t->same('module_zulu', $callPrivate('expressionKeyForPreparedHandoff', ['key_name' => 'Module_Zulu', 'tenant_id' => 1], 'key_name')),
     'planner stat4 current range expression uses generic lower key field' => static fn (TestRunner $t) => $t->same('module_zulu', $callPrivate('expressionValueStat4CurrentRange', ['key_name' => 'Module_Zulu'], 'lower(key_name)')),
@@ -151,4 +193,58 @@ return [
     'planner stat4 duplicate run expression key uses generic key field' => static fn (TestRunner $t) => $t->same('module_forms', $callPrivate('rowExpressionKeyCurrentSourceDuplicateRunValidation', ['key_name' => 'Module_Forms'], 'key_name')),
     'planner stat4 current partial predicate uses generic key expression' => static fn (TestRunner $t) => $t->same('module_alpha', $callPrivate('currentPartialPredicateLeftValue', ['expression' => 'lower(key_name)'], ['key_name' => 'Module_Alpha'])),
     'planner stat4 current partial predicate expression key uses generic key field' => static fn (TestRunner $t) => $t->same('module_beta', $callPrivate('currentPartialPredicateExpressionKey', ['key_name' => 'Module_Beta'], 'key_name')),
+    'planner stat4 payload fence compares generic key column' => static function (TestRunner $t) use ($callPrivate): void {
+        $fence = $callPrivate(
+            'currentStat4PayloadFence',
+            [1 => ['rowid' => 1, 'key_name' => 'Module_Alpha', 'key_value' => 'alpha']],
+            [1 => ['rowid' => 1, 'expressionKey' => 'module_alpha', 'coveredValues' => ['key_value' => 'alpha']]],
+            [1],
+            ['key_value'],
+            'key_name'
+        );
+
+        $t->same('module_alpha', $fence['rowProofs'][0]['currentExpressionKey']);
+        $t->same(true, $fence['allYieldedRowsHaveCurrentPayloads']);
+    },
+    'planner stat4 payload handoff seed uses generic key metadata' => static function (TestRunner $t) use ($callPrivate, $genericCurrentSource): void {
+        $fence = $callPrivate(
+            'handoffFenceForStat4PayloadHandoffSeed',
+            [
+                'selectedPlan' => ['name' => 'idx_app_settings_lower_name'],
+                'matchedRowids' => [1],
+                'stat4CurrentPayloadFence' => ['payloadMatchedRowids' => [1]],
+            ],
+            $genericCurrentSource,
+            ['key_value']
+        );
+
+        $t->same('module_alpha', $fence['handoffWindows'][0]['expressionKey']);
+        $t->same(true, $fence['allSlicesPrepared']);
+    },
+    'planner stat4 generic handoff range uses generic key metadata' => static function (TestRunner $t) use ($callPrivate, $genericCurrentSource): void {
+        $fence = $callPrivate(
+            'stat4ExpressionPartialHandoffFenceForRange',
+            [
+                'selectedPlan' => ['name' => 'idx_app_settings_lower_name'],
+                'stat4PriorFence' => [
+                    'handoffWindows' => [
+                        ['slice' => 1, 'rowid' => 2, 'projectedColumns' => ['key_value' => 'beta'], 'prepared' => true],
+                    ],
+                    'preparedSlices' => [1],
+                    'allSlicesPrepared' => true,
+                    'sliceRange' => [1, 1],
+                    'handoffSignature' => 'prior',
+                ],
+            ],
+            $genericCurrentSource,
+            ['key_value'],
+            'stat4PriorFence',
+            638,
+            653,
+            'prior'
+        );
+
+        $t->same('module_beta', $fence['handoffWindows'][0]['expressionKey']);
+        $t->same([], $fence['blockedSlices']);
+    },
 ];

@@ -1286,6 +1286,14 @@ CSS;
             $prefixer->prefixForTargets('.foo { user-select: none; }', ['edge' => 19])
         );
         $t->same(
+            '.foo{user-select:none}',
+            $prefixer->prefixForTargets('.foo { user-select: none; }', ['ios_saf' => '3.1'])
+        );
+        $t->same(
+            '.foo{-webkit-user-select:none;user-select:none}',
+            $prefixer->prefixForTargets('.foo { user-select: none; }', ['ios_saf' => '3.2'])
+        );
+        $t->same(
             '.foo{-webkit-appearance:none;appearance:none}',
             $prefixer->prefixForTargets('.foo { appearance: none; }', ['chrome' => 83])
         );
@@ -3331,6 +3339,46 @@ CSS;
         $t->same(
             '@supports (filter:blur(5px)){.foo{filter:blur(5px)}}',
             $prefixer->prefixForTargets('@supports ((-webkit-filter: blur(5px)) or (filter: blur(5px))) { .foo { -webkit-filter: blur(5px); filter: blur(5px); } }', ['safari' => 10])
+        );
+    },
+    'transition prefixer maps upstream transition supports declaration prefixes' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+
+        $t->same(
+            '@supports ((-webkit-transition:opacity 200ms) or (transition:opacity 200ms)){.foo{-webkit-transition:opacity .2s;transition:opacity .2s}}',
+            $prefixer->prefixForTargets('@supports (transition: opacity 200ms) { .foo { transition: opacity 200ms; } }', ['chrome' => 25])
+        );
+        $t->same(
+            '@supports (transition:opacity 200ms){.foo{transition:opacity .2s}}',
+            $prefixer->prefixForTargets('@supports (transition: opacity 200ms) { .foo { transition: opacity 200ms; } }', ['chrome' => 26])
+        );
+        $t->same(
+            '@supports ((-moz-transition:opacity 200ms) or (transition:opacity 200ms)){.foo{-moz-transition:opacity .2s;transition:opacity .2s}}',
+            $prefixer->prefixForTargets('@supports (transition: opacity 200ms) { .foo { transition: opacity 200ms; } }', ['firefox' => 15])
+        );
+        $t->same(
+            '@supports ((-o-transition:opacity 200ms) or (transition:opacity 200ms)){.foo{-o-transition:opacity .2s;transition:opacity .2s}}',
+            $prefixer->prefixForTargets('@supports (transition: opacity 200ms) { .foo { transition: opacity 200ms; } }', ['opera' => 12])
+        );
+        $t->same(
+            '@supports (transition:opacity 200ms){.foo{transition:opacity .2s}}',
+            $prefixer->prefixForTargets('@supports ((-webkit-transition: opacity 200ms) or (transition: opacity 200ms)) { .foo { -webkit-transition: opacity 200ms; transition: opacity 200ms; } }', ['chrome' => 26])
+        );
+        $t->same(
+            '@supports ((-moz-transition-property:opacity) or (transition-property:opacity)){.foo{-moz-transition-property:opacity;transition-property:opacity}}',
+            $prefixer->prefixForTargets('@supports (transition-property: opacity) { .foo { transition-property: opacity; } }', ['firefox' => 15])
+        );
+        $t->same(
+            '@supports ((-o-transition-duration:200ms) or (transition-duration:200ms)){.foo{-o-transition-duration:.2s;transition-duration:.2s}}',
+            $prefixer->prefixForTargets('@supports (transition-duration: 200ms) { .foo { transition-duration: 200ms; } }', ['opera' => 12])
+        );
+        $t->same(
+            '@supports ((-webkit-transition-delay:100ms) or (transition-delay:100ms)){.foo{-webkit-transition-delay:.1s;transition-delay:.1s}}',
+            $prefixer->prefixForTargets('@supports (transition-delay: 100ms) { .foo { transition-delay: 100ms; } }', ['android' => '4.2'])
+        );
+        $t->same(
+            '@supports ((-webkit-transition-timing-function:ease-in-out) or (transition-timing-function:ease-in-out)) and (color:red){.foo{-webkit-transition-timing-function:ease-in-out;transition-timing-function:ease-in-out;color:red}}',
+            $prefixer->prefixForTargets('@supports (transition-timing-function: ease-in-out) and (color: red) { .foo { transition-timing-function: ease-in-out; color: red; } }', ['android' => '4.2'])
         );
     },
     'transition prefixer maps upstream supports declaration target-prefix boundaries' => static function (TestRunner $t): void {

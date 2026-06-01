@@ -12017,6 +12017,144 @@ final class SQLiteDynamicTriggerForeignKeyPlan
     }
 
     /**
+     * @return array<string,mixed>
+     */
+    public static function eForeignKeyDeferrableClauseMatrixPlan(int $seed, bool $repairBeforeCommit = true): array
+    {
+        if ($seed <= 0) {
+            throw new \InvalidArgumentException('SQLite e_fkey deferrable clause seed must be positive');
+        }
+
+        $clauses = [
+            ['table' => 'c1', 'clause' => 'NOT DEFERRABLE INITIALLY DEFERRED', 'timing' => 'immediate', 'key' => ['a', 'b', 'c']],
+            ['table' => 'c2', 'clause' => 'NOT DEFERRABLE INITIALLY IMMEDIATE', 'timing' => 'immediate', 'key' => ['d', 'e', 'f']],
+            ['table' => 'c3', 'clause' => 'NOT DEFERRABLE', 'timing' => 'immediate', 'key' => ['g', 'h', 'i']],
+            ['table' => 'c4', 'clause' => 'DEFERRABLE INITIALLY IMMEDIATE', 'timing' => 'immediate', 'key' => ['j', 'k', 'l']],
+            ['table' => 'c5', 'clause' => 'DEFERRABLE', 'timing' => 'immediate', 'key' => ['m', 'n', 'o']],
+            ['table' => 'c6', 'clause' => 'implicit immediate', 'timing' => 'immediate', 'key' => ['p', 'q', 'r']],
+            ['table' => 'c7', 'clause' => 'DEFERRABLE INITIALLY DEFERRED', 'timing' => 'deferred', 'key' => ['s', 't', 'u']],
+        ];
+
+        $constraintModes = [];
+        $immediateTables = [];
+        $deferredTables = [];
+        $deleteParentResults = [];
+        $updateParentResults = [];
+        $insertChildResults = [];
+        $updateChildResults = [];
+
+        foreach ($clauses as $index => $definition) {
+            $table = (string) $definition['table'];
+            $timing = (string) $definition['timing'];
+            $isDeferred = $timing === 'deferred';
+            $parentKey = array_map(
+                static fn (string $part): string => $part . '-' . $seed,
+                $definition['key']
+            );
+            $missingChildKey = [1 + $seed, 2 + $seed, 3 + $seed];
+            $updatedKey = [$parentKey[0], $parentKey[1], 'z-' . $seed];
+
+            $constraintModes[$table] = [
+                'table' => $table,
+                'clause' => $definition['clause'],
+                'timing' => $timing,
+                'upstream_table_index' => $index + 1,
+                'parent_key' => $parentKey,
+            ];
+
+            if ($isDeferred) {
+                $deferredTables[] = $table;
+            } else {
+                $immediateTables[] = $table;
+            }
+
+            $base = [
+                'table' => $table,
+                'constraint_timing' => $timing,
+                'statement_status' => $isDeferred ? 'row-applied' : 'constraint-failed',
+                'statement_rolled_back' => !$isDeferred,
+                'deferred_violation_count' => $isDeferred ? 1 : 0,
+                'commit_check_required' => $isDeferred,
+                'error' => $isDeferred ? null : 'FOREIGN KEY constraint failed',
+            ];
+
+            $deleteParentResults[] = $base + [
+                'action' => 'delete-parent',
+                'parent_key' => $parentKey,
+                'parent_removed_after_statement' => $isDeferred,
+                'child_row_preserved' => true,
+            ];
+            $updateParentResults[] = $base + [
+                'action' => 'update-parent-key',
+                'parent_key_before' => $parentKey,
+                'parent_key_after' => $isDeferred ? $updatedKey : $parentKey,
+            ];
+            $insertChildResults[] = $base + [
+                'action' => 'insert-child-with-missing-parent',
+                'child_key' => $missingChildKey,
+                'child_inserted_after_statement' => $isDeferred,
+            ];
+            $updateChildResults[] = $base + [
+                'action' => 'update-child-to-missing-parent',
+                'child_key_before' => $parentKey,
+                'child_key_after' => $isDeferred ? $missingChildKey : $parentKey,
+            ];
+        }
+
+        $deferredParentKey = ['s-' . $seed, 't-' . $seed, 'u-' . $seed];
+        $repairKey = [1 + $seed, 2 + $seed, 3 + $seed];
+        $artistId = 5000 + $seed;
+
+        return [
+            'source' => 'e_fkey.test e_fkey-34.1..35.3',
+            'operation' => 'foreign-key-deferrable-clause-matrix',
+            'seed' => $seed,
+            'parent_table' => 'parent',
+            'parent_primary_key_columns' => ['x', 'y', 'z'],
+            'deferrable_clause_count' => count($clauses),
+            'immediate_tables' => $immediateTables,
+            'deferred_tables' => $deferredTables,
+            'constraint_modes' => $constraintModes,
+            'delete_parent_results' => $deleteParentResults,
+            'update_parent_results' => $updateParentResults,
+            'insert_missing_child_results' => $insertChildResults,
+            'update_child_results' => $updateChildResults,
+            'deferred_table' => 'c7',
+            'deferred_parent_key' => $deferredParentKey,
+            'deferred_repair_key' => $repairKey,
+            'commit_status_before_repair' => 'constraint-failed',
+            'commit_error_before_repair' => 'FOREIGN KEY constraint failed',
+            'transaction_open_after_failed_commit' => true,
+            'repair_before_commit' => $repairBeforeCommit,
+            'commit_status_after_repair' => $repairBeforeCommit ? 'commit-ok' : 'constraint-failed',
+            'commit_error_after_repair' => $repairBeforeCommit ? null : 'FOREIGN KEY constraint failed',
+            'rollback_status_after_unrepaired_violation' => $repairBeforeCommit ? 'not-needed' : 'rollback-ok',
+            'deferred_example' => [
+                'source' => 'e_fkey.test e_fkey-35.1..35.3',
+                'artist_table' => 'artist',
+                'track_table' => 'track',
+                'track_id' => $seed,
+                'track_name' => 'White Christmas',
+                'track_artist_id' => $artistId,
+                'track_insert_status' => 'row-inserted',
+                'commit_before_artist_status' => 'constraint-failed',
+                'commit_before_artist_error' => 'FOREIGN KEY constraint failed',
+                'artist_repair_insert_status' => 'row-inserted',
+                'commit_after_artist_status' => 'commit-ok',
+                'final_artist_ids' => [$artistId],
+                'final_track_artist_ids' => [$artistId],
+            ],
+            'upstream_cases' => ['e_fkey-34.1', 'e_fkey-34.2..34.33', 'e_fkey-35.1', 'e_fkey-35.2', 'e_fkey-35.3'],
+            'dependencies' => [
+                'sqlite-efkey34-only-deferrable-initially-deferred-is-deferred',
+                'sqlite-efkey34-immediate-clauses-fail-at-statement-boundary',
+                'sqlite-efkey34-deferred-clause-fails-at-commit-until-repaired',
+                'sqlite-efkey35-deferred-example-commit-can-be-repaired-before-final-commit',
+            ],
+        ];
+    }
+
+    /**
      * @param list<array{b:mixed,c:mixed}> $parents
      * @param list<array{d:mixed,e:mixed,f:mixed}> $children
      * @return array<string,mixed>

@@ -757,6 +757,47 @@ return [
             $t->contains("Invalid Git object header: blob 3\n", $exception->getMessage());
         }
     },
+    'object database loose integrity canonicalizes zero-padded size headers across alternates' => static function (TestRunner $t) use ($writeCompressedLooseBytes): void {
+        $root = sys_get_temp_dir() . '/port-libs-git-odb-zero-padded-size-' . bin2hex(random_bytes(4));
+        $gitDir = $root . '/site/.git';
+        $objectsDir = $gitDir . '/objects';
+        $alternateGitDir = $root . '/shared-cache/.git';
+        $alternateObjectsDir = $alternateGitDir . '/objects';
+        if (!mkdir($objectsDir . '/info', 0777, true) && !is_dir($objectsDir . '/info')) {
+            throw new RuntimeException("Unable to create objects info directory: {$objectsDir}/info");
+        }
+
+        $object = new GitObject('blob', 'zero padded WordPress object');
+        $canonicalOid = $object->oid();
+        $zeroPaddedStorage = 'blob ' . str_pad((string) strlen($object->body), 6, '0', STR_PAD_LEFT) . "\0" . $object->body;
+        $rawHeaderOid = hash('sha1', $zeroPaddedStorage);
+        $writeCompressedLooseBytes($gitDir, $canonicalOid, $zeroPaddedStorage);
+        $writeCompressedLooseBytes($alternateGitDir, $rawHeaderOid, $zeroPaddedStorage);
+        file_put_contents($objectsDir . '/info/alternates', "{$alternateObjectsDir}\n");
+
+        $database = new ObjectDatabase($gitDir);
+        $primaryHeader = $database->readHeader(strtoupper($canonicalOid));
+        $alternateHeader = $database->readHeader($rawHeaderOid);
+        $t->same('zero padded WordPress object', $database->read($canonicalOid)->body);
+        $t->same('zero padded WordPress object', $database->read($rawHeaderOid)->body);
+        $t->same(['type' => 'blob', 'size' => strlen($object->body), 'source' => 'loose'], $primaryHeader);
+        $t->same(['type' => 'blob', 'size' => strlen($object->body), 'source' => 'loose'], $alternateHeader);
+        $t->same(false, $rawHeaderOid === $canonicalOid);
+
+        try {
+            $database->verifyLooseIntegrity();
+            throw new RuntimeException('Expected zero-padded alternate loose object stored under raw id to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains('Loose object hash mismatch', $exception->getMessage());
+            $t->contains($rawHeaderOid, $exception->getMessage());
+            $t->contains($canonicalOid, $exception->getMessage());
+        }
+
+        unlink($alternateGitDir . '/objects/' . substr($rawHeaderOid, 0, 2) . '/' . substr($rawHeaderOid, 2));
+        $integrity = $database->verifyLooseIntegrity();
+        $t->same([$objectsDir, realpath($alternateObjectsDir)], array_column($integrity, 'path'));
+        $t->same([[$canonicalOid], []], array_map(static fn (array $row): array => $row['statistics']['verifiedObjectIds'], $integrity));
+    },
     'object database loose integrity counts duplicate case-normalized candidates in primary and alternates' => static function (TestRunner $t): void {
         $root = sys_get_temp_dir() . '/port-libs-git-odb-case-duplicate-' . bin2hex(random_bytes(4));
         $gitDir = $root . '/site/.git';

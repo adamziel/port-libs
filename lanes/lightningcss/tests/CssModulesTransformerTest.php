@@ -672,6 +672,25 @@ CSS);
         $t->same([], $result['references']);
         $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
     },
+    'css modules rejects upstream local global pseudos inside nth-child formulas before composing exports' => static function (TestRunner $t): void {
+        $transformer = new CssModulesTransformer();
+
+        foreach ([
+            '.card:nth-child(:local(.foo)) { color: red }',
+            '.card:nth-last-child(2n + :global(.foo)) { color: red }',
+            '.card:nth-child(2n + :lo\63 al(.foo) of .item) { color: red }',
+            '.button { composes: card; color: white } .card:nth-child(:glo\62 al(.legacy)) { color: red } .card { color: blue }',
+        ] as $css) {
+            try {
+                $transformer->transform($css);
+            } catch (InvalidArgumentException $exception) {
+                $t->same('Unexpected token Colon', $exception->getMessage());
+                continue;
+            }
+
+            throw new RuntimeException('Expected upstream nth-child formula CSS Modules mode-pseudo exception');
+        }
+    },
     'css modules filters upstream forgiving local global selector lists while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card:is(:global(.legacy, .wp-button), .kept, .other) {

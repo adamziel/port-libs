@@ -29,10 +29,26 @@ $result = (new CssModulesTransformer())->transform($css, [
     'hash' => 'BlockA',
 ]);
 
+$diagnostics = [];
+foreach ([
+    '.card:nth-child(:local(.item)) { color: red }',
+    '.card:nth-last-child(2n + :global(.wp-block-post)) { color: red }',
+] as $invalidCss) {
+    try {
+        (new CssModulesTransformer())->transform($invalidCss, [
+            'hash' => 'BlockA',
+        ]);
+        $diagnostics[$invalidCss] = 'accepted';
+    } catch (InvalidArgumentException $exception) {
+        $diagnostics[$invalidCss] = $exception->getMessage();
+    }
+}
+
 $actual = [
     'code' => $result['code'],
     'exports' => $result['exports'],
     'buttonClassList' => CssModulesTransformer::exportClassList($result['exports'], 'button'),
+    'diagnostics' => $diagnostics,
 ];
 
 $expected = [
@@ -70,6 +86,10 @@ $expected = [
         ],
     ],
     'buttonClassList' => 'BlockA_button BlockA_card',
+    'diagnostics' => [
+        '.card:nth-child(:local(.item)) { color: red }' => 'Unexpected token Colon',
+        '.card:nth-last-child(2n + :global(.wp-block-post)) { color: red }' => 'Unexpected token Colon',
+    ],
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
@@ -85,3 +105,4 @@ if (($argv[1] ?? null) === '--self-test') {
 echo $actual['code'] . PHP_EOL;
 echo json_encode($actual['exports'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;
 echo 'button-class-list: ' . $actual['buttonClassList'] . PHP_EOL;
+echo json_encode($actual['diagnostics'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . PHP_EOL;

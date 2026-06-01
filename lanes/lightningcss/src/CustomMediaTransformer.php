@@ -797,13 +797,19 @@ final class CustomMediaTransformer
     {
         return preg_replace_callback(
             '/\bnot\s*\(\s*(min|max)-([_a-zA-Z-][_a-zA-Z0-9-]*)\s*:\s*([^)]+?)\s*\)/i',
-            static function (array $matches): string {
-                $operator = strtolower($matches[1]) === 'min' ? '<' : '>';
-
-                return '((' . strtolower($matches[2]) . ' ' . $operator . ' ' . trim($matches[3]) . '))';
-            },
+            fn (array $matches): string => $this->simplifyNegatedLegacyRangeAlias($matches[0]),
             $query
         ) ?? $query;
+    }
+
+    private function simplifyNegatedLegacyRangeAlias(string $condition): string
+    {
+        $minified = (new MediaQueryParser())->minifyList($condition);
+        if ($minified === '' || str_starts_with(strtolower($minified), 'not ')) {
+            return $minified === '' ? $condition : $minified;
+        }
+
+        return '(' . $minified . ')';
     }
 
     private function simplifyDoubleNegation(string $query): string

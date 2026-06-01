@@ -1300,6 +1300,31 @@ final class TransitionPrefixer
             'filter' => [
                 '-webkit-' => $targetOptions['filterNeedsWebkit'] ?? false,
             ],
+            'transition' => [
+                '-webkit-' => $targetOptions['transitionNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['transitionNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['transitionNeedsO'] ?? false,
+            ],
+            'transition-property' => [
+                '-webkit-' => $targetOptions['transitionNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['transitionNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['transitionNeedsO'] ?? false,
+            ],
+            'transition-duration' => [
+                '-webkit-' => $targetOptions['transitionNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['transitionNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['transitionNeedsO'] ?? false,
+            ],
+            'transition-delay' => [
+                '-webkit-' => $targetOptions['transitionNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['transitionNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['transitionNeedsO'] ?? false,
+            ],
+            'transition-timing-function' => [
+                '-webkit-' => $targetOptions['transitionNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['transitionNeedsMoz'] ?? false,
+                '-o-' => $targetOptions['transitionNeedsO'] ?? false,
+            ],
             'transform' => [
                 '-webkit-' => $targetOptions['transformNeedsWebkit'] ?? false,
                 '-moz-' => $targetOptions['transformNeedsMoz'] ?? false,
@@ -2109,7 +2134,7 @@ final class TransitionPrefixer
             'viewportNeedsO' => $this->targetInRange($normalized, 'opera', [11], [12, 1]),
             'userSelectNeedsWebkit' => $this->targetInRange($normalized, 'android', [2, 1], [4, 4, 3])
                 || $this->targetInRange($normalized, 'chrome', [4], [53])
-                || $this->targetAtLeast($normalized, 'ios_saf', [3])
+                || $this->targetAtLeast($normalized, 'ios_saf', [3, 2])
                 || $this->targetInRange($normalized, 'opera', [15], [40])
                 || $this->targetAtLeast($normalized, 'safari', [3, 1])
                 || $this->targetInRange($normalized, 'samsung', [4], [5]),

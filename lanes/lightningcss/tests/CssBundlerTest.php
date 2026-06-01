@@ -3251,6 +3251,48 @@ CSS,
         $t->same(['/modules/card.css', '/modules/../shared/tokens.css'], $reads);
         $t->same([['pkg:tokens.css', '/modules/card.css']], $resolved);
     },
+    'css bundler remaps inline source maps through css module dependency imports' => static function (TestRunner $t) use ($moduleExport, $moduleLocal): void {
+        $dependencyMap = 'data:application/json;base64,' . base64_encode(json_encode([
+            'version' => 3,
+            'mappings' => 'AAAA',
+            'sources' => ['src/tokens.scss'],
+            'sourcesContent' => ['.token { color: $wp-blue }'],
+            'names' => [],
+        ], JSON_THROW_ON_ERROR));
+        $entryCss = <<<'CSS'
+.card {
+  composes: token from "./tokens.css";
+  color: red;
+}
+CSS;
+
+        $result = (new CssBundler())->bundleCssModulesWithSourceMap('/modules/card.css', [
+            '/modules/card.css' => $entryCss,
+            '/modules/tokens.css' => ".token { color: blue }\n/*# sourceMappingURL={$dependencyMap} */",
+        ], null, [
+            'hashes' => [
+                '/modules/card.css' => 'card',
+                '/modules/tokens.css' => 'tok',
+            ],
+        ], '/modules');
+
+        $sourceMap = $result['sourceMap']->toArray(null, false);
+        $decoded = SourceMap::decodeVlq($sourceMap['mappings']);
+
+        $t->same('.tok_token{color:#00f}.card_card{color:red}', $result['code']);
+        $t->same([
+            'card' => $moduleExport('card_card', [
+                $moduleLocal('tok_token'),
+            ]),
+        ], $result['exports']);
+        $t->same(['card.css', 'src/tokens.scss'], $sourceMap['sources']);
+        $t->same([$entryCss, '.token { color: $wp-blue }'], $sourceMap['sourcesContent']);
+        $t->same('ACAA', $sourceMap['mappings']);
+        $t->same(1, $decoded[0]['sourceIndex']);
+        $t->same(0, $decoded[0]['originalLine']);
+        $t->same(0, $decoded[0]['originalColumn']);
+        $t->same(false, in_array('tokens.css', $sourceMap['sources'], true));
+    },
     'css bundler resolves upstream css module dashed ident dependency graph' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleDashed): void {
         $result = $bundleModules([
             '/entry.css' => <<<'CSS'

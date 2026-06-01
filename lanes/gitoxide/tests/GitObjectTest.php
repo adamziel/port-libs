@@ -116,6 +116,45 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => GitObject::decodeLooseHeader("blob -4\0"));
         $t->throws(InvalidArgumentException::class, static fn () => GitObject::decodeLooseHeader("blob -04\0"));
     },
+    'loose object integrity accepts zero-padded size headers only under canonical ids' => static function (TestRunner $t) use ($writeLooseStorage): void {
+        $objectsDirectory = sys_get_temp_dir() . '/port-libs-git-integrity-zero-padded-size-' . bin2hex(random_bytes(4)) . '/objects';
+        $canonicalObject = new GitObject('blob', 'abc');
+        $canonicalOid = $canonicalObject->oid();
+        $zeroPaddedStorage = "blob 0003\0abc";
+        $rawHeaderOid = hash('sha1', $zeroPaddedStorage);
+        $writeLooseStorage($objectsDirectory, $canonicalOid, $zeroPaddedStorage);
+        $store = LooseObjectStore::fromObjectsDirectory($objectsDirectory);
+
+        $t->same([
+            'type' => 'blob',
+            'size' => 3,
+            'headerLength' => strlen("blob 0003\0"),
+        ], GitObject::decodeLooseHeader($zeroPaddedStorage));
+        $t->same($canonicalOid, GitObject::fromStorageBytes($zeroPaddedStorage)->oid());
+        $t->same(false, $rawHeaderOid === $canonicalOid);
+        $t->same([
+            'type' => 'blob',
+            'size' => 3,
+            'headerLength' => strlen("blob 0003\0"),
+        ], $store->readHeader($canonicalOid));
+        $t->same('abc', $store->read($canonicalOid)->body);
+        $t->same([
+            'numObjects' => 1,
+            'verifiedObjectIds' => [$canonicalOid],
+        ], $store->verifyIntegrity());
+
+        $nonCanonicalStore = LooseObjectStore::fromObjectsDirectory(sys_get_temp_dir() . '/port-libs-git-integrity-zero-padded-mismatch-' . bin2hex(random_bytes(4)) . '/objects');
+        $writeLooseStorage($nonCanonicalStore->objectsDirectory(), $rawHeaderOid, $zeroPaddedStorage);
+        $t->same('abc', $nonCanonicalStore->read($rawHeaderOid)->body);
+        try {
+            $nonCanonicalStore->verifyIntegrity();
+            throw new RuntimeException('Expected zero-padded noncanonical loose object path to fail integrity verification');
+        } catch (RuntimeException $exception) {
+            $t->contains('Loose object hash mismatch', $exception->getMessage());
+            $t->contains($rawHeaderOid, $exception->getMessage());
+            $t->contains($canonicalOid, $exception->getMessage());
+        }
+    },
     'from loose bytes rejects short payloads and parses the advertised body prefix' => static function (TestRunner $t): void {
         try {
             GitObject::fromLooseBytes("tree 1000\0");
@@ -896,6 +935,12 @@ return [
         $t->same(true, $summary['positiveSizeHeaderAccepted']);
         $t->same($fixture['expectedBlobOid'], $summary['positiveSizeCanonicalOid']);
         $t->same($fixture['positiveSizeLooseHeaderOid'], $summary['positiveSizeRawHeaderOid']);
+        $t->same(true, $summary['zeroPaddedSizeHeaderAccepted']);
+        $t->same($fixture['expectedBlobOid'], $summary['zeroPaddedSizeCanonicalOid']);
+        $t->same($fixture['zeroPaddedSizeLooseHeaderOid'], $summary['zeroPaddedSizeRawHeaderOid']);
+        $t->same(true, $summary['zeroPaddedSizeIntegrityVerified']);
+        $t->same(true, $summary['zeroPaddedSizeNonCanonicalRejected']);
+        $t->contains('Loose object hash mismatch', $summary['zeroPaddedSizeNonCanonicalMessage']);
         $t->same(true, $summary['negativeZeroSizeHeaderAccepted']);
         $t->same($fixture['emptyBlobOid'], $summary['negativeZeroSizeCanonicalOid']);
         $t->same($fixture['negativeZeroSizeLooseHeaderOid'], $summary['negativeZeroSizeRawHeaderOid']);

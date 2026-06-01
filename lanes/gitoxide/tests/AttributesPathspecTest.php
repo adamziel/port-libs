@@ -103,6 +103,31 @@ return [
             $attributes,
         ));
     },
+    'attribute pathspec filters fold POSIX class names under icase like gix wildmatch' => static function (TestRunner $t): void {
+        $attributes = GitAttributes::fromString(
+            "WP-CONTENT/uploads/[[:UPPER:]]LUGINS/** folded-class\n"
+            . "wp-content/uploads/plugins/** deploy\n",
+            withBuiltInMacros: false,
+        );
+        $path = 'wp-content/uploads/plugins/block.json';
+
+        $t->same(['folded-class' => null], $attributes->attributesForPath($path, ['folded-class']));
+        $t->same(['folded-class' => true], $attributes->attributesForPath($path, ['folded-class'], false, true));
+        $t->same(false, PathspecSearch::fromSpecs([
+            'wp-content/uploads/[[:UPPER:]]LUGINS/**',
+        ])->isIncluded($path, false));
+        $t->same(true, PathspecSearch::fromSpecs([
+            ':(icase)wp-content/uploads/[[:UPPER:]]LUGINS/**',
+        ])->isIncluded($path, false));
+        $t->same(true, PathspecMatcher::matchesOne(
+            ':(icase)wp-content/uploads/[[:LOWER:]]LUGINS/**',
+            $path,
+            false,
+        ));
+        $t->same(true, PathspecSearch::fromSpecs([
+            ':(icase,attr:deploy)wp-content/uploads/[[:UPPER:]]LUGINS/**',
+        ])->isIncluded($path, false, $attributes));
+    },
     'quoted attribute patterns follow gix ansi c unquoting before attr pathspec matching' => static function (TestRunner $t): void {
         $attributes = GitAttributes::fromString(
             "\"wp-content/uploads/slot\\040hero.jpg\" quoted-space\n"
@@ -817,6 +842,11 @@ return [
         $t->same(['dated-upload' => true], $example['datedUploadAttributes']);
         $t->same(true, $example['datedUploadPathspecMatches']);
         $t->same(true, $example['slashClassDoesNotCrossDirectory']);
+        $t->same(['folded-class' => null], $example['caseSensitivePosixClassNameAttributeSkipped']);
+        $t->same(['folded-class' => true], $example['foldedPosixClassNameAttributeMatches']);
+        $t->same(true, $example['caseSensitivePosixClassNamePathspecSkipped']);
+        $t->same(true, $example['foldedPosixClassNamePathspecMatches']);
+        $t->same(true, $example['foldedPosixClassNameAttrPathspecMatches']);
         $t->same(['quoted-space' => true], $example['quotedSpaceUploadAttributes']);
         $t->same(true, $example['quotedSpaceUploadPathspecMatches']);
         $t->same(true, $example['quotedSpaceUploadOctalTextSkipped']);

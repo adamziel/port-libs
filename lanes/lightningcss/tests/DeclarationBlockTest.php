@@ -107,7 +107,7 @@ return [
         $t->same(
             [
                 'accent-color' => '#ff0',
-                'color' => 'blue',
+                'color' => '#00f',
                 '--Accent-Color' => 'Yellow',
             ],
             $block->parse($declarations)
@@ -116,16 +116,68 @@ return [
         $t->same(['value' => 'auto', 'important' => false], $block->getProperty('accent-color: AUTO', 'accent-color'));
         $t->same(['value' => 'Yellow', 'important' => false], $block->getProperty($declarations, '--Accent-Color'));
         $t->same(
-            'accent-color: auto; color: blue; --Accent-Color: Yellow',
+            'accent-color: auto; color: #00f; --Accent-Color: Yellow',
             $block->setProperty($declarations, 'accent-color', 'AUTO')
         );
         $t->same(
-            'color: blue; --Accent-Color: Yellow; accent-color: #0f0 !important',
+            'color: #00f; --Accent-Color: Yellow; accent-color: #0f0 !important',
             $block->setProperty($declarations, 'accent-color', 'Lime', true)
         );
         $t->same(
-            'color: blue; --Accent-Color: Yellow',
+            'color: #00f; --Accent-Color: Yellow',
             $block->removeProperty($declarations, 'accent-color')
+        );
+    },
+    'declaration block canonicalizes upstream direct color cssom declarations' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'color: #FF0000; background-color: RGB(255 255 0 / 100%); border-top-color: rgba(255,0,0,.4); border-inline-end-color: CURRENTCOLOR; outline-color: Yellow !important; text-decoration-color: Lime; -webkit-text-decoration-color: BLUE; text-emphasis-color: rgba(255, 0, 0, .4); -webkit-text-emphasis-color: transparent; caret-color: AUTO; --wp--preset--color--Brand: Yellow';
+
+        $t->same(
+            [
+                'color' => 'red',
+                'background-color' => '#ff0',
+                'border-top-color' => '#f006',
+                'border-inline-end-color' => 'currentColor',
+                'outline-color' => '#ff0 !important',
+                'text-decoration-color' => '#0f0',
+                '-webkit-text-decoration-color' => '#00f',
+                'text-emphasis-color' => '#f006',
+                '-webkit-text-emphasis-color' => '#0000',
+                'caret-color' => 'auto',
+                '--wp--preset--color--Brand' => 'Yellow',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => 'red', 'important' => false], $block->getProperty($declarations, 'color'));
+        $t->same(['value' => '#ff0', 'important' => false], $block->getProperty($declarations, 'background-color'));
+        $t->same(['value' => '#f006', 'important' => false], $block->getProperty($declarations, 'border-top-color'));
+        $t->same(['value' => 'currentColor', 'important' => false], $block->getProperty($declarations, 'border-inline-end-color'));
+        $t->same(['value' => '#ff0', 'important' => true], $block->getProperty($declarations, 'outline-color'));
+        $t->same(['value' => '#0f0', 'important' => false], $block->getProperty($declarations, 'text-decoration-color'));
+        $t->same(['value' => '#00f', 'important' => false], $block->getProperty($declarations, '-webkit-text-decoration-color'));
+        $t->same(['value' => '#f006', 'important' => false], $block->getProperty($declarations, 'text-emphasis-color'));
+        $t->same(['value' => '#0000', 'important' => false], $block->getProperty($declarations, '-webkit-text-emphasis-color'));
+        $t->same(['value' => 'auto', 'important' => false], $block->getProperty($declarations, 'caret-color'));
+        $t->same(['value' => 'Yellow', 'important' => false], $block->getProperty($declarations, '--wp--preset--color--Brand'));
+        $t->same(
+            'background-color: #ff0; border-top-color: #f006; border-inline-end-color: currentColor; text-decoration-color: #0f0; -webkit-text-decoration-color: #00f; text-emphasis-color: #f006; -webkit-text-emphasis-color: #0000; caret-color: auto; --wp--preset--color--Brand: Yellow; outline-color: #ff0 !important; color: #00f !important',
+            $block->setProperty($declarations, 'color', 'BLUE', true)
+        );
+        $t->same(
+            'color: red; border-top-color: #f006; border-inline-end-color: currentColor; text-decoration-color: #0f0; -webkit-text-decoration-color: #00f; text-emphasis-color: #f006; -webkit-text-emphasis-color: #0000; caret-color: auto; --wp--preset--color--Brand: Yellow; outline-color: #ff0 !important; background-color: currentColor !important',
+            $block->setProperty($declarations, 'background-color', 'CURRENTCOLOR', true)
+        );
+        $t->same(
+            'color: red; background-color: #ff0; border-top-color: #f006; border-inline-end-color: currentColor; text-decoration-color: #0f0; -webkit-text-decoration-color: #00f; text-emphasis-color: #f006; -webkit-text-emphasis-color: #0000; caret-color: auto; --wp--preset--color--Brand: Yellow; border-top-color: red; outline-color: #ff0 !important',
+            $block->setProperty($declarations, 'border-top-color', '#ff0000')
+        );
+        $t->same(
+            'color: red; background-color: #ff0; border-top-color: #f006; border-inline-end-color: currentColor; text-decoration-color: #0f0; -webkit-text-decoration-color: #00f; text-emphasis-color: #f006; -webkit-text-emphasis-color: #0000; caret-color: currentColor; --wp--preset--color--Brand: Yellow; outline-color: #ff0 !important',
+            $block->setProperty($declarations, 'caret-color', 'CURRENTCOLOR')
+        );
+        $t->same(
+            'color: red; background-color: #ff0; border-top-color: #f006; border-inline-end-color: currentColor; text-decoration-color: #0f0; -webkit-text-decoration-color: #00f; -webkit-text-emphasis-color: #0000; caret-color: auto; --wp--preset--color--Brand: Yellow; outline-color: #ff0 !important',
+            $block->removeProperty($declarations, 'text-emphasis-color')
         );
     },
     'declaration block decodes escaped css property names in cssom read write' => static function (TestRunner $t): void {
@@ -135,7 +187,7 @@ return [
         $t->same(
             [
                 'color' => 'red !important',
-                'background-color' => 'white',
+                'background-color' => '#fff',
                 '--Block-Accent' => 'blue',
             ],
             $block->parse($declarations)
@@ -149,19 +201,19 @@ return [
         $t->same('--Block-Accent', $block->item($declarations, 1));
         $t->same('color', $block->item($declarations, 2));
         $t->same(
-            'background-color: white; --Block-Accent: blue; color: green',
+            'background-color: #fff; --Block-Accent: blue; color: green',
             $block->setProperty($declarations, 'color', 'green')
         );
         $t->same(
-            'background-color: white; --Block-Accent: green; color: red !important',
+            'background-color: #fff; --Block-Accent: green; color: red !important',
             $block->setProperty($declarations, '--Block\\2D Accent', 'green')
         );
         $t->same(
-            'background-color: white; --Block-Accent: blue',
+            'background-color: #fff; --Block-Accent: blue',
             $block->removeProperty($declarations, 'color')
         );
         $t->same(
-            'background-color: white; color: red !important',
+            'background-color: #fff; color: red !important',
             $block->removeProperty($declarations, '--Block-Accent')
         );
     },
@@ -1089,7 +1141,7 @@ return [
             $block->getProperty($declarations, '--Block-Accent')
         );
         $t->same(
-            'background: white; margin: 5px 6px; --Block-Accent: var(--wp--preset--color--accent); color: blue',
+            'background: white; margin: 5px 6px; --Block-Accent: var(--wp--preset--color--accent); color: #00f',
             $block->setProperty($declarations, 'color', 'blue')
         );
         $t->same(
@@ -1116,7 +1168,7 @@ return [
         $t->same(
             [
                 '--theme-rule' => '{ color: red; background: url("/a;b.css") }',
-                'color' => 'blue',
+                'color' => '#00f',
                 '--theme-list' => '[--a: 1; --b: 2] !important',
             ],
             $block->parse($declarations)
@@ -1134,11 +1186,11 @@ return [
             $block->getProperty('--theme-rule: { color: red !important; }', '--theme-rule')
         );
         $t->same(
-            '--theme-rule: { color: green; --nested: "a;b" }; color: blue; --theme-list: [--a: 1; --b: 2] !important',
+            '--theme-rule: { color: green; --nested: "a;b" }; color: #00f; --theme-list: [--a: 1; --b: 2] !important',
             $block->setProperty($declarations, '--theme-rule', '{ color: green; --nested: "a;b" }')
         );
         $t->same(
-            'color: blue; --theme-list: [--a: 1; --b: 2] !important',
+            'color: #00f; --theme-list: [--a: 1; --b: 2] !important',
             $block->removeProperty($declarations, '--theme-rule')
         );
         $t->same(
@@ -1567,7 +1619,7 @@ return [
             $block->getProperty('border-inline-start-color: red; border-inline-end-color: green', 'border-inline-color')
         );
         $t->same(
-            ['value' => '1px dashed blue', 'important' => true],
+            ['value' => '1px dashed #00f', 'important' => true],
             $block->getProperty(
                 'border-inline-start-width: 1px !important; border-inline-end-width: 1px !important; border-inline-start-style: dashed !important; border-inline-end-style: dashed !important; border-inline-start-color: blue !important; border-inline-end-color: blue !important',
                 'border-inline'
@@ -2534,7 +2586,7 @@ return [
 
         $t->same('color: green', $block->setProperty('color: red', 'color', 'green'));
         $t->same('color: green !important', $block->setProperty('color: red !important', 'color', 'green', true));
-        $t->same('color: red; background-color: blue', $block->setProperty('color: red', 'background-color', 'blue'));
+        $t->same('color: red; background-color: #00f', $block->setProperty('color: red', 'background-color', 'blue'));
         $t->same('margin: 8px 5px 5px', $block->setProperty('margin: 5px', 'margin-top', '8px'));
         $t->same('padding: 1rem 2rem 1rem 4rem', $block->setProperty('padding: 1rem 2rem', 'padding-left', '4rem'));
         $t->same(
@@ -2676,6 +2728,32 @@ return [
             $block->setProperty('block-size: 5px; width: 10px', 'block-size', '8px', true)
         );
     },
+    'declaration block canonicalizes upstream size cssom read write values' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'width: MIN-CONTENT; height: -WEBKIT-FILL-AVAILABLE; block-size: FIT-CONTENT(100.0%); inline-size: +000.500rem; min-width: -MOZ-AVAILABLE; min-inline-size: CONTAIN; max-width: NONE; max-block-size: fit-content(12.00PX); --Width: MIN-CONTENT';
+
+        $t->same(['value' => 'min-content', 'important' => false], $block->getProperty($declarations, 'width'));
+        $t->same(['value' => '-webkit-fill-available', 'important' => false], $block->getProperty($declarations, 'height'));
+        $t->same(['value' => 'fit-content(100%)', 'important' => false], $block->getProperty($declarations, 'block-size'));
+        $t->same(['value' => '.5rem', 'important' => false], $block->getProperty($declarations, 'inline-size'));
+        $t->same(['value' => '-moz-available', 'important' => false], $block->getProperty($declarations, 'min-width'));
+        $t->same(['value' => 'contain', 'important' => false], $block->getProperty($declarations, 'min-inline-size'));
+        $t->same(['value' => 'none', 'important' => false], $block->getProperty($declarations, 'max-width'));
+        $t->same(['value' => 'fit-content(12px)', 'important' => false], $block->getProperty($declarations, 'max-block-size'));
+        $t->same(['value' => 'MIN-CONTENT', 'important' => false], $block->getProperty($declarations, '--Width'));
+        $t->same(
+            'width: fit-content(100%); color: red',
+            $block->setProperty('width: MIN-CONTENT; color: red', 'width', 'FIT-CONTENT(100.0%)')
+        );
+        $t->same(
+            'width: min-content; color: red; max-inline-size: -webkit-fill-available !important',
+            $block->setProperty('width: MIN-CONTENT; max-inline-size: NONE; color: red', 'max-inline-size', '-WEBKIT-FILL-AVAILABLE', true)
+        );
+        $t->same(
+            'height: -webkit-fill-available; min-width: -moz-available; max-width: none',
+            $block->removeProperty('height: -WEBKIT-FILL-AVAILABLE; min-width: -MOZ-AVAILABLE; max-width: NONE; width: MIN-CONTENT', 'width')
+        );
+    },
     'declaration block reads upstream logical axis cssom shorthands and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
@@ -2786,11 +2864,11 @@ return [
             $block->setProperty('scroll-padding: 8px; scroll-padding-block-start: 12px', 'scroll-padding', '16px')
         );
         $t->same(
-            'border-color: red; border-inline-start-color: blue; border-color: green',
+            'border-color: red; border-inline-start-color: #00f; border-color: green',
             $block->setProperty('border-color: red; border-inline-start-color: blue', 'border-color', 'green')
         );
         $t->same(
-            'border-block-color: red blue; border-left-color: black; border-block-color: green',
+            'border-block-color: red blue; border-left-color: #000; border-block-color: green',
             $block->setProperty('border-block-color: red blue; border-left-color: black', 'border-block-color', 'green')
         );
         $t->same(
@@ -2943,7 +3021,7 @@ return [
             $block->getProperty('border-color: red green !important', 'border-left-color')
         );
         $t->same(
-            'border-color: blue green red',
+            'border-color: #00f green red',
             $block->setProperty('border-color: red green', 'border-top-color', 'blue')
         );
         $t->same(
@@ -2963,15 +3041,15 @@ return [
             $block->setProperty('border-right: 1px solid blue', 'border-right-style', 'dotted')
         );
         $t->same(
-            'border-top: 1px solid red; border-color: green blue green green',
+            'border-top: 1px solid red; border-color: green #00f green green',
             $block->setProperty('border-top: 1px solid red; border-color: green', 'border-right-color', 'blue')
         );
         $t->same(
-            'border-color: red green; border-inline-start-color: orange; border-top-color: blue',
+            'border-color: red green; border-inline-start-color: orange; border-top-color: #00f',
             $block->setProperty('border-color: red green; border-inline-start-color: orange', 'border-top-color', 'blue')
         );
         $t->same(
-            'border-top-color: blue; border-color: red green !important',
+            'border-top-color: #00f; border-color: red green !important',
             $block->setProperty('border-color: red green !important', 'border-top-color', 'blue')
         );
     },
@@ -2979,7 +3057,7 @@ return [
         $block = new DeclarationBlock();
 
         $t->same(
-            'border-block-color: blue green',
+            'border-block-color: #00f green',
             $block->setProperty('border-block-color: red green', 'border-block-start-color', 'blue')
         );
         $t->same(
@@ -2991,15 +3069,15 @@ return [
             $block->setProperty('border-inline-start: 1px solid red', 'border-inline-start-style', 'dashed')
         );
         $t->same(
-            'border-block: 1px solid red; border-block-start-color: blue',
+            'border-block: 1px solid red; border-block-start-color: #00f',
             $block->setProperty('border-block: 1px solid red', 'border-block-start-color', 'blue')
         );
         $t->same(
-            'border-block-start-color: blue; border-block-color: red green !important',
+            'border-block-start-color: #00f; border-block-color: red green !important',
             $block->setProperty('border-block-color: red green !important', 'border-block-start-color', 'blue')
         );
         $t->same(
-            'border-block-color: green; border-top-color: red; border-block-start-color: blue',
+            'border-block-color: green; border-top-color: red; border-block-start-color: #00f',
             $block->setProperty('border-block-color: green; border-top-color: red', 'border-block-start-color', 'blue')
         );
     },
@@ -3141,7 +3219,7 @@ return [
     'declaration block sets upstream text emphasis cssom longhands in existing shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
-        $t->same('text-emphasis: dot blue', $block->setProperty('text-emphasis: dot red', 'text-emphasis-color', 'blue'));
+        $t->same('text-emphasis: dot #00f', $block->setProperty('text-emphasis: dot red', 'text-emphasis-color', 'blue'));
         $t->same('text-emphasis: open dot red', $block->setProperty('text-emphasis: dot red', 'text-emphasis-style', 'open dot'));
         $t->same('text-emphasis: none', $block->setProperty('text-emphasis: dot red', 'text-emphasis-style', 'none'));
         $t->same('text-emphasis: dot', $block->setProperty('text-emphasis: dot red', 'text-emphasis-color', 'currentColor'));
@@ -3149,7 +3227,7 @@ return [
             'text-emphasis-style: open dot; text-emphasis: dot red !important',
             $block->setProperty('text-emphasis: dot red !important', 'text-emphasis-style', 'open dot')
         );
-        $t->same('-webkit-text-emphasis: dot blue', $block->setProperty('-webkit-text-emphasis: dot red', '-webkit-text-emphasis-color', 'blue'));
+        $t->same('-webkit-text-emphasis: dot #00f', $block->setProperty('-webkit-text-emphasis: dot red', '-webkit-text-emphasis-color', 'blue'));
         $t->same(
             'text-emphasis-style: open circle; text-emphasis-color: red',
             $block->setProperty('text-emphasis-style: dot; text-emphasis-color: red', 'text-emphasis-style', 'open circle')
@@ -3158,7 +3236,7 @@ return [
     'declaration block sets upstream caret cssom longhands in existing shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 
-        $t->same('caret: blue block', $block->setProperty('caret: red block', 'caret-color', 'blue'));
+        $t->same('caret: #00f block', $block->setProperty('caret: red block', 'caret-color', 'blue'));
         $t->same('caret: red underscore', $block->setProperty('caret: red block', 'caret-shape', 'underscore'));
         $t->same('caret: block', $block->setProperty('caret: red block', 'caret-color', 'auto'));
         $t->same('caret: red', $block->setProperty('caret: red block', 'caret-shape', 'auto'));
@@ -3452,7 +3530,7 @@ return [
         $block = new DeclarationBlock();
 
         $t->same(
-            'text-decoration: underline 2px wavy blue',
+            'text-decoration: underline 2px wavy #00f',
             $block->setProperty('text-decoration: underline wavy red 2px', 'text-decoration-color', 'blue')
         );
         $t->same(
@@ -3468,7 +3546,7 @@ return [
             $block->setProperty('text-decoration: underline wavy red', 'text-decoration-style', 'solid')
         );
         $t->same(
-            'text-decoration-color: blue; text-decoration: underline wavy red !important',
+            'text-decoration-color: #00f; text-decoration: underline wavy red !important',
             $block->setProperty('text-decoration: underline wavy red !important', 'text-decoration-color', 'blue')
         );
     },
@@ -3476,7 +3554,7 @@ return [
         $block = new DeclarationBlock();
 
         $t->same(
-            '-webkit-text-decoration: underline 2px wavy blue',
+            '-webkit-text-decoration: underline 2px wavy #00f',
             $block->setProperty('-webkit-text-decoration: underline wavy red 2px', '-webkit-text-decoration-color', 'blue')
         );
         $t->same(
@@ -3488,7 +3566,7 @@ return [
             $block->setProperty('-moz-text-decoration: line-through dotted red', '-moz-text-decoration-style', 'solid')
         );
         $t->same(
-            'text-decoration: underline red; -webkit-text-decoration-color: blue',
+            'text-decoration: underline red; -webkit-text-decoration-color: #00f',
             $block->setProperty('text-decoration: underline red', '-webkit-text-decoration-color', 'blue')
         );
         $t->same(
@@ -3670,7 +3748,7 @@ return [
         $block = new DeclarationBlock();
 
         $t->same(
-            'outline: 2px solid blue',
+            'outline: 2px solid #00f',
             $block->setProperty('outline: 2px solid red', 'outline-color', 'blue')
         );
         $t->same(
@@ -3686,7 +3764,7 @@ return [
             $block->setProperty('outline-color: red', 'outline-color', 'green')
         );
         $t->same(
-            'outline-color: blue; outline: 2px solid red !important',
+            'outline-color: #00f; outline: 2px solid red !important',
             $block->setProperty('outline: 2px solid red !important', 'outline-color', 'blue')
         );
     },
@@ -3755,7 +3833,7 @@ return [
         $block = new DeclarationBlock();
 
         $t->same(
-            'color: red; color: blue',
+            'color: red; color: #00f',
             $block->removeProperty(
                 'color: red; background: url(hero.jpg) green; background-color: blue; background-repeat: no-repeat; color: blue',
                 'background'
@@ -3801,19 +3879,19 @@ return [
         $fullBackground = 'background: red url(hero.jpg) 20px 10px no-repeat fixed border-box content-box; color: blue';
 
         $t->same(
-            'background-image: url(hero.jpg); background-position-x: 20px; background-position-y: 10px; background-repeat: no-repeat; background-size: auto; background-attachment: fixed; background-origin: border-box; background-clip: content-box; color: blue',
+            'background-image: url(hero.jpg); background-position-x: 20px; background-position-y: 10px; background-repeat: no-repeat; background-size: auto; background-attachment: fixed; background-origin: border-box; background-clip: content-box; color: #00f',
             $block->removeProperty($fullBackground, 'background-color')
         );
         $t->same(
-            'background-color: red; background-position-x: 20px; background-position-y: 10px; background-repeat: no-repeat; background-size: auto; background-attachment: fixed; background-origin: border-box; background-clip: content-box; color: blue',
+            'background-color: red; background-position-x: 20px; background-position-y: 10px; background-repeat: no-repeat; background-size: auto; background-attachment: fixed; background-origin: border-box; background-clip: content-box; color: #00f',
             $block->removeProperty($fullBackground, 'background-image')
         );
         $t->same(
-            'background-color: red; background-image: url(hero.jpg); background-position-y: 10px; background-repeat: no-repeat; background-size: auto; background-attachment: fixed; background-origin: border-box; background-clip: content-box; color: blue',
+            'background-color: red; background-image: url(hero.jpg); background-position-y: 10px; background-repeat: no-repeat; background-size: auto; background-attachment: fixed; background-origin: border-box; background-clip: content-box; color: #00f',
             $block->removeProperty($fullBackground, 'background-position-x')
         );
         $t->same(
-            'background-color: transparent; background-image: url(hero.jpg); background-position-x: 20px; background-position-y: 10px; background-repeat: repeat; background-attachment: scroll; background-origin: padding-box; background-clip: border-box; color: blue',
+            'background-color: #0000; background-image: url(hero.jpg); background-position-x: 20px; background-position-y: 10px; background-repeat: repeat; background-attachment: scroll; background-origin: padding-box; background-clip: border-box; color: #00f',
             $block->removeProperty('background: url(hero.jpg) 20px 10px / cover; color: blue', 'background-size')
         );
     },
@@ -3825,7 +3903,7 @@ return [
             $block->removeProperty('border: 1px solid red', 'border-right-color')
         );
         $t->same(
-            'border-right-color: green; border-bottom-color: blue; border-left-color: black',
+            'border-right-color: green; border-bottom-color: #00f; border-left-color: #000',
             $block->removeProperty('border-color: red green blue black', 'border-top-color')
         );
         $t->same(
@@ -3833,7 +3911,7 @@ return [
             $block->removeProperty('border-top: 2px dotted blue; border-top-color: green', 'border-top-color')
         );
         $t->same(
-            'color: blue; border-top-width: 1px !important; border-right-width: 1px !important; border-bottom-width: 1px !important; border-top-style: solid !important; border-right-style: solid !important; border-bottom-style: solid !important; border-left-style: solid !important; border-top-color: red !important; border-right-color: red !important; border-bottom-color: red !important; border-left-color: red !important',
+            'color: #00f; border-top-width: 1px !important; border-right-width: 1px !important; border-bottom-width: 1px !important; border-top-style: solid !important; border-right-style: solid !important; border-bottom-style: solid !important; border-left-style: solid !important; border-top-color: red !important; border-right-color: red !important; border-bottom-color: red !important; border-left-color: red !important',
             $block->removeProperty('border: 1px solid red !important; border-left-width: 4px; color: blue', 'border-left-width')
         );
     },
@@ -3911,21 +3989,21 @@ return [
             )
         );
         $t->same(
-            'color: blue',
+            'color: #00f',
             $block->removeProperty(
                 'grid-area: header / main / footer / aside; grid-row-start: promo; grid-column-end: rail; color: blue',
                 'grid-area'
             )
         );
         $t->same(
-            'grid-auto-flow: row dense; color: blue',
+            'grid-auto-flow: row dense; color: #00f',
             $block->removeProperty(
                 'grid-template: auto 1fr / auto; grid-template-rows: min-content; grid-template-columns: 1fr; grid-auto-flow: dense; color: blue',
                 'grid-template'
             )
         );
         $t->same(
-            'color: blue',
+            'color: #00f',
             $block->removeProperty(
                 'grid: auto 1fr / auto; grid-template-rows: min-content; grid-template-columns: 1fr; grid-auto-flow: dense; grid-auto-rows: 12px; color: blue',
                 'grid'
@@ -4344,7 +4422,7 @@ return [
             $block->removeProperty('-webkit-text-decoration: underline wavy red 2px', '-webkit-text-decoration-color')
         );
         $t->same(
-            '-moz-text-decoration-line: line-through; -moz-text-decoration-color: blue',
+            '-moz-text-decoration-line: line-through; -moz-text-decoration-color: #00f',
             $block->removeProperty('-moz-text-decoration: line-through dotted blue', '-moz-text-decoration-style')
         );
         $t->same(

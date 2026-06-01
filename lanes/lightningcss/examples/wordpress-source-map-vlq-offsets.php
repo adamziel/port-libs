@@ -685,6 +685,14 @@ $duplicateBoundaryNegativeMap = SourceMap::fromJson(
 $duplicateBoundaryNegativeMap->offsetColumns(0, 5, -3);
 $duplicateBoundaryNegativeClosest = $duplicateBoundaryNegativeMap->findClosestMapping(0, 2);
 
+$duplicateShiftBoundaryNegativeMap = SourceMap::fromJson(
+    '{"version":3,"mappings":"AAAAA,IACAC,CACAC,AACAC,KACAC","sources":["wp-content/themes/example/source-map-duplicate-shift-boundary.css"],"sourcesContent":[".wp-block-duplicate-shift{}\n"],"names":["anchor-rule","drained-window-rule","drained-first-boundary","shifted-second-boundary","after-shift-boundary"]}'
+);
+$duplicateShiftBoundaryNegativeReadOrder = array_column($duplicateShiftBoundaryNegativeMap->getMappings(), 'generatedColumn');
+$duplicateShiftBoundaryNegativeMap->offsetColumns(0, 5, -3);
+$duplicateShiftBoundaryNegativeClosest = $duplicateShiftBoundaryNegativeMap->findClosestMapping(0, 5);
+$duplicateShiftBoundaryNegativeRoundTrip = SourceMap::fromBuffer('/', $duplicateShiftBoundaryNegativeMap->toBuffer());
+
 $trailingNegativeWindowMap = new SourceMap();
 $trailingNegativeWindowSource = $trailingNegativeWindowMap->addSource('wp-content/themes/example/source-map-trailing-window.css');
 $trailingNegativeWindowMap->setSourceContent($trailingNegativeWindowSource, '.wp-block-trailing-window{}');
@@ -1121,6 +1129,10 @@ $actual = [
     'duplicateBoundaryNestedChildConsumed' => $duplicateBoundaryNestedChildConsumed,
     'duplicateBoundaryNegativeMap' => $duplicateBoundaryNegativeMap->toJson(null, false),
     'duplicateBoundaryNegativeClosest' => $duplicateBoundaryNegativeClosest,
+    'duplicateShiftBoundaryNegativeReadOrder' => $duplicateShiftBoundaryNegativeReadOrder,
+    'duplicateShiftBoundaryNegativeMap' => $duplicateShiftBoundaryNegativeMap->toJson(null, false),
+    'duplicateShiftBoundaryNegativeClosest' => $duplicateShiftBoundaryNegativeClosest,
+    'duplicateShiftBoundaryNegativeRoundTrip' => $duplicateShiftBoundaryNegativeRoundTrip->toJson(null, false),
     'trailingNegativeWindowMap' => $trailingNegativeWindowMap->toJson(null, false),
     'trailingNegativeWindowColumns' => $trailingNegativeWindowColumns,
     'trailingNegativeWindowNames' => $trailingNegativeWindowNames,
@@ -1278,6 +1290,10 @@ if (($argv[1] ?? null) === '--self-test') {
         'duplicateBoundaryNestedChildConsumed' => '{"version":3,"mappings":"","sources":[],"sourcesContent":[],"names":[]}',
         'duplicateBoundaryNegativeMap' => '{"version":3,"mappings":"AAAAA,EACAC,AAEAE","sources":["wp-content/themes/example/source-map-duplicate-boundary.css"],"sourcesContent":[".wp-block-duplicate-boundary{}"],"names":["first-boundary-rule","start-boundary-a","start-boundary-b","shifted-boundary-rule"]}',
         'duplicateBoundaryNegativeClosest' => ['generatedLine' => 0, 'generatedColumn' => 2, 'sourceIndex' => 0, 'originalLine' => 3, 'originalColumn' => 0, 'nameIndex' => 3],
+        'duplicateShiftBoundaryNegativeReadOrder' => [0, 4, 5, 5, 10],
+        'duplicateShiftBoundaryNegativeMap' => '{"version":3,"mappings":"AAAAA,EAGAG,KACAC","sources":["wp-content/themes/example/source-map-duplicate-shift-boundary.css"],"sourcesContent":[".wp-block-duplicate-shift{}\n"],"names":["anchor-rule","drained-window-rule","drained-first-boundary","shifted-second-boundary","after-shift-boundary"]}',
+        'duplicateShiftBoundaryNegativeClosest' => ['generatedLine' => 0, 'generatedColumn' => 2, 'sourceIndex' => 0, 'originalLine' => 3, 'originalColumn' => 0, 'nameIndex' => 3],
+        'duplicateShiftBoundaryNegativeRoundTrip' => '{"version":3,"mappings":"AAAAA,EAGAG,KACAC","sources":["wp-content/themes/example/source-map-duplicate-shift-boundary.css"],"sourcesContent":[".wp-block-duplicate-shift{}\n"],"names":["anchor-rule","drained-window-rule","drained-first-boundary","shifted-second-boundary","after-shift-boundary"]}',
         'trailingNegativeWindowMap' => '{"version":3,"mappings":"AAAAA,UACAC","sources":["wp-content/themes/example/source-map-trailing-window.css"],"sourcesContent":[".wp-block-trailing-window{}"],"names":["trailing-window-first","trailing-window-middle","trailing-window-drained"]}',
         'trailingNegativeWindowColumns' => [0, 10],
         'trailingNegativeWindowNames' => ['trailing-window-first', 'trailing-window-middle', 'trailing-window-drained'],

@@ -7,6 +7,20 @@ namespace PortLibs\LibSqlite;
 final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
 {
     private const READY_PUBLICATION_SAVEPOINT_PREFIX = 'application_rowvalue_window_current_step';
+    private const DEFAULT_ROW_ID_COLUMN = 'setting_id';
+
+    /**
+     * @param array<string,list<array<string,mixed>>> $tables
+     * @param list<list<string>> $uniqueConstraints
+     */
+    private static function resolveDefaultRowIdColumn(array $tables, string $rowIdColumn, array $uniqueConstraints): string
+    {
+        if ($rowIdColumn !== self::DEFAULT_ROW_ID_COLUMN) {
+            return $rowIdColumn;
+        }
+
+        return SQLiteRowIdColumn::resolveTables($tables, $rowIdColumn, $uniqueConstraints);
+    }
 
     /* Variant consolidated from SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan.php. */
 /**
@@ -2099,8 +2113,10 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_groups_next240',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
+
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeCurrentRowWindowFrames(
             $tables,
             $yieldStatements,
@@ -2264,8 +2280,10 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_returning_window_next241',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
+
         $plan = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeReplayPairWindow(
             $tables,
             $attemptStatements,
@@ -2463,8 +2481,10 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next242',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
+
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeStatementWindowMetrics(
             $tables,
             $yieldStatements,
@@ -2577,8 +2597,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
             'suppressed_only_ids' => array_values(array_diff($suppressedIds, $retryIds)),
             'retry_replayed_yield_ids' => array_values(array_intersect($retryIds, $yieldIds)),
             'final_source_ids' => $finalIds,
-            'final_contains_retry_ids' => self::containsAllChainedStatementWindows($finalIds, array_values(array_diff($retryIds, self::deletedRetryIdsChainedStatementWindows($base)))),
-            'final_excludes_retry_delete_ids' => count(array_intersect($finalIds, self::deletedRetryIdsChainedStatementWindows($base))) === 0,
+            'final_contains_retry_ids' => self::containsAllChainedStatementWindows($finalIds, array_values(array_diff($retryIds, self::deletedRetryIdsChainedStatementWindows($base, $rowIdColumn)))),
+            'final_excludes_retry_delete_ids' => count(array_intersect($finalIds, self::deletedRetryIdsChainedStatementWindows($base, $rowIdColumn))) === 0,
             'final_contains_suppressed_only_ids' => self::containsAllChainedStatementWindows($finalIds, array_values(array_diff($suppressedIds, $retryIds))),
             'rollback_restored_savepoint_image' => ($base['rollback_current_source_tables'] ?? null) === ($base['savepoint_image_tables'] ?? null),
             'attempt_source_discarded' => ($base['attempt_current_source_tables'] ?? null) !== ($base['current_source_tables'] ?? null),
@@ -2664,7 +2684,7 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
      * @param array<string,mixed> $base
      * @return list<int|string>
      */
-    private static function deletedRetryIdsChainedStatementWindows(array $base): array
+    private static function deletedRetryIdsChainedStatementWindows(array $base, string $rowIdColumn): array
     {
         $ids = [];
         foreach (($base['retry_returning'] ?? []) as $statement) {
@@ -2672,8 +2692,8 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
                 continue;
             }
             foreach ($statement['rows'] as $row) {
-                if (is_array($row) && array_key_exists('option_id', $row)) {
-                    $id = $row['option_id'];
+                if (is_array($row) && array_key_exists($rowIdColumn, $row)) {
+                    $id = $row[$rowIdColumn];
                     if (is_int($id) || is_string($id)) {
                         $ids[] = $id;
                     }
@@ -2746,8 +2766,10 @@ final class SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan
         array $retryStatements,
         array $uniqueConstraints,
         string $savepoint = 'app_settings_rowvalue_window_current_next243',
-        string $rowIdColumn = 'option_id',
+        string $rowIdColumn = 'setting_id',
     ): array {
+        $rowIdColumn = self::resolveDefaultRowIdColumn($tables, $rowIdColumn, $uniqueConstraints);
+
         $base = SQLiteRowValueUpdateDeleteReturningWindowCurrentSourceNextPlan::executeStatementWindowMetrics(
             $tables,
             $yieldStatements,

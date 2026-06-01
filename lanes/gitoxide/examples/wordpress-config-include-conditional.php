@@ -10,6 +10,8 @@ return [
     'activeBranch' => $fixture['activeBranch'],
     'remoteUrl' => $fixture['remoteUrl'],
     'preview' => $fixture['preview'],
+    'singleComponentBranchPolicy' => $fixture['singleComponentBranchPolicy'],
+    'singleComponentSlashPolicy' => $fixture['singleComponentSlashPolicy'],
     'conflictStyle' => $fixture['conflictStyle'],
     'httpExtraHeader' => $fixture['httpExtraHeader'],
     'transferFsckObjects' => $fixture['transferFsckObjects'],

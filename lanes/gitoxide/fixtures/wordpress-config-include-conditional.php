@@ -33,6 +33,16 @@ preview = enabled
 conflictStyle = zdiff3
 CFG);
 
+$write($repo . '/single-component-branch.config', <<<CFG
+[wordpress]
+singleComponentBranch = matched
+CFG);
+
+$write($repo . '/single-component-slash.config', <<<CFG
+[wordpress]
+singleComponentSlash = should-not-load
+CFG);
+
 $write($repo . '/remote-policy.config', <<<CFG
 [http]
 extraHeader = X-WP-Deploy: staging
@@ -315,6 +325,10 @@ url = https://git.example.test/wp-content/site-[.git
 url = "{$escapedTrailingBackslashUrl}"
 [includeIf "onbranch:deploy/"]
 path = ../deploy-branch.config
+[includeIf "onbranch:deploy/*"]
+path = ../single-component-branch.config
+[includeIf "onbranch:deploy*"]
+path = ../single-component-slash.config
 [includeIf "onbranch:deploy/"]
 path = ../depth-limited.config
 [includeIf "hasconfig:remote.*.url:https://git.example.test/**"]
@@ -497,6 +511,8 @@ return [
     'activeBranch' => 'refs/heads/deploy/site-a',
     'remoteUrl' => $config->value('remote', 'origin', 'url'),
     'preview' => $config->value('wordpress', null, 'preview'),
+    'singleComponentBranchPolicy' => $config->value('wordpress', null, 'singleComponentBranch'),
+    'singleComponentSlashPolicy' => $config->value('wordpress', null, 'singleComponentSlash'),
     'conflictStyle' => $config->value('merge', null, 'conflictStyle'),
     'httpExtraHeader' => $config->value('http', null, 'extraHeader'),
     'transferFsckObjects' => $config->value('transfer', null, 'fsckObjects'),

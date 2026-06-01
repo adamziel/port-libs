@@ -731,6 +731,29 @@ return [
         $t->same(['first', 'start-a', 'start-b', 'boundary'], $data['names']);
         $t->same(['.compiled{}'], $data['sourcesContent']);
     },
+    'source map drains earlier duplicate shift-boundary mappings during negative offsets' => static function (TestRunner $t): void {
+        $map = SourceMap::fromJson(
+            '{"version":3,"mappings":"AAAAA,IACAC,CACAC,AACAC,KACAC","sources":["compiled.css"],"sourcesContent":[".compiled{}\n"],"names":["anchor","window","first-boundary","second-boundary","after"]}'
+        );
+
+        $t->same([0, 4, 5, 5, 10], array_column($map->getMappings(), 'generatedColumn'));
+
+        $map->offsetColumns(0, 5, -3);
+        $decoded = SourceMap::decodeVlq($map->writeVlq());
+        $closestInsideDrainedWindow = $map->findClosestMapping(0, 5);
+        $roundTrip = SourceMap::fromBuffer('/', $map->toBuffer());
+        $data = $map->toArray(null, false);
+
+        $t->same('AAAAA,EAGAG,KACAC', $map->writeVlq());
+        $t->same([0, 2, 7], array_column($decoded, 'generatedColumn'));
+        $t->same([0, 3, 4], array_column($decoded, 'originalLine'));
+        $t->same([0, 3, 4], array_column($decoded, 'nameIndex'));
+        $t->same(2, $closestInsideDrainedWindow['generatedColumn'] ?? null);
+        $t->same(3, $closestInsideDrainedWindow['originalLine'] ?? null);
+        $t->same('AAAAA,EAGAG,KACAC', $roundTrip->writeVlq());
+        $t->same(['anchor', 'window', 'first-boundary', 'second-boundary', 'after'], $data['names']);
+        $t->same([".compiled{}\n"], $data['sourcesContent']);
+    },
     'source map trims trailing negative column-offset windows without appending mappings' => static function (TestRunner $t): void {
         $map = new SourceMap();
         $sourceIndex = $map->addSource('compiled.css');
