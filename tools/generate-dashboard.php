@@ -303,7 +303,7 @@ $html = <<<HTML
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Native PHP Porting Progress</title>
+  <title>Native PHP Project State</title>
   <style>
     :root { color-scheme: light dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     body { margin: 0; padding: 16px; background: Canvas; color: CanvasText; }
@@ -320,17 +320,17 @@ $html = <<<HTML
 </head>
 <body>
   <div class="table-wrap">
-    <table aria-label="Native PHP porting progress">
+    <table aria-label="Native PHP project state">
       <thead>
         <tr>
           <th>Project</th>
-          <th>Queue</th>
-          <th>Status</th>
-          <th>Completion</th>
-          <th>PHP Gate</th>
-          <th>Upstream Coverage</th>
-          <th>Unmapped Upstream</th>
-          <th>Blocker / Next Gate</th>
+          <th>Focus</th>
+          <th>State</th>
+          <th>Progress</th>
+          <th>PHP Tests</th>
+          <th>Mapped Upstream</th>
+          <th>Unmapped</th>
+          <th>Next Gate</th>
           <th>Commit</th>
         </tr>
       </thead>
@@ -364,7 +364,7 @@ foreach ($rows as $row) {
 }
 
 $progressMd = <<<MD
-| Project | Queue | Status | Completion | PHP Gate | Upstream Coverage | Unmapped Upstream | Blocker / Next Gate | Commit |
+| Project | Focus | State | Progress | PHP Tests | Mapped Upstream | Unmapped | Next Gate | Commit |
 | --- | --- | --- | ---: | ---: | --- | ---: | --- | --- |
 {$progressRows}
 MD;

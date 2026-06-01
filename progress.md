@@ -1,4 +1,4 @@
-| Project | Queue | Status | Completion | PHP Gate | Upstream Coverage | Unmapped Upstream | Blocker / Next Gate | Commit |
+| Project | Focus | State | Progress | PHP Tests | Mapped Upstream | Unmapped | Next Gate | Commit |
 | --- | --- | --- | ---: | ---: | --- | ---: | --- | --- |
 | [libsqlite](lanes/libsqlite/lane-status.json) | Primary | 7 open failures | 99.6% | 5,840,554 pass / 7 fail | [1,589 / 1,589 (100.0%)](lanes/libsqlite/UPSTREAM_TEST_MANIFEST.json) | 0 | Broad release/all still has 7 known failures | 9c379ab |
 | [LightningCSS](lanes/lightningcss/lane-status.json) | Active | PHP green, upstream gap | 99.8% | 7,496 pass / 0 fail | [2,369 / 3,532 (67.1%)](lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json) | 1,163 | Rust/Node/WASM upstream runners not run | 9c379ab |
