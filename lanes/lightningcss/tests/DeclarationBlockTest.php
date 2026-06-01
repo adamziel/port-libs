@@ -1937,6 +1937,36 @@ return [
         $t->same(['value' => '8px', 'important' => true], $block->getProperty('-webkit-border-radius: 4px 8px !important', '-webkit-border-top-right-radius'));
         $t->same(null, $block->getProperty('-webkit-border-radius: 4px 8px', 'border-top-right-radius'));
     },
+    'declaration block canonicalizes upstream logical border radius cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'border-start-end-radius: +012.00PX 50.0%; border-end-start-radius: +000.500rem +000.500rem; border-radius: +008.00PX 16.0PX / 4.0PX 12.00PX; --Logical-Radius: +012.00PX 50.0%';
+
+        $t->same(
+            [
+                'border-start-end-radius' => '12px 50%',
+                'border-end-start-radius' => '.5rem',
+                'border-radius' => '8px 16px / 4px 12px',
+                '--Logical-Radius' => '+012.00PX 50.0%',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => '12px 50%', 'important' => false], $block->getProperty($declarations, 'border-start-end-radius'));
+        $t->same(['value' => '.5rem', 'important' => false], $block->getProperty($declarations, 'border-end-start-radius'));
+        $t->same(['value' => '8px 16px / 4px 12px', 'important' => false], $block->getProperty($declarations, 'border-radius'));
+        $t->same(['value' => '+012.00PX 50.0%', 'important' => false], $block->getProperty($declarations, '--Logical-Radius'));
+        $t->same(
+            'border-end-start-radius: .5rem; border-radius: 8px 16px / 4px 12px; --Logical-Radius: +012.00PX 50.0%; border-start-end-radius: 24px 25% !important',
+            $block->setProperty($declarations, 'border-start-end-radius', '+024.00PX 25.0%', true)
+        );
+        $t->same(
+            'border-start-end-radius: 12px 50%; border-end-start-radius: .5rem; border-radius: 8px 16px / 4px 12px; --Logical-Radius: +012.00PX 50.0%; border-end-end-radius: .25rem',
+            $block->setProperty($declarations, 'border-end-end-radius', '+000.250rem')
+        );
+        $t->same(
+            'border-end-start-radius: .5rem; border-radius: 8px 16px / 4px 12px; --Logical-Radius: +012.00PX 50.0%',
+            $block->removeProperty($declarations, 'border-start-end-radius')
+        );
+    },
     'declaration block reads upstream outline cssom longhands and shorthand' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

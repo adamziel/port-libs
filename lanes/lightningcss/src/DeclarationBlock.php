@@ -3343,6 +3343,22 @@ final class DeclarationBlock
         return $this->composeBorderRadiusCornerValue($corner[0], $corner[1]);
     }
 
+    private function normalizeBorderRadiusShorthandValue(string $property, string $value): string
+    {
+        $prefix = $this->borderRadiusPrefixForProperty($property) ?? '';
+        $components = $this->parseBorderRadiusComponents($value, $prefix);
+        if ($components === null) {
+            return trim($value);
+        }
+
+        return $this->composeBorderRadiusShorthandValue([
+            'top-left' => $components[$this->borderRadiusProperty($prefix, 'border-top-left-radius')],
+            'top-right' => $components[$this->borderRadiusProperty($prefix, 'border-top-right-radius')],
+            'bottom-right' => $components[$this->borderRadiusProperty($prefix, 'border-bottom-right-radius')],
+            'bottom-left' => $components[$this->borderRadiusProperty($prefix, 'border-bottom-left-radius')],
+        ]);
+    }
+
     /**
      * @return array{0:string,1:string}|null
      */
@@ -3353,7 +3369,11 @@ final class DeclarationBlock
             return null;
         }
 
-        return [$tokens[0], $tokens[1] ?? $tokens[0]];
+        $horizontal = $this->normalizeLengthPercentageDeclarationToken($tokens[0]) ?? $tokens[0];
+        $verticalToken = $tokens[1] ?? $tokens[0];
+        $vertical = $this->normalizeLengthPercentageDeclarationToken($verticalToken) ?? $verticalToken;
+
+        return [$horizontal, $vertical];
     }
 
     private function composeBorderRadiusCornerValue(string $horizontal, string $vertical): string
@@ -14624,6 +14644,14 @@ final class DeclarationBlock
 
         if (in_array($property, self::SVG_LENGTH_PERCENTAGE_PROPERTIES, true)) {
             return $this->normalizeLengthPercentageOrAutoToken($value);
+        }
+
+        if ($this->isBorderRadiusShorthand($property)) {
+            return $this->normalizeBorderRadiusShorthandValue($property, $value);
+        }
+
+        if ($this->isBorderRadiusLonghand($property) || $this->isLogicalBorderRadiusLonghand($property)) {
+            return $this->normalizeBorderRadiusCornerValue($value);
         }
 
         if ($property === 'display') {

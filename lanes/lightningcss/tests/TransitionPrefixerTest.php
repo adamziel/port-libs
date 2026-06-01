@@ -140,6 +140,25 @@ return [
         $t->same('.foo{-moz-backface-visibility:hidden;backface-visibility:hidden}', $prefixer->prefixForTargets('.foo { backface-visibility: hidden; }', ['firefox' => 15]));
         $t->same('.foo{backface-visibility:hidden}', $prefixer->prefixForTargets('.foo { backface-visibility: hidden; }', ['firefox' => 16]));
     },
+    'transition prefixer maps transform-style supports prelude to upstream perspective boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '@supports (transform-style: preserve-3d) { .foo { transform-style: preserve-3d; } }';
+        $staleWebkit = '@supports ((-webkit-transform-style: preserve-3d) or (transform-style: preserve-3d)) { .foo { -webkit-transform-style: preserve-3d; transform-style: preserve-3d; } }';
+        $staleMoz = '@supports ((-moz-transform-style: preserve-3d) or (transform-style: preserve-3d)) { .foo { -moz-transform-style: preserve-3d; transform-style: preserve-3d; } }';
+        $modern = '@supports (transform-style:preserve-3d){.foo{transform-style:preserve-3d}}';
+        $webkit = '@supports ((-webkit-transform-style:preserve-3d) or (transform-style:preserve-3d)){.foo{-webkit-transform-style:preserve-3d;transform-style:preserve-3d}}';
+        $moz = '@supports ((-moz-transform-style:preserve-3d) or (transform-style:preserve-3d)){.foo{-moz-transform-style:preserve-3d;transform-style:preserve-3d}}';
+
+        $t->same($modern, $prefixer->prefixForTargets($css, ['android' => '2.2']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['android' => 3]));
+        $t->same($modern, $prefixer->prefixForTargets($staleWebkit, ['android' => '2.2']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => '3.1']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => 4]));
+        $t->same($modern, $prefixer->prefixForTargets($staleWebkit, ['safari' => '3.1']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['firefox' => 9]));
+        $t->same($moz, $prefixer->prefixForTargets($css, ['firefox' => 10]));
+        $t->same($modern, $prefixer->prefixForTargets($staleMoz, ['firefox' => 9]));
+    },
     'transition prefixer maps upstream selector target prefix browser boundaries' => static function (TestRunner $t) use ($rtlLangs): void {
         $prefixer = new TransitionPrefixer();
         $rtlLangList = 'ae,ar,arc,bcc,bqi,ckb,dv,fa,glk,he,ku,mzn,nqo,pnb,ps,sd,ug,ur,yi';

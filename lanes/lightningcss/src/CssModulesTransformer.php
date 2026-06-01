@@ -2667,6 +2667,7 @@ final class CssModulesTransformer
     {
         $quote = null;
         $bracketDepth = 0;
+        $parenDepth = 0;
         $length = strlen($selector);
 
         for ($i = 0; $i < $length; $i++) {
@@ -2698,6 +2699,14 @@ final class CssModulesTransformer
                 continue;
             }
 
+            $hasFunction = $bracketDepth === 0 && $parenDepth === 0
+                ? $this->forgivingSelectorFunctionAt($selector, $i)
+                : null;
+            if ($hasFunction !== null && $hasFunction['decodedName'] === 'has') {
+                $i = $hasFunction['close'];
+                continue;
+            }
+
             $globalPseudo = $bracketDepth === 0 ? $this->cssModulesPseudoFunctionAt($selector, $i, 'global') : null;
             if ($globalPseudo !== null) {
                 $open = $globalPseudo['open'];
@@ -2713,6 +2722,16 @@ final class CssModulesTransformer
                 $close = $this->findMatchingParen($selector, $open);
                 $this->assertSelectorPseudoElementBoundaries(substr($selector, $open + 1, $close - $open - 1));
                 $i = $close;
+                continue;
+            }
+
+            if ($char === '(') {
+                $parenDepth++;
+                continue;
+            }
+
+            if ($char === ')') {
+                $parenDepth = max(0, $parenDepth - 1);
                 continue;
             }
 
@@ -3453,6 +3472,7 @@ final class CssModulesTransformer
 
             $candidateLocals = [];
             try {
+                $this->assertSelectorPseudoElementBoundary($selector);
                 $rewrittenSelector = $this->rewriteSelectorFragment($selector, $mode, $candidateLocals);
             } catch (\InvalidArgumentException) {
                 continue;

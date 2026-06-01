@@ -1460,8 +1460,8 @@ final class TransitionPrefixer
                 '-moz-' => $targetOptions['perspectiveNeedsMoz'] ?? false,
             ],
             'transform-style' => [
-                '-webkit-' => $targetOptions['transformNeedsWebkit'] ?? false,
-                '-moz-' => $targetOptions['transformNeedsMoz'] ?? false,
+                '-webkit-' => $targetOptions['perspectiveNeedsWebkit'] ?? false,
+                '-moz-' => $targetOptions['perspectiveNeedsMoz'] ?? false,
             ],
             'backface-visibility' => [
                 '-webkit-' => $targetOptions['backfaceVisibilityNeedsWebkit'] ?? false,

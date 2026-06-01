@@ -1005,6 +1005,39 @@ CSS);
         $t->same([], $result['references']);
         $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
     },
+    'css modules keeps upstream has pseudo-element branches while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+.card:has(:scope::before:hover, :scope::marker, :scope::part(icon), :scope::highlight(focus-ring), :scope::cue(.caption), .ok) {
+  color: red;
+}
+
+.card:has(.drop::before .child, :scope::part(icon) .child, .kept) {
+  color: blue;
+}
+
+.button {
+  composes: card;
+  color: white;
+}
+
+.card {
+  color: green;
+}
+CSS);
+
+        $t->same('.EgL3uq_card:has(:before:hover,::marker,::part(icon),::highlight(EgL3uq_focus-ring),::cue(.EgL3uq_caption),.EgL3uq_ok){color:red}.EgL3uq_card:has(.EgL3uq_kept){color:#00f}.EgL3uq_button{color:#fff}.EgL3uq_card{color:green}', $result['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            'focus-ring' => $export('EgL3uq_focus-ring'),
+            'caption' => $export('EgL3uq_caption'),
+            'ok' => $export('EgL3uq_ok'),
+            'kept' => $export('EgL3uq_kept'),
+            'button' => $export('EgL3uq_button', [$local('EgL3uq_card')]),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+        $t->same('EgL3uq_button EgL3uq_card', CssModulesTransformer::exportClassList($result['exports'], 'button'));
+        $t->same([], array_intersect_key($result['exports'], array_flip(['drop', 'child'])));
+    },
     'css modules unwraps upstream single is selector after local global rewriting while preserving composes' => static function (TestRunner $t) use ($export, $local): void {
         $result = (new CssModulesTransformer())->transform(<<<'CSS'
 .card:is(:local(.featured)) {

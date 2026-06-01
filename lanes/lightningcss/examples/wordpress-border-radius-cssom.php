@@ -8,12 +8,14 @@ require dirname(__DIR__, 3) . '/tools/bootstrap.php';
 
 $block = new DeclarationBlock();
 $card = 'border-radius: 8px 16px / 4px 12px; overflow: hidden';
-$logicalFallback = 'border-radius: 8px; border-start-start-radius: var(--wp--custom--radius-start); overflow: hidden';
+$logicalFallback = 'border-radius: 8px; border-start-start-radius: var(--wp--custom--radius-start); border-start-end-radius: +012.00PX 50.0%; overflow: hidden';
 
 $actual = [
     'firstCorner' => $block->getProperty($card, 'border-top-left-radius'),
     'editorCorner' => $block->setProperty($card, 'border-top-left-radius', '24px 10px'),
     'prefixedFallback' => $block->setProperty('-webkit-border-radius: 8px; border-radius: 8px', '-webkit-border-bottom-right-radius', '16px'),
+    'logicalCorner' => $block->getProperty($logicalFallback, 'border-start-end-radius'),
+    'logicalCornerEdited' => $block->setProperty($logicalFallback, 'border-start-end-radius', '+024.00PX 25.0%'),
     'cornerRemoved' => $block->removeProperty($card, 'border-top-left-radius'),
     'physicalGroupRemoved' => $block->removeProperty($logicalFallback, 'border-radius'),
 ];
@@ -25,8 +27,13 @@ $expected = [
     ],
     'editorCorner' => 'border-radius: 24px 16px 8px / 10px 12px 4px; overflow: hidden',
     'prefixedFallback' => '-webkit-border-radius: 8px 8px 16px; border-radius: 8px',
+    'logicalCorner' => [
+        'value' => '12px 50%',
+        'important' => false,
+    ],
+    'logicalCornerEdited' => 'border-radius: 8px; border-start-start-radius: var(--wp--custom--radius-start); border-start-end-radius: 24px 25%; overflow: hidden',
     'cornerRemoved' => 'border-top-right-radius: 16px 12px; border-bottom-right-radius: 8px 4px; border-bottom-left-radius: 16px 12px; overflow: hidden',
-    'physicalGroupRemoved' => 'border-start-start-radius: var(--wp--custom--radius-start); overflow: hidden',
+    'physicalGroupRemoved' => 'border-start-start-radius: var(--wp--custom--radius-start); border-start-end-radius: 12px 50%; overflow: hidden',
 ];
 
 if (($argv[1] ?? null) === '--self-test') {
