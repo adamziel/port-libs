@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "library": "gitoxide",
     "estimatedProgress": 98.2,
-    "suiteProgress": "Supervisor-integrated Gitoxide empty MIDX object-database prefix parity and partial-clone promisor returned-header refresh parity. Verification passed changed PHP lint, git diff --check, changed example smokes, and full Gitoxide lane 40 files / 10106 assertions / 0 failures.",
-    "phpPass": 10106,
+    "suiteProgress": "Supervisor-integrated Gitoxide credential helper invalid-context diagnostic parity. Verification passed changed PHP lint, git diff --check, credential example smoke, focused credential tests 4 files / 497 assertions / 0 failures, and full Gitoxide lane 40 files / 10120 assertions / 0 failures.",
+    "phpPass": 10120,
     "phpFail": 0,
     "wordpressScenarios": "Git-backed workflows remain covered; latest accepted source adds merge-base commit-graph cache lookup, URL/refspec Unix colon-path classification, and attributes/pathspec parent-traversal rejection parity.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Cargo workspace not executed for isolated batch",
-    "audit": "2026-06-01 16:05 UTC supervisor integration: source commit 60fde5b67432524a0e4cd56c0332c44c08d854a6 accepted empty MIDX object-database prefix parity and partial-clone promisor returned-header refresh parity. Changed PHP lint passed; git diff --check passed; changed example smokes passed; full Gitoxide PHP lane passed 40 files / 10106 assertions / 0 failures. Cargo workspace was not run.",
-    "currentWork": "Empty MIDX object-database prefix parity and partial-clone promisor returned-header refresh parity integrated on current main.",
+    "audit": "2026-06-01 16:18 UTC supervisor integration: source commit 9c58ee164dbff3a0a230487ba6ff5944d5abeef5 accepted credential helper invalid-context diagnostic parity. Changed PHP lint passed; git diff --check passed; credential example smoke exited 0; focused credential tests passed 4 files / 497 assertions / 0 failures; full Gitoxide PHP lane passed 40 files / 10120 assertions / 0 failures. Cargo workspace was not run.",
+    "currentWork": "Credential helper invalid-context diagnostics now use redacted best-effort context bytes without leaking secrets.",
     "blocker": "Full upstream Cargo workspace remains unexecuted.",
-    "latestCommit": "60fde5b67432524a0e4cd56c0332c44c08d854a6",
+    "latestCommit": "9c58ee164dbff3a0a230487ba6ff5944d5abeef5",
     "nextTask": "Keep Gitoxide workers on current-base non-overlapping reference transaction, partial-clone, credential/config, pack/index, object database, tree-merge, merge-base, protocol-v2, receive-pack/send-pack, smart-HTTP/SSH, sparse-checkout/pathspec, and URL/refspec parity slices.",
-    "commit": "60fde5b67432524a0e4cd56c0332c44c08d854a6",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: empty MIDX object-database prefix parity maps +1 conservative row; partial-clone promisor returned-header refresh parity deepens an existing cluster. Full Gitoxide lane passed 40 files / 10106 assertions / 0 failures; phpPass moves 10074 -> 10106; mapped coverage moves 1806 -> 1807 / 2886; full upstream Cargo workspace was not executed."
+    "commit": "9c58ee164dbff3a0a230487ba6ff5944d5abeef5",
+    "latestFocusedSlice": "2026-06-01 supervisor batch: credential helper invalid-context diagnostics deepen an existing credential helper cluster. Full Gitoxide lane passed 40 files / 10120 assertions / 0 failures; phpPass moves 10106 -> 10120; mapped coverage remains 1807 / 2886; full upstream Cargo workspace was not executed."
 }

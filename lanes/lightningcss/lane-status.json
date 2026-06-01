@@ -2,16 +2,16 @@
     "schemaVersion": 1,
     "library": "LightningCSS",
     "estimatedProgress": 99.8,
-    "suiteProgress": "Supervisor-integrated LightningCSS CSS Modules page composes descriptor parity. Verification passed changed PHP lint, git diff --check, changed example smoke, and full LightningCSS lane 13 files / 8625 assertions / 0 failures.",
-    "phpPass": 8625,
+    "suiteProgress": "Supervisor-integrated LightningCSS media-query range/layer import grammar and direct named-color property value parity. Verification passed changed PHP lint, git diff --check, changed example smokes, focused LightningCSS gate 4 files / 4347 assertions / 0 failures, and full LightningCSS lane 13 files / 8635 assertions / 0 failures.",
+    "phpPass": 8635,
     "phpFail": 0,
     "wordpressScenarios": "LightningCSS examples remain generic coverage plus existing fixture smokes; latest accepted source adds CSS Modules local/global dangling-combinator parity, prefixed 3D transform layout CSSOM read-write parity, and source-map VLQ generated-only child pruning.",
     "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream Rust/Node/WASM runners not executed for isolated batch",
-    "audit": "2026-06-01 16:05 UTC supervisor integration: source commit 60fde5b67432524a0e4cd56c0332c44c08d854a6 accepted CSS Modules page composes descriptor parity. Changed PHP lint passed; git diff --check passed; changed example smoke passed; full LightningCSS PHP lane passed 13 files / 8625 assertions / 0 failures. Rust/Node/WASM runners were not run.",
-    "currentWork": "CSS Modules page composes descriptor parity integrated on current main.",
+    "audit": "2026-06-01 16:18 UTC supervisor integration: source commit 9c58ee164dbff3a0a230487ba6ff5944d5abeef5 accepted media-query range/layer import grammar and direct named-color property value parity. Changed PHP lint passed; git diff --check passed; changed example smokes passed; focused LightningCSS gate passed 4 files / 4347 assertions / 0 failures; full LightningCSS PHP lane passed 13 files / 8635 assertions / 0 failures. Rust/Node/WASM runners were not run.",
+    "currentWork": "Media-query range/layer import grammar and direct named-color property value parity integrated on current main.",
     "blocker": "Full upstream Rust/Node/WASM LightningCSS runners remain unexecuted.",
-    "latestCommit": "60fde5b67432524a0e4cd56c0332c44c08d854a6",
+    "latestCommit": "9c58ee164dbff3a0a230487ba6ff5944d5abeef5",
     "nextTask": "Keep LightningCSS workers on current-base source maps, bundle/import graph, media query, property value, CSSOM, CSS Modules, custom-at-rule, target-prefix, selector, parser recovery, and upstream Rust/Node/WASM parity gaps that can be expressed in PHP.",
-    "commit": "60fde5b67432524a0e4cd56c0332c44c08d854a6",
-    "latestFocusedSlice": "2026-06-01 supervisor batch: CSS Modules page composes descriptor parity deepens the represented CSS Modules cluster. Full LightningCSS lane passed 13 files / 8625 assertions / 0 failures; phpPass moves 8621 -> 8625; mapped coverage remains 2398 / 3532; Rust/Node/WASM upstream runners were not executed."
+    "commit": "9c58ee164dbff3a0a230487ba6ff5944d5abeef5",
+    "latestFocusedSlice": "2026-06-01 supervisor batch: media-query range/layer import grammar adds 9 assertions and direct named-color property value parity adds 1 assertion. Full LightningCSS lane passed 13 files / 8635 assertions / 0 failures; phpPass moves 8625 -> 8635; mapped coverage remains 2398 / 3532; Rust/Node/WASM upstream runners were not executed."
 }
