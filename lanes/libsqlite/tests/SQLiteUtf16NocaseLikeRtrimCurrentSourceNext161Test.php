@@ -9,26 +9,26 @@ $tests = [];
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encoding,
 ];
 
 $currentRows = [
-    $row(1, 'Plugin_Cache  ', 2),
-    $row(2, 'plugin_cache', 3),
-    $row(3, 'plugin_cache_shadow', 2),
-    $row(4, 'PLUGIN_CACHE_TRANSIENT  ', 3),
-    $row(5, 'plugin_other', 2),
-    ['option_id' => 6, 'option_name_bytes' => "p\0x", 'text_encoding' => 2],
+    $row(1, 'Module_Cache  ', 2),
+    $row(2, 'module_cache', 3),
+    $row(3, 'module_cache_shadow', 2),
+    $row(4, 'MODULE_CACHE_TRANSIENT  ', 3),
+    $row(5, 'module_other', 2),
+    ['setting_id' => 6, 'key_name_bytes' => "p\0x", 'text_encoding' => 2],
 ];
 $nextRows = [
-    $row(1, 'plugin_cache', 2),
-    $row(2, 'Plugin_Cache  ', 2),
-    $row(3, 'plugin_cache_shadow  ', 2),
-    $row(4, 'PLUGIN_CACHE_TRANSIENT', 3),
-    $row(7, 'plugin_cache_new  ', 3),
-    ['option_id' => 8, 'option_name_bytes' => "\x00\xd8", 'text_encoding' => 2],
+    $row(1, 'module_cache', 2),
+    $row(2, 'Module_Cache  ', 2),
+    $row(3, 'module_cache_shadow  ', 2),
+    $row(4, 'MODULE_CACHE_TRANSIENT', 3),
+    $row(7, 'module_cache_new  ', 3),
+    ['setting_id' => 8, 'key_name_bytes' => "\x00\xd8", 'text_encoding' => 2],
 ];
 
 $plan = static fn (
@@ -45,7 +45,7 @@ $plan = static fn (
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyGenerationPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
-    'plugin!_cache%',
+    'module!_cache%',
     '!',
     $currentSource,
     $nextSource,
@@ -68,8 +68,8 @@ $valueAt = static function (array $value, string $path): mixed {
 $cases = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSixOne'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
-    'pattern' => ['pattern', 'plugin!_cache%'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE'],
+    'pattern' => ['pattern', 'module!_cache%'],
     'escape' => ['escape', '!'],
     'current source' => ['currentSource', 'main.app_settings@160'],
     'next source' => ['nextSource', 'main.app_settings@161'],
@@ -81,9 +81,9 @@ $cases = [
     'next like generation' => ['nextLikeGeneration', 'like@161'],
     'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneFiveEight'],
     'index usable' => ['indexUsable', true],
-    'prefix' => ['prefix', 'plugin_cache'],
-    'range lower' => ['range.lowerInclusive', 'plugin_cache'],
-    'range upper' => ['range.upperBound', 'plugin_cachf'],
+    'prefix' => ['prefix', 'module_cache'],
+    'range lower' => ['range.lowerInclusive', 'module_cache'],
+    'range upper' => ['range.upperBound', 'module_cachf'],
     'current order rowids' => ['currentOrderRowids', [1, 2, 3, 4, 5]],
     'next order rowids' => ['nextOrderRowids', [1, 2, 7, 3, 4]],
     'current candidates' => ['currentCandidateRowids', [1, 2, 3, 4]],
@@ -97,10 +97,10 @@ $cases = [
     'next malformed' => ['nextMalformedRowids', [8]],
     'odd length error' => ['currentErrors.6', 'SQLite encoding source UTF-16 text payload has an odd byte length'],
     'surrogate error' => ['nextErrors.8', 'SQLite encoding source UTF-16 text payload ends with a high surrogate'],
-    'row one current rtrim' => ['currentRtrimTexts.1', 'Plugin_Cache'],
-    'row one next rtrim' => ['nextRtrimTexts.1', 'plugin_cache'],
-    'row three next rtrim' => ['nextRtrimTexts.3', 'plugin_cache_shadow'],
-    'row four current nocase' => ['currentNocaseKeys.4', 'plugin_cache_transient'],
+    'row one current rtrim' => ['currentRtrimTexts.1', 'Module_Cache'],
+    'row one next rtrim' => ['nextRtrimTexts.1', 'module_cache'],
+    'row three next rtrim' => ['nextRtrimTexts.3', 'module_cache_shadow'],
+    'row four current nocase' => ['currentNocaseKeys.4', 'module_cache_transient'],
     'row two next encoding' => ['nextEncodings.2', 'UTF-16LE'],
     'row two current encoding' => ['currentEncodings.2', 'UTF-16BE'],
     'retained changed rtrim' => ['retainedChangedRtrimRowids', [1, 2]],
@@ -141,13 +141,13 @@ foreach ($cases as $name => [$path, $expected]) {
 
 $tests['utf16 nocase like rtrim current source nextOneSixOne stable same generation reusable'] = static function (TestRunner $t) use ($row): void {
     $rows = [
-        $row(1, 'plugin_cache  ', 2),
-        $row(2, 'plugin_cache_shadow', 3),
+        $row(1, 'module_cache  ', 2),
+        $row(2, 'module_cache_shadow', 3),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyGenerationPlan(
         $rows,
         $rows,
-        'plugin!_cache%',
+        'module!_cache%',
         '!',
         'stable',
         'stable',
@@ -166,11 +166,11 @@ $tests['utf16 nocase like rtrim current source nextOneSixOne stable same generat
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSixOne same rows collation generation invalidates'] = static function (TestRunner $t) use ($row): void {
-    $rows = [$row(1, 'plugin_cache  ', 2)];
+    $rows = [$row(1, 'module_cache  ', 2)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyGenerationPlan(
         $rows,
         $rows,
-        'plugin!_cache%',
+        'module!_cache%',
         '!',
         'stable',
         'stable',
@@ -187,11 +187,11 @@ $tests['utf16 nocase like rtrim current source nextOneSixOne same rows collation
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSixOne same rows like generation invalidates'] = static function (TestRunner $t) use ($row): void {
-    $rows = [$row(1, 'plugin_cache  ', 2)];
+    $rows = [$row(1, 'module_cache  ', 2)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyGenerationPlan(
         $rows,
         $rows,
-        'plugin!_cache%',
+        'module!_cache%',
         '!',
         'stable',
         'stable',

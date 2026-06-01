@@ -827,6 +827,71 @@ CSS;
         $t->same('192dpi', $seen['rules']['density']['prelude']);
         $t->same(['type' => 'dpi', 'value' => 192.0], $seen['rules']['density']['preludeAst']['value']);
     },
+    'custom at-rules visit upstream transform preludes before custom rule visitors' => static function (TestRunner $t): void {
+        $seen = [
+            'lengths' => [],
+            'angles' => [],
+            'rules' => [],
+        ];
+        $css = <<<'CSS'
+@shift translateX(16px);
+@motion translateX(32px) rotate(90deg);
+
+.keep {
+  color: red;
+}
+CSS;
+
+        $visitor = CustomAtRuleTransformer::composeVisitors([
+            [
+                'Length' => static function (array $length) use (&$seen): array {
+                    $seen['lengths'][] = $length;
+
+                    return [
+                        'unit' => 'rem',
+                        'value' => $length['value'] / 16,
+                    ];
+                },
+                'Angle' => static function (array $angle) use (&$seen): array {
+                    $seen['angles'][] = $angle;
+
+                    return [
+                        'type' => 'turn',
+                        'value' => $angle['value'] / 360,
+                    ];
+                },
+            ],
+            [
+                'Rule' => [
+                    'custom' => static function (array $rule) use (&$seen): array {
+                        $seen['rules'][$rule['name']] = [
+                            'prelude' => $rule['prelude'],
+                            'preludeAst' => $rule['preludeAst'],
+                        ];
+
+                        return [];
+                    },
+                ],
+            ],
+        ]);
+
+        $result = (new CustomAtRuleTransformer())->transform($css, [
+            'shift' => ['prelude' => '<transform-function>'],
+            'motion' => ['prelude' => '<transform-list>'],
+        ], $visitor);
+
+        $t->same('.keep{color:red}', $result);
+        $t->same([
+            ['unit' => 'px', 'value' => 16.0],
+            ['unit' => 'px', 'value' => 32.0],
+        ], $seen['lengths']);
+        $t->same([['type' => 'deg', 'value' => 90.0]], $seen['angles']);
+        $t->same('translateX(1rem)', $seen['rules']['shift']['prelude']);
+        $t->same('translateX(2rem) rotate(0.25turn)', $seen['rules']['motion']['prelude']);
+        $t->same(['unit' => 'rem', 'value' => 1.0], $seen['rules']['shift']['preludeAst']['value']['value']['value']);
+        $t->same(['unit' => 'rem', 'value' => 2.0], $seen['rules']['motion']['preludeAst']['value'][0]['value']['value']);
+        $t->same(['type' => 'turn', 'value' => 0.25], $seen['rules']['motion']['preludeAst']['value'][1]['value']);
+    },
     'custom at-rules visit upstream length-percentage preludes before custom rule visitors' => static function (TestRunner $t): void {
         $seen = [
             'lengths' => [],

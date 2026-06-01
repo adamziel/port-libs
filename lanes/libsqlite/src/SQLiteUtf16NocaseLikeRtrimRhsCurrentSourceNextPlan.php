@@ -90,7 +90,7 @@ final class SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-rhs-current-source-nextoneSixThree',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE LIKE rtrim(?)',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE LIKE rtrim(?)',
             'caseSensitiveLike' => false,
             'collation' => 'NOCASE',
             'currentSource' => $currentSource,

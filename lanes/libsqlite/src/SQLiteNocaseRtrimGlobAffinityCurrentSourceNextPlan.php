@@ -133,10 +133,10 @@ final class SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan
         $errors = [];
         foreach ($rows as $row) {
             self::assertRow($row);
-            $rowid = $row['option_id'];
+            $rowid = $row['setting_id'];
             try {
                 self::encodingName($row['text_encoding']);
-                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']);
                 $value = self::applyAffinity($text, $affinity);
                 $valueText = self::valueText($value);
                 $key = self::collationKey($valueText, $collation);
@@ -150,7 +150,7 @@ final class SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan
                     'storage' => SQLiteAffinityComparison::storageClass($value),
                     'collationKey' => $key,
                     'encoding' => self::encodingName($row['text_encoding']),
-                    'bytesHex' => bin2hex($row['option_name_bytes']),
+                    'bytesHex' => bin2hex($row['key_name_bytes']),
                     'candidate' => $candidate,
                     'matched' => $matched,
                     'rangeClass' => self::rangeClass($key, $range),
@@ -175,11 +175,11 @@ final class SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan
     /** @param array<string,mixed> $row */
     private static function assertRow(array $row): void
     {
-        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite NOCASE/RTRIM GLOB current-source next142 rows require integer option_id');
+        if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException('SQLite NOCASE/RTRIM GLOB current-source next142 rows require integer setting_id');
         }
-        if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-            throw new \InvalidArgumentException('SQLite NOCASE/RTRIM GLOB current-source next142 rows require option_name_bytes');
+        if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+            throw new \InvalidArgumentException('SQLite NOCASE/RTRIM GLOB current-source next142 rows require key_name_bytes');
         }
         if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
             throw new \InvalidArgumentException('SQLite NOCASE/RTRIM GLOB current-source next142 rows require integer text_encoding');

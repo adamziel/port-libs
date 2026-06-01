@@ -7,60 +7,60 @@ use PortLibs\LibSqlite\SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan;
 
 $tests = [];
 
-$row = static function (int $id, string $name, string $encoding, string $autoload = 'yes'): array {
+$row = static function (int $id, string $name, string $encoding, string $load_policy = 'yes'): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
             'UTF-16BE' => 3,
             default => throw new InvalidArgumentException('bad encoding'),
         },
-        'autoload' => $autoload,
+        'load_policy' => $load_policy,
     ];
 };
 
 $bad = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
-    'autoload' => 'yes',
+    'load_policy' => 'yes',
 ];
 
 $currentRows = [
-    $row(1, 'plugin_cache', 'UTF-16LE'),
-    $row(2, 'plugin_cache ', 'UTF-16BE'),
-    $row(3, 'plugin_cache  ', 'UTF-8'),
-    $row(4, "plugin_cache\t", 'UTF-16LE'),
-    $row(5, 'plugin_cache_extra', 'UTF-16BE'),
-    $row(6, 'Plugin_Cache', 'UTF-8', 'no'),
-    $row(7, 'plugin_éclair ', 'UTF-16LE'),
-    $row(8, 'plugin_Éclair ', 'UTF-16BE'),
-    $row(9, 'plugin_😀 ', 'UTF-16LE'),
-    $row(10, 'plugin_cache' . "\u{00a0}", 'UTF-16BE'),
+    $row(1, 'module_cache', 'UTF-16LE'),
+    $row(2, 'module_cache ', 'UTF-16BE'),
+    $row(3, 'module_cache  ', 'UTF-8'),
+    $row(4, "module_cache\t", 'UTF-16LE'),
+    $row(5, 'module_cache_extra', 'UTF-16BE'),
+    $row(6, 'Module_Cache', 'UTF-8', 'no'),
+    $row(7, 'module_éclair ', 'UTF-16LE'),
+    $row(8, 'module_Éclair ', 'UTF-16BE'),
+    $row(9, 'module_😀 ', 'UTF-16LE'),
+    $row(10, 'module_cache' . "\u{00a0}", 'UTF-16BE'),
     $row(11, 'theme_cache ', 'UTF-16LE'),
     $bad(12, "p\x00l\x00u\x00g\x00i\x00n\x00_\x00c", 2),
 ];
 
 $nextRows = [
-    $row(1, 'plugin_cache', 'UTF-16BE'),
-    $row(2, 'plugin_cache ', 'UTF-16BE'),
-    $row(3, 'plugin_cache', 'UTF-8'),
-    $row(4, "plugin_cache\t", 'UTF-16LE'),
-    $row(5, 'plugin_cache_extra_v2', 'UTF-16BE'),
-    $row(6, 'Plugin_Cache', 'UTF-8', 'no'),
-    $row(7, 'plugin_éclair', 'UTF-16BE'),
-    $row(8, 'plugin_Éclair ', 'UTF-16BE'),
-    $row(9, 'plugin_😀', 'UTF-16BE'),
-    $row(10, 'plugin_cache' . "\u{00a0}", 'UTF-16BE'),
-    $row(13, 'plugin_cache_new', 'UTF-16LE'),
+    $row(1, 'module_cache', 'UTF-16BE'),
+    $row(2, 'module_cache ', 'UTF-16BE'),
+    $row(3, 'module_cache', 'UTF-8'),
+    $row(4, "module_cache\t", 'UTF-16LE'),
+    $row(5, 'module_cache_extra_v2', 'UTF-16BE'),
+    $row(6, 'Module_Cache', 'UTF-8', 'no'),
+    $row(7, 'module_éclair', 'UTF-16BE'),
+    $row(8, 'module_Éclair ', 'UTF-16BE'),
+    $row(9, 'module_😀', 'UTF-16BE'),
+    $row(10, 'module_cache' . "\u{00a0}", 'UTF-16BE'),
+    $row(13, 'module_cache_new', 'UTF-16LE'),
     $bad(14, "\xd8\x00", 3),
 ];
 
 $plan = static fn (
-    string $currentPattern = 'plugin!_cache%',
-    string $nextPattern = 'plugin_cache*',
+    string $currentPattern = 'module!_cache%',
+    string $nextPattern = 'module_cache*',
     string $currentOperator = 'LIKE',
     string $nextOperator = 'GLOB',
     ?string $currentEscape = '!',
@@ -93,13 +93,13 @@ $cases = [
     'collation' => ['collation', 'RTRIM'],
     'current operator' => ['currentOperator', 'LIKE'],
     'next operator' => ['nextOperator', 'GLOB'],
-    'current pattern' => ['currentPattern', 'plugin!_cache%'],
-    'next pattern' => ['nextPattern', 'plugin_cache*'],
+    'current pattern' => ['currentPattern', 'module!_cache%'],
+    'next pattern' => ['nextPattern', 'module_cache*'],
     'current escape' => ['currentEscape', '!'],
     'next escape' => ['nextEscape', null],
     'current LIKE range remains null under RTRIM' => ['currentRange', null],
-    'next GLOB range lower' => ['nextRange.lowerInclusive', 'plugin_cache'],
-    'next GLOB range upper' => ['nextRange.upperBound', 'plugin_cachf'],
+    'next GLOB range lower' => ['nextRange.lowerInclusive', 'module_cache'],
+    'next GLOB range upper' => ['nextRange.upperBound', 'module_cachf'],
     'current LIKE rtrim index not usable' => ['currentIndexUsable', false],
     'next GLOB rtrim index usable' => ['nextIndexUsable', true],
     'LIKE forces full scan marker' => ['likeRtrimRequiresFullScan', true],
@@ -116,15 +116,15 @@ $cases = [
     'changed text rowids' => ['changedTextRowids', [3, 5, 7, 9]],
     'changed encoding rowids' => ['changedEncodingRowids', [1, 7, 9]],
     'changed bytes rowids' => ['changedBytesRowids', [1, 3, 5, 7, 9]],
-    'decoded uppercase row sorts first' => ['currentDecodedRows.0.text', 'Plugin_Cache'],
-    'decoded row one text' => ['currentDecodedRows.1.text', 'plugin_cache'],
-    'decoded row two rtrim trims only ASCII space' => ['currentDecodedRows.2.rtrimKey', 'plugin_cache'],
-    'decoded tab rtrim key keeps tab' => ['currentDecodedRows.4.rtrimKey', "plugin_cache\t"],
-    'decoded NBSP rtrim key keeps NBSP' => ['currentDecodedRows.6.rtrimKey', 'plugin_cache' . "\u{00a0}"],
+    'decoded uppercase row sorts first' => ['currentDecodedRows.0.text', 'Module_Cache'],
+    'decoded row one text' => ['currentDecodedRows.1.text', 'module_cache'],
+    'decoded row two rtrim trims only ASCII space' => ['currentDecodedRows.2.rtrimKey', 'module_cache'],
+    'decoded tab rtrim key keeps tab' => ['currentDecodedRows.4.rtrimKey', "module_cache\t"],
+    'decoded NBSP rtrim key keeps NBSP' => ['currentDecodedRows.6.rtrimKey', 'module_cache' . "\u{00a0}"],
     'current row one encoding' => ['currentDecodedRows.1.encoding', 'UTF-16LE'],
     'next row one encoding' => ['nextDecodedRows.1.encoding', 'UTF-16BE'],
-    'current row one bytes' => ['currentDecodedRows.1.bytesHex', '70006c007500670069006e005f0063006100630068006500'],
-    'next row one bytes' => ['nextDecodedRows.1.bytesHex', '0070006c007500670069006e005f00630061006300680065'],
+    'current row one bytes' => ['currentDecodedRows.1.bytesHex', '6d006f00640075006c0065005f0063006100630068006500'],
+    'next row one bytes' => ['nextDecodedRows.1.bytesHex', '006d006f00640075006c0065005f00630061006300680065'],
     'current malformed rowids' => ['currentMalformedRowids', [12]],
     'next malformed rowids' => ['nextMalformedRowids', [14]],
     'current malformed error' => ['currentErrors.12', 'SQLite encoding source UTF-16 text payload has an odd byte length'],
@@ -151,24 +151,24 @@ foreach ($cases as $name => [$path, $expected]) {
 }
 
 $tests['utf16 rtrim like glob current source nextOneTwoEight exact GLOB rejects space padded residual peers'] = static function (TestRunner $t) use ($plan): void {
-    $exact = $plan('plugin_cache%', 'plugin_cache', 'LIKE', 'GLOB', null);
+    $exact = $plan('module_cache%', 'module_cache', 'LIKE', 'GLOB', null);
     $t->same([2, 4, 5, 13, 10], $exact['nextResidualRejectedRowids']);
 };
 
 $tests['utf16 rtrim like glob current source nextOneTwoEight leading GLOB wildcard has no usable next range'] = static function (TestRunner $t) use ($plan): void {
-    $wild = $plan('plugin_cache%', '*cache', 'LIKE', 'GLOB', null);
+    $wild = $plan('module_cache%', '*cache', 'LIKE', 'GLOB', null);
     $t->same(null, $wild['nextRange']);
     $t->same([], $wild['nextCandidateRowids']);
     $t->same(true, in_array('unusable-range', $wild['invalidationReasons'], true));
 };
 
 $tests['utf16 rtrim like glob current source nextOneTwoEight stable same GLOB cursor reusable'] = static function (TestRunner $t) use ($row): void {
-    $rows = [$row(1, 'plugin_cache', 'UTF-16LE'), $row(2, 'plugin_cache ', 'UTF-16BE')];
+    $rows = [$row(1, 'module_cache', 'UTF-16LE'), $row(2, 'module_cache ', 'UTF-16BE')];
     $plan = SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::keyValueRowKeyOperatorSwitchPlan(
         $rows,
         $rows,
-        'plugin_cache*',
-        'plugin_cache*',
+        'module_cache*',
+        'module_cache*',
         'GLOB',
         'GLOB',
         null,
@@ -182,12 +182,12 @@ $tests['utf16 rtrim like glob current source nextOneTwoEight stable same GLOB cu
 };
 
 $tests['utf16 rtrim like glob current source nextOneTwoEight stable same LIKE still records full scan'] = static function (TestRunner $t) use ($row): void {
-    $rows = [$row(1, 'plugin_cache', 'UTF-16LE'), $row(2, 'plugin_cache ', 'UTF-16BE')];
+    $rows = [$row(1, 'module_cache', 'UTF-16LE'), $row(2, 'module_cache ', 'UTF-16BE')];
     $plan = SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::keyValueRowKeyOperatorSwitchPlan(
         $rows,
         $rows,
-        'plugin_cache%',
-        'plugin_cache%',
+        'module_cache%',
+        'module_cache%',
         'LIKE',
         'LIKE',
         null,
@@ -201,27 +201,27 @@ $tests['utf16 rtrim like glob current source nextOneTwoEight stable same LIKE st
 };
 
 $tests['utf16 rtrim like glob current source nextOneTwoEight rejects invalid current operator'] = static function (TestRunner $t) use ($plan): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', 'plugin*', 'REGEXP', 'GLOB'));
+    $t->throws(InvalidArgumentException::class, static fn () => $plan('module%', 'module*', 'REGEXP', 'GLOB'));
 };
 
 $tests['utf16 rtrim like glob current source nextOneTwoEight rejects invalid next operator'] = static function (TestRunner $t) use ($plan): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin%', 'plugin*', 'LIKE', 'MATCH'));
+    $t->throws(InvalidArgumentException::class, static fn () => $plan('module%', 'module*', 'LIKE', 'MATCH'));
 };
 
 $tests['utf16 rtrim like glob current source nextOneTwoEight rejects invalid LIKE escape length'] = static function (TestRunner $t) use ($plan): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin!!%', 'plugin*', 'LIKE', 'GLOB', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => $plan('module!!%', 'module*', 'LIKE', 'GLOB', '!!'));
 };
 
-$tests['utf16 rtrim like glob current source nextOneTwoEight rejects missing option id'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::keyValueRowKeyOperatorSwitchPlan([['option_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p%', 'p*'));
+$tests['utf16 rtrim like glob current source nextOneTwoEight rejects missing setting id'] = static function (TestRunner $t) use ($nextRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::keyValueRowKeyOperatorSwitchPlan([['key_name_bytes' => 'p', 'text_encoding' => 1]], $nextRows, 'p%', 'p*'));
 };
 
 $tests['utf16 rtrim like glob current source nextOneTwoEight rejects missing bytes'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::keyValueRowKeyOperatorSwitchPlan([['option_id' => 1, 'text_encoding' => 1]], $nextRows, 'p%', 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::keyValueRowKeyOperatorSwitchPlan([['setting_id' => 1, 'text_encoding' => 1]], $nextRows, 'p%', 'p*'));
 };
 
 $tests['utf16 rtrim like glob current source nextOneTwoEight rejects missing encoding'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::keyValueRowKeyOperatorSwitchPlan([['option_id' => 1, 'option_name_bytes' => 'p']], $nextRows, 'p%', 'p*'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::keyValueRowKeyOperatorSwitchPlan([['setting_id' => 1, 'key_name_bytes' => 'p']], $nextRows, 'p%', 'p*'));
 };
 
 return $tests;

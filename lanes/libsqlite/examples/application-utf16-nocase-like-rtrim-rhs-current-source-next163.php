@@ -13,36 +13,36 @@ use PortLibs\LibSqlite\SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan;
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encoding,
 ];
 
 $currentRows = [
-    $row(1, 'Plugin_Cache  ', 2),
-    $row(2, 'plugin_cache_miss', 3),
+    $row(1, 'Module_Cache  ', 2),
+    $row(2, 'module_cache_miss', 3),
     $row(3, 'theme_cache', 2),
 ];
 $nextRows = [
-    $row(1, 'plugin_cache', 3),
-    $row(2, 'plugin_cache_miss', 3),
-    $row(4, 'plugin_cache_new  ', 2),
+    $row(1, 'module_cache', 3),
+    $row(2, 'module_cache_miss', 3),
+    $row(4, 'module_cache_new  ', 2),
 ];
 
-$plan = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::optionRowNameRtrimPatternPlan(
+$plan = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::keyValueRowKeyRtrimPatternPlan(
     $currentRows,
     $nextRows,
-    $enc('plugin!_cache%   ', 2),
+    $enc('module!_cache%   ', 2),
     2,
-    $enc('plugin!_cache% ', 3),
+    $enc('module!_cache% ', 3),
     3,
     '!',
 );
 
 if (($argv[1] ?? null) === '--self-test') {
     assert($plan['status'] === 'utf16-nocase-like-rtrim-rhs-current-source-next163');
-    assert($plan['currentTrimmedPattern'] === 'plugin!_cache%');
-    assert($plan['nextTrimmedPattern'] === 'plugin!_cache%');
+    assert($plan['currentTrimmedPattern'] === 'module!_cache%');
+    assert($plan['nextTrimmedPattern'] === 'module!_cache%');
     assert($plan['currentMatchedRowids'] === [1, 2]);
     assert($plan['nextMatchedRowids'] === [4, 1, 2]);
     assert(in_array('rtrim-pattern-bytes', $plan['invalidationReasons'], true));

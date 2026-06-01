@@ -50,6 +50,9 @@ return [
         $t->same('(width>240px)', $parser->minifyList('not (max-width: 240px)'));
         $t->same('(color<=2)', $parser->minifyList('not (color > 2)'));
         $t->same('(resolution<2dppx)', $parser->minifyList('not (resolution >= 2dppx)'));
+        $t->same('(Theme-Breakpoint<2)', $parser->minifyList('not (Theme-Breakpoint >= 2)'));
+        $t->same('(--WP-Breakpoint<3)', $parser->minifyList('not (--WP-Breakpoint >= 3)'));
+        $t->same('Speech and (--WP-Breakpoint<3)', $parser->minifyList('Speech and (not (--WP-Breakpoint >= 3))'));
         $t->same('screen and (width>=240px)', $parser->minifyList('screen and not (width < 240px)'));
         $t->same('(width>=240px)', $parser->minifyList('(not (width < 240px))'));
         $t->same('screen and (width>=240px)', $parser->minifyList('screen and (not (width < 240px))'));
@@ -63,7 +66,9 @@ return [
         $t->same('(width=240px)', $parser->minifyList('not (width = 240px)'));
         $t->same('(width=240px)', $parser->minifyList('not (240px = width)'));
         $t->same('(theme-state=expanded)', $parser->minifyList('not (theme-state = expanded)'));
+        $t->same('(Theme-State=Expanded)', $parser->minifyList('not (Theme-State = Expanded)'));
         $t->same('(--wp-breakpoint=env(--wp-breakpoint))', $parser->minifyList('not (--wp-breakpoint = env(--wp-breakpoint))'));
+        $t->same('(--WP-Breakpoint=env(--WP-Breakpoint))', $parser->minifyList('not (--WP-Breakpoint = env(--WP-Breakpoint))'));
     },
     'media query parser maps upstream typed range feature families' => static function (TestRunner $t): void {
         $parser = new MediaQueryParser();
@@ -427,9 +432,13 @@ return [
         $t->same('(min-theme-breakpoint:100px)', $parser->lowerRangeSyntaxList('(theme-breakpoint >= 1e2px)'));
         $t->same('(-webkit-min-device-pixel-ratio:2)', $parser->lowerRangeSyntaxList('(-webkit-device-pixel-ratio >= 2e0)'));
         $t->same('(min-Theme-Breakpoint:2)', $parser->lowerRangeSyntaxList('(Theme-Breakpoint >= 2)'));
+        $t->same('not (min-Theme-Breakpoint:2)', $parser->lowerRangeSyntaxList('not (Theme-Breakpoint >= 2)'));
         $t->same('(min---WP-Breakpoint:2)', $parser->lowerRangeSyntaxList('(--WP-Breakpoint >= 2)'));
+        $t->same('not (min---WP-Breakpoint:3)', $parser->lowerRangeSyntaxList('not (--WP-Breakpoint >= 3)'));
         $t->same('(Theme-State:Expanded)', $parser->lowerRangeSyntaxList('(Theme-State = Expanded)'));
+        $t->same('(Theme-State:Expanded)', $parser->lowerRangeSyntaxList('not (Theme-State = Expanded)'));
         $t->same('Speech and (min---WP-Breakpoint:2)', $parser->lowerRangeSyntaxList('Speech and (--WP-Breakpoint >= 2)'));
+        $t->same('Speech and not (min---WP-Breakpoint:3)', $parser->lowerRangeSyntaxList('Speech and (not (--WP-Breakpoint >= 3))'));
         $t->same('not screen and not (min-width:240px)', $parser->lowerRangeSyntaxList('not screen and (width < 240px)'));
         $t->same('only screen and (min-width:240px)', $parser->lowerRangeSyntaxList('only screen and (width >= 240px)'));
         $t->same('(min-width:240px)', $parser->lowerRangeSyntaxList('all and (width >= 240px)'));
@@ -503,6 +512,8 @@ return [
         $t->same('@layer blocks{@media (hover) or (100px<=width<=200px){.foo{color:#7fff00}}}', (new CssMinifier())->minify('@layer blocks { @media (hover) o\\72 (100px <= w\\69 dth <= 200px) { .foo { color: chartreuse } } }'));
         $t->same('@layer blocks{@media (theme-state=expanded){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (theme\\2d state = exp\\61 nded) { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media (Theme-Breakpoint>=2) and (--WP-Breakpoint>=3){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (Theme-Breakpoint >= 2) and (--WP-Breakpoint >= 3) { .foo { color: yellow } } }'));
+        $t->same('@layer blocks{@media (Theme-Breakpoint<2){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media not (Theme-Breakpoint >= 2) { .foo { color: yellow } } }'));
+        $t->same('@layer blocks{@media Speech and (--WP-Breakpoint<3){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media Speech and (not (--WP-Breakpoint >= 3)) { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media (width>=240px){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media (width >= 240px), { .foo { color: yellow } } }'));
         $t->same('@layer blocks{@media screen and not (color){.foo{color:#ff0}}}', (new CssMinifier())->minify('@layer blocks { @media screen and not (color) { .foo { color: yellow } } }'));
     },

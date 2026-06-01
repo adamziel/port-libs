@@ -12,8 +12,8 @@ use PortLibs\LibSqlite\SQLiteUtf16LikeEscapeCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -23,31 +23,31 @@ $row = static function (int $id, string $name, string $encoding): array {
 };
 
 $current = [
-    $row(1, 'Plugin_100%_Enabled', 'UTF-16LE'),
-    $row(2, 'plugin_100%_enabled', 'UTF-16BE'),
-    $row(3, 'plugin_100X_enabled', 'UTF-8'),
-    $row(4, 'plugin_100%_enabled_extra', 'UTF-8'),
+    $row(1, 'Module_100%_Enabled', 'UTF-16LE'),
+    $row(2, 'module_100%_enabled', 'UTF-16BE'),
+    $row(3, 'module_100X_enabled', 'UTF-8'),
+    $row(4, 'module_100%_enabled_extra', 'UTF-8'),
 ];
 
 $next = [
-    $row(1, 'Plugin_100%_Enabled', 'UTF-16BE'),
-    $row(2, 'plugin_100%_enabled', 'UTF-16BE'),
-    $row(3, 'plugin_100%_enabled', 'UTF-8'),
-    $row(4, 'plugin_100%_enabled_extra', 'UTF-8'),
-    $row(5, 'plugin_100%_enabled_new', 'UTF-16LE'),
+    $row(1, 'Module_100%_Enabled', 'UTF-16BE'),
+    $row(2, 'module_100%_enabled', 'UTF-16BE'),
+    $row(3, 'module_100%_enabled', 'UTF-8'),
+    $row(4, 'module_100%_enabled_extra', 'UTF-8'),
+    $row(5, 'module_100%_enabled_new', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16LikeEscapeCurrentSourceNextPlan::optionRowNameLikeEscape(
+$plan = SQLiteUtf16LikeEscapeCurrentSourceNextPlan::keyValueRowKeyLikeEscape(
     $current,
     $next,
-    'plugin\\_100\\%\\_enabled%',
+    'module\\_100\\%\\_enabled%',
     '\\',
     'NOCASE',
 );
 
 if (($argv[1] ?? null) === '--self-test') {
-    assert($plan['prefix'] === 'plugin_100%_enabled');
-    assert($plan['range']['upperBound'] === 'plugin_100%_enablee');
+    assert($plan['prefix'] === 'module_100%_enabled');
+    assert($plan['range']['upperBound'] === 'module_100%_enablee');
     assert($plan['currentMatchedRowids'] === [1, 2, 4]);
     assert($plan['nextMatchedRowids'] === [1, 2, 3, 4, 5]);
     assert(in_array('matched-rowset', $plan['invalidationReasons'], true));

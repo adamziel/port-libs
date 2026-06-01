@@ -9,43 +9,43 @@ $tests = [];
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encoding,
 ];
 $bad = static fn (int $id, string $bytes, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $bytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $bytes,
     'text_encoding' => $encoding,
 ];
 
 $currentRows = [
-    $row(1, 'Plugin_Cache  ', 2),
-    $row(2, 'plugin_cache', 3),
-    $row(3, "plugin_cache\t", 2),
-    $row(4, 'plugin_config', 1),
-    $row(5, 'plugin_cache_miss', 3),
-    $row(6, 'plugin_Æther  ', 2),
-    $row(7, 'plugin_æther', 2),
+    $row(1, 'Module_Cache  ', 2),
+    $row(2, 'module_cache', 3),
+    $row(3, "module_cache\t", 2),
+    $row(4, 'module_config', 1),
+    $row(5, 'module_cache_miss', 3),
+    $row(6, 'module_Æther  ', 2),
+    $row(7, 'module_æther', 2),
     $row(8, 'theme_cache', 2),
     $bad(9, "p\0l", 2),
 ];
 $nextRows = [
-    $row(1, 'plugin_cache', 2),
-    $row(2, 'PLUGIN_CACHE  ', 3),
-    $row(3, "plugin_cache\t", 2),
-    $row(4, 'plugin_config_v2', 1),
-    $row(5, 'plugin_cache_miss', 3),
-    $row(6, 'plugin_Æther', 3),
-    $row(7, 'plugin_æther  ', 2),
-    $row(10, 'plugin_cache_new  ', 3),
+    $row(1, 'module_cache', 2),
+    $row(2, 'MODULE_CACHE  ', 3),
+    $row(3, "module_cache\t", 2),
+    $row(4, 'module_config_v2', 1),
+    $row(5, 'module_cache_miss', 3),
+    $row(6, 'module_Æther', 3),
+    $row(7, 'module_æther  ', 2),
+    $row(10, 'module_cache_new  ', 3),
     $bad(11, "\x00\xd8", 2),
 ];
 
 $plan = static fn (
-    string $currentPattern = 'plugin!_cache%   ',
+    string $currentPattern = 'module!_cache%   ',
     int $currentEncoding = 2,
-    string $nextPattern = 'plugin!_cache% ',
+    string $nextPattern = 'module!_cache% ',
     int $nextEncoding = 3,
     ?array $current = null,
     ?array $next = null,
@@ -79,29 +79,29 @@ $valueAt = static function (array $value, string $path): mixed {
 $cases = [
     'status' => ['status', 'utf16-nocase-like-rtrim-rhs-current-source-nextoneSixThree'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE LIKE rtrim(?)'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE LIKE rtrim(?)'],
     'collation' => ['collation', 'NOCASE'],
     'case sensitive false' => ['caseSensitiveLike', false],
     'current source' => ['currentSource', 'main.app_settings@162'],
     'next source' => ['nextSource', 'main.app_settings@163'],
     'current cookie' => ['currentSchemaCookie', 162],
     'next cookie' => ['nextSchemaCookie', 163],
-    'current raw pattern' => ['currentPattern', 'plugin!_cache%   '],
-    'next raw pattern' => ['nextPattern', 'plugin!_cache% '],
-    'current trimmed pattern' => ['currentTrimmedPattern', 'plugin!_cache%'],
-    'next trimmed pattern' => ['nextTrimmedPattern', 'plugin!_cache%'],
+    'current raw pattern' => ['currentPattern', 'module!_cache%   '],
+    'next raw pattern' => ['nextPattern', 'module!_cache% '],
+    'current trimmed pattern' => ['currentTrimmedPattern', 'module!_cache%'],
+    'next trimmed pattern' => ['nextTrimmedPattern', 'module!_cache%'],
     'current encoding' => ['currentPatternEncoding', 'UTF-16LE'],
     'next encoding' => ['nextPatternEncoding', 'UTF-16BE'],
-    'current pattern bytes' => ['currentPatternBytesHex', '70006c007500670069006e0021005f00630061006300680065002500200020002000'],
-    'next pattern bytes' => ['nextPatternBytesHex', '0070006c007500670069006e0021005f0063006100630068006500250020'],
-    'current trimmed bytes' => ['currentTrimmedPatternBytesHex', '70006c007500670069006e0021005f00630061006300680065002500'],
-    'next trimmed bytes' => ['nextTrimmedPatternBytesHex', '0070006c007500670069006e0021005f006300610063006800650025'],
+    'current pattern bytes' => ['currentPatternBytesHex', '6d006f00640075006c00650021005f00630061006300680065002500200020002000'],
+    'next pattern bytes' => ['nextPatternBytesHex', '006d006f00640075006c00650021005f0063006100630068006500250020'],
+    'current trimmed bytes' => ['currentTrimmedPatternBytesHex', '6d006f00640075006c00650021005f00630061006300680065002500'],
+    'next trimmed bytes' => ['nextTrimmedPatternBytesHex', '006d006f00640075006c00650021005f006300610063006800650025'],
     'escape' => ['escape', '!'],
-    'current prefix' => ['currentPrefix', 'plugin_cache'],
-    'next prefix' => ['nextPrefix', 'plugin_cache'],
-    'current range lower' => ['currentRange.lowerInclusive', 'plugin_cache'],
-    'current range upper' => ['currentRange.upperBound', 'plugin_cachf'],
-    'next range lower' => ['nextRange.lowerInclusive', 'plugin_cache'],
+    'current prefix' => ['currentPrefix', 'module_cache'],
+    'next prefix' => ['nextPrefix', 'module_cache'],
+    'current range lower' => ['currentRange.lowerInclusive', 'module_cache'],
+    'current range upper' => ['currentRange.upperBound', 'module_cachf'],
+    'next range lower' => ['nextRange.lowerInclusive', 'module_cache'],
     'current index usable' => ['currentIndexUsable', true],
     'next index usable' => ['nextIndexUsable', true],
     'current candidates' => ['currentCandidateRowids', [1, 2, 3, 5]],
@@ -113,13 +113,13 @@ $cases = [
     'retained matched' => ['retainedMatchedRowids', [1, 2, 3, 5]],
     'entered matched' => ['enteredMatchedRowids', [10]],
     'exited matched' => ['exitedMatchedRowids', []],
-    'row one current rtrim' => ['currentRtrimTexts.1', 'Plugin_Cache'],
-    'row two next rtrim' => ['nextRtrimTexts.2', 'PLUGIN_CACHE'],
-    'row three tab retained' => ['currentRtrimTexts.3', "plugin_cache\t"],
-    'row one current nocase' => ['currentNocaseKeys.1', 'plugin_cache'],
-    'row two next nocase' => ['nextNocaseKeys.2', 'plugin_cache'],
-    'row six ascii nocase only' => ['currentNocaseKeys.6', 'plugin_Æther'],
-    'row seven ascii nocase lower ae' => ['currentNocaseKeys.7', 'plugin_æther'],
+    'row one current rtrim' => ['currentRtrimTexts.1', 'Module_Cache'],
+    'row two next rtrim' => ['nextRtrimTexts.2', 'MODULE_CACHE'],
+    'row three tab retained' => ['currentRtrimTexts.3', "module_cache\t"],
+    'row one current nocase' => ['currentNocaseKeys.1', 'module_cache'],
+    'row two next nocase' => ['nextNocaseKeys.2', 'module_cache'],
+    'row six ascii nocase only' => ['currentNocaseKeys.6', 'module_Æther'],
+    'row seven ascii nocase lower ae' => ['currentNocaseKeys.7', 'module_æther'],
     'row one residual' => ['currentResidualMatches.1', true],
     'row five residual' => ['currentResidualMatches.5', true],
     'next row ten residual' => ['nextResidualMatches.10', true],
@@ -153,13 +153,13 @@ foreach ($cases as $name => [$path, $expected]) {
 }
 
 $tests['utf16 nocase like rtrim rhs current source nextOneSixThree stable trailing pattern spaces reusable'] = static function (TestRunner $t) use ($row, $enc): void {
-    $rows = [$row(1, 'Plugin_Cache  ', 2), $row(2, 'plugin_cache', 3)];
+    $rows = [$row(1, 'Module_Cache  ', 2), $row(2, 'module_cache', 3)];
     $result = SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::keyValueRowKeyRtrimPatternPlan(
         $rows,
         $rows,
-        $enc('plugin!_cache%   ', 2),
+        $enc('module!_cache%   ', 2),
         2,
-        $enc('plugin!_cache%   ', 2),
+        $enc('module!_cache%   ', 2),
         2,
         '!',
         'stable',
@@ -167,16 +167,16 @@ $tests['utf16 nocase like rtrim rhs current source nextOneSixThree stable traili
         7,
         7,
     );
-    $t->same('plugin!_cache%', $result['currentTrimmedPattern']);
+    $t->same('module!_cache%', $result['currentTrimmedPattern']);
     $t->same([1, 2], $result['currentMatchedRowids']);
     $t->same([], $result['invalidationReasons']);
     $t->same(true, $result['cursorReusable']);
 };
 
 $tests['utf16 nocase like rtrim rhs current source nextOneSixThree trimmed pattern text change invalidates range'] = static function (TestRunner $t) use ($plan): void {
-    $result = $plan('plugin!_cache%   ', 2, 'plugin!_config% ', 2);
-    $t->same('plugin!_cache%', $result['currentTrimmedPattern']);
-    $t->same('plugin!_config%', $result['nextTrimmedPattern']);
+    $result = $plan('module!_cache%   ', 2, 'module!_config% ', 2);
+    $t->same('module!_cache%', $result['currentTrimmedPattern']);
+    $t->same('module!_config%', $result['nextTrimmedPattern']);
     $t->same([4], $result['nextMatchedRowids']);
     $t->same('rtrim-pattern-text', $result['invalidationReasons'][3]);
 };
@@ -190,9 +190,9 @@ $tests['utf16 nocase like rtrim rhs current source nextOneSixThree non ascii pre
 };
 
 $tests['utf16 nocase like rtrim rhs current source nextOneSixThree tabs are not trimmed from rhs'] = static function (TestRunner $t) use ($plan): void {
-    $result = $plan("plugin!_cache\t", 2, "plugin!_cache\t", 2, null, null, '!');
-    $t->same("plugin!_cache\t", $result['currentTrimmedPattern']);
-    $t->same("plugin_cache\t", $result['currentPrefix']);
+    $result = $plan("module!_cache\t", 2, "module!_cache\t", 2, null, null, '!');
+    $t->same("module!_cache\t", $result['currentTrimmedPattern']);
+    $t->same("module_cache\t", $result['currentPrefix']);
     $t->same([3], $result['currentMatchedRowids']);
 };
 
@@ -208,13 +208,13 @@ $tests['utf16 nocase like rtrim rhs current source nextOneSixThree rejects malfo
 };
 
 $tests['utf16 nocase like rtrim rhs current source nextOneSixThree rejects bad row shape'] = static function (TestRunner $t) use ($enc): void {
-    $rows = [['option_id' => 1, 'option_name_bytes' => $enc('plugin_cache', 2)]];
+    $rows = [['setting_id' => 1, 'key_name_bytes' => $enc('module_cache', 2)]];
     $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimRhsCurrentSourceNextPlan::keyValueRowKeyRtrimPatternPlan(
         $rows,
         $rows,
-        $enc('plugin%', 2),
+        $enc('module%', 2),
         2,
-        $enc('plugin%', 2),
+        $enc('module%', 2),
         2,
     ));
 };

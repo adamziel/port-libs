@@ -15,31 +15,31 @@ $code = static fn (string $encoding): int => match ($encoding) {
 
 $row = static function (int $id, string $name, string $value, string $nameEncoding, string $valueEncoding) use ($code): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $nameEncoding),
-        'option_value_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($value, $valueEncoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $nameEncoding),
+        'key_value_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($value, $valueEncoding),
         'name_text_encoding' => $code($nameEncoding),
         'value_text_encoding' => $code($valueEncoding),
     ];
 };
 
 $current = [
-    $row(1, 'plugin_cache', '10', 'UTF-8', 'UTF-8'),
-    $row(2, 'Plugin_Cache', '11', 'UTF-16LE', 'UTF-16BE'),
-    $row(3, 'plugin-cache', '12', 'UTF-16BE', 'UTF-8'),
-    $row(4, 'plugin:cache', '13', 'UTF-8', 'UTF-16BE'),
+    $row(1, 'module_cache', '10', 'UTF-8', 'UTF-8'),
+    $row(2, 'Module_Cache', '11', 'UTF-16LE', 'UTF-16BE'),
+    $row(3, 'module-cache', '12', 'UTF-16BE', 'UTF-8'),
+    $row(4, 'module:cache', '13', 'UTF-8', 'UTF-16BE'),
 ];
 
 $next = [
-    $row(1, 'plugin_cache ', '10.0', 'UTF-16BE', 'UTF-16LE'),
-    $row(3, 'plugin-cache', '12', 'UTF-16BE', 'UTF-8'),
-    $row(5, 'plugin-cache-new', '14', 'UTF-16LE', 'UTF-8'),
+    $row(1, 'module_cache ', '10.0', 'UTF-16BE', 'UTF-16LE'),
+    $row(3, 'module-cache', '12', 'UTF-16BE', 'UTF-8'),
+    $row(5, 'module-cache-new', '14', 'UTF-16LE', 'UTF-8'),
 ];
 
-$plan = SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::optionRowNameValuePlan(
+$plan = SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan(
     $current,
     $next,
-    'plugin[-_]cache*',
+    'module[-_]cache*',
     10,
     14,
 );
@@ -56,7 +56,7 @@ if (($argv[1] ?? null) === '--self-test') {
 
 echo json_encode([
     'scenario' => 'application-rtrim-glob-nocase-affinity-current-source-next149',
-    'applicationUse' => 'Copied wp_options import scans can use an RTRIM+NOCASE option_name key to select candidates while bytewise GLOB character classes and NUMERIC option_value affinity decide the final current-source next149 rowset.',
+    'applicationUse' => 'Copied app_settings import scans can use an RTRIM+NOCASE key_name key to select candidates while bytewise GLOB character classes and NUMERIC key_value affinity decide the final current-source next149 rowset.',
     'pattern' => $plan['pattern'],
     'range' => $plan['range'],
     'globCharacterClasses' => $plan['globCharacterClasses'],

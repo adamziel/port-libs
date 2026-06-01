@@ -197,7 +197,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nextoneFiveEight',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE',
             'pattern' => $pattern,
             'escape' => $escape,
             'collation' => 'NOCASE',
@@ -273,19 +273,19 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         foreach ($rows as $row) {
             self::assertSourceDeltaRow($row);
             try {
-                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']);
                 $rtrim = rtrim($text, ' ');
                 $decoded[] = [
-                    'rowid' => $row['option_id'],
+                    'rowid' => $row['setting_id'],
                     'text' => $text,
                     'rtrimText' => $rtrim,
                     'nocaseKey' => self::asciiLowerSourceDeltaKey($rtrim),
                     'encoding' => self::sourceDeltaEncodingName($row['text_encoding']),
-                    'bytesHex' => bin2hex($row['option_name_bytes']),
+                    'bytesHex' => bin2hex($row['key_name_bytes']),
                 ];
             } catch (\InvalidArgumentException $exception) {
-                $malformed[] = $row['option_id'];
-                $errors[$row['option_id']] = $exception->getMessage();
+                $malformed[] = $row['setting_id'];
+                $errors[$row['setting_id']] = $exception->getMessage();
             }
         }
 
@@ -322,11 +322,11 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
     /** @param array<string,mixed> $row */
     private static function assertSourceDeltaRow(array $row): void
     {
-        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveEight rows require integer option_id');
+        if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveEight rows require integer setting_id');
         }
-        if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveEight rows require option_name_bytes');
+        if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveEight rows require key_name_bytes');
         }
         if (!array_key_exists('text_encoding', $row) || !is_int($row['text_encoding'])) {
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE LIKE RTRIM current-source nextOneFiveEight rows require integer text_encoding');
@@ -490,7 +490,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nextoneSixOne',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE',
             'pattern' => $pattern,
             'escape' => $escape,
             'currentSource' => $currentSource,
@@ -676,7 +676,7 @@ final class SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan
         return [
             'status' => 'utf16-nocase-like-rtrim-current-source-nextoneSixFour',
             'operator' => 'LIKE',
-            'expression' => 'rtrim(option_name) COLLATE NOCASE',
+            'expression' => 'rtrim(key_name) COLLATE NOCASE',
             'pattern' => $pattern,
             'escape' => $escape,
             'baseStatus' => $base['status'],

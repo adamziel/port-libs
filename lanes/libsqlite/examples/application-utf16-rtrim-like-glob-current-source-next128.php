@@ -9,8 +9,8 @@ use PortLibs\LibSqlite\SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -20,32 +20,32 @@ $row = static function (int $id, string $name, string $encoding): array {
 };
 
 $current = [
-    $row(1, 'plugin_cache', 'UTF-16LE'),
-    $row(2, 'plugin_cache ', 'UTF-16BE'),
-    $row(3, "plugin_cache\t", 'UTF-16LE'),
-    $row(4, 'plugin_cache_extra', 'UTF-16BE'),
+    $row(1, 'module_cache', 'UTF-16LE'),
+    $row(2, 'module_cache ', 'UTF-16BE'),
+    $row(3, "module_cache\t", 'UTF-16LE'),
+    $row(4, 'module_cache_extra', 'UTF-16BE'),
 ];
 
 $next = [
-    $row(1, 'plugin_cache', 'UTF-16BE'),
-    $row(2, 'plugin_cache ', 'UTF-16BE'),
-    $row(3, 'plugin_cache', 'UTF-16LE'),
-    $row(5, 'plugin_cache_new', 'UTF-16LE'),
-    $row(4, 'plugin_cache_extra_v2', 'UTF-16BE'),
+    $row(1, 'module_cache', 'UTF-16BE'),
+    $row(2, 'module_cache ', 'UTF-16BE'),
+    $row(3, 'module_cache', 'UTF-16LE'),
+    $row(5, 'module_cache_new', 'UTF-16LE'),
+    $row(4, 'module_cache_extra_v2', 'UTF-16BE'),
 ];
 
-$plan = SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::optionRowNameOperatorSwitchPlan(
+$plan = SQLiteUtf16RtrimLikeGlobCurrentSourceNextPlan::keyValueRowKeyOperatorSwitchPlan(
     $current,
     $next,
-    'plugin!_cache%',
-    'plugin_cache*',
+    'module!_cache%',
+    'module_cache*',
     'LIKE',
     'GLOB',
     '!',
     null,
     true,
-    'main.wp_options@cookie127',
-    'main.wp_options@cookie128',
+    'main.app_settings@cookie127',
+    'main.app_settings@cookie128',
 );
 
 if (($argv[1] ?? null) === '--self-test') {

@@ -9,28 +9,28 @@ $tests = [];
 
 $enc = static fn (string $text, int $encoding): string => SQLiteEncodingCollationSourceCursor::encodeText($text, $encoding);
 $row = static fn (int $id, string $name, int $encoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $enc($name, $encoding),
+    'setting_id' => $id,
+    'key_name_bytes' => $enc($name, $encoding),
     'text_encoding' => $encoding,
 ];
 
 $currentRows = [
-    $row(1, 'Plugin_Cache  ', 2),
-    $row(2, 'plugin_cache', 3),
-    $row(3, 'plugin_cache_shadow', 2),
-    $row(4, 'PLUGIN_CACHE_TRANSIENT  ', 3),
-    $row(5, 'plugin_cache_static', 2),
-    $row(6, 'plugin_other', 2),
-    ['option_id' => 7, 'option_name_bytes' => "p\0x", 'text_encoding' => 2],
+    $row(1, 'Module_Cache  ', 2),
+    $row(2, 'module_cache', 3),
+    $row(3, 'module_cache_shadow', 2),
+    $row(4, 'MODULE_CACHE_TRANSIENT  ', 3),
+    $row(5, 'module_cache_static', 2),
+    $row(6, 'module_other', 2),
+    ['setting_id' => 7, 'key_name_bytes' => "p\0x", 'text_encoding' => 2],
 ];
 $nextRows = [
-    $row(1, 'plugin_cache', 2),
-    $row(2, 'Plugin_Cache  ', 2),
-    $row(3, 'plugin_cache_shadow', 2),
-    $row(4, 'PLUGIN_CACHE_TRANSIENT', 3),
-    $row(5, 'plugin_cache_static', 2),
-    $row(8, 'plugin_cache_new  ', 3),
-    ['option_id' => 9, 'option_name_bytes' => "\x00\xd8", 'text_encoding' => 2],
+    $row(1, 'module_cache', 2),
+    $row(2, 'Module_Cache  ', 2),
+    $row(3, 'module_cache_shadow', 2),
+    $row(4, 'MODULE_CACHE_TRANSIENT', 3),
+    $row(5, 'module_cache_static', 2),
+    $row(8, 'module_cache_new  ', 3),
+    ['setting_id' => 9, 'key_name_bytes' => "\x00\xd8", 'text_encoding' => 2],
 ];
 
 $plan = static fn (
@@ -49,7 +49,7 @@ $plan = static fn (
 ): array => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyYieldPlan(
     $current ?? $currentRows,
     $next ?? $nextRows,
-    'plugin!_cache%',
+    'module!_cache%',
     '!',
     $currentSource,
     $nextSource,
@@ -74,8 +74,8 @@ $valueAt = static function (array $value, string $path): mixed {
 $cases = [
     'status' => ['status', 'utf16-nocase-like-rtrim-current-source-nextoneSixFour'],
     'operator' => ['operator', 'LIKE'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE'],
-    'pattern' => ['pattern', 'plugin!_cache%'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE'],
+    'pattern' => ['pattern', 'module!_cache%'],
     'escape' => ['escape', '!'],
     'base status' => ['baseStatus', 'utf16-nocase-like-rtrim-current-source-nextoneSixOne'],
     'current source' => ['currentSource', 'main.app_settings@163'],
@@ -89,9 +89,9 @@ $cases = [
     'current statement token' => ['currentPreparedStatement', 'select-rtrim-nocase-like@163'],
     'next statement token' => ['nextPreparedStatement', 'select-rtrim-nocase-like@164'],
     'index usable' => ['indexUsable', true],
-    'prefix' => ['prefix', 'plugin_cache'],
-    'range lower' => ['range.lowerInclusive', 'plugin_cache'],
-    'range upper' => ['range.upperBound', 'plugin_cachf'],
+    'prefix' => ['prefix', 'module_cache'],
+    'range lower' => ['range.lowerInclusive', 'module_cache'],
+    'range upper' => ['range.upperBound', 'module_cachf'],
     'current candidates' => ['currentCandidateRowids', [1, 2, 3, 5, 4]],
     'next candidates' => ['nextCandidateRowids', [1, 2, 8, 3, 5, 4]],
     'retained candidates' => ['retainedCandidateRowids', [1, 2, 3, 5, 4]],
@@ -106,10 +106,10 @@ $cases = [
     'new next rowids' => ['yieldNewNextRowids', [8]],
     'current malformed' => ['currentMalformedRowids', [7]],
     'next malformed' => ['nextMalformedRowids', [9]],
-    'row one current rtrim' => ['currentRtrimTexts.1', 'Plugin_Cache'],
-    'row one next rtrim' => ['nextRtrimTexts.1', 'plugin_cache'],
-    'row three stable rtrim' => ['nextRtrimTexts.3', 'plugin_cache_shadow'],
-    'row five stable nocase' => ['nextNocaseKeys.5', 'plugin_cache_static'],
+    'row one current rtrim' => ['currentRtrimTexts.1', 'Module_Cache'],
+    'row one next rtrim' => ['nextRtrimTexts.1', 'module_cache'],
+    'row three stable rtrim' => ['nextRtrimTexts.3', 'module_cache_shadow'],
+    'row five stable nocase' => ['nextNocaseKeys.5', 'module_cache_static'],
     'row two current encoding' => ['currentEncodings.2', 'UTF-16BE'],
     'row two next encoding' => ['nextEncodings.2', 'UTF-16LE'],
     'cursor invalidated' => ['cursorInvalidated', true],
@@ -159,13 +159,13 @@ $tests['utf16 nocase like rtrim current source nextOneSixFour fingerprints are s
 
 $tests['utf16 nocase like rtrim current source nextOneSixFour stable same statement can resume'] = static function (TestRunner $t) use ($row): void {
     $rows = [
-        $row(1, 'plugin_cache  ', 2),
-        $row(2, 'plugin_cache_shadow', 3),
+        $row(1, 'module_cache  ', 2),
+        $row(2, 'module_cache_shadow', 3),
     ];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyYieldPlan(
         $rows,
         $rows,
-        'plugin!_cache%',
+        'module!_cache%',
         '!',
         'stable',
         'stable',
@@ -186,11 +186,11 @@ $tests['utf16 nocase like rtrim current source nextOneSixFour stable same statem
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSixFour same rows statement token invalidates'] = static function (TestRunner $t) use ($row): void {
-    $rows = [$row(1, 'plugin_cache  ', 2)];
+    $rows = [$row(1, 'module_cache  ', 2)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyYieldPlan(
         $rows,
         $rows,
-        'plugin!_cache%',
+        'module!_cache%',
         '!',
         'stable',
         'stable',
@@ -208,11 +208,11 @@ $tests['utf16 nocase like rtrim current source nextOneSixFour same rows statemen
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSixFour same rows like generation invalidates only generation and fingerprint'] = static function (TestRunner $t) use ($row): void {
-    $rows = [$row(1, 'plugin_cache  ', 2)];
+    $rows = [$row(1, 'module_cache  ', 2)];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyYieldPlan(
         $rows,
         $rows,
-        'plugin!_cache%',
+        'module!_cache%',
         '!',
         'stable',
         'stable',
@@ -230,12 +230,12 @@ $tests['utf16 nocase like rtrim current source nextOneSixFour same rows like gen
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSixFour malformed retained rows never resume safe'] = static function (TestRunner $t) use ($row): void {
-    $current = [$row(1, 'plugin_cache', 2), ['option_id' => 2, 'option_name_bytes' => "p\0x", 'text_encoding' => 2]];
-    $next = [$row(1, 'plugin_cache', 2), ['option_id' => 3, 'option_name_bytes' => "\x00\xd8", 'text_encoding' => 2]];
+    $current = [$row(1, 'module_cache', 2), ['setting_id' => 2, 'key_name_bytes' => "p\0x", 'text_encoding' => 2]];
+    $next = [$row(1, 'module_cache', 2), ['setting_id' => 3, 'key_name_bytes' => "\x00\xd8", 'text_encoding' => 2]];
     $result = SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyYieldPlan(
         $current,
         $next,
-        'plugin%',
+        'module%',
         null,
         'stable',
         'stable',
@@ -256,7 +256,7 @@ $tests['utf16 nocase like rtrim current source nextOneSixFour malformed retained
 };
 
 $tests['utf16 nocase like rtrim current source nextOneSixFour rejects invalid escape'] = static function (TestRunner $t) use ($plan): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyYieldPlan([], [], 'plugin%', '!!'));
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteUtf16NocaseLikeRtrimCurrentSourceNextPlan::keyValueRowKeyYieldPlan([], [], 'module%', '!!'));
 };
 
 return $tests;

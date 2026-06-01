@@ -40,7 +40,7 @@ final class SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan
 
         $classes = self::globClasses($pattern);
         $plan['status'] = 'rtrim-glob-nocase-affinity-current-source-next149-ready';
-        $plan['expression'] = 'rtrim(option_name) COLLATE NOCASE GLOB ? AND option_value NUMERIC BETWEEN ? AND ?';
+        $plan['expression'] = 'rtrim(key_name) COLLATE NOCASE GLOB ? AND key_value NUMERIC BETWEEN ? AND ?';
         $plan['nameCollation'] = 'RTRIM+NOCASE index key';
         $plan['residualCollation'] = 'BINARY bytewise GLOB';
         $plan['globCharacterClasses'] = $classes;

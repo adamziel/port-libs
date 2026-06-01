@@ -1497,6 +1497,28 @@ CSS;
         $t->same($modern, $prefixer->prefixForTargets($css, ['samsung' => 5]));
         $t->same($modern, $prefixer->prefixForTargets($stalePrefixed, ['chrome' => 50, 'safari' => 9, 'opera' => 37]));
     },
+    'transition prefixer maps upstream scroll snap browser boundaries' => static function (TestRunner $t): void {
+        $prefixer = new TransitionPrefixer();
+        $css = '.foo { scroll-snap-type: x mandatory; scroll-snap-coordinate: 0 0; scroll-snap-destination: 50% 50%; scroll-snap-points-x: repeat(100%); scroll-snap-points-y: repeat(50%); }';
+        $modern = '.foo{scroll-snap-type:x mandatory;scroll-snap-coordinate:0 0;scroll-snap-destination:50% 50%;scroll-snap-points-x:repeat(100%);scroll-snap-points-y:repeat(50%)}';
+        $webkit = '.foo{-webkit-scroll-snap-type:x mandatory;scroll-snap-type:x mandatory;-webkit-scroll-snap-coordinate:0 0;scroll-snap-coordinate:0 0;-webkit-scroll-snap-destination:50% 50%;scroll-snap-destination:50% 50%;-webkit-scroll-snap-points-x:repeat(100%);scroll-snap-points-x:repeat(100%);-webkit-scroll-snap-points-y:repeat(50%);scroll-snap-points-y:repeat(50%)}';
+        $ms = '.foo{-ms-scroll-snap-type:x mandatory;scroll-snap-type:x mandatory;-ms-scroll-snap-coordinate:0 0;scroll-snap-coordinate:0 0;-ms-scroll-snap-destination:50% 50%;scroll-snap-destination:50% 50%;-ms-scroll-snap-points-x:repeat(100%);scroll-snap-points-x:repeat(100%);-ms-scroll-snap-points-y:repeat(50%);scroll-snap-points-y:repeat(50%)}';
+        $webkitMs = '.foo{-webkit-scroll-snap-type:x mandatory;-ms-scroll-snap-type:x mandatory;scroll-snap-type:x mandatory;-webkit-scroll-snap-coordinate:0 0;-ms-scroll-snap-coordinate:0 0;scroll-snap-coordinate:0 0;-webkit-scroll-snap-destination:50% 50%;-ms-scroll-snap-destination:50% 50%;scroll-snap-destination:50% 50%;-webkit-scroll-snap-points-x:repeat(100%);-ms-scroll-snap-points-x:repeat(100%);scroll-snap-points-x:repeat(100%);-webkit-scroll-snap-points-y:repeat(50%);-ms-scroll-snap-points-y:repeat(50%);scroll-snap-points-y:repeat(50%)}';
+        $stalePrefixed = '.foo { -webkit-scroll-snap-type: x mandatory; -ms-scroll-snap-type: x mandatory; scroll-snap-type: x mandatory; -webkit-scroll-snap-points-x: repeat(100%); -ms-scroll-snap-points-x: repeat(100%); scroll-snap-points-x: repeat(100%); }';
+        $modernStaleCleanup = '.foo{scroll-snap-type:x mandatory;scroll-snap-points-x:repeat(100%)}';
+
+        $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => 8]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => 9]));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['safari' => '10.1']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['safari' => '10.2']));
+        $t->same($webkit, $prefixer->prefixForTargets($css, ['ios_saf' => '10.3']));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['ios_saf' => '10.4']));
+        $t->same($ms, $prefixer->prefixForTargets($css, ['ie' => 10]));
+        $t->same($ms, $prefixer->prefixForTargets($css, ['edge' => 18]));
+        $t->same($modern, $prefixer->prefixForTargets($css, ['edge' => 19]));
+        $t->same($webkitMs, $prefixer->prefixForTargets($css, ['safari' => '10.1', 'ie' => 10]));
+        $t->same($modernStaleCleanup, $prefixer->prefixForTargets($stalePrefixed, ['safari' => '10.2', 'edge' => 19]));
+    },
     'transition prefixer maps upstream overflow shorthand browser boundaries' => static function (TestRunner $t): void {
         $prefixer = new TransitionPrefixer();
 
@@ -3674,8 +3696,16 @@ CSS;
             $prefixer->prefixForTargets('@layer blocks { @media (Theme-Breakpoint >= 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
+            '@layer blocks{@media not (min-Theme-Breakpoint:2){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media not (Theme-Breakpoint >= 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
             '@layer blocks{@media (min---WP-Breakpoint:2){.wp-block-query{color:#ff0}}}',
             $prefixer->prefixForTargets('@layer blocks { @media (--WP-Breakpoint >= 2) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
+        );
+        $t->same(
+            '@layer blocks{@media Speech and not (min---WP-Breakpoint:3){.wp-block-query{color:#ff0}}}',
+            $prefixer->prefixForTargets('@layer blocks { @media Speech and (not (--WP-Breakpoint >= 3)) { .wp-block-query { color: yellow; } } }', ['firefox' => 60])
         );
         $t->same(
             '@layer blocks{@media Speech and (min---WP-Breakpoint:2){.wp-block-query{color:#ff0}}}',

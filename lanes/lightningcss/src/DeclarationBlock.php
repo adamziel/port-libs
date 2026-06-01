@@ -6662,7 +6662,7 @@ final class DeclarationBlock
             }
 
             if (!$timingSet && $this->isTransitionTimingToken($token)) {
-                $timing = $token;
+                $timing = $this->normalizeTransitionTimingValue($token);
                 $timingSet = true;
                 continue;
             }
@@ -6674,7 +6674,7 @@ final class DeclarationBlock
             }
 
             if (!$propertySet) {
-                $property = $token;
+                $property = $this->normalizeTransitionPropertyIdentifier($token);
                 $propertySet = true;
             } else {
                 $property .= ' ' . $token;
@@ -7037,7 +7037,16 @@ final class DeclarationBlock
 
     private function canonicalTransitionTime(string $token): string
     {
-        return $this->isZeroTransitionTime($token) ? '0s' : trim($token);
+        $token = trim($token);
+        if ($this->isZeroTransitionTime($token)) {
+            return '0s';
+        }
+
+        return preg_replace_callback(
+            '/^([+-]?(?:\d+|\d*\.\d+))(ms|s)$/i',
+            static fn (array $matches): string => $matches[1] . strtolower($matches[2]),
+            $token
+        ) ?? $token;
     }
 
     private function isZeroTransitionTime(string $token): bool
@@ -13736,7 +13745,91 @@ final class DeclarationBlock
             return $this->normalizeAnimationTimelineList($value);
         }
 
+        $transitionBase = $this->baseTransitionProperty($property);
+        if ($transitionBase === 'transition') {
+            return $this->normalizeTransitionShorthandValue($value);
+        }
+        if ($transitionBase === 'transition-property') {
+            return $this->normalizeTransitionPropertyList($value);
+        }
+        if ($transitionBase === 'transition-timing-function') {
+            return $this->normalizeTransitionTimingList($value);
+        }
+        if ($transitionBase === 'transition-duration' || $transitionBase === 'transition-delay') {
+            return $this->normalizeTransitionTimeList($value);
+        }
+
         return $value;
+    }
+
+    private function normalizeTransitionShorthandValue(string $value): string
+    {
+        return implode(
+            ', ',
+            array_map(
+                fn (array $layer): string => $this->serializeTransitionLayer(
+                    $layer['property'],
+                    $layer['duration'],
+                    $layer['timing'],
+                    $layer['delay']
+                ),
+                $this->parseTransitionLayers($value)
+            )
+        );
+    }
+
+    private function normalizeTransitionPropertyList(string $value): string
+    {
+        $parts = $this->transitionComponentList($value);
+        if ($parts === []) {
+            return trim($value);
+        }
+
+        return implode(
+            ', ',
+            array_map(fn (string $part): string => $this->normalizeTransitionPropertyIdentifier($part), $parts)
+        );
+    }
+
+    private function normalizeTransitionPropertyIdentifier(string $property): string
+    {
+        return $this->normalizeDeclarationPropertyName($property);
+    }
+
+    private function normalizeTransitionTimingList(string $value): string
+    {
+        $parts = $this->transitionComponentList($value);
+        if ($parts === []) {
+            return trim($value);
+        }
+
+        return implode(
+            ', ',
+            array_map(fn (string $part): string => $this->normalizeTransitionTimingValue($part), $parts)
+        );
+    }
+
+    private function normalizeTransitionTimingValue(string $value): string
+    {
+        $lower = strtolower(trim($value));
+        if (in_array($lower, self::TRANSITION_TIMING_FUNCTIONS, true)) {
+            return $lower;
+        }
+
+        return trim($value);
+    }
+
+    private function normalizeTransitionTimeList(string $value): string
+    {
+        $parts = $this->transitionComponentList($value);
+        if ($parts === []) {
+            return trim($value);
+        }
+
+        return implode(
+            ', ',
+            array_map(fn (string $part): string => $this->canonicalTransitionTime($part), $parts)
+        );
     }
 
     private function normalizeColorSchemeDeclarationValue(string $value): string

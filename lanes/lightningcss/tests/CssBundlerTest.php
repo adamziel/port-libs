@@ -2283,6 +2283,78 @@ CSS,
             ]),
         ], $result['exports']);
     },
+    'css bundler preserves upstream external import ordering after css module dependency hoist' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal): void {
+        $result = $bundleModules([
+            '/entry.css' => <<<'CSS'
+@import "cdn:reset.css";
+@import "./theme.css";
+
+.entry {
+  composes: token from "./tokens.css";
+  color: red;
+}
+CSS,
+            '/tokens.css' => '.token { color: green }',
+            '/theme.css' => '.theme { color: blue }',
+        ], '/entry.css', static function (string $specifier, string $originatingFile): array|string {
+            if ($specifier === 'cdn:reset.css') {
+                return ['external' => 'https://cdn.example/reset.css'];
+            }
+
+            return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+        }, [
+            'hashes' => [
+                '/entry.css' => 'entry',
+                '/tokens.css' => 'tok',
+                '/theme.css' => 'theme',
+            ],
+        ]);
+
+        $t->same('.tok_token{color:green}@import "https://cdn.example/reset.css";.theme_theme{color:#00f}.entry_entry{color:red}', $result['code']);
+        $t->same([
+            'entry' => $moduleExport('entry_entry', [
+                $moduleLocal('tok_token'),
+            ]),
+        ], $result['exports']);
+
+        $rejected = false;
+        try {
+            $bundleModules([
+                '/entry.css' => <<<'CSS'
+@import "./theme.css";
+@import "cdn:reset.css";
+
+.entry {
+  composes: token from "./tokens.css";
+  color: red;
+}
+CSS,
+                '/tokens.css' => '.token { color: green }',
+                '/theme.css' => '.theme { color: blue }',
+            ], '/entry.css', static function (string $specifier, string $originatingFile): array|string {
+                if ($specifier === 'cdn:reset.css') {
+                    return ['external' => 'https://cdn.example/reset.css'];
+                }
+
+                return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+            }, [
+                'hashes' => [
+                    '/entry.css' => 'entry',
+                    '/tokens.css' => 'tok',
+                    '/theme.css' => 'theme',
+                ],
+            ]);
+        } catch (CssBundleException $exception) {
+            $t->same('external-import-after-bundled-import', $exception->kind);
+            $t->same('An external `@import` was found after a bundled `@import`. This may result in unintended selector order.', $exception->getMessage());
+            $t->same('/entry.css', $exception->sourceFile);
+            $t->same(2, $exception->sourceLine);
+            $t->same(1, $exception->sourceColumn);
+            $rejected = true;
+        }
+
+        $t->same(true, $rejected);
+    },
     'css bundler maps upstream css module imported local collisions and recursive composes' => static function (TestRunner $t) use ($bundleModules, $moduleExport, $moduleLocal): void {
         $collision = $bundleModules([
             '/a.css' => <<<'CSS'

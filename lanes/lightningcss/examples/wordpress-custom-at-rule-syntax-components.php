@@ -12,6 +12,7 @@ $css = <<<'CSS'
 @tilt 6deg;
 @density 2dppx;
 @shift translateX(12px);
+@chain translateX(12px) rotate(90deg);
 @hero url(block-card.png);
 @palette red blue;
 
@@ -28,9 +29,30 @@ $result = $transformer->transform($css, [
     'tilt' => ['prelude' => '<angle>'],
     'density' => ['prelude' => '<resolution>'],
     'shift' => ['prelude' => '<transform-function>'],
+    'chain' => ['prelude' => '<transform-list>'],
     'hero' => ['prelude' => '<image>'],
     'palette' => ['prelude' => '<color>+'],
 ], [
+    'Length' => static function (array $length): ?array {
+        if (($length['unit'] ?? null) !== 'px') {
+            return null;
+        }
+
+        return [
+            'unit' => 'rem',
+            'value' => $length['value'] / 16,
+        ];
+    },
+    'Angle' => static function (array $angle): ?array {
+        if (($angle['type'] ?? null) !== 'deg' || (float) ($angle['value'] ?? 0.0) !== 90.0) {
+            return null;
+        }
+
+        return [
+            'type' => 'turn',
+            'value' => 0.25,
+        ];
+    },
     'Rule' => [
         'custom' => static function (array $rule) use (&$seen): array {
             $seen[$rule['name']] = $rule['preludeAst'];
@@ -54,6 +76,7 @@ $result = $transformer->transform($css, [
                         ['property' => '--wp-card-tilt', 'value' => $seen['tilt']],
                         ['property' => '--wp-card-density', 'value' => $seen['density']],
                         ['property' => '--wp-card-shift', 'value' => $seen['shift']],
+                        ['property' => '--wp-card-chain', 'value' => $seen['chain']],
                         ['property' => '--wp-card-hero', 'value' => $seen['hero']],
                         ['property' => '--wp-card-palette', 'value' => $seen['palette']],
                     ],
@@ -66,7 +89,7 @@ $result = $transformer->transform($css, [
     },
 ]);
 
-$expected = '.wp-block-card{display:block}:root{--wp-card-space:50%;--wp-card-motion:250ms;--wp-card-tilt:6deg;--wp-card-density:2dppx;--wp-card-shift:translateX(12px);--wp-card-hero:url(block-card.png);--wp-card-palette:#ff0000 #0000ff}';
+$expected = '.wp-block-card{display:block}:root{--wp-card-space:50%;--wp-card-motion:250ms;--wp-card-tilt:6deg;--wp-card-density:2dppx;--wp-card-shift:translateX(0.75rem);--wp-card-chain:translateX(0.75rem) rotate(0.25turn);--wp-card-hero:url(block-card.png);--wp-card-palette:#ff0000 #0000ff}';
 
 if (($argv[1] ?? null) === '--self-test') {
     if ($result !== $expected) {
@@ -83,6 +106,10 @@ if (($argv[1] ?? null) === '--self-test') {
     }
     if (($seen['shift']['value']['type'] ?? null) !== 'translateX') {
         fwrite(STDERR, "Unexpected transform-function AST:\n" . json_encode($seen['shift']) . "\n");
+        exit(1);
+    }
+    if (($seen['chain']['value'][1]['value']['type'] ?? null) !== 'turn') {
+        fwrite(STDERR, "Unexpected transform-list AST:\n" . json_encode($seen['chain']) . "\n");
         exit(1);
     }
     if (($seen['palette']['type'] ?? null) !== 'repeated') {

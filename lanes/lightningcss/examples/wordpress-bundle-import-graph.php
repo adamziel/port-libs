@@ -1649,6 +1649,42 @@ if (
 
 echo 'css-modules-first-instance: stable' . PHP_EOL;
 
+$cssModuleExternalAfterHoist = (new CssBundler())->bundleCssModules('/blocks/externals.css', [
+    '/blocks/externals.css' => <<<'CSS'
+@import "cdn:editor-reset.css";
+@import "../theme.css";
+
+.wp-block-card {
+  composes: token from "../tokens.css";
+  color: red;
+}
+CSS,
+    '/theme.css' => '.wp-block-theme { color: blue; }',
+    '/tokens.css' => '.token { color: green; }',
+], static function (string $specifier, string $originatingFile): array|string {
+    if ($specifier === 'cdn:editor-reset.css') {
+        return ['external' => 'https://cdn.example/editor-reset.css'];
+    }
+
+    return rtrim(dirname($originatingFile), '/') . '/' . $specifier;
+}, [
+    'hashes' => [
+        '/blocks/externals.css' => 'card',
+        '/theme.css' => 'theme',
+        '/tokens.css' => 'tok',
+    ],
+]);
+
+if (
+    $cssModuleExternalAfterHoist['code'] !== '.tok_token{color:green}@import "https://cdn.example/editor-reset.css";.theme_wp-block-theme{color:#00f}.card_wp-block-card{color:red}'
+    || ($cssModuleExternalAfterHoist['exports']['wp-block-card']['composes'][0]['name'] ?? null) !== 'tok_token'
+) {
+    fwrite(STDERR, "Expected CSS Modules dependencies to hoist before external editor imports without triggering external-order diagnostics\n");
+    exit(1);
+}
+
+echo 'css-modules-external-after-hoist: preserved' . PHP_EOL;
+
 $cssModuleEnvDependency = (new CssBundler())->bundleCssModules('/blocks/card.css', [
     '/blocks/card.css' => <<<'CSS'
 @import "pkg:theme.css";

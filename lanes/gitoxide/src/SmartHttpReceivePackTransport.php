@@ -7,6 +7,7 @@ namespace PortLibs\Gitoxide;
 final class SmartHttpReceivePackTransport implements ReceivePackTransport
 {
     private const MAX_INITIAL_REDIRECTS = 10;
+    private const DEFAULT_USER_AGENT = 'git/oxide-port-libs';
 
     private bool $advertisementRead = false;
     private bool $requestWritten = false;
@@ -142,6 +143,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             'Accept' => 'application/x-git-receive-pack-advertisement',
             'Cache-Control' => 'no-cache',
             'Pragma' => 'no-cache',
+            'User-Agent' => self::DEFAULT_USER_AGENT,
         ]);
         $authorizationHeader = $this->authorizationHeaderForRequest();
         if ($authorizationHeader !== null) {
@@ -169,7 +171,9 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             'Content-Length' => (string) $bodyLength,
             'Cache-Control' => 'no-cache',
             'Pragma' => 'no-cache',
+            'User-Agent' => self::DEFAULT_USER_AGENT,
         ]);
+        self::setHeader($headers, 'Expect', '');
         $authorizationHeader = $this->authorizationHeaderForRequest();
         if ($authorizationHeader !== null) {
             self::setHeader($headers, 'Authorization', $authorizationHeader);
@@ -229,6 +233,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
                 $effectiveUrl,
                 $proxyCredentialAction,
                 $proxyCredentialAuthorization,
+                $url,
             );
             try {
                 $response = ($this->requester)(
@@ -627,6 +632,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         string $url,
         ?array &$proxyCredentialAction = null,
         ?string &$proxyCredentialAuthorization = null,
+        ?string $proxySelectionUrl = null,
     ): array {
         $options = [];
         if ($this->httpOptions['sslCaInfo'] !== null) {
@@ -637,7 +643,10 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         $request = self::httpUrlParts($url, 'smart HTTP receive-pack request URL');
-        $proxy = $this->proxyForScheme($request['scheme']);
+        $proxySelection = $proxySelectionUrl === null
+            ? $request
+            : self::httpUrlParts($proxySelectionUrl, 'smart HTTP receive-pack proxy selection URL');
+        $proxy = $this->proxyForScheme($proxySelection['scheme']);
         if ($proxy === null) {
             return [$options, null];
         }

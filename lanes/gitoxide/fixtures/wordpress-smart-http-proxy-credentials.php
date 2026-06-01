@@ -517,6 +517,69 @@ $httpsProxyFallbackSession = $httpsProxyFallbackClient->handshake();
 $httpsProxyFallbackSession->createOrUpdate('refs/heads/main', $httpsProxyFallbackBlob->oid());
 $httpsProxyFallbackResponse = $httpsProxyFallbackClient->send($httpsProxyFallbackSession->buildRequest([$httpsProxyFallbackBlob]));
 
+$upgradeRedirectRequests = [];
+$upgradeRedirectHelperCalls = 0;
+$upgradeRedirectBlob = new GitObject('blob', 'WordPress HTTP to HTTPS upgrade proxy-cookie payload');
+$upgradeRedirectResponseBytes = $packet("\x01" . $packet("unpack ok\n"))
+    . $packet("\x01" . $packet("ok refs/heads/main\n"))
+    . $packet("\x01" . $flush)
+    . $flush;
+$upgradeRedirectClient = new ReceivePackClient(
+    new SmartHttpReceivePackTransport(
+        'http://git.example.test/wp-content.git',
+        static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$upgradeRedirectRequests, $packet, $flush, $advertisementBytes, $upgradeRedirectResponseBytes): array {
+            $upgradeRedirectRequests[] = [
+                'method' => $method,
+                'url' => $url,
+                'headers' => $headers,
+                'body' => $body,
+                'timeout' => $timeout,
+                'httpOptions' => $httpOptions,
+            ];
+
+            if (count($upgradeRedirectRequests) === 1) {
+                return [
+                    'status' => 302,
+                    'headers' => [
+                        'Location' => 'https://git.example.test/wp-content.git/info/refs?service=git-receive-pack',
+                        'Set-Cookie' => 'upgrade_gate=opened; Path=/',
+                    ],
+                    'body' => '',
+                ];
+            }
+
+            if ($method === 'GET') {
+                return [
+                    'status' => 200,
+                    'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                    'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisementBytes,
+                ];
+            }
+
+            return [
+                'status' => 200,
+                'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                'body' => $upgradeRedirectResponseBytes,
+            ];
+        },
+        [],
+        5.0,
+        ['User-Agent' => 'port-libs-wordpress-proxy/1'],
+        [
+            'httpsProxy' => 'http://https-proxy.example.test:9443',
+            'proxyCredentialHelper' => static function () use (&$upgradeRedirectHelperCalls): array {
+                $upgradeRedirectHelperCalls++;
+
+                return ['username' => 'upgrade-proxy-user', 'password' => 'upgrade-proxy-pass'];
+            },
+        ],
+    ),
+    'port-libs/wordpress',
+);
+$upgradeRedirectSession = $upgradeRedirectClient->handshake();
+$upgradeRedirectSession->createOrUpdate('refs/heads/main', $upgradeRedirectBlob->oid());
+$upgradeRedirectResponse = $upgradeRedirectClient->send($upgradeRedirectSession->buildRequest([$upgradeRedirectBlob]));
+
 $urlCredentialProxyRequests = [];
 $urlCredentialProxyHelperCalls = [];
 $urlCredentialProxyStores = [];
@@ -750,6 +813,12 @@ return [
     'httpsProxyFallbackHelperCalls' => $httpsProxyFallbackHelperCalls,
     'httpsProxyFallbackAuthorizationSent' => $httpsProxyFallbackRequests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'httpsProxyFallbackPostCookieHeader' => $httpsProxyFallbackRequests[1]['headers']['Cookie'] ?? null,
+    'upgradeRedirectUsedHttpsProxy' => isset($upgradeRedirectRequests[1]['httpOptions']['proxy'])
+        || isset($upgradeRedirectRequests[2]['httpOptions']['proxy']),
+    'upgradeRedirectHelperCalls' => $upgradeRedirectHelperCalls,
+    'upgradeRedirectRequestUrls' => array_map(static fn (array $request): string => $request['url'], $upgradeRedirectRequests),
+    'upgradeRedirectPostCookieHeader' => $upgradeRedirectRequests[2]['headers']['Cookie'] ?? null,
+    'upgradeRedirectResponseSuccessful' => $upgradeRedirectResponse->isSuccessful(),
     'urlCredentialProxyAdvertisementBytes' => $urlCredentialProxyAdvertisement,
     'urlCredentialProxyHelperCalls' => $urlCredentialProxyHelperCalls,
     'urlCredentialProxyStores' => $urlCredentialProxyStores,
@@ -773,5 +842,5 @@ return [
     'notModifiedProxyPostCookieHeader' => $notModifiedProxyRequests[1]['headers']['Cookie'] ?? null,
     'proxyAuthorizationSent' => $requests[0]['httpOptions']['proxyAuthorization'] ?? null,
     'originProxyHeaderLeaked' => isset($requests[0]['headers']['Proxy-Authorization']),
-    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, preserve proxy use for curl-style port-qualified noProxy literal tokens, use HTTPS-specific proxy fallbacks with receive-pack cookies intact, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
+    'wordpressUse' => 'A WordPress deployment tool can retrieve proxy credentials from a callback, preserve proxy URL usernames and embedded proxy credential URLs as helper context, prefer helper-returned proxy credentials over stale URL credentials, keep proxy credentials out of origin headers, distinguish curl-style bare-star noProxy bypasses from literal asterisk-bearing host patterns, bypass bracketed IPv6 literal repository hosts without consulting proxy helpers, preserve proxy use for curl-style port-qualified noProxy literal tokens, use HTTPS-specific proxy fallbacks with receive-pack cookies intact, keep an HTTP-origin request direct when a safe redirect upgrades it to HTTPS, bypass proxies for DNS-equivalent trailing-dot repository hosts, preserve domain-scoped cookies from those hosts into receive-pack POSTs, reuse one helper credential action across a safe smart HTTP redirect, store helper credentials after accepted 200 or 304 smart HTTP responses, preserve 304 discovery cookies into receive-pack POSTs, and erase helper credentials after unexpected proxy/origin statuses.',
 ];

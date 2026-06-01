@@ -308,7 +308,9 @@ final class CssBundler
         $cssModuleResult = null;
         $cssModuleDependencyLocations = [];
         $cssModuleHasComposes = false;
+        $originalImportLocations = [];
         if ($this->cssModules) {
+            $originalImportLocations = $this->importLocationsForItems($this->topLevelItems($source, $file));
             $cssModuleDependencyLocations = $this->cssModuleDependencyLocations($source);
             $cssModuleHasComposes = $this->hasCssModuleComposesDeclaration($source);
             try {
@@ -329,6 +331,9 @@ final class CssBundler
         $cssModuleReferences = $cssModuleResult['references'] ?? [];
 
         $items = $this->topLevelItems($source, $file);
+        if ($originalImportLocations !== []) {
+            $items = $this->restoreOriginalImportLocations($items, $originalImportLocations);
+        }
         $splitItems = $this->splitTopLevelBundleItems($items);
         $licenseComments = $splitItems['licenseComments'];
         $contentItems = $splitItems['contentItems'];
@@ -394,6 +399,9 @@ final class CssBundler
 
         if ($sourceChangedByReferences) {
             $items = $this->topLevelItems($source, $file);
+            if ($originalImportLocations !== []) {
+                $items = $this->restoreOriginalImportLocations($items, $originalImportLocations);
+            }
             $splitItems = $this->splitTopLevelBundleItems($items);
             $licenseComments = $splitItems['licenseComments'];
             $contentItems = $splitItems['contentItems'];
@@ -951,6 +959,51 @@ final class CssBundler
             'licenseComments' => $licenseComments,
             'contentItems' => $contentItems,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return list<array{line:int,column:int}>
+     */
+    private function importLocationsForItems(array $items): array
+    {
+        $locations = [];
+        foreach ($items as $item) {
+            if (($item['type'] ?? null) !== 'import') {
+                continue;
+            }
+
+            /** @var array{line:int,column:int} $loc */
+            $loc = $item['loc'];
+            $locations[] = $loc;
+        }
+
+        return $locations;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<array{line:int,column:int}> $locations
+     * @return list<array<string, mixed>>
+     */
+    private function restoreOriginalImportLocations(array $items, array $locations): array
+    {
+        $index = 0;
+        foreach ($items as &$item) {
+            if (($item['type'] ?? null) !== 'import' || !isset($locations[$index])) {
+                continue;
+            }
+
+            $loc = $locations[$index];
+            $item['loc'] = $loc;
+            if (isset($item['import']) && is_array($item['import'])) {
+                $item['import']['loc'] = $loc;
+            }
+            $index++;
+        }
+        unset($item);
+
+        return $items;
     }
 
     /**

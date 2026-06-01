@@ -6821,6 +6821,38 @@ final class CustomAtRuleTransformer
             }
         }
 
+        if (($value['type'] ?? null) === 'transform-function' && isset($value['value']) && is_array($value['value'])) {
+            $visited = $this->visitTransformValue($value['value']);
+            if ($visited['changed']) {
+                return [
+                    'type' => 'transform-function',
+                    'value' => $visited['value'],
+                ];
+            }
+        }
+
+        if (($value['type'] ?? null) === 'transform-list' && isset($value['value']) && is_array($value['value'])) {
+            $transforms = [];
+            $changed = false;
+            foreach ($value['value'] as $transform) {
+                if (!is_array($transform)) {
+                    $transforms[] = $transform;
+                    continue;
+                }
+
+                $visited = $this->visitTransformValue($transform);
+                $transforms[] = $visited['value'];
+                $changed = $changed || $visited['changed'];
+            }
+
+            if ($changed) {
+                return [
+                    'type' => 'transform-list',
+                    'value' => $transforms,
+                ];
+            }
+        }
+
         foreach ([
             'angle' => $this->angleVisitor,
             'time' => $this->timeVisitor,
@@ -6858,6 +6890,50 @@ final class CustomAtRuleTransformer
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $transform
+     * @return array{value:array<string, mixed>,changed:bool}
+     */
+    private function visitTransformValue(array $transform): array
+    {
+        $type = $transform['type'] ?? null;
+        if (in_array($type, ['translateX', 'translateY'], true) && isset($transform['value']) && is_array($transform['value'])) {
+            $visited = $this->visitTransformLengthPercentageValue($transform['value']);
+            if ($visited['changed']) {
+                $transform['value'] = $visited['value'];
+
+                return ['value' => $transform, 'changed' => true];
+            }
+        }
+
+        if (in_array($type, ['rotate', 'rotateX', 'rotateY', 'rotateZ'], true) && isset($transform['value']) && is_array($transform['value'])) {
+            $visited = $this->applyValueVisitors([
+                'type' => 'angle',
+                'value' => $transform['value'],
+            ]);
+            if (is_array($visited) && ($visited['type'] ?? null) === 'angle' && isset($visited['value']) && is_array($visited['value']) && $visited['value'] !== $transform['value']) {
+                $transform['value'] = $visited['value'];
+
+                return ['value' => $transform, 'changed' => true];
+            }
+        }
+
+        return ['value' => $transform, 'changed' => false];
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @return array{value:array<string, mixed>,changed:bool}
+     */
+    private function visitTransformLengthPercentageValue(array $value): array
+    {
+        if (($value['type'] ?? null) === 'dimension') {
+            return $this->visitLengthPercentageValue($value);
+        }
+
+        return ['value' => $value, 'changed' => false];
     }
 
     /**

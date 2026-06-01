@@ -9,8 +9,8 @@ use PortLibs\LibSqlite\SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan;
 
 $row = static function (int $id, string $name, string $encoding): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => match ($encoding) {
             'UTF-8' => 1,
             'UTF-16LE' => 2,
@@ -20,21 +20,21 @@ $row = static function (int $id, string $name, string $encoding): array {
 };
 
 $current = [
-    $row(1, 'plugin_cache', 'UTF-8'),
-    $row(2, 'Plugin_Cache', 'UTF-16LE'),
-    $row(3, 'plugin_cache ', 'UTF-16BE'),
+    $row(1, 'module_cache', 'UTF-8'),
+    $row(2, 'Module_Cache', 'UTF-16LE'),
+    $row(3, 'module_cache ', 'UTF-16BE'),
 ];
 $next = [
-    $row(1, 'plugin_cache', 'UTF-16LE'),
-    $row(2, 'plugin_Cache', 'UTF-16LE'),
-    $row(3, 'plugin_cache', 'UTF-16BE'),
-    $row(4, 'plugin_cache_new', 'UTF-8'),
+    $row(1, 'module_cache', 'UTF-16LE'),
+    $row(2, 'module_Cache', 'UTF-16LE'),
+    $row(3, 'module_cache', 'UTF-16BE'),
+    $row(4, 'module_cache_new', 'UTF-8'),
 ];
 
-$plan = SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::optionRowNamePlan(
+$plan = SQLiteNocaseRtrimGlobAffinityCurrentSourceNextPlan::keyValueRowKeyPlan(
     $current,
     $next,
-    'plugin_*',
+    'module_*',
     'TEXT',
     'NOCASE',
 );

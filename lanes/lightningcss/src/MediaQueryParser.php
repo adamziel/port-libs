@@ -1654,7 +1654,7 @@ final class MediaQueryParser
             return null;
         }
 
-        $name = strtolower($matches[1]);
+        $name = $this->canonicalMediaFeatureIdentifier($matches[1]);
         if (!$this->isRangeComparableMediaFeature($name)) {
             return null;
         }

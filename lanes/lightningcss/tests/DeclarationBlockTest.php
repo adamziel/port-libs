@@ -1668,6 +1668,41 @@ return [
             )
         );
     },
+    'declaration block canonicalizes upstream transition property identifiers in cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $longhands = 'transition-property: COLOR, c\\6f lor, --Block-Opacity; transition-duration: 200MS, 0MS; transition-timing-function: Ease-In, Linear; transition-delay: 50MS, 0MS';
+        $shorthand = 'transition: COLOR 200MS Ease-In 50MS, --Block-Opacity 0MS ease';
+
+        $t->same(
+            [
+                'transition-property' => 'color, color, --Block-Opacity',
+                'transition-duration' => '200ms, 0s',
+                'transition-timing-function' => 'ease-in, linear',
+                'transition-delay' => '50ms, 0s',
+            ],
+            $block->parse($longhands)
+        );
+        $t->same(['value' => 'color, color, --Block-Opacity', 'important' => false], $block->getProperty($longhands, 'transition-property'));
+        $t->same(['value' => '200ms, 0s', 'important' => false], $block->getProperty($longhands, 'transition-duration'));
+        $t->same(['value' => 'ease-in, linear', 'important' => false], $block->getProperty($longhands, 'transition-timing-function'));
+        $t->same(['value' => '50ms, 0s', 'important' => false], $block->getProperty($longhands, 'transition-delay'));
+        $t->same(null, $block->getProperty($longhands, 'transition'));
+        $t->same(['value' => 'color 200ms ease-in 50ms, --Block-Opacity', 'important' => false], $block->getProperty($shorthand, 'transition'));
+        $t->same(['value' => 'color, --Block-Opacity', 'important' => false], $block->getProperty($shorthand, 'transition-property'));
+        $t->same(['value' => '200ms, 0s', 'important' => false], $block->getProperty($shorthand, 'transition-duration'));
+        $t->same(['value' => 'ease-in, ease', 'important' => false], $block->getProperty($shorthand, 'transition-timing-function'));
+        $t->same(['value' => '50ms, 0s', 'important' => false], $block->getProperty($shorthand, 'transition-delay'));
+        $t->same(
+            'transition: background-color 200ms ease-in 50ms',
+            $block->setProperty('transition: COLOR 200MS Ease-In 50MS', 'transition-property', 'Background-Color')
+        );
+        $t->same(
+            'transition: opacity 200ms ease-out; color: red',
+            $block->setProperty('transition: opacity 200MS Ease-In; color: red', 'transition-timing-function', 'Ease-Out')
+        );
+        $t->same('transition-property: color', $block->setProperty('transition-property: COLOR', 'transition-property', 'c\\6f lor'));
+        $t->same('transition-property: --Block-Opacity', $block->setProperty('transition-property: opacity', 'transition-property', '--Block-Opacity'));
+    },
     'declaration block reads upstream list style cssom shorthand and longhands' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
 

@@ -15,55 +15,55 @@ $encodingCode = static fn (string $encoding): int => match ($encoding) {
 
 $row = static function (int $id, string $name, string $value, string $nameEncoding, string $valueEncoding) use ($encodingCode): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $nameEncoding),
-        'option_value_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($value, $valueEncoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $nameEncoding),
+        'key_value_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($value, $valueEncoding),
         'name_text_encoding' => $encodingCode($nameEncoding),
         'value_text_encoding' => $encodingCode($valueEncoding),
     ];
 };
 
 $bad = static fn (int $id, string $nameBytes, int $nameEncoding, string $valueBytes, int $valueEncoding): array => [
-    'option_id' => $id,
-    'option_name_bytes' => $nameBytes,
-    'option_value_bytes' => $valueBytes,
+    'setting_id' => $id,
+    'key_name_bytes' => $nameBytes,
+    'key_value_bytes' => $valueBytes,
     'name_text_encoding' => $nameEncoding,
     'value_text_encoding' => $valueEncoding,
 ];
 
 $currentRows = [
-    $row(1, 'plugin_cache', '10', 'UTF-8', 'UTF-8'),
-    $row(2, 'Plugin_Cache', '11', 'UTF-16LE', 'UTF-16BE'),
-    $row(3, 'plugin-cache', '12', 'UTF-16BE', 'UTF-8'),
-    $row(4, 'plugin-cache ', '12.5', 'UTF-16LE', 'UTF-16LE'),
-    $row(5, 'plugin:cache', '13', 'UTF-8', 'UTF-16BE'),
-    $row(6, 'plugin/cache', '14', 'UTF-16BE', 'UTF-16LE'),
-    $row(7, 'plugin9cache', '15', 'UTF-16LE', 'UTF-8'),
-    $row(8, 'plugin_cache_extra', '8', 'UTF-8', 'UTF-8'),
-    $row(9, 'plugin-cache-new', '10e0', 'UTF-16BE', 'UTF-16BE'),
-    $row(10, 'plugin-cache-OLD', 'fast', 'UTF-8', 'UTF-16LE'),
+    $row(1, 'module_cache', '10', 'UTF-8', 'UTF-8'),
+    $row(2, 'Module_Cache', '11', 'UTF-16LE', 'UTF-16BE'),
+    $row(3, 'module-cache', '12', 'UTF-16BE', 'UTF-8'),
+    $row(4, 'module-cache ', '12.5', 'UTF-16LE', 'UTF-16LE'),
+    $row(5, 'module:cache', '13', 'UTF-8', 'UTF-16BE'),
+    $row(6, 'module/cache', '14', 'UTF-16BE', 'UTF-16LE'),
+    $row(7, 'module9cache', '15', 'UTF-16LE', 'UTF-8'),
+    $row(8, 'module_cache_extra', '8', 'UTF-8', 'UTF-8'),
+    $row(9, 'module-cache-new', '10e0', 'UTF-16BE', 'UTF-16BE'),
+    $row(10, 'module-cache-OLD', 'fast', 'UTF-8', 'UTF-16LE'),
     $row(11, 'theme-cache', '12', 'UTF-8', 'UTF-8'),
     $bad(12, "\x3d\xd8", 2, SQLiteEncodingCollationSourceCursor::encodeText('12', 'UTF-8'), 1),
 ];
 
 $nextRows = [
-    $row(1, 'plugin_cache ', '10.0', 'UTF-16BE', 'UTF-16LE'),
-    $row(2, 'Plugin_Cache', '11', 'UTF-16BE', 'UTF-16BE'),
-    $row(3, 'plugin-cache', '12', 'UTF-16BE', 'UTF-8'),
-    $row(4, 'plugin-cache', '13', 'UTF-16LE', 'UTF-16LE'),
-    $row(5, 'plugin:cache', '13', 'UTF-8', 'UTF-16BE'),
-    $row(6, 'plugin/cache', '9', 'UTF-16BE', 'UTF-16LE'),
-    $row(7, 'plugin9cache', '15', 'UTF-16LE', 'UTF-8'),
-    $row(8, 'plugin_cache_extra', '10', 'UTF-8', 'UTF-8'),
-    $row(9, 'plugin-cache-new', '10e0', 'UTF-16BE', 'UTF-16BE'),
-    $row(10, 'plugin-cache-OLD', '12', 'UTF-8', 'UTF-16LE'),
-    $row(13, 'pluginXcache', '12', 'UTF-16LE', 'UTF-8'),
-    $row(14, 'plugin-cache-fresh', '12', 'UTF-16BE', 'UTF-8'),
-    $bad(15, SQLiteEncodingCollationSourceCursor::encodeText('plugin-cache-bad-value', 'UTF-8'), 1, "\x3d\xd8", 2),
+    $row(1, 'module_cache ', '10.0', 'UTF-16BE', 'UTF-16LE'),
+    $row(2, 'Module_Cache', '11', 'UTF-16BE', 'UTF-16BE'),
+    $row(3, 'module-cache', '12', 'UTF-16BE', 'UTF-8'),
+    $row(4, 'module-cache', '13', 'UTF-16LE', 'UTF-16LE'),
+    $row(5, 'module:cache', '13', 'UTF-8', 'UTF-16BE'),
+    $row(6, 'module/cache', '9', 'UTF-16BE', 'UTF-16LE'),
+    $row(7, 'module9cache', '15', 'UTF-16LE', 'UTF-8'),
+    $row(8, 'module_cache_extra', '10', 'UTF-8', 'UTF-8'),
+    $row(9, 'module-cache-new', '10e0', 'UTF-16BE', 'UTF-16BE'),
+    $row(10, 'module-cache-OLD', '12', 'UTF-8', 'UTF-16LE'),
+    $row(13, 'moduleXcache', '12', 'UTF-16LE', 'UTF-8'),
+    $row(14, 'module-cache-fresh', '12', 'UTF-16BE', 'UTF-8'),
+    $bad(15, SQLiteEncodingCollationSourceCursor::encodeText('module-cache-bad-value', 'UTF-8'), 1, "\x3d\xd8", 2),
 ];
 
 $plan = static fn (
-    string $pattern = 'plugin[-_]cache*',
+    string $pattern = 'module[-_]cache*',
     ?array $current = null,
     ?array $next = null,
     int|float|string $minimum = 10,
@@ -99,13 +99,13 @@ $valueAt = static function (array $value, string $path): mixed {
 $cases = [
     'status' => ['status', 'rtrim-glob-nocase-affinity-current-source-next149-ready'],
     'operator' => ['operator', 'GLOB'],
-    'expression' => ['expression', 'rtrim(option_name) COLLATE NOCASE GLOB ? AND option_value NUMERIC BETWEEN ? AND ?'],
+    'expression' => ['expression', 'rtrim(key_name) COLLATE NOCASE GLOB ? AND key_value NUMERIC BETWEEN ? AND ?'],
     'name collation' => ['nameCollation', 'RTRIM+NOCASE index key'],
     'residual collation' => ['residualCollation', 'BINARY bytewise GLOB'],
     'value affinity' => ['valueAffinity', 'NUMERIC'],
-    'range lower' => ['range.lowerInclusive', 'plugin'],
-    'range upper' => ['range.upperBound', 'plugio'],
-    'range lower before class' => ['rangeLowerComesBeforeFirstGlobClass', 'plugin'],
+    'range lower' => ['range.lowerInclusive', 'module'],
+    'range upper' => ['range.upperBound', 'modulf'],
+    'range lower before class' => ['rangeLowerComesBeforeFirstGlobClass', 'module'],
     'index usable' => ['indexUsable', true],
     'class count' => ['globCharacterClassCount', 1],
     'class raw' => ['globCharacterClasses.0.raw', '[-_]'],
@@ -129,9 +129,9 @@ $cases = [
     'retained affinity matched' => ['retainedAffinityMatchedRowids', [3, 4, 9, 1]],
     'entered affinity matched' => ['enteredAffinityMatchedRowids', [14, 10, 8]],
     'exited affinity matched' => ['exitedAffinityMatchedRowids', []],
-    'row two comparison key folds' => ['currentComparisonKeys.2', 'plugin_cache'],
-    'row four comparison key trims' => ['currentComparisonKeys.4', 'plugin-cache'],
-    'row one next text keeps spaces' => ['nextNameTexts.1', 'plugin_cache '],
+    'row two comparison key folds' => ['currentComparisonKeys.2', 'module_cache'],
+    'row four comparison key trims' => ['currentComparisonKeys.4', 'module-cache'],
+    'row one next text keeps spaces' => ['nextNameTexts.1', 'module_cache '],
     'row one next numeric value' => ['nextNumericValues.1', 10.0],
     'row nine exponent value' => ['currentNumericValues.9', 10.0],
     'row ten non numeric current' => ['currentNumericValues.10', null],
@@ -164,8 +164,8 @@ foreach ($cases as $name => [$path, $expected]) {
 }
 
 $tests['rtrim glob nocase affinity current source next149 stable rows still keep class residual invalidation'] = static function (TestRunner $t) use ($row): void {
-    $rows = [$row(1, 'plugin-cache', '10', 'UTF-8', 'UTF-8'), $row(2, 'Plugin_Cache', '11', 'UTF-16LE', 'UTF-16BE')];
-    $result = SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan($rows, $rows, 'plugin[-_]cache', 9, 12, 'stable', 'stable', 1, 1, 1, 1);
+    $rows = [$row(1, 'module-cache', '10', 'UTF-8', 'UTF-8'), $row(2, 'Module_Cache', '11', 'UTF-16LE', 'UTF-16BE')];
+    $result = SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan($rows, $rows, 'module[-_]cache', 9, 12, 'stable', 'stable', 1, 1, 1, 1);
     $t->same([1, 2], $result['currentCandidateRowids']);
     $t->same([1], $result['currentMatchedRowids']);
     $t->same(['glob-character-class-residual'], $result['invalidationReasons']);
@@ -173,8 +173,8 @@ $tests['rtrim glob nocase affinity current source next149 stable rows still keep
 };
 
 $tests['rtrim glob nocase affinity current source next149 negated class records bytewise exclusion'] = static function (TestRunner $t) use ($row): void {
-    $rows = [$row(1, 'plugin-cache', '10', 'UTF-8', 'UTF-8'), $row(2, 'plugin_cache', '11', 'UTF-8', 'UTF-8'), $row(3, 'pluginXcache', '12', 'UTF-8', 'UTF-8')];
-    $result = SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan($rows, $rows, 'plugin[^_]cache', 9, 12, 'stable', 'stable', 1, 1, 1, 1);
+    $rows = [$row(1, 'module-cache', '10', 'UTF-8', 'UTF-8'), $row(2, 'module_cache', '11', 'UTF-8', 'UTF-8'), $row(3, 'moduleXcache', '12', 'UTF-8', 'UTF-8')];
+    $result = SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan($rows, $rows, 'module[^_]cache', 9, 12, 'stable', 'stable', 1, 1, 1, 1);
     $t->same(true, $result['hasNegatedGlobClass']);
     $t->same('[^_]', $result['globCharacterClasses'][0]['raw']);
     $t->same([1, 3], $result['currentMatchedRowids']);
@@ -182,15 +182,15 @@ $tests['rtrim glob nocase affinity current source next149 negated class records 
 };
 
 $tests['rtrim glob nocase affinity current source next149 range class records unicode ranges'] = static function (TestRunner $t) use ($row): void {
-    $rows = [$row(1, 'plugin-acache', '10', 'UTF-8', 'UTF-8'), $row(2, 'plugin-écache', '11', 'UTF-16LE', 'UTF-16LE'), $row(3, 'plugin-zcache', '12', 'UTF-16BE', 'UTF-16BE')];
-    $result = SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan($rows, $rows, 'plugin-[a-é]cache', 9, 12, 'stable', 'stable', 1, 1, 1, 1);
+    $rows = [$row(1, 'module-acache', '10', 'UTF-8', 'UTF-8'), $row(2, 'module-écache', '11', 'UTF-16LE', 'UTF-16LE'), $row(3, 'module-zcache', '12', 'UTF-16BE', 'UTF-16BE')];
+    $result = SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan($rows, $rows, 'module-[a-é]cache', 9, 12, 'stable', 'stable', 1, 1, 1, 1);
     $t->same(['a-é'], $result['globCharacterClasses'][0]['ranges']);
     $t->same([1, 3, 2], $result['currentMatchedRowids']);
     $t->same([1, 3, 2], $result['currentAffinityMatchedRowids']);
 };
 
 $tests['rtrim glob nocase affinity current source next149 leading class disables index range'] = static function (TestRunner $t) use ($plan): void {
-    $result = $plan('[-_]plugin*');
+    $result = $plan('[-_]module*');
     $t->same(false, $result['indexUsable']);
     $t->same(null, $result['range']);
     $t->same([], $result['currentCandidateRowids']);
@@ -198,11 +198,11 @@ $tests['rtrim glob nocase affinity current source next149 leading class disables
 };
 
 $tests['rtrim glob nocase affinity current source next149 rejects reversed numeric bounds'] = static function (TestRunner $t) use ($plan): void {
-    $t->throws(InvalidArgumentException::class, static fn () => $plan('plugin[-_]cache*', null, null, 20, 10));
+    $t->throws(InvalidArgumentException::class, static fn () => $plan('module[-_]cache*', null, null, 20, 10));
 };
 
-$tests['rtrim glob nocase affinity current source next149 rejects bad option row shape'] = static function (TestRunner $t) use ($nextRows): void {
-    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan([['option_id' => '1', 'option_name_bytes' => 'x', 'option_value_bytes' => '1', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'plugin[-_]cache*', 1, 2));
+$tests['rtrim glob nocase affinity current source next149 rejects bad setting row shape'] = static function (TestRunner $t) use ($nextRows): void {
+    $t->throws(InvalidArgumentException::class, static fn () => SQLiteRtrimGlobNocaseAffinityCurrentSourceNextPlan::keyValueRowKeyValuePlan([['setting_id' => '1', 'key_name_bytes' => 'x', 'key_value_bytes' => '1', 'name_text_encoding' => 1, 'value_text_encoding' => 1]], $nextRows, 'module[-_]cache*', 1, 2));
 };
 
 return $tests;

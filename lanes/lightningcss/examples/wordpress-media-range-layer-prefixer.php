@@ -264,8 +264,19 @@ CSS,
         '@layer theme.blocks { @media (Theme-Breakpoint >= 2) and (--WP-Breakpoint >= 3) { .wp-block-query.is-custom-case { color: yellow; } } }',
         ['firefox' => 60]
     ),
+    'negatedCaseSensitiveCustomRangeFallback' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media not (Theme-Breakpoint >= 2) { .wp-block-query.is-custom-case-not { color: yellow; } } }',
+        ['firefox' => 60]
+    ),
     'caseSensitiveCustomRangeModern' => $prefixer->prefixForTargets(
         '@layer theme.blocks { @media Speech and (--WP-Breakpoint >= 2) { .wp-block-query.is-custom-speech { color: yellow; } } }',
+        [
+            'firefox' => 60,
+            'exclude' => ['MediaRangeSyntax'],
+        ]
+    ),
+    'negatedCaseSensitiveCustomRangeModern' => $prefixer->prefixForTargets(
+        '@layer theme.blocks { @media Speech and (not (--WP-Breakpoint >= 3)) { .wp-block-query.is-custom-speech-not { color: yellow; } } }',
         [
             'firefox' => 60,
             'exclude' => ['MediaRangeSyntax'],
@@ -403,7 +414,9 @@ $expected = [
     'upstreamIntervalPrefixFallbacks' => '@layer theme.blocks{@media not ((min-width:100px) and (max-width:200px)){.wp-block-query.is-not-compact-range{color:#ff0}}@media (hover) and (min-width:100px) and (max-width:200px){.wp-block-query.is-hover-compact-range{color:#ff0}}@media (not (max-width:100px)) and (not (min-width:200px)){.wp-block-query.is-open-range{color:#ff0}}@media not ((not (max-width:100px)) and (not (min-width:200px))){.wp-block-query.is-not-open-range{color:#ff0}}@media (max-width:200px) and (min-width:100px){.wp-block-query.is-descending-range{color:#ff0}}@media not (max-color:2){.wp-block-query.is-rich-color{color:#ff0}}@media not (min-color:2){.wp-block-query.is-low-color{color:#ff0}}}',
     'scientificRangeFallbacks' => '@layer theme.blocks{@media (min-width:1000px){.wp-block-query.is-scientific-wide{color:#ff0}}@media (min-width:100px) and (max-width:200px){.wp-block-query.is-scientific-window{color:#ff0}}@media (min-aspect-ratio:16/9){.wp-block-query.is-scientific-ratio{color:#ff0}}@media (-webkit-min-device-pixel-ratio:2),(min--moz-device-pixel-ratio:2),(min-resolution:2dppx){.wp-block-query.is-scientific-density{color:#ff0}}@media (min-theme-breakpoint:100px){.wp-block-query.is-scientific-token{color:#ff0}}}',
     'caseSensitiveCustomRangeFallback' => '@layer theme.blocks{@media (min-Theme-Breakpoint:2) and (min---WP-Breakpoint:3){.wp-block-query.is-custom-case{color:#ff0}}}',
+    'negatedCaseSensitiveCustomRangeFallback' => '@layer theme.blocks{@media not (min-Theme-Breakpoint:2){.wp-block-query.is-custom-case-not{color:#ff0}}}',
     'caseSensitiveCustomRangeModern' => '@layer theme.blocks{@media Speech and (--WP-Breakpoint>=2){.wp-block-query.is-custom-speech{color:#ff0}}}',
+    'negatedCaseSensitiveCustomRangeModern' => '@layer theme.blocks{@media Speech and (--WP-Breakpoint<3){.wp-block-query.is-custom-speech-not{color:#ff0}}}',
     'trailingCommaRangeList' => '@layer theme.blocks{@media (min-width:240px){.wp-block-query.is-trailing-comma{color:#ff0}}}',
     'explicitNotCondition' => '@layer theme.blocks{@media screen and not (color){.wp-block-query.is-explicit-not-condition{color:#ff0}}}',
     'invalidRangeGuard' => 'invalid-media-query',

@@ -15,43 +15,43 @@ $encodingNumber = static fn (string $encoding): int => match ($encoding) {
 
 $row = static function (int $id, string $name, string $encoding) use ($encodingNumber): array {
     return [
-        'option_id' => $id,
-        'option_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
+        'setting_id' => $id,
+        'key_name_bytes' => SQLiteEncodingCollationSourceCursor::encodeText($name, $encoding),
         'text_encoding' => $encodingNumber($encoding),
-        'autoload' => 'yes',
+        'load_policy' => 'yes',
     ];
 };
 
 $current = [
-    $row(1, 'plugin_cache', 'UTF-16LE'),
-    $row(2, 'plugin_cache ', 'UTF-16BE'),
-    $row(3, 'plugin_%literal', 'UTF-16LE'),
+    $row(1, 'module_cache', 'UTF-16LE'),
+    $row(2, 'module_cache ', 'UTF-16BE'),
+    $row(3, 'module_%literal', 'UTF-16LE'),
     $row(4, 'theme_cache', 'UTF-16LE'),
 ];
 
 $next = [
-    $row(1, 'plugin_cache', 'UTF-16BE'),
-    $row(2, 'plugin_cache ', 'UTF-16BE'),
-    $row(3, 'plugin_%literal', 'UTF-16BE'),
-    $row(5, 'plugin_cache_new', 'UTF-16LE'),
+    $row(1, 'module_cache', 'UTF-16BE'),
+    $row(2, 'module_cache ', 'UTF-16BE'),
+    $row(3, 'module_%literal', 'UTF-16BE'),
+    $row(5, 'module_cache_new', 'UTF-16LE'),
 ];
 
-$plan = SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::optionRowNamePlan(
+$plan = SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::keyValueRowKeyPlan(
     $current,
     $next,
-    SQLiteEncodingCollationSourceCursor::encodeText('plugin_cache%', 'UTF-16LE'),
+    SQLiteEncodingCollationSourceCursor::encodeText('module_cache%', 'UTF-16LE'),
     'UTF-16LE',
     null,
     null,
     true,
-    'main.wp_options@137',
-    'main.wp_options@138',
+    'main.app_settings@137',
+    'main.app_settings@138',
 );
 
-$literal = SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::optionRowNamePlan(
+$literal = SQLiteUtf16RtrimLikePatternCurrentSourceNextPlan::keyValueRowKeyPlan(
     $current,
     $next,
-    SQLiteEncodingCollationSourceCursor::encodeText('plugin_!%literal', 'UTF-16BE'),
+    SQLiteEncodingCollationSourceCursor::encodeText('module_!%literal', 'UTF-16BE'),
     'UTF-16BE',
     SQLiteEncodingCollationSourceCursor::encodeText('!', 'UTF-16BE'),
     'UTF-16BE',
@@ -68,11 +68,11 @@ $summary = [
     'changedEncodingRowids' => $plan['changedEncodingRowids'],
     'literalPercentRowids' => $literal['currentRowids'],
     'literalEscapeEncoding' => $literal['escapeEncoding'],
-    'applicationUse' => 'Copied wp_options option_name scans can decode UTF-16 LIKE patterns before applying SQLite RTRIM-collated full-scan residual matching, including escaped wildcard imports.',
+    'applicationUse' => 'Copied app_settings key_name scans can decode UTF-16 LIKE patterns before applying SQLite RTRIM-collated full-scan residual matching, including escaped wildcard imports.',
 ];
 
 if (($argv[1] ?? '') === '--self-test') {
-    assert($summary['decodedPattern'] === 'plugin_cache%');
+    assert($summary['decodedPattern'] === 'module_cache%');
     assert($summary['indexUsable'] === false);
     assert($summary['rejectedReason'] === 'case_sensitive_like_requires_binary_index');
     assert($summary['currentRowids'] === [1, 2]);

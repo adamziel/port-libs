@@ -175,17 +175,17 @@ final class SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan
         foreach ($rows as $row) {
             self::assertRow($row);
             try {
-                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['option_name_bytes'], $row['text_encoding']);
+                $text = SQLiteEncodingCollationSourceCursor::decodeText($row['key_name_bytes'], $row['text_encoding']);
             } catch (\InvalidArgumentException $exception) {
-                $errors[$row['option_id']] = $exception->getMessage();
+                $errors[$row['setting_id']] = $exception->getMessage();
                 continue;
             }
 
             $valid[] = [
-                'rowid' => $row['option_id'],
+                'rowid' => $row['setting_id'],
                 'text' => $text,
                 'key' => self::asciiLower($text),
-                'bytes' => $row['option_name_bytes'],
+                'bytes' => $row['key_name_bytes'],
                 'encoding' => $row['text_encoding'] === 2 ? 'UTF-16LE' : 'UTF-16BE',
                 'storage' => self::storageClass($row),
             ];
@@ -215,11 +215,11 @@ final class SQLiteUtf16NocaseGlobAffinityCurrentSourceNextPlan
     /** @param array<string,mixed> $row */
     private static function assertRow(array $row): void
     {
-        if (!array_key_exists('option_id', $row) || !is_int($row['option_id'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source nextOneFourEight rows require integer option_id');
+        if (!array_key_exists('setting_id', $row) || !is_int($row['setting_id'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source nextOneFourEight rows require integer setting_id');
         }
-        if (!array_key_exists('option_name_bytes', $row) || !is_string($row['option_name_bytes'])) {
-            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source nextOneFourEight rows require option_name_bytes');
+        if (!array_key_exists('key_name_bytes', $row) || !is_string($row['key_name_bytes'])) {
+            throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source nextOneFourEight rows require key_name_bytes');
         }
         if (!array_key_exists('text_encoding', $row) || !in_array($row['text_encoding'], [2, 3], true)) {
             throw new \InvalidArgumentException('SQLite UTF-16 NOCASE GLOB affinity current-source nextOneFourEight rows require UTF-16 text_encoding');

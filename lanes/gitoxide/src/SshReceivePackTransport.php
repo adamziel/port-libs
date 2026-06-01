@@ -7,6 +7,7 @@ namespace PortLibs\Gitoxide;
 final class SshReceivePackTransport implements ReceivePackTransport
 {
     private const REMOTE_SERVICE = 'git-receive-pack';
+    private const URL_PRE_PATH_MAX_BYTES = 1024;
 
     private const ENVIRONMENT_VARIABLES_TO_REMOVE = [
         'GIT_ALTERNATE_OBJECT_DIRECTORIES',
@@ -194,6 +195,11 @@ final class SshReceivePackTransport implements ReceivePackTransport
      */
     private static function parseSshUrl(string $url): array
     {
+        $schemeSeparator = strpos($url, '://');
+        if ($schemeSeparator !== false && self::isSshScheme(substr($url, 0, $schemeSeparator))) {
+            self::validateUrlPrePathBoundary($url, $schemeSeparator);
+        }
+
         try {
             $parts = parse_url($url);
         } catch (\ValueError $error) {
@@ -209,7 +215,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
         if (!isset($parts['host']) || !is_string($parts['host']) || $parts['host'] === '') {
             throw new \InvalidArgumentException('SSH receive-pack URL must include a host');
         }
-        if (!isset($parts['path']) || !is_string($parts['path']) || $parts['path'] === '' || $parts['path'] === '/') {
+        if (!isset($parts['path']) || !is_string($parts['path']) || $parts['path'] === '') {
             throw new \InvalidArgumentException('SSH receive-pack URL must include a repository path');
         }
         if (isset($parts['query']) || isset($parts['fragment']) || isset($parts['pass'])) {
@@ -403,6 +409,44 @@ final class SshReceivePackTransport implements ReceivePackTransport
     private static function isSshScheme(string $scheme): bool
     {
         return in_array(strtolower($scheme), ['ssh', 'ssh+git', 'git+ssh'], true);
+    }
+
+    private static function validateUrlPrePathBoundary(string $url, int $schemeSeparator): void
+    {
+        if ($schemeSeparator > self::URL_PRE_PATH_MAX_BYTES) {
+            throw new \InvalidArgumentException('SSH receive-pack URL scheme exceeds upstream 1024 byte boundary');
+        }
+
+        $afterScheme = substr($url, $schemeSeparator + strlen('://'));
+        $bytesBeforePath = '';
+        $skippingLeadingSeparators = true;
+        $length = strlen($afterScheme);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $byte = $afterScheme[$offset];
+            if (self::isAsciiWhitespace($byte)) {
+                continue;
+            }
+            if ($skippingLeadingSeparators && ($byte === '/' || $byte === '\\')) {
+                continue;
+            }
+            $skippingLeadingSeparators = false;
+            if ($byte === '/') {
+                break;
+            }
+            $bytesBeforePath .= $byte;
+        }
+
+        if (strlen($bytesBeforePath) > self::URL_PRE_PATH_MAX_BYTES) {
+            throw new \InvalidArgumentException('SSH receive-pack URL authority exceeds upstream 1024 byte boundary before repository path');
+        }
+    }
+
+    private static function isAsciiWhitespace(string $byte): bool
+    {
+        return match ($byte) {
+            "\t", "\n", "\v", "\f", "\r", ' ' => true,
+            default => false,
+        };
     }
 
     private static function normalizeHost(string $host): string

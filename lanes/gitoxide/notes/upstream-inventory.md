@@ -1630,3 +1630,32 @@ URL/refspec from-bytes parity slice prepared on 2026-06-01:
   `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace runner was
   not executed.
 - Expected mapped denominator movement: `1743 / 2886` to `1744 / 2886`.
+
+Smart HTTP upgrade redirect proxy/cookie parity slice prepared on 2026-06-01:
+
+- Worker slice `gitoxide-smart-http-transport-cookie-proxy-parity-20260601T053137Z`
+  on accepted base `f21524404044b11f3b8895597ad5fc6ac48001c6` maps the
+  upstream `gix`/`gix-transport` boundary where proxy fallback selection is
+  derived from the original smart HTTP request configuration, while libcurl
+  follows safe redirects under that selected option set.
+- Source truth: upstream Gitoxide
+  `gix/src/repository/config/transport.rs` chooses `gitoxide.https.proxy` only
+  for original HTTPS remote URLs, and
+  `gix-transport/src/client/blocking_io/http/curl/remote.rs` applies redirect
+  effective URLs without reselecting proxy fallback options.
+- Native PHP delta: `SmartHttpReceivePackTransport` now uses the effective
+  redirected URL for cookies, TLS, and no-proxy host checks, but uses the
+  original logical request URL for `proxy`/`httpsProxy`/`allProxy` fallback
+  selection. The WordPress proxy credential fixture/example proves an
+  HTTP-origin discovery request that safely upgrades to HTTPS stays direct when
+  only `httpsProxy` is configured, while preserving the redirect cookie into
+  discovery retry and receive-pack POST.
+- Verification: red-first focused `ReceivePackTransportTest.php` failed with
+  `1 file / 727 assertions / 1 failure` because the proxy helper was called
+  twice after the HTTPS upgrade. After implementation, focused
+  `ReceivePackTransportTest.php` passed `1 file / 814 assertions / 0
+  failures`, and full Gitoxide lane verification passed `40 files / 7610
+  assertions / 0 failures`. Changed PHP lint, example smoke, JSON parse, and
+  `git diff --check -- lanes/gitoxide` passed. Full Cargo workspace runner was
+  not executed.
+- Expected mapped denominator movement: `1748 / 2886` to `1749 / 2886`.

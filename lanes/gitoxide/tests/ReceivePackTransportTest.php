@@ -656,13 +656,60 @@ return [
         $t->same('GET', $requests[0]['method']);
         $t->same('https://git.example.test/wp-content.git/info/refs?service=git-receive-pack', $requests[0]['url']);
         $t->same('application/x-git-receive-pack-advertisement', $requests[0]['headers']['Accept']);
+        $t->same('git/oxide-port-libs', $requests[0]['headers']['User-Agent']);
+        $t->same(null, $requests[0]['headers']['Expect'] ?? null);
         $t->same(null, $requests[0]['body']);
         $t->same('POST', $requests[1]['method']);
         $t->same('https://git.example.test/wp-content.git/git-receive-pack', $requests[1]['url']);
         $t->same('application/x-git-receive-pack-request', $requests[1]['headers']['Content-Type']);
         $t->same('application/x-git-receive-pack-result', $requests[1]['headers']['Accept']);
+        $t->same('git/oxide-port-libs', $requests[1]['headers']['User-Agent']);
+        $t->same('', $requests[1]['headers']['Expect']);
         $t->same((string) strlen($request->requestBytes()), $requests[1]['headers']['Content-Length']);
         $t->same($request->requestBytes(), $requests[1]['body']);
+
+        $overrideRequests = [];
+        $overrideClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'https://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body) use (&$overrideRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $overrideRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                    ];
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                ['User-Agent' => 'wp-deploy/2', 'Expect' => '100-continue'],
+            ),
+            'port-libs/0.1'
+        );
+        $overrideSession = $overrideClient->handshake();
+        $overrideSession->createOrUpdate('refs/heads/main', $blob->oid());
+        $overrideRequest = $overrideSession->buildRequest([$blob]);
+        $overrideResponse = $overrideClient->send($overrideRequest);
+
+        $t->same(true, $overrideResponse->isSuccessful());
+        $t->same('wp-deploy/2', $overrideRequests[0]['headers']['User-Agent']);
+        $t->same('wp-deploy/2', $overrideRequests[1]['headers']['User-Agent']);
+        $t->same('', $overrideRequests[1]['headers']['Expect']);
+        $t->same($overrideRequest->requestBytes(), $overrideRequests[1]['body']);
     },
     'smart http receive-pack accepts advertisement without service announcement' => static function (TestRunner $t) use ($packet, $flush): void {
         $old = '58f4f2be1f149a49f7234f4bbd3b1b8c92a6d61a';
@@ -2582,6 +2629,80 @@ return [
         $t->same(0, $httpsFallbackIgnoredHelperCalls);
         $t->same([], $httpsFallbackIgnoredRequests[0]);
 
+        $upgradeRedirectRequests = [];
+        $upgradeRedirectHelperCalls = 0;
+        $upgradeRedirectBlob = new GitObject('blob', 'WordPress HTTP to HTTPS upgrade proxy-cookie payload');
+        $upgradeRedirectClient = new ReceivePackClient(
+            new SmartHttpReceivePackTransport(
+                'http://git.example.test/wp-content.git',
+                static function (string $method, string $url, array $headers, ?string $body, float $timeout, array $httpOptions) use (&$upgradeRedirectRequests, $packet, $flush, $advertisement, $responseBytes): array {
+                    $upgradeRedirectRequests[] = [
+                        'method' => $method,
+                        'url' => $url,
+                        'headers' => $headers,
+                        'body' => $body,
+                        'httpOptions' => $httpOptions,
+                    ];
+
+                    if (count($upgradeRedirectRequests) === 1) {
+                        return [
+                            'status' => 302,
+                            'headers' => [
+                                'Location' => 'https://git.example.test/wp-content.git/info/refs?service=git-receive-pack',
+                                'Set-Cookie' => 'upgrade_gate=opened; Path=/',
+                            ],
+                            'body' => '',
+                        ];
+                    }
+
+                    if ($method === 'GET') {
+                        return [
+                            'status' => 200,
+                            'headers' => ['Content-Type' => 'application/x-git-receive-pack-advertisement'],
+                            'body' => $packet("# service=git-receive-pack\n") . $flush . $advertisement,
+                        ];
+                    }
+
+                    return [
+                        'status' => 200,
+                        'headers' => ['Content-Type' => 'application/x-git-receive-pack-result'],
+                        'body' => $responseBytes,
+                    ];
+                },
+                [],
+                30.0,
+                [],
+                [
+                    'httpsProxy' => 'http://https-proxy.example.test:9443',
+                    'proxyCredentialHelper' => static function () use (&$upgradeRedirectHelperCalls): array {
+                        $upgradeRedirectHelperCalls++;
+
+                        return ['username' => 'upgrade-proxy-user', 'password' => 'upgrade-proxy-pass'];
+                    },
+                ]
+            ),
+            'port-libs/0.1'
+        );
+        $upgradeRedirectSession = $upgradeRedirectClient->handshake();
+        $upgradeRedirectSession->createOrUpdate('refs/heads/main', $upgradeRedirectBlob->oid());
+        $upgradeRedirectRequest = $upgradeRedirectSession->buildRequest([$upgradeRedirectBlob]);
+
+        $upgradeRedirectResponse = $upgradeRedirectClient->send($upgradeRedirectRequest);
+
+        $t->same(true, $upgradeRedirectResponse->isSuccessful());
+        $t->same(['GET', 'GET', 'POST'], array_column($upgradeRedirectRequests, 'method'));
+        $t->same([
+            'http://git.example.test/wp-content.git/info/refs?service=git-receive-pack',
+            'https://git.example.test/wp-content.git/info/refs?service=git-receive-pack',
+            'https://git.example.test/wp-content.git/git-receive-pack',
+        ], array_column($upgradeRedirectRequests, 'url'));
+        $t->same(0, $upgradeRedirectHelperCalls);
+        $t->same([[], [], []], array_column($upgradeRedirectRequests, 'httpOptions'));
+        $t->same(null, $upgradeRedirectRequests[0]['headers']['Cookie'] ?? null);
+        $t->same('upgrade_gate=opened', $upgradeRedirectRequests[1]['headers']['Cookie']);
+        $t->same('upgrade_gate=opened', $upgradeRedirectRequests[2]['headers']['Cookie']);
+        $t->same($upgradeRedirectRequest->requestBytes(), $upgradeRedirectRequests[2]['body']);
+
         $primaryProxyRequests = [];
         $primaryProxyTransport = new SmartHttpReceivePackTransport(
             'https://git.example.test/wp-content.git',
@@ -3632,6 +3753,19 @@ return [
             'path' => '/wp-content.git',
         ], SshReceivePackTransport::parseRepositoryUrl('ssh://deploy@git.example.test:tenant/wp-content.git'));
         $t->same([
+            'host' => 'host.xz',
+            'user' => null,
+            'port' => 21,
+            'path' => '/',
+        ], SshReceivePackTransport::parseRepositoryUrl('ssh://host.xz:21/'));
+        $rootPathContext = SshReceivePackTransport::connectorContext('ssh://host.xz:21/', ['protocolVersion' => 2]);
+        $t->same("git-receive-pack '/'", $rootPathContext['command']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p21', 'host.xz'], $rootPathContext['sshArguments']);
+        $t->same("path=\nprotocol=ssh\nhost=host.xz:21\n", $rootPathContext['credentialContext']->storageBytes());
+        $authorityBoundaryTarget = SshReceivePackTransport::parseRepositoryUrl('ssh://' . str_repeat('h', 1024) . '/wp-content.git');
+        $t->same(str_repeat('h', 1024), $authorityBoundaryTarget['host']);
+        $t->same('/wp-content.git', $authorityBoundaryTarget['path']);
+        $t->same([
             'host' => '-git-proxy.example.test',
             'user' => 'deploy',
             'port' => null,
@@ -3668,6 +3802,7 @@ return [
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://-oProxyCommand=open$IFS-aCalculator/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://-deploy@example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://host.xz:65536/path'));
+        $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://' . str_repeat('h', 1025) . '/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://bad%20host.example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('ssh://bad%2fhost.example.test/repo.git'));
         $t->throws(InvalidArgumentException::class, static fn () => SshReceivePackTransport::parseRepositoryUrl('bad user@example.test:repo.git'));
@@ -3756,6 +3891,13 @@ return [
         $t->same(true, $fixture['unsafeSmartHttpRawProxyControlByteRejected']);
         $t->same(true, $fixture['smartHttpAdvertisementWithoutServiceHeaderAccepted']);
         $t->same(true, $fixture['smartHttpDuplicateContentTypeAccepted']);
+        $t->same('git/oxide-port-libs', $fixture['smartHttpHeaderBoundary']['defaultGetUserAgent']);
+        $t->same(null, $fixture['smartHttpHeaderBoundary']['defaultGetExpectHeader']);
+        $t->same('wp-deploy/2', $fixture['smartHttpHeaderBoundary']['overrideGetUserAgent']);
+        $t->same('wp-deploy/2', $fixture['smartHttpHeaderBoundary']['overridePostUserAgent']);
+        $t->same('', $fixture['smartHttpHeaderBoundary']['overridePostExpectHeader']);
+        $t->same(true, $fixture['smartHttpHeaderBoundary']['overridePostBodyPreserved']);
+        $t->same(true, $fixture['smartHttpHeaderBoundary']['responseSuccessful']);
         $t->same(true, $fixture['advertisementErrorReported']);
         $t->same(true, $fixture['oversizeAdvertisementRejected']);
         $t->same(true, $fixture['unsafeSshHostDelimiterRejected']);
@@ -3769,7 +3911,11 @@ return [
         $t->same('git.example.test:tenant', $fixture['sshNonNumericPortTarget']['host']);
         $t->same(null, $fixture['sshNonNumericPortTarget']['port']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@git.example.test:tenant'], $fixture['sshNonNumericPortContext']['sshArguments']);
+        $t->same('/', $fixture['sshRootPathTarget']['path']);
+        $t->same("git-receive-pack '/'", $fixture['sshRootPathContext']['command']);
+        $t->same(['-o', 'SendEnv=GIT_PROTOCOL', '-p21', 'host.xz'], $fixture['sshRootPathContext']['sshArguments']);
         $t->same(true, $fixture['unsafeSshNumericPortOverflowRejected']);
+        $t->same(true, $fixture['unsafeSshAuthorityTooLongRejected']);
         $t->same('-git-proxy.example.test', $fixture['sshOptionLikeHostWithUserTarget']['host']);
         $t->same(['-o', 'SendEnv=GIT_PROTOCOL', 'deploy@-git-proxy.example.test'], $fixture['sshOptionLikeHostWithUserContext']['sshArguments']);
         $t->same('user@name', $fixture['sshScpLikeAtUserTarget']['user']);
@@ -3887,6 +4033,20 @@ return [
         $t->same(2, $summary['httpsProxyFallbackHelperCalls']);
         $t->same($fixture['httpsProxyFallbackAuthorizationSent'], $summary['httpsProxyFallbackAuthorizationSent']);
         $t->same($fixture['httpsProxyFallbackPostCookieHeader'], $summary['httpsProxyFallbackPostCookieHeader']);
+        $t->same(true, $fixture['upgradeRedirectResponseSuccessful']);
+        $t->same(false, $fixture['upgradeRedirectUsedHttpsProxy']);
+        $t->same(0, $fixture['upgradeRedirectHelperCalls']);
+        $t->same([
+            'http://git.example.test/wp-content.git/info/refs?service=git-receive-pack',
+            'https://git.example.test/wp-content.git/info/refs?service=git-receive-pack',
+            'https://git.example.test/wp-content.git/git-receive-pack',
+        ], $fixture['upgradeRedirectRequestUrls']);
+        $t->same('upgrade_gate=opened', $fixture['upgradeRedirectPostCookieHeader']);
+        $t->same(false, $summary['upgradeRedirectUsedHttpsProxy']);
+        $t->same(0, $summary['upgradeRedirectHelperCalls']);
+        $t->same($fixture['upgradeRedirectRequestUrls'], $summary['upgradeRedirectRequestUrls']);
+        $t->same($fixture['upgradeRedirectPostCookieHeader'], $summary['upgradeRedirectPostCookieHeader']);
+        $t->same(true, $summary['upgradeRedirectResponseSuccessful']);
         $t->same([['http://stale-user:stale-pass@wp-proxy.example.test:8080', 'git.example.test']], $fixture['urlCredentialProxyHelperCalls']);
         $t->same('http://wp-proxy.example.test:8080', $fixture['urlCredentialProxyUrl']);
         $t->same('Basic ' . base64_encode('helper-proxy-user:helper-proxy-pass'), $fixture['urlCredentialProxyAuthorizationSent']);
