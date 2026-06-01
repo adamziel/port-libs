@@ -1,10 +1,10 @@
 {
-    "generated": "2026-06-01 20:33:55 UTC",
-    "sourceCommit": "e2b02d2d5304c46c730fddbe3ec15ab5d972bb4a",
-    "sourceCommitShort": "e2b02d2d5304",
+    "generated": "2026-06-01 20:36:27 UTC",
+    "sourceCommit": "e5958190df2330cffebd6fa0ad27e101220ed859",
+    "sourceCommitShort": "e5958190df23",
     "sourceBranch": "unknown",
-    "dashboardCommit": "e2b02d2d5304c46c730fddbe3ec15ab5d972bb4a",
-    "dashboardCommitShort": "e2b02d2d5304",
+    "dashboardCommit": "e5958190df2330cffebd6fa0ad27e101220ed859",
+    "dashboardCommitShort": "e5958190df23",
     "averageProgressPercent": "88.8",
     "lanes": [
         {
@@ -68,13 +68,13 @@
             "coverage": "1,818 / 2,886 (63.0%)",
             "mapPercent": "63.0%",
             "unmapped": "1,068",
-            "php": "10,758 pass / 0 fail",
+            "php": "10,761 pass / 0 fail",
             "phase": "current-base source integration accepted by supervisor with full lane...",
-            "audit": "2026-06-01 20:24 UTC supervisor integration: source commit 0de17c607f...",
-            "currentWork": "Credential helper context URL boundary parity, partial-clone promisor malformed boole...",
+            "audit": "2026-06-01 20:36 UTC supervisor integration: source commit e5958190df...",
+            "currentWork": "Merge-base commit-graph zero-generation parity, credential helper context URL boundar...",
             "nextTarget": "Keep Gitoxide workers on current-base loose object, tree/path...",
             "remainingGate": "Cargo workspace not run",
-            "commit": "0de17c6"
+            "commit": "e595819"
         },
         {
             "lane": "readability",
