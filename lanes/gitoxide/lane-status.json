@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "library": "gitoxide",
   "estimatedProgress": 91.8,
-  "suiteProgress": "Supervisor-integrated Gitoxide reference transaction reflog-delete write-mode, pack-index/MIDX full and missing prefix lookup, and rename-rename-delete-delete tree-merge resolve-tree parity. Verification passed git diff --check, PHP lint on 32 changed/new PHP files, full Gitoxide lane 40 files / 6720 assertions / 0 failures, and touched Gitoxide examples.",
-  "phpPass": 6720,
+  "suiteProgress": "Supervisor-integrated Gitoxide partial-clone promisor direct inventory refresh. Verification passed git diff --check, PHP lint on 6 changed/new PHP files, full Gitoxide lane 40 files / 6732 assertions / 0 failures, and touched Gitoxide example smoke.",
+  "phpPass": 6732,
   "phpFail": 0,
   "wordpressScenarios": "Git-backed deployment/review workflows for WordPress and Playground now cover object/pack parsing, loose-object integrity, pack indexes and multi-pack indexes with SHA-1/SHA-256 prefix disambiguation, commit/tree/tag parsing and writing, refs/reflogs/reference transactions, config includeIf deployment conditions, attributes/pathspec filtering, sparse checkout, partial clone/promisor hydration, credential helpers, receive-pack/send-pack transport and status parsing, smart HTTP proxy/TLS/SOCKS boundaries, merge-base/tree-merge behavior, and pack building without shelling out to git.",
   "phase": "current-base source integration accepted by supervisor with full lane PHP evidence; upstream full Cargo runner not executed for isolated batch",
-  "audit": "2026-06-01 supervisor batch: full Gitoxide lane passed 40 files / 6720 assertions / 0 failures. Conservative mapped coverage moves from 1693 / 2886 to 1696 / 2886 for prepared reflog-only delete write-mode behavior, pack/MIDX full and missing prefix candidate parity, and rename-rename-delete-delete resolve-tree fixture behavior. Full upstream Cargo workspace was not executed.",
-  "currentWork": "Reference transaction delete/write-mode reflog semantics, pack-index/MIDX prefix lookup boundaries, and rename-rename-delete-delete tree-merge resolve-tree behavior integrated on current base.",
-  "blocker": "Full upstream Cargo workspace remains unexecuted. Native PHP full-lane evidence is green at 6720 assertions; keep bounded Gitoxide workers on config/include, credential, object database, transport, tree/pathspec, partial-clone, and protocol slices.",
-  "latestCommit": "e899fc4a21fdb01ae8459804f624b30e40cbd9f5",
+  "audit": "2026-06-01 supervisor batch: full Gitoxide lane passed 40 files / 6732 assertions / 0 failures. Partial-clone promisor direct inventory refresh deepens the represented partial-clone/promisor cluster; conservative mapped coverage remains 1696 / 2886. Full upstream Cargo workspace was not executed.",
+  "currentWork": "Partial-clone promisor direct inventory refresh across direct packs, MIDX-backed packs, and lazy promisor hydration integrated on current base.",
+  "blocker": "Full upstream Cargo workspace remains unexecuted. Native PHP full-lane evidence is green at 6732 assertions; keep bounded Gitoxide workers on config/include, credential, object database, transport, tree/pathspec, partial-clone, and protocol slices.",
+  "latestCommit": "0a316bc194ecf0fb6f9cc5c3bd4ad7fee7647d6e",
   "nextTask": "Keep three Gitoxide workers on current-base non-overlapping protocol, pack/object, reference transaction, config/include, credential, transport, tree/pathspec, sparse-checkout, URL/refspec, and merge-base slices with full-lane PHP gates after each accepted batch.",
-  "commit": "e899fc4a21fdb01ae8459804f624b30e40cbd9f5"
+  "commit": "0a316bc194ecf0fb6f9cc5c3bd4ad7fee7647d6e"
 }
