@@ -142,11 +142,11 @@ $projectState = static function (string $lane, float $progress, int $phpFail, st
     }
 
     if ($phpFail > 0) {
-        return number_format($phpFail) . ' failures open';
+        return number_format($phpFail) . ' open failures';
     }
 
     if ($progress >= 99.0 && (str_contains($normalizedBlocker, 'not run') || str_contains($normalizedBlocker, 'upstream'))) {
-        return 'PHP green; upstream gap';
+        return 'PHP green, upstream gap';
     }
 
     if ($progress >= 99.0) {
@@ -171,6 +171,10 @@ $queueState = static function (string $lane): string {
         'dolt' => 'Parked',
         default => 'Backlog',
     };
+};
+
+$mapSummary = static function (string $mapped, string $denominator) use ($formatCount): string {
+    return $formatCount($mapped) . ' mapped / ' . $formatCount($denominator) . ' upstream';
 };
 
 $rows = [];
@@ -215,6 +219,7 @@ foreach ($laneDirs as $dir) {
         'lane' => $lane,
         'order' => $displayOrder[$lane] ?? 50,
         'library' => $library,
+        'priority' => $queueState($lane),
         'queue' => $queueState($lane),
         'state' => $projectState($lane, $progress, $phpFail, $blocker),
         'progressPercent' => number_format($progress, 1),
@@ -222,11 +227,11 @@ foreach ($laneDirs as $dir) {
         'benchmark' => $shorten($manifestStatus, 72),
         'denominator' => $denominator,
         'mapped' => $mapped,
-        'coverage' => $formatCount($mapped) . ' / ' . $formatCount($denominator),
+        'coverage' => $mapSummary($mapped, $denominator),
         'php' => $formatCount($phpPass) . ' pass / ' . $formatCount($phpFail) . ' fail',
         'phase' => $shorten($stringValue($status['phase'] ?? null, 'planning'), 72),
         'audit' => $shorten($stringValue($status['audit'] ?? null, 'not started'), 72),
-        'currentWork' => $shorten($currentWork, 116),
+        'currentWork' => $shorten($firstSentence($currentWork), 88),
         'nextTarget' => $shorten($nextTask, 64),
         'remainingGate' => $lane === 'dolt' ? 'Parked' : $shorten($blockerSummary($blocker), 72),
         'commit' => $shortCommit($stringValue($status['latestCommit'] ?? null, 'none')),
@@ -259,11 +264,11 @@ $htmlRows = '';
 foreach ($rows as $row) {
     $htmlRows .= '<tr>'
         . '<th scope="row"><a href="' . $escape($row['statusPath']) . '">' . $escape($row['library']) . '</a></th>'
-        . '<td>' . $escape($row['queue']) . '</td>'
+        . '<td>' . $escape($row['priority']) . '</td>'
         . '<td>' . $escape($row['state']) . '</td>'
         . '<td class="num">' . $escape($row['progressPercent']) . '%</td>'
         . '<td class="num">' . $escape($row['php']) . '</td>'
-        . '<td class="num"><a href="' . $escape($row['manifestPath']) . '">' . $escape($row['coverage']) . '</a></td>'
+        . '<td><a href="' . $escape($row['manifestPath']) . '">' . $escape($row['coverage']) . '</a></td>'
         . '<td>' . $escape($row['currentWork']) . '</td>'
         . '<td>' . $escape($row['remainingGate']) . '</td>'
         . '<td class="commit">' . $escape($row['commit']) . '</td>'
@@ -282,8 +287,8 @@ $html = <<<HTML
     body { margin: 0; padding: 16px; background: Canvas; color: CanvasText; }
     a { color: LinkText; }
     .table-wrap { overflow-x: auto; }
-    table { width: 100%; min-width: 1080px; border-collapse: collapse; font-size: 13px; line-height: 1.32; }
-    th, td { border: 1px solid color-mix(in srgb, CanvasText 16%, Canvas); padding: 7px 8px; text-align: left; vertical-align: top; }
+    table { width: 100%; min-width: 960px; border-collapse: collapse; font-size: 13px; line-height: 1.3; }
+    th, td { border: 1px solid color-mix(in srgb, CanvasText 16%, Canvas); padding: 6px 8px; text-align: left; vertical-align: top; }
     thead th { background: color-mix(in srgb, CanvasText 8%, Canvas); position: sticky; top: 0; }
     tbody th { background: color-mix(in srgb, CanvasText 3%, Canvas); white-space: nowrap; }
     .num { white-space: nowrap; text-align: right; }
@@ -297,13 +302,13 @@ $html = <<<HTML
       <thead>
         <tr>
           <th>Project</th>
-          <th>Queue</th>
-          <th>State</th>
+          <th>Priority</th>
+          <th>Status</th>
           <th>Progress</th>
           <th>PHP Tests</th>
-          <th>Mapped</th>
-          <th>Current Focus</th>
-          <th>Remaining Gate</th>
+          <th>Upstream Map</th>
+          <th>Focus</th>
+          <th>Open Gate</th>
           <th>Commit</th>
         </tr>
       </thead>
@@ -326,7 +331,7 @@ $progressRows = '';
 foreach ($rows as $row) {
     $progressRows .= '| '
         . '[' . $markdownCell($row['library']) . '](' . $row['statusPath'] . ') | '
-        . $markdownCell($row['queue']) . ' | '
+        . $markdownCell($row['priority']) . ' | '
         . $markdownCell($row['state']) . ' | '
         . $markdownCell($row['progressPercent'] . '%') . ' | '
         . $markdownCell($row['php']) . ' | '
@@ -337,8 +342,8 @@ foreach ($rows as $row) {
 }
 
 $progressMd = <<<MD
-| Project | Queue | State | Progress | PHP Tests | Mapped | Current Focus | Remaining Gate | Commit |
-| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- |
+| Project | Priority | Status | Progress | PHP Tests | Upstream Map | Focus | Open Gate | Commit |
+| --- | --- | --- | ---: | ---: | --- | --- | --- | --- |
 {$progressRows}
 MD;
 
