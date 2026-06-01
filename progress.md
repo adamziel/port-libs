@@ -46,14 +46,37 @@
 - Root filesystem: current supervisor sample reports `/` at 452G size with about 367G available after bounded cache/log/worktree cleanup; `/tmp` has about 9.2G available. Preserve dirty work and use bounded cleanup/refill only.
 - Current launch mode: visible supervised `main` tmux session with serialized
   source-moving integration and dashboard publication. The active pool is
-  capped at 11 visible development windows: 6 LightningCSS, 3 Gitoxide, and 2
-  SQLite closure workers. The latest refills started workers on `gpt-5.5`
-  xhigh with the priority service tier; the latest process sample found no
-  real `sleep 900` or `Sleeping 900` workers. One stale completed Codex UI
-  window (`main:13`) was pruned at 21:00 UTC and the missing Gitoxide slot was
-  refilled immediately.
+  capped at 11 visible development windows: 5 LightningCSS, 3 Gitoxide, and 3
+  libsqlite workers. The latest refills started workers on `gpt-5.5` xhigh
+  with the priority service tier; the latest process sample found no real
+  `sleep 900` or `Sleeping 900` workers. The active-session audit found one
+  tmux session (`main`); the stale `port-*` session pruner killed `0`
+  sessions and completed handoff windows were closed/refilled by lane refills.
 
 ## Current Coordination Snapshot
+
+- 2026-06-01 supervisor continuation (AO cleanup and fourteenth replay intake
+  04:46 UTC): audited the active-session concern and confirmed there is only
+  one tmux session (`main`). `scripts/prune-stale-tmux-sessions.sh` killed `0`
+  stale `port-*` sessions; the audit tool now counts visible `port-dev-*`
+  windows correctly. Refilled to 11 visible isolated `gpt-5.5` xhigh priority
+  workers: 5 LightningCSS, 3 Gitoxide, and 3 libsqlite, with 0 long sleepers.
+  Accepted 7 source-changing handoffs as source commit
+  `391077a12eb3ab99674d98e92c768ba39f963117f` (`ports: integrate tree url
+  css media and sqlite cleanup`). The batch adds Gitoxide tree/pathspec
+  prefixed nil and URL/refspec alternate serialization parity; LightningCSS
+  bundle/import graph layer diagnostics, media-query range/layer empty-list
+  handling, and source-map VLQ negative-offset child-map merge coverage; and
+  libsqlite source-neutral DML trigger/upsert/RETURNING defaults plus real
+  upstream expression-affinity `in.test` RHS coverage. Verification passed
+  PHP lint on 27 changed/new PHP files, `git diff --check`, full Gitoxide `40
+  files / 7370 assertions / 0 failures`, full LightningCSS `13 files / 5978
+  assertions / 0 failures`, focused libsqlite `5 files / 6217 assertions / 0
+  failures`, touched examples, and no new WordPress/wp_/numbered
+  `CurrentSourceNext` strings in changed libsqlite source. Dashboard status
+  should report Gitoxide `1733 / 2886` mapped and `7370 pass / 0 fail`,
+  LightningCSS `2336 / 3532` mapped and `5978 pass / 0 fail`, and libsqlite
+  `1589 / 1589` mapped with `5478060 pass / 7 fail`.
 
 - 2026-06-01 supervisor continuation (thirteenth replay intake 04:30 UTC):
   accepted 9 source-changing handoffs as source commit
