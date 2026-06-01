@@ -56,6 +56,8 @@ final class DeclarationBlock
 
     private const CSS_WIDE_KEYWORDS = ['initial', 'inherit', 'unset', 'revert', 'revert-layer'];
 
+    private const ALPHA_VALUE_PROPERTIES = ['opacity', 'fill-opacity', 'stroke-opacity'];
+
     private const BACKGROUND_LONGHANDS = [
         'background-color',
         'background-image',
@@ -12987,6 +12989,10 @@ final class DeclarationBlock
             }
         }
 
+        if (in_array($property, self::ALPHA_VALUE_PROPERTIES, true)) {
+            return $this->normalizeAlphaValue($value);
+        }
+
         if ($property === 'border-spacing') {
             return $this->normalizeBorderSpacingValue($value);
         }
@@ -13058,6 +13064,21 @@ final class DeclarationBlock
         }
 
         return ($negative ? '-' : '') . $number;
+    }
+
+    private function normalizeAlphaValue(string $value): string
+    {
+        $value = trim($value);
+
+        if (preg_match('/^([+-]?(?:\d+|\d*\.\d+))%$/', $value, $matches) === 1) {
+            return $this->normalizeCssNumberLiteral((string) (((float) $matches[1]) / 100));
+        }
+
+        if (preg_match('/^[+-]?(?:\d+|\d*\.\d+)$/', $value) === 1) {
+            return $this->normalizeCssNumberLiteral($value);
+        }
+
+        return $value;
     }
 
     private function normalizeDeclarationPropertyName(string $property): string

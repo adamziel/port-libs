@@ -35,7 +35,11 @@ return [
     'sshTortoisePlinkArguments' => $fixture['sshTortoisePlinkContext']['sshArguments'],
     'sshSimpleArguments' => $fixture['sshSimpleContext']['sshArguments'],
     'sshShellScriptUsesShell' => $fixture['sshShellScriptContext']['useShell'],
+    'sshShellScriptFeatureProbe' => $fixture['sshShellScriptContext']['sshFeatureProbe'],
     'sshDisallowShellUsesShell' => $fixture['sshDisallowShellContext']['useShell'],
+    'sshDisallowShellFeatureProbe' => $fixture['sshDisallowShellContext']['sshFeatureProbe'],
+    'sshExplicitSimpleFeatureProbe' => $fixture['sshExplicitSimpleNoFeatureProbeContext']['sshFeatureProbe'],
+    'sshExplicitKindOptionLikeHostArguments' => $fixture['sshExplicitKindOptionLikeHostContext']['sshArguments'],
     'sshSimplePortRejected' => $fixture['sshSimplePortRejected'],
     'sshCredentialContext' => $fixture['sshProtocolV2Context']['redactedCredentialContext'],
     'sshAuthenticationBoundary' => $fixture['sshProtocolV2Context']['authenticationBoundary'],
@@ -75,4 +79,5 @@ return [
     'unsafeSshEncodedUserDelimiterRejected' => $fixture['unsafeSshEncodedUserDelimiterRejected'],
     'unsafeSshPasswordRejected' => $fixture['unsafeSshPasswordRejected'],
     'unsafeSshLegacyHostRejected' => $fixture['unsafeSshLegacyHostRejected'],
+    'unsafeSshFeatureProbeHostRejected' => $fixture['unsafeSshFeatureProbeHostRejected'],
 ];

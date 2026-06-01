@@ -839,6 +839,50 @@ CSS,
             ])
         );
     },
+    'css bundler rejects malformed import condition tails before resolver reads' => static function (TestRunner $t): void {
+        $assertMalformedImportCondition = static function (string $css, string $message) use ($t): void {
+            $reads = [];
+            try {
+                (new CssBundler())->bundleWithReader('/entry.css', static function (string $file) use (&$reads, $css): string {
+                    $reads[] = $file;
+
+                    return $file === '/entry.css' ? $css : '.bad { color: red }';
+                });
+            } catch (CssBundleException $exception) {
+                $t->same('parser-error', $exception->kind);
+                $t->same($message, $exception->getMessage());
+                $t->same('/entry.css', $exception->sourceFile);
+                $t->same(1, $exception->sourceLine);
+                $t->same(1, $exception->sourceColumn);
+                $t->same(['/entry.css'], $reads);
+
+                return;
+            }
+
+            throw new RuntimeException('Expected malformed @import condition exception');
+        };
+
+        $assertMalformedImportCondition(
+            '@import "tokens.css" screen and;',
+            'Media query boolean operator must be followed by a condition'
+        );
+        $assertMalformedImportCondition(
+            '@import "tokens.css" (width > 1px;',
+            'Media query contains unbalanced parentheses'
+        );
+        $assertMalformedImportCondition(
+            '@import "tokens.css" unknown(foo);',
+            'Unknown media query condition function: unknown(foo)'
+        );
+        $assertMalformedImportCondition(
+            '@import "tokens.css" layer(theme.tokens',
+            'CSS contains an unbalanced () pair'
+        );
+        $assertMalformedImportCondition(
+            '@import "tokens.css" supports(display: grid',
+            'CSS contains an unbalanced () pair'
+        );
+    },
     'css bundler combines nested media conditions across import graph' => static function (TestRunner $t) use ($bundle): void {
         $t->same(
             '@media print and (color){.c{color:green}}@media print{.b{color:#ff0}}.a{color:red}',

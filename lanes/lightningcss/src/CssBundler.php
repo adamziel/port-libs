@@ -1024,7 +1024,11 @@ final class CssBundler
         $layerOpen = $this->cssFunctionOpenOffset($rest, $offset, 'layer');
         if ($layerOpen !== null) {
             $open = $layerOpen;
-            $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
+            try {
+                $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
+            } catch (CssBundleException $exception) {
+                throw new CssBundleException('parser-error', $exception->getMessage(), $file, $loc['line'], $loc['column']);
+            }
             $layer = trim(substr($rest, $open + 1, $close - $open - 1));
             $this->validateImportLayerName($layer, $file, $loc);
             $offset = $close + 1;
@@ -1041,7 +1045,11 @@ final class CssBundler
         $supportsOpen = $this->cssFunctionOpenOffset($rest, $offset, 'supports');
         if ($supportsOpen !== null) {
             $open = $supportsOpen;
-            $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
+            try {
+                $close = $this->findMatchingDelimiter($rest, $open, '(', ')');
+            } catch (CssBundleException $exception) {
+                throw new CssBundleException('parser-error', $exception->getMessage(), $file, $loc['line'], $loc['column']);
+            }
             $supports = trim(substr($rest, $open + 1, $close - $open - 1));
             $offset = $close + 1;
             $offset = $this->skipWhitespaceAndComments($rest, $offset);
@@ -1049,6 +1057,7 @@ final class CssBundler
 
         if ($offset < strlen($rest)) {
             $media = trim(substr($rest, $offset));
+            $this->validateImportMediaQueryList($media, $file, $loc);
         }
 
         return [
@@ -1083,6 +1092,22 @@ final class CssBundler
         $this->validateUnquotedImportUrlSource($specifier, $file, $loc);
 
         return $this->decodeCssEscapes($specifier);
+    }
+
+    /**
+     * @param array{line:int,column:int} $loc
+     */
+    private function validateImportMediaQueryList(string $media, string $file, array $loc): void
+    {
+        if (trim($media) === '') {
+            return;
+        }
+
+        try {
+            (new MediaQueryParser())->minifyList($media, true);
+        } catch (\InvalidArgumentException $exception) {
+            throw new CssBundleException('parser-error', $exception->getMessage(), $file, $loc['line'], $loc['column']);
+        }
     }
 
     /**

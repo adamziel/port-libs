@@ -995,6 +995,31 @@ return [
         $map->offsetLines(2, -1);
         $t->same('AAAA', $map->writeVlq());
     },
+    'source map keeps empty generated-line spans after draining the only mapping line' => static function (TestRunner $t): void {
+        $map = new SourceMap();
+        $sourceIndex = $map->addSource('empty-span.css');
+        $map->setSourceContent($sourceIndex, ".drained{}\n");
+        $map->addMapping(2, 0, $sourceIndex, 2, 0, 'drained-rule');
+
+        $map->offsetLines(3, 2);
+        $t->same(';;AAEAA;;', $map->writeVlq());
+        $t->same([2], array_column(SourceMap::decodeVlq($map->writeVlq()), 'generatedLine'));
+        $t->same(['drained-rule'], $map->toArray(null, false)['names']);
+
+        $map->offsetLines(3, -1);
+        $roundTrip = SourceMap::fromBuffer('/', $map->toBuffer());
+
+        $t->same(';;;', $map->writeVlq());
+        $t->same([], $map->getMappings());
+        $t->same(['empty-span.css'], $map->getSources());
+        $t->same([".drained{}\n"], $map->getSourcesContent());
+        $t->same(['drained-rule'], $map->getNames());
+        $t->same(null, $map->findClosestMapping(2, 0));
+        $t->same(';;;', $roundTrip->writeVlq());
+
+        $map->offsetLines(4, -1);
+        $t->same(';;', $map->writeVlq());
+    },
     'source map replaces parent mappings with empty child lines from nested maps' => static function (TestRunner $t): void {
         $parent = new SourceMap();
         $entry = $parent->addSource('entry.css');

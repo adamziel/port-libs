@@ -144,3 +144,48 @@ No new support component is needed. The slice reuses native PHP reference-store,
 ## Non-Overlap
 
 This does not repeat prepared unchanged object no-op handling, prepared symbolic ExistingMustMatch clone accommodation, dereferenced symbolic update/delete splits, prepared delete/reflog-only behavior, packed-lock collision handling, packed-ref peeled transaction work, sparse-checkout, pathspec, URL/refspec, merge-base, object, pack, or transport slices. It is bounded to store-level reflog write-mode parity for prepared dereferenced reference transactions.
+
+---
+
+Slice: `gitoxide-reference-transaction-lock-reflog-parity-20260531T235807Z`
+
+Base accepted HEAD: `0e78c232d5f671d5140ddac2287b4ff3c85d5779`
+
+## Upstream Source Truth
+
+- Re-read pinned upstream `gix-ref/src/store/file/transaction/prepare.rs`.
+- Re-read pinned upstream `gix-ref/src/store/file/transaction/commit.rs`.
+- Re-read pinned upstream `gix-ref/tests/refs/file/transaction/prepare_and_commit/create_or_update/mod.rs`.
+- Mapped upstream `write_reference_to_which_head_points_to_does_not_update_heads_reflog_even_though_it_should`: a prepared update to the object ref that symbolic `HEAD` points to writes only that referent's reflog and intentionally leaves `HEAD` reflog unchanged.
+
+## Mapped Behavior
+
+- Prepared direct referent updates stage and publish the referent lock file without creating any `HEAD.lock`.
+- The referent branch reflog receives the object transition, including the existing object id inferred during prepare.
+- The symbolic `HEAD` file remains symbolic and its existing reflog bytes remain unchanged, matching upstream gix-ref's documented current behavior.
+- The WordPress reference transaction smoke now demonstrates a production branch publish that updates only the production branch reflog while preserving HEAD audit history.
+
+## Native Changes
+
+- Added focused `ReferenceStoreTest` coverage for prepared direct-referent updates under a symbolic `HEAD`.
+- Extended `wordpress-reference-transaction.php` and its fixture with the WordPress deployment smoke for direct production referent publishing.
+- Updated `lane-status.json` with the focused/full-lane evidence and current blocker.
+
+## Verification
+
+- `php -l lanes/gitoxide/tests/ReferenceStoreTest.php`: pass.
+- `php -l lanes/gitoxide/examples/wordpress-reference-transaction.php`: pass.
+- `php -l lanes/gitoxide/fixtures/wordpress-reference-transaction.php`: pass.
+- `php tools/run-tests.php lanes/gitoxide/tests/ReferenceStoreTest.php`: `1 test files, 547 assertions, 0 failures`.
+- `php lanes/gitoxide/examples/wordpress-reference-transaction.php`: exit `0`.
+- `php tools/run-tests.php lanes/gitoxide/tests`: `40 test files, 6413 assertions, 0 failures`.
+
+Full upstream Cargo workspace tests were not run; this slice used targeted pinned upstream source reads and native PHP focused/full-lane evidence.
+
+## Dependency Closure
+
+No new support component is needed. The slice reuses native PHP reference-store, loose-reference, prepared-transaction, reflog, namespace, and WordPress reference transaction example surfaces; no shell-out, live provider, credential store, or external Git process is required.
+
+## Non-Overlap
+
+This does not repeat prepared unchanged object no-op handling, symbolic clone reflog accommodation, dereferenced symbolic write-mode behavior, prepared delete/reflog-only behavior, packed-lock collision handling, packed-ref peeled transaction work, smart HTTP/send-pack/protocol, pathspec, URL/refspec, merge-base, object, pack, or tree-merge slices. It is bounded to the upstream direct-referent update behavior where HEAD's reflog intentionally does not follow a branch update.

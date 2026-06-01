@@ -74,6 +74,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
      *     sshCommand: string,
      *     disallowShell: bool,
      *     useShell: bool,
+     *     sshFeatureProbe: array{command: string, arguments: list<string>, useShell: bool}|null,
      *     environment: array<string, string>,
      *     sshArguments: list<string>,
      *     credentialContext: CredentialContext,
@@ -355,7 +356,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param array{protocolVersion?: int, programKind?: string, sshCommand?: string, disallowShell?: bool} $options
-     * @return array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool, useShell: bool}
+     * @return array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool, useShell: bool, featureProbeRequired: bool}
      */
     private static function normalizeConnectOptions(array $options): array
     {
@@ -377,9 +378,11 @@ final class SshReceivePackTransport implements ReceivePackTransport
         $normalizedKind = $programKind === null
             ? self::programKindFromCommand($sshCommand ?? 'ssh')
             : self::normalizeProgramKind($programKind);
+        $featureProbeRequired = $programKind === null && $normalizedKind === 'simple';
 
         if ($sshCommand === null) {
             $sshCommand = self::defaultCommandForProgramKind($normalizedKind);
+            $featureProbeRequired = false;
         }
 
         $disallowShell = $options['disallowShell'] ?? false;
@@ -393,6 +396,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
             'sshCommand' => $sshCommand,
             'disallowShell' => $disallowShell,
             'useShell' => self::sshCommandUsesShell($sshCommand, $disallowShell),
+            'featureProbeRequired' => $featureProbeRequired,
         ];
     }
 
@@ -410,6 +414,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
      *     sshCommand: string,
      *     disallowShell: bool,
      *     useShell: bool,
+     *     sshFeatureProbe: array{command: string, arguments: list<string>, useShell: bool}|null,
      *     environment: array<string, string>,
      *     sshArguments: list<string>,
      *     credentialContext: CredentialContext,
@@ -419,6 +424,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
      */
     private static function connectorContextForTarget(array $target, array $options): array
     {
+        $featureProbe = self::sshFeatureProbeForTarget($target, $options);
         $credentialContext = new CredentialContext(
             protocol: 'ssh',
             host: self::authority($target['host'], $target['port']),
@@ -445,6 +451,7 @@ final class SshReceivePackTransport implements ReceivePackTransport
             'sshCommand' => $options['sshCommand'],
             'disallowShell' => $options['disallowShell'],
             'useShell' => $options['useShell'],
+            'sshFeatureProbe' => $featureProbe,
             'environment' => $environment,
             'sshArguments' => $sshArguments,
             'credentialContext' => $credentialContext,
@@ -455,7 +462,28 @@ final class SshReceivePackTransport implements ReceivePackTransport
 
     /**
      * @param array{host: string, user: ?string, port: ?int, path: string} $target
-     * @param array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool, useShell: bool} $options
+     * @param array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool, useShell: bool, featureProbeRequired: bool} $options
+     * @return array{command: string, arguments: list<string>, useShell: bool}|null
+     */
+    private static function sshFeatureProbeForTarget(array $target, array $options): ?array
+    {
+        if (!$options['featureProbeRequired']) {
+            return null;
+        }
+        if (str_starts_with($target['host'], '-')) {
+            throw new \InvalidArgumentException('SSH receive-pack host is ambiguous for SSH feature detection');
+        }
+
+        return [
+            'command' => $options['sshCommand'],
+            'arguments' => ['-G', $target['host']],
+            'useShell' => $options['useShell'],
+        ];
+    }
+
+    /**
+     * @param array{host: string, user: ?string, port: ?int, path: string} $target
+     * @param array{protocolVersion: int, programKind: string, sshCommand: string, disallowShell: bool, useShell: bool, featureProbeRequired: bool} $options
      * @return list<string>
      */
     private static function sshArgumentsForTarget(array $target, array $options): array

@@ -1777,6 +1777,90 @@ CSS;
             'foo' => $export('EgL3uq_foo', [$dependency('base', 'tokens.css')]),
         ], $disabled['exports']);
     },
+    'css modules scopes upstream position try dashed idents while preserving composes' => static function (TestRunner $t) use ($export, $dashed, $local): void {
+        $result = (new CssModulesTransformer())->transform(<<<'CSS'
+@position-try --flyout {
+  left: anchor(left);
+}
+
+.card {
+  position-try-fallbacks: --flyout;
+  composes: base;
+  color: red;
+}
+
+.base {
+  color: blue;
+}
+CSS, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('@position-try --EgL3uq_flyout{left:anchor(left)}.EgL3uq_card{position-try-fallbacks:--EgL3uq_flyout;color:red}.EgL3uq_base{color:#00f}', $result['code']);
+        $t->same([
+            '--flyout' => $dashed('--EgL3uq_flyout'),
+            'card' => $export('EgL3uq_card', [$local('EgL3uq_base')]),
+            'base' => $export('EgL3uq_base'),
+        ], $result['exports']);
+        $t->same([], $result['references']);
+
+        $fallbackList = (new CssModulesTransformer())->transform(<<<'CSS'
+.card {
+  position-try-fallbacks: --primary, --secondary flip-block, flip-inline --tertiary;
+  color: red;
+}
+CSS, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('.EgL3uq_card{position-try-fallbacks:--EgL3uq_primary,--EgL3uq_secondary flip-block,flip-inline --EgL3uq_tertiary;color:red}', $fallbackList['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            '--primary' => $dashed('--EgL3uq_primary'),
+            '--secondary' => $dashed('--EgL3uq_secondary'),
+            '--tertiary' => $dashed('--EgL3uq_tertiary'),
+        ], $fallbackList['exports']);
+
+        $supports = (new CssModulesTransformer())->transform(<<<'CSS'
+@supports (anchor-name: --menu-anchor) {
+  @position-try --menu {
+    top: anchor(bottom);
+  }
+
+  .card {
+    position-try-fallbacks: --menu;
+    color: red;
+  }
+}
+CSS, [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('@supports (anchor-name:--menu-anchor){@position-try --EgL3uq_menu{top:anchor(bottom)}.EgL3uq_card{position-try-fallbacks:--EgL3uq_menu;color:red}}', $supports['code']);
+        $t->same([
+            '--menu' => $dashed('--EgL3uq_menu'),
+            'card' => $export('EgL3uq_card'),
+        ], $supports['exports']);
+
+        $varFallback = (new CssModulesTransformer())->transform('.card { position-try-fallbacks: var(--flyout); color: red }', [
+            'dashedIdents' => true,
+        ]);
+
+        $t->same('.EgL3uq_card{position-try-fallbacks:var(--EgL3uq_flyout);color:red}', $varFallback['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+            '--flyout' => $dashed('--EgL3uq_flyout', true),
+        ], $varFallback['exports']);
+
+        $disabled = (new CssModulesTransformer())->transform('@position-try --flyout { left: anchor(left); } .card { position-try-fallbacks: --flyout; color: red }', [
+            'dashedIdents' => false,
+        ]);
+
+        $t->same('@position-try --flyout{left:anchor(left)}.EgL3uq_card{position-try-fallbacks:--flyout;color:red}', $disabled['code']);
+        $t->same([
+            'card' => $export('EgL3uq_card'),
+        ], $disabled['exports']);
+    },
     'css modules prunes upstream unused symbols while preserving surviving composes exports' => static function (TestRunner $t) use ($export, $local, $dependency): void {
         $css = <<<'CSS'
 @property --unused-accent {

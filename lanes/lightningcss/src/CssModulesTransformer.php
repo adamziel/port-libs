@@ -168,6 +168,10 @@ final class CssModulesTransformer
             return $this->rewriteViewTransitionDeclarationList($body);
         }
 
+        if (preg_match('/^@position-try\b/i', $prelude) === 1) {
+            return $this->rewritePositionTryDeclarationList($body);
+        }
+
         if ($styleNestingDepth > 0) {
             $this->assertNoNestedComposesInAtRuleDeclarations($body);
         }
@@ -191,6 +195,10 @@ final class CssModulesTransformer
 
         if ($this->dashedIdents && preg_match('/^@font-palette-values\b/i', $trimmedPrelude) === 1) {
             return $this->rewriteDashedIdentAtRulePrelude($prelude, '@font-palette-values');
+        }
+
+        if ($this->dashedIdents && preg_match('/^@position-try\b/i', $trimmedPrelude) === 1) {
+            return $this->rewriteDashedIdentAtRulePrelude($prelude, '@position-try');
         }
 
         if ($this->container && $this->customIdents && preg_match('/^@container\b/i', $trimmedPrelude) === 1) {
@@ -620,9 +628,70 @@ final class CssModulesTransformer
             'view-transition-name' => $this->rewriteViewTransitionNameValue($value),
             'view-transition-class' => $this->rewriteViewTransitionIdentList($value, ['none']),
             'view-transition-group' => $this->rewriteViewTransitionNameValue($value, ['contain']),
+            'position-try-fallbacks' => $this->dashedIdents ? $this->rewritePositionTryFallbacksValue($value) : null,
             'font-palette' => $this->dashedIdents ? $this->rewriteFontPaletteValue($value) : null,
             default => null,
         };
+    }
+
+    private function rewritePositionTryFallbacksValue(string $value): string
+    {
+        $output = '';
+        $cursor = 0;
+        $quote = null;
+        $length = strlen($value);
+
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+
+            if ($quote !== null) {
+                if ($char === '\\') {
+                    $i++;
+                    continue;
+                }
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+
+            if ($char === '/' && ($value[$i + 1] ?? '') === '*') {
+                $end = strpos($value, '*/', $i + 2);
+                if ($end === false) {
+                    throw new \InvalidArgumentException('CSS contains an unbalanced comment');
+                }
+
+                $i = $end + 1;
+                continue;
+            }
+
+            if ($this->startsWithFunctionName($value, $i, 'var') || $this->startsWithFunctionName($value, $i, 'env')) {
+                $open = $i + 3;
+                $i = $this->findMatchingParen($value, $open);
+                continue;
+            }
+
+            if ($char !== '-' || ($value[$i + 1] ?? '') !== '-') {
+                continue;
+            }
+
+            $token = $this->readCssIdentifierToken($value, $i);
+            if ($token === null || !str_starts_with($token['decoded'], '--')) {
+                continue;
+            }
+
+            $output .= substr($value, $cursor, $i - $cursor)
+                . $this->escapeCssIdentifier($this->scopeDashedIdent($token['decoded'], false));
+            $cursor = $token['end'];
+            $i = $token['end'] - 1;
+        }
+
+        return $output . substr($value, $cursor);
     }
 
     private function rewriteAnimationNameValue(string $value): string
@@ -1256,6 +1325,17 @@ final class CssModulesTransformer
         $trailingSemicolon = str_ends_with(rtrim($statement), ';') ? ';' : '';
 
         return 'types:' . $this->rewriteViewTransitionIdentList($value, ['none']) . $trailingSemicolon;
+    }
+
+    private function rewritePositionTryDeclarationList(string $body): string
+    {
+        if (str_contains($body, '{')) {
+            return $body;
+        }
+
+        $composes = [];
+
+        return $this->rewriteTrailingDeclarations($body, $composes, 1);
     }
 
     private function assertNoNestedComposesInAtRuleDeclarations(string $body): void

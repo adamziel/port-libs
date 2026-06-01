@@ -66,6 +66,40 @@ return [
         );
         $t->same($declarations, $block->removeProperty($declarations, '--BLOCK-ACCENT'));
     },
+    'declaration block normalizes upstream alpha percentages in cssom read write' => static function (TestRunner $t): void {
+        $block = new DeclarationBlock();
+        $declarations = 'opacity: 50% !important; fill-opacity: 100%; stroke-opacity: 0.2500; --opacity: 50%';
+
+        $t->same(
+            [
+                'opacity' => '.5 !important',
+                'fill-opacity' => '1',
+                'stroke-opacity' => '.25',
+                '--opacity' => '50%',
+            ],
+            $block->parse($declarations)
+        );
+        $t->same(['value' => '.5', 'important' => true], $block->getProperty($declarations, 'opacity'));
+        $t->same(['value' => '1', 'important' => false], $block->getProperty($declarations, 'fill-opacity'));
+        $t->same(['value' => '.25', 'important' => false], $block->getProperty($declarations, 'stroke-opacity'));
+        $t->same(['value' => '50%', 'important' => false], $block->getProperty($declarations, '--opacity'));
+        $t->same(
+            'fill-opacity: 1; stroke-opacity: .25; --opacity: 50%; opacity: .25',
+            $block->setProperty($declarations, 'opacity', '25%')
+        );
+        $t->same(
+            'fill-opacity: .5; stroke-opacity: .25; --opacity: 50%; opacity: .5 !important',
+            $block->setProperty($declarations, 'fill-opacity', '0.500')
+        );
+        $t->same(
+            'fill-opacity: 1; --opacity: 50%; opacity: .5 !important; stroke-opacity: 1 !important',
+            $block->setProperty($declarations, 'stroke-opacity', '100%', true)
+        );
+        $t->same(
+            'fill-opacity: 1; stroke-opacity: .25; opacity: .5 !important',
+            $block->removeProperty($declarations, '--opacity')
+        );
+    },
     'declaration block decodes escaped css property names in cssom read write' => static function (TestRunner $t): void {
         $block = new DeclarationBlock();
         $declarations = 'c\\6f lor: red !important; background-color: white; --Block\\2D Accent: blue';

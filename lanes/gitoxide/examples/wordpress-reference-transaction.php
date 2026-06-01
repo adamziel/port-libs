@@ -207,6 +207,34 @@ $preparedQuietEdits = $preparedQuiet->commit();
 $preparedQuietCleanedLocks = !is_file($preparedQuietDir . '/' . $preparedQuietPrefix . 'HEAD.lock')
     && !is_file($preparedQuietDir . '/' . $preparedQuietPrefix . $fixture['preparedQuietTargetRef'] . '.lock');
 
+$preparedReferentDir = sys_get_temp_dir() . '/port-libs-wp-ref-transaction-referent-lock-' . bin2hex(random_bytes(4));
+$preparedReferentStore = new ReferenceStore($preparedReferentDir, null, $fixture['namespace']);
+$preparedReferentPrefix = ReferenceName::expandNamespace($fixture['namespace']);
+$preparedReferentCommitter = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+$preparedReferentStore->looseStore()->writeSymbolic($preparedReferentPrefix . 'HEAD', $preparedReferentPrefix . $fixture['preparedReferentRef']);
+$preparedReferentStore->looseStore()->writeDirect($preparedReferentPrefix . $fixture['preparedReferentRef'], $fixture['productionCommit']);
+$preparedReferentStore->appendReflog(
+    'HEAD',
+    ReferenceTarget::object($fixture['reviewCommit']),
+    ReferenceTarget::object($fixture['productionCommit']),
+    $preparedReferentCommitter,
+    $fixture['preparedReferentHeadReflogMessage'],
+    true,
+);
+$preparedReferentHeadReflogBefore = $preparedReferentStore->reflogContents('HEAD');
+$preparedReferent = $preparedReferentStore->prepareLooseUpdateTransaction(
+    [$fixture['preparedReferentRef'] => ReferenceTarget::object($fixture['reviewCommit'])],
+    'sha1',
+    $preparedReferentCommitter,
+    $fixture['preparedReferentReflogMessage'],
+    false,
+    ReferenceStore::PREVIOUS_MUST_EXIST,
+);
+$preparedReferentHadLock = is_file($preparedReferentDir . '/' . $preparedReferentPrefix . $fixture['preparedReferentRef'] . '.lock');
+$preparedReferentEdits = $preparedReferent->commit();
+$preparedReferentCleanedLock = !is_file($preparedReferentDir . '/' . $preparedReferentPrefix . $fixture['preparedReferentRef'] . '.lock');
+$preparedReferentHeadReflogAfter = $preparedReferentStore->reflogContents('HEAD');
+
 return [
     'namespace' => $fixture['namespace'],
     'productionCommit' => $production->targetObjectId(),
@@ -274,5 +302,13 @@ return [
     'preparedQuietProductionCommit' => $preparedQuietStore->find($fixture['preparedQuietTargetRef'])->targetObjectId(),
     'preparedQuietHeadReflogExists' => $preparedQuietStore->reflogExists($fixture['preparedQuietHeadRef']),
     'preparedQuietProductionReflogExists' => $preparedQuietStore->reflogExists($fixture['preparedQuietTargetRef']),
+    'preparedReferentEditNames' => array_map(static fn ($edit): string => $edit->name, $preparedReferentEdits),
+    'preparedReferentHadLock' => $preparedReferentHadLock,
+    'preparedReferentCleanedLock' => $preparedReferentCleanedLock,
+    'preparedReferentHeadReflogUnchanged' => $preparedReferentHeadReflogBefore === $preparedReferentHeadReflogAfter,
+    'preparedReferentHeadContents' => file_get_contents($preparedReferentDir . '/' . $preparedReferentPrefix . 'HEAD'),
+    'preparedReferentProductionCommit' => $preparedReferentStore->find($fixture['preparedReferentRef'])->targetObjectId(),
+    'preparedReferentHeadReflog' => $preparedReferentHeadReflogAfter,
+    'preparedReferentProductionReflog' => $preparedReferentStore->reflogContents($fixture['preparedReferentRef']),
     'wordpressUse' => $fixture['wordpressUse'],
 ];

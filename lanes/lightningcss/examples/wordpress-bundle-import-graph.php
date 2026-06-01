@@ -372,6 +372,37 @@ try {
     echo 'malformed-import-source: rejected-before-read' . PHP_EOL;
 }
 
+$badImportMediaReads = [];
+try {
+    (new CssBundler())->bundleWithReader(
+        '/bad-import-media.css',
+        static function (string $file) use (&$badImportMediaReads): string {
+            $badImportMediaReads[] = $file;
+
+            return $file === '/bad-import-media.css'
+                ? '@import "blocks/card.css" screen and; .wp-site-blocks { color: red; }'
+                : '.wp-block-card { color: green; }';
+        }
+    );
+
+    fwrite(STDERR, "Expected malformed import media tail to be rejected before reading block CSS\n");
+    exit(1);
+} catch (CssBundleException $exception) {
+    if (
+        $exception->kind !== 'parser-error'
+        || $exception->getMessage() !== 'Media query boolean operator must be followed by a condition'
+        || $exception->sourceFile !== '/bad-import-media.css'
+        || $exception->sourceLine !== 1
+        || $exception->sourceColumn !== 1
+        || $badImportMediaReads !== ['/bad-import-media.css']
+    ) {
+        fwrite(STDERR, 'Unexpected malformed import media diagnostic: ' . $exception->getMessage() . PHP_EOL);
+        exit(1);
+    }
+
+    echo 'malformed-import-media: rejected-before-read' . PHP_EOL;
+}
+
 $mediaBooleanBundle = (new CssBundler())->bundle('/entry.css', [
     '/entry.css' => '@import "print.css" layer(theme.blocks) print; .entry { color: red }',
     '/print.css' => '@import "wide.css" not screen and (width >= 240px); .wp-block-query { color: blue }',

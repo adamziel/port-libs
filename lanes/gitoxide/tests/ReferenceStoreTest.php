@@ -1298,6 +1298,47 @@ return [
             }
         }
     },
+    'prepared direct referent update leaves symbolic head reflog unchanged like upstream' => static function (TestRunner $t) use ($old, $new, $other): void {
+        $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-referent-head-log-' . bin2hex(random_bytes(4));
+        $store = new ReferenceStore($dir);
+        $committer = new CommitSignature('Deploy Bot', 'deploy@example.com', '1234 +0000');
+        $store->looseStore()->writeSymbolic('HEAD', 'refs/heads/main');
+        $store->looseStore()->writeDirect('refs/heads/main', $old);
+        $store->appendReflog(
+            'HEAD',
+            ReferenceTarget::object($old),
+            ReferenceTarget::object($new),
+            $committer,
+            'checkout main',
+            true,
+        );
+        $headReflogBefore = $store->reflogContents('HEAD');
+
+        $transaction = $store->prepareLooseUpdateTransaction(
+            ['refs/heads/main' => ReferenceTarget::object($other)],
+            'sha1',
+            $committer,
+            '',
+            false,
+            ReferenceStore::PREVIOUS_MUST_EXIST,
+        );
+
+        $t->same(true, is_file($dir . '/refs/heads/main.lock'));
+
+        $edits = $transaction->commit();
+
+        $t->same(['refs/heads/main'], array_map(static fn ($edit): string => $edit->name, $edits));
+        $t->same([$old], array_map(static fn ($edit): ?string => $edit->previousTarget?->value, $edits));
+        $t->same([$other], array_map(static fn ($edit): ?string => $edit->newTarget?->value, $edits));
+        $t->same(false, is_file($dir . '/refs/heads/main.lock'));
+        $t->same("ref: refs/heads/main\n", file_get_contents($dir . '/HEAD'));
+        $t->same("{$other}\n", file_get_contents($dir . '/refs/heads/main'));
+        $t->same($headReflogBefore, $store->reflogContents('HEAD'), 'updating the referent directly does not update HEAD reflog');
+        $t->contains(
+            "{$old} {$other} Deploy Bot <deploy@example.com> 1234 +0000\n",
+            (string) $store->reflogContents('refs/heads/main'),
+        );
+    },
     'prepared reference transaction commit recovers empty reflog directory blockers' => static function (TestRunner $t) use ($old): void {
         $dir = sys_get_temp_dir() . '/port-libs-git-ref-prepare-reflog-dir-' . bin2hex(random_bytes(4));
         $store = new ReferenceStore($dir);
@@ -1639,10 +1680,19 @@ return [
         $t->same($fixture['reviewCommit'], $summary['preparedQuietProductionCommit']);
         $t->same(false, $summary['preparedQuietHeadReflogExists']);
         $t->same(false, $summary['preparedQuietProductionReflogExists']);
+        $t->same($fixture['expectedPreparedReferentEditNames'], $summary['preparedReferentEditNames']);
+        $t->same($fixture['expectedPreparedReferentHadLock'], $summary['preparedReferentHadLock']);
+        $t->same($fixture['expectedPreparedReferentCleanedLock'], $summary['preparedReferentCleanedLock']);
+        $t->same($fixture['expectedPreparedReferentHeadReflogUnchanged'], $summary['preparedReferentHeadReflogUnchanged']);
+        $t->same($fixture['expectedPreparedReferentHeadContents'], $summary['preparedReferentHeadContents']);
+        $t->same($fixture['reviewCommit'], $summary['preparedReferentProductionCommit']);
+        $t->same($fixture['expectedPreparedReferentHeadReflog'], $summary['preparedReferentHeadReflog']);
+        $t->contains($fixture['expectedPreparedReferentReflogLine'], (string) $summary['preparedReferentProductionReflog']);
         $t->contains('idempotent prepared writes', $summary['wordpressUse']);
         $t->contains('packed-ref transaction locks', $summary['wordpressUse']);
         $t->contains('clone-style symbolic review pointer', $summary['wordpressUse']);
         $t->contains('dereferenced symbolic HEAD publish', $summary['wordpressUse']);
+        $t->contains('direct production referent publish', $summary['wordpressUse']);
         $t->contains('quiet publish previews', $summary['wordpressUse']);
     },
     'wordpress deref reference transaction example updates production through symbolic head' => static function (TestRunner $t): void {

@@ -719,7 +719,7 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
      */
     private static function matchesNoProxy(string $host, array $patterns): bool
     {
-        $host = strtolower(trim($host, '[]'));
+        $host = self::normalizeNoProxyHost($host);
         foreach ($patterns as $pattern) {
             if ($pattern === '*') {
                 return true;
@@ -732,7 +732,10 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
             if (str_contains($pattern, '/') && self::cidrMatches($host, $pattern)) {
                 return true;
             }
-            $pattern = trim($pattern, '[]');
+            $pattern = self::normalizeNoProxyHost($pattern);
+            if ($pattern === '') {
+                continue;
+            }
             if (str_starts_with($pattern, '.')) {
                 if (str_ends_with($host, $pattern) || $host === substr($pattern, 1)) {
                     return true;
@@ -745,6 +748,11 @@ final class SmartHttpReceivePackTransport implements ReceivePackTransport
         }
 
         return false;
+    }
+
+    private static function normalizeNoProxyHost(string $host): string
+    {
+        return rtrim(strtolower(trim($host, '[]')), '.');
     }
 
     private static function cidrMatches(string $host, string $pattern): bool
